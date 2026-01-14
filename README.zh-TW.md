@@ -126,6 +126,19 @@ npm run desktop
 *   **Exchange Rate**: 用於即時成本估算的匯率。
 *   **Output Language**: 選擇 AI 輸出語言（繁體中文、簡體中文、英文、日文）。
 
+### GCP 配置 (OAuth)
+
+若要在桌面版 (Tauri) 中啟用 Google Cloud 相關功能（如知識庫/內容快取），您需要配置自己的 GCP OAuth 憑證：
+
+1.  **建立 GCP 專案**：前往 [Google Cloud Console](https://console.cloud.google.com/)。
+2.  **配置 OAuth 同意畫面**：設定 OAuth 同意畫面。
+3.  **建立 OAuth 2.0 用戶端 ID**：
+    *   建立一個「網頁應用程式」類型用於 Web 開發。
+    *   再建立一個「網頁應用程式」類型用於 Tauri 桌面端。
+4.  **更新環境設定檔**：
+    *   開啟 `src/environments/environment.ts` 與 `src/environments/environment.development.ts`。
+    *   填入對應的 `gcpOauthAppId`、`gcpOauthAppId_Tauri` 與 `gcpOauthClientSecret_Tauri`。
+
 ### 語系切換 (Language Switching)
 
 TextRPG 支援**動態語系切換**，無需重新啟動應用程式：

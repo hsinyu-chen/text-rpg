@@ -132,6 +132,19 @@ On first launch, configure via the Settings panel:
 *   **Exchange Rate**: For real-time cost estimation.
 *   **Output Language**: Select AI output language (Traditional Chinese, Simplified Chinese, English, Japanese).
 
+### GCP Configuration (OAuth)
+
+To enable Google Cloud features (like Knowledge Base / Context Caching) in the Desktop (Tauri) version, you must provide your own GCP OAuth credentials:
+
+1.  **Create a GCP Project**: Go to the [Google Cloud Console](https://console.cloud.google.com/).
+2.  **Configure OAuth Consent Screen**: Set up an internal or external consent screen.
+3.  **Create OAuth 2.0 Client IDs**:
+    *   Create a "Web application" client ID (for web dev).
+    *   Create another "Web application" client ID and download the JSON (for Tauri/Desktop).
+4.  **Update Environment Files**:
+    *   Open `src/environments/environment.ts` and `src/environments/environment.development.ts`.
+    *   Fill in `gcpOauthAppId`, `gcpOauthAppId_Tauri`, and `gcpOauthClientSecret_Tauri`.
+
 ### Language Switching
 
 TextRPG supports **dynamic language switching** without restarting the application:
