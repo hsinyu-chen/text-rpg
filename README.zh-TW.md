@@ -252,3 +252,9 @@ TextRPG 採用**自定義 locale 系統**，支援動態語言切換。系統已
 4.  點擊 **"Start Game"**，引擎會自動在記憶體中生成所有所需的 Markdown 檔案。
 5.  **匯出模版**: 在左側 "Local File System" 區塊點擊 **資料夾圖示** 選擇一個空資料夾，接著點擊 **"Sync"**。
 6.  系統會將所有自動生成的設定檔寫入您的資料夾，您隨後即可使用 VS Code 進行編輯。
+ 
+ ---
+ 
+ ## 📄 授權協議 (License)
+ 
+ 本專案採用 **GNU Affero General Public License v3.0 (AGPL-3.0)** 進行授權 - 詳見 [LICENSE](LICENSE) 檔案。

@@ -260,3 +260,9 @@ The engine includes a built-in "Scenario Template Generator", so you don't need 
 4.  Click **"Start Game"**; the engine will generate all necessary Markdown files in memory.
 5.  **Export Template**: In the "Local File System" section of the sidebar, click the **Folder Icon** to select an empty folder, then click **"Sync"**.
 6.  The system will write all auto-generated configuration files to your folder, which you can then edit with VS Code.
+ 
+ ---
+ 
+ ## 📄 License
+ 
+ This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)** - see the [LICENSE](LICENSE) file for details.
