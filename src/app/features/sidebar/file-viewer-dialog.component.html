@@ -1,0 +1,199 @@
+<div class="dialog-container">
+    <!-- Header -->
+    <div class="dialog-header">
+        <button mat-icon-button class="sidebar-toggle" (click)="toggleSidebar()"
+            [matTooltip]="isSidebarCollapsed() ? 'Show Files' : 'Hide Files'">
+            <mat-icon>{{ isSidebarCollapsed() ? 'menu' : 'menu_open' }}</mat-icon>
+        </button>
+        <span class="file-title">{{ activeFile() }}</span>
+        <div class="header-actions">
+            @if (canEdit()) {
+            <button mat-icon-button (click)="toggleEdit()" [color]="isEditing() ? 'accent' : 'default'"
+                [matTooltip]="isEditing() ? 'View Mode' : 'Edit Mode'">
+                <mat-icon>{{ isEditing() ? 'visibility' : 'edit' }}</mat-icon>
+            </button>
+            }
+            <button mat-icon-button (click)="close()" matTooltip="Close">
+                <mat-icon>close</mat-icon>
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="dialog-body">
+        <!-- File List Sidebar -->
+        <div class="file-sidebar" [class.collapsed]="isSidebarCollapsed()" (click)="$event.stopPropagation()"
+            (keydown)="$event.stopPropagation()" tabindex="-1">
+
+            <!-- VS Code-style Sidebar Tabs -->
+            <div class="sidebar-tabs">
+                <button mat-icon-button class="tab-btn" [class.active]="sidebarView() === 'files'"
+                    (click)="sidebarView.set('files')" matTooltip="Files">
+                    <mat-icon>folder</mat-icon>
+                </button>
+                <button mat-icon-button class="tab-btn" [class.active]="sidebarView() === 'search'"
+                    (click)="sidebarView.set('search')" matTooltip="Search & Replace">
+                    <mat-icon>search</mat-icon>
+                </button>
+            </div>
+
+            <!-- Files View -->
+            @if (sidebarView() === 'files') {
+            <div class="sidebar-content">
+                <!-- Files Section -->
+                <div class="files-list-section">
+                    <div class="sidebar-header">
+                        <span>Files</span>
+                        <span class="file-count">{{ fileList().length }}</span>
+                    </div>
+
+                    <mat-nav-list class="file-nav-list">
+                        @for (file of fileList(); track file) {
+                        <a mat-list-item [class.active]="activeFile() === file" (click)="selectFile(file)"
+                            (keydown.enter)="selectFile(file)" tabindex="0">
+                            <mat-icon matListItemIcon>description</mat-icon>
+                            <span matListItemTitle class="file-name">{{ file }}</span>
+                        </a>
+                        }
+                    </mat-nav-list>
+                </div>
+
+                <!-- Outline Section -->
+                @if (outline().length > 0) {
+                <div class="outline-section">
+                    <div class="sidebar-header">
+                        <span>Outline</span>
+                    </div>
+                    <mat-nav-list class="outline-list">
+                        @for (header of outline(); track header.lineNumber) {
+                        <a mat-list-item (click)="goToHeader(header)" (keydown.enter)="goToHeader(header)" tabindex="0"
+                            [style.padding-left.px]="(header.level - 1) * 12">
+                            <span matListItemTitle class="header-text" [class]="'level-' + header.level">
+                                {{ header.text }}
+                            </span>
+                        </a>
+                        }
+                    </mat-nav-list>
+                </div>
+                }
+            </div>
+            }
+
+            <!-- Search View -->
+            @if (sidebarView() === 'search') {
+            <div class="search-section">
+                <!-- Search Row with expand chevron -->
+                <div class="search-input-row">
+                    <button mat-icon-button class="expand-toggle" (click)="toggleReplaceExpanded()"
+                        [matTooltip]="isReplaceExpanded() ? 'Collapse Replace' : 'Expand Replace'">
+                        <mat-icon>{{ isReplaceExpanded() ? 'expand_more' : 'chevron_right' }}</mat-icon>
+                    </button>
+                    <div class="input-with-options">
+                        <input type="text" class="search-input" [(ngModel)]="searchQuery" placeholder="Search...">
+                        <div class="input-options">
+                            <button mat-icon-button class="option-btn" [class.active]="isCaseSensitive()"
+                                (click)="toggleCaseSensitive(); $event.stopPropagation()" matTooltip="Match Case">
+                                <span class="option-icon">Aa</span>
+                            </button>
+                            <button mat-icon-button class="option-btn" [class.active]="isWholeWord()"
+                                (click)="toggleWholeWord(); $event.stopPropagation()" matTooltip="Match Whole Word">
+                                <span class="option-icon underline">ab</span>
+                            </button>
+                            <button mat-icon-button class="option-btn" [class.active]="isRegex()"
+                                (click)="toggleRegex(); $event.stopPropagation()" matTooltip="Use Regular Expression">
+                                <span class="option-icon">.*</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Replace Row (collapsed by default) -->
+                @if (isReplaceExpanded()) {
+                <div class="replace-input-row">
+                    <div class="replace-spacer"></div>
+                    <div class="input-with-options">
+                        <input type="text" class="search-input" [(ngModel)]="replaceQuery" placeholder="Replace...">
+                        <div class="input-options">
+                            <button mat-icon-button class="option-btn replace-all-inline"
+                                (click)="replaceAllMatches(); $event.stopPropagation()"
+                                [disabled]="(searchResource.value()?.length ?? 0) === 0 || isReplacing()"
+                                matTooltip="Replace All">
+                                <mat-icon>find_replace</mat-icon>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                }
+
+                @if (searchResource.value() && searchResource.value()!.length > 0) {
+                <div class="search-results">
+                    <div class="results-header">
+                        <span class="result-count">{{ searchResource.value()?.length ?? 0 }} results in {{
+                            groupedSearchResults().length }} files</span>
+                    </div>
+                    <div class="results-list">
+                        @for (group of groupedSearchResults(); track group[0]) {
+                        <div class="file-group">
+                            <div class="file-group-header" (click)="toggleFileCollapse(group[0])"
+                                (keydown.enter)="toggleFileCollapse(group[0])" tabindex="0">
+                                <mat-icon class="chevron"
+                                    [class.collapsed]="collapsedFiles().has(group[0])">expand_more</mat-icon>
+                                <span class="file-name">{{ group[0] }}</span>
+                                <span class="match-count">{{ group[1].length }}</span>
+                            </div>
+
+                            @if (!collapsedFiles().has(group[0])) {
+                            <div class="file-matches">
+                                @for (result of group[1]; track $index) {
+                                <div class="result-item" [class.with-replace]="isReplaceExpanded()"
+                                    (click)="goToResult(result)" (keydown.enter)="goToResult(result)" tabindex="0">
+                                    <div class="result-main">
+                                        <div class="result-line-info">
+                                            <span class="result-line">{{ result.lineNumber }}</span>
+                                        </div>
+                                        @if (isReplaceExpanded()) {
+                                        <div class="result-content diff" [innerHTML]="getCombinedDiffPreview(result)">
+                                        </div>
+                                        } @else {
+                                        <div class="result-content" [innerHTML]="getHighlightedContent(result)"></div>
+                                        }
+                                    </div>
+                                    @if (isReplaceExpanded()) {
+                                    <button mat-icon-button class="result-replace-btn"
+                                        (click)="replaceInFile(result); $event.stopPropagation()" matTooltip="Replace">
+                                        <mat-icon>swap_horiz</mat-icon>
+                                    </button>
+                                    }
+                                </div>
+                                }
+                            </div>
+                            }
+                        </div>
+                        }
+                    </div>
+                </div>
+                }
+                @if (searchQuery() && (searchResource.value()?.length ?? 0) === 0 && !searchResource.isLoading()) {
+                <div class="no-results">No results found</div>
+                }
+            </div>
+            }
+        </div>
+
+        <!-- Monaco Editor -->
+        <div class="editor-container">
+            <app-monaco-editor #editorRef [multiModelMode]="true" [files]="data.files" [activeFile]="activeFile()"
+                [options]="editorOptions()" (valueChange)="activeFileContent.set($event)">
+            </app-monaco-editor>
+        </div>
+    </div>
+
+    <!-- Footer Actions -->
+    <mat-dialog-actions align="end">
+        @if (isEditing()) {
+        <button mat-flat-button color="primary" (click)="save()" [disabled]="isSaving()">
+            {{ isSaving() ? 'Saving...' : 'Save Changes' }}
+        </button>
+        }
+    </mat-dialog-actions>
+</div>

@@ -1,0 +1,40 @@
+.full-width {
+    width: 100%;
+}
+
+.hint-text {
+    font-size: 12px;
+    color: #666;
+    margin: 4px 0 0;
+    text-align: center;
+
+    &.info-strong {
+        margin-bottom: 8px;
+        color: #ddd;
+    }
+}
+
+.restart-btn,
+.release-btn,
+.clear-all-btn {
+    margin-top: 8px;
+}
+
+.mode-btn {
+    margin-bottom: 4px;
+    transition: all 0.3s ease;
+
+    &.active-smart {
+        border-color: #4caf50;
+        color: #4caf50;
+    }
+
+    &.active-full {
+        border-color: #ff9800;
+        color: #ff9800;
+    }
+}
+
+.toggle-section {
+    margin-top: 8px;
+}

@@ -1,0 +1,14 @@
+[
+    {
+        "id": "demo_world_en",
+        "name": "Terra En (Demo World)",
+        "description": "A standard fantasy world for testing and demos. Contains generic RPG tropes.",
+        "baseDir": "assets/system_files/scenario/demo_world_en"
+    },
+    {
+        "id": "demo_world_zh",
+        "name": "泰拉 (Demo World)",
+        "description": "A standard fantasy world for testing and demos. Contains generic RPG tropes.",
+        "baseDir": "assets/system_files/scenario/demo_world"
+    }
+]

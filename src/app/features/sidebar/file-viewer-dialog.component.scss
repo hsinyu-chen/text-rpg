@@ -1,0 +1,680 @@
+:host {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    height: 100%;
+    min-height: 0;
+}
+
+.dialog-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
+
+.dialog-header {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    gap: 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    flex-shrink: 0;
+    min-height: 48px;
+    max-height: 48px;
+
+    .sidebar-toggle {
+        flex-shrink: 0;
+    }
+
+    .file-title {
+        flex: 1;
+        margin: 0;
+        font-size: 14px;
+        font-weight: 500;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        line-height: 32px;
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 2px;
+        flex-shrink: 0;
+    }
+}
+
+.dialog-body {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.file-sidebar {
+    width: 30vw;
+    min-width: 200px;
+    max-width: 400px;
+    display: flex;
+    flex-direction: column;
+    background: rgba(30, 30, 30, 0.95);
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
+    transition: width 0.2s ease, min-width 0.2s ease, opacity 0.2s ease;
+    overflow: hidden;
+
+    &.collapsed {
+        width: 0;
+        min-width: 0;
+        border-right: none;
+        opacity: 0;
+        pointer-events: none;
+    }
+}
+
+.underline {
+    text-decoration: underline;
+}
+
+// VS Code-style Sidebar Tabs
+.sidebar-tabs {
+    display: flex;
+    gap: 4px;
+    padding: 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    flex-shrink: 0;
+
+    .tab-btn {
+        width: 32px;
+        height: 32px;
+        border-radius: 4px;
+        background: transparent;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.15s;
+        padding: 0;
+        overflow: visible;
+
+        ::ng-deep .mat-mdc-button-touch-target {
+            width: 32px;
+            height: 32px;
+        }
+
+        &:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        &.active {
+            background: rgba(var(--mat-primary-rgb, 103, 80, 164), 0.3);
+            color: var(--mat-primary, #6750a4);
+        }
+
+        mat-icon {
+            font-size: 20px;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+    }
+}
+
+.sidebar-content {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+
+    .files-list-section {
+        flex: 1 1 50%;
+        display: flex;
+        flex-direction: column;
+        min-height: 100px;
+    }
+
+    .outline-section {
+        flex: 1 1 50%;
+        display: flex;
+        flex-direction: column;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        min-height: 100px;
+        background: rgba(255, 255, 255, 0.02);
+
+    }
+}
+
+// Search Section
+.search-section {
+    padding: 12px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 8px;
+    overflow: hidden;
+
+
+    .search-input-row,
+    .replace-input-row {
+        display: flex;
+        gap: 4px;
+        align-items: center;
+    }
+
+    .input-with-options {
+        flex: 1;
+        min-width: 0; // Prevent overflow
+        display: flex;
+        align-items: center;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 4px;
+        transition: border-color 0.2s;
+        overflow: hidden;
+
+        &:focus-within {
+            border-color: var(--mat-primary, #6750a4);
+        }
+
+        .search-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            padding: 6px 8px;
+            color: white;
+            font-size: 13px;
+            outline: none;
+            min-width: 0;
+
+            &::placeholder {
+                color: rgba(255, 255, 255, 0.4);
+            }
+        }
+
+        .input-options {
+            display: flex;
+            gap: 2px;
+            padding-right: 4px;
+            flex-shrink: 0;
+        }
+    }
+
+    .expand-toggle {
+        width: 24px;
+        height: 24px;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+
+        ::ng-deep .mat-mdc-button-touch-target {
+            width: 24px;
+            height: 24px;
+        }
+
+        mat-icon {
+            font-size: 18px;
+            width: 18px;
+            height: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+    }
+
+    .replace-spacer {
+        width: 24px;
+        flex-shrink: 0;
+    }
+
+    .replace-all-btn {
+        width: 28px;
+        height: 28px;
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+
+        ::ng-deep .mat-mdc-button-touch-target {
+            width: 28px;
+            height: 28px;
+        }
+
+        mat-icon {
+            font-size: 18px;
+            width: 18px;
+            height: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        &:disabled {
+            opacity: 0.4;
+        }
+    }
+
+    .search-input {
+        flex: 1;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        border-radius: 4px;
+        padding: 8px 12px;
+        color: white;
+        font-size: 13px;
+        outline: none;
+        transition: border-color 0.2s;
+
+        &:focus {
+            border-color: var(--mat-primary, #6750a4);
+        }
+
+        &::placeholder {
+            color: rgba(255, 255, 255, 0.4);
+        }
+    }
+
+    // Inline option buttons inside inputs
+    .option-btn {
+        width: 22px;
+        height: 22px;
+        min-width: 22px;
+        border-radius: 3px;
+        background: transparent;
+        border: 1px solid transparent;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        transition: all 0.15s;
+        padding: 0;
+
+        &:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        &.active {
+            background: rgba(var(--mat-primary-rgb, 103, 80, 164), 0.3);
+            border-color: var(--mat-primary, #6750a4);
+        }
+
+        &:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .option-icon {
+            font-size: 11px;
+            font-weight: 600;
+            font-family: 'Consolas', 'Monaco', monospace;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        mat-icon {
+            font-size: 16px;
+            width: 16px;
+            height: 16px;
+        }
+
+        &.replace-all-inline mat-icon {
+            font-size: 18px;
+            width: 18px;
+            height: 18px;
+        }
+    }
+
+    .search-results {
+        flex: 1;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+
+        .results-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        .result-count {
+            font-size: 11px;
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .replace-all-header-btn {
+            font-size: 11px;
+            padding: 2px 8px;
+            min-height: 24px;
+            line-height: 1;
+        }
+
+        .results-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 4px 0;
+        }
+
+        .file-group {
+            margin-bottom: 2px;
+
+            .file-group-header {
+                display: flex;
+                align-items: center;
+                gap: 4px;
+                padding: 2px 4px;
+                cursor: pointer;
+                font-size: 13px;
+                color: rgba(255, 255, 255, 0.9);
+                background: rgba(255, 255, 255, 0.03);
+                border-radius: 2px;
+                margin: 0 4px 1px 4px;
+
+                &:hover {
+                    background: rgba(255, 255, 255, 0.08);
+                }
+
+                .chevron {
+                    font-size: 16px;
+                    width: 16px;
+                    height: 16px;
+                    transition: transform 0.2s;
+                    color: rgba(255, 255, 255, 0.5);
+
+                    &.collapsed {
+                        transform: rotate(-90deg);
+                    }
+                }
+
+                .file-name {
+                    flex: 1;
+                    min-width: 0;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                    font-weight: 500;
+                }
+
+                .match-count {
+                    font-size: 11px;
+                    color: rgba(255, 255, 255, 0.4);
+                    background: rgba(255, 255, 255, 0.1);
+                    padding: 0 6px;
+                    border-radius: 10px;
+                    min-width: 18px;
+                    text-align: center;
+                }
+            }
+
+            .file-matches {
+                padding-left: 12px;
+            }
+        }
+
+        .result-item {
+            display: flex;
+            align-items: flex-start;
+            padding: 4px 8px;
+            cursor: pointer;
+            border-radius: 3px;
+            font-size: 12px;
+            margin: 0 4px;
+
+            &:hover {
+                background: rgba(255, 255, 255, 0.1);
+            }
+
+            .result-main {
+                flex: 1;
+                min-width: 0;
+                display: flex;
+                gap: 8px;
+            }
+
+            .result-line-info {
+                flex-shrink: 0;
+                width: 24px;
+                text-align: right;
+                margin-top: 2px;
+            }
+
+            .result-line {
+                color: rgba(255, 255, 255, 0.3);
+                font-size: 11px;
+                font-family: 'Consolas', 'Monaco', monospace;
+            }
+
+            .result-content {
+                flex: 1;
+                color: rgba(255, 255, 255, 0.7);
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                font-size: 11px;
+                margin-top: 2px;
+                line-height: 1.4;
+
+                &.diff {
+                    white-space: normal; // Allow wrapping in diff mode if needed, but flex handles it
+                    word-break: break-all;
+                }
+
+                // Use ::ng-deep for dynamically inserted HTML via innerHTML
+                ::ng-deep .match-highlight {
+                    background-color: rgba(255, 211, 61, 0.5);
+                    border-radius: 2px;
+                    padding: 0 2px;
+                    color: #fff;
+                }
+
+                ::ng-deep .diff-removed {
+                    background-color: rgba(244, 67, 54, 0.4); // Red background
+                    text-decoration: line-through;
+                    color: rgba(255, 255, 255, 0.9);
+                    padding: 0 1px;
+                    border-radius: 1px;
+                    margin-right: 2px;
+                }
+
+                ::ng-deep .diff-added {
+                    background-color: rgba(76, 175, 80, 0.4); // Green background
+                    color: rgba(255, 255, 255, 0.9);
+                    padding: 0 1px;
+                    border-radius: 1px;
+                }
+
+                ::ng-deep .replace-preview-text {
+                    background-color: rgba(129, 199, 132, 0.3);
+                    border-radius: 2px;
+                    padding: 0 2px;
+                    color: #fff;
+                    font-weight: 500;
+                }
+            }
+
+            .result-replace-btn {
+                width: 24px;
+                height: 24px;
+                flex-shrink: 0;
+                margin-left: 4px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 0;
+                opacity: 0; // Hide by default, show on hover
+                transition: opacity 0.2s;
+
+                ::ng-deep .mat-mdc-button-touch-target {
+                    width: 24px;
+                    height: 24px;
+                }
+
+                mat-icon {
+                    font-size: 16px;
+                    width: 16px;
+                    height: 16px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+            }
+
+            &:hover .result-replace-btn {
+                opacity: 0.8;
+            }
+        }
+    }
+
+    .no-results {
+        color: rgba(255, 255, 255, 0.4);
+        font-size: 12px;
+        text-align: center;
+        padding: 8px;
+    }
+}
+
+.sidebar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    font-weight: 500;
+    font-size: 13px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+
+    .file-count {
+        background: rgba(255, 255, 255, 0.1);
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 11px;
+    }
+}
+
+
+
+.file-nav-list,
+.outline-list {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 0;
+
+    &.outline-list {
+        padding-left: 12px;
+    }
+
+    a.mat-mdc-list-item {
+        height: 32px;
+        border-radius: 0;
+        padding: 0 12px;
+
+        &.active {
+            background: rgba(var(--mat-primary-rgb, 103, 80, 164), 0.2);
+            border-left: 3px solid var(--mat-primary, #6750a4);
+        }
+
+        .file-name {
+            font-size: 12px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .header-text {
+            font-size: 12px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            color: rgba(255, 255, 255, 0.7);
+            transition: color 0.2s;
+
+            &.level-1 {
+                font-weight: 600;
+                color: rgba(255, 255, 255, 0.9);
+            }
+
+            &.level-2 {
+                color: rgba(255, 255, 255, 0.85);
+            }
+        }
+
+        &:hover .header-text {
+            color: white;
+        }
+    }
+}
+
+.editor-container {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+
+    app-monaco-editor {
+        flex: 1;
+        min-height: 0;
+    }
+}
+
+mat-dialog-actions {
+    padding: 8px 16px;
+    margin: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    min-height: 48px;
+}
+
+// Mobile responsiveness
+@media (max-width: 768px) {
+    .file-sidebar {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        z-index: 10;
+        width: 280px;
+        min-width: 280px;
+        max-width: 85vw;
+
+        &.collapsed {
+            transform: translateX(-100%);
+            opacity: 1;
+        }
+    }
+
+    .dialog-body {
+        position: relative;
+    }
+
+}
+
+// Monaco editor container styles override
+:host ::ng-deep {
+    app-monaco-editor {
+        display: flex !important;
+        flex: 1 1 auto !important;
+        min-height: 0 !important;
+
+        >div {
+            display: flex !important;
+            flex: 1 1 auto !important;
+            min-height: 0 !important;
+            height: 100% !important;
+        }
+
+        .monaco-editor {
+            flex: 1 1 auto !important;
+            min-height: 0 !important;
+        }
+    }
+
+    // Search match highlight (like VS Code)
+    .search-match-highlight {
+        background-color: rgba(255, 211, 61, 0.4) !important;
+        border: 1px solid rgba(255, 211, 61, 0.8);
+        border-radius: 2px;
+    }
+}

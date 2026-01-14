@@ -1,0 +1,186 @@
+.loading-overlay {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 24px;
+}
+
+.new-save-section {
+    margin-bottom: 16px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.new-save-header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px;
+    justify-content: space-between;
+
+    @media (max-width: 600px) {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+
+        button {
+            width: 100%;
+        }
+
+        mat-slide-toggle {
+            padding: 8px 0;
+        }
+    }
+
+    mat-slide-toggle {
+        font-size: 13px;
+
+        mat-icon {
+            font-size: 18px;
+            width: 18px;
+            height: 18px;
+            margin-right: 4px;
+            vertical-align: middle;
+        }
+    }
+}
+
+.new-save-form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+
+    mat-form-field {
+        width: 100%;
+    }
+
+    .new-save-actions {
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+    }
+}
+
+.save-list {
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.save-item {
+    height: auto !important;
+    padding: 12px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+
+    &:last-child {
+        border-bottom: none;
+    }
+}
+
+.save-info {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.save-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.95);
+
+    .sync-badges {
+        display: flex;
+        gap: 4px;
+        align-items: center;
+    }
+
+    .sync-icon {
+        font-size: 16px;
+        width: 16px;
+        height: 16px;
+        color: #4caf50; // Synced green
+
+        &.local {
+            color: rgba(255, 255, 255, 0.4); // Unsynced cloud
+        }
+
+        &.disk {
+            color: #2196f3; // Local disk blue
+        }
+
+        &.offline {
+            color: rgba(255, 255, 255, 0.4); // Unsynced disk
+        }
+    }
+}
+
+.save-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 4px;
+
+    .timestamp {
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.5);
+    }
+
+    .preview {
+        font-size: 12px;
+        color: rgba(255, 255, 255, 0.6);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 300px;
+
+        @media (max-width: 600px) {
+            max-width: 180px;
+        }
+    }
+}
+
+.save-actions {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 48px 24px;
+    color: rgba(255, 255, 255, 0.5);
+
+    mat-icon {
+        font-size: 48px;
+        width: 48px;
+        height: 48px;
+        margin-bottom: 16px;
+    }
+
+    p {
+        margin: 0;
+        font-size: 14px;
+    }
+}
+
+// Dialog sizing
+:host {
+    display: block;
+    width: 100%;
+    max-width: 500px;
+    min-width: 320px;
+
+    @media (max-width: 600px) {
+        min-width: unset;
+    }
+}

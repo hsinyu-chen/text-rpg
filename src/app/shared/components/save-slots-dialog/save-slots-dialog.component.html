@@ -1,0 +1,90 @@
+<h2 mat-dialog-title>
+    {{ isLocalMode() ? 'Local' : 'Cloud' }} Save Slots
+</h2>
+
+<mat-dialog-content>
+    @if (isLoading()) {
+    <div class="loading-overlay">
+        <mat-spinner diameter="40"></mat-spinner>
+    </div>
+    }
+
+    <div class="new-save-section">
+        <div class="new-save-header">
+            @if (!showNewSaveInput()) {
+            <span [matTooltip]="!data.currentSession ? 'Start a story first to enable saving' : ''">
+                <button mat-flat-button color="primary" (click)="toggleNewSaveInput()"
+                    [disabled]="isLoading() || !data.currentSession">
+                    <mat-icon>add</mat-icon>
+                    New Save
+                </button>
+            </span>
+            } @else {
+            <div class="new-save-form">
+                <mat-form-field appearance="outline">
+                    <mat-label>Save Name</mat-label>
+                    <input matInput [(ngModel)]="newSaveName" placeholder="Enter a name for this save">
+                </mat-form-field>
+                <div class="new-save-actions">
+                    <button mat-flat-button color="primary" (click)="onCreateSave()"
+                        [disabled]="isLoading() || !newSaveName().trim()">
+                        <mat-icon>save</mat-icon>
+                        Create
+                    </button>
+                    <button mat-stroked-button (click)="toggleNewSaveInput()">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+            }
+
+            <div class="mode-indicator" [class.local]="isLocalMode()">
+                <mat-icon>{{ isLocalMode() ? 'computer' : 'cloud' }}</mat-icon>
+                <span>{{ isLocalMode() ? 'Local Storage' : 'Google Drive' }}</span>
+            </div>
+        </div>
+    </div>
+
+    <mat-nav-list class="save-list">
+        @for (item of slots(); track item.name) {
+        <mat-list-item class="save-item">
+            <div class="save-info">
+                <div class="save-name">
+                    {{ item.displayName }}
+                </div>
+                <div class="save-meta">
+                    <span class="timestamp">{{ formatDate(item.lastModified) }}</span>
+                    <span class="preview">{{ item.storyPreview }}</span>
+                </div>
+            </div>
+            <div class="save-actions">
+                <button mat-icon-button color="primary" (click)="onLoad(item)" matTooltip="Load this save">
+                    <mat-icon>play_arrow</mat-icon>
+                </button>
+                @if (item.name !== 'autosave.json') {
+                <span
+                    [matTooltip]="!data.currentSession ? 'Start a story first to enable overwriting' : 'Overwrite with current session'">
+                    <button mat-icon-button (click)="onOverwrite(item)"
+                        [disabled]="isLoading() || !data.currentSession">
+                        <mat-icon>save</mat-icon>
+                    </button>
+                </span>
+                }
+                <button mat-icon-button color="warn" (click)="onDelete(item)" matTooltip="Delete this save"
+                    [disabled]="isLoading()">
+                    <mat-icon>delete</mat-icon>
+                </button>
+            </div>
+        </mat-list-item>
+        } @empty {
+        <div class="empty-state">
+            <mat-icon>bookmark_border</mat-icon>
+            <p>No saves yet in this {{ isLocalMode() ? 'folder' : 'slot' }}.</p>
+        </div>
+        }
+    </mat-nav-list>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+    <button mat-button (click)="onCancel()">Close</button>
+</mat-dialog-actions>

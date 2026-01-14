@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terms of Service - TextRPG</title>
+    <style>
+        :root {
+            --bg-color: #0f0f1a;
+            --card-bg: #1a1a2e;
+            --text-color: #e0e0e0;
+            --heading-color: #ffffff;
+            --accent-color: #6366f1;
+            --border-color: #2d2d44;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.7;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        h1 {
+            color: var(--heading-color);
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, var(--accent-color), #a855f7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .last-updated {
+            color: #888;
+            font-size: 0.9rem;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 24px;
+            border: 1px solid var(--border-color);
+        }
+
+        h2 {
+            color: var(--heading-color);
+            font-size: 1.4rem;
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--accent-color);
+            display: inline-block;
+        }
+
+        p {
+            margin-bottom: 16px;
+        }
+
+        ul,
+        ol {
+            margin-left: 24px;
+            margin-bottom: 16px;
+        }
+
+        li {
+            margin-bottom: 8px;
+        }
+
+        .highlight {
+            color: var(--accent-color);
+            font-weight: 600;
+        }
+
+        .warning {
+            background: rgba(239, 68, 68, 0.1);
+            border-left: 4px solid #ef4444;
+            padding: 16px;
+            margin: 16px 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        footer {
+            text-align: center;
+            padding-top: 40px;
+            color: #666;
+            font-size: 0.85rem;
+        }
+
+        a {
+            color: var(--accent-color);
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>Terms of Service</h1>
+            <p class="last-updated">Last Updated: January 7, 2026</p>
+        </header>
+
+        <section class="card">
+            <h2>Acceptance of Terms</h2>
+            <p>
+                By accessing or using <span class="highlight">TextRPG</span> (the "Application"), you agree to be bound
+                by these Terms of Service.
+                If you do not agree to these terms, please do not use the Application.
+            </p>
+        </section>
+
+        <section class="card">
+            <h2>Description of Service</h2>
+            <p>
+                TextRPG is a <strong>client-side</strong> AI-powered text-based role-playing game application.
+                The Application runs entirely on your device and provides features including:
+            </p>
+            <ul>
+                <li>AI-generated narrative content and story progression</li>
+                <li>Character creation and management</li>
+                <li>Local save functionality</li>
+                <li>Optional cloud sync via your own Google Drive account</li>
+            </ul>
+        </section>
+
+        <section class="card">
+            <h2>Age Requirement</h2>
+            <div class="warning">
+                <p>
+                    <strong>Important:</strong> TextRPG may generate mature themes and content through AI. By using this
+                    Application, you confirm that you are at least
+                    <strong>18 years of age</strong> or the age of majority in your jurisdiction, whichever is higher.
+                </p>
+            </div>
+        </section>
+
+        <section class="card">
+            <h2>Your Responsibilities</h2>
+            <p>You are responsible for:</p>
+            <ul>
+                <li>Providing your own API keys for AI services (e.g., Gemini API)</li>
+                <li>Any costs incurred from using third-party APIs with your own credentials</li>
+                <li>Maintaining the security of your API keys and account credentials</li>
+                <li>Backing up your local game data</li>
+                <li>Using the Application in compliance with applicable laws</li>
+            </ul>
+        </section>
+
+        <section class="card">
+            <h2>User Conduct</h2>
+            <p>When using the Application, you agree to:</p>
+            <ul>
+                <li>Use the Application only for lawful purposes</li>
+                <li>Not redistribute, reverse engineer, or modify the Application for commercial purposes without
+                    permission</li>
+                <li>Accept that AI-generated content may occasionally produce unexpected results</li>
+            </ul>
+        </section>
+
+        <section class="card">
+            <h2>AI-Generated Content</h2>
+            <p>
+                Content generated by AI is provided "as is" without warranties. The AI service is provided by third
+                parties (e.g., Google Gemini)
+                using your own API credentials. We do not control AI outputs and cannot guarantee that AI-generated
+                content will be:
+            </p>
+            <ul>
+                <li>Accurate, complete, or reliable</li>
+                <li>Free from errors or unexpected material</li>
+                <li>Suitable for any particular purpose</li>
+            </ul>
+        </section>
+
+        <section class="card">
+            <h2>Third-Party Services</h2>
+            <p>
+                The Application connects directly to third-party services from your device. Your use of these services
+                (Google OAuth, Google Drive, Gemini API) is subject to their respective terms of service and privacy
+                policies.
+                We are not responsible for these third-party services.
+            </p>
+        </section>
+
+        <section class="card">
+            <h2>Disclaimer of Warranties</h2>
+            <p>
+                THE APPLICATION IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT WARRANTIES OF ANY KIND, EITHER EXPRESS OR
+                IMPLIED.
+                WE DO NOT WARRANT THAT THE APPLICATION WILL BE UNINTERRUPTED, ERROR-FREE, OR FREE OF BUGS.
+            </p>
+        </section>
+
+        <section class="card">
+            <h2>Limitation of Liability</h2>
+            <p>
+                TO THE MAXIMUM EXTENT PERMITTED BY LAW, WE SHALL NOT BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL,
+                CONSEQUENTIAL,
+                OR PUNITIVE DAMAGES ARISING FROM YOUR USE OF THE APPLICATION, INCLUDING BUT NOT LIMITED TO LOSS OF DATA,
+                API COSTS, OR BUSINESS INTERRUPTION.
+            </p>
+        </section>
+
+        <section class="card">
+            <h2>Open Source</h2>
+            <p>
+                TextRPG is provided as an open-source project. You are free to use, modify, and distribute the
+                Application
+                in accordance with its license terms.
+            </p>
+        </section>
+
+        <section class="card">
+            <h2>Changes to Terms</h2>
+            <p>
+                We may modify these Terms of Service at any time. Changes will be reflected on this page with an updated
+                date.
+                Your continued use of the Application after any changes constitutes acceptance of the new terms.
+            </p>
+        </section>
+
+        <section class="card">
+            <h2>Contact</h2>
+            <p>
+                If you have any questions about these Terms of Service, please reach out through our project's GitHub
+                repository.
+            </p>
+        </section>
+
+        <footer>
+            <p>&copy; 2026 TextRPG. All rights reserved.</p>
+        </footer>
+    </div>
+</body>
+
+</html>

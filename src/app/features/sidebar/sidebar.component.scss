@@ -1,0 +1,187 @@
+.sidebar-container {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: #1e1e1e;
+    color: #e0e0e0;
+    overflow: hidden;
+}
+
+.header {
+    padding: 6px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #333;
+    flex-shrink: 0;
+}
+
+.header-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.logo-container {
+    flex: 1;
+    display: flex;
+    align-items: center;
+}
+
+.sidebar-logo {
+    max-height: 24px;
+    width: auto;
+    object-fit: contain;
+    filter: drop-shadow(0 0 8px rgba(255, 64, 129, 0.2));
+    transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    cursor: pointer;
+
+    &:hover {
+        transform: scale(1.05);
+        filter: drop-shadow(0 0 12px rgba(255, 64, 129, 0.4));
+    }
+}
+
+.pinned-usage {
+    padding: 8px;
+    background: #252525;
+    flex-shrink: 0;
+}
+
+.sidebar-tabs {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+
+    ::v-deep .mat-mdc-tab-body-wrapper {
+        flex: 1;
+    }
+
+    ::v-deep .mat-mdc-tab-group-active-indicator-wrapper {
+        height: 3px;
+        background: #ff4081;
+    }
+}
+
+.tab-label {
+    margin-left: 8px;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.tab-content {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    padding: 8px 0;
+    display: flex;
+    flex-direction: column;
+    min-height: 0; // Crucial for flex child scroll
+
+    &.padded {
+        padding-left: 12px;
+        padding-right: 12px;
+    }
+
+
+    /* Webkit scrollbar styling */
+    &::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    &::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    &::-webkit-scrollbar-thumb {
+        background: #444;
+        border-radius: 3px;
+    }
+
+    &::-webkit-scrollbar-thumb:hover {
+        background: #555;
+    }
+}
+
+.section-header-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 16px;
+    min-height: 32px;
+}
+
+.section-header {
+    margin: 0;
+    font-size: 0.75rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    color: #757575;
+    letter-spacing: 0.5px;
+}
+
+.toggle-btn {
+    width: 28px !important;
+    height: 28px !important;
+    padding: 0 !important;
+
+    mat-icon {
+        font-size: 16px;
+        width: 16px;
+        height: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+}
+
+.file-list {
+    flex: 1;
+}
+
+.file-item-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    gap: 8px;
+}
+
+.clickable-file {
+    cursor: pointer;
+    flex-grow: 1;
+    text-decoration: none;
+    color: #e0e0e0;
+    font-size: 0.9rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #ff4081;
+    text-decoration: underline;
+}
+
+.empty-state {
+    padding: 32px 16px;
+    text-align: center;
+    color: #757575;
+    font-size: 0.8rem;
+    font-style: italic;
+}
+
+.close-btn {
+    color: #757575;
+
+    &:hover {
+        color: #e0e0e0;
+    }
+}
+
+/* Adjust mat-list background for better contrast in tabs */
+.mat-mdc-list-item {
+    --mdc-list-list-item-label-text-color: #e0e0e0;
+    --mdc-list-list-item-supporting-text-color: #9e9e9e;
+
+    &:hover {
+        background-color: rgba(255, 255, 255, 0.05);
+    }
+}

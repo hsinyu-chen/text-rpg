@@ -1,0 +1,46 @@
+<h2 mat-dialog-title>Select Cloud Slot</h2>
+
+<mat-dialog-content>
+    @if (isLoading()) {
+    <div class="loading-spinner">
+        <mat-spinner diameter="40"></mat-spinner>
+    </div>
+    } @else {
+    <mat-nav-list>
+        @for (slot of slots(); track slot.id) {
+        <mat-list-item (click)="selectSlot(slot)">
+            <mat-icon matListItemIcon>{{ slot.isRoot ? 'folder_special' : 'folder' }}</mat-icon>
+            <span matListItemTitle>{{ slot.name }}</span>
+        </mat-list-item>
+        }
+    </mat-nav-list>
+
+    <div class="new-slot-container">
+        @if (!showNewSlotInput()) {
+        <button mat-button color="primary" (click)="showNewSlotInput.set(true)">
+            <mat-icon>create_new_folder</mat-icon>
+            Create New Slot
+        </button>
+        }
+
+        @if (showNewSlotInput()) {
+        <div class="input-row">
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                <mat-label>Slot Name</mat-label>
+                <input matInput [(ngModel)]="newSlotName" (keyup.enter)="createSlot()">
+            </mat-form-field>
+            <button mat-icon-button color="primary" (click)="createSlot()" [disabled]="!newSlotName().trim()">
+                <mat-icon>check</mat-icon>
+            </button>
+            <button mat-icon-button (click)="showNewSlotInput.set(false)">
+                <mat-icon>close</mat-icon>
+            </button>
+        </div>
+        }
+    </div>
+    }
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+    <button mat-button (click)="onCancel()">Cancel</button>
+</mat-dialog-actions>

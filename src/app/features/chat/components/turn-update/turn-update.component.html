@@ -1,0 +1,175 @@
+<div class="summary-content update-content">
+    <!-- Narrative Summary -->
+    @if (message().summary) {
+    <div class="narrative-summary">
+        <mat-icon class="sub-icon">short_text</mat-icon>
+        @if (state.isEditingSummary()) {
+        <div class="summary-editor">
+            <input type="text" [ngModel]="state.editSummaryContent()"
+                (ngModelChange)="state.editSummaryContent.set($event)" (keydown.enter)="state.saveSummaryEdit()"
+                (keydown.escape)="state.cancelSummaryEdit()">
+            <button mat-icon-button class="tiny-btn" (click)="state.saveSummaryEdit()">
+                <mat-icon>check</mat-icon>
+            </button>
+            <button mat-icon-button class="tiny-btn" (click)="state.cancelSummaryEdit()">
+                <mat-icon>close</mat-icon>
+            </button>
+        </div>
+        } @else {
+        <span class="summary-text">{{ message().summary }}</span>
+        <button mat-icon-button class="tiny-btn" (click)="state.startSummaryEdit(message().summary!)">
+            <mat-icon>edit</mat-icon>
+        </button>
+        }
+    </div>
+    }
+
+    <!-- Inventory Logs -->
+    <div class="log-section inventory-logs">
+        <div class="log-header">
+            <div class="header-left">
+                <mat-icon class="sub-icon">inventory_2</mat-icon>
+                <span>Inventory Changes</span>
+            </div>
+            <button mat-icon-button class="tiny-btn" (click)="state.addLogItem('inv')" matTooltip="Add Item">
+                <mat-icon>add</mat-icon>
+            </button>
+        </div>
+        @if ((message().inventory_log?.length ?? 0) > 0) {
+        <ul class="log-list">
+            @for (item of (message().inventory_log || []); track $index; let idx = $index) {
+            <li class="log-item-row">
+                @if (state.editingLogKey() === message().id + '|inv|' + idx) {
+                <!-- Inline Editor -->
+                <div class="log-editor">
+                    <input id="log-edit-input" type="text" [ngModel]="state.editingLogContent()"
+                        (ngModelChange)="state.editingLogContent.set($event)"
+                        (keydown.enter)="state.saveLogEdit('inv', idx)" (keydown.escape)="state.cancelLogEdit()">
+                    <button mat-icon-button class="tiny-btn" (click)="state.saveLogEdit('inv', idx)">
+                        <mat-icon>check</mat-icon>
+                    </button>
+                    <button mat-icon-button class="tiny-btn" (click)="state.cancelLogEdit()">
+                        <mat-icon>close</mat-icon>
+                    </button>
+                </div>
+                } @else {
+                <!-- Display Mode -->
+                <span class="log-text">{{ item }}</span>
+                <div class="log-actions">
+                    <button mat-icon-button class="tiny-btn" (click)="state.startLogEdit('inv', idx, item)">
+                        <mat-icon>edit</mat-icon>
+                    </button>
+                    <button mat-icon-button class="tiny-btn" (click)="state.deleteLogItem('inv', idx)">
+                        <mat-icon>delete</mat-icon>
+                    </button>
+                </div>
+                }
+            </li>
+            }
+        </ul>
+        } @else {
+        <div class="empty-log-hint" (click)="state.addLogItem('inv')" (keydown.enter)="state.addLogItem('inv')"
+            tabindex="0" role="button">No items.
+            Click + to add.</div>
+        }
+    </div>
+
+    <!-- Quest Logs -->
+    <div class="log-section quest-logs">
+        <div class="log-header">
+            <div class="header-left">
+                <mat-icon class="sub-icon">assignment</mat-icon>
+                <span>Plan & Quest Updates</span>
+            </div>
+            <button mat-icon-button class="tiny-btn" (click)="state.addLogItem('quest')" matTooltip="Add Item">
+                <mat-icon>add</mat-icon>
+            </button>
+        </div>
+        @if ((message().quest_log?.length ?? 0) > 0) {
+        <ul class="log-list">
+            @for (quest of (message().quest_log || []); track $index; let idx = $index) {
+            <li class="log-item-row">
+                @if (state.editingLogKey() === message().id + '|quest|' + idx) {
+                <!-- Inline Editor -->
+                <div class="log-editor">
+                    <input id="log-edit-input" type="text" [ngModel]="state.editingLogContent()"
+                        (ngModelChange)="state.editingLogContent.set($event)"
+                        (keydown.enter)="state.saveLogEdit('quest', idx)" (keydown.escape)="state.cancelLogEdit()">
+                    <button mat-icon-button class="tiny-btn" (click)="state.saveLogEdit('quest', idx)">
+                        <mat-icon>check</mat-icon>
+                    </button>
+                    <button mat-icon-button class="tiny-btn" (click)="state.cancelLogEdit()">
+                        <mat-icon>close</mat-icon>
+                    </button>
+                </div>
+                } @else {
+                <!-- Display Mode -->
+                <span class="log-text">{{ quest }}</span>
+                <div class="log-actions">
+                    <button mat-icon-button class="tiny-btn" (click)="state.startLogEdit('quest', idx, quest)">
+                        <mat-icon>edit</mat-icon>
+                    </button>
+                    <button mat-icon-button class="tiny-btn" (click)="state.deleteLogItem('quest', idx)">
+                        <mat-icon>delete</mat-icon>
+                    </button>
+                </div>
+                }
+            </li>
+            }
+        </ul>
+        } @else {
+        <div class="empty-log-hint" (click)="state.addLogItem('quest')" (keydown.enter)="state.addLogItem('quest')"
+            tabindex="0" role="button">No items.
+            Click + to add.</div>
+        }
+    </div>
+    <!-- World Logs -->
+    <div class="log-section world-logs">
+        <div class="log-header">
+            <div class="header-left">
+                <mat-icon class="sub-icon">public</mat-icon>
+                <span>World & Setting Updates</span>
+            </div>
+            <button mat-icon-button class="tiny-btn" (click)="state.addLogItem('world')" matTooltip="Add Item">
+                <mat-icon>add</mat-icon>
+            </button>
+        </div>
+        @if ((message().world_log?.length ?? 0) > 0) {
+        <ul class="log-list">
+            @for (world of (message().world_log || []); track $index; let idx = $index) {
+            <li class="log-item-row">
+                @if (state.editingLogKey() === message().id + '|world|' + idx) {
+                <!-- Inline Editor -->
+                <div class="log-editor">
+                    <input id="log-edit-input" type="text" [ngModel]="state.editingLogContent()"
+                        (ngModelChange)="state.editingLogContent.set($event)"
+                        (keydown.enter)="state.saveLogEdit('world', idx)" (keydown.escape)="state.cancelLogEdit()">
+                    <button mat-icon-button class="tiny-btn" (click)="state.saveLogEdit('world', idx)">
+                        <mat-icon>check</mat-icon>
+                    </button>
+                    <button mat-icon-button class="tiny-btn" (click)="state.cancelLogEdit()">
+                        <mat-icon>close</mat-icon>
+                    </button>
+                </div>
+                } @else {
+                <!-- Display Mode -->
+                <span class="log-text">{{ world }}</span>
+                <div class="log-actions">
+                    <button mat-icon-button class="tiny-btn" (click)="state.startLogEdit('world', idx, world)">
+                        <mat-icon>edit</mat-icon>
+                    </button>
+                    <button mat-icon-button class="tiny-btn" (click)="state.deleteLogItem('world', idx)">
+                        <mat-icon>delete</mat-icon>
+                    </button>
+                </div>
+                }
+            </li>
+            }
+        </ul>
+        } @else {
+        <div class="empty-log-hint" (click)="state.addLogItem('world')" (keydown.enter)="state.addLogItem('world')"
+            tabindex="0" role="button">No updates.
+            Click + to add.</div>
+        }
+    </div>
+</div>

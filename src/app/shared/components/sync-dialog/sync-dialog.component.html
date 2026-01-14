@@ -1,0 +1,60 @@
+<h2 mat-dialog-title class="dialog-title" [class.cloud-mode]="data.mode === 'CLOUD'">
+    <mat-icon>{{ icon }}</mat-icon>
+    {{ title }}
+</h2>
+<mat-dialog-content>
+    <div class="description">
+        Review changes between your local session and {{ targetName }}.
+    </div>
+
+    @if (syncItems().length > 0) {
+    <div class="sync-container">
+        <!-- Tab headers only -->
+        <mat-tab-group class="sync-tabs" (selectedTabChange)="onTabChange($event)">
+            @for (item of syncItems(); track item.name) {
+            <mat-tab>
+                <ng-template mat-tab-label>
+                    <span [class.changed-tab]="item.status !== 'identical'">{{ item.name }}</span>
+                </ng-template>
+            </mat-tab>
+            }
+        </mat-tab-group>
+
+        <!-- Diff header for current item -->
+        @if (currentItem()) {
+        <div class="diff-header">
+            <mat-checkbox [(ngModel)]="currentItem().selected">
+                Sync {{ currentItem().name }}
+            </mat-checkbox>
+            <span class="status-tag" [class]="currentItem().status">{{ currentItem().status }}</span>
+        </div>
+        }
+
+        @if (currentItem()) {
+        <app-monaco-editor [isDiff]="true" [originalValue]="currentItem().remoteContent || ''"
+            [(ngModel)]="currentItem().localContent" language="markdown"
+            style="height: calc(90vh - 220px); width: 100%; display: block;">
+        </app-monaco-editor>
+        }
+    </div>
+    } @else {
+    <div class="no-changes">No changes detected.</div>
+    }
+
+    @if (isSyncing()) {
+    <div class="loading-overlay">
+        <mat-progress-spinner mode="indeterminate" diameter="48"></mat-progress-spinner>
+        <span>Syncing to {{ targetName }}...</span>
+    </div>
+    }
+</mat-dialog-content>
+<mat-dialog-actions align="end">
+    <button mat-button (click)="onCancel()" [disabled]="isSyncing()">Cancel</button>
+    <button mat-flat-button color="primary" (click)="onConfirm()" [disabled]="!hasSelected() || isSyncing()">
+        @if (isSyncing()) {
+        Syncing...
+        } @else {
+        Confirm Sync
+        }
+    </button>
+</mat-dialog-actions>

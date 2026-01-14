@@ -1,0 +1,45 @@
+<mat-sidenav-container class="chat-sidenav-container" autosize>
+    <mat-sidenav position="end" [opened]="isSidebarOpen()" [mode]="sidenavMode()" class="turn-update-sidebar"
+        [fixedInViewport]="false">
+        <app-turn-update-panel [isOpen]="isSidebarOpen()" (jumpToMessage)="onJumpToMessage($event)"
+            (closePanel)="toggleSidebar()" />
+    </mat-sidenav>
+
+    <mat-sidenav-content class="chat-sidenav-content">
+        <div class="chat-container">
+
+            <!-- Thread -->
+            <div class="thread-area" #scrollContainer (scroll)="checkScroll()">
+
+                @for (msg of engine.messages(); track msg.id; let i = $index) {
+                <!-- Add ID for scrolling -->
+                <div [id]="'message-' + msg.id" class="message-wrapper">
+                    <app-chat-message [message]="msg" [index]="i" [isBusy]="engine.isBusy()"
+                        [isLastUser]="isLastUserMessage(msg.id)" (resend)="onEditAndResend($event)" />
+                </div>
+                }
+
+                <!-- Loading Indicator -->
+                @if (engine.status() === 'generating') {
+                <div class="loading-row">
+                    <mat-spinner diameter="20"></mat-spinner>
+                    <span>Generative AI is thinking...</span>
+                </div>
+                }
+
+            </div>
+
+            <app-chat-input #chatInput [(userInput)]="userInput" [(selectedIntent)]="selectedIntent"
+                [(editingMessageId)]="editingMessageId" (messageSent)="scrollToBottom(true)"
+                (toggleSidebar)="toggleSidebar()" />
+
+            <!-- Scroll to Bottom Button -->
+            @if (showScrollButton) {
+            <button mat-mini-fab color="accent" class="scroll-bottom-btn" (click)="scrollToBottom()">
+                <mat-icon>arrow_downward</mat-icon>
+            </button>
+            }
+
+        </div>
+    </mat-sidenav-content>
+</mat-sidenav-container>

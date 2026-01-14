@@ -1,0 +1,42 @@
+.provider-settings {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.full-width {
+    width: 100%;
+}
+
+.info-section {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px;
+    background: rgba(76, 175, 80, 0.1);
+    border-radius: 8px;
+    border: 1px solid rgba(76, 175, 80, 0.3);
+
+    mat-icon {
+        color: #4caf50;
+        flex-shrink: 0;
+        margin-top: 2px;
+    }
+
+    div {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    p {
+        margin: 0;
+        font-size: 0.85rem;
+        color: #a5d6a7;
+
+        &:first-child {
+            color: #81c784;
+            font-weight: 500;
+        }
+    }
+}

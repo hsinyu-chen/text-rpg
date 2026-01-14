@@ -1,0 +1,225 @@
+<!-- User Msg -->
+@if (message().role === 'user') {
+<div class="msg-row user">
+    <div class="msg-bubble user-bubble" [class.ref-only]="message().isRefOnly">
+        <!-- Toolbar for User Msg -->
+        <div class="msg-toolbar">
+            <button mat-icon-button class="mini-btn" (click)="state.toggleRefOnly()" [disabled]="isBusy()"
+                [matTooltip]="message().isRefOnly ? 'Include in Story' : 'Mark as Ref Only'">
+                <mat-icon>{{ message().isRefOnly ? 'link' : 'link_off' }}</mat-icon>
+            </button>
+            <!-- Rewind & Resend Button (Only Last User Msg) -->
+            @if (isLastUser()) {
+            <button mat-icon-button class="mini-btn" (click)="onEditAndResend()" [disabled]="isBusy()"
+                matTooltip="Edit & Resend (Deletes subsequent history)">
+                <mat-icon>history_edu</mat-icon>
+            </button>
+            }
+
+            <button mat-icon-button class="mini-btn delete-btn" (click)="state.deleteMessageAndFollowing()"
+                [disabled]="isBusy()" matTooltip="Delete This and All Following">
+                <mat-icon>delete_sweep</mat-icon>
+            </button>
+            <button mat-icon-button class="mini-btn delete-btn" (click)="state.deleteMessage()" [disabled]="isBusy()"
+                matTooltip="Delete Message">
+                <mat-icon>delete</mat-icon>
+            </button>
+        </div>
+        <div (dblclick)="state.enterEditMode()" class="bubble-content">
+
+            @if (!state.isEditing()) {
+            <div class="text-content">{{ message().content | stripIntent }}</div>
+            } @else {
+            <ng-container *ngTemplateOutlet="editor" />
+            }
+
+        </div>
+        <div class="msg-meta">
+            @if (message().intent) { <span class="intent-tag" [class.system]="message().intent === Intents.SYSTEM"
+                [class.save]="message().intent === Intents.SAVE">{{ getIntentLabel(message().intent) }}</span> }
+            User Action @if (message().isRefOnly) { <span>(Ref Only)</span> }
+        </div>
+    </div>
+</div>
+}
+
+<!-- Model Msg -->
+@if (message().role === 'model') {
+<div class="msg-row model">
+    <div class="msg-wrapper">
+        <div class="msg-bubble model-bubble group" [class.ref-only]="message().isRefOnly">
+
+            <!-- Toolbar -->
+            <div class="msg-toolbar">
+                @if (message().intent === Intents.SAVE || message().content.includes('<save')) { <button mat-icon-button
+                    class="mini-btn update-btn" (click)="state.openAutoUpdateDialog()" [disabled]="isBusy()"
+                    matTooltip="Auto Update Files">
+                    <mat-icon>auto_fix_high</mat-icon>
+                    </button>
+                    }
+                    <button mat-icon-button class="mini-btn" (click)="state.copyPairJSON()" [disabled]="isBusy()"
+                        matTooltip="Copy JSON Pair (User+Model)">
+                        <mat-icon>content_copy</mat-icon>
+                    </button>
+                    <button mat-icon-button class="mini-btn" (click)="state.toggleRaw()" [disabled]="isBusy()"
+                        matTooltip="Toggle Raw/Render">
+                        <mat-icon>code</mat-icon>
+                    </button>
+                    <button mat-icon-button class="mini-btn" (click)="state.enterEditMode()" [disabled]="isBusy()"
+                        matTooltip="Edit Text">
+                        <mat-icon>edit</mat-icon>
+                    </button>
+                    <button mat-icon-button class="mini-btn" (click)="state.toggleRefOnly()" [disabled]="isBusy()"
+                        [matTooltip]="message().isRefOnly ? 'Include in Story' : 'Mark as Ref Only'">
+                        <mat-icon>{{ message().isRefOnly ? 'link' : 'link_off' }}</mat-icon>
+                    </button>
+                    <button mat-icon-button class="mini-btn delete-btn" (click)="state.deleteMessageAndFollowing()"
+                        [disabled]="isBusy()" matTooltip="Delete This and All Following">
+                        <mat-icon>delete_sweep</mat-icon>
+                    </button>
+                    <button mat-icon-button class="mini-btn delete-btn" (click)="state.deleteMessage()"
+                        [disabled]="isBusy()" matTooltip="Delete Message">
+                        <mat-icon>delete</mat-icon>
+                    </button>
+            </div>
+
+            <!-- Context Status Indicator (If older than 5 turns) -->
+            @if (!state.inContext() && message().role === 'model' && !message().isRefOnly) {
+            <div class="context-status" matTooltip="Referenced by Summary Only (Context Optimized)">
+                <mat-icon>history</mat-icon>
+                <span>Archived</span>
+            </div>
+            }
+
+            <!-- Ref Only Collapsible Wrapper -->
+            @if (message().isRefOnly && !state.isRefExpanded()) {
+            <div class="ref-only-collapsed" (click)="state.toggleRefExpanded()"
+                (keydown.enter)="state.toggleRefExpanded()" tabindex="0" matTooltip="Click to Expand">
+                <span class="collapsed-text">{{ (message().content | stripIntent).slice(0, 50) }}...</span>
+                <mat-icon class="expand-icon">expand_more</mat-icon>
+            </div>
+            } @else {
+
+            <!-- Analysis Section (Atomic Breakdown) -->
+            @if (message().analysis) {
+            <div class="thought-container analysis-container">
+                <div class="thought-header analysis-header" (click)="state.toggleAnalysis()" tabindex="0"
+                    (keydown.enter)="state.toggleAnalysis()"
+                    (keydown.space)="$event.preventDefault(); state.toggleAnalysis()">
+                    <div class="header-main">
+                        <mat-icon>{{ state.isAnalysisVisible() ? 'expand_more' : 'chevron_right' }}</mat-icon>
+                        <mat-icon class="brain-icon">fact_check</mat-icon>
+                        <span>Atomic Breakdown & Check</span>
+                    </div>
+                </div>
+                @if (state.isAnalysisVisible()) {
+                <div class="thought-content">
+                    <markdown [data]="message().analysis"></markdown>
+                </div>
+                }
+            </div>
+            }
+
+            <!-- Thought Section -->
+            @if (message().thought) {
+            <div class="thought-container" [class.streaming]="message().isThinking">
+                <div class="thought-header" (click)="state.toggleThought()" tabindex="0"
+                    (keydown.enter)="state.toggleThought()"
+                    (keydown.space)="$event.preventDefault(); state.toggleThought()">
+                    <div class="header-main">
+                        <mat-icon>{{ state.isThoughtVisible() || message().isThinking ? 'expand_more' : 'chevron_right'
+                            }}</mat-icon>
+                        <mat-icon class="brain-icon">psychology</mat-icon>
+                        <span>Model Thought Process</span>
+                    </div>
+                    @if (message().isThinking) {
+                    <div class="header-status">
+                        Thinking...
+                    </div>
+                    }
+                </div>
+                @if (state.isThoughtVisible()) {
+                <div class="thought-content">
+                    <markdown [data]="message().thought"></markdown>
+                </div>
+                }
+            </div>
+            }
+
+            <!-- Turn Update Section -->
+            @if (message().summary || (message().inventory_log?.length ?? 0) > 0 || (message().quest_log?.length ?? 0) >
+            0 || (message().world_log?.length ?? 0) > 0) {
+            <div class="thought-container update-panel-container">
+                <div class="thought-header update-panel-header" (click)="state.toggleUpdate()" tabindex="0"
+                    (keydown.enter)="state.toggleUpdate()"
+                    (keydown.space)="$event.preventDefault(); state.toggleUpdate()">
+                    <div class="header-main">
+                        <mat-icon>{{ state.isUpdateVisible() ? 'expand_more' : 'chevron_right' }}</mat-icon>
+                        <mat-icon class="brain-icon">update</mat-icon>
+                        <span>Turn Update</span>
+                    </div>
+                </div>
+                @if (state.isUpdateVisible()) {
+                <div class="thought-content">
+                    <app-turn-update [message]="message()" />
+                </div>
+                }
+            </div>
+            }
+
+
+            @if (!state.isEditing()) {
+            <!-- Rendered Mode -->
+            @if (!state.isRaw()) {
+            <div (dblclick)="state.enterEditMode()" class="prose-content">
+                <markdown [data]="message().content | stripIntent"></markdown>
+            </div>
+            }
+
+            <!-- Raw Mode -->
+            @if (state.isRaw()) {
+            <div (dblclick)="state.enterEditMode()" class="raw-content">
+                {{ message().content }}
+            </div>
+            }
+            } @else {
+            <ng-container *ngTemplateOutlet="editor" />
+            }
+
+            @if (message().isRefOnly) {
+            <div class="ref-only-collapse-footer" (click)="state.toggleRefExpanded()"
+                (keydown.enter)="state.toggleRefExpanded()" tabindex="0" matTooltip="Collapse">
+                <mat-icon>expand_less</mat-icon>
+            </div>
+            }
+
+            }
+
+            <div class="msg-meta">
+                @if (message().intent) { <span class="intent-tag" [class.system]="message().intent === Intents.SYSTEM"
+                    [class.save]="message().intent === Intents.SAVE">{{ getIntentLabel(message().intent) }}</span> }
+                @if (message().isCorrection) { <span i18n class="correction-tag">(修正)</span> }
+                Model Response @if (message().isRefOnly) { <span>(Ref Only)</span> }
+
+            </div>
+        </div>
+    </div>
+</div>
+}
+
+<!-- Editor Template (Shared) -->
+<ng-template #editor>
+    <div class="editor-box">
+        <mat-form-field class="editor-field" appearance="outline">
+            <textarea matInput cdkTextareaAutosize [ngModel]="state.editContent()"
+                (ngModelChange)="state.editContent.set($event)"
+                (keydown.control.enter)="state.saveEdit(); $event.preventDefault()"
+                (keydown.meta.enter)="state.saveEdit(); $event.preventDefault()">
+            </textarea>
+        </mat-form-field>
+        <div class="editor-actions">
+            <button mat-button color="warn" (click)="state.cancelEdit()">Cancel</button>
+            <button mat-flat-button color="primary" (click)="state.saveEdit()">Save</button>
+        </div>
+    </div>
+</ng-template>

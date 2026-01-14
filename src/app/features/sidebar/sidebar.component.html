@@ -1,0 +1,96 @@
+<div class="sidebar-container">
+    <div class="header">
+        <div class="logo-container">
+            <img src="text_rpg_logo.png" alt="Text RPG Logo" class="sidebar-logo">
+        </div>
+        <div class="header-actions">
+            <button mat-icon-button (click)="openSettings()" [disabled]="engine.isBusy()" matTooltip="Settings">
+                <mat-icon>settings</mat-icon>
+            </button>
+            <button mat-icon-button class="close-btn" (click)="close()" matTooltip="Close Sidebar">
+                <mat-icon>close</mat-icon>
+            </button>
+        </div>
+    </div>
+
+    <!-- Pinned Usage Stats -->
+    <div class="pinned-usage">
+        <app-sidebar-cost-prediction></app-sidebar-cost-prediction>
+    </div>
+
+    <mat-divider></mat-divider>
+
+    <!-- Content Tabs -->
+    <mat-tab-group class="sidebar-tabs" growVertical="true">
+        <!-- Files Tab -->
+        <mat-tab>
+            <ng-template mat-tab-label>
+                <mat-icon>folder_open</mat-icon>
+                <span class="tab-label">Files</span>
+            </ng-template>
+            <div class="tab-content">
+                <div class="section-header-container">
+                    <h3 class="section-header">Loaded Files</h3>
+                    <button mat-icon-button class="toggle-btn" (click)="toggleDisplayMode()"
+                        [matTooltip]="displayMode() === 'tokens' ? 'Switch to Character Count' : 'Switch to Token Count'">
+                        <mat-icon>{{ displayMode() === 'tokens' ? 'text_format' : 'token' }}</mat-icon>
+                    </button>
+                </div>
+                <mat-list class="file-list">
+                    @for (file of fileList(); track file.name) {
+                    @if(file.name !== 'system_files/system_prompt.md'){
+                    <mat-list-item>
+                        <mat-icon matListItemIcon>description</mat-icon>
+                        <div matListItemTitle class="file-item-title">
+                            <span (click)="viewFile(file.name, file.content)" tabindex="0"
+                                (keydown.enter)="viewFile(file.name, file.content)"
+                                (keydown.space)="$event.preventDefault(); viewFile(file.name, file.content)"
+                                class="clickable-file">{{ file.name }}</span>
+                            <button mat-icon-button (click)="viewFile(file.name, file.content, true)"
+                                [disabled]="engine.isBusy()" matTooltip="Edit File">
+                                <mat-icon>edit</mat-icon>
+                            </button>
+                        </div>
+                        <div matListItemLine>
+                            @if (displayMode() === 'tokens') {
+                            {{ formatCount(file.tokens) }} tokens
+                            } @else {
+                            {{ formatCount(file.content.length) }} chars
+                            }
+                        </div>
+                    </mat-list-item>
+                    }
+                    }
+
+                    @if (fileList().length === 0) {
+                    <div class="empty-state">
+                        No files loaded
+                    </div>
+                    }
+                </mat-list>
+            </div>
+        </mat-tab>
+
+        <!-- Storage Tab -->
+        <mat-tab>
+            <ng-template mat-tab-label>
+                <mat-icon>cloud_sync</mat-icon>
+                <span class="tab-label">Storage</span>
+            </ng-template>
+            <div class="tab-content padded">
+                <app-sidebar-file-sync></app-sidebar-file-sync>
+            </div>
+        </mat-tab>
+
+        <!-- Session Tab -->
+        <mat-tab>
+            <ng-template mat-tab-label>
+                <mat-icon>settings_backup_restore</mat-icon>
+                <span class="tab-label">Session</span>
+            </ng-template>
+            <div class="tab-content padded">
+                <app-sidebar-context-controls></app-sidebar-context-controls>
+            </div>
+        </mat-tab>
+    </mat-tab-group>
+</div>

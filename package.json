@@ -1,0 +1,71 @@
+{
+  "name": "text-rpg",
+  "version": "0.0.0",
+  "scripts": {
+    "ng": "ng",
+    "start": "ng serve",
+    "build": "ng build",
+    "watch": "ng build --watch --configuration development",
+    "tauri": "tauri",
+    "desktop": "tauri dev",
+    "build:desktop": "tauri build",
+    "build:desktop:bin": "tauri build --no-bundle",
+    "lint": "ng lint",
+    "sync:public": "git checkout gh-pages-release && git checkout master -- . \":!public/assets/system_files/scenario/fareast\" && echo '✅ Engine Synced (Scenarios Protected)' && git status",
+    "deploy:full": "robocopy \"dist\\text-rpg\\browser\" \"W:\\text-rpg\" /MIR /IS /R:0 /W:0 || (if %ERRORLEVEL% LEQ 3 exit 0 else exit %ERRORLEVEL%)",
+    "deploy": "robocopy \"dist\\text-rpg\\browser\" \"W:\\text-rpg\" /MIR /IS /XD monaco /R:0 /W:0 || (if %ERRORLEVEL% LEQ 3 exit 0 else exit %ERRORLEVEL%)"
+  },
+  "prettier": {
+    "printWidth": 100,
+    "singleQuote": true,
+    "overrides": [
+      {
+        "files": "*.html",
+        "options": {
+          "parser": "angular"
+        }
+      }
+    ]
+  },
+  "private": true,
+  "packageManager": "npm@11.6.1",
+  "dependencies": {
+    "@angular/animations": "^21.0.6",
+    "@angular/cdk": "^21.0.5",
+    "@angular/common": "^21.0.0",
+    "@angular/compiler": "^21.0.0",
+    "@angular/core": "^21.0.0",
+    "@angular/forms": "^21.0.0",
+    "@angular/material": "^21.0.5",
+    "@angular/platform-browser": "^21.0.0",
+    "@angular/router": "^21.0.0",
+    "@google/genai": "^1.34.0",
+    "@tauri-apps/api": "^2.9.1",
+    "@tauri-apps/plugin-deep-link": "^2.4.5",
+    "@tauri-apps/plugin-dialog": "^2.4.2",
+    "@tauri-apps/plugin-fs": "^2.4.4",
+    "@tauri-apps/plugin-shell": "^2.3.3",
+    "@types/diff": "^7.0.2",
+    "best-effort-json-parser": "^1.2.1",
+    "diff": "^8.0.2",
+    "idb": "^8.0.3",
+    "marked": "^17.0.1",
+    "monaco-editor": "^0.55.1",
+    "ngx-markdown": "^21.0.1",
+    "phaser": "^3.90.0",
+    "rxjs": "~7.8.0",
+    "tslib": "^2.3.0"
+  },
+  "devDependencies": {
+    "@angular/build": "^21.0.4",
+    "@angular/cli": "^21.0.4",
+    "@angular/compiler-cli": "^21.0.0",
+    "@angular/localize": "^21.0.6",
+    "@tauri-apps/cli": "^2.9.6",
+    "angular-eslint": "21.1.0",
+    "eslint": "^9.39.1",
+    "ng-extract-i18n-merge": "^3.2.1",
+    "typescript": "~5.9.2",
+    "typescript-eslint": "8.47.0"
+  }
+}

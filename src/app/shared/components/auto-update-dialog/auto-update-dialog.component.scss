@@ -1,0 +1,350 @@
+.dialog-title {
+    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+    color: white;
+    margin: 0;
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+}
+
+.description {
+    margin: 16px 0;
+    font-size: 0.9rem;
+    color: #94a3b8;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+mat-dialog-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden !important;
+    padding: 0 24px 16px 24px !important;
+    margin: 0 !important;
+    max-height: none !important;
+}
+
+/* Mat Tab Nav Bar Styling */
+.file-nav-bar {
+    flex-shrink: 0;
+}
+
+mat-tab-nav-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.error-tab {
+    color: #fbbf24 !important;
+}
+
+/* Per-file apply button in tab header */
+.apply-file-btn {
+    width: 24px;
+    height: 24px;
+    line-height: 24px;
+    margin-left: 4px;
+    opacity: 0.6;
+    transition: opacity 0.2s, color 0.2s;
+
+    mat-icon {
+        font-size: 16px;
+        width: 16px;
+        height: 16px;
+    }
+
+    &:hover {
+        opacity: 1;
+        color: #22c55e;
+    }
+}
+
+/* Master-Detail Split Layout */
+.split-view-container {
+    display: flex;
+    flex: 1;
+    height: 100%;
+    overflow: hidden;
+    background: var(--bg-surface-dark);
+}
+
+/* LEFT PANE: Update List */
+.update-list-pane {
+    width: 320px;
+    min-width: 250px;
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid var(--border-color);
+    background: var(--bg-surface);
+
+    h3 {
+        padding: 12px 16px;
+        margin: 0;
+        font-size: 0.9rem;
+        color: #94a3b8;
+        border-bottom: 1px solid var(--border-color);
+        background: var(--bg-surface-dark);
+    }
+}
+
+.list-items {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.update-item {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: all 0.2s;
+    border-left: 4px solid transparent;
+    background: var(--bg-surface);
+
+    &:hover {
+        background: var(--border-color);
+    }
+
+    &.active {
+        background: rgba(255, 255, 255, 0.05);
+        border-left-color: #6366f1;
+    }
+}
+
+/* Drag Handle */
+.drag-handle {
+    cursor: grab;
+    color: #64748b;
+    font-size: 18px;
+    height: 18px;
+    width: 18px;
+    margin-right: 4px;
+    transition: color 0.2s;
+
+    &:hover {
+        color: #94a3b8;
+    }
+
+    &:active {
+        cursor: grabbing;
+    }
+}
+
+/* CDK Drag-Drop Styles */
+.cdk-drag-preview {
+    box-sizing: border-box;
+    border-radius: 4px;
+    box-shadow: 0 5px 5px -3px rgba(0, 0, 0, 0.2),
+        0 8px 10px 1px rgba(0, 0, 0, 0.14),
+        0 3px 14px 2px rgba(0, 0, 0, 0.12);
+    background: var(--bg-surface);
+    border-left: 4px solid #6366f1;
+    padding: 12px 16px;
+}
+
+.cdk-drag-placeholder {
+    opacity: 0.4;
+    background: rgba(99, 102, 241, 0.1);
+    border: 2px dashed #6366f1;
+    border-radius: 4px;
+}
+
+.cdk-drag-animating {
+    transition: transform 250ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.list-items.cdk-drop-list-dragging .update-item:not(.cdk-drag-placeholder) {
+    transition: transform 250ms cubic-bezier(0, 0, 0.2, 1);
+}
+
+.item-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.update-label {
+    flex: 1;
+    font-weight: 500;
+    color: #e2e8f0;
+}
+
+.status-icon {
+    font-size: 18px;
+    height: 18px;
+    width: 18px;
+
+    &.success {
+        color: #22c55e;
+    }
+
+    &.warning {
+        color: #f59e0b;
+    }
+
+    &.info {
+        color: #3b82f6;
+    }
+}
+
+.item-context {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding-left: 28px;
+    /* Align with text */
+    font-family: monospace;
+}
+
+/* RIGHT PANE: Editor */
+.editor-pane {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: #000;
+    min-width: 0;
+    /* Prevent flex overflow */
+}
+
+.editor-header {
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--bg-surface-dark);
+}
+
+.mode-badge {
+    font-size: 0.75rem;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: bold;
+    text-transform: uppercase;
+
+    &.diff {
+        background: #4f46e533;
+        color: #818cf8;
+        border: 1px solid #4f46e5;
+    }
+
+    &.editor {
+        background: #f59e0b33;
+        color: #fbbf24;
+        border: 1px solid #f59e0b;
+    }
+}
+
+.editor-hint {
+    font-size: 0.8rem;
+    color: #64748b;
+}
+
+.monaco-wrapper {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+}
+
+.monaco-component {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.no-selection {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #64748b;
+    font-style: italic;
+}
+
+.no-updates {
+    padding: 40px;
+    text-align: center;
+    color: #94a3b8;
+}
+
+
+.loading-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    color: #94a3b8;
+    background: var(--bg-surface);
+    border-radius: 8px;
+    margin-bottom: 16px;
+    border: 1px solid var(--border-color);
+}
+
+/* Pane Header with toggle */
+.pane-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    margin: 0;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-surface-dark);
+
+    h3 {
+        margin: 0;
+        font-size: 0.9rem;
+        color: #94a3b8;
+    }
+}
+
+.sidebar-toggle {
+    display: none; // Hidden on desktop
+}
+
+.mobile-menu-toggle {
+    display: none; // Hidden on desktop
+}
+
+/* Mobile Responsive Styles */
+@media (max-width: 768px) {
+    .update-list-pane {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        z-index: 100;
+        width: 280px;
+        transition: transform 0.3s ease;
+
+        &.collapsed {
+            transform: translateX(-100%);
+        }
+    }
+
+    .sidebar-toggle {
+        display: inline-flex;
+    }
+
+    .mobile-menu-toggle {
+        display: inline-flex;
+    }
+
+    .editor-hint {
+        display: none; // Hide hint on mobile to save space
+    }
+
+    .description {
+        display: none; // Hide description on mobile
+    }
+}

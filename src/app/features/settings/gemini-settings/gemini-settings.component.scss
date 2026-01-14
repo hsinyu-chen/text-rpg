@@ -1,0 +1,57 @@
+.provider-settings {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.full-width {
+    width: 100%;
+}
+
+.cache-section {
+    border: 1px solid #444;
+    border-radius: 8px;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.warning-text {
+    font-size: 0.75rem;
+    color: #ffb74d;
+    margin: 8px 0 0 0;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.advanced-section {
+    border-top: 1px solid #333;
+    padding-top: 16px;
+
+    h4 {
+        margin: 0 0 12px 0;
+        font-size: 0.85rem;
+        color: #aaa;
+    }
+}
+
+.slider-row {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 12px;
+
+    label {
+        font-size: 0.8rem;
+        color: #ccc;
+        margin-bottom: 4px;
+    }
+}
+
+.input-row {
+    display: flex;
+    gap: 16px;
+
+    mat-form-field {
+        flex: 1;
+    }
+}

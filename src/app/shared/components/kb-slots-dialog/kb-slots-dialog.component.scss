@@ -1,0 +1,27 @@
+.loading-spinner {
+    display: flex;
+    justify-content: center;
+    padding: 20px;
+}
+
+.new-slot-container {
+    margin-top: 16px;
+    padding: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.input-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+
+    mat-form-field {
+        flex: 1;
+    }
+}
+
+mat-nav-list {
+    max-height: 400px;
+    overflow-y: auto;
+}

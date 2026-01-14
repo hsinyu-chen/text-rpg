@@ -1,0 +1,116 @@
+.chat-sidenav-container {
+    width: 100%;
+    height: 100%;
+    background: transparent;
+}
+
+.chat-sidenav-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+.turn-update-sidebar {
+    width: 350px;
+    max-width: 90vw;
+    background: #1e1e1e; // Dark theme bg
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: -4px 0 10px rgba(0, 0, 0, 0.3);
+}
+
+.chat-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+}
+
+// ... existing styles ...
+
+.thread-area {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 1rem;
+    padding-bottom: 2rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+    scroll-behavior: smooth; // Native smooth scroll
+
+    // Scrollbar styling
+    &::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    &::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    &::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 4px;
+
+        &:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+    }
+}
+
+.message-wrapper {
+    transition: background-color 1s ease;
+    border-radius: 8px;
+
+    &.highlight-flash {
+        background-color: rgba(255, 215, 64, 0.15); // Accent color flash
+        animation: flash 2s ease-out;
+    }
+}
+
+@keyframes flash {
+    0% {
+        background-color: rgba(255, 215, 64, 0.3);
+    }
+
+    100% {
+        background-color: transparent;
+    }
+}
+
+.loading-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 0.9rem;
+    justify-content: center;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.scroll-bottom-btn {
+    position: absolute;
+    bottom: 90px; // Above input area
+    right: 20px;
+    z-index: 10;
+    opacity: 0.8;
+
+    &:hover {
+        opacity: 1;
+        transform: scale(1.1);
+    }
+}

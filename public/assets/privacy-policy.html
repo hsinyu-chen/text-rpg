@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy - TextRPG</title>
+    <style>
+        :root {
+            --bg-color: #0f0f1a;
+            --card-bg: #1a1a2e;
+            --text-color: #e0e0e0;
+            --heading-color: #ffffff;
+            --accent-color: #6366f1;
+            --border-color: #2d2d44;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.7;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        h1 {
+            color: var(--heading-color);
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, var(--accent-color), #a855f7);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .last-updated {
+            color: #888;
+            font-size: 0.9rem;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 24px;
+            border: 1px solid var(--border-color);
+        }
+
+        h2 {
+            color: var(--heading-color);
+            font-size: 1.4rem;
+            margin-bottom: 16px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--accent-color);
+            display: inline-block;
+        }
+
+        p {
+            margin-bottom: 16px;
+        }
+
+        ul {
+            margin-left: 24px;
+            margin-bottom: 16px;
+        }
+
+        li {
+            margin-bottom: 8px;
+        }
+
+        .highlight {
+            color: var(--accent-color);
+            font-weight: 600;
+        }
+
+        .info-box {
+            background: rgba(99, 102, 241, 0.1);
+            border-left: 4px solid var(--accent-color);
+            padding: 16px;
+            margin: 16px 0;
+            border-radius: 0 8px 8px 0;
+        }
+
+        footer {
+            text-align: center;
+            padding-top: 40px;
+            color: #666;
+            font-size: 0.85rem;
+        }
+
+        a {
+            color: var(--accent-color);
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>Privacy Policy</h1>
+            <p class="last-updated">Last Updated: January 7, 2026</p>
+        </header>
+
+        <section class="card">
+            <h2>Introduction</h2>
+            <p>
+                Welcome to <span class="highlight">TextRPG</span>. We respect your privacy and are committed to
+                transparency about how our application works.
+                This privacy policy explains how data is handled when you use our application.
+            </p>
+            <div class="info-box">
+                <strong>Key Point:</strong> TextRPG is a client-side application. We do not operate any servers that
+                collect, store, or process your personal data.
+            </div>
+        </section>
+
+        <section class="card">
+            <h2>No Data Collection</h2>
+            <p>
+                TextRPG is a <strong>100% client-side application</strong> that runs entirely in your browser or on your
+                desktop.
+                We do not collect, transmit, or store any of your personal information on our servers because <strong>we
+                    do not have any servers</strong>.
+            </p>
+            <p>All your data remains on your device or in your own third-party accounts that you choose to connect.</p>
+        </section>
+
+        <section class="card">
+            <h2>Web Hosting</h2>
+            <p>
+                When you access TextRPG through a web browser, the hosting server may collect standard web server logs,
+                which typically include:
+            </p>
+            <ul>
+                <li>IP address</li>
+                <li>Browser type and version</li>
+                <li>Access timestamps</li>
+                <li>Pages requested</li>
+            </ul>
+            <p>
+                This is standard for any website and is used solely for security and debugging purposes.
+                <strong>No game data, personal information, or user content is ever sent to our servers.</strong>
+            </p>
+        </section>
+
+        <section class="card">
+            <h2>Local Data Storage</h2>
+            <p>The application stores the following data locally on your device:</p>
+            <ul>
+                <li><strong>Game save files:</strong> Your story progress and character data</li>
+                <li><strong>Application settings:</strong> Your preferences and configurations</li>
+                <li><strong>API keys:</strong> Your own API credentials (stored only on your device)</li>
+            </ul>
+            <p>This data never leaves your device unless you explicitly choose to use cloud sync features.</p>
+        </section>
+
+        <section class="card">
+            <h2>Google Drive Integration</h2>
+            <p>
+                If you choose to enable cloud sync, TextRPG uses Google Drive's "appDataFolder" - a private, hidden
+                folder
+                accessible only by this application. When you use this feature:
+            </p>
+            <ul>
+                <li>Your game data is stored in <strong>your own Google Drive account</strong></li>
+                <li>We cannot access your Google Drive or your stored data</li>
+                <li>The connection is made directly between your browser/app and Google's servers</li>
+                <li>You can revoke access at any time through your Google Account settings</li>
+            </ul>
+        </section>
+
+        <section class="card">
+            <h2>Third-Party Services</h2>
+            <p>TextRPG connects directly to the following third-party services from your device:</p>
+            <ul>
+                <li><strong>Google OAuth:</strong> For optional cloud sync authentication</li>
+                <li><strong>Google Drive API:</strong> For optional cloud storage of game data</li>
+                <li><strong>Gemini API:</strong> For AI-powered game content (using your own API key)</li>
+            </ul>
+            <p>
+                These connections are made directly from your device to the respective services.
+                We do not act as an intermediary and have no visibility into these communications.
+            </p>
+        </section>
+
+        <section class="card">
+            <h2>Your Control</h2>
+            <p>You have complete control over your data:</p>
+            <ul>
+                <li>Delete local data by clearing browser storage or uninstalling the desktop app</li>
+                <li>Delete cloud data directly from your Google Drive</li>
+                <li>Revoke Google access through your Google Account security settings</li>
+                <li>The application works fully offline without any third-party connections</li>
+            </ul>
+        </section>
+
+        <section class="card">
+            <h2>Changes to This Policy</h2>
+            <p>
+                We may update this privacy policy from time to time. Any changes will be reflected on this page
+                with an updated "Last Updated" date.
+            </p>
+        </section>
+
+        <section class="card">
+            <h2>Contact</h2>
+            <p>
+                If you have any questions about this Privacy Policy, please reach out through emal <a
+                    mailto="evaimpact@gmail.com">evaimpact@gmail.com</a>
+            </p>
+        </section>
+
+        <footer>
+            <p>&copy; 2026 TextRPG. All rights reserved.</p>
+        </footer>
+    </div>
+</body>
+
+</html>

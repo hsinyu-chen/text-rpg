@@ -1,0 +1,72 @@
+<div class="panel-header">
+    <h2>Turn Updates</h2>
+    <button mat-icon-button (click)="closePanel.emit()">
+        <mat-icon>close</mat-icon>
+    </button>
+</div>
+
+<div class="panel-content" #contentContainer>
+    @if (updates().length === 0) {
+    <div class="empty-state">
+        <mat-icon>history_toggle_off</mat-icon>
+        <p>No updates recorded yet.</p>
+    </div>
+    }
+
+    @for (msg of updates(); track msg.id) {
+    <div class="update-card" (click)="onJump(msg.id)" (keydown.enter)="onJump(msg.id)" tabindex="0" role="button">
+        <div class="card-header">
+            <span class="role-badge">{{ msg.intent || 'System' }}</span>
+            <!-- <span class="time">{{ formatTime(msg.timestamp) }}</span> -->
+        </div>
+
+        @if (msg.summary) {
+        <div class="section narrative">
+            <mat-icon class="sec-icon">short_text</mat-icon>
+            <span>{{ msg.summary }}</span>
+        </div>
+        }
+
+        @if (msg.inventory_log?.length) {
+        <div class="section inventory">
+            <div class="sec-title">
+                <mat-icon class="sec-icon">inventory_2</mat-icon>
+                <span>Items</span>
+            </div>
+            <ul>
+                @for (item of msg.inventory_log; track $index) {
+                <li>{{ item }}</li>
+                }
+            </ul>
+        </div>
+        }
+
+        @if (msg.quest_log?.length) {
+        <div class="section quest">
+            <div class="sec-title">
+                <mat-icon class="sec-icon">assignment</mat-icon>
+                <span>Quests</span>
+            </div>
+            <ul>
+                @for (item of msg.quest_log; track $index) {
+                <li>{{ item }}</li>
+                }
+            </ul>
+        </div>
+        }
+        @if (msg.world_log?.length) {
+        <div class="section world">
+            <div class="sec-title">
+                <mat-icon class="sec-icon">public</mat-icon>
+                <span>World</span>
+            </div>
+            <ul>
+                @for (item of msg.world_log; track $index) {
+                <li>{{ item }}</li>
+                }
+            </ul>
+        </div>
+        }
+    </div>
+    }
+</div>

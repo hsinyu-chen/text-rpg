@@ -1,0 +1,119 @@
+<h2 mat-dialog-title class="dialog-title">
+    <mat-icon>auto_fix_high</mat-icon>
+    Auto Update Files
+</h2>
+<mat-dialog-content>
+    <div class="description">
+        Review the changes proposed by the AI. Select an update to view details.
+    </div>
+
+    @if (isInitializing()) {
+    <div class="loading-container">
+        <mat-spinner diameter="48"></mat-spinner>
+        <span>Loading files and updates...</span>
+    </div>
+    } @else if (groupedUpdates().length > 0) {
+    <!-- Mat Tab Nav Bar (navigation mode - single editor reused) -->
+    <nav mat-tab-nav-bar [tabPanel]="tabPanel" class="file-nav-bar">
+        @for (group of groupedUpdates(); track group.fileName; let i = $index) {
+        <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -->
+        <a mat-tab-link [active]="activeGroupIndex() === i" [class.error-tab]="hasMismatch(group)"
+            (click)="selectGroup(i)">
+            {{ group.fileName }}
+        </a>
+        }
+    </nav>
+    <mat-tab-nav-panel #tabPanel>
+        <!-- Single content area for active group -->
+        @if (activeGroup(); as group) {
+        <div class="split-view-container">
+            <!-- Left: Update List -->
+            <div class="update-list-pane" [class.collapsed]="!isSidebarOpen()">
+                <div class="pane-header">
+                    <h3>Hunks in this File</h3>
+                    <button mat-icon-button class="sidebar-toggle" (click)="toggleSidebar()">
+                        <mat-icon>{{ isSidebarOpen() ? 'chevron_left' : 'menu' }}</mat-icon>
+                    </button>
+                </div>
+                <div class="list-items" cdkDropList (cdkDropListDropped)="onDrop(group, $event)">
+                    @for (update of group.updates; track update.id; let j = $index) {
+                    <div class="update-item" cdkDrag [class.active]="activeUpdate()?.id === update.id"
+                        (click)="selectUpdate(update)" (keydown.enter)="selectUpdate(update)" tabindex="0">
+
+                        <div class="item-header">
+                            <!-- Drag Handle -->
+                            <mat-icon class="drag-handle" cdkDragHandle>drag_indicator</mat-icon>
+                            <!-- Helper wrapper to intercept clicks before they reach the checkbox logic -->
+                            <div class="checkbox-wrapper" (click)="onCheckboxClick(group, update, $event)"
+                                (keydown.enter)="onCheckboxClick(group, update, $event)" tabindex="0" role="checkbox"
+                                [attr.aria-checked]="update.selected()">
+                                <mat-checkbox [checked]="update.selected()"
+                                    style="pointer-events: none; touch-action: none;">
+                                </mat-checkbox>
+                            </div>
+                            <span class="update-label">{{ update.label || 'Hunk #' + (j + 1) }}</span>
+
+                            <!-- Status Icon -->
+                            @if (update.status) {
+                            @if (update.status.validating) {
+                            <mat-spinner diameter="16"></mat-spinner>
+                            } @else if (!update.status.exists) {
+                            <mat-icon class="status-icon info" matTooltip="New File">fiber_new</mat-icon>
+                            } @else if (update.status.matched) {
+                            <mat-icon class="status-icon success" matTooltip="Match Found">check_circle</mat-icon>
+                            } @else if (update.status.failReason === 'context_mismatch') {
+                            <mat-icon class="status-icon warning"
+                                matTooltip="Context Mismatch: Target found but not under expected path">warning</mat-icon>
+                            } @else {
+                            <mat-icon class="status-icon warning"
+                                matTooltip="Target Not Found: Content to replace does not exist">warning</mat-icon>
+                            }
+                            }
+                        </div>
+
+                        @if(update.context) {
+                        <div class="item-context" [matTooltip]="update.context">
+                            {{ update.context }}
+                        </div>
+                        }
+                    </div>
+                    }
+                </div>
+            </div>
+
+            <!-- Right: Editor Pane (SINGLE EDITOR - value replaced on tab switch) -->
+            <div class="editor-pane">
+                <div class="editor-header">
+                    <button mat-icon-button class="mobile-menu-toggle" (click)="toggleSidebar()">
+                        <mat-icon>menu</mat-icon>
+                    </button>
+                    <span class="mode-badge diff">Full File View</span>
+                    <span class="editor-hint">
+                        Showing combined result of selected hunks. You can edit the result directly.
+                    </span>
+                </div>
+
+                <div class="monaco-wrapper">
+                    <app-monaco-editor [isDiff]="true" [originalValue]="group.originalContent()"
+                        [(ngModel)]="group.combinedContent" language="markdown" [options]="{readOnly: false}">
+                    </app-monaco-editor>
+                </div>
+            </div>
+        </div>
+        }
+    </mat-tab-nav-panel>
+    } @else {
+    <div class="no-updates">No updates found in the message.</div>
+    }
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+    <button mat-button (click)="onCancel()">Cancel</button>
+    @if (activeGroup(); as group) {
+    <button mat-stroked-button color="accent" (click)="onApplyFile(group)" [disabled]="!hasSelectedInGroup(group)">
+        Apply Current File
+    </button>
+    }
+    <button mat-flat-button color="primary" (click)="onApply()" [disabled]="!hasSelectedUpdates()">Apply
+        All Changes</button>
+</mat-dialog-actions>

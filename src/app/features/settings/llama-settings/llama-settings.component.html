@@ -1,0 +1,22 @@
+<div class="provider-settings">
+    <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Server URL</mat-label>
+        <input matInput [(ngModel)]="baseUrl" placeholder="http://localhost:8080">
+        <mat-hint>OpenAI-compatible API endpoint (e.g., /v1/chat/completions)</mat-hint>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Model Name</mat-label>
+        <input matInput [(ngModel)]="modelId" placeholder="local-model">
+        <mat-hint>Identifier for the loaded model</mat-hint>
+    </mat-form-field>
+
+    <div class="info-section">
+        <mat-icon>info</mat-icon>
+        <div>
+            <p><strong>Local Inference</strong></p>
+            <p>llama.cpp runs entirely on your machine - no API costs or data sent externally.</p>
+            <p>Ensure your llama.cpp server is running before starting a session.</p>
+        </div>
+    </div>
+</div>

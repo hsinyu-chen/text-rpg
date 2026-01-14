@@ -1,0 +1,14 @@
+<h2 mat-dialog-title>
+    <div class="title-container">
+        <span>API Contents Preview</span>
+        <mat-slide-toggle [(ngModel)]="showKB" color="primary">Show KB Content</mat-slide-toggle>
+    </div>
+</h2>
+<mat-dialog-content>
+    <div class="payload-container">
+        <markdown [data]="formattedPayload"></markdown>
+    </div>
+</mat-dialog-content>
+<mat-dialog-actions align="end">
+    <button mat-flat-button color="primary" [mat-dialog-close]="true">Close</button>
+</mat-dialog-actions>

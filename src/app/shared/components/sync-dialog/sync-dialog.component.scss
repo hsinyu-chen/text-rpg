@@ -1,0 +1,143 @@
+.dialog-title {
+    background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+    color: white;
+    margin: 0;
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    flex-shrink: 0;
+
+    &.cloud-mode {
+        background: linear-gradient(135deg, #4285f4 0%, #34a853 100%);
+    }
+}
+
+.description {
+    margin: 16px 0;
+    font-size: 0.9rem;
+    color: #94a3b8;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+mat-dialog-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden !important;
+    padding: 0 24px !important;
+    margin: 0 !important;
+    max-height: none !important;
+    position: relative;
+}
+
+.sync-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 0;
+}
+
+.sync-tabs {
+    flex-shrink: 0;
+    border: 1px solid var(--border-color);
+    border-radius: 8px 8px 0 0;
+    background: var(--bg-surface-dark);
+
+    // Hide tab body - we use a single diff editor below
+    :host ::ng-deep .mat-mdc-tab-body-wrapper {
+        display: none !important;
+    }
+}
+
+.diff-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+    padding: 8px 0;
+}
+
+.status-tag {
+    font-size: 0.75rem;
+    padding: 2px 8px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    font-weight: bold;
+
+    &.conflict {
+        background: #ef444422;
+        color: #f87171;
+    }
+
+    &.upload {
+        background: #3b82f622;
+        color: #60a5fa;
+    }
+
+    &.changed {
+        background: #f59e0b22;
+        color: #fbbf24;
+    }
+
+    &.new_in_db {
+        background: #10b98122;
+        color: #34d399;
+    }
+
+    &.new_on_disk,
+    &.new_in_cloud {
+        background: #8b5cf622;
+        color: #a78bfa;
+    }
+
+    &.identical {
+        background: #64748b22;
+        color: #94a3b8;
+    }
+
+    &.download {
+        background: #06b6d422;
+        color: #22d3ee;
+    }
+}
+
+.changed-tab {
+    font-weight: bold;
+    color: #fbbf24;
+}
+
+.monaco-diff-container {
+    flex: 1;
+    min-height: 350px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.no-changes {
+    padding: 40px;
+    text-align: center;
+    color: #94a3b8;
+}
+
+.loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(18, 18, 18, 0.85);
+    backdrop-filter: blur(4px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    z-index: 50;
+    color: white;
+    font-weight: 500;
+}

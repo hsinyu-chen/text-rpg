@@ -1,0 +1,35 @@
+.title-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+mat-slide-toggle {
+    font-size: 0.9rem;
+    font-weight: normal;
+}
+
+mat-dialog-content {
+    min-width: 700px;
+    padding: 0 !important;
+}
+
+.payload-container {
+    max-height: 70vh;
+    overflow-y: auto;
+    background: #1e1e1e;
+    padding: 16px;
+    font-family: 'Consolas', 'Monaco', monospace;
+}
+
+:host ::ng-deep pre {
+    margin: 0;
+    background: transparent !important;
+    padding: 0 !important;
+}
+
+:host ::ng-deep code {
+    font-size: 0.9rem;
+    line-height: 1.4;
+}

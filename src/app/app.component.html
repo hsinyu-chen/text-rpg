@@ -1,0 +1,49 @@
+<mat-sidenav-container class="app-sidenav-container">
+    <!-- Sidebar -->
+    <mat-sidenav [mode]="sidenavMode()" [opened]="sidenavOpened()" (closed)="closeSidebar()" class="app-sidebar">
+        <app-sidebar (closeSidebar)="closeSidebar()"></app-sidebar>
+    </mat-sidenav>
+
+    <!-- Main Content (Chat) -->
+    <mat-sidenav-content class="app-content">
+
+        @if (!sidenavOpened()) {
+        <button mat-icon-button class="mobile-menu-btn" (click)="toggleSidebar()">
+            <mat-icon>menu</mat-icon>
+        </button>
+        }
+        @if (!engine.isConfigured()) {
+        <div class="blocker-overlay">
+            <mat-icon class="blocker-icon">lock</mat-icon>
+            <h2>Setup Required</h2>
+            <p>Please configure your API Key and Model settings to continue.</p>
+            <button mat-flat-button color="accent" (click)="openSettings()">
+                Configure Now
+            </button>
+        </div>
+        }
+
+        <!-- Context Missing Blocker -->
+        @if (engine.isConfigured() && engine.messages().length > 0 && engine.loadedFiles().size === 0) {
+        <div class="blocker-overlay">
+            <mat-icon class="blocker-icon">folder_open</mat-icon>
+            <h2>Resuming Session</h2>
+            <p>To continue this story, please re-select your story folder to load the files for the AI.</p>
+            <button mat-flat-button color="primary" (click)="engine.loadFiles()">
+                Select Story Folder
+            </button>
+        </div>
+        }
+
+        <app-chat class="chat-component"></app-chat>
+
+    </mat-sidenav-content>
+</mat-sidenav-container>
+
+@if (idleService.showScreensaver()) {
+@if (engine.config()?.screensaverType === 'code') {
+<app-code-screensaver />
+} @else {
+<app-space-invaders />
+}
+}

@@ -1,0 +1,92 @@
+.input-area {
+    padding: 16px;
+    background-color: #1e1e1e;
+    border-top: 1px solid #333;
+    z-index: 10;
+}
+
+.input-wrapper {
+    width: 100%;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: auto auto auto auto 150px 1fr auto auto;
+    gap: 12px;
+    align-items: center;
+}
+
+.intent-select {
+    width: 100%;
+    margin-bottom: -16px;
+
+    ::ng-deep .mat-mdc-text-field-wrapper {
+        background-color: rgba(255, 255, 255, 0.03) !important;
+    }
+}
+
+.main-input {
+    width: 100%;
+    margin-bottom: -16px;
+    /* Mat Form Field spacing fix */
+
+    ::ng-deep .mat-mdc-text-field-wrapper {
+        background-color: rgba(255, 255, 255, 0.03) !important;
+    }
+}
+
+.send-btn,
+.save-btn,
+.config-btn,
+.export-btn,
+.cancel-edit-btn {
+    margin-bottom: 0;
+}
+
+.save-btn {
+    background-color: #424242 !important; // Dark grey
+    color: #ffb74d !important; // Amber-ish text
+
+    &:hover {
+        background-color: #616161 !important;
+    }
+}
+
+.config-btn {
+    background-color: #424242 !important;
+    color: #bdbdbd !important;
+
+    &:hover {
+        background-color: #616161 !important;
+        color: #fff !important;
+    }
+}
+
+.preview-btn {
+    background-color: #424242 !important;
+    color: #90caf9 !important;
+
+    &:hover {
+        background-color: #616161 !important;
+    }
+}
+
+.mobile-menu-btn {
+    display: none; // Hidden by default on desktop
+    background-color: #424242 !important;
+    color: #e0e0e0 !important;
+}
+
+@media (max-width: 900px) {
+    .input-wrapper {
+        // Menu | Intent | Input | Send (Preview hidden/moved to menu)
+        grid-template-columns: auto 110px 1fr auto;
+        gap: 8px;
+    }
+
+    .desktop-only {
+        display: none !important;
+    }
+
+    .mobile-menu-btn {
+        display: block !important;
+    }
+}

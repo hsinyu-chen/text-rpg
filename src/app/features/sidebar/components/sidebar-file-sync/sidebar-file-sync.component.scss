@@ -1,0 +1,142 @@
+.full-width {
+    width: 100%;
+}
+
+.hint-text {
+    font-size: 11px;
+    color: var(--mat-sys-on-surface-variant);
+    opacity: 0.7;
+    margin: 4px 0 0;
+    text-align: center;
+}
+
+.google-btn {
+    ::ng-deep .mat-icon {
+        color: inherit;
+    }
+}
+
+.sync-section {
+    padding: 0;
+    margin-bottom: 8px;
+
+    .section-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 12px;
+        opacity: 0.8;
+
+        mat-icon {
+            font-size: 20px;
+            width: 20px;
+            height: 20px;
+        }
+
+        .section-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+    }
+}
+
+.folder-selection {
+    margin-bottom: 12px;
+}
+
+.action-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.action-btn {
+    height: 36px;
+    line-height: 36px;
+    padding: 0 12px;
+    font-size: 0.9rem;
+
+    mat-icon {
+        font-size: 18px;
+        width: 18px;
+        height: 18px;
+        margin-right: 4px;
+    }
+
+    ::ng-deep .mat-mdc-button-touch-target {
+        display: none;
+    }
+}
+
+.slot-info {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(0, 0, 0, 0.2);
+    padding: 2px 4px 2px 10px;
+    border-radius: 6px;
+    height: 36px;
+    overflow: hidden;
+    /* Ensure no spill */
+
+    .slot-icon {
+        font-size: 20px;
+        width: 20px;
+        height: 20px;
+        opacity: 0.7;
+        flex-shrink: 0;
+    }
+
+    .text-truncate-left {
+        flex: 1;
+        font-size: 0.9rem;
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        min-width: 0;
+        direction: rtl;
+        text-align: left;
+    }
+
+    .slot-name {
+        flex: 1;
+        font-size: 0.9rem;
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        min-width: 0;
+        /* Critical for flex truncation */
+    }
+
+    button {
+        width: 24px !important;
+        height: 24px !important;
+        padding: 0 !important;
+        min-width: 0 !important;
+        flex-shrink: 0;
+
+        /* Flex center the content */
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+
+        mat-icon {
+            font-size: 16px;
+            width: 16px;
+            height: 16px;
+            line-height: 16px;
+            /* Reset line-height to match height just in case */
+        }
+    }
+}
+
+.fade-text {
+    opacity: 0.6;
+    font-size: 0.85em;
+    font-style: italic;
+}

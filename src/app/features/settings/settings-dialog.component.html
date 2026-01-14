@@ -1,0 +1,152 @@
+<h2 mat-dialog-title>Configuration</h2>
+<mat-dialog-content>
+    <div class="settings-form">
+
+        <!-- Provider Selection -->
+        <div class="provider-selector">
+            <h3>LLM Provider</h3>
+            <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Select Provider</mat-label>
+                <mat-select [(ngModel)]="activeProvider">
+                    @for (p of providers; track p.id) {
+                    <mat-option [value]="p.id">
+                        <mat-icon>{{ p.icon }}</mat-icon>
+                        {{ p.name }}
+                    </mat-option>
+                    }
+                </mat-select>
+            </mat-form-field>
+        </div>
+
+        <!-- Dynamic Provider Settings -->
+        <div class="provider-content">
+            @if (activeProvider() === 'gemini') {
+            <app-gemini-settings #geminiSettings></app-gemini-settings>
+            } @else {
+            <app-llama-settings #llamaSettings></app-llama-settings>
+            }
+        </div>
+
+        <!-- Game Settings -->
+        <div class="advanced-section">
+            <h3>Game Settings</h3>
+            <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Output Language (Override)</mat-label>
+                <mat-select [(ngModel)]="outputLanguage">
+                    @for (l of languages; track l.value) {
+                    <mat-option [value]="l.value">
+                        {{ l.label }}
+                    </mat-option>
+                    }
+                </mat-select>
+                <mat-hint>Forces the AI to narrate in this language.</mat-hint>
+            </mat-form-field>
+
+            @if (outputLanguage() === 'custom') {
+            <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Enter Language</mat-label>
+                <input matInput [(ngModel)]="customOutputLanguage" placeholder="e.g. French, Korean">
+            </mat-form-field>
+            }
+        </div>
+
+        <!-- Shared UI Settings -->
+        <div class="advanced-section">
+            <h3>UI Customization</h3>
+            <div class="slider-row">
+                <label for="fontSize-slider">Font Size: {{ fontSize() || 17 }}px</label>
+                <mat-slider min="12" max="32" step="1" showTickMarks discrete>
+                    <input matSliderThumb id="fontSize-slider" [(ngModel)]="fontSize">
+                </mat-slider>
+            </div>
+
+            <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Font Family</mat-label>
+                <mat-select [(ngModel)]="fontFamily">
+                    @for (f of fontFamilies; track f.value) {
+                    <mat-option [value]="f.value">
+                        {{ f.name }}
+                    </mat-option>
+                    }
+                </mat-select>
+            </mat-form-field>
+
+            @if (fontFamily() === 'custom') {
+            <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Enter Font Name</mat-label>
+                <input matInput [(ngModel)]="customFontName" placeholder="e.g. Inter, Consolas">
+            </mat-form-field>
+            }
+
+            <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Screensaver Type</mat-label>
+                <mat-select [(ngModel)]="screensaverType">
+                    <mat-option value="invaders">
+                        <mat-icon>videogame_asset</mat-icon> Space Invaders
+                    </mat-option>
+                    <mat-option value="code">
+                        <mat-icon>code</mat-icon> Code Editor (Boss Key)
+                    </mat-option>
+                </mat-select>
+            </mat-form-field>
+        </div>
+
+        <!-- Billing Settings -->
+        <div class="advanced-section">
+            <h3>Billing & Currency</h3>
+
+            <div class="toggle-row">
+                <mat-slide-toggle [(ngModel)]="enableConversion" color="primary">
+                    Enable Currency Conversion
+                </mat-slide-toggle>
+            </div>
+
+            <div class="currency-row">
+                <mat-form-field appearance="outline" class="half-width">
+                    <mat-label>Display Currency</mat-label>
+                    <mat-select [(ngModel)]="currency" [disabled]="!enableConversion()">
+                        @for (c of currencies; track c.code) {
+                        <mat-option [value]="c.code">
+                            {{ c.name }}
+                        </mat-option>
+                        }
+                    </mat-select>
+                </mat-form-field>
+
+                @if (currency() !== 'USD') {
+                <mat-form-field appearance="outline" class="half-width">
+                    <mat-label>Exchange Rate</mat-label>
+                    <input matInput type="number" [(ngModel)]="exchangeRate" [disabled]="!enableConversion()">
+                    <span matSuffix>{{ currency() }}/USD</span>
+                </mat-form-field>
+                }
+            </div>
+
+            @if (!enableConversion()) {
+            <p class="hint-text">Costs will be displayed in default USD ($).</p>
+            }
+        </div>
+
+        <!-- Cloud Sync -->
+        <div class="advanced-section">
+            <h3>Cloud Sync</h3>
+            <p class="hint-text">Sync your settings to Google Drive App Data.</p>
+            <div class="button-row">
+                <button mat-stroked-button (click)="uploadSettings()" [disabled]="loading.isLoading()">
+                    <mat-icon>cloud_upload</mat-icon> Upload
+                </button>
+                <button mat-stroked-button (click)="downloadSettings()" [disabled]="loading.isLoading()">
+                    <mat-icon>cloud_download</mat-icon> Download
+                </button>
+                @if (loading.isLoading()) {
+                <mat-progress-spinner mode="indeterminate" diameter="24"></mat-progress-spinner>
+                }
+            </div>
+        </div>
+
+    </div>
+</mat-dialog-content>
+<mat-dialog-actions align="end">
+    @if (engine.isConfigured()) { <button mat-button mat-dialog-close>Cancel</button> }
+    <button mat-flat-button color="primary" (click)="save()" [disabled]="!isValid()">Save</button>
+</mat-dialog-actions>
