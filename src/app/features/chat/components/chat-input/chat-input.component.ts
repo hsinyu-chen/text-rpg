@@ -10,7 +10,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatMenuModule } from '@angular/material/menu';
 import { TextFieldModule } from '@angular/cdk/text-field';
 import { GAME_INTENTS, STORY_INTENTS } from '../../../../core/constants/game-intents';
-import { getSectionHeaders, getIntentLabels, getInputPlaceholders } from '../../../../core/constants/engine-protocol';
+import { getIntentLabels, getInputPlaceholders } from '../../../../core/constants/engine-protocol';
 import { GameEngineService } from '../../../../core/services/game-engine.service';
 import { MatDialog } from '@angular/material/dialog';
 import { PayloadDialogComponent } from '../../../../shared/components/payload-dialog/payload-dialog.component';
