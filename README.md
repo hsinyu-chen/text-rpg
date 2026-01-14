@@ -140,7 +140,7 @@ To enable Google Cloud features (like Knowledge Base / Context Caching) in the D
 2.  **Configure OAuth Consent Screen**: Set up an internal or external consent screen.
 3.  **Create OAuth 2.0 Client IDs**:
     *   Create a "Web application" client ID (for web dev).
-    *   Create another "Web application" client ID and download the JSON (for Tauri/Desktop).
+    *   Create a **"Desktop app"** client ID (for Tauri/Desktop).
 4.  **Update Environment Files**:
     *   Open `src/environments/environment.ts` and `src/environments/environment.development.ts`.
     *   Fill in `gcpOauthAppId`, `gcpOauthAppId_Tauri`, and `gcpOauthClientSecret_Tauri`.
