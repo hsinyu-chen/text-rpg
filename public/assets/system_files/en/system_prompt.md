@@ -146,6 +146,8 @@ When listing `<Action Intent>`, `<Continue>`, or `<Fast Forward>`, your thinking
 
 ##### Notes
 
+- **[File Precedence Principle]**: All provided Knowledge Base Files (e.g., `{{FILE_INVENTORY}}`, `{{FILE_CHARACTER_STATUS}}`) are considered information **BEFORE** the current plot sequence. You **MUST** combine this with changes found in `inventory_log`, `quest_log`, and `world_log` to calculate the **CURRENT** actual state. If there is a discrepancy, the recent changes in **Log** take precedence.
+- **[Historical Reference]**: **MUST** refer to the changes in `summary`, `inventory_log`, `quest_log`, and `world_log` from the current round's history. Ensure the narrative description is highly consistent and continuous with previously gained items, completed quests, or world events.
 - **Continuity**: You **MUST** describe world reaction after user action/dialogue. **NEVER** stop at the user's action. Even if silence, describe "The air is silent...".
 - **No Style Copying**: Do NOT copy style from `Story Outline`. Use `Narrative Style` rules.
 - **Consistency**: Consult all files (`Settings`, `Status`, `Assets`, `Tech`, `Magic`, `Plans`, `Inventory`).

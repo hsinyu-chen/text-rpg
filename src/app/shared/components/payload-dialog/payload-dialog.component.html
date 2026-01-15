@@ -1,14 +1,26 @@
-<h2 mat-dialog-title>
-    <div class="title-container">
-        <span>API Contents Preview</span>
-        <mat-slide-toggle [(ngModel)]="showKB" color="primary">Show KB Content</mat-slide-toggle>
+<div class="dialog-container">
+    <div class="dialog-header">
+        <span class="dialog-title">API Contents Preview</span>
+        <div class="header-actions">
+            <mat-slide-toggle [(ngModel)]="showKB" color="primary">Show KB Content</mat-slide-toggle>
+            <button mat-icon-button (click)="close()" matTooltip="Close">
+                <mat-icon>close</mat-icon>
+            </button>
+        </div>
     </div>
-</h2>
-<mat-dialog-content>
-    <div class="payload-container">
-        <markdown [data]="formattedPayload"></markdown>
+
+    <div class="dialog-body">
+        <mat-tab-group class="payload-tabs">
+            <mat-tab label="System Instruction">
+                <div class="tab-content">
+                    <markdown [data]="systemInstruction"></markdown>
+                </div>
+            </mat-tab>
+            <mat-tab label="Payload JSON">
+                <div class="tab-content">
+                    <markdown [data]="formattedPayload"></markdown>
+                </div>
+            </mat-tab>
+        </mat-tab-group>
     </div>
-</mat-dialog-content>
-<mat-dialog-actions align="end">
-    <button mat-flat-button color="primary" [mat-dialog-close]="true">Close</button>
-</mat-dialog-actions>
+</div>

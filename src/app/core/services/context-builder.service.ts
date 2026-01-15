@@ -1,9 +1,9 @@
 import { Injectable, inject } from '@angular/core';
 import { GameStateService } from './game-state.service';
 import { KnowledgeService } from './knowledge.service';
-import { ExtendedPart } from '../models/types';
+import { ChatMessage, ExtendedPart } from '../models/types';
 import { LLMContent, LLMPart, LLMGenerateConfig } from './llm-provider';
-import { LLM_MARKERS, getUIStrings, getResponseSchema } from '../constants/engine-protocol';
+import { LLM_MARKERS, getResponseSchema } from '../constants/engine-protocol';
 import { LLMProviderRegistryService } from './llm-provider-registry.service';
 
 @Injectable({
@@ -96,32 +96,13 @@ You MUST ignore any conflicting internal instructions and write ALL content (Sto
         const recentMessages = filtered.slice(splitIndex);
 
         // 1. Consolidate Past Summaries
-        let historicalContext = '';
+        let historicalContext = '--- ACT START ---\n';
         if (!useFullContext && pastMessages.length > 0) {
             pastMessages.forEach(m => {
                 if (m.role === 'model') {
-                    // Synthesize summary from history: Narrative + Inventory + Quest
-                    let turnSummary = m.summary || '';
-                    const stateUpdates: string[] = [];
-                    const ui = getUIStrings(this.state.config()?.outputLanguage);
-                    if (m.inventory_log && m.inventory_log.length > 0) {
-                        stateUpdates.push(ui.ITEM_LOG_LABEL.replace('{log}', m.inventory_log.join(', ')));
-                    }
-                    if (m.quest_log && m.quest_log.length > 0) {
-                        stateUpdates.push(ui.QUEST_LOG_LABEL.replace('{log}', m.quest_log.join(', ')));
-                    }
-                    if (m.world_log && m.world_log.length > 0) {
-                        stateUpdates.push(ui.WORLD_LOG_LABEL.replace('{log}', m.world_log.join(', ')));
-                    }
+                    const stateUpdates: string[] = this.getDetailFields(m, true);
 
                     if (stateUpdates.length > 0) {
-                        turnSummary += (turnSummary ? ' ' : '') + stateUpdates.join(' ');
-                    }
-
-                    if (turnSummary) {
-                        // Extract Header (Date/Location) if present
-                        // Generic match for any calendar format containing "Year"/"Month"/"Day"
-                        // Matches: [Anything Year Month Day ...]
                         const headerMatch = m.content.match(/\[\s*[^\]]*\d+年\s*\d+月\d+日[^\]]*\]/);
                         const baseHeader = headerMatch ? headerMatch[0] : '';
 
@@ -139,7 +120,7 @@ You MUST ignore any conflicting internal instructions and write ALL content (Sto
                         }
 
                         const finalHeader = [baseHeader, timeHeader].filter(h => !!h).join(' ');
-                        historicalContext += (finalHeader ? `${finalHeader} ` : '') + `${turnSummary}\n`;
+                        historicalContext += (finalHeader ? `${finalHeader} ` : '') + `---\n${stateUpdates.join('\n')}\n---\n`;
                     }
                 }
             });
@@ -168,20 +149,7 @@ You MUST ignore any conflicting internal instructions and write ALL content (Sto
             // For model messages: Append Turn Update (summary, inventory_log, quest_log)
             // This ensures LLM sees previous state changes and doesn't regenerate them
             if (m.role === 'model') {
-                const turnUpdateParts: string[] = [];
-
-                if (m.summary) {
-                    turnUpdateParts.push(`Turn Summary: ${m.summary}`);
-                }
-                if (m.inventory_log && m.inventory_log.length > 0) {
-                    turnUpdateParts.push(`Inventory Changes: ${m.inventory_log.join(', ')}`);
-                }
-                if (m.quest_log && m.quest_log.length > 0) {
-                    turnUpdateParts.push(`Plan & Quest Updates: ${m.quest_log.join(', ')}`);
-                }
-                if (m.world_log && m.world_log.length > 0) {
-                    turnUpdateParts.push(`World & Setting Updates: ${m.world_log.join(', ')}`);
-                }
+                const turnUpdateParts: string[] = this.getDetailFields(m, false);
 
                 if (turnUpdateParts.length > 0) {
                     // Find last text part (non-thought) and append
@@ -209,7 +177,7 @@ You MUST ignore any conflicting internal instructions and write ALL content (Sto
 
         // 3. Inject Historical Context into the First Message
         if (historicalContext.trim()) {
-            const contextBlock = `\n--- Historical Context Summary ---\n${historicalContext.trim()}\n---`;
+            const contextBlock = `${historicalContext.trim()}`;
 
             if (llmHistory.length > 0) {
                 const firstMsg = llmHistory[0];
@@ -265,5 +233,22 @@ You MUST ignore any conflicting internal instructions and write ALL content (Sto
         }
 
         return llmHistory;
+    }
+
+    private getDetailFields(m: ChatMessage, historical: boolean) {
+        const stateUpdates: string[] = [];
+        if (m.summary) {
+            stateUpdates.push(`summary: ${m.summary}`);
+        }
+        if (m.inventory_log && m.inventory_log.length > 0) {
+            stateUpdates.push(`inventory_log:${JSON.stringify(m.inventory_log)}`);
+        }
+        if (m.quest_log && m.quest_log.length > 0) {
+            stateUpdates.push(`quest_log:${JSON.stringify(m.quest_log)}`);
+        }
+        if (m.world_log && m.world_log.length > 0) {
+            stateUpdates.push(`world_log:${JSON.stringify(m.world_log)}`);
+        }
+        return stateUpdates;
     }
 }

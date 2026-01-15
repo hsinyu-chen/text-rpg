@@ -70,7 +70,12 @@ export class ChatHistoryService {
         this.updateMessages(prev => {
             const arr = [...prev];
             const index = arr.findIndex(m => m.id === id);
-            if (index !== -1) arr.splice(index, 1);
+            if (index !== -1) {
+                // Accumulate sunk usage history
+                const usages = this.calculateSunkUsage([arr[index]]);
+                this.accumulateSunkUsage(usages);
+                arr.splice(index, 1);
+            }
             return arr;
         });
     }
@@ -82,7 +87,13 @@ export class ChatHistoryService {
         this.updateMessages(prev => {
             const arr = [...prev];
             const index = arr.findIndex(m => m.id === id);
-            if (index !== -1) arr.splice(index);
+            if (index !== -1) {
+                // Accumulate sunk usage history for ALL removed messages
+                const removedMessages = arr.slice(index);
+                const usages = this.calculateSunkUsage(removedMessages);
+                this.accumulateSunkUsage(usages);
+                arr.splice(index);
+            }
             return arr;
         });
     }
@@ -95,9 +106,14 @@ export class ChatHistoryService {
             const arr = [...prev];
             const index = arr.findIndex(m => m.id === messageId);
             if (index !== -1) {
+                // Accumulate sunk usage history: everything AFTER `index`
+                const removedMessages = arr.slice(index);
+                const usages = this.calculateSunkUsage(removedMessages);
+                this.accumulateSunkUsage(usages);
+
                 arr.splice(index);
                 console.log(
-                    `[ChatHistory] Rewound history to before message ${messageId} (Deleted ${prev.length - arr.length} messages)`
+                    `[ChatHistory] Rewound history to before message ${messageId} (Deleted ${removedMessages.length} messages, Sunk Items: ${usages.length})`
                 );
             }
             return arr;
@@ -132,13 +148,48 @@ export class ChatHistoryService {
         this.state.estimatedCost.set(0);
         this.state.storageCostAccumulated.set(0);
         this.state.historyStorageCostAccumulated.set(0);
+        this.state.sunkUsageHistory.set([]);
 
         localStorage.removeItem('usage_stats');
         localStorage.removeItem('estimated_cost');
         localStorage.removeItem('storage_cost_acc');
         localStorage.removeItem('history_storage_cost_acc');
+        localStorage.removeItem('sunk_usage_history');
 
         await this.storage.delete('chat_history');
+        await this.storage.delete('sunk_usage_history');
         this.state.status.set('idle');
+    }
+
+    /**
+     * Extracts individual usage metrics from model messages.
+     */
+    private calculateSunkUsage(messages: ChatMessage[]): { prompt: number, cached: number, candidates: number }[] {
+        const history: { prompt: number, cached: number, candidates: number }[] = [];
+
+        for (const msg of messages) {
+            if (msg.role === 'model' && msg.usage) {
+                history.push({
+                    prompt: msg.usage.prompt,
+                    cached: msg.usage.cached,
+                    candidates: msg.usage.candidates
+                });
+            }
+        }
+        return history;
+    }
+
+    /**
+     * Appends to the sunk usage history and persists it.
+     */
+    private accumulateSunkUsage(newUsages: { prompt: number, cached: number, candidates: number }[]) {
+        if (newUsages.length > 0) {
+            this.state.sunkUsageHistory.update(v => {
+                const newVal = [...v, ...newUsages];
+                localStorage.setItem('sunk_usage_history', JSON.stringify(newVal));
+                this.storage.set('sunk_usage_history', newVal).catch(e => console.error('Failed to save sunk usage history to IDB', e));
+                return newVal;
+            });
+        }
     }
 }

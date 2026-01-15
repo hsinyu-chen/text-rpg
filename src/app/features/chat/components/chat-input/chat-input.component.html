@@ -24,6 +24,10 @@
                 <mat-icon>file_download</mat-icon>
                 <span>Export MD</span>
             </button>
+            <button mat-menu-item (click)="openReplaceDialog()">
+                <mat-icon>find_replace</mat-icon>
+                <span>{{ lang.t('BATCH_REPLACE') }}</span>
+            </button>
             <button mat-menu-item (click)="openPayloadPreview()">
                 <mat-icon>visibility</mat-icon>
                 <span>Preview API</span>
@@ -49,6 +53,13 @@
             [disabled]="state.status() === 'generating' || state.messages().length === 0" (click)="exportToMarkdown()"
             matTooltip="Export Story to MD">
             <mat-icon>file_download</mat-icon>
+        </button>
+
+        <!-- Batch Replace Button (Desktop) -->
+        <button mat-mini-fab color="primary" class="replace-btn desktop-only"
+            [disabled]="state.status() === 'generating' || state.messages().length === 0" (click)="openReplaceDialog()"
+            [matTooltip]="lang.t('BATCH_REPLACE')">
+            <mat-icon>find_replace</mat-icon>
         </button>
 
         <!-- Turn Updates History Button -->

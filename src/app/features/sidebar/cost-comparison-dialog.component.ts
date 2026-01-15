@@ -199,6 +199,17 @@ export class CostComparisonDialogComponent {
             // 1. Transaction Cost: 100% Accurate Replay
             const transactionCost = this.costService.calculateSessionTransactionCost(messages, model);
 
+            // 1.b Sunk Transaction Cost: Preserving tiered pricing
+            let sunkTransactionCost = 0;
+            const sunkHistory = this.state.sunkUsageHistory();
+            for (const usage of sunkHistory) {
+                const rates = model.getRates(usage.prompt);
+                const fresh = usage.prompt - usage.cached;
+                sunkTransactionCost += (fresh / 1_000_000 * rates.input) +
+                    (usage.candidates / 1_000_000 * rates.output) +
+                    (usage.cached / 1_000_000 * (rates.cached || 0));
+            }
+
             // 2. Storage Cost: Estimated scaling
             let modelStorageCost = 0;
             if (activeModel) {
@@ -214,7 +225,7 @@ export class CostComparisonDialogComponent {
                 modelStorageCost = baseTotalStorageCost;
             }
 
-            const totalCost = transactionCost + modelStorageCost;
+            const totalCost = transactionCost + sunkTransactionCost + modelStorageCost;
 
             return {
                 model,

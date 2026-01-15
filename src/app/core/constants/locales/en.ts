@@ -70,9 +70,6 @@ export const EN_US_LOCALE: AppLocale = {
         ERR_PREFIX: '❌ Error: {error}',
         CORRECTION_SUCCESS: 'Story corrected (ID: {id})',
         CORRECTION_NOT_FOUND: 'Could not find story message to correct.',
-        ITEM_LOG_LABEL: 'Items/Assets: {log}',
-        QUEST_LOG_LABEL: 'Quests/Events: {log}',
-        WORLD_LOG_LABEL: 'World/Factions: {log}',
         USER_NAME: 'Protagonist Name',
         USER_FACTION: 'Protagonist Faction',
         USER_BACKGROUND: 'Protagonist Background',
@@ -108,6 +105,23 @@ export const EN_US_LOCALE: AppLocale = {
             'Lawful Evil': 'Lawful Evil',
             'Neutral Evil': 'Neutral Evil',
             'Chaotic Evil': 'Chaotic Evil'
-        }
+        },
+        BATCH_REPLACE: 'Batch Replace',
+        SEARCH: 'Search',
+        REPLACE: 'Replace',
+        REPLACE_ALL: 'Replace All',
+        REPLACE_COUNT: 'Replaced {count} occurrences',
+        MATCH_COUNT: '{count} matches found',
+        FILTER_INTENT: 'Intent Filter',
+        FILTER_ROLE: 'Role Filter',
+        FILTER_FIELD: 'Field Filter',
+        FIELD_STORY: 'Story/Content',
+        FIELD_SUMMARY: 'Summary',
+        FIELD_LOGS: 'Logs (Inventory/Quest/World)',
+        NO_MATCHES: 'No matches found',
+        REPLACE_SUCCESS: 'Replacement completed successfully',
+        ALL: 'All',
+        ROLE_USER: 'User',
+        ROLE_MODEL: 'Model'
     }
 };

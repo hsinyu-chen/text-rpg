@@ -41,9 +41,22 @@ export class SidebarCostPredictionComponent {
 
         if (!model) return 0;
 
-        const txn = this.costService.calculateSessionTransactionCost(this.state.messages(), model);
+        const messages = this.state.messages();
+        const sunkHistory = this.state.sunkUsageHistory();
+
+        const activeTxn = this.costService.calculateSessionTransactionCost(messages, model);
+
+        let sunkTxn = 0;
+        for (const usage of sunkHistory) {
+            const rates = model.getRates(usage.prompt);
+            const fresh = usage.prompt - usage.cached;
+            sunkTxn += (fresh / 1_000_000 * rates.input) +
+                (usage.candidates / 1_000_000 * rates.output) +
+                (usage.cached / 1_000_000 * (rates.cached || 0));
+        }
+
         const storage = this.state.storageCostAccumulated() + this.state.historyStorageCostAccumulated();
-        return txn + storage;
+        return activeTxn + sunkTxn + storage;
     });
 
     displayCurrency = computed(() => {
@@ -87,14 +100,20 @@ export class SidebarCostPredictionComponent {
         const models = activeProvider.getAvailableModels();
         const turns = this.turnCount();
         const messages = this.state.messages();
+        const sunkHistory = this.state.sunkUsageHistory();
+
+        const sunkTurns = sunkHistory.length;
+        const sunkFresh = sunkHistory.reduce((acc, u) => acc + (u.prompt - u.cached), 0);
+        const sunkCached = sunkHistory.reduce((acc, u) => acc + u.cached, 0);
+        const sunkOutput = sunkHistory.reduce((acc, u) => acc + u.candidates, 0);
 
         let markdown = `## SESSION TOTAL\n\n`;
-        markdown += `| Metric | Value |\n|--------|-------|\n`;
-        markdown += `| Turns | ${turns} |\n`;
-        markdown += `| New Input | ${usage.freshInput.toLocaleString()} |\n`;
-        markdown += `| Cached | ${usage.cached.toLocaleString()} |\n`;
-        markdown += `| Output | ${usage.output.toLocaleString()} |\n`;
-        markdown += `| Total Sent | ${usage.total.toLocaleString()} |\n\n`;
+        markdown += `| Metric | Active | Sunk | Total |\n|--------|-------|------|-------|\n`;
+        markdown += `| Turns | ${turns} | ${sunkTurns} | ${turns + sunkTurns} |\n`;
+        markdown += `| New Input | ${usage.freshInput.toLocaleString()} | ${sunkFresh.toLocaleString()} | ${(usage.freshInput + sunkFresh).toLocaleString()} |\n`;
+        markdown += `| Cached | ${usage.cached.toLocaleString()} | ${sunkCached.toLocaleString()} | ${(usage.cached + sunkCached).toLocaleString()} |\n`;
+        markdown += `| Output | ${usage.output.toLocaleString()} | ${sunkOutput.toLocaleString()} | ${(usage.output + sunkOutput).toLocaleString()} |\n`;
+        markdown += `| Total Sent | ${usage.total.toLocaleString()} | ${(sunkFresh + sunkCached + sunkOutput).toLocaleString()} | ${(usage.total + sunkFresh + sunkCached + sunkOutput).toLocaleString()} |\n\n`;
 
         markdown += `## Model Cost Comparison\n\n`;
         markdown += `| Model | Session Cost (${currency}) | Status |\n|-------|-------------------|--------|\n`;
@@ -103,8 +122,17 @@ export class SidebarCostPredictionComponent {
             const isActive = model.id === activeModelId;
 
             // 1. Transaction Cost: 100% Accurate Replay
-            // Re-calculate cost for EVERY turn using this model's specific rates at that size
             const transactionCost = this.costService.calculateSessionTransactionCost(messages, model);
+
+            // 1.b Sunk Transaction Cost
+            let sunkTransactionCost = 0;
+            for (const u of sunkHistory) {
+                const rates = model.getRates(u.prompt);
+                const fresh = u.prompt - u.cached;
+                sunkTransactionCost += (fresh / 1_000_000 * rates.input) +
+                    (u.candidates / 1_000_000 * rates.output) +
+                    (u.cached / 1_000_000 * (rates.cached || 0));
+            }
 
             // 2. Storage Cost: Estimated scaling
             // Scale storage cost based on the ratio of storage rates (if active model is known)
@@ -123,7 +151,7 @@ export class SidebarCostPredictionComponent {
                 modelStorageCost = baseTotalStorageCost;
             }
 
-            const totalCost = transactionCost + modelStorageCost;
+            const totalCost = transactionCost + sunkTransactionCost + modelStorageCost;
 
             const costFormatted = (totalCost * exchangeRate).toFixed(currency === 'USD' ? 4 : 2);
             const status = isActive ? '✅ Active' : '';

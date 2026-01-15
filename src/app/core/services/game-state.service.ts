@@ -67,6 +67,7 @@ export class GameStateService {
     lastTurnUsage = signal<{ freshInput: number; cached: number; output: number } | null>(null);
     lastTurnCost = signal<number>(0);
     historyStorageCostAccumulated = signal<number>(0);
+    sunkUsageHistory = signal<{ prompt: number, cached: number, candidates: number }[]>([]);
 
     // ==================== Dynamic Injection ====================
     enableDynamicInjection = signal<boolean>(true);

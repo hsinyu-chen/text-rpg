@@ -1,0 +1,126 @@
+<div class="replace-dialog-container">
+    <div class="dialog-header">
+        <h2>
+            <mat-icon>find_replace</mat-icon>
+            {{ lang.t('BATCH_REPLACE') }}
+        </h2>
+        <button mat-icon-button (click)="close()" matTooltip="Close">
+            <mat-icon>close</mat-icon>
+        </button>
+    </div>
+
+    <div class="dialog-content">
+        <!-- Search & Replace Inputs -->
+        <div class="search-section">
+            <div class="input-row">
+                <mat-form-field appearance="outline" class="search-field">
+                    <mat-label>{{ lang.t('SEARCH') }}</mat-label>
+                    <input matInput [(ngModel)]="searchQuery" (ngModelChange)="searchResource.reload()"
+                        placeholder="Search text...">
+                    <div matSuffix class="search-options">
+                        <button mat-icon-button class="option-btn" [class.active]="isCaseSensitive()"
+                            (click)="isCaseSensitive.set(!isCaseSensitive()); $event.stopPropagation()"
+                            matTooltip="Match Case">
+                            <span class="option-icon">Aa</span>
+                        </button>
+                        <button mat-icon-button class="option-btn" [class.active]="isWholeWord()"
+                            (click)="isWholeWord.set(!isWholeWord()); $event.stopPropagation()"
+                            matTooltip="Match Whole Word">
+                            <span class="option-icon underline">ab</span>
+                        </button>
+                        <button mat-icon-button class="option-btn" [class.active]="isRegex()"
+                            (click)="isRegex.set(!isRegex()); $event.stopPropagation()"
+                            matTooltip="Use Regular Expression">
+                            <span class="option-icon">.*</span>
+                        </button>
+                    </div>
+                </mat-form-field>
+            </div>
+
+            <div class="input-row">
+                <mat-form-field appearance="outline" class="replace-field">
+                    <mat-label>{{ lang.t('REPLACE') }}</mat-label>
+                    <input matInput [(ngModel)]="replaceQuery" placeholder="Replace with...">
+                </mat-form-field>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="filter-section">
+            <mat-form-field appearance="outline">
+                <mat-label>{{ lang.t('FILTER_INTENT') }}</mat-label>
+                <mat-select [(ngModel)]="intentFilter" (selectionChange)="searchResource.reload()">
+                    @for (intent of intents(); track intent.value) {
+                    <mat-option [value]="intent.value">{{ intent.label }}</mat-option>
+                    }
+                </mat-select>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+                <mat-label>{{ lang.t('FILTER_ROLE') }}</mat-label>
+                <mat-select [(ngModel)]="roleFilter" (selectionChange)="searchResource.reload()">
+                    @for (role of roles(); track role.value) {
+                    <mat-option [value]="role.value">{{ role.label }}</mat-option>
+                    }
+                </mat-select>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+                <mat-label>{{ lang.t('FILTER_FIELD') }}</mat-label>
+                <mat-select [(ngModel)]="fieldFilter" (selectionChange)="searchResource.reload()">
+                    @for (f of fields(); track f.value) {
+                    <mat-option [value]="f.value">{{ f.label }}</mat-option>
+                    }
+                </mat-select>
+            </mat-form-field>
+        </div>
+
+        <!-- Results List -->
+        <div class="results-container">
+            @if (searchResource.isLoading()) {
+            <div class="loading-state">
+                <mat-spinner diameter="40"></mat-spinner>
+            </div>
+            } @else if ((searchResource.value()?.length ?? 0) > 0) {
+            <div class="results-header">
+                {{ lang.t('MATCH_COUNT', { count: (searchResource.value()?.length ?? 0).toString() }) }}
+            </div>
+            <div class="results-list">
+                @for (group of groupedResults(); track group[0]) {
+                <div class="message-group">
+                    <div class="group-label">
+                        <span class="msg-index">#{{ group[0] + 1 }}</span>
+                        <span class="msg-preview">{{ getMessagePreview(group[0]) }}</span>
+                    </div>
+                    @for (match of group[1]; track $index) {
+                    <div class="match-item">
+                        <div class="match-meta">
+                            <span class="field-tag">{{ match.fieldName }}</span>
+                            @if (match.logIndex !== undefined) {
+                            <span class="log-index">[{{ match.logIndex }}]</span>
+                            }
+                        </div>
+                        <div class="match-diff" [innerHTML]="getCombinedDiffPreview(match)"></div>
+                    </div>
+                    }
+                </div>
+                }
+            </div>
+            } @else if (searchQuery()) {
+            <div class="empty-results">
+                <mat-icon>search_off</mat-icon>
+                <p>{{ lang.t('NO_MATCHES') }}</p>
+            </div>
+            }
+        </div>
+    </div>
+
+    <div class="dialog-actions">
+        <button mat-button (click)="close()">{{ lang.t('CANCEL') }}</button>
+        <button mat-flat-button color="primary" [disabled]="(searchResource.value()?.length ?? 0) === 0"
+            (click)="replaceAll()">
+            <mat-icon>done_all</mat-icon>
+            {{ lang.t('REPLACE_ALL') }}
+        </button>
+    </div>
+</div>

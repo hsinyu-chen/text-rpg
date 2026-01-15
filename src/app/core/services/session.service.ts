@@ -131,7 +131,9 @@ export class SessionService {
             // Update local state and clear history
             this.state.loadedFiles.set(loadedMap);
             this.state.messages.set([]);
+            this.state.sunkUsageHistory.set([]); // Reset sunk usage history
             await this.storage.set('chat_history', []);
+            await this.storage.set('sunk_usage_history', []); // Clear from IDB
             this.isContextInjected = false;
 
             // Sync state
@@ -179,6 +181,7 @@ export class SessionService {
             this.state.lastTurnUsage.set(null);
             this.state.lastTurnCost.set(0);
             this.state.historyStorageCostAccumulated.set(0);
+            this.state.sunkUsageHistory.set([]);
             this.state.currentKbHash.set('');
 
             console.log('[SessionService] Local session wiped successfully.');
@@ -205,6 +208,7 @@ export class SessionService {
             messages: msgs,
             tokenUsage: this.state.tokenUsage(),
             estimatedCost: this.state.estimatedCost(),
+            sunkUsageHistory: this.state.sunkUsageHistory(),
             storyPreview: preview,
             kbHash: this.state.currentKbHash()
         };
@@ -221,6 +225,7 @@ export class SessionService {
         // Restore usage stats
         this.state.tokenUsage.set(save.tokenUsage);
         this.state.estimatedCost.set(save.estimatedCost);
+        this.state.sunkUsageHistory.set(save.sunkUsageHistory || []);
 
         if (save.messages.length > 0) {
             this.isContextInjected = true;
@@ -403,6 +408,12 @@ export class SessionService {
             if (saved.length > 0) {
                 this.isContextInjected = true;
             }
+        }
+
+        // Restore sunk usage history
+        const sunk = await this.storage.get('sunk_usage_history');
+        if (Array.isArray(sunk)) {
+            this.state.sunkUsageHistory.set(sunk);
         }
     }
 }

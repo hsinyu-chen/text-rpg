@@ -1,26 +1,117 @@
-.title-container {
+.dialog-container {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    width: 100%;
-}
-
-mat-slide-toggle {
-    font-size: 0.9rem;
-    font-weight: normal;
-}
-
-mat-dialog-content {
-    min-width: 700px;
-    padding: 0 !important;
-}
-
-.payload-container {
-    max-height: 70vh;
-    overflow-y: auto;
+    flex-direction: column;
+    height: 100vh;
+    width: 100vw;
     background: #1e1e1e;
-    padding: 16px;
+}
+
+.dialog-header {
+    display: flex;
+    align-items: center;
+    padding: 8px 16px;
+    background: #2d2d2d;
+    border-bottom: 1px solid #333;
+    gap: 16px;
+    flex-shrink: 0;
+
+    .dialog-title {
+        flex: 1;
+        font-weight: 500;
+        font-size: 1rem;
+        color: #fff;
+    }
+
+    .header-actions {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+    }
+}
+
+.dialog-body {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+
+}
+
+.payload-tabs {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+
+    min-height: 0;
+
+    :host ::ng-deep {
+        .mat-mdc-tab-body-wrapper {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .mat-mdc-tab-body {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+
+        .mat-mdc-tab-body-content {
+            height: 100%;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .mat-mdc-tab-header {
+            background: #2d2d2d;
+            border-bottom: 1px solid #333;
+            flex-shrink: 0;
+        }
+
+        .mat-mdc-tab .mdc-tab__text-label {
+            color: #aaa;
+        }
+
+        .mat-mdc-tab.mdc-tab--active .mdc-tab__text-label {
+            color: #fff;
+        }
+
+        .mat-mdc-tab-group-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+    }
+}
+
+.tab-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
     font-family: 'Consolas', 'Monaco', monospace;
+    background: #1e1e1e;
+    box-sizing: border-box;
+    min-height: 0;
+
+    &::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    &::-webkit-scrollbar-track {
+        background: #121212;
+    }
+
+    &::-webkit-scrollbar-thumb {
+        background: #424242;
+        border-radius: 4px;
+
+        &:hover {
+            background: #555;
+        }
+    }
 }
 
 :host ::ng-deep pre {
@@ -30,6 +121,12 @@ mat-dialog-content {
 }
 
 :host ::ng-deep code {
-    font-size: 0.9rem;
-    line-height: 1.4;
+    font-size: 0.95rem;
+    line-height: 1.5;
+}
+
+// Adjust markdown styles within tabs
+:host ::ng-deep .tab-content .markdown-body {
+    background: transparent !important;
+    color: #e0e0e0 !important;
 }

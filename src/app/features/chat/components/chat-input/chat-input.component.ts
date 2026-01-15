@@ -16,7 +16,9 @@ import { GameStateService } from '../../../../core/services/game-state.service';
 import { MatDialog } from '@angular/material/dialog';
 import { PayloadDialogComponent } from '../../../../shared/components/payload-dialog/payload-dialog.component';
 import { ChatConfigDialogComponent } from '../../../../shared/components/chat-config-dialog/chat-config-dialog.component';
+import { ChatReplaceDialogComponent } from '../chat-replace-dialog/chat-replace-dialog.component';
 import { TauriWindow } from '../../../../core/models/types';
+import { LanguageService } from '../../../../core/services/language.service';
 
 @Component({
     selector: 'app-chat-input',
@@ -41,6 +43,7 @@ export class ChatInputComponent {
     // Services
     engine = inject(GameEngineService);
     state = inject(GameStateService);
+    lang = inject(LanguageService);
     private matDialog = inject(MatDialog);
 
     // Queries
@@ -182,8 +185,11 @@ export class ChatInputComponent {
         const payload = this.engine.getPreviewPayload(this.userInput(), { intent: this.selectedIntent() });
         this.matDialog.open(PayloadDialogComponent, {
             data: payload,
-            maxWidth: '900px',
-            width: '90%'
+            width: '100vw',
+            height: '100vh',
+            maxWidth: '100vw',
+            maxHeight: '100vh',
+            panelClass: 'fullscreen-dialog'
         });
     }
 
@@ -251,6 +257,16 @@ export class ChatInputComponent {
             window.URL.revokeObjectURL(url);
             document.body.removeChild(a);
         }, 150);
+    }
+
+    openReplaceDialog() {
+        this.matDialog.open(ChatReplaceDialogComponent, {
+            width: '100vw',
+            height: '100vh',
+            maxWidth: '100vw',
+            maxHeight: '100vh',
+            panelClass: 'fullscreen-dialog'
+        });
     }
 
     private focusInput() {

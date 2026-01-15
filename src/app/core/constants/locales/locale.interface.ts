@@ -67,9 +67,6 @@ export interface AppLocale {
         ERR_PREFIX: string;
         CORRECTION_SUCCESS: string;
         CORRECTION_NOT_FOUND: string;
-        ITEM_LOG_LABEL: string;
-        QUEST_LOG_LABEL: string;
-        WORLD_LOG_LABEL: string;
         USER_NAME: string;
         USER_FACTION: string;
         USER_BACKGROUND: string;
@@ -96,5 +93,22 @@ export interface AppLocale {
         INSTRUCTION_TYPE: string;
         AUTO_INJECTION_HINT: string;
         ALIGNMENTS: Record<string, string>;
+        BATCH_REPLACE: string;
+        SEARCH: string;
+        REPLACE: string;
+        REPLACE_ALL: string;
+        REPLACE_COUNT: string;
+        MATCH_COUNT: string;
+        FILTER_INTENT: string;
+        FILTER_ROLE: string;
+        FILTER_FIELD: string;
+        FIELD_STORY: string;
+        FIELD_SUMMARY: string;
+        FIELD_LOGS: string;
+        NO_MATCHES: string;
+        REPLACE_SUCCESS: string;
+        ALL: string;
+        ROLE_USER: string;
+        ROLE_MODEL: string;
     };
 }
