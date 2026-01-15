@@ -1,20 +1,22 @@
-<h2 mat-dialog-title>Create New Game</h2>
+<h2 mat-dialog-title>{{ ui().CREATE_NEW_GAME }}</h2>
 
 <mat-dialog-content class="dialog-content">
     @if (isLoading()) {
     <div class="loading-overlay">
         <mat-spinner diameter="40"></mat-spinner>
-        <p>Initializing...</p>
+        <p>{{ ui().INITIALIZING }}</p>
     </div>
     }
 
     <div class="form-container">
         <!-- Scenario Selection -->
         <mat-form-field appearance="outline" class="full-width">
-            <mat-label>Select Scenario</mat-label>
+            <mat-label>{{ ui().SELECT_SCENARIO }}</mat-label>
             <mat-select [(ngModel)]="selectedScenarioId" (selectionChange)="onScenarioChange()">
-                @for (s of scenarios(); track s.id) {
-                <mat-option [value]="s.id">{{ s.name }}</mat-option>
+                @for (s of displayScenarios(); track s.id) {
+                <mat-option [value]="s.id" [matTooltip]="s.description || ''">
+                    {{ s.name }}
+                </mat-option>
                 }
             </mat-select>
             <mat-icon matSuffix>map</mat-icon>
@@ -22,81 +24,82 @@
 
         <!-- Character Name -->
         <mat-form-field appearance="outline" class="full-width">
-            <mat-label>{{ labels['name'] }}</mat-label>
-            <input matInput [(ngModel)]="profile.name" required placeholder="Enter name">
+            <mat-label>{{ labels().name }}</mat-label>
+            <input matInput [(ngModel)]="profile.name" required [placeholder]="ui().ENTER_NAME">
             <mat-icon matSuffix>person</mat-icon>
             @if (!profile.name()) {
-            <mat-error>This field is required</mat-error>
+            <mat-error>{{ ui().REQUIRED_FIELD }}</mat-error>
             }
         </mat-form-field>
 
         <!-- Faction Selection (3x3 Grid) -->
         <div class="field-group">
-            <span class="field-label">{{ labels['faction'] }}</span>
+            <span class="field-label">{{ labels().faction }}</span>
             <div class="alignment-grid">
-                @for (row of alignments; track row) {
-                @for (cell of row; track cell) {
+                @for (row of alignments(); track row) {
+                @for (cell of row; track cell.id) {
                 <button mat-stroked-button type="button" class="alignment-btn"
-                    [class.active]="profile.faction() === cell" (click)="selectAlignment(cell)">
-                    {{ cell }}
+                    [class.active]="profile.faction() === cell.id" (click)="selectAlignment(cell.id)">
+                    {{ cell.label }}
                 </button>
                 }
                 }
             </div>
             @if (!profile.faction()) {
-            <mat-error style="font-size: 0.75em;">Please select an alignment</mat-error>
+            <mat-error style="font-size: 0.75em;">{{ ui().SELECT_ALIGNMENT }}</mat-error>
             }
         </div>
 
         <!-- Background -->
         <mat-form-field appearance="outline" class="full-width">
-            <mat-label>{{ labels['background'] }}</mat-label>
+            <mat-label>{{ labels().background }}</mat-label>
             <textarea matInput [(ngModel)]="profile.background" required rows="2"
-                placeholder="Character history..."></textarea>
+                [placeholder]="ui().CHAR_HISTORY_PLCH"></textarea>
             <mat-icon matSuffix>history_edu</mat-icon>
             @if (!profile.background()) {
-            <mat-error>This field is required</mat-error>
+            <mat-error>{{ ui().REQUIRED_FIELD }}</mat-error>
             }
         </mat-form-field>
 
         <!-- Interests -->
         <mat-form-field appearance="outline" class="full-width">
-            <mat-label>{{ labels['interests'] }}</mat-label>
-            <textarea matInput [(ngModel)]="profile.interests" required rows="2" placeholder="Interests..."></textarea>
+            <mat-label>{{ labels().interests }}</mat-label>
+            <textarea matInput [(ngModel)]="profile.interests" required rows="2"
+                [placeholder]="ui().INTERESTS_PLCH"></textarea>
             <mat-icon matSuffix>interests</mat-icon>
             @if (!profile.interests()) {
-            <mat-error>This field is required</mat-error>
+            <mat-error>{{ ui().REQUIRED_FIELD }}</mat-error>
             }
         </mat-form-field>
 
         <!-- Appearance -->
         <mat-form-field appearance="outline" class="full-width">
-            <mat-label>{{ labels['appearance'] }}</mat-label>
+            <mat-label>{{ labels().appearance }}</mat-label>
             <textarea matInput [(ngModel)]="profile.appearance" required rows="3"
-                placeholder="Appearance description..."></textarea>
+                [placeholder]="ui().APPEARANCE_PLCH"></textarea>
             <mat-icon matSuffix>face</mat-icon>
             @if (!profile.appearance()) {
-            <mat-error>This field is required</mat-error>
+            <mat-error>{{ ui().REQUIRED_FIELD }}</mat-error>
             }
         </mat-form-field>
 
         <!-- Core Values -->
         <mat-form-field appearance="outline" class="full-width">
-            <mat-label>{{ labels['coreValues'] }}</mat-label>
+            <mat-label>{{ labels().coreValues }}</mat-label>
             <textarea matInput [(ngModel)]="profile.coreValues" required rows="4"
-                placeholder="Core values (Markdown format)..."></textarea>
+                [placeholder]="ui().CORE_VALUES_PLCH"></textarea>
             <mat-icon matSuffix>rule</mat-icon>
             @if (!profile.coreValues()) {
-            <mat-error>This field is required</mat-error>
+            <mat-error>{{ ui().REQUIRED_FIELD }}</mat-error>
             }
         </mat-form-field>
     </div>
 </mat-dialog-content>
 
 <mat-dialog-actions align="end">
-    <button mat-button (click)="cancel()">Cancel</button>
+    <button mat-button (click)="cancel()">{{ ui().CANCEL }}</button>
     <button mat-flat-button color="primary" (click)="start()" [disabled]="isLoading() || !isFormValid()">
         <mat-icon>play_circle</mat-icon>
-        Start Game
+        {{ ui().START_GAME }}
     </button>
 </mat-dialog-actions>

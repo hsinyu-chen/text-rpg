@@ -108,10 +108,12 @@ export class FileSystemService {
      * Loads system files from assets and story files from the selected directory.
      * @returns A map of file paths to their content strings.
      */
-    async loadInitialFiles(): Promise<Map<string, { content: string, tokens?: number }>> {
+    async loadInitialFiles(langFolder = 'zh-tw'): Promise<Map<string, { content: string, tokens?: number }>> {
         const files = new Map<string, { content: string, tokens?: number }>();
 
-        const systemPromptUrl = 'assets/system_files/system_prompt.md';
+        // Construct URL based on language folder
+        const systemPromptUrl = `assets/system_files/${langFolder}/system_prompt.md`;
+        // We keep the internal key consistent so the engine finds it easily
         const systemPromptKey = 'system_files/system_prompt.md';
 
         try {

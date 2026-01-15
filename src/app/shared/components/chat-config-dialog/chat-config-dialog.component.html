@@ -2,18 +2,18 @@
     <!-- Header -->
     <div class="dialog-header">
         <button mat-icon-button class="sidebar-toggle" (click)="toggleSidebar()"
-            [matTooltip]="isSidebarCollapsed() ? '顯示選單' : '隱藏選單'">
+            [matTooltip]="isSidebarCollapsed() ? ui().SHOW_MENU : ui().HIDE_MENU">
             <mat-icon>{{ isSidebarCollapsed() ? 'menu' : 'menu_open' }}</mat-icon>
         </button>
-        <span class="dialog-title">動態提示設定 - {{ activeTypeLabel() }}</span>
+        <span class="dialog-title">{{ ui().DYNAMIC_PROMPT_SETTINGS }} - {{ activeTypeLabel() }}</span>
         <div class="header-actions">
-            <button mat-icon-button (click)="resetCurrent()" matTooltip="重置目前項目" color="warn">
+            <button mat-icon-button (click)="resetCurrent()" [matTooltip]="ui().RESET_CURRENT" color="warn">
                 <mat-icon>restart_alt</mat-icon>
             </button>
-            <button mat-stroked-button color="warn" (click)="resetAll()" matTooltip="重置所有項目">
-                <mat-icon>refresh</mat-icon> Reset All
+            <button mat-stroked-button color="warn" (click)="resetAll()" [matTooltip]="ui().RESET_ALL">
+                <mat-icon>refresh</mat-icon> {{ ui().RESET_ALL }}
             </button>
-            <button mat-icon-button (click)="close()" matTooltip="關閉">
+            <button mat-icon-button (click)="close()" [matTooltip]="ui().CLOSE">
                 <mat-icon>close</mat-icon>
             </button>
         </div>
@@ -24,12 +24,12 @@
         <!-- Sidebar -->
         <div class="sidebar" [class.collapsed]="isSidebarCollapsed()">
             <div class="sidebar-header">
-                <span>指令類型</span>
-                <span class="type-count">{{ injectionTypes.length }}</span>
+                <span>{{ ui().INSTRUCTION_TYPE }}</span>
+                <span class="type-count">{{ injectionTypes().length }}</span>
             </div>
 
             <mat-nav-list class="type-list">
-                @for (type of injectionTypes; track type.id) {
+                @for (type of injectionTypes(); track type.id) {
                 <a mat-list-item [class.active]="activeType() === type.id" (click)="selectType(type.id)"
                     (keydown.enter)="selectType(type.id)" tabindex="0">
                     <mat-icon matListItemIcon>{{ type.icon }}</mat-icon>
@@ -40,7 +40,7 @@
 
             <div class="sidebar-hint">
                 <mat-icon>info</mat-icon>
-                <span>每個指令類型會在對應回合自動注入</span>
+                <span>{{ ui().AUTO_INJECTION_HINT }}</span>
             </div>
         </div>
 

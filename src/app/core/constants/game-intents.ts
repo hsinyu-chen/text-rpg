@@ -3,11 +3,11 @@
  * These are used for both logic control and display tags.
  */
 export const GAME_INTENTS = {
-    ACTION: '<行動意圖>',
-    FAST_FORWARD: '<快轉>',
-    SYSTEM: '<系統>',
-    SAVE: '<存檔>',
-    CONTINUE: '<繼續>'
+    ACTION: 'action',
+    FAST_FORWARD: 'fast_forward',
+    SYSTEM: 'system',
+    SAVE: 'save',
+    CONTINUE: 'continue'
 } as const;
 
 /**

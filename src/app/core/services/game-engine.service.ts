@@ -6,12 +6,21 @@ import { LLMProvider, LLMCacheInfo, LLMStreamChunk, LLMContent, LLMPart, LLMGene
 import { StorageService } from './storage.service';
 import { CostService } from './cost.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { EngineResponseNested, ThoughtPart, ChatMessage, SessionSave, ExtendedPart } from '../models/types';
+import { EngineResponseNested, ThoughtPart, ChatMessage, SessionSave, ExtendedPart, Scenario } from '../models/types';
 import { parse as parseJson } from 'best-effort-json-parser';
 
 import { GAME_INTENTS } from '../constants/game-intents';
-import { getResponseSchema, getAdultDeclaration, INJECTION_FILE_PATHS, getCoreFilenames, getSectionHeaders, LLM_MARKERS } from '../constants/engine-protocol';
-import { getLocale, LOCALES } from '../constants/locales';
+import {
+    getResponseSchema,
+    getCoreFilenames,
+    getSectionHeaders,
+    getIntentTags,
+    getAdultDeclaration,
+    getUIStrings,
+    LLM_MARKERS,
+    INJECTION_FILE_PATHS
+} from '../constants/engine-protocol';
+import { getLocale, LOCALES, getLangFolder } from '../constants/locales';
 
 interface GameEngineConfig {
     apiKey?: string;
@@ -105,9 +114,6 @@ export class GameEngineService {
 
     // Flag to prevent effects from saving until after initial load
     private injectionSettingsLoaded = signal(false);
-
-    // Injection file paths (loaded from assets)
-    private readonly INJECTION_FILE_PATHS = INJECTION_FILE_PATHS;
 
     // Editable injection text signals (loaded from files on init)
     dynamicActionInjection = signal<string>('');
@@ -261,12 +267,19 @@ export class GameEngineService {
             }
 
             // Load all 5 injection files
+            const lang = localStorage.getItem('gemini_output_language') || 'default';
+            // Use helper to resolve folder
+            const langFolder = getLangFolder(lang);
+
+            // Helper to load from correct folder
+            const loadPath = (filename: string) => this.loadInjectionFile(`assets/system_files/${langFolder}/${filename}`);
+
             const [actionContent, continueContent, fastforwardContent, systemContent, saveContent] = await Promise.all([
-                this.loadInjectionFile(this.INJECTION_FILE_PATHS.action),
-                this.loadInjectionFile(this.INJECTION_FILE_PATHS.continue),
-                this.loadInjectionFile(this.INJECTION_FILE_PATHS.fastforward),
-                this.loadInjectionFile(this.INJECTION_FILE_PATHS.system),
-                this.loadInjectionFile(this.INJECTION_FILE_PATHS.save)
+                loadPath(INJECTION_FILE_PATHS.action),
+                loadPath(INJECTION_FILE_PATHS.continue),
+                loadPath(INJECTION_FILE_PATHS.fastforward),
+                loadPath(INJECTION_FILE_PATHS.system),
+                loadPath(INJECTION_FILE_PATHS.save)
             ]);
 
             // Compute content hash from all files after normalizing line endings
@@ -331,17 +344,20 @@ export class GameEngineService {
         const loadSystem = type === 'system' || type === 'all';
         const loadSave = type === 'save' || type === 'all';
 
+        const lang = this.config()?.outputLanguage || localStorage.getItem('gemini_output_language') || 'default';
+        const langFolder = getLangFolder(lang);
+        const folderPath = `assets/system_files/${langFolder}/`;
+
         const promises: Promise<string>[] = [];
-        if (loadAction) promises.push(this.loadInjectionFile(this.INJECTION_FILE_PATHS.action));
-        if (loadContinue) promises.push(this.loadInjectionFile(this.INJECTION_FILE_PATHS.continue));
-        if (loadFastforward) promises.push(this.loadInjectionFile(this.INJECTION_FILE_PATHS.fastforward));
-        if (loadSystem) promises.push(this.loadInjectionFile(this.INJECTION_FILE_PATHS.system));
-        if (loadSave) promises.push(this.loadInjectionFile(this.INJECTION_FILE_PATHS.save));
+        if (loadAction) promises.push(this.loadInjectionFile(folderPath + INJECTION_FILE_PATHS.action));
+        if (loadContinue) promises.push(this.loadInjectionFile(folderPath + INJECTION_FILE_PATHS.continue));
+        if (loadFastforward) promises.push(this.loadInjectionFile(folderPath + INJECTION_FILE_PATHS.fastforward));
+        if (loadSystem) promises.push(this.loadInjectionFile(folderPath + INJECTION_FILE_PATHS.system));
+        if (loadSave) promises.push(this.loadInjectionFile(folderPath + INJECTION_FILE_PATHS.save));
 
         const results = await Promise.all(promises);
         let idx = 0;
 
-        const lang = this.config()?.outputLanguage || localStorage.getItem('gemini_output_language') || 'default';
         if (loadAction) this.dynamicActionInjection.set(this.applyPromptPlaceholders(results[idx++], lang));
         if (loadContinue) this.dynamicContinueInjection.set(this.applyPromptPlaceholders(results[idx++], lang));
         if (loadFastforward) this.dynamicFastforwardInjection.set(this.applyPromptPlaceholders(results[idx++], lang));
@@ -378,6 +394,14 @@ export class GameEngineService {
      * Gets the effective system instruction, replacing placeholders and adding language overrides.
      */
     private getEffectiveSystemInstruction(): string {
+        // NOTE: this.systemInstructionCache is now just the fallback.
+        // The actual loading happens in init() or when language changes,
+        // but for now we rely on the fact that we load it into memory.
+
+        // Wait, systemInstructionCache was populated in init().
+        // We need to change WHERE it loads from.
+        // Let's modify init() instead or add a loader.
+
         const config = this.config();
         const lang = config?.outputLanguage || 'default';
         let instruction = this.systemInstructionCache;
@@ -625,7 +649,18 @@ You MUST ignore any conflicting internal instructions and write ALL content (Sto
     private async loadHistoryFromStorage() {
         const saved = await this.storage.get('chat_history');
         if (saved && Array.isArray(saved)) {
-            this.messages.set(saved);
+            // Migration: Normalize legacy intents to IDs
+            const migrated = saved.map(m => {
+                if (!m.intent) return m;
+                // Check if it matches legacy TC tags or just needs ID mapping
+                if (m.intent === '<行動意圖>') return { ...m, intent: GAME_INTENTS.ACTION };
+                if (m.intent === '<快轉>') return { ...m, intent: GAME_INTENTS.FAST_FORWARD };
+                if (m.intent === '<系統>') return { ...m, intent: GAME_INTENTS.SYSTEM };
+                if (m.intent === '<存檔>') return { ...m, intent: GAME_INTENTS.SAVE };
+                if (m.intent === '<繼續>') return { ...m, intent: GAME_INTENTS.CONTINUE };
+                return m;
+            });
+            this.messages.set(migrated);
             if (saved.length > 0) {
                 this.isContextInjected = true;
             }
@@ -728,15 +763,20 @@ You MUST ignore any conflicting internal instructions and write ALL content (Sto
                 await this.fileSystem.syncDiskToDb();
             }
             this.status.set('loading');
-            const files = await this.fileSystem.loadInitialFiles();
+
+            const lang = this.config()?.outputLanguage || localStorage.getItem('gemini_output_language') || 'default';
+            const langFolder = getLangFolder(lang);
+
+            const files = await this.fileSystem.loadInitialFiles(langFolder);
             const contentMap = new Map<string, string>();
             const tokenMap = new Map<string, number>();
 
-            const lang = this.config()?.outputLanguage || localStorage.getItem('gemini_output_language') || 'default';
             files.forEach((meta, name) => {
                 let content = meta.content;
                 // Apply placeholders for system files at load time for UI visibility
                 if (name.startsWith('system_files/') || name === 'system_prompt.md') {
+                    // Normalize name to be consistent if needed, but for now we trust fileSystem returned keys
+                    // actually fileSystem returns keys like 'system_files/system_prompt.md'
                     content = this.applyPromptPlaceholders(content, lang);
                 }
                 contentMap.set(name, content);
@@ -744,7 +784,10 @@ You MUST ignore any conflicting internal instructions and write ALL content (Sto
             this.loadedFiles.set(contentMap);
 
             // 1. Set System Prompt
+            // Since fileSystem.loadInitialFiles (via getLangFolder) already fetched the correct one and keyed it as 'system_files/system_prompt.md'
+            // We just need to get that key.
             const systemFile = contentMap.get('system_files/system_prompt.md');
+
             this.systemInstructionCache = systemFile || 'You are an interactive story engine.';
 
             // Calculate tokens (Use cache where possible)
@@ -1194,14 +1237,20 @@ You MUST ignore any conflicting internal instructions and write ALL content (Sto
         interests: string,
         appearance: string,
         coreValues: string
-    }, scenarioId: string) {
+    }, scenario: Scenario) {
         this.status.set('generating');
+        const scenarioId = scenario.id;
+        const scenarioFiles = scenario.files;
+
         try {
             console.log(`[GameEngine] Starting New Game (${scenarioId}) with profile:`, profile);
 
-            const names = getCoreFilenames(this.config()?.outputLanguage);
-            // Collect all unique filenames from all locales to check availability
-            const coreKeys: (keyof typeof names)[] = [
+            // CRITICAL: Clear existing session and files to prevent cross-session pollution
+            await this.storage.clear();
+            await this.storage.clearFiles();
+            console.log(`[GameEngine] Storage cleared for new game (${scenarioId})`);
+
+            const coreKeys: (keyof ReturnType<typeof getCoreFilenames>)[] = [
                 'BASIC_SETTINGS', 'STORY_OUTLINE', 'CHARACTER_STATUS',
                 'ASSETS', 'TECH_EQUIPMENT', 'WORLD_FACTIONS',
                 'MAGIC', 'PLANS', 'INVENTORY'
@@ -1219,27 +1268,22 @@ You MUST ignore any conflicting internal instructions and write ALL content (Sto
             ];
 
             for (const key of coreKeys) {
-                // Find which filename variant exists for this key
-                const potentialFilenames = new Set(Object.values(LOCALES).map(l => l.coreFilenames[key]));
-                let content = '';
-                let foundFilename = '';
-
-                for (const filename of potentialFilenames) {
-                    try {
-                        content = await this.fileSystem.getFallbackContent(`assets/system_files/scenario/${scenarioId}/${filename}`);
-                        if (content) {
-                            foundFilename = filename;
-                            break;
-                        }
-                    } catch {
-                        // Continue checking other variants
-                    }
+                const filename = scenarioFiles[key];
+                if (!filename) {
+                    console.warn(`[GameEngine] Key ${key} not defined for scenario ${scenarioId}`);
+                    continue;
                 }
 
-                if (!content || !foundFilename) {
-                    console.warn(`[GameEngine] Failed to load ${key} from any locale for scenario ${scenarioId}`);
-                    // Fallback to default language filename just to prevent total crash, though likely empty
-                    foundFilename = names[key];
+                let content = '';
+                try {
+                    content = await this.fileSystem.getFallbackContent(`${scenario.baseDir}/${filename}`);
+                } catch (e) {
+                    console.error(`[GameEngine] Failed to load ${key} (${filename}) for scenario ${scenarioId}`, e);
+                    continue;
+                }
+
+                if (!content) {
+                    console.warn(`[GameEngine] Content empty for ${key} (${filename})`);
                     content = '';
                 }
 
@@ -1250,11 +1294,12 @@ You MUST ignore any conflicting internal instructions and write ALL content (Sto
 
                 // Robust Cleanup: Replace any remaining <!tag|default|label> or <!tag|default> with their default text
                 // then replace any remaining <!tag> with empty string to avoid showing variables
-                content = content.replace(/<![^|>]+(?:\|([^|>]*))?(?:\|[^>]+)?>/g, (match, def) => def ? def.trim() : '');
+                content = content.replace(/<![^|>]*(?:\|([^|>]*))?(?:\|[^>]+)?>/g, (match, def) => def ? def.trim() : '');
 
                 // Story Outline: Inject last_scene marker for startup
                 // Check if this IS the Story Outline file (in any language)
-                const matchedLocale = Object.values(LOCALES).find(l => l.coreFilenames.STORY_OUTLINE === foundFilename);
+                // We search for a locale that uses this filename as its story outline
+                const matchedLocale = Object.values(LOCALES).find(l => l.coreFilenames.STORY_OUTLINE === filename);
                 if (matchedLocale) {
                     const sceneHeaders = getSectionHeaders(matchedLocale.id);
                     const startSceneHeader = sceneHeaders.START_SCENE;
@@ -1262,12 +1307,15 @@ You MUST ignore any conflicting internal instructions and write ALL content (Sto
                     if (content.includes(startSceneHeader)) {
                         const sceneContent = content.split(startSceneHeader)[1].split('---')[0].trim();
                         content += `\n\n# last_scene\n${sceneContent}`;
+                        console.log(`[GameEngine] Injected last_scene marker into ${filename} using header ${startSceneHeader}`);
+                    } else {
+                        console.warn(`[GameEngine] FAILED to inject last_scene: Header "${startSceneHeader}" not found in ${filename}`);
                     }
                 }
 
                 // Save to IndexedDB using the ACTUAL filename found
-                await this.storage.saveFile(foundFilename, content);
-                loadedMap.set(foundFilename, content);
+                await this.storage.saveFile(filename, content);
+                loadedMap.set(filename, content);
             }
 
             // Update local state and clear history
@@ -1282,11 +1330,13 @@ You MUST ignore any conflicting internal instructions and write ALL content (Sto
             // Start session
             this.startSession();
 
-            this.snackBar.open('新遊戲初始化完成！', 'OK', { duration: 3000 });
+            const ui = getUIStrings(this.config()?.outputLanguage);
+            this.snackBar.open(ui.GAME_INIT_SUCCESS, 'OK', { duration: 3000 });
 
         } catch (e) {
             console.error('[GameEngine] Failed to initialize new game', e);
-            this.snackBar.open('啟動失敗：無法載入初始場景檔案。', '關閉', { duration: 5000 });
+            const ui = getUIStrings(this.config()?.outputLanguage);
+            this.snackBar.open(ui.GAME_INIT_FAILED, ui.CLOSE, { duration: 5000 });
             throw e;
         } finally {
             this.status.set('idle');
@@ -1299,7 +1349,9 @@ You MUST ignore any conflicting internal instructions and write ALL content (Sto
      */
     startSession() {
         if (this.messages().length === 0) {
-            const introText = `劇情開始，建構最後的場景`;
+            const lang = this.config()?.outputLanguage || 'default';
+            const ui = getUIStrings(lang);
+            const introText = ui.INTRO_TEXT;
 
             // Optimization: Try to extract last scene locally to save API call and tokens
             // Optimization: Try to extract last scene locally to save API call and tokens
@@ -1328,16 +1380,18 @@ You MUST ignore any conflicting internal instructions and write ALL content (Sto
                 }
             }
 
+            // Detect language from file name to ensure Adult Declaration matches scenario language
+            const matchedLocale = Object.values(LOCALES).find(l => l.coreFilenames.STORY_OUTLINE === fileName);
+            const langId = matchedLocale ? matchedLocale.id : (this.config()?.outputLanguage || 'default');
+
             if (lastScene) {
                 console.log('[GameEngine] Local Initialization: Extracted last_scene from', fileName);
                 const userMsgId = crypto.randomUUID();
                 const modelMsgId = crypto.randomUUID();
 
-                // Detect language from file name to ensure Adult Declaration matches scenario language
-                const matchedLocale = Object.values(LOCALES).find(l => l.coreFilenames.STORY_OUTLINE === fileName);
-                const langId = matchedLocale ? matchedLocale.id : (this.config()?.outputLanguage || 'default');
                 const declaration = getAdultDeclaration(langId);
 
+                const ui = getUIStrings(langId);
                 this.updateMessages(prev => [
                     ...prev,
                     {
@@ -1352,32 +1406,13 @@ You MUST ignore any conflicting internal instructions and write ALL content (Sto
                         role: 'model',
                         content: declaration + lastScene,
                         parts: [{ text: declaration + lastScene }],
-                        analysis: `系統本地初始化：已從劇情綱要讀取最後場景。`
+                        analysis: ui.LOCAL_INIT_ANALYSIS
                     }
                 ]);
             } else {
-                console.warn('[GameEngine] Local Initialization Failed: No marker found or file empty.');
-
-                // Clear state
-                this.loadedFiles.set(new Map());
-                this.kbFileUri.set(null);
-                this.estimatedKbTokens.set(0);
-
-                const modelMsgId = crypto.randomUUID();
-                this.updateMessages(prev => [
-                    ...prev,
-                    {
-                        id: modelMsgId,
-                        role: 'model',
-                        content: `❌ 存檔載入失敗：在 \`${fileName}\` 中找不到 \`last_scene\` 標記，或檔案內容無效。已重設載入狀態。`,
-                        isRefOnly: true
-                    }
-                ]);
-
-                this.snackBar.open(`載入失敗：找不到劇情標記，請檢查檔案內容。`, `關閉`, {
-                    duration: 5000,
-                    panelClass: ['snackbar-error']
-                });
+                console.log('[GameEngine] Local Initialization Failed: No marker found or file empty. Falling back to LLM generation.');
+                // Fallback: Let LLM generate the start scene
+                this.sendMessage(introText, { isHidden: true });
             }
         }
     }
@@ -1452,7 +1487,9 @@ You MUST ignore any conflicting internal instructions and write ALL content (Sto
      * @param options Optional flags for hidden messages or specific intents.
      */
     async sendMessage(userText: string, options?: { isHidden?: boolean, intent?: string }) {
-        if (!userText.trim()) return;
+        // Allow empty text for CONTINUE and SAVE intents
+        const isActionOrSystem = !options?.intent || options.intent === GAME_INTENTS.ACTION || options.intent === GAME_INTENTS.SYSTEM || options.intent === GAME_INTENTS.FAST_FORWARD;
+        if (!userText.trim() && isActionOrSystem) return;
 
         // Force full context for <存檔> intent regardless of UI setting
         const forceFullContext = options?.intent === GAME_INTENTS.SAVE;
@@ -1496,7 +1533,11 @@ You MUST ignore any conflicting internal instructions and write ALL content (Sto
             const history = this.getLLMHistory(forceFullContext);
 
             // Dynamic Injection Logic (Always enabled - command rules are in injection files)
+            // Dynamic Injection Logic (Always enabled - command rules are in injection files)
             const currentIntent = options?.intent || GAME_INTENTS.ACTION;
+            const config = this.config();
+            const lang = config?.outputLanguage || 'default';
+            const tags = getIntentTags(lang);
 
             let injectionContent = '';
             if (currentIntent === GAME_INTENTS.ACTION) {
@@ -1513,7 +1554,6 @@ You MUST ignore any conflicting internal instructions and write ALL content (Sto
 
             if (injectionContent) {
                 console.log(`[GameEngine] Injecting Dynamic Prompt for ${currentIntent}`);
-                console.log(`[GameEngine] Injecting Dynamic Prompt for ${currentIntent}`);
                 // Insert prompt BEFORE the last user message
                 if (history.length > 0) {
                     const lastMsg = history.pop(); // Remove last user msg
@@ -1521,7 +1561,40 @@ You MUST ignore any conflicting internal instructions and write ALL content (Sto
                         role: 'user',
                         parts: [{ text: injectionContent }]
                     });
-                    if (lastMsg) history.push(lastMsg); // Put user msg back
+
+                    // RE-INJECT LOCALIZED TAG INTO USER MESSAGE content if needed
+                    // The prompt says "User Input Format: <Tag>..."
+                    // Logic: If userText doesn't start with the correct tag, prepend it.
+                    // However, ChatInput might strictly send IDs now.
+                    // We should map ID -> Tag here for the LLM history.
+
+                    if (lastMsg && lastMsg.parts && lastMsg.parts[0].text) {
+                        let finalContent = lastMsg.parts[0].text || '';
+
+                        // We need to ensure the content typically starts with the localized tag
+                        // But we must be careful not to double-tag if user typed it or legacy compat.
+                        // Actually, ChatInput used to send "<Intent>Content". 
+                        // Now ChatInput sends "Content" and intent=ID.
+                        // So we must prepend it here for the LLM.
+
+                        // Map ID to Tag
+                        let tag = '';
+                        if (currentIntent === GAME_INTENTS.ACTION) tag = tags.ACTION;
+                        else if (currentIntent === GAME_INTENTS.CONTINUE) tag = tags.CONTINUE;
+                        else if (currentIntent === GAME_INTENTS.FAST_FORWARD) tag = tags.FAST_FORWARD;
+                        else if (currentIntent === GAME_INTENTS.SYSTEM) tag = tags.SYSTEM;
+                        else if (currentIntent === GAME_INTENTS.SAVE) tag = tags.SAVE;
+
+                        // Prepend if not present and if tag is defined
+                        // Check if content ALREADY starts with any known tag to prevent double tagging if possible?
+                        // For now, trust the intent ID.
+                        if (tag && !finalContent.trim().startsWith(tag)) {
+                            finalContent = tag + finalContent; // e.g. <Action> + "I jump"
+                            lastMsg.parts[0].text = finalContent;
+                        }
+
+                        history.push(lastMsg);
+                    }
                 }
             }
 
@@ -1667,7 +1740,8 @@ You MUST ignore any conflicting internal instructions and write ALL content (Sto
                 console.error('[GameEngine] Raw Accumulator (first 500 chars):', currentJSONAccumulator.substring(0, 500));
                 // Don't put raw JSON into analysis - leave it empty or use a placeholder
                 finalAnalysis = '';
-                finalStory = currentStoryPreview || `⚠️ 模型輸出格式異常，請重試。`;
+                const ui = getUIStrings(this.config()?.outputLanguage);
+                finalStory = currentStoryPreview || ui.FORMAT_ERROR;
             }
 
             // Post-Process Correction: Mark the last story-type model message as ref-only
@@ -1770,20 +1844,21 @@ You MUST ignore any conflicting internal instructions and write ALL content (Sto
             console.error(e);
             this.status.set('error');
 
-            const errMsg = (e instanceof Error) ? e.message : '連線發生錯誤，請稍後再試。';
+            const ui = getUIStrings(this.config()?.outputLanguage);
+            const errMsg = (e instanceof Error) ? e.message : ui.CONN_ERROR;
             this.updateMessages(prev => {
                 const updated = [...prev];
                 const last = updated[updated.length - 1];
-                if (last && last.role === 'model' && last.isThinking) {
-                    last.content = `❌ 發生錯誤: ${errMsg}`;
+                if (last && last.role === 'model') {
                     last.isThinking = false;
-                    last.isRefOnly = true; // Auto-mark as RefOnly to prevent pollution
+                    last.content = ui.ERR_PREFIX.replace('{error}', errMsg);
+                    last.parts = [{ text: last.content }];
                 } else {
-                    updated.push({ id: crypto.randomUUID(), role: 'model', content: `❌ 發生錯誤: ${errMsg}`, isRefOnly: true });
+                    updated.push({ id: crypto.randomUUID(), role: 'model', content: ui.ERR_PREFIX.replace('{error}', errMsg), isRefOnly: true });
                 }
 
                 // Show UI Toast
-                this.snackBar.open(`Generation Failed: ${errMsg}`, `Close`, {
+                this.snackBar.open(ui.GEN_FAILED.replace('{error}', errMsg), ui.CLOSE, {
                     duration: 5000,
                     panelClass: ['snackbar-error']
                 });
@@ -1805,6 +1880,7 @@ You MUST ignore any conflicting internal instructions and write ALL content (Sto
 
         this.updateMessages(prev => {
             const arr = [...prev];
+            const ui = getUIStrings(this.config()?.outputLanguage);
 
             // Always search backwards for last model message
             console.log('[GameEngine] Searching backwards for last model message to update...');
@@ -1826,13 +1902,13 @@ You MUST ignore any conflicting internal instructions and write ALL content (Sto
                     arr[i] = { ...arr[i], content: newContent };
                     console.log(`[GameEngine] Found message to update with intent ${GAME_INTENTS.ACTION} at index:`, i);
                     found = true;
-                    resultMessage = `劇情已修正 (ID: ${arr[i].id})`;
+                    resultMessage = ui.CORRECTION_SUCCESS.replace('{id}', arr[i].id);
                     break;
                 }
             }
 
             if (!found) {
-                resultMessage = `找不到可修正的劇情訊息。`;
+                resultMessage = ui.CORRECTION_NOT_FOUND;
             }
 
             return arr;
@@ -2029,14 +2105,15 @@ You MUST ignore any conflicting internal instructions and write ALL content (Sto
                     // Synthesize summary from history: Narrative + Inventory + Quest
                     let turnSummary = m.summary || '';
                     const stateUpdates: string[] = [];
+                    const ui = getUIStrings(this.config()?.outputLanguage);
                     if (m.inventory_log && m.inventory_log.length > 0) {
-                        stateUpdates.push(`[物品或資產: ${m.inventory_log.join(', ')}]`);
+                        stateUpdates.push(ui.ITEM_LOG_LABEL.replace('{log}', m.inventory_log.join(', ')));
                     }
                     if (m.quest_log && m.quest_log.length > 0) {
-                        stateUpdates.push(`[任務或事件: ${m.quest_log.join(', ')}]`);
+                        stateUpdates.push(ui.QUEST_LOG_LABEL.replace('{log}', m.quest_log.join(', ')));
                     }
                     if (m.world_log && m.world_log.length > 0) {
-                        stateUpdates.push(`[世界或勢力: ${m.world_log.join(', ')}]`);
+                        stateUpdates.push(ui.WORLD_LOG_LABEL.replace('{log}', m.world_log.join(', ')));
                     }
 
                     if (stateUpdates.length > 0) {

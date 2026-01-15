@@ -9,6 +9,7 @@ import { FormsModule } from '@angular/forms';
 import { MonacoEditorComponent } from '../monaco-editor/monaco-editor.component';
 import { GameEngineService } from '../../../core/services/game-engine.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { getUIStrings, getIntentLabels } from '../../../core/constants/engine-protocol';
 
 /** Injection type definition */
 interface InjectionType {
@@ -42,16 +43,24 @@ export class ChatConfigDialogComponent {
     editorRef = viewChild<MonacoEditorComponent>('editorRef');
 
     // Injection types for sidebar
-    readonly injectionTypes: InjectionType[] = [
-        { id: 'action', label: '行動意圖', icon: 'play_arrow' },
-        { id: 'continue', label: '繼續', icon: 'arrow_forward' },
-        { id: 'fastforward', label: '快轉', icon: 'fast_forward' },
-        { id: 'system', label: '系統指令', icon: 'settings' },
-        { id: 'save', label: '存檔指令', icon: 'save' }
-    ];
+    readonly injectionTypes = computed((): InjectionType[] => {
+        const labels = getIntentLabels(this.engine.config()?.outputLanguage);
+        return [
+            { id: 'action', label: labels.ACTION, icon: 'play_arrow' },
+            { id: 'continue', label: labels.CONTINUE, icon: 'arrow_forward' },
+            { id: 'fastforward', label: labels.FAST_FORWARD, icon: 'fast_forward' },
+            { id: 'system', label: labels.SYSTEM, icon: 'settings' },
+            { id: 'save', label: labels.SAVE, icon: 'save' }
+        ];
+    });
 
     // Active injection type
     activeType = signal<InjectionType['id']>('action');
+
+    ui = computed(() => {
+        const lang = this.engine.config()?.outputLanguage || 'default';
+        return getUIStrings(lang);
+    });
 
     // Sidebar collapsed state (mobile)
     isSidebarCollapsed = signal(false);
@@ -89,7 +98,7 @@ export class ChatConfigDialogComponent {
 
     /** Get current active type label */
     activeTypeLabel = computed(() => {
-        const type = this.injectionTypes.find(t => t.id === this.activeType());
+        const type = this.injectionTypes().find(t => t.id === this.activeType());
         return type?.label || '';
     });
 
@@ -167,7 +176,11 @@ export class ChatConfigDialogComponent {
             editor.updateFileContent(type, content);
         }
 
-        this.snackBar.open(`已重置「${this.activeTypeLabel()}」`, 'Close', { duration: 2000 });
+        this.syncCurrentContent();
+
+        const lang = this.engine.config()?.outputLanguage || 'default';
+        const ui = getUIStrings(lang);
+        this.snackBar.open(ui.PROMPT_RESET_SUCCESS.replace('{type}', this.activeTypeLabel()), ui.CLOSE, { duration: 2000 });
     }
 
     /** Reset all injection types to defaults */
@@ -177,13 +190,15 @@ export class ChatConfigDialogComponent {
         // Refresh all editor models
         const editor = this.editorRef();
         if (editor) {
-            for (const type of this.injectionTypes) {
+            for (const type of this.injectionTypes()) {
                 const content = this.getContentForType(type.id);
                 editor.updateFileContent(type.id, content);
             }
         }
 
-        this.snackBar.open('已重置所有動態提示', 'Close', { duration: 2000 });
+        const lang = this.engine.config()?.outputLanguage || 'default';
+        const ui = getUIStrings(lang);
+        this.snackBar.open(ui.ALL_PROMPTS_RESET_SUCCESS, ui.CLOSE, { duration: 2000 });
     }
 
     /** Get content for a specific type */

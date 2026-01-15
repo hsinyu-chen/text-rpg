@@ -75,3 +75,12 @@ export interface SessionSave {
 }
 
 export type StorageValue = object | string | number | boolean | null;
+
+export interface Scenario {
+    id: string;
+    name: string;
+    lang: string;
+    description?: string;
+    baseDir: string;
+    files: Record<string, string>;
+}

@@ -124,7 +124,7 @@ npm run desktop
 *   **API Key**: Google Gemini API Key.
 *   **Model ID**: 支援 `gemini-3-pro-preview`, `gemini-3-flash-preview` 等模型。
 *   **Exchange Rate**: 用於即時成本估算的匯率。
-*   **Output Language**: 選擇 AI 輸出語言（繁體中文、簡體中文、英文、日文）。
+*   **Output Language**: 選擇 AI 輸出語言（繁體中文、英文）。
 
 ### GCP 配置 (OAuth)
 
@@ -145,7 +145,7 @@ TextRPG 支援**動態語系切換**，無需重新啟動應用程式：
 
 #### 1. 切換 AI 輸出語言
 *   **位置**: Settings → Game Settings → Output Language
-*   **支援語言**: 繁體中文、簡體中文、英文、日文
+*   **支援語言**: 繁體中文、英文
 *   **影響範圍**:
     *   AI 生成的故事內容語言
     *   `summary`、`inventory_log`、`quest_log`、`world_log` 等結構化輸出
@@ -178,13 +178,11 @@ TextRPG 支援**動態語系切換**，無需重新啟動應用程式：
 
 ## 🌐 本地化指南 (Localization Guide)
 
-TextRPG 採用**自定義 locale 系統**，支援動態語言切換。系統已內建四種語言支援，大部分情況下**不需要手動翻譯**。
+TextRPG 採用**自定義 locale 系統**，支援動態語言切換。系統已內建二種語言支援，大部分情況下**不需要手動翻譯**。
 
 ### 已內建支援的語言
 *   **繁體中文** (Traditional Chinese)
-*   **簡體中文** (Simplified Chinese)
 *   **英文** (English)
-*   **日文** (Japanese)
 
 ### 自動本地化的部分
 
@@ -195,9 +193,7 @@ TextRPG 採用**自定義 locale 系統**，支援動態語言切換。系統已
 *   **實現**: 每個語言的 Response Schema、Adult Declaration、Prompt Holes 都已定義在對應的 locale 文件中
 *   **文件**:
     *   `zh-tw.ts` - 繁體中文
-    *   `zh-cn.ts` - 簡體中文
     *   `en.ts` - 英文
-    *   `jp.ts` - 日文
 
 #### 2. UI 介面文字
 *   **Intent 標籤**: 行動、快轉、系統、存檔、繼續
@@ -218,9 +214,7 @@ TextRPG 採用**自定義 locale 系統**，支援動態語言切換。系統已
 
 *   **文件命名規則**:
     *   繁體中文：`1.基礎設定.md`
-    *   簡體中文：`1.Base_Settings.md`（使用英文文件名）
     *   英文：`1.Base_Settings.md`
-    *   日文：`1.Base_Settings.md`（使用英文文件名）
 
 *   **註冊劇本**: 更新 `public/assets/system_files/scenario/scenarios.json`，為新語言版本添加條目
 

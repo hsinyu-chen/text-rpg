@@ -2,7 +2,9 @@ import { AppLocale } from './locale.interface';
 import { GAME_INTENTS } from '../game-intents';
 
 export const EN_US_LOCALE: AppLocale = {
-    id: 'English',
+    id: 'en-US',
+    label: 'English',
+    folder: 'en',
     responseSchema: {
         rootDescription: "Thinking Process: You MUST complete the 'analysis' field FIRST before generating the 'response' content. ALL OUTPUT MUST BE IN ENGLISH.",
         responseDescription: "[Response Phase] Contains the actual story content and logs after analysis. ALL FIELDS MUST BE IN ENGLISH.",
@@ -38,6 +40,13 @@ export const EN_US_LOCALE: AppLocale = {
         SAVE: 'Save',
         CONTINUE: 'Continue'
     },
+    intentTags: {
+        ACTION: '<Action>',
+        FAST_FORWARD: '<FastForward>',
+        SYSTEM: '<System>',
+        SAVE: '<Save>',
+        CONTINUE: '<Continue>'
+    },
     inputPlaceholders: {
         ACTION: '([Mood]Action)Dialogue or Thoughts',
         FAST_FORWARD: 'Fast forward to specific time or event',
@@ -45,5 +54,60 @@ export const EN_US_LOCALE: AppLocale = {
         SAVE: 'Save current story progress',
         CONTINUE: 'Continue the story',
         FALLBACK: 'Enter your action...'
+    },
+    uiStrings: {
+        GAME_INIT_SUCCESS: 'New game initialized!',
+        GAME_INIT_FAILED: 'Startup Failed: Unable to load initial scene files.',
+        MARKER_NOT_FOUND: '❌ Save Load Failed: Could not find `last_scene` marker in `{fileName}`, or file content is invalid. Loading status reset.',
+        LOCAL_INIT_ANALYSIS: 'System Local Initialization: Extracted last scene from Story Outline.',
+        CLOSE: 'Close',
+        PROMPT_RESET_SUCCESS: 'Successfully reset "{type}" prompt.',
+        ALL_PROMPTS_RESET_SUCCESS: 'Successfully reset all dynamic prompts.',
+        INTRO_TEXT: 'Story begins, constructing the final scene',
+        FORMAT_ERROR: '⚠️ Model output format anomaly, please retry.',
+        GEN_FAILED: 'Generation Failed: {error}',
+        CONN_ERROR: 'Connection error, please try again later.',
+        ERR_PREFIX: '❌ Error: {error}',
+        CORRECTION_SUCCESS: 'Story corrected (ID: {id})',
+        CORRECTION_NOT_FOUND: 'Could not find story message to correct.',
+        ITEM_LOG_LABEL: 'Items/Assets: {log}',
+        QUEST_LOG_LABEL: 'Quests/Events: {log}',
+        WORLD_LOG_LABEL: 'World/Factions: {log}',
+        USER_NAME: 'Protagonist Name',
+        USER_FACTION: 'Protagonist Faction',
+        USER_BACKGROUND: 'Protagonist Background',
+        USER_INTERESTS: 'Interests',
+        USER_APPEARANCE: 'Appearance Description',
+        USER_CORE_VALUES: 'Core Values & Behavior Guidelines',
+        CREATE_NEW_GAME: 'Create New Game',
+        SELECT_SCENARIO: 'Select Scenario',
+        INITIALIZING: 'Initializing...',
+        REQUIRED_FIELD: 'This field is required',
+        SELECT_ALIGNMENT: 'Please select an alignment',
+        CANCEL: 'Cancel',
+        START_GAME: 'Start Game',
+        ENTER_NAME: 'Enter name',
+        CHAR_HISTORY_PLCH: 'Character history...',
+        INTERESTS_PLCH: 'Interests...',
+        APPEARANCE_PLCH: 'Appearance description...',
+        CORE_VALUES_PLCH: 'Core values (Markdown format)...',
+        DYNAMIC_PROMPT_SETTINGS: 'Dynamic Prompt Settings',
+        SHOW_MENU: 'Show Menu',
+        HIDE_MENU: 'Hide Menu',
+        RESET_CURRENT: 'Reset Current Item',
+        RESET_ALL: 'Reset All Items',
+        INSTRUCTION_TYPE: 'Instruction Type',
+        AUTO_INJECTION_HINT: 'Each instruction type will be automatically injected in the corresponding turn',
+        ALIGNMENTS: {
+            'Lawful Good': 'Lawful Good',
+            'Neutral Good': 'Neutral Good',
+            'Chaotic Good': 'Chaotic Good',
+            'Lawful Neutral': 'Lawful Neutral',
+            'True Neutral': 'True Neutral',
+            'Chaotic Neutral': 'Chaotic Neutral',
+            'Lawful Evil': 'Lawful Evil',
+            'Neutral Evil': 'Neutral Evil',
+            'Chaotic Evil': 'Chaotic Evil'
+        }
     }
 };

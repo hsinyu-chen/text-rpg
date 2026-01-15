@@ -1,5 +1,7 @@
 export interface AppLocale {
     id: string;
+    label: string;
+    folder: string;
     responseSchema: {
         rootDescription: string;
         responseDescription: string;
@@ -35,6 +37,13 @@ export interface AppLocale {
         SAVE: string;
         CONTINUE: string;
     };
+    intentTags: {
+        ACTION: string;
+        FAST_FORWARD: string;
+        SYSTEM: string;
+        SAVE: string;
+        CONTINUE: string;
+    };
     inputPlaceholders: {
         ACTION: string;
         FAST_FORWARD: string;
@@ -42,5 +51,50 @@ export interface AppLocale {
         SAVE: string;
         CONTINUE: string;
         FALLBACK: string;
+    };
+    uiStrings: {
+        GAME_INIT_SUCCESS: string;
+        GAME_INIT_FAILED: string;
+        MARKER_NOT_FOUND: string;
+        LOCAL_INIT_ANALYSIS: string;
+        CLOSE: string;
+        PROMPT_RESET_SUCCESS: string;
+        ALL_PROMPTS_RESET_SUCCESS: string;
+        INTRO_TEXT: string;
+        FORMAT_ERROR: string;
+        GEN_FAILED: string;
+        CONN_ERROR: string;
+        ERR_PREFIX: string;
+        CORRECTION_SUCCESS: string;
+        CORRECTION_NOT_FOUND: string;
+        ITEM_LOG_LABEL: string;
+        QUEST_LOG_LABEL: string;
+        WORLD_LOG_LABEL: string;
+        USER_NAME: string;
+        USER_FACTION: string;
+        USER_BACKGROUND: string;
+        USER_INTERESTS: string;
+        USER_APPEARANCE: string;
+        USER_CORE_VALUES: string;
+        CREATE_NEW_GAME: string;
+        SELECT_SCENARIO: string;
+        INITIALIZING: string;
+        REQUIRED_FIELD: string;
+        SELECT_ALIGNMENT: string;
+        CANCEL: string;
+        START_GAME: string;
+        ENTER_NAME: string;
+        CHAR_HISTORY_PLCH: string;
+        INTERESTS_PLCH: string;
+        APPEARANCE_PLCH: string;
+        CORE_VALUES_PLCH: string;
+        DYNAMIC_PROMPT_SETTINGS: string;
+        SHOW_MENU: string;
+        HIDE_MENU: string;
+        RESET_CURRENT: string;
+        RESET_ALL: string;
+        INSTRUCTION_TYPE: string;
+        AUTO_INJECTION_HINT: string;
+        ALIGNMENTS: Record<string, string>;
     };
 }

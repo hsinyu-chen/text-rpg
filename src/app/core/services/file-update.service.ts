@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { FileSystemService } from './file-system.service';
 import { getCoreFilenames } from '../constants/engine-protocol';
+import { LOCALES } from '../constants/locales';
 
 export interface FileUpdate {
     filePath: string;
@@ -121,7 +122,7 @@ export class FileUpdateService {
      */
     preprocessUpdates(updates: FileUpdate[], fileName: string, fileContent: string): FileUpdate[] {
         // Special handling for Story Outline file (check against all possible locale names)
-        const isStoryOutline = Object.values(['Traditional Chinese', 'Simplified Chinese', 'English', 'Japanese'])
+        const isStoryOutline = Object.keys(LOCALES)
             .map(lang => getCoreFilenames(lang).STORY_OUTLINE)
             .some(name => fileName.includes(name.replace('.md', '')));
 

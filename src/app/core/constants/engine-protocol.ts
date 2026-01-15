@@ -43,6 +43,10 @@ export const getIntentLabels = (lang = 'default') => {
     return getLocale(lang).intentLabels;
 };
 
+export const getIntentTags = (lang = 'default') => {
+    return getLocale(lang).intentTags;
+};
+
 export const getInputPlaceholders = (lang = 'default') => {
     return getLocale(lang).inputPlaceholders;
 };
@@ -56,10 +60,14 @@ export const getAdultDeclaration = (lang = 'default'): string => {
     return getLocale(lang).adultDeclaration;
 };
 
+export const getUIStrings = (lang = 'default') => {
+    return getLocale(lang).uiStrings;
+};
+
 export const INJECTION_FILE_PATHS = {
-    action: 'assets/system_files/injection_action.md',
-    continue: 'assets/system_files/injection_continue.md',
-    fastforward: 'assets/system_files/injection_fastforward.md',
-    system: 'assets/system_files/injection_system.md',
-    save: 'assets/system_files/injection_save.md'
+    action: 'injection_action.md',
+    continue: 'injection_continue.md',
+    fastforward: 'injection_fastforward.md',
+    system: 'injection_system.md',
+    save: 'injection_save.md'
 } as const;

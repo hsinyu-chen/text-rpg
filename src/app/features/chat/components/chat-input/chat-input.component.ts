@@ -63,11 +63,11 @@ export class ChatInputComponent {
     getIntentLabel(intent: string): string {
         const labels = this.intentLabels();
         // Map intent values to label keys
-        if (intent.includes('行動')) return labels.ACTION;
-        if (intent.includes('快轉') || intent.includes('快进')) return labels.FAST_FORWARD;
-        if (intent.includes('系統') || intent.includes('系统')) return labels.SYSTEM;
-        if (intent.includes('存檔') || intent.includes('存档')) return labels.SAVE;
-        if (intent.includes('繼續') || intent.includes('继续')) return labels.CONTINUE;
+        if (intent === GAME_INTENTS.ACTION) return labels.ACTION;
+        if (intent === GAME_INTENTS.FAST_FORWARD) return labels.FAST_FORWARD;
+        if (intent === GAME_INTENTS.SYSTEM) return labels.SYSTEM;
+        if (intent === GAME_INTENTS.SAVE) return labels.SAVE;
+        if (intent === GAME_INTENTS.CONTINUE) return labels.CONTINUE;
         return intent; // Fallback to raw value
     }
 
@@ -134,7 +134,7 @@ export class ChatInputComponent {
             this.originalIntentBeforeEdit = null;
         }
 
-        const msgContent = intent + this.userInput();
+        const msgContent = this.userInput();
         this.engine.sendMessage(msgContent, { intent });
 
         // Reset

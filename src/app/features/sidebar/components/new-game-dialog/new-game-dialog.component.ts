@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -8,11 +8,14 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { GameEngineService } from '../../../../core/services/game-engine.service';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
-import { LOCALES } from '../../../../core/constants/locales';
-
+import { getUIStrings } from '../../../../core/constants/engine-protocol';
+import { Scenario } from '../../../../core/models/types';
+import { getLocale } from '../../../../core/constants/locales';
 @Component({
     selector: 'app-new-game-dialog',
     standalone: true,
@@ -25,7 +28,9 @@ import { LOCALES } from '../../../../core/constants/locales';
         MatIconModule,
         MatSelectModule,
         MatDialogModule,
-        MatProgressSpinnerModule
+        MatProgressSpinnerModule,
+        MatSnackBarModule,
+        MatTooltipModule
     ],
     templateUrl: './new-game-dialog.component.html',
     styleUrl: './new-game-dialog.component.scss'
@@ -34,10 +39,16 @@ export class NewGameDialogComponent {
     private engine = inject(GameEngineService);
     private dialogRef = inject(MatDialogRef<NewGameDialogComponent>);
     private http = inject(HttpClient);
+    private snackBar = inject(MatSnackBar);
 
     isLoading = signal(false);
-    scenarios = signal<{ id: string, name: string, baseDir: string }[]>([]);
-    selectedScenarioId = signal('fareast');
+
+    ui = computed(() => {
+        const lang = this.engine.config()?.outputLanguage || 'default';
+        return getUIStrings(lang);
+    });
+    scenarios = signal<Scenario[]>([]);
+    selectedScenarioId = signal<string>('');
 
     profile = {
         name: signal(''),
@@ -48,20 +59,49 @@ export class NewGameDialogComponent {
         coreValues: signal('')
     };
 
-    labels: Record<string, string> = {
-        name: '主角名稱',
-        faction: '主角陣營',
-        background: '主角背景',
-        interests: '興趣',
-        appearance: '外貌描述',
-        coreValues: '核心價值觀與行為準則'
-    };
+    labels = computed(() => {
+        const lang = this.engine.config()?.outputLanguage || 'default';
+        const ui = getUIStrings(lang);
+        return {
+            name: ui.USER_NAME,
+            faction: ui.USER_FACTION,
+            background: ui.USER_BACKGROUND,
+            interests: ui.USER_INTERESTS,
+            appearance: ui.USER_APPEARANCE,
+            coreValues: ui.USER_CORE_VALUES
+        };
+    });
 
-    alignments = [
-        ['Lawful Good', 'Neutral Good', 'Chaotic Good'],
-        ['Lawful Neutral', 'True Neutral', 'Chaotic Neutral'],
-        ['Lawful Evil', 'Neutral Evil', 'Chaotic Evil']
-    ];
+    alignments = computed(() => {
+        const lang = this.engine.config()?.outputLanguage || 'default';
+        const ui = getUIStrings(lang);
+        const alignments = ui.ALIGNMENTS || {};
+
+        return [
+            [
+                { id: 'Lawful Good', label: alignments['Lawful Good'] || 'Lawful Good' },
+                { id: 'Neutral Good', label: alignments['Neutral Good'] || 'Neutral Good' },
+                { id: 'Chaotic Good', label: alignments['Chaotic Good'] || 'Chaotic Good' }
+            ],
+            [
+                { id: 'Lawful Neutral', label: alignments['Lawful Neutral'] || 'Lawful Neutral' },
+                { id: 'True Neutral', label: alignments['True Neutral'] || 'True Neutral' },
+                { id: 'Chaotic Neutral', label: alignments['Chaotic Neutral'] || 'Chaotic Neutral' }
+            ],
+            [
+                { id: 'Lawful Evil', label: alignments['Lawful Evil'] || 'Lawful Evil' },
+                { id: 'Neutral Evil', label: alignments['Neutral Evil'] || 'Neutral Evil' },
+                { id: 'Chaotic Evil', label: alignments['Chaotic Evil'] || 'Chaotic Evil' }
+            ]
+        ];
+    });
+
+    displayScenarios = computed(() => {
+        const lang = this.engine.config()?.outputLanguage || 'default';
+        const targetLocaleId = getLocale(lang).id;
+
+        return this.scenarios().filter(s => s.lang === targetLocaleId);
+    });
 
     constructor() {
         this.init();
@@ -70,11 +110,12 @@ export class NewGameDialogComponent {
     async init() {
         this.isLoading.set(true);
         try {
-            const scenarios = await firstValueFrom(this.http.get<{ id: string, name: string, baseDir: string }[]>('assets/system_files/scenario/scenarios.json'));
+            const scenarios = await firstValueFrom(this.http.get<Scenario[]>('assets/system_files/scenario/scenarios.json'));
             this.scenarios.set(scenarios);
-            if (scenarios.length > 0) {
-                this.selectedScenarioId.set(scenarios[0].id);
-                await this.loadDefaultValues(scenarios[0].id);
+            const filtered = this.displayScenarios();
+            if (filtered && filtered.length > 0) {
+                this.selectedScenarioId.set(filtered[0].id);
+                await this.loadDefaultValues(filtered[0]);
             }
         } catch (e) {
             console.error('Failed to load scenarios', e);
@@ -84,29 +125,25 @@ export class NewGameDialogComponent {
     }
 
     async onScenarioChange() {
-        await this.loadDefaultValues(this.selectedScenarioId());
+        const scenario = this.scenarios().find(s => s.id === this.selectedScenarioId());
+        if (scenario) {
+            await this.loadDefaultValues(scenario);
+        }
     }
 
-    async loadDefaultValues(scenarioId: string) {
+    async loadDefaultValues(scenario: Scenario) {
         this.isLoading.set(true);
         try {
-            let content = '';
-
-            // Collect all potential filenames from LOCALES
-            const potentialFilenames = new Set(Object.values(LOCALES).map(l => l.coreFilenames.CHARACTER_STATUS));
-
-            for (const filename of potentialFilenames) {
-                try {
-                    content = await firstValueFrom(this.http.get(`assets/system_files/scenario/${scenarioId}/${filename}`, { responseType: 'text' }));
-                    if (content) break; // Found it!
-                } catch {
-                    // Continue to next filename
-                }
+            const charStatusFilename = scenario.files['CHARACTER_STATUS'];
+            if (!charStatusFilename) {
+                throw new Error('Character status file not defined for this scenario');
             }
 
+            const path = `${scenario.baseDir}/${charStatusFilename}`;
+            const content = await firstValueFrom(this.http.get(path, { responseType: 'text' }));
+
             if (!content) {
-                console.error(`Failed to load character status for ${scenarioId} from any known locale filename.`);
-                throw new Error('Character status file not found');
+                throw new Error('Character status file is empty');
             }
 
             const parseTag = (tag: string) => {
@@ -129,14 +166,22 @@ export class NewGameDialogComponent {
                 const result = parseTag(tagName);
                 if (result) {
                     this.profile[key].set(result.defaultValue);
-                    if (result.label) {
-                        this.labels[key] = result.label;
-                    }
+                    // The labels computed signal already provides localized labels.
+                    // If the intent was to override with scenario-specific labels,
+                    // a separate signal or mechanism would be needed.
+                    // For now, we'll keep the computed signal as the source of truth for labels.
+                    // The original line `this.labels[key] = result.label;` was incorrect
+                    // because `labels` is a computed signal, not a mutable object.
                 }
             }
 
         } catch (e) {
             console.error('Failed to load default values from scenario', e);
+            const ui = this.ui();
+            this.snackBar.open(ui.GEN_FAILED.replace('{error}', (e as Error).message), ui.CLOSE, {
+                duration: 5000,
+                panelClass: ['snackbar-error']
+            });
         } finally {
             this.isLoading.set(false);
         }
@@ -168,8 +213,11 @@ export class NewGameDialogComponent {
                 appearance: this.profile.appearance(),
                 coreValues: this.profile.coreValues()
             };
-            await this.engine.startNewGame(profileData, this.selectedScenarioId());
-            this.dialogRef.close(true);
+            const scenario = this.scenarios().find(s => s.id === this.selectedScenarioId());
+            if (scenario) {
+                await this.engine.startNewGame(profileData, scenario);
+                this.dialogRef.close(true);
+            }
         } catch (e) {
             console.error('Failed to start new game', e);
         } finally {

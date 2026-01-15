@@ -87,7 +87,7 @@ The AI-generated **Inventory**, **Quest Log**, **World/Tech Update**, and **Summ
 ### 3. Automatic World Update
 When you use the `<存檔>` (Save) command, the AI not only saves progress but also attempts to **update world settings**:
 *   **Trigger**: 
-    1. Select `<存檔>` (Save) from the dropdown list on the left of the input box.
+    1. Select `<Save>` from the dropdown list on the left of the input box.
     2. Or click the **Save** (Floppy Disk Icon) button above the input box.
     3. After the message is sent and a response is generated, click the **"Auto Update"** (Magic Wand Icon) button on the message toolbar if there are plot changes.
 *   **Mechanism**: The model analyses plot changes in the current chapter and outputs differential updates (Diff) in XML format.
@@ -130,7 +130,7 @@ On first launch, configure via the Settings panel:
 *   **API Key**: Google Gemini API Key.
 *   **Model ID**: Supports `gemini-3-pro-preview`, `gemini-3-flash-preview`, etc.
 *   **Exchange Rate**: For real-time cost estimation.
-*   **Output Language**: Select AI output language (Traditional Chinese, Simplified Chinese, English, Japanese).
+*   **Output Language**: Select AI output language (Traditional Chinese, English).
 
 ### GCP Configuration (OAuth)
 
@@ -151,7 +151,7 @@ TextRPG supports **dynamic language switching** without restarting the applicati
 
 #### 1. Switching AI Output Language
 *   **Location**: Settings → Game Settings → Output Language
-*   **Supported Languages**: Traditional Chinese, Simplified Chinese, English, Japanese
+*   **Supported Languages**: Traditional Chinese, English
 *   **Affected Areas**:
     *   AI-generated story content language
     *   Structured outputs like `summary`, `inventory_log`, `quest_log`, `world_log`
@@ -186,13 +186,11 @@ TextRPG supports **dynamic language switching** without restarting the applicati
 
 ## 🌐 Localization (I18N) Guide
 
-TextRPG uses a **custom locale system** with dynamic language switching support. The system includes built-in support for four languages, and **most parts require no manual translation**.
+TextRPG uses a **custom locale system** with dynamic language switching support. The system includes built-in support for two languages, and **most parts require no manual translation**.
 
 ### Built-in Language Support
 *   **Traditional Chinese**
-*   **Simplified Chinese**
 *   **English**
-*   **Japanese**
 
 ### Automatically Localized Components
 
@@ -203,9 +201,7 @@ The following parts are automatically handled by the system and **require no man
 *   **Implementation**: Response Schema, Adult Declaration, and Prompt Holes are defined in corresponding locale files
 *   **Files**:
     *   `zh-tw.ts` - Traditional Chinese
-    *   `zh-cn.ts` - Simplified Chinese
     *   `en.ts` - English
-    *   `jp.ts` - Japanese
 
 #### 2. UI Interface Text
 *   **Intent Labels**: Action, Fast Forward, System, Save, Continue
@@ -226,9 +222,7 @@ If you want to add a new language version for existing scenarios, you need to tr
 
 *   **File Naming Convention**:
     *   Traditional Chinese: `1.基礎設定.md`
-    *   Simplified Chinese: `1.Base_Settings.md` (use English filenames)
     *   English: `1.Base_Settings.md`
-    *   Japanese: `1.Base_Settings.md` (use English filenames)
 
 *   **Register Scenario**: Update `public/assets/system_files/scenario/scenarios.json` to add entries for the new language version
 

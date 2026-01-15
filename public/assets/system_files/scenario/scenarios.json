@@ -1,20 +1,38 @@
 [
     {
-        "id": "fareast",
-        "name": "法伊斯特 (FarEast)",
-        "description": "穿越到劍與魔法的異世界，探索魔法與科技的本質。",
-        "baseDir": "assets/system_files/scenario/fareast"
-    },
-    {
         "id": "demo_world_en",
-        "name": "Terra En (Demo World)",
-        "description": "A standard fantasy world for testing and demos. Contains generic RPG tropes.",
-        "baseDir": "assets/system_files/scenario/demo_world_en"
+        "name": "Terra (Demo World)",
+        "lang": "en-US",
+        "description": "A standard fantasy world with magic and adventures. (English)",
+        "baseDir": "assets/system_files/scenario/demo_world_en",
+        "files": {
+            "BASIC_SETTINGS": "1.Base_Settings.md",
+            "STORY_OUTLINE": "2.Story_Outline.md",
+            "CHARACTER_STATUS": "3.Character_Status.md",
+            "ASSETS": "4.Assets.md",
+            "TECH_EQUIPMENT": "5.Tech_Equipment.md",
+            "WORLD_FACTIONS": "6.Factions_and_World.md",
+            "MAGIC": "7.Magic.md",
+            "PLANS": "8.Plans.md",
+            "INVENTORY": "9.Inventory.md"
+        }
     },
     {
         "id": "demo_world_zh",
         "name": "泰拉 (Demo World)",
-        "description": "A standard fantasy world for testing and demos. Contains generic RPG tropes.",
-        "baseDir": "assets/system_files/scenario/demo_world"
+        "lang": "zh-TW",
+        "description": "一個標準的奇幻世界，充滿魔法與冒險。（繁體中文版本）",
+        "baseDir": "assets/system_files/scenario/demo_world",
+        "files": {
+            "BASIC_SETTINGS": "1.基礎設定.md",
+            "STORY_OUTLINE": "2.劇情綱要.md",
+            "CHARACTER_STATUS": "3.人物狀態.md",
+            "ASSETS": "4.資產.md",
+            "TECH_EQUIPMENT": "5.科技裝備.md",
+            "WORLD_FACTIONS": "6.勢力與世界.md",
+            "MAGIC": "7.魔法.md",
+            "PLANS": "8.計畫.md",
+            "INVENTORY": "9.物品欄.md"
+        }
     }
 ]

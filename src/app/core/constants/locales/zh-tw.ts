@@ -2,7 +2,9 @@ import { AppLocale } from './locale.interface';
 import { GAME_INTENTS } from '../game-intents';
 
 export const ZH_TW_LOCALE: AppLocale = {
-    id: 'Traditional Chinese',
+    id: 'zh-TW',
+    label: 'Traditional Chinese (繁體中文)',
+    folder: 'zh-tw',
     responseSchema: {
         rootDescription: "思考流程：你必須先完成 'analysis' 欄位，再生成 'response' 內容。所有輸出必須使用繁體中文。",
         responseDescription: "[回應階段] 分析後的實際故事內容與紀錄。所有欄位必須使用繁體中文。",
@@ -38,12 +40,74 @@ export const ZH_TW_LOCALE: AppLocale = {
         SAVE: '存檔',
         CONTINUE: '繼續'
     },
+    intentTags: {
+        ACTION: '<行動意圖>',
+        FAST_FORWARD: '<快轉>',
+        SYSTEM: '<系統>',
+        SAVE: '<存檔>',
+        CONTINUE: '<繼續>'
+    },
     inputPlaceholders: {
         ACTION: '([心境]動作)台詞或內心獨白',
         FAST_FORWARD: '快轉至特定時間點或事件',
         SYSTEM: '系統指令或設定調整',
         SAVE: '本輪劇情存檔',
-        CONTINUE: '繼續劇情',
+        CONTINUE: '繼續故事',
         FALLBACK: '輸入你的行動...'
+    },
+    uiStrings: {
+        GAME_INIT_SUCCESS: '新遊戲初始化完成！',
+        GAME_INIT_FAILED: '啟動失敗：無法載入初始場景檔案。',
+        MARKER_NOT_FOUND: '❌ 存檔載入失敗：在 `{fileName}` 中找不到 `last_scene` 標記，或檔案內容無效。已重設載入狀態。',
+        LOCAL_INIT_ANALYSIS: '系統本地初始化：已從劇情綱要讀取最後場景。',
+        CLOSE: '關閉',
+        PROMPT_RESET_SUCCESS: '已重置「{type}」指令提示',
+        ALL_PROMPTS_RESET_SUCCESS: '已重置所有動態提示',
+        INTRO_TEXT: '劇情開始，建構最後的場景',
+        FORMAT_ERROR: '⚠️ 模型輸出格式異常，請重試。',
+        GEN_FAILED: '生成失敗: {error}',
+        CONN_ERROR: '連線發生錯誤，請稍後再試。',
+        ERR_PREFIX: '❌ 發生錯誤: {error}',
+        CORRECTION_SUCCESS: '劇情已修正 (ID: {id})',
+        CORRECTION_NOT_FOUND: '找不到可修正的劇情訊息。',
+        ITEM_LOG_LABEL: '物品或資產: {log}',
+        QUEST_LOG_LABEL: '任務或事件: {log}',
+        WORLD_LOG_LABEL: '世界或勢力: {log}',
+        USER_NAME: '主角名稱',
+        USER_FACTION: '主角陣營',
+        USER_BACKGROUND: '主角背景',
+        USER_INTERESTS: '興趣',
+        USER_APPEARANCE: '外貌描述',
+        USER_CORE_VALUES: '核心價值觀與行為準則',
+        CREATE_NEW_GAME: '創建新遊戲',
+        SELECT_SCENARIO: '選擇腳本',
+        INITIALIZING: '初始化中...',
+        REQUIRED_FIELD: '此欄位必填',
+        SELECT_ALIGNMENT: '請選擇一個陣營',
+        CANCEL: '取消',
+        START_GAME: '開始遊戲',
+        ENTER_NAME: '輸入姓名',
+        CHAR_HISTORY_PLCH: '人物歷史背景...',
+        INTERESTS_PLCH: '興趣愛好...',
+        APPEARANCE_PLCH: '外貌描述...',
+        CORE_VALUES_PLCH: '核心價值（Markdown 格式）...',
+        DYNAMIC_PROMPT_SETTINGS: '動態提示設定',
+        SHOW_MENU: '顯示選單',
+        HIDE_MENU: '隱藏選單',
+        RESET_CURRENT: '重置目前項目',
+        RESET_ALL: '重置所有項目',
+        INSTRUCTION_TYPE: '指令類型',
+        AUTO_INJECTION_HINT: '每個指令類型會在對應回合自動注入',
+        ALIGNMENTS: {
+            'Lawful Good': '守序善良',
+            'Neutral Good': '中立善良',
+            'Chaotic Good': '混亂善良',
+            'Lawful Neutral': '守序中立',
+            'True Neutral': '絕對中立',
+            'Chaotic Neutral': '混亂中立',
+            'Lawful Evil': '守序邪惡',
+            'Neutral Evil': '中立邪惡',
+            'Chaotic Evil': '混亂邪惡'
+        }
     }
 };

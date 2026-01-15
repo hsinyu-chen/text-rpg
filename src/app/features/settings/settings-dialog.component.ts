@@ -12,6 +12,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { GameEngineService } from '../../core/services/game-engine.service';
+import { getLanguagesList } from '../../core/constants/locales';
 import { GoogleDriveService } from '../../core/services/google-drive.service';
 import { LoadingService } from '../../core/services/loading.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -69,13 +70,7 @@ export class SettingsDialogComponent {
   outputLanguage = signal('default');
   customOutputLanguage = signal('');
 
-  languages = [
-    { value: 'default', label: 'Default (System Native)' },
-    { value: 'Traditional Chinese', label: 'Traditional Chinese (繁體中文)' },
-    { value: 'Simplified Chinese', label: 'Simplified Chinese (简体中文)' },
-    { value: 'English', label: 'English' },
-    { value: 'Japanese', label: 'Japanese (日本語)' }
-  ];
+  languages = getLanguagesList();
 
   currencies = [
     { code: 'TWD', name: 'New Taiwan Dollar (NT$)', symbol: 'NT$' },
@@ -94,7 +89,7 @@ export class SettingsDialogComponent {
     { name: 'Custom...', value: 'custom' }
   ];
 
-  customFontName = signal('');
+  customFontName = signal('iansui');
 
   constructor() {
     this.loadSettings();

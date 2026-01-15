@@ -43,7 +43,7 @@ export class MessageStateService {
 
     isRaw = linkedSignal({
         source: this.message,
-        computation: (msg) => (msg?.intent === GAME_INTENTS.SAVE || msg?.content.includes('<save'))
+        computation: (msg) => (msg?.intent === GAME_INTENTS.SAVE || msg?.content.includes('<save>')) // Should check for tag if content based? 'save' is ID.
     });
 
     isRefExpanded = signal(false);
