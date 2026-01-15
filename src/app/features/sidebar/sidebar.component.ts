@@ -9,6 +9,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatTabsModule } from '@angular/material/tabs';
 
 import { GameEngineService } from '../../core/services/game-engine.service';
+import { GameStateService } from '../../core/services/game-state.service';
 import { SettingsDialogComponent } from '../settings/settings-dialog.component';
 import { FileViewerDialogComponent } from './file-viewer-dialog.component';
 
@@ -36,6 +37,7 @@ import { SidebarCostPredictionComponent } from './components/sidebar-cost-predic
 })
 export class SidebarComponent {
   engine = inject(GameEngineService);
+  state = inject(GameStateService);
   matDialog = inject(MatDialog);
 
   displayMode = signal<'tokens' | 'chars'>('tokens');
@@ -45,8 +47,8 @@ export class SidebarComponent {
 
   fileList = computed(() => {
     const list: { name: string, content: string, tokens: number }[] = [];
-    const tokenCounts = this.engine.fileTokenCounts();
-    this.engine.loadedFiles().forEach((content, name) => {
+    const tokenCounts = this.state.fileTokenCounts();
+    this.state.loadedFiles().forEach((content, name) => {
       list.push({
         name,
         content,
@@ -71,7 +73,7 @@ export class SidebarComponent {
     this.matDialog.open(FileViewerDialogComponent, {
       panelClass: 'fullscreen-dialog',
       data: {
-        files: this.engine.loadedFiles(),
+        files: this.state.loadedFiles(),
         initialFile,
         editMode
       }

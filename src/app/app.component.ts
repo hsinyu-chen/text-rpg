@@ -10,6 +10,7 @@ import { SidebarComponent } from './features/sidebar/sidebar.component';
 import { ChatComponent } from './features/chat/chat.component';
 import { AutoSaveService } from './core/services/auto-save.service';
 import { GameEngineService } from './core/services/game-engine.service';
+import { GameStateService } from './core/services/game-state.service';
 import { SettingsDialogComponent } from './features/settings/settings-dialog.component';
 import { map } from 'rxjs';
 import { LoadingService } from './core/services/loading.service';
@@ -41,6 +42,7 @@ import { CodeScreensaverComponent } from './features/screensaver/code-screensave
 })
 export class AppComponent {
   engine = inject(GameEngineService);
+  state = inject(GameStateService);
   loading = inject(LoadingService);
   dialog = inject(MatDialog);
   private breakpointObserver = inject(BreakpointObserver);
@@ -76,7 +78,7 @@ export class AppComponent {
     }
 
     effect(() => {
-      if (this.engine.status() === 'loading') {
+      if (this.state.status() === 'loading') {
         this.loading.show('Synchronizing Knowledge Base...\nChecking files, uploading, and cleaning up...');
       } else {
         // Only hide if the loading service was triggered by engine status (simple check or force hide might conflict)
@@ -103,7 +105,7 @@ export class AppComponent {
   openSettings() {
     this.dialog.open(SettingsDialogComponent, {
       width: '550px',
-      disableClose: !this.engine.isConfigured()
+      disableClose: !this.state.isConfigured()
     });
   }
 

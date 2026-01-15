@@ -1,18 +1,18 @@
-<div class="status-indicator" [class]="engine.status()">
+<div class="status-indicator" [class]="state.status()">
     <div class="status-header">
         <div class="status-dot"></div>
-        <span class="status-text">{{ engine.status() | uppercase }}</span>
+        <span class="status-text">{{ state.status() | uppercase }}</span>
     </div>
 
     <!-- Last Turn Breakdown -->
     <div class="turn-stats">
-        @if (engine.loadedFiles().size > 0 && !engine.kbCacheName() && !engine.kbFileUri()) {
+        @if (state.loadedFiles().size > 0 && !state.kbCacheName() && !state.kbFileUri()) {
         <div class="kb-warning">
             <mat-icon>warning</mat-icon>
             <span>KB changed. Next send will rebuild cache.</span>
         </div>
         }
-        @if (engine.lastTurnUsage(); as turn) {
+        @if (state.lastTurnUsage(); as turn) {
         <div class="stat-header">LAST TURN</div>
         <div class="stat-row turn"><span>New:</span> <span class="val">{{ turn.freshInput | number }}</span></div>
         <div class="stat-row turn-cached"><span>Cached:</span> <span class="val">{{ turn.cached | number }}</span>
@@ -22,13 +22,13 @@
         <div class="stat-row turn"><span>Output:</span> <span class="val">{{ turn.output | number }}</span></div>
         <div class="stat-row turn-total">
             <span>Last Turn Est. Cost:</span>
-            <span class="val">{{ (engine.lastTurnCost() * displayRate()) |
+            <span class="val">{{ (state.lastTurnCost() * displayRate()) |
                 currency:displayCurrency():'symbol-narrow':(displayCurrency() === 'USD' ? '1.4-6' : '1.2-2') }}</span>
         </div>
         }
     </div>
 
-    @if (engine.tokenUsage(); as usage) {
+    @if (state.tokenUsage(); as usage) {
     <div class="token-stats">
         <div class="stat-header">SESSION TOTAL</div>
         <div class="stat-row" matTooltip="Number of model responses in this session"><span>Turns:</span> <span
@@ -41,28 +41,28 @@
         </div>
         <div class="stat-row"><span>Output:</span> <span class="val">{{ usage.output | number }}</span></div>
 
-        @if (engine.kbCacheName()) {
+        @if (state.kbCacheName()) {
         <div class="stat-row storage"
             matTooltip="Real-time cost increment for active context cache. Rate: $1.00 - $4.50/1M/hr">
             <span>Storage Cost:</span>
-            <span class="val">{{ (engine.storageCostAccumulated() * displayRate()) |
+            <span class="val">{{ (state.storageCostAccumulated() * displayRate()) |
                 currency:displayCurrency():'symbol-narrow':(displayCurrency() === 'USD' ? '1.4-6' : '1.2-2') }}</span>
         </div>
         }
 
-        @if (engine.historyStorageCostAccumulated() > 0) {
+        @if (state.historyStorageCostAccumulated() > 0) {
         <div class="stat-row storage history"
             matTooltip="Accumulated storage cost from previous/deleted caches in this session.">
             <span>Hist. Cache Cost:</span>
-            <span class="val">{{ (engine.historyStorageCostAccumulated() * displayRate()) |
+            <span class="val">{{ (state.historyStorageCostAccumulated() * displayRate()) |
                 currency:displayCurrency():'symbol-narrow':(displayCurrency() === 'USD' ? '1.4-6' : '1.2-2') }}</span>
         </div>
         }
 
-        @if (engine.cacheCountdown()) {
+        @if (state.cacheCountdown()) {
         <div class="stat-row expiry">
             <span>Cache Expiry:</span>
-            <span class="val" [class.warning]="engine.cacheCountdown() === 'EXPIRED'">{{ engine.cacheCountdown()
+            <span class="val" [class.warning]="state.cacheCountdown() === 'EXPIRED'">{{ state.cacheCountdown()
                 }}</span>
         </div>
         }

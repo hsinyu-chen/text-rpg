@@ -12,6 +12,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { GameEngineService } from '../../core/services/game-engine.service';
+import { GameStateService } from '../../core/services/game-state.service';
 import { getLanguagesList } from '../../core/constants/locales';
 import { GoogleDriveService } from '../../core/services/google-drive.service';
 import { LoadingService } from '../../core/services/loading.service';
@@ -42,6 +43,7 @@ import { LlamaSettingsComponent } from './llama-settings/llama-settings.componen
 })
 export class SettingsDialogComponent {
   engine = inject(GameEngineService);
+  state = inject(GameStateService);
   dialogRef = inject(MatDialogRef);
   loading = inject(LoadingService);
   private driveService = inject(GoogleDriveService);
@@ -100,7 +102,7 @@ export class SettingsDialogComponent {
     this.activeProvider.set((localStorage.getItem('llm_provider') as 'gemini' | 'llama.cpp') || 'gemini');
 
     // Load shared UI settings
-    const current = this.engine.config();
+    const current = this.state.config();
     if (current) {
       this.fontSize.set(current.fontSize);
       this.exchangeRate.set(current.exchangeRate ?? 30);
@@ -187,7 +189,7 @@ export class SettingsDialogComponent {
   async uploadSettings(): Promise<void> {
     this.loading.show('Uploading settings to Cloud...');
     try {
-      const config = this.engine.config();
+      const config = this.state.config();
       if (!config) {
         this.snackBar.open('No configuration to save.', 'Close', { duration: 3000 });
         return;

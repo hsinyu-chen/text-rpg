@@ -8,6 +8,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { map } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { GameEngineService } from '../../core/services/game-engine.service';
+import { GameStateService } from '../../core/services/game-state.service';
 import { ChatMessage } from '../../core/models/types';
 import { GAME_INTENTS } from '../../core/constants/game-intents';
 import { ChatMessageComponent } from './components/chat-message/chat-message.component';
@@ -33,6 +34,7 @@ import { TurnUpdatePanelComponent } from './components/turn-update-panel/turn-up
 })
 export class ChatComponent {
     engine = inject(GameEngineService);
+    state = inject(GameStateService);
     private breakpointObserver = inject(BreakpointObserver);
     private scrollContainer = viewChild<ElementRef>('scrollContainer');
 
@@ -63,7 +65,7 @@ export class ChatComponent {
     constructor() {
         // Init/Loading Jump Effect
         effect(() => {
-            const status = this.engine.status();
+            const status = this.state.status();
             if ((status === 'idle' || status === 'generating') && !this.userScrolledUp) {
                 this.needsInitialScroll = true;
                 setTimeout(() => {
@@ -133,7 +135,7 @@ export class ChatComponent {
         if (!scrollRef) return;
         const el = scrollRef.nativeElement;
 
-        const isGenerating = this.engine.status() === 'generating';
+        const isGenerating = this.state.status() === 'generating';
         if (el.scrollHeight <= el.clientHeight) return;
 
         if (this.needsInitialScroll) {
@@ -176,7 +178,7 @@ export class ChatComponent {
     }
 
     isLastUserMessage(id: string): boolean {
-        const messages = this.engine.messages();
+        const messages = this.state.messages();
         let lastUser: ChatMessage | undefined;
         for (let i = messages.length - 1; i >= 0; i--) {
             if (messages[i].role === 'user') {

@@ -4,7 +4,7 @@
             <img src="text_rpg_logo.png" alt="Text RPG Logo" class="sidebar-logo">
         </div>
         <div class="header-actions">
-            <button mat-icon-button (click)="openSettings()" [disabled]="engine.isBusy()" matTooltip="Settings">
+            <button mat-icon-button (click)="openSettings()" [disabled]="state.isBusy()" matTooltip="Settings">
                 <mat-icon>settings</mat-icon>
             </button>
             <button mat-icon-button class="close-btn" (click)="close()" matTooltip="Close Sidebar">
@@ -47,7 +47,7 @@
                                 (keydown.space)="$event.preventDefault(); viewFile(file.name, file.content)"
                                 class="clickable-file">{{ file.name }}</span>
                             <button mat-icon-button (click)="viewFile(file.name, file.content, true)"
-                                [disabled]="engine.isBusy()" matTooltip="Edit File">
+                                [disabled]="state.isBusy()" matTooltip="Edit File">
                                 <mat-icon>edit</mat-icon>
                             </button>
                         </div>

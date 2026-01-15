@@ -11,6 +11,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { GameEngineService } from '../../../../core/services/game-engine.service';
+import { GameStateService } from '../../../../core/services/game-state.service';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { getUIStrings } from '../../../../core/constants/engine-protocol';
@@ -37,6 +38,7 @@ import { getLocale } from '../../../../core/constants/locales';
 })
 export class NewGameDialogComponent {
     private engine = inject(GameEngineService);
+    private state = inject(GameStateService);
     private dialogRef = inject(MatDialogRef<NewGameDialogComponent>);
     private http = inject(HttpClient);
     private snackBar = inject(MatSnackBar);
@@ -44,7 +46,7 @@ export class NewGameDialogComponent {
     isLoading = signal(false);
 
     ui = computed(() => {
-        const lang = this.engine.config()?.outputLanguage || 'default';
+        const lang = this.state.config()?.outputLanguage || 'default';
         return getUIStrings(lang);
     });
     scenarios = signal<Scenario[]>([]);
@@ -60,7 +62,7 @@ export class NewGameDialogComponent {
     };
 
     labels = computed(() => {
-        const lang = this.engine.config()?.outputLanguage || 'default';
+        const lang = this.state.config()?.outputLanguage || 'default';
         const ui = getUIStrings(lang);
         return {
             name: ui.USER_NAME,
@@ -73,7 +75,7 @@ export class NewGameDialogComponent {
     });
 
     alignments = computed(() => {
-        const lang = this.engine.config()?.outputLanguage || 'default';
+        const lang = this.state.config()?.outputLanguage || 'default';
         const ui = getUIStrings(lang);
         const alignments = ui.ALIGNMENTS || {};
 
@@ -97,7 +99,7 @@ export class NewGameDialogComponent {
     });
 
     displayScenarios = computed(() => {
-        const lang = this.engine.config()?.outputLanguage || 'default';
+        const lang = this.state.config()?.outputLanguage || 'default';
         const targetLocaleId = getLocale(lang).id;
 
         return this.scenarios().filter(s => s.lang === targetLocaleId);

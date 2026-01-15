@@ -13,6 +13,7 @@ import { ChatMessage } from '../../../../core/models/types';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MessageStateService } from './message-state.service';
 import { GameEngineService } from '../../../../core/services/game-engine.service';
+import { GameStateService } from '../../../../core/services/game-state.service';
 import { TurnUpdateComponent } from '../turn-update/turn-update.component';
 import { GAME_INTENTS } from '../../../../core/constants/game-intents';
 import { getIntentLabels } from '../../../../core/constants/engine-protocol';
@@ -44,6 +45,7 @@ export class ChatMessageComponent {
     // Services
     state = inject(MessageStateService);
     engine = inject(GameEngineService);
+    gameState = inject(GameStateService);
 
     protected readonly Intents = GAME_INTENTS;
 
@@ -67,7 +69,7 @@ export class ChatMessageComponent {
     }
 
     // Localized intent labels
-    intentLabels = computed(() => getIntentLabels(this.engine.config()?.outputLanguage));
+    intentLabels = computed(() => getIntentLabels(this.gameState.config()?.outputLanguage));
 
     getIntentLabel(intent: string | undefined): string {
         if (!intent) return '';

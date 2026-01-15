@@ -8,6 +8,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { FormsModule } from '@angular/forms';
 import { MonacoEditorComponent } from '../monaco-editor/monaco-editor.component';
 import { GameEngineService } from '../../../core/services/game-engine.service';
+import { GameStateService } from '../../../core/services/game-state.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { getUIStrings, getIntentLabels } from '../../../core/constants/engine-protocol';
 
@@ -38,13 +39,14 @@ export class ChatConfigDialogComponent {
     private dialogRef = inject(MatDialogRef<ChatConfigDialogComponent>);
     private snackBar = inject(MatSnackBar);
     engine = inject(GameEngineService);
+    state = inject(GameStateService);
 
     // Editor reference
     editorRef = viewChild<MonacoEditorComponent>('editorRef');
 
     // Injection types for sidebar
     readonly injectionTypes = computed((): InjectionType[] => {
-        const labels = getIntentLabels(this.engine.config()?.outputLanguage);
+        const labels = getIntentLabels(this.state.config()?.outputLanguage);
         return [
             { id: 'action', label: labels.ACTION, icon: 'play_arrow' },
             { id: 'continue', label: labels.CONTINUE, icon: 'arrow_forward' },
@@ -58,7 +60,7 @@ export class ChatConfigDialogComponent {
     activeType = signal<InjectionType['id']>('action');
 
     ui = computed(() => {
-        const lang = this.engine.config()?.outputLanguage || 'default';
+        const lang = this.state.config()?.outputLanguage || 'default';
         return getUIStrings(lang);
     });
 
@@ -68,11 +70,11 @@ export class ChatConfigDialogComponent {
     // Build files map for Monaco multi-model mode
     injectionFiles = computed(() => {
         const files = new Map<string, string>();
-        files.set('action', this.engine.dynamicActionInjection());
-        files.set('continue', this.engine.dynamicContinueInjection());
-        files.set('fastforward', this.engine.dynamicFastforwardInjection());
-        files.set('system', this.engine.dynamicSystemInjection());
-        files.set('save', this.engine.dynamicSaveInjection());
+        files.set('action', this.state.dynamicActionInjection());
+        files.set('continue', this.state.dynamicContinueInjection());
+        files.set('fastforward', this.state.dynamicFastforwardInjection());
+        files.set('system', this.state.dynamicSystemInjection());
+        files.set('save', this.state.dynamicSaveInjection());
         return files;
     });
 
@@ -125,19 +127,19 @@ export class ChatConfigDialogComponent {
 
         switch (type) {
             case 'action':
-                this.engine.dynamicActionInjection.set(content);
+                this.state.dynamicActionInjection.set(content);
                 break;
             case 'continue':
-                this.engine.dynamicContinueInjection.set(content);
+                this.state.dynamicContinueInjection.set(content);
                 break;
             case 'fastforward':
-                this.engine.dynamicFastforwardInjection.set(content);
+                this.state.dynamicFastforwardInjection.set(content);
                 break;
             case 'system':
-                this.engine.dynamicSystemInjection.set(content);
+                this.state.dynamicSystemInjection.set(content);
                 break;
             case 'save':
-                this.engine.dynamicSaveInjection.set(content);
+                this.state.dynamicSaveInjection.set(content);
                 break;
         }
     }
@@ -147,19 +149,19 @@ export class ChatConfigDialogComponent {
         const type = this.activeType();
         switch (type) {
             case 'action':
-                this.engine.dynamicActionInjection.set(content);
+                this.state.dynamicActionInjection.set(content);
                 break;
             case 'continue':
-                this.engine.dynamicContinueInjection.set(content);
+                this.state.dynamicContinueInjection.set(content);
                 break;
             case 'fastforward':
-                this.engine.dynamicFastforwardInjection.set(content);
+                this.state.dynamicFastforwardInjection.set(content);
                 break;
             case 'system':
-                this.engine.dynamicSystemInjection.set(content);
+                this.state.dynamicSystemInjection.set(content);
                 break;
             case 'save':
-                this.engine.dynamicSaveInjection.set(content);
+                this.state.dynamicSaveInjection.set(content);
                 break;
         }
     }
@@ -178,7 +180,7 @@ export class ChatConfigDialogComponent {
 
         this.syncCurrentContent();
 
-        const lang = this.engine.config()?.outputLanguage || 'default';
+        const lang = this.state.config()?.outputLanguage || 'default';
         const ui = getUIStrings(lang);
         this.snackBar.open(ui.PROMPT_RESET_SUCCESS.replace('{type}', this.activeTypeLabel()), ui.CLOSE, { duration: 2000 });
     }
@@ -196,7 +198,7 @@ export class ChatConfigDialogComponent {
             }
         }
 
-        const lang = this.engine.config()?.outputLanguage || 'default';
+        const lang = this.state.config()?.outputLanguage || 'default';
         const ui = getUIStrings(lang);
         this.snackBar.open(ui.ALL_PROMPTS_RESET_SUCCESS, ui.CLOSE, { duration: 2000 });
     }
@@ -204,11 +206,11 @@ export class ChatConfigDialogComponent {
     /** Get content for a specific type */
     private getContentForType(type: InjectionType['id']): string {
         switch (type) {
-            case 'action': return this.engine.dynamicActionInjection();
-            case 'continue': return this.engine.dynamicContinueInjection();
-            case 'fastforward': return this.engine.dynamicFastforwardInjection();
-            case 'system': return this.engine.dynamicSystemInjection();
-            case 'save': return this.engine.dynamicSaveInjection();
+            case 'action': return this.state.dynamicActionInjection();
+            case 'continue': return this.state.dynamicContinueInjection();
+            case 'fastforward': return this.state.dynamicFastforwardInjection();
+            case 'system': return this.state.dynamicSystemInjection();
+            case 'save': return this.state.dynamicSaveInjection();
         }
     }
 

@@ -12,6 +12,7 @@ import { TextFieldModule } from '@angular/cdk/text-field';
 import { GAME_INTENTS, STORY_INTENTS } from '../../../../core/constants/game-intents';
 import { getIntentLabels, getInputPlaceholders } from '../../../../core/constants/engine-protocol';
 import { GameEngineService } from '../../../../core/services/game-engine.service';
+import { GameStateService } from '../../../../core/services/game-state.service';
 import { MatDialog } from '@angular/material/dialog';
 import { PayloadDialogComponent } from '../../../../shared/components/payload-dialog/payload-dialog.component';
 import { ChatConfigDialogComponent } from '../../../../shared/components/chat-config-dialog/chat-config-dialog.component';
@@ -39,6 +40,7 @@ import { TauriWindow } from '../../../../core/models/types';
 export class ChatInputComponent {
     // Services
     engine = inject(GameEngineService);
+    state = inject(GameStateService);
     private matDialog = inject(MatDialog);
 
     // Queries
@@ -58,7 +60,7 @@ export class ChatInputComponent {
     intents = Object.values(GAME_INTENTS);
     private originalIntentBeforeEdit: string | null = null;
     // Localized intent labels
-    intentLabels = computed(() => getIntentLabels(this.engine.config()?.outputLanguage));
+    intentLabels = computed(() => getIntentLabels(this.state.config()?.outputLanguage));
 
     getIntentLabel(intent: string): string {
         const labels = this.intentLabels();
@@ -74,7 +76,7 @@ export class ChatInputComponent {
     dynamicPlaceholder = computed(() => {
         if (this.editingMessageId()) return '';
         const intent = this.selectedIntent();
-        const placeholders = getInputPlaceholders(this.engine.config()?.outputLanguage);
+        const placeholders = getInputPlaceholders(this.state.config()?.outputLanguage);
 
         // Map intent to placeholder
         if (intent === GAME_INTENTS.ACTION) return placeholders.ACTION;
@@ -123,7 +125,7 @@ export class ChatInputComponent {
 
         const isSaveIntent = intent === GAME_INTENTS.SAVE;
         if (isSaveIntent) {
-            this.engine.contextMode.set('full');
+            this.state.contextMode.set('full');
         }
 
         // Handle Rewind & Resend
@@ -142,7 +144,7 @@ export class ChatInputComponent {
         if (intent === GAME_INTENTS.CONTINUE || intent === GAME_INTENTS.SAVE) {
             this.selectedIntent.set(GAME_INTENTS.ACTION);
             if (isSaveIntent) {
-                this.engine.contextMode.set('smart');
+                this.state.contextMode.set('smart');
             }
         }
 
@@ -150,7 +152,7 @@ export class ChatInputComponent {
     }
 
     saveProgress() {
-        const placeholders = getInputPlaceholders(this.engine.config()?.outputLanguage);
+        const placeholders = getInputPlaceholders(this.state.config()?.outputLanguage);
         this.userInput.set(placeholders.SAVE);
         this.selectedIntent.set(GAME_INTENTS.SAVE);
         this.focusInput();
@@ -186,7 +188,7 @@ export class ChatInputComponent {
     }
 
     async exportToMarkdown() {
-        const messages = this.engine.messages();
+        const messages = this.state.messages();
         const validIntents = STORY_INTENTS;
         const storyParts = messages
             .filter(m => m.role === 'model' && !m.isRefOnly && (!m.intent || (validIntents as string[]).includes(m.intent)))

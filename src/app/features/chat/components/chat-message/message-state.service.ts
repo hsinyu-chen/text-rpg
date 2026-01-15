@@ -1,6 +1,7 @@
 import { Injectable, inject, signal, linkedSignal, computed } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { GameEngineService } from '../../../../core/services/game-engine.service';
+import { GameStateService } from '../../../../core/services/game-state.service';
 import { DialogService } from '../../../../core/services/dialog.service';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -13,6 +14,7 @@ import { GAME_INTENTS } from '../../../../core/constants/game-intents';
 @Injectable()
 export class MessageStateService {
     private engine = inject(GameEngineService);
+    private gameState = inject(GameStateService);
     private dialog = inject(DialogService);
     private matDialog = inject(MatDialog);
     private snackBar = inject(MatSnackBar);
@@ -59,7 +61,7 @@ export class MessageStateService {
 
     // Computed
     inContext = computed(() => {
-        const all = this.engine.messages();
+        const all = this.gameState.messages();
         const idx = this.index();
         const msg = all[idx];
         if (!msg || msg.isRefOnly) return false;
@@ -132,7 +134,7 @@ export class MessageStateService {
     }
 
     copyPairJSON() {
-        const all = this.engine.messages();
+        const all = this.gameState.messages();
         const idx = this.index();
         const modelMsg = all[idx];
         const prevMsg = idx > 0 ? all[idx - 1] : null;

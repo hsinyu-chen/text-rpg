@@ -28,20 +28,19 @@
 
     <div class="action-grid">
         <button mat-flat-button color="primary" (click)="loadFilesOnly()"
-            [disabled]="engine.isBusy() || !fileSystem.hasHandle()" class="action-btn">
+            [disabled]="state.isBusy() || !fileSystem.hasHandle()" class="action-btn">
             <mat-icon>folder_open</mat-icon>
             Load
         </button>
         <button mat-stroked-button color="primary" (click)="syncToDisk()"
-            [disabled]="engine.isBusy() || !fileSystem.hasHandle() || engine.loadedFiles().size === 0"
-            class="action-btn">
+            [disabled]="state.isBusy() || !fileSystem.hasHandle() || state.loadedFiles().size === 0" class="action-btn">
             <mat-icon>sync</mat-icon>
             Sync
         </button>
     </div>
 
     <button mat-stroked-button color="primary" class="full-width save-slots-btn" (click)="openLocalSaveSlots()"
-        [disabled]="engine.isBusy() || !fileSystem.hasHandle()" style="margin-top: 8px;">
+        [disabled]="state.isBusy() || !fileSystem.hasHandle()" style="margin-top: 8px;">
         @if (autoSave.isSaving()) {
         <mat-spinner diameter="20" style="display:inline-block; vertical-align:middle; margin-right:8px;"></mat-spinner>
         } @else {
@@ -81,12 +80,12 @@
 
     <div class="action-grid">
         <button mat-flat-button class="google-btn action-btn text-truncate" (click)="loadCloudFolder()"
-            [disabled]="engine.isBusy() || !currentSlot()" style="background-color: #4285f4; color: white;">
+            [disabled]="state.isBusy() || !currentSlot()" style="background-color: #4285f4; color: white;">
             <mat-icon>cloud_download</mat-icon>
             Load
         </button>
         <button mat-stroked-button class="google-btn action-btn text-truncate" (click)="syncToCloud()"
-            [disabled]="engine.isBusy() || !currentSlot() || engine.loadedFiles().size === 0"
+            [disabled]="state.isBusy() || !currentSlot() || state.loadedFiles().size === 0"
             style="color: #4285f4; border-color: #4285f4;">
             <mat-icon>cloud_sync</mat-icon>
             Sync
@@ -94,7 +93,7 @@
     </div>
 
     <button mat-stroked-button class="full-width save-slots-btn" (click)="openSaveSlots()"
-        [disabled]="engine.isBusy() || !currentSlot()" style="margin-top: 8px; color: #4285f4; border-color: #4285f4;">
+        [disabled]="state.isBusy() || !currentSlot()" style="margin-top: 8px; color: #4285f4; border-color: #4285f4;">
         @if (autoSave.isSaving()) {
         <mat-spinner diameter="20" style="display:inline-block; vertical-align:middle; margin-right:8px;"></mat-spinner>
         } @else {

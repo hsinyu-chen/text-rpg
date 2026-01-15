@@ -3,7 +3,7 @@
 
         <!-- Mobile Menu Trigger -->
         <button mat-mini-fab class="mobile-menu-btn" [matMenuTriggerFor]="mobileMenu"
-            [disabled]="engine.status() === 'generating'">
+            [disabled]="state.status() === 'generating'">
             <mat-icon>more_vert</mat-icon>
         </button>
 
@@ -32,34 +32,34 @@
 
         <!-- Save Button (Desktop) -->
         <button mat-mini-fab color="accent" class="save-btn desktop-only"
-            [disabled]="engine.status() === 'generating' || !engine.isConfigured()" (click)="saveProgress()"
+            [disabled]="state.status() === 'generating' || !state.isConfigured()" (click)="saveProgress()"
             matTooltip="Save Progress (Full Context)">
             <mat-icon>save</mat-icon>
         </button>
 
         <!-- Config Button (Desktop) -->
         <button mat-mini-fab class="config-btn desktop-only"
-            [disabled]="engine.status() === 'generating' || !engine.isConfigured()" (click)="openConfigDialog()"
+            [disabled]="state.status() === 'generating' || !state.isConfigured()" (click)="openConfigDialog()"
             matTooltip="Chat Config (Thinking Inject)">
             <mat-icon>settings</mat-icon>
         </button>
 
         <!-- Export Button (Desktop) -->
         <button mat-mini-fab color="primary" class="export-btn desktop-only"
-            [disabled]="engine.status() === 'generating' || engine.messages().length === 0" (click)="exportToMarkdown()"
+            [disabled]="state.status() === 'generating' || state.messages().length === 0" (click)="exportToMarkdown()"
             matTooltip="Export Story to MD">
             <mat-icon>file_download</mat-icon>
         </button>
 
         <!-- Turn Updates History Button -->
-        <button mat-mini-fab class="history-btn desktop-only" [disabled]="engine.status() === 'generating'"
+        <button mat-mini-fab class="history-btn desktop-only" [disabled]="state.status() === 'generating'"
             (click)="toggleSidebar.emit()" matTooltip="View Turn Updates">
             <mat-icon>history</mat-icon>
         </button>
 
         <mat-form-field appearance="outline" class="intent-select">
             <mat-select [(ngModel)]="selectedIntent"
-                [disabled]="engine.status() === 'generating' || !!editingMessageId()">
+                [disabled]="state.status() === 'generating' || !!editingMessageId()">
                 @for (intent of intents; track intent) {
                 <mat-option [value]="intent">{{ getIntentLabel(intent) }}</mat-option>
                 }
@@ -72,7 +72,7 @@
                 }}</mat-label>
             <textarea #messageInput matInput cdkTextareaAutosize cdkAutosizeMinRows="1" cdkAutosizeMaxRows="5"
                 [(ngModel)]="userInput" (keydown)="onEnter($event)" (focus)="onInteraction()" (click)="onInteraction()"
-                (blur)="onBlur()" [disabled]="engine.status() === 'generating'"></textarea>
+                (blur)="onBlur()" [disabled]="state.status() === 'generating'"></textarea>
 
             @if (editingMessageId()) {
             <button mat-icon-button matSuffix (click)="cancelEdit()" matTooltip="Cancel Edit">
@@ -82,12 +82,12 @@
         </mat-form-field>
 
         <button mat-mini-fab class="preview-btn desktop-only"
-            [disabled]="engine.status() === 'generating' || !engine.isConfigured()" (click)="openPayloadPreview()"
+            [disabled]="state.status() === 'generating' || !state.isConfigured()" (click)="openPayloadPreview()"
             matTooltip="Preview API Payload">
             <mat-icon>visibility</mat-icon>
         </button>
 
-        <button mat-mini-fab color="primary" class="send-btn" [disabled]="engine.status() === 'generating'"
+        <button mat-mini-fab color="primary" class="send-btn" [disabled]="state.status() === 'generating'"
             (click)="sendMessage()" matTooltip="Send (Ctrl+Enter)">
             <mat-icon>send</mat-icon>
         </button>

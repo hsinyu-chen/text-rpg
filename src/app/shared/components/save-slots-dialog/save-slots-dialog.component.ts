@@ -15,6 +15,7 @@ import { GoogleDriveService } from '../../../core/services/google-drive.service'
 import { LoadingService } from '../../../core/services/loading.service';
 import { DialogService } from '../../../core/services/dialog.service';
 import { GameEngineService } from '../../../core/services/game-engine.service';
+import { GameStateService } from '../../../core/services/game-state.service';
 import { FileSystemService } from '../../../core/services/file-system.service';
 
 export interface SaveSlotDialogData {
@@ -54,6 +55,7 @@ export class SaveSlotsDialogComponent {
     private dialogRef = inject(MatDialogRef<SaveSlotsDialogComponent>);
     public data = inject<SaveSlotDialogData>(MAT_DIALOG_DATA);
     private engine = inject(GameEngineService);
+    private state = inject(GameStateService);
     private driveService = inject(GoogleDriveService);
     private loading = inject(LoadingService);
     private dialog = inject(DialogService);
@@ -218,7 +220,7 @@ export class SaveSlotsDialogComponent {
             return;
         }
 
-        const currentHash = this.engine.currentKbHash();
+        const currentHash = this.state.currentKbHash();
         const savedHash = item.fullData.kbHash;
 
         let confirmMessage = `Load save "${item.displayName}"? Unsaved progress in current session will be lost.`;

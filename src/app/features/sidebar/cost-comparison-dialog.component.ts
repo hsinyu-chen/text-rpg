@@ -4,6 +4,7 @@ import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { GameEngineService } from '../../core/services/game-engine.service';
+import { GameStateService } from '../../core/services/game-state.service';
 import { LLMProviderRegistryService } from '../../core/services/llm-provider-registry.service';
 import { CostService } from '../../core/services/cost.service';
 import { LLMModelDefinition } from '../../core/services/llm-provider';
@@ -153,13 +154,14 @@ interface ModelCostInfo {
 })
 export class CostComparisonDialogComponent {
     private engine = inject(GameEngineService);
+    private state = inject(GameStateService);
     private providerRegistry = inject(LLMProviderRegistryService);
     private costService = inject(CostService);
     private dialogRef = inject(MatDialogRef<CostComparisonDialogComponent>);
 
     modelCosts = computed<ModelCostInfo[]>(() => {
-        const lastTurn = this.engine.lastTurnUsage();
-        const config = this.engine.config();
+        const lastTurn = this.state.lastTurnUsage();
+        const config = this.state.config();
 
         const enabled = config?.enableConversion ?? false;
         // If conversion disabled -> USD. If enabled -> selected currency.
@@ -168,17 +170,17 @@ export class CostComparisonDialogComponent {
         const exchangeRate = (enabled && currency !== 'USD') ? (config?.exchangeRate || 30) : 1;
 
         // Active Model for Storage Scaling
-        const activeModelId = this.engine.config()?.modelId || 'gemini-3-flash-preview';
+        const activeModelId = this.state.config()?.modelId || 'gemini-3-flash-preview';
         const activeProvider = this.providerRegistry.getActive();
         const activeModel = activeProvider ? activeProvider.getAvailableModels().find(m => m.id === activeModelId) : null;
 
         // Base Storage Costs
-        const storageCost = this.engine.storageCostAccumulated();
-        const historyStorageCost = this.engine.historyStorageCostAccumulated();
+        const storageCost = this.state.storageCostAccumulated();
+        const historyStorageCost = this.state.historyStorageCostAccumulated();
         const baseTotalStorageCost = storageCost + historyStorageCost;
 
         const models = activeProvider ? activeProvider.getAvailableModels() : [];
-        const messages = this.engine.messages();
+        const messages = this.state.messages();
 
         return models.map(model => {
             const isActive = model.id === activeModelId;
@@ -224,7 +226,7 @@ export class CostComparisonDialogComponent {
     });
 
     formatCost(cost: number): string {
-        const config = this.engine.config();
+        const config = this.state.config();
         const enabled = config?.enableConversion ?? false;
         const currency = (enabled && config?.currency) ? config.currency : 'USD';
         const decimals = currency === 'USD' ? 4 : 2;

@@ -147,6 +147,6 @@
     </div>
 </mat-dialog-content>
 <mat-dialog-actions align="end">
-    @if (engine.isConfigured()) { <button mat-button mat-dialog-close>Cancel</button> }
+    @if (state.isConfigured()) { <button mat-button mat-dialog-close>Cancel</button> }
     <button mat-flat-button color="primary" (click)="save()" [disabled]="!isValid()">Save</button>
 </mat-dialog-actions>

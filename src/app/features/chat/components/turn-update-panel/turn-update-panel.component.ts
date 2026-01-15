@@ -4,6 +4,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { GameEngineService } from '../../../../core/services/game-engine.service';
+import { GameStateService } from '../../../../core/services/game-state.service';
 
 @Component({
     selector: 'app-turn-update-panel',
@@ -19,6 +20,7 @@ import { GameEngineService } from '../../../../core/services/game-engine.service
 })
 export class TurnUpdatePanelComponent {
     engine = inject(GameEngineService);
+    state = inject(GameStateService);
 
     isOpen = input<boolean>(false);
     closePanel = output<void>();
@@ -30,7 +32,7 @@ export class TurnUpdatePanelComponent {
     private wasOpen = false;
 
     updates = computed(() => {
-        return this.engine.messages().filter(m =>
+        return this.state.messages().filter(m =>
             (m.summary || (m.inventory_log && m.inventory_log.length > 0) || (m.quest_log && m.quest_log.length > 0) || (m.world_log && m.world_log.length > 0)) &&
             !m.isRefOnly
         );

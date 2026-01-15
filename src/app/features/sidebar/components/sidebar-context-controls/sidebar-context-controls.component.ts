@@ -8,6 +8,7 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { NewGameDialogComponent } from '../new-game-dialog/new-game-dialog.component';
 
 import { GameEngineService } from '../../../../core/services/game-engine.service';
+import { GameStateService } from '../../../../core/services/game-state.service';
 import { DialogService } from '../../../../core/services/dialog.service';
 
 @Component({
@@ -19,6 +20,7 @@ import { DialogService } from '../../../../core/services/dialog.service';
 })
 export class SidebarContextControlsComponent {
     engine = inject(GameEngineService);
+    state = inject(GameStateService);
     dialog = inject(DialogService);
     private matDialog = inject(MatDialog);
 
@@ -60,6 +62,6 @@ export class SidebarContextControlsComponent {
     }
 
     toggleContextMode() {
-        this.engine.contextMode.update(m => m === 'smart' ? 'full' : 'smart');
+        this.state.contextMode.update(m => m === 'smart' ? 'full' : 'smart');
     }
 }

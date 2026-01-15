@@ -7,6 +7,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 
 import { GameEngineService } from '../../../../core/services/game-engine.service';
+import { GameStateService } from '../../../../core/services/game-state.service';
 import { LLMProviderRegistryService } from '../../../../core/services/llm-provider-registry.service';
 import { CostService } from '../../../../core/services/cost.service';
 import { CostComparisonDialogComponent } from '../../cost-comparison-dialog.component';
@@ -20,6 +21,7 @@ import { CostComparisonDialogComponent } from '../../cost-comparison-dialog.comp
 })
 export class SidebarCostPredictionComponent {
     engine = inject(GameEngineService);
+    state = inject(GameStateService);
     matDialog = inject(MatDialog);
     snackBar = inject(MatSnackBar);
     providerRegistry = inject(LLMProviderRegistryService);
@@ -27,30 +29,30 @@ export class SidebarCostPredictionComponent {
 
     // Count model responses as turns
     turnCount = computed(() => {
-        return this.engine.messages().filter(m => m.role === 'model' && !m.isRefOnly).length;
+        return this.state.messages().filter(m => m.role === 'model' && !m.isRefOnly).length;
     });
 
     // Real-time Total Cost (Transactions + Storage) for Active Model
     // Re-calculated from history to ensure consistency with Copy/Dialog and handle Rewinds correctly
     totalSessionCost = computed(() => {
         const activeProvider = this.providerRegistry.getActive();
-        const activeModelId = this.engine.config()?.modelId || activeProvider?.getDefaultModelId();
+        const activeModelId = this.state.config()?.modelId || activeProvider?.getDefaultModelId();
         const model = activeProvider?.getAvailableModels().find(m => m.id === activeModelId);
 
         if (!model) return 0;
 
-        const txn = this.costService.calculateSessionTransactionCost(this.engine.messages(), model);
-        const storage = this.engine.storageCostAccumulated() + this.engine.historyStorageCostAccumulated();
+        const txn = this.costService.calculateSessionTransactionCost(this.state.messages(), model);
+        const storage = this.state.storageCostAccumulated() + this.state.historyStorageCostAccumulated();
         return txn + storage;
     });
 
     displayCurrency = computed(() => {
-        const cfg = this.engine.config();
+        const cfg = this.state.config();
         return (cfg?.enableConversion && cfg?.currency) ? cfg.currency : 'USD';
     });
 
     displayRate = computed(() => {
-        const cfg = this.engine.config();
+        const cfg = this.state.config();
         if (cfg?.enableConversion && cfg?.currency !== 'USD') {
             return cfg.exchangeRate || 30;
         }
@@ -65,8 +67,8 @@ export class SidebarCostPredictionComponent {
     }
 
     copySessionStats() {
-        const usage = this.engine.tokenUsage();
-        const config = this.engine.config();
+        const usage = this.state.tokenUsage();
+        const config = this.state.config();
 
         const currency = this.displayCurrency();
         const exchangeRate = this.displayRate();
@@ -78,13 +80,13 @@ export class SidebarCostPredictionComponent {
         const activeModel = activeProvider.getAvailableModels().find(m => m.id === activeModelId);
 
         // Base Storage Costs (Accumulated on active sessions)
-        const storageCostAcc = this.engine.storageCostAccumulated();
-        const historyStorageCostAcc = this.engine.historyStorageCostAccumulated();
+        const storageCostAcc = this.state.storageCostAccumulated();
+        const historyStorageCostAcc = this.state.historyStorageCostAccumulated();
         const baseTotalStorageCost = storageCostAcc + historyStorageCostAcc;
 
         const models = activeProvider.getAvailableModels();
         const turns = this.turnCount();
-        const messages = this.engine.messages();
+        const messages = this.state.messages();
 
         let markdown = `## SESSION TOTAL\n\n`;
         markdown += `| Metric | Value |\n|--------|-------|\n`;

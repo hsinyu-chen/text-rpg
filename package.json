@@ -10,7 +10,7 @@
     "desktop": "tauri dev",
     "build:desktop": "tauri build",
     "build:desktop:bin": "tauri build --no-bundle",
-    "lint": "ng lint"
+    "lint": "ng lint --fix"
   },
   "prettier": {
     "printWidth": 100,

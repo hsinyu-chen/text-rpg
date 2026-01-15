@@ -15,6 +15,7 @@ import { MonacoEditorComponent } from '../monaco-editor/monaco-editor.component'
 import { FileUpdate, FileUpdateService } from '../../../core/services/file-update.service';
 import { FileSystemService } from '../../../core/services/file-system.service';
 import { GameEngineService } from '../../../core/services/game-engine.service';
+import { GameStateService } from '../../../core/services/game-state.service';
 import { CommonModule } from '@angular/common';
 import { ConfirmDialogComponent, ConfirmDialogData } from '../confirm-dialog/confirm-dialog.component';
 import { GAME_INTENTS } from '../../../core/constants/game-intents';
@@ -71,6 +72,7 @@ export class AutoUpdateDialogComponent {
   private updateService = inject(FileUpdateService);
   private fileSystem = inject(FileSystemService);
   private engine = inject(GameEngineService);
+  private state = inject(GameStateService);
   private snackBar = inject(MatSnackBar);
   private dialog = inject(MatDialog);
 
@@ -136,7 +138,7 @@ export class AutoUpdateDialogComponent {
    */
   private generateAutoLastSceneHunk(): FileUpdate | null {
     // 1. Check if there are any manual updates for the plot outline from the model
-    const lang = this.engine.config()?.outputLanguage || 'default';
+    const lang = this.state.config()?.outputLanguage || 'default';
     const names = getCoreFilenames(lang);
     const hasPlotOutlineUpdate = this.data.updates.some(u => u.filePath.includes(names.STORY_OUTLINE));
     if (!hasPlotOutlineUpdate) {
@@ -144,7 +146,7 @@ export class AutoUpdateDialogComponent {
     }
 
     const storyIntents = [GAME_INTENTS.ACTION, GAME_INTENTS.CONTINUE, GAME_INTENTS.FAST_FORWARD];
-    const messages = this.engine.messages();
+    const messages = this.state.messages();
 
     // Find the last model message with story-type intent (not ref-only)
     for (let i = messages.length - 1; i >= 0; i--) {

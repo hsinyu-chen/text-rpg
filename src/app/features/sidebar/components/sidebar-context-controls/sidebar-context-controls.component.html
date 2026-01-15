@@ -1,20 +1,20 @@
-@if (engine.loadedFiles().size > 0 && engine.messages().length === 0) {
-<button mat-flat-button color="accent" (click)="startSession()" [disabled]="engine.isBusy()"
-    class="full-width start-btn" style="margin-top: 8px; font-weight: bold;">
+@if (state.loadedFiles().size > 0 && state.messages().length === 0) {
+<button mat-flat-button color="accent" (click)="startSession()" [disabled]="state.isBusy()" class="full-width start-btn"
+    style="margin-top: 8px; font-weight: bold;">
     <mat-icon>play_arrow</mat-icon>
     Initialize Story
 </button>
 }
 
-<button mat-flat-button color="primary" (click)="newGame()" [disabled]="engine.isBusy()" class="full-width new-game-btn"
+<button mat-flat-button color="primary" (click)="newGame()" [disabled]="state.isBusy()" class="full-width new-game-btn"
     style="margin-top: 8px; font-weight: bold; background: linear-gradient(45deg, #4facfe 0%, #00f2fe 100%);">
     <mat-icon>add_circle</mat-icon>
     Start New Game
 </button>
 
 
-@if (engine.kbCacheName()) {
-<button mat-stroked-button color="warn" (click)="releaseCache()" [disabled]="engine.isBusy()"
+@if (state.kbCacheName()) {
+<button mat-stroked-button color="warn" (click)="releaseCache()" [disabled]="state.isBusy()"
     class="full-width release-btn" style="margin-top: 8px;">
     <mat-icon>phonelink_erase</mat-icon>
     Release Current Cache
@@ -22,18 +22,18 @@
 }
 
 <button mat-stroked-button color="warn" (click)="clearHistory()"
-    [disabled]="engine.messages().length === 0 || engine.isBusy()" class="full-width restart-btn">
+    [disabled]="state.messages().length === 0 || state.isBusy()" class="full-width restart-btn">
     <mat-icon>delete_sweep</mat-icon>
     Restart Session
 </button>
 
-<button mat-stroked-button color="warn" (click)="clearAllRemoteData()" [disabled]="engine.isBusy()"
+<button mat-stroked-button color="warn" (click)="clearAllRemoteData()" [disabled]="state.isBusy()"
     class="full-width clear-all-btn">
     <mat-icon>cloud_off</mat-icon>
     Wipe Remote Data & Reset
 </button>
 
-<button mat-stroked-button color="warn" (click)="wipeLocalSession()" [disabled]="engine.isBusy()"
+<button mat-stroked-button color="warn" (click)="wipeLocalSession()" [disabled]="state.isBusy()"
     class="full-width wipe-local-btn" style="margin-top: 8px;">
     <mat-icon>delete_forever</mat-icon>
     Wipe Local Session
@@ -41,23 +41,23 @@
 
 <mat-divider style="margin: 16px 0"></mat-divider>
 
-@if (engine.estimatedKbTokens() > 0) {
+@if (state.estimatedKbTokens() > 0) {
 <p class="hint-text info-strong">
-    Est. Cache Size: <strong>{{ engine.estimatedKbTokens() | number }}</strong>
+    Est. Cache Size: <strong>{{ state.estimatedKbTokens() | number }}</strong>
 </p>
 }
 <div class="toggle-section">
-    <button mat-stroked-button class="full-width mode-btn" (click)="toggleContextMode()" [disabled]="engine.isBusy()"
-        [class.active-smart]="engine.contextMode() === 'smart'" [class.active-full]="engine.contextMode() === 'full'">
-        <mat-icon>{{ engine.contextMode() === 'smart' ? 'compress' : 'expand' }}</mat-icon>
-        Mode: {{ engine.contextMode() === 'smart' ? 'Smart Context' : 'Full Context' }}
+    <button mat-stroked-button class="full-width mode-btn" (click)="toggleContextMode()" [disabled]="state.isBusy()"
+        [class.active-smart]="state.contextMode() === 'smart'" [class.active-full]="state.contextMode() === 'full'">
+        <mat-icon>{{ state.contextMode() === 'smart' ? 'compress' : 'expand' }}</mat-icon>
+        Mode: {{ state.contextMode() === 'smart' ? 'Smart Context' : 'Full Context' }}
     </button>
-    @if (engine.contextMode() === 'smart') {
+    @if (state.contextMode() === 'smart') {
     <p class="hint-text">
         Summarizes older turns + Last 10 Full
     </p>
     }
-    @if (engine.contextMode() === 'full') {
+    @if (state.contextMode() === 'full') {
     <p class="hint-text">
         Sends 100% full history (High Cost)
     </p>

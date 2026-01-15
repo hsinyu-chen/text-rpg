@@ -1,6 +1,7 @@
 import { Injectable, inject, effect, signal } from '@angular/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { GameEngineService } from './game-engine.service';
+import { GameStateService } from './game-state.service';
 import { FileSystemService } from './file-system.service';
 import { GoogleDriveService } from './google-drive.service';
 import { SessionSave } from '../models/types';
@@ -10,6 +11,7 @@ import { SessionSave } from '../models/types';
 })
 export class AutoSaveService {
     private engine = inject(GameEngineService);
+    private state = inject(GameStateService);
     private fileSystem = inject(FileSystemService);
     private driveService = inject(GoogleDriveService);
     private snackBar = inject(MatSnackBar);
@@ -28,7 +30,7 @@ export class AutoSaveService {
     constructor() {
         // Monitor engine status to trigger auto-save
         effect(() => {
-            const status = this.engine.status();
+            const status = this.state.status();
 
             // Only trigger if we are coming from 'generating' state
             // This prevents auto-save on 'loading' -> 'idle' (e.g. initial load, switching folders)
@@ -42,7 +44,7 @@ export class AutoSaveService {
 
     private scheduleSave() {
         // If we have no messages, nothing to save
-        if (this.engine.messages().length === 0) return;
+        if (this.state.messages().length === 0) return;
 
         // Clear existing timer if any (debounce)
         if (this.debounceTimer) {
@@ -83,7 +85,7 @@ export class AutoSaveService {
     }
 
     private async performAutoSave() {
-        const messages = this.engine.messages();
+        const messages = this.state.messages();
         if (messages.length === 0) return;
 
         try {

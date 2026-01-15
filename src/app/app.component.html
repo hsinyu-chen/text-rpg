@@ -12,7 +12,7 @@
             <mat-icon>menu</mat-icon>
         </button>
         }
-        @if (!engine.isConfigured()) {
+        @if (!state.isConfigured()) {
         <div class="blocker-overlay">
             <mat-icon class="blocker-icon">lock</mat-icon>
             <h2>Setup Required</h2>
@@ -24,7 +24,7 @@
         }
 
         <!-- Context Missing Blocker -->
-        @if (engine.isConfigured() && engine.messages().length > 0 && engine.loadedFiles().size === 0) {
+        @if (state.isConfigured() && state.messages().length > 0 && state.loadedFiles().size === 0) {
         <div class="blocker-overlay">
             <mat-icon class="blocker-icon">folder_open</mat-icon>
             <h2>Resuming Session</h2>
@@ -41,7 +41,7 @@
 </mat-sidenav-container>
 
 @if (idleService.showScreensaver()) {
-@if (engine.config()?.screensaverType === 'code') {
+@if (state.config()?.screensaverType === 'code') {
 <app-code-screensaver />
 } @else {
 <app-space-invaders />

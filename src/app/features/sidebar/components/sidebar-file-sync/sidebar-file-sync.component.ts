@@ -9,6 +9,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 
 import { GameEngineService } from '../../../../core/services/game-engine.service';
+import { GameStateService } from '../../../../core/services/game-state.service';
 import { FileSystemService } from '../../../../core/services/file-system.service';
 import { GoogleDriveService } from '../../../../core/services/google-drive.service';
 import { DialogService } from '../../../../core/services/dialog.service';
@@ -27,6 +28,7 @@ import { KbSlotsDialogComponent, KbSlot } from '../../../../shared/components/kb
 })
 export class SidebarFileSyncComponent {
     engine = inject(GameEngineService);
+    state = inject(GameStateService);
     fileSystem = inject(FileSystemService);
     driveService = inject(GoogleDriveService);
     matDialog = inject(MatDialog);
@@ -60,7 +62,7 @@ export class SidebarFileSyncComponent {
         }
 
         // Add confirmation if we already have files
-        if (this.engine.loadedFiles().size > 0) {
+        if (this.state.loadedFiles().size > 0) {
             if (!await this.dialog.confirm(
                 'This will reload all story files from the selected local folder. Any unsaved changes in IndexedDB will be overwritten. Continue?',
                 'Load from Local Folder', 'Load', 'Cancel'
@@ -214,7 +216,7 @@ export class SidebarFileSyncComponent {
 
             // 1. Get remote files (Service handles auth)
             const remoteFiles = await this.driveService.listFiles(folderId);
-            const localFiles = this.engine.loadedFiles(); // Map<string, string>
+            const localFiles = this.state.loadedFiles(); // Map<string, string>
 
             // 2. Compare
             const items: SyncItem[] = [];
@@ -287,7 +289,7 @@ export class SidebarFileSyncComponent {
 
     async openSaveSlots(localOnly = false) {
         const dialogData: SaveSlotDialogData = {
-            currentSession: this.engine.messages().length > 0 ? this.engine.exportSession() : null,
+            currentSession: this.state.messages().length > 0 ? this.engine.exportSession() : null,
             localOnly
         };
 
@@ -299,7 +301,7 @@ export class SidebarFileSyncComponent {
 
         if (result?.action === 'load' && result.save) {
             // Auto-load KB files if empty
-            if (this.engine.loadedFiles().size === 0) {
+            if (this.state.loadedFiles().size === 0) {
                 if (localOnly) {
                     await this.engine.loadFiles(false);
                 } else if (this.currentSlot()) {

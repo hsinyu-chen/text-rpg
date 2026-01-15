@@ -11,16 +11,16 @@
             <!-- Thread -->
             <div class="thread-area" #scrollContainer (scroll)="checkScroll()">
 
-                @for (msg of engine.messages(); track msg.id; let i = $index) {
+                @for (msg of state.messages(); track msg.id; let i = $index) {
                 <!-- Add ID for scrolling -->
                 <div [id]="'message-' + msg.id" class="message-wrapper">
-                    <app-chat-message [message]="msg" [index]="i" [isBusy]="engine.isBusy()"
+                    <app-chat-message [message]="msg" [index]="i" [isBusy]="state.isBusy()"
                         [isLastUser]="isLastUserMessage(msg.id)" (resend)="onEditAndResend($event)" />
                 </div>
                 }
 
                 <!-- Loading Indicator -->
-                @if (engine.status() === 'generating') {
+                @if (state.status() === 'generating') {
                 <div class="loading-row">
                     <mat-spinner diameter="20"></mat-spinner>
                     <span>Generative AI is thinking...</span>
