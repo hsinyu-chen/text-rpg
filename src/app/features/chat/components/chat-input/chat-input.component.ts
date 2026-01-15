@@ -10,7 +10,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatMenuModule } from '@angular/material/menu';
 import { TextFieldModule } from '@angular/cdk/text-field';
 import { GAME_INTENTS, STORY_INTENTS } from '../../../../core/constants/game-intents';
-import { getIntentLabels, getInputPlaceholders } from '../../../../core/constants/engine-protocol';
+import { getIntentLabels, getIntentDescriptions, getInputPlaceholders } from '../../../../core/constants/engine-protocol';
 import { GameEngineService } from '../../../../core/services/game-engine.service';
 import { GameStateService } from '../../../../core/services/game-state.service';
 import { MatDialog } from '@angular/material/dialog';
@@ -64,6 +64,7 @@ export class ChatInputComponent {
     private originalIntentBeforeEdit: string | null = null;
     // Localized intent labels
     intentLabels = computed(() => getIntentLabels(this.state.config()?.outputLanguage));
+    intentDescriptions = computed(() => getIntentDescriptions(this.state.config()?.outputLanguage));
 
     getIntentLabel(intent: string): string {
         const labels = this.intentLabels();
@@ -74,6 +75,16 @@ export class ChatInputComponent {
         if (intent === GAME_INTENTS.SAVE) return labels.SAVE;
         if (intent === GAME_INTENTS.CONTINUE) return labels.CONTINUE;
         return intent; // Fallback to raw value
+    }
+
+    getIntentDescription(intent: string): string {
+        const descriptions = this.intentDescriptions();
+        if (intent === GAME_INTENTS.ACTION) return descriptions.ACTION;
+        if (intent === GAME_INTENTS.FAST_FORWARD) return descriptions.FAST_FORWARD;
+        if (intent === GAME_INTENTS.SYSTEM) return descriptions.SYSTEM;
+        if (intent === GAME_INTENTS.SAVE) return descriptions.SAVE;
+        if (intent === GAME_INTENTS.CONTINUE) return descriptions.CONTINUE;
+        return '';
     }
 
     dynamicPlaceholder = computed(() => {

@@ -69,10 +69,19 @@
         </button>
 
         <mat-form-field appearance="outline" class="intent-select">
-            <mat-select [(ngModel)]="selectedIntent"
+            <mat-select [(ngModel)]="selectedIntent" panelClass="intent-select-panel"
                 [disabled]="state.status() === 'generating' || !!editingMessageId()">
+                <mat-select-trigger>
+                    {{ getIntentLabel(selectedIntent()) }}
+                </mat-select-trigger>
+
                 @for (intent of intents; track intent) {
-                <mat-option [value]="intent">{{ getIntentLabel(intent) }}</mat-option>
+                <mat-option [value]="intent">
+                    <div class="intent-option">
+                        <div class="intent-label">{{ getIntentLabel(intent) }}</div>
+                        <div class="intent-description">{{ getIntentDescription(intent) }}</div>
+                    </div>
+                </mat-option>
                 }
             </mat-select>
         </mat-form-field>

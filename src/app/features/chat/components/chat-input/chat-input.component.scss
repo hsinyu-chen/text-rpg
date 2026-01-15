@@ -9,7 +9,7 @@
     width: 100%;
     margin: 0 auto;
     display: grid;
-    grid-template-columns: auto auto auto auto auto 150px 1fr auto auto;
+    grid-template-columns: repeat(5, auto) minmax(100px, 150px) 1fr repeat(2, auto);
     gap: 12px;
     align-items: center;
 }
@@ -78,7 +78,7 @@
 @media (max-width: 900px) {
     .input-wrapper {
         // Menu | Intent | Input | Send (Preview hidden/moved to menu)
-        grid-template-columns: auto 110px 1fr auto;
+        grid-template-columns: auto minmax(80px, 100px) 1fr auto;
         gap: 8px;
     }
 
@@ -89,4 +89,46 @@
     .mobile-menu-btn {
         display: block !important;
     }
+}
+
+// Intent Dropdown Styles
+.intent-option {
+    display: flex;
+    flex-direction: column;
+    padding: 8px 0;
+    line-height: normal;
+
+    .intent-label {
+        font-weight: 500;
+        color: #e0e0e0;
+        font-size: 14px;
+        margin-bottom: 2px;
+        line-height: normal;
+    }
+
+    .intent-description {
+        font-size: 11px;
+        color: rgba(255, 255, 255, 0.5);
+        /* Muted / pale */
+        white-space: normal;
+        word-break: break-word;
+        max-width: 400px;
+        line-height: 1.2;
+        display: block;
+    }
+}
+
+// Adjust mat-option height to accommodate description
+::ng-deep .mat-mdc-option {
+    height: auto !important;
+    min-height: 48px;
+    padding-top: 4px;
+    padding-bottom: 4px;
+}
+
+// Allow intent selection panel to be wider than the select field
+::ng-deep .mat-mdc-select-panel.intent-select-panel {
+    min-width: 400px !important;
+    width: auto !important;
+    max-width: 450px !important;
 }

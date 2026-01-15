@@ -44,6 +44,13 @@ export interface AppLocale {
         SAVE: string;
         CONTINUE: string;
     };
+    intentDescriptions: {
+        ACTION: string;
+        FAST_FORWARD: string;
+        SYSTEM: string;
+        SAVE: string;
+        CONTINUE: string;
+    };
     inputPlaceholders: {
         ACTION: string;
         FAST_FORWARD: string;

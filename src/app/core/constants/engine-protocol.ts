@@ -47,6 +47,10 @@ export const getIntentTags = (lang = 'default') => {
     return getLocale(lang).intentTags;
 };
 
+export const getIntentDescriptions = (lang = 'default') => {
+    return getLocale(lang).intentDescriptions;
+};
+
 export const getInputPlaceholders = (lang = 'default') => {
     return getLocale(lang).inputPlaceholders;
 };

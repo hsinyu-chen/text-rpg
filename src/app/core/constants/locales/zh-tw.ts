@@ -47,6 +47,13 @@ export const ZH_TW_LOCALE: AppLocale = {
         SAVE: '<存檔>',
         CONTINUE: '<繼續>'
     },
+    intentDescriptions: {
+        ACTION: '推進劇情的主要方式。AI 會根據能力、環境與隨機事件判定成敗。',
+        FAST_FORWARD: '跳過平淡時段。若期間發生特別事件（如 NPC 拜訪）會自動停止。',
+        SYSTEM: '劇情修正或提問。用於 OOC 對話或對劇情提出質疑。',
+        SAVE: '分析並同步狀態。總結本章節並輸出 XML 格式的檔案更新。',
+        CONTINUE: '自然推進。用於等待 NPC 反應或觀察環境變化。'
+    },
     inputPlaceholders: {
         ACTION: '([心境]動作)台詞或內心獨白',
         FAST_FORWARD: '快轉至特定時間點或事件',

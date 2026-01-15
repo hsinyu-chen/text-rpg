@@ -47,6 +47,13 @@ export const EN_US_LOCALE: AppLocale = {
         SAVE: '<Save>',
         CONTINUE: '<Continue>'
     },
+    intentDescriptions: {
+        ACTION: 'The main way to progress the story. AI determines success/failure based on skills and environment.',
+        FAST_FORWARD: 'Skip dull periods. Stops if a special event (e.g., NPC visit) occurs.',
+        SYSTEM: 'Story correction or questions. Used for OOC dialogue or questioning the plot.',
+        SAVE: 'Analysis and state synchronization. Summarizes chapter and outputs XML file updates.',
+        CONTINUE: 'Fluid progression. Used to wait for NPC reactions or observe environmental changes.'
+    },
     inputPlaceholders: {
         ACTION: '([Mood]Action)Dialogue or Thoughts',
         FAST_FORWARD: 'Fast forward to specific time or event',
