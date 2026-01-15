@@ -44,4 +44,4 @@ Thumbs.db
 /*.txt
 /*.log
 /*.tar
-tools/clean-scenarios.js
+clean-scenarios.js

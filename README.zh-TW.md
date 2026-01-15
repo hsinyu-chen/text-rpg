@@ -4,6 +4,14 @@
 
 本專案採用 **Local-First** 架構，結合 Tauri 與 Angular，將 LLM 作為邏輯處理核心。不同於一般生成式對話應用，本引擎通過 JSON Schema 強制模型執行「判定優先」的流程，並將遊戲狀態（物品、任務、劇情摘要）持久化於本地 Markdown 文件中。
 
+## 🎬 功能展示 (Feature Demo)
+
+![主要遊戲介面](images/1.png)
+![自動世界更新 - 差分分析](images/2.png)
+![自動世界更新 - 差分分析](images/3.png)
+
+---
+
 ## ✏️ 編輯與自動化 (Editing & Automation)
 
 引擎提供多種介入手段，讓您能完全掌控劇情走向：

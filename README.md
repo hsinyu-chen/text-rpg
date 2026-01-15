@@ -8,6 +8,12 @@ A local-first TRPG engine built on Google Gemini models, focusing on rigorous st
 
 TextRPG is a **Local-First**, **Bring Your Own Key (BYOK)** desktop application designed specifically for the long-context capabilities of Google Gemini 3 series models. Unlike traditional AI chatbots, it treats the LLM as a rigorous "Dungeon Master (DM)", advancing the plot through structured thinking and logical adjudication. First" workflow and persists game state (inventory, quests, plot summaries) in local Markdown files.
 
+## 🎬 Feature Demo
+
+![Main Game Interface](images/1.png)
+![Auto World Update - Diff Analysis](images/2.png)
+![Auto World Update - Diff Analysis](images/3.png)
+
 ---
 
 ## 🎮 Game Command Guide
