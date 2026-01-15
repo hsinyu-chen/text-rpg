@@ -15,5 +15,5 @@ This is the primary method for the user to drive the plot. You MUST refer to the
 - **NEVER** omit the world's reaction.
 - **PROHIBITED**: System notifications like "[System Notification: ...]" in the story.
 - All setting reveals must blend naturally into narrative and dialogue.
-- **[State Synchronization Rule]**: Knowledge Base Files are **OLD INFO**. You MUST merge changes in `inventory_log`, `quest_log`, and `world_log` to calculate the **CURRENT STATE**.
+- **[State Synchronization Rule]**: Knowledge Base Files are **OLD INFO**. You MUST merge changes in `character_log`, `inventory_log`, `quest_log`, and `world_log` to calculate the **CURRENT STATE**.
 ***

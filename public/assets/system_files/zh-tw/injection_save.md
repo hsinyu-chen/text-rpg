@@ -96,7 +96,10 @@ ACT 格式：
 | `inventory_log` | 金錢變動 | `{{FILE_ASSETS}}` |
 | `inventory_log` | 據點/房產取得 | `{{FILE_ASSETS}}` |
 | `inventory_log` | 可攜帶物品 | `{{FILE_INVENTORY}}` |
+| `character_log` | 人物狀態變更 | `{{FILE_CHARACTER_STATUS}}` |
 | `quest_log` | 主角任務/個人計畫 | `{{FILE_PLANS}}` |
+
+**注意**：處理 `character_log` 時，若人物為首次遇見（尚未存在於 `{{FILE_CHARACTER_STATUS}}`），你 **必須** 評估其重要性。如果是值得記錄的重要/主要角色才新增資料項；**嚴禁**將一次性的路人或無關緊要的小角色寫入存檔。
 | `world_log` | 世界事件/勢力動態/世界觀拓展(地點、物產) | `{{FILE_WORLD_FACTIONS}}` |
 | `world_log` | 裝備科技開發 | `{{FILE_TECH_EQUIPMENT}}` |
 | `world_log` | 魔法開發 | `{{FILE_MAGIC}}` |

@@ -1,4 +1,22 @@
 <div class="summary-content update-content">
+    <div class="log-toggles">
+        <button mat-icon-button class="tiny-btn" (click)="showInventory.set(!showInventory())"
+            [matTooltip]="showInventory() ? 'Hide Inventory' : 'Show Inventory'">
+            <mat-icon [class.muted]="!showInventory()" class="inv-icon">inventory_2</mat-icon>
+        </button>
+        <button mat-icon-button class="tiny-btn" (click)="showQuest.set(!showQuest())"
+            [matTooltip]="showQuest() ? 'Hide Quest' : 'Show Quest'">
+            <mat-icon [class.muted]="!showQuest()" class="quest-icon">assignment</mat-icon>
+        </button>
+        <button mat-icon-button class="tiny-btn" (click)="showWorld.set(!showWorld())"
+            [matTooltip]="showWorld() ? 'Hide World' : 'Show World'">
+            <mat-icon [class.muted]="!showWorld()" class="world-icon">public</mat-icon>
+        </button>
+        <button mat-icon-button class="tiny-btn" (click)="showCharacter.set(!showCharacter())"
+            [matTooltip]="showCharacter() ? 'Hide Character' : 'Show Character'">
+            <mat-icon [class.muted]="!showCharacter()" class="char-icon">person</mat-icon>
+        </button>
+    </div>
     <!-- Narrative Summary -->
     @if (message().summary) {
     <div class="narrative-summary">
@@ -25,6 +43,7 @@
     }
 
     <!-- Inventory Logs -->
+    @if (showInventory()) {
     <div class="log-section inventory-logs">
         <div class="log-header">
             <div class="header-left">
@@ -73,8 +92,10 @@
             Click + to add.</div>
         }
     </div>
+    }
 
     <!-- Quest Logs -->
+    @if (showQuest()) {
     <div class="log-section quest-logs">
         <div class="log-header">
             <div class="header-left">
@@ -123,7 +144,9 @@
             Click + to add.</div>
         }
     </div>
+    }
     <!-- World Logs -->
+    @if (showWorld()) {
     <div class="log-section world-logs">
         <div class="log-header">
             <div class="header-left">
@@ -172,4 +195,57 @@
             Click + to add.</div>
         }
     </div>
+    }
+
+    <!-- Character Logs -->
+    @if (showCharacter()) {
+    <div class="log-section char-logs">
+        <div class="log-header">
+            <div class="header-left">
+                <mat-icon class="sub-icon">person</mat-icon>
+                <span>Character Changes</span>
+            </div>
+            <button mat-icon-button class="tiny-btn" (click)="state.addLogItem('char')" matTooltip="Add Item">
+                <mat-icon>add</mat-icon>
+            </button>
+        </div>
+        @if ((message().character_log?.length ?? 0) > 0) {
+        <ul class="log-list">
+            @for (char of (message().character_log || []); track $index; let idx = $index) {
+            <li class="log-item-row">
+                @if (state.editingLogKey() === message().id + '|char|' + idx) {
+                <!-- Inline Editor -->
+                <div class="log-editor">
+                    <input id="log-edit-input" type="text" [ngModel]="state.editingLogContent()"
+                        (ngModelChange)="state.editingLogContent.set($event)"
+                        (keydown.enter)="state.saveLogEdit('char', idx)" (keydown.escape)="state.cancelLogEdit()">
+                    <button mat-icon-button class="tiny-btn" (click)="state.saveLogEdit('char', idx)">
+                        <mat-icon>check</mat-icon>
+                    </button>
+                    <button mat-icon-button class="tiny-btn" (click)="state.cancelLogEdit()">
+                        <mat-icon>close</mat-icon>
+                    </button>
+                </div>
+                } @else {
+                <!-- Display Mode -->
+                <span class="log-text">{{ char }}</span>
+                <div class="log-actions">
+                    <button mat-icon-button class="tiny-btn" (click)="state.startLogEdit('char', idx, char)">
+                        <mat-icon>edit</mat-icon>
+                    </button>
+                    <button mat-icon-button class="tiny-btn" (click)="state.deleteLogItem('char', idx)">
+                        <mat-icon>delete</mat-icon>
+                    </button>
+                </div>
+                }
+            </li>
+            }
+        </ul>
+        } @else {
+        <div class="empty-log-hint" (click)="state.addLogItem('char')" (keydown.enter)="state.addLogItem('char')"
+            tabindex="0" role="button">No updates.
+            Click + to add.</div>
+        }
+    </div>
+    }
 </div>

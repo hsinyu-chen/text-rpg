@@ -7,6 +7,7 @@ export interface AppLocale {
         responseDescription: string;
         analysis: string;
         summary: string;
+        character: string;
         inventory: string;
         quest: string;
         world: string;

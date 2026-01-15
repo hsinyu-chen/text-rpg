@@ -9,6 +9,7 @@ export interface StreamProcessResult {
     finalAnalysis: string;
     finalStory: string;
     finalSummary: string;
+    finalCharacterLog: string[];
     finalInventoryLog: string[];
     finalQuestLog: string[];
     finalWorldLog: string[];
@@ -120,6 +121,7 @@ export class StreamProcessorService {
         let finalAnalysis = '';
         let finalStory = currentStoryPreview;
         let finalSummary = '';
+        let finalCharacterLog: string[] = [];
         let finalInventoryLog: string[] = [];
         let finalQuestLog: string[] = [];
         let finalWorldLog: string[] = [];
@@ -134,6 +136,9 @@ export class StreamProcessorService {
                 if (parsed.response.story) finalStory = this.parser.processModelField(parsed.response.story);
                 if (parsed.response.summary) finalSummary = this.parser.processModelField(parsed.response.summary);
 
+                if (Array.isArray(parsed.response.character_log)) {
+                    finalCharacterLog = parsed.response.character_log.map(c => this.parser.processModelField(c));
+                }
                 if (Array.isArray(parsed.response.inventory_log)) {
                     finalInventoryLog = parsed.response.inventory_log.map(i => this.parser.processModelField(i));
                 }
@@ -157,6 +162,7 @@ export class StreamProcessorService {
             finalAnalysis,
             finalStory,
             finalSummary,
+            finalCharacterLog,
             finalInventoryLog,
             finalQuestLog,
             finalWorldLog,

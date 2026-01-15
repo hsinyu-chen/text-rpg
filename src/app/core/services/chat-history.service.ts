@@ -35,9 +35,9 @@ export class ChatHistoryService {
     }
 
     /**
-     * Updates the logs (inventory, quest or world) of a specific message by ID.
+     * Updates the logs (inventory, quest, world or character) of a specific message by ID.
      */
-    updateMessageLogs(id: string, type: 'inventory' | 'quest' | 'world', logs: string[]) {
+    updateMessageLogs(id: string, type: 'inventory' | 'quest' | 'world' | 'character', logs: string[]) {
         this.state.messages.update(msgs =>
             msgs.map(m => {
                 if (m.id === id) {
@@ -45,6 +45,7 @@ export class ChatHistoryService {
                     if (type === 'inventory') updates.inventory_log = logs;
                     else if (type === 'quest') updates.quest_log = logs;
                     else if (type === 'world') updates.world_log = logs;
+                    else if (type === 'character') updates.character_log = logs;
                     return { ...m, ...updates };
                 }
                 return m;

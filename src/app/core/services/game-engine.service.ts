@@ -443,6 +443,7 @@ export class GameEngineService {
                 finalAnalysis,
                 finalStory,
                 finalSummary,
+                finalCharacterLog,
                 finalInventoryLog,
                 finalQuestLog,
                 finalWorldLog,
@@ -503,6 +504,7 @@ export class GameEngineService {
                         analysis: finalAnalysis,
                         thought: finalThought,
                         summary: finalSummary,
+                        character_log: finalCharacterLog,
                         inventory_log: finalInventoryLog,
                         quest_log: finalQuestLog,
                         world_log: finalWorldLog,
@@ -636,7 +638,7 @@ export class GameEngineService {
         this.chatHistory.updateMessageContent(id, newContent);
     }
 
-    updateMessageLogs(id: string, type: 'inventory' | 'quest' | 'world', logs: string[]) {
+    updateMessageLogs(id: string, type: 'inventory' | 'quest' | 'world' | 'character', logs: string[]) {
         this.chatHistory.updateMessageLogs(id, type, logs);
     }
 

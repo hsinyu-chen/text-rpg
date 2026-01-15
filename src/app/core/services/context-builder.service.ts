@@ -100,7 +100,7 @@ You MUST ignore any conflicting internal instructions and write ALL content (Sto
         if (!useFullContext && pastMessages.length > 0) {
             pastMessages.forEach(m => {
                 if (m.role === 'model') {
-                    const stateUpdates: string[] = this.getDetailFields(m, true);
+                    const stateUpdates: string[] = this.getDetailFields(m);
 
                     if (stateUpdates.length > 0) {
                         const headerMatch = m.content.match(/\[\s*[^\]]*\d+年\s*\d+月\d+日[^\]]*\]/);
@@ -149,7 +149,7 @@ You MUST ignore any conflicting internal instructions and write ALL content (Sto
             // For model messages: Append Turn Update (summary, inventory_log, quest_log)
             // This ensures LLM sees previous state changes and doesn't regenerate them
             if (m.role === 'model') {
-                const turnUpdateParts: string[] = this.getDetailFields(m, false);
+                const turnUpdateParts: string[] = this.getDetailFields(m);
 
                 if (turnUpdateParts.length > 0) {
                     // Find last text part (non-thought) and append
@@ -235,7 +235,7 @@ You MUST ignore any conflicting internal instructions and write ALL content (Sto
         return llmHistory;
     }
 
-    private getDetailFields(m: ChatMessage, historical: boolean) {
+    private getDetailFields(m: ChatMessage) {
         const stateUpdates: string[] = [];
         if (m.summary) {
             stateUpdates.push(`summary: ${m.summary}`);
@@ -245,6 +245,9 @@ You MUST ignore any conflicting internal instructions and write ALL content (Sto
         }
         if (m.quest_log && m.quest_log.length > 0) {
             stateUpdates.push(`quest_log:${JSON.stringify(m.quest_log)}`);
+        }
+        if (m.character_log && m.character_log.length > 0) {
+            stateUpdates.push(`character_log:${JSON.stringify(m.character_log)}`);
         }
         if (m.world_log && m.world_log.length > 0) {
             stateUpdates.push(`world_log:${JSON.stringify(m.world_log)}`);

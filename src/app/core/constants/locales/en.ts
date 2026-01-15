@@ -10,6 +10,7 @@ export const EN_US_LOCALE: AppLocale = {
         responseDescription: "[Response Phase] Contains the actual story content and logs after analysis. ALL FIELDS MUST BE IN ENGLISH.",
         analysis: `[Analysis Phase] REQUIRED. Must analyze Atomic Actions, Success/Failure Checks, and Random Events before generating the story. OUTPUT IN ENGLISH ONLY. Empty "" only if intent is ${GAME_INTENTS.SYSTEM} or ${GAME_INTENTS.SAVE}.`,
         summary: `[Summary] REQUIRED. Update key plot points for THIS turn only IN ENGLISH. Empty "" only if intent is ${GAME_INTENTS.SYSTEM} or ${GAME_INTENTS.SAVE}. CHECK HISTORY to avoid duplicates.`,
+        character: "List of strings describing meeting new characters (major/minor) or state changes of existing characters in THIS turn ONLY. Use descriptive names (e.g. 'Blonde Man??') for unrevealed characters to prevent spoilers. WRITE IN ENGLISH. CHECK HISTORY to avoid duplicates. Return [] if no changes.",
         inventory: "List of strings describing item changes (gained/lost/used) in THIS turn ONLY. WRITE IN ENGLISH. CHECK HISTORY to avoid duplicates. Return [] if no changes.",
         quest: "List of strings describing new quests or plan updates in THIS turn ONLY. WRITE IN ENGLISH. CHECK HISTORY to avoid duplicates. Return [] if no changes.",
         world: "List of strings describing world events, faction moves, new locations, or tech/magic breakthroughs in THIS turn ONLY. WRITE IN ENGLISH. CHECK HISTORY to avoid duplicates. Return [] if no changes."

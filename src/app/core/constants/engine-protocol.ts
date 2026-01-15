@@ -19,6 +19,7 @@ export const getResponseSchema = (lang = 'default'): Schema => {
                 properties: {
                     story: { type: 'string', description: "The actual story content, system response, or XML Save data." },
                     summary: { type: 'string', description: responseSchema.summary },
+                    character_log: { type: 'array', items: { type: 'string' }, description: responseSchema.character },
                     inventory_log: { type: 'array', items: { type: 'string' }, description: responseSchema.inventory },
                     quest_log: { type: 'array', items: { type: 'string' }, description: responseSchema.quest },
                     world_log: { type: 'array', items: { type: 'string' }, description: responseSchema.world },

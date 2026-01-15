@@ -136,7 +136,13 @@
         color: #ef9a9a;
     }
 
-    // Red/Pink
+    &.world .sec-icon {
+        color: #ce93d8; // Light purple
+    }
+
+    &.character .sec-icon {
+        color: #ffab91; // Light coral
+    }
 
     ul {
         margin: 0;

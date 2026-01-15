@@ -97,7 +97,10 @@ If the turn has LOG content, you **MUST** automatically generate corresponding `
 | `inventory_log` | Money Change | `{{FILE_ASSETS}}` |
 | `inventory_log` | Base/Property | `{{FILE_ASSETS}}` |
 | `inventory_log` | Portable Items | `{{FILE_INVENTORY}}` |
+| `character_log` | Character Status Changes | `{{FILE_CHARACTER_STATUS}}` |
 | `quest_log` | Quests/Plans | `{{FILE_PLANS}}` |
+
+**Note**: When processing `character_log`, if a character is encountered for the first time (not in `{{FILE_CHARACTER_STATUS}}`), you **MUST** evaluate if they are significant. Create a new entry for them **ONLY** if they are major/noteworthy characters; **FORBIDDEN** to record one-time passers-by or insignificant minor characters.
 | `world_log` | World Events/Factions/Locations | `{{FILE_WORLD_FACTIONS}}` |
 | `world_log` | Tech Development | `{{FILE_TECH_EQUIPMENT}}` |
 | `world_log` | Magic Development | `{{FILE_MAGIC}}` |

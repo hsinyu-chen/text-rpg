@@ -33,7 +33,7 @@ export class TurnUpdatePanelComponent {
 
     updates = computed(() => {
         return this.state.messages().filter(m =>
-            (m.summary || (m.inventory_log && m.inventory_log.length > 0) || (m.quest_log && m.quest_log.length > 0) || (m.world_log && m.world_log.length > 0)) &&
+            (m.summary || (m.character_log && m.character_log.length > 0) || (m.inventory_log && m.inventory_log.length > 0) || (m.quest_log && m.quest_log.length > 0) || (m.world_log && m.world_log.length > 0)) &&
             !m.isRefOnly
         );
     });

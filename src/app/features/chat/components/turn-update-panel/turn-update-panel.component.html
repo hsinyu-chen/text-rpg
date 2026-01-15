@@ -54,6 +54,19 @@
             </ul>
         </div>
         }
+        @if (msg.character_log?.length) {
+        <div class="section character">
+            <div class="sec-title">
+                <mat-icon class="sec-icon">person</mat-icon>
+                <span>Characters</span>
+            </div>
+            <ul>
+                @for (item of msg.character_log; track $index) {
+                <li>{{ item }}</li>
+                }
+            </ul>
+        </div>
+        }
         @if (msg.world_log?.length) {
         <div class="section world">
             <div class="sec-title">

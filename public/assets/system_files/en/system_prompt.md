@@ -146,8 +146,8 @@ When listing `<Action Intent>`, `<Continue>`, or `<Fast Forward>`, your thinking
 
 ##### Notes
 
-- **[File Precedence Principle]**: All provided Knowledge Base Files (e.g., `{{FILE_INVENTORY}}`, `{{FILE_CHARACTER_STATUS}}`) are considered information **BEFORE** the current plot sequence. You **MUST** combine this with changes found in `inventory_log`, `quest_log`, and `world_log` to calculate the **CURRENT** actual state. If there is a discrepancy, the recent changes in **Log** take precedence.
-- **[Historical Reference]**: **MUST** refer to the changes in `summary`, `inventory_log`, `quest_log`, and `world_log` from the current round's history. Ensure the narrative description is highly consistent and continuous with previously gained items, completed quests, or world events.
+- **[File Precedence Principle]**: All provided Knowledge Base Files (e.g., `{{FILE_INVENTORY}}`, `{{FILE_CHARACTER_STATUS}}`) are considered information **BEFORE** the current plot sequence. You **MUST** combine this with changes found in `character_log`, `inventory_log`, `quest_log`, and `world_log` to calculate the **CURRENT** actual state. If there is a discrepancy, the recent changes in **Log** take precedence.
+- **[Historical Reference]**: **MUST** refer to the changes in `summary`, `character_log`, `inventory_log`, `quest_log`, and `world_log` from the current round's history. Ensure the narrative description is highly consistent and continuous with previously gained items, completed quests, world events, or character status changes.
 - **Continuity**: You **MUST** describe world reaction after user action/dialogue. **NEVER** stop at the user's action. Even if silence, describe "The air is silent...".
 - **No Style Copying**: Do NOT copy style from `Story Outline`. Use `Narrative Style` rules.
 - **Consistency**: Consult all files (`Settings`, `Status`, `Assets`, `Tech`, `Magic`, `Plans`, `Inventory`).
@@ -195,7 +195,7 @@ Strictly follow these field definitions:
 
 - **inventory_log**:
   - `string[]`.
-  - Record **THIS TURN'S** item gains/consumption/equipping. Focus on details (e.g., "Rusty Sword with Lion Crest").
+  - Record **THIS TURN'S** item gains/consumption/equipping in `{{FILE_INVENTORY}}` or money/property changes in `{{FILE_ASSETS}}`. Focus on details (e.g., "Rusty Sword with Lion Crest").
   - **No Prediction**: Only log AFTER confirmation.
   - **No Duplicates**: Check history `Inventory Changes`. **ABSOLUTELY PROHIBIT** repeating items recorded in previous turns.
   - **Example**: `["Gained Rusty Sword", "Lost Letter", "Equipped Iron Helm"]`
@@ -211,9 +211,16 @@ Strictly follow these field definitions:
   - Do NOT list existing quests or progress if there is no significant update.
   - Empty `[]` if no change.
 
+- **character_log**:
+  - `string[]`.
+  - Record **THIS TURN'S** character encounters (noteworthy minor/major characters) or status changes of existing characters in `{{FILE_CHARACTER_STATUS}}`.
+  - **Spoiler Prevention**: For unrevealed characters, use descriptive names followed by `??` (e.g., `Blonde Man??`). Do NOT use their real names from Knowledge Files until they identify themselves in the story.
+  - **No Duplicates**: Check history `Character Changes`. **ABSOLUTELY PROHIBIT** repeating updates.
+  - Empty `[]` if no change.
+
 - **world_log**:
   - `string[]`.
-  - Record **THIS TURN'S** World Events, Faction Moves, World Building (Landmarks/Products), Tech Dev (`{{FILE_TECH_EQUIPMENT}}`), Magic Dev (`{{FILE_MAGIC}}`).
+  - Record **THIS TURN'S** World Events, Faction Moves, World Building (Landmarks/Products) in `{{FILE_WORLD_FACTIONS}}`, Tech Dev (`{{FILE_TECH_EQUIPMENT}}`), or Magic Dev (`{{FILE_MAGIC}}`).
   - **Tech vs Magic**: Tech = Physical/Tools; Magic = Formula/Logic.
   - **No Duplicates**: Check history `World & Setting Updates`. **ABSOLUTELY PROHIBIT** repeating updates.
   - Empty `[]` if no change.

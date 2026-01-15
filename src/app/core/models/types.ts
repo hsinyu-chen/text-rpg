@@ -8,6 +8,7 @@ export interface EngineResponseNested {
     response: {
         story: string;
         summary: string;
+        character_log?: string[];
         inventory_log?: string[];
         quest_log?: string[];
         world_log?: string[];
@@ -44,6 +45,7 @@ export interface ChatMessage {
     parts?: ExtendedPart[];
     usage?: { prompt: number, candidates: number, cached: number };
     isRefOnly?: boolean;
+    character_log?: string[];
     inventory_log?: string[];
     quest_log?: string[];
     world_log?: string[];

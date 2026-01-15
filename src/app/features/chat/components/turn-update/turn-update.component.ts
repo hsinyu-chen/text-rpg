@@ -1,4 +1,4 @@
-import { Component, inject, ChangeDetectionStrategy, input } from '@angular/core';
+import { Component, inject, ChangeDetectionStrategy, input, linkedSignal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -27,4 +27,24 @@ import { ChatMessage } from '../../../../core/models/types';
 export class TurnUpdateComponent {
     state = inject(MessageStateService);
     message = input.required<ChatMessage>();
+
+    showInventory = linkedSignal({
+        source: this.message,
+        computation: (m) => (m.inventory_log?.length ?? 0) > 0
+    });
+
+    showQuest = linkedSignal({
+        source: this.message,
+        computation: (m) => (m.quest_log?.length ?? 0) > 0
+    });
+
+    showWorld = linkedSignal({
+        source: this.message,
+        computation: (m) => (m.world_log?.length ?? 0) > 0
+    });
+
+    showCharacter = linkedSignal({
+        source: this.message,
+        computation: (m) => (m.character_log?.length ?? 0) > 0
+    });
 }

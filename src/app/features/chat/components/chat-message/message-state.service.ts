@@ -27,7 +27,7 @@ export class MessageStateService {
     // Local UI State
     isUpdateVisible = linkedSignal({
         // Only reset when content presence changes (e.g. from none to some)
-        source: () => !!(this.message()?.summary || (this.message()?.inventory_log?.length ?? 0) > 0 || (this.message()?.quest_log?.length ?? 0) > 0 || (this.message()?.world_log?.length ?? 0) > 0),
+        source: () => !!(this.message()?.summary || (this.message()?.character_log?.length ?? 0) > 0 || (this.message()?.inventory_log?.length ?? 0) > 0 || (this.message()?.quest_log?.length ?? 0) > 0 || (this.message()?.world_log?.length ?? 0) > 0),
         computation: (hasContent) => hasContent
     });
 
@@ -148,6 +148,7 @@ export class MessageStateService {
                 thought: modelMsg.thought,
                 analysis: modelMsg.analysis,
                 summary: modelMsg.summary,
+                character_log: modelMsg.character_log,
                 inventory_log: modelMsg.inventory_log,
                 quest_log: modelMsg.quest_log,
                 world_log: modelMsg.world_log,
@@ -160,20 +161,21 @@ export class MessageStateService {
     }
 
     // Log Item Logic
-    addLogItem(type: 'inv' | 'quest' | 'world') {
+    addLogItem(type: 'inv' | 'quest' | 'world' | 'char') {
         const items = type === 'inv' ? [...(this.message().inventory_log || [])] :
             type === 'quest' ? [...(this.message().quest_log || [])] :
-                [...(this.message().world_log || [])];
+                type === 'world' ? [...(this.message().world_log || [])] :
+                    [...(this.message().character_log || [])];
 
         items.push('New Item');
-        const engineType = type === 'inv' ? 'inventory' : type === 'quest' ? 'quest' : 'world';
+        const engineType = type === 'inv' ? 'inventory' : type === 'quest' ? 'quest' : type === 'world' ? 'world' : 'character';
         this.engine.updateMessageLogs(this.message().id, engineType, items);
 
         const idx = items.length - 1;
         this.startLogEdit(type, idx, 'New Item', true);
     }
 
-    startLogEdit(type: 'inv' | 'quest' | 'world', index: number, content: string, isAdding = false) {
+    startLogEdit(type: 'inv' | 'quest' | 'world' | 'char', index: number, content: string, isAdding = false) {
         this.isAddingNew = isAdding;
         this.editingLogKey.set(`${this.message().id}|${type}|${index}`);
         this.editingLogContent.set(content);
@@ -184,13 +186,14 @@ export class MessageStateService {
         }, 10);
     }
 
-    async saveLogEdit(type: 'inv' | 'quest' | 'world', index: number) {
+    async saveLogEdit(type: 'inv' | 'quest' | 'world' | 'char', index: number) {
         const items = type === 'inv' ? [...(this.message().inventory_log || [])] :
             type === 'quest' ? [...(this.message().quest_log || [])] :
-                [...(this.message().world_log || [])];
+                type === 'world' ? [...(this.message().world_log || [])] :
+                    [...(this.message().character_log || [])];
 
         items[index] = this.editingLogContent();
-        const engineType = type === 'inv' ? 'inventory' : type === 'quest' ? 'quest' : 'world';
+        const engineType = type === 'inv' ? 'inventory' : type === 'quest' ? 'quest' : type === 'world' ? 'world' : 'character';
         await this.engine.updateMessageLogs(this.message().id, engineType, items);
         this.isAddingNew = false;
         this.cancelLogEdit();
@@ -201,7 +204,7 @@ export class MessageStateService {
             const currentKey = this.editingLogKey();
             if (currentKey) {
                 const parts = currentKey.split('|');
-                const type = parts[1] as 'inv' | 'quest' | 'world';
+                const type = parts[1] as 'inv' | 'quest' | 'world' | 'char';
                 const index = parseInt(parts[2], 10);
                 this.deleteLogItem(type, index);
             }
@@ -210,13 +213,14 @@ export class MessageStateService {
         this.editingLogKey.set(null);
     }
 
-    async deleteLogItem(type: 'inv' | 'quest' | 'world', index: number) {
+    async deleteLogItem(type: 'inv' | 'quest' | 'world' | 'char', index: number) {
         const items = type === 'inv' ? [...(this.message().inventory_log || [])] :
             type === 'quest' ? [...(this.message().quest_log || [])] :
-                [...(this.message().world_log || [])];
+                type === 'world' ? [...(this.message().world_log || [])] :
+                    [...(this.message().character_log || [])];
 
         items.splice(index, 1);
-        const engineType = type === 'inv' ? 'inventory' : type === 'quest' ? 'quest' : 'world';
+        const engineType = type === 'inv' ? 'inventory' : type === 'quest' ? 'quest' : type === 'world' ? 'world' : 'character';
         await this.engine.updateMessageLogs(this.message().id, engineType, items);
     }
 
