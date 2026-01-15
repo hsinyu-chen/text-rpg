@@ -66,6 +66,8 @@ The system does not use proprietary database formats but directly reads and writ
 | Feature Module | Technical Implementation Details |
 | :--- | :--- |
 | **State Tracking** | Uses Gemini's JSON Mode to output structured data, automatically parsing and updating frontend state (Signals). |
+| **World Log** | New `world_log` tracking field for recording world events, faction moves, and tech/magic progression, enabling automated world-building evolution. |
+| **Currency** | Built-in real-time exchange rate conversion (TWD, USD, JPY, KRW...) with customizable display currency to precisely monitor token costs. |
 | **Prompt Injection** | Supports dynamic injection of System Instructions, allowing runtime modification of underlying logic for `<Action>`, `<System>`, and `<Save>` modes. |
 | **Token Cost Tracking** | Built-in token calculator and exchange rate conversion module to monitor Input/Output/Cache consumption and estimate costs in real-time. |
 | **UI/UX** | Built with Angular 21 (Zoneless/Signals) and Angular Material 3, providing a modern responsive interface. |
@@ -103,7 +105,7 @@ In addition to dialogue and logs, you can directly edit the game's underlying kn
 
 ---
 
-## 🚀 Developer Guide
+## 🛠️ Development
 
 ### Tech Stack
 *   **Frontend**: Angular 21 (Standalone, Signals)
@@ -112,7 +114,7 @@ In addition to dialogue and logs, you can directly edit the game's underlying kn
 *   **State**: RxJS, Angular Signals
 *   **SDK**: Google GenAI SDK (`@google/genai`)
 
-### Setup & Build
+### Environment Setup
 
 ```bash
 # 1. Install dependencies
@@ -121,7 +123,7 @@ npm install
 # 2. Start Web Dev Server (Hot Reload)
 npm run start
 
-# 3. Build & Run Desktop App (Tauri)
+# 3. Start Desktop Dev Server (Tauri)
 npm run desktop
 ```
 
@@ -131,6 +133,46 @@ On first launch, configure via the Settings panel:
 *   **Model ID**: Supports `gemini-3-pro-preview`, `gemini-3-flash-preview`, etc.
 *   **Exchange Rate**: For real-time cost estimation.
 *   **Output Language**: Select AI output language (Traditional Chinese, English).
+
+---
+
+## 📦 Deployment Guide
+
+This project supports three main deployment methods:
+
+### 1. Static Web Deployment
+Suitable for Nginx, Apache, or static hosting services (Vercel, GitHub Pages).
+
+```bash
+# Build for production
+npm run build
+```
+*   **Output**: `dist/text-rpg/browser`
+*   **Deploy**: Upload all files in this directory to your server root.
+*   **Note**: Configure server rewrite rules to support Angular routing (point 404s to index.html).
+
+### 2. Docker Deployment
+Suitable for NAS (Synology), Linux Servers, or Cloud Containers.
+
+```bash
+# Build Docker Image
+docker build -t text-rpg .
+
+# Run Container (Map Port 8080 -> 80)
+docker run -d -p 8080:80 --name text-rpg-instance text-rpg
+```
+*   Includes Nginx configuration optimized for Angular routing.
+
+### 3. Native Desktop Application (Tauri)
+Suitable for Windows, macOS, and Linux local execution with best performance and file access.
+
+```bash
+# Build Installer
+npm run build:desktop
+```
+*   **Windows**: `src-tauri/target/release/bundle/msi/`
+*   **macOS**: `src-tauri/target/release/bundle/dmg/`
+*   **Linux**: `src-tauri/target/release/bundle/deb/`
 
 ### GCP Configuration (OAuth)
 

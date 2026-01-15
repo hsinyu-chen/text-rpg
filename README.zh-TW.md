@@ -91,13 +91,15 @@ AI 產生的 **Inventory (物品欄)**、**Quest Log (任務)**、**World (世�
 | 特性模組 | 技術實作細節 |
 | :--- | :--- |
 | **狀態追蹤** | 利用 Gemini 的 JSON Mode 輸出結構化資料，自動解析並更新前端狀態 (Signals)。 |
+| **World Log** | 新增 `world_log` 追蹤欄位，專門記錄世界事件、勢力動向與科技魔法發展，實現自動化的世界觀演進。 |
+| **Currency** | 內建即時匯率轉換 (TWD, USD, JPY, KRW...)，可自訂顯示幣別，精確掌控 Token 消耗成本。 |
 | **Prompt Injection** | 支援動態注入 System Instructions，允許在 Runtime 修改 `<Action>`, `<System>`, `<Save>` 三種模式的底層邏輯。 |
 | **Token Cost Tracking** | 內建 Token 計算器與匯率轉換模組，即時監控 Input/Output/Cache 消耗並預估費用。 |
 | **UI/UX** | 基於 Angular 21 (Zoneless/Signals) 與 Angular Material 3，提供現代化的響應式介面。 |
 
 ---
 
-## 🚀 開發與部署 (Developer Guide)
+## 🛠️ 開發 (Development)
 
 ### 技術堆疊
 *   **Frontend**: Angular 21 (Standalone, Signals)
@@ -115,7 +117,7 @@ npm install
 # 2. 啟動 Web 開發模式 (Hot Reload)
 npm run start
 
-# 3. 編譯並啟動桌面應用 (Tauri)
+# 3. 啟動桌面應用開發模式 (Tauri)
 npm run desktop
 ```
 
@@ -125,6 +127,46 @@ npm run desktop
 *   **Model ID**: 支援 `gemini-3-pro-preview`, `gemini-3-flash-preview` 等模型。
 *   **Exchange Rate**: 用於即時成本估算的匯率。
 *   **Output Language**: 選擇 AI 輸出語言（繁體中文、英文）。
+
+---
+
+## 📦 部署指南 (Deployment)
+
+本專案支援三種主要的部署方式：
+
+### 1. Web 靜態部署 (Static Web App)
+適用於 Nginx, Apache 或靜態託管服務 (Vercel, GitHub Pages)。
+
+```bash
+# 建立建置檔
+npm run build
+```
+*   **輸出位置**: `dist/text-rpg/browser`
+*   **部署**: 將該目錄下的所有檔案上傳至您的 Web 伺服器根目錄。
+*   **注意**: 需配置伺服器 Rewrite 規則以支援 Angular 路由 (指向 index.html)。
+
+### 2. Docker 部署 (Container)
+適用於 NAS (Synology), Linux Server 或雲端容器服務。
+
+```bash
+# 建置 Docker Image
+docker build -t text-rpg .
+
+# 啟動 Container (Mapping Port 8080 -> 80)
+docker run -d -p 8080:80 --name text-rpg-instance text-rpg
+```
+*   內建 Nginx 設定已優化 Angular 路由支援。
+
+### 3.本機應用程式部屬 (Tauri Desktop)
+適用於 Windows, macOS, Linux 本地執行，擁有最佳效能與檔案存取權限。
+
+```bash
+# 建置原有安裝檔
+npm run build:desktop
+```
+*   **Windows**: `src-tauri/target/release/bundle/msi/`
+*   **macOS**: `src-tauri/target/release/bundle/dmg/`
+*   **Linux**: `src-tauri/target/release/bundle/deb/`
 
 ### GCP 配置 (OAuth)
 
