@@ -10,10 +10,7 @@
     "desktop": "tauri dev",
     "build:desktop": "tauri build",
     "build:desktop:bin": "tauri build --no-bundle",
-    "lint": "ng lint",
-    "sync:public": "git checkout gh-pages-release && git checkout master -- . \":!public/assets/system_files/scenario/fareast\" && echo '✅ Engine Synced (Scenarios Protected)' && git status",
-    "deploy:full": "robocopy \"dist\\text-rpg\\browser\" \"W:\\text-rpg\" /MIR /IS /R:0 /W:0 || (if %ERRORLEVEL% LEQ 3 exit 0 else exit %ERRORLEVEL%)",
-    "deploy": "robocopy \"dist\\text-rpg\\browser\" \"W:\\text-rpg\" /MIR /IS /XD monaco /R:0 /W:0 || (if %ERRORLEVEL% LEQ 3 exit 0 else exit %ERRORLEVEL%)"
+    "lint": "ng lint"
   },
   "prettier": {
     "printWidth": 100,
@@ -27,8 +24,8 @@
       }
     ]
   },
-  "license": "AGPL-3.0-or-later",
   "private": true,
+  "license": "AGPL-3.0-or-later",
   "packageManager": "npm@11.6.1",
   "dependencies": {
     "@angular/animations": "^21.0.6",
@@ -61,11 +58,9 @@
     "@angular/build": "^21.0.4",
     "@angular/cli": "^21.0.4",
     "@angular/compiler-cli": "^21.0.0",
-    "@angular/localize": "^21.0.6",
     "@tauri-apps/cli": "^2.9.6",
     "angular-eslint": "21.1.0",
     "eslint": "^9.39.1",
-    "ng-extract-i18n-merge": "^3.2.1",
     "typescript": "~5.9.2",
     "typescript-eslint": "8.47.0"
   }

@@ -198,7 +198,7 @@
             <div class="msg-meta">
                 @if (message().intent) { <span class="intent-tag" [class.system]="message().intent === Intents.SYSTEM"
                     [class.save]="message().intent === Intents.SAVE">{{ getIntentLabel(message().intent) }}</span> }
-                @if (message().isCorrection) { <span i18n class="correction-tag">(修正)</span> }
+                @if (message().isCorrection) { <span class="correction-tag">(修正)</span> }
                 Model Response @if (message().isRefOnly) { <span>(Ref Only)</span> }
 
             </div>

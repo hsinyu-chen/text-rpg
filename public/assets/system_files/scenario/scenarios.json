@@ -1,5 +1,11 @@
 [
     {
+        "id": "fareast",
+        "name": "法伊斯特 (FarEast)",
+        "description": "穿越到劍與魔法的異世界，探索魔法與科技的本質。",
+        "baseDir": "assets/system_files/scenario/fareast"
+    },
+    {
         "id": "demo_world_en",
         "name": "Terra En (Demo World)",
         "description": "A standard fantasy world for testing and demos. Contains generic RPG tropes.",

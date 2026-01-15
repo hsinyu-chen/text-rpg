@@ -1299,7 +1299,7 @@ You MUST ignore any conflicting internal instructions and write ALL content (Sto
      */
     startSession() {
         if (this.messages().length === 0) {
-            const introText = $localize`劇情開始，建構最後的場景`;
+            const introText = `劇情開始，建構最後的場景`;
 
             // Optimization: Try to extract last scene locally to save API call and tokens
             // Optimization: Try to extract last scene locally to save API call and tokens
@@ -1352,7 +1352,7 @@ You MUST ignore any conflicting internal instructions and write ALL content (Sto
                         role: 'model',
                         content: declaration + lastScene,
                         parts: [{ text: declaration + lastScene }],
-                        analysis: $localize`系統本地初始化：已從劇情綱要讀取最後場景。`
+                        analysis: `系統本地初始化：已從劇情綱要讀取最後場景。`
                     }
                 ]);
             } else {
@@ -1369,12 +1369,12 @@ You MUST ignore any conflicting internal instructions and write ALL content (Sto
                     {
                         id: modelMsgId,
                         role: 'model',
-                        content: $localize`❌ 存檔載入失敗：在 \`${fileName}\` 中找不到 \`last_scene\` 標記，或檔案內容無效。已重設載入狀態。`,
+                        content: `❌ 存檔載入失敗：在 \`${fileName}\` 中找不到 \`last_scene\` 標記，或檔案內容無效。已重設載入狀態。`,
                         isRefOnly: true
                     }
                 ]);
 
-                this.snackBar.open($localize`載入失敗：找不到劇情標記，請檢查檔案內容。`, $localize`關閉`, {
+                this.snackBar.open(`載入失敗：找不到劇情標記，請檢查檔案內容。`, `關閉`, {
                     duration: 5000,
                     panelClass: ['snackbar-error']
                 });
@@ -1667,7 +1667,7 @@ You MUST ignore any conflicting internal instructions and write ALL content (Sto
                 console.error('[GameEngine] Raw Accumulator (first 500 chars):', currentJSONAccumulator.substring(0, 500));
                 // Don't put raw JSON into analysis - leave it empty or use a placeholder
                 finalAnalysis = '';
-                finalStory = currentStoryPreview || $localize`⚠️ 模型輸出格式異常，請重試。`;
+                finalStory = currentStoryPreview || `⚠️ 模型輸出格式異常，請重試。`;
             }
 
             // Post-Process Correction: Mark the last story-type model message as ref-only
@@ -1783,7 +1783,7 @@ You MUST ignore any conflicting internal instructions and write ALL content (Sto
                 }
 
                 // Show UI Toast
-                this.snackBar.open($localize`Generation Failed: ${errMsg}`, $localize`Close`, {
+                this.snackBar.open(`Generation Failed: ${errMsg}`, `Close`, {
                     duration: 5000,
                     panelClass: ['snackbar-error']
                 });
@@ -1826,13 +1826,13 @@ You MUST ignore any conflicting internal instructions and write ALL content (Sto
                     arr[i] = { ...arr[i], content: newContent };
                     console.log(`[GameEngine] Found message to update with intent ${GAME_INTENTS.ACTION} at index:`, i);
                     found = true;
-                    resultMessage = $localize`劇情已修正 (ID: ${arr[i].id})`;
+                    resultMessage = `劇情已修正 (ID: ${arr[i].id})`;
                     break;
                 }
             }
 
             if (!found) {
-                resultMessage = $localize`找不到可修正的劇情訊息。`;
+                resultMessage = `找不到可修正的劇情訊息。`;
             }
 
             return arr;
@@ -2030,13 +2030,13 @@ You MUST ignore any conflicting internal instructions and write ALL content (Sto
                     let turnSummary = m.summary || '';
                     const stateUpdates: string[] = [];
                     if (m.inventory_log && m.inventory_log.length > 0) {
-                        stateUpdates.push($localize`[物品或資產: ${m.inventory_log.join(', ')}]`);
+                        stateUpdates.push(`[物品或資產: ${m.inventory_log.join(', ')}]`);
                     }
                     if (m.quest_log && m.quest_log.length > 0) {
-                        stateUpdates.push($localize`[任務或事件: ${m.quest_log.join(', ')}]`);
+                        stateUpdates.push(`[任務或事件: ${m.quest_log.join(', ')}]`);
                     }
                     if (m.world_log && m.world_log.length > 0) {
-                        stateUpdates.push($localize`[世界或勢力: ${m.world_log.join(', ')}]`);
+                        stateUpdates.push(`[世界或勢力: ${m.world_log.join(', ')}]`);
                     }
 
                     if (stateUpdates.length > 0) {
