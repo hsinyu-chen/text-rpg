@@ -16,6 +16,39 @@ TextRPG is a **Local-First**, **Bring Your Own Key (BYOK)** desktop application 
 
 ---
 
+## � Getting Started
+
+1.  **Installation & Launch**:
+    *   Download the source code.
+    *   Open terminal/command prompt in the project folder.
+    *   Run `npm install` to install dependencies.
+    *   Run `npm start` to launch the web interface.
+    *   *(If `npm` sounds like a sneeze to you, please consult your friendly neighborhood AI assistant—they answer these questions 24/7!)* 🤖
+
+2.  **Initial Setup**:
+    *   Click the **Settings** button (Gear Icon, usually Top Left).
+    *   Enter your **Google Gemini API Key**.
+    *   **Output Language** defaults to Traditional Chinese; switch it if needed.
+
+## �🔄 Recommended Usage Flow
+
+1. **First Run (Act I)**
+   *   **Start**: Go to **Session** tab -> Click **New Game**.
+   *   **Play**: Engage in roleplay and plot deduction with the AI.
+   *   **Finish Act**: When a narrative arc concludes, use the `<Save>` command.
+   *   **Update World**: Click the **Auto Update** button (Magic Wand icon) to apply world changes to your files.
+
+2. **Backup (Crucial)**
+   *   **Sync**: It is highly recommended to immediately backup your progress.
+   *   **Method**: Go to **Session** tab -> Use **Sync to Local Disk** (Folder Icon) or **Sync to Cloud** (Cloud Icon, requires GCP) to backup your files.
+
+3. **Next Session (Act II+)**
+   *   **Init**: Reset session (or refresh) -> Click **Initialize Story**. (Note: **Load Files** is only required if IndexedDB is cleared or switching devices).
+   *   **Play**: Continue the story deduction.
+   *   **Loop**: Finish Act -> `<Save>` -> **Auto Update** -> **Backup**.
+
+---
+
 ## 🎮 Game Command Guide
 
 ### 🎯 Action : The main way to progress the story

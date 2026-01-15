@@ -12,6 +12,39 @@
 
 ---
 
+## 🚀 快速開始 (Getting Started)
+
+1.  **安裝與啟動**:
+    *   下載專案原始碼。
+    *   在專案資料夾開啟終端機 (Terminal)。
+    *   輸入 `npm install` 安裝所需依賴。
+    *   輸入 `npm start` 啟動網頁介面。
+    *   *(如果您覺得 `npm` 聽起來像是在清喉嚨，強烈建議諮詢您身邊的 AI 助手——它們對此非常有耐心！)* 🤖
+
+2.  **初始設定**:
+    *   點擊介面左上角的 **Settings** (設定) 按鈕。
+    *   填入您的 **Google Gemini API Key**。
+    *   檢查 **Output Language** (預設為繁體中文)。
+
+## 🔄 建議使用流程 (Recommended Workflow)
+
+1. **首次遊玩 (First Run / Act 1)**
+   *   **啟動**: 前往 **Session** 分頁 -> 點擊 **New Game** 開啟新遊戲。
+   *   **推演**: 與 AI 進行劇情互動與推演。
+   *   **告一段落**: 當一個章節或事件結束後，使用 `<存檔>` (Save) 指令。
+   *   **更新世界**: 點擊 **Auto Update** 按鈕（魔術棒圖示）將劇情變動寫回設定檔。
+
+2. **備份設定 (Backup)**
+   *   **同步**: 強烈建議在更新後立即備份您的設定檔。
+   *   **方式**: 前往 **Session** 分頁 -> 使用 **Sync to Local Disk** (資料夾圖示) 或 **Sync to Cloud** (雲端圖示，需設定 GCP) 進行備份。
+
+3. **接續遊玩 (Act 2+)**
+   *   **初始化**: 重置 Session (Reset) -> 點擊 **Initialize Story**。(注意：僅在 IndexedDB 清空或切換裝置時才需要 **Load Files**)。
+   *   **推演**: 繼續與 AI 進行劇情推演。
+   *   **循環**: 告一段落 -> `<存檔>` -> **Auto Update** -> **備份**。
+
+---
+
 ## ✏️ 編輯與自動化 (Editing & Automation)
 
 引擎提供多種介入手段，讓您能完全掌控劇情走向：
