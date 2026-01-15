@@ -10,10 +10,7 @@
     "desktop": "tauri dev",
     "build:desktop": "tauri build",
     "build:desktop:bin": "tauri build --no-bundle",
-    "lint": "ng lint",
-    "sync:public": "git checkout gh-pages-release && git checkout master -- . \":!public/assets/system_files/scenario/fareast\" \":!src/environments\" \":!public/.htaccess\" \":!public/.htpasswd\" && node tools/clean-scenarios.js && echo '✅ Engine Synced (Protected Items: Fareast, Environments, Auth)' && git status",
-    "deploy:full": "robocopy \"dist\\text-rpg\\browser\" \"W:\\text-rpg\" /MIR /IS /R:0 /W:0 || (if %ERRORLEVEL% LEQ 3 exit 0 else exit %ERRORLEVEL%)",
-    "deploy": "robocopy \"dist\\text-rpg\\browser\" \"W:\\text-rpg\" /MIR /IS /XD monaco /R:0 /W:0 || (if %ERRORLEVEL% LEQ 3 exit 0 else exit %ERRORLEVEL%)"
+    "lint": "ng lint"
   },
   "prettier": {
     "printWidth": 100,
