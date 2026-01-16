@@ -171,21 +171,10 @@ export class ChatConfigDialogComponent {
             case 'save':
                 this.state.dynamicSaveInjection.set(content);
                 break;
-            case 'postprocess': {
-                // Validate before saving
-                const validation = this.postProcessor.validate(content);
-                if (!validation.valid) {
-                    const lang = this.state.config()?.outputLanguage || 'default';
-                    const ui = getUIStrings(lang);
-                    this.snackBar.open(
-                        ui.POST_PROCESS_ERROR.replace('{error}', validation.error || 'Unknown error'),
-                        ui.CLOSE,
-                        { duration: 5000, panelClass: 'error-snackbar' }
-                    );
-                }
+            case 'postprocess':
+                // Just save, validation happens on close
                 this.state.postProcessScript.set(content);
                 break;
-            }
         }
     }
 
@@ -247,6 +236,24 @@ export class ChatConfigDialogComponent {
     close(): void {
         // Sync final content before closing
         this.syncCurrentContent();
+
+        // Validate postprocess script before closing
+        const script = this.state.postProcessScript();
+        const validation = this.postProcessor.validate(script);
+
+        if (!validation.valid) {
+            const lang = this.state.config()?.outputLanguage || 'default';
+
+            // Show confirm dialog
+            const confirmMsg = lang === 'zh-TW'
+                ? `後處理腳本有錯誤：${validation.error}\n\n確定要關閉嗎？腳本將保持無效狀態。`
+                : `Post-process script error: ${validation.error}\n\nClose anyway? Script will remain invalid.`;
+
+            if (!confirm(confirmMsg)) {
+                return; // User cancelled, don't close
+            }
+        }
+
         this.dialogRef.close();
     }
 }

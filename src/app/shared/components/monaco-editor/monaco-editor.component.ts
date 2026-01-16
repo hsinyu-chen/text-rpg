@@ -281,6 +281,9 @@ export class MonacoEditorComponent implements OnDestroy, ControlValueAccessor {
 
     /** Get language ID from filename extension */
     private getLanguageFromFilename(fileName: string): string {
+        // Special case for postprocess script
+        if (fileName === 'postprocess') return 'javascript';
+
         const ext = fileName.split('.').pop()?.toLowerCase() || '';
         const langMap: Record<string, string> = {
             'md': 'markdown',
