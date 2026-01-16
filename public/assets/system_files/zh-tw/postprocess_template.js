@@ -43,4 +43,10 @@ for (const key of Object.keys(response)) {
 return result;
 */
 
-return response;
+// 預設處理：確保 story 開頭的 header [日期/地點/人物] 後有換行
+const fixedStory = story.replace(/^(\[[^\]]+\])([^\n])/, '$1\n$2');
+
+return {
+  ...response,
+  story: fixedStory
+};

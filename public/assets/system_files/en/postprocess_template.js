@@ -43,4 +43,10 @@ for (const key of Object.keys(response)) {
 return result;
 */
 
-return response;
+// Default: Ensure story header [date/location/characters] has trailing newline
+const fixedStory = story.replace(/^(\[[^\]]+\])([^\n])/, '$1\n$2');
+
+return {
+  ...response,
+  story: fixedStory
+};

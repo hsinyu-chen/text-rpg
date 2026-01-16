@@ -6,10 +6,11 @@
 `<Continue>`
 
 ## Processing Rules
-User requests to proceed with the current story evolution. Please:
+"Continue" means the protagonist **maintains their current action or does nothing**, awaiting story progression. Please:
+- **STRICTLY PROHIBITED**: Do NOT repeat or rephrase the previous plot segment. You MUST produce **entirely new narrative progress**.
 - Refer to `# Thinking (CoT) Mode Guidelines` to execute full thinking checklist.
-- Maintain narrative consistency and advance the current scene.
-- Trigger random events or NPC reactions as appropriate.
+- Advance the world timeline: NPCs act, environment changes, events unfold.
+- Trigger random events or NPC-initiated interactions as appropriate.
 
 ## This Turn Reminders
 - Strictly execute **World Reaction Calculation**.

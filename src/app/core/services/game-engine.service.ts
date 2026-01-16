@@ -391,8 +391,8 @@ export class GameEngineService {
                 if (history.length > 0) {
                     const lastMsg = history.pop(); // Remove last user msg
 
-                    if (lastMsg && lastMsg.parts && lastMsg.parts[0].text) {
-                        let userInput = lastMsg.parts[0].text || '';
+                    if (lastMsg && lastMsg.parts && typeof lastMsg.parts[0].text === 'string') {
+                        let userInput = lastMsg.parts[0].text;
 
                         // Prepend intent tag if needed
                         let tag = '';
