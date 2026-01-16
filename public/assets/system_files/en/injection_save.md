@@ -101,6 +101,11 @@ If the turn has LOG content, you **MUST** automatically generate corresponding `
 | `quest_log` | Quests/Plans | `{{FILE_PLANS}}` |
 
 **Note**: When processing `character_log`, if a character is encountered for the first time (not in `{{FILE_CHARACTER_STATUS}}`), you **MUST** evaluate if they are significant. Create a new entry for them **ONLY** if they are major/noteworthy characters; **FORBIDDEN** to record one-time passers-by or insignificant minor characters.
+**Significance Criteria**: If the character is involved in **delivering quests, providing/requesting resources, or providing key information** (even for NPCs like butlers or servants), they **MUST** be added to `{{FILE_CHARACTER_STATUS}}` to ensure narrative continuity.
+**Exit & Pruning Mechanism**: To prevent file bloat, you should proactively prune entries under these conditions:
+- **Death**: Remove from categories and move to `# Deceased Characters`.
+- **Functional Task Completed**: If a character in `# Secondary Characters` has fulfilled their purpose (e.g., guide, one-time errand, resource handover) and will not logically reappear or affect future plots, you should **proactively delete** their entry.
+- **Permanent Departure**: If a major or secondary character has "permanently left the stage" (e.g., traveled far away with no return), you may move them to `# Historical Figures` for archiving or delete them based on significance.
 | `world_log` | World Events/Factions/Locations | `{{FILE_WORLD_FACTIONS}}` |
 | `world_log` | Tech Development | `{{FILE_TECH_EQUIPMENT}}` |
 | `world_log` | Magic Development | `{{FILE_MAGIC}}` |
