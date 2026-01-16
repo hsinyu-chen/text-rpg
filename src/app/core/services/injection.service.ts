@@ -120,24 +120,24 @@ export class InjectionService {
             }
 
             // Same hash - load saved customizations from localStorage
+            // If saved content is empty/whitespace, use default template instead
             const savedAction = localStorage.getItem('dynamic_action_injection');
-            if (savedAction !== null) this.state.dynamicActionInjection.set(savedAction);
+            this.state.dynamicActionInjection.set(savedAction?.trim() ? savedAction : this.applyPromptPlaceholders(actionContent, lang));
 
             const savedContinue = localStorage.getItem('dynamic_continue_injection');
-            if (savedContinue !== null) this.state.dynamicContinueInjection.set(savedContinue);
+            this.state.dynamicContinueInjection.set(savedContinue?.trim() ? savedContinue : this.applyPromptPlaceholders(continueContent, lang));
 
             const savedFastforward = localStorage.getItem('dynamic_fastforward_injection');
-            if (savedFastforward !== null) this.state.dynamicFastforwardInjection.set(savedFastforward);
+            this.state.dynamicFastforwardInjection.set(savedFastforward?.trim() ? savedFastforward : this.applyPromptPlaceholders(fastforwardContent, lang));
 
             const savedSystem = localStorage.getItem('dynamic_system_injection');
-            if (savedSystem !== null) this.state.dynamicSystemInjection.set(savedSystem);
+            this.state.dynamicSystemInjection.set(savedSystem?.trim() ? savedSystem : this.applyPromptPlaceholders(systemContent, lang));
 
             const savedSave = localStorage.getItem('dynamic_save_injection');
-            if (savedSave !== null) this.state.dynamicSaveInjection.set(savedSave);
+            this.state.dynamicSaveInjection.set(savedSave?.trim() ? savedSave : this.applyPromptPlaceholders(saveContent, lang));
 
             const savedPostprocess = localStorage.getItem('post_process_script');
-            // Load from localStorage if exists, otherwise use default template
-            this.state.postProcessScript.set(savedPostprocess !== null ? savedPostprocess : postprocessContent);
+            this.state.postProcessScript.set(savedPostprocess?.trim() ? savedPostprocess : postprocessContent);
 
             this.state.injectionSettingsLoaded.set(true);
         } finally {
