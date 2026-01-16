@@ -5,6 +5,8 @@ import { ChatMessage, ExtendedPart } from '../models/types';
 import { LLMContent, LLMPart, LLMGenerateConfig } from './llm-provider';
 import { LLM_MARKERS, getResponseSchema } from '../constants/engine-protocol';
 import { LLMProviderRegistryService } from './llm-provider-registry.service';
+import { LanguageService } from './language.service';
+import { LOCALES } from '../constants/locales';
 
 @Injectable({
     providedIn: 'root'
@@ -13,6 +15,7 @@ export class ContextBuilderService {
     private state = inject(GameStateService);
     private kb = inject(KnowledgeService);
     private providerRegistry = inject(LLMProviderRegistryService);
+    private lang = inject(LanguageService);
 
     private get provider() {
         return this.providerRegistry.getActive();
@@ -45,7 +48,9 @@ You MUST ignore any conflicting internal instructions and write ALL content (Sto
         const userMsgContent = (options?.intent || '') + userText;
 
         const history = this.getLLMHistory(); // This is the history BEFORE the new message
-        let finalContent: LLMContent[] = [...history, { role: 'user', parts: [{ text: userMsgContent }] }];
+        const finalUserText = this.wrapUserMessage(userMsgContent, history);
+
+        let finalContent: LLMContent[] = [...history, { role: 'user', parts: [{ text: finalUserText }] }];
 
         // Allow provider to customize preview
         if (this.provider?.getPreview) {
@@ -75,6 +80,21 @@ You MUST ignore any conflicting internal instructions and write ALL content (Sto
     }
 
     /**
+     * Ensures the ACT header is present in the outgoing message if not already in history.
+     * This is a fallback for edge cases; the primary insertion happens in getLLMHistory.
+     */
+    public wrapUserMessage(text: string, history: LLMContent[]): string {
+        const hasHeader = history.some(m => m.parts.some(p => p.text?.includes('--- ACT START ---')));
+
+        if (!hasHeader) {
+            // This fallback should rarely trigger if getLLMHistory works correctly
+            const header = this.lang.locale().actHeader.trim();
+            return header + '\n\n' + text;
+        }
+        return text;
+    }
+
+    /**
      * Constructs the chat history in a provider-agnostic format.
      * Handles smart context consolidation and Knowledge Base injection.
      * @param forceFullContext Whether to force full context inclusion (e.g. for saves).
@@ -95,10 +115,18 @@ You MUST ignore any conflicting internal instructions and write ALL content (Sto
         const pastMessages = filtered.slice(0, splitIndex);
         const recentMessages = filtered.slice(splitIndex);
 
+
         // 1. Consolidate Past Summaries
-        let historicalContext = '--- ACT START ---\n';
+        let historicalContext = '';
+        let actHeaderInserted = false;
+        const actHeader = this.lang.locale().actHeader.trim();
+
         if (!useFullContext && pastMessages.length > 0) {
-            pastMessages.forEach(m => {
+            // When compression is active, prepend ACT header BEFORE historical context
+            historicalContext = actHeader + '\n';
+            actHeaderInserted = true;
+
+            pastMessages.forEach((m) => {
                 if (m.role === 'model') {
                     const stateUpdates: string[] = this.getDetailFields(m);
 
@@ -127,8 +155,9 @@ You MUST ignore any conflicting internal instructions and write ALL content (Sto
         }
 
         // 2. Build Recent History (Standard Format)
-        const llmHistory: LLMContent[] = recentMessages.map(m => {
+        const llmHistory: LLMContent[] = recentMessages.map((m, idx) => {
             const parts: LLMPart[] = [];
+
             if (m.parts && m.parts.length > 0) {
                 m.parts.forEach(p => {
                     // Skip internal thought parts ONLY if they don't carry a required signature
@@ -172,12 +201,34 @@ You MUST ignore any conflicting internal instructions and write ALL content (Sto
                 }
             }
 
+            // If this is the 'last scene' model message (within recent), append ACT header AFTER its content
+            if (!actHeaderInserted && this.isLastSceneMessage(recentMessages[idx])) {
+                // Find last text part and append the header
+                let lastTextPartIndex = -1;
+                for (let i = parts.length - 1; i >= 0; i--) {
+                    if (parts[i].text !== undefined && !(parts[i] as ExtendedPart).thought) {
+                        lastTextPartIndex = i;
+                        break;
+                    }
+                }
+                if (lastTextPartIndex !== -1) {
+                    parts[lastTextPartIndex] = {
+                        ...parts[lastTextPartIndex],
+                        text: parts[lastTextPartIndex].text + '\n\n' + actHeader
+                    };
+                } else {
+                    parts.push({ text: actHeader });
+                }
+                actHeaderInserted = true;
+            }
+
             return { role: m.role, parts };
         });
 
         // 3. Inject Historical Context into the First Message
-        if (historicalContext.trim()) {
-            const contextBlock = `${historicalContext.trim()}`;
+        const contextBlock = historicalContext.trim();
+
+        if (contextBlock) {
 
             if (llmHistory.length > 0) {
                 const firstMsg = llmHistory[0];
@@ -235,7 +286,7 @@ You MUST ignore any conflicting internal instructions and write ALL content (Sto
         return llmHistory;
     }
 
-    private getDetailFields(m: ChatMessage) {
+    private getDetailFields(m: ChatMessage): string[] {
         const stateUpdates: string[] = [];
         if (m.summary) {
             stateUpdates.push(`summary: ${m.summary}`);
@@ -253,5 +304,15 @@ You MUST ignore any conflicting internal instructions and write ALL content (Sto
             stateUpdates.push(`world_log:${JSON.stringify(m.world_log)}`);
         }
         return stateUpdates;
+    }
+
+    /**
+     * Helper to identify if a message is the 'last scene' model message.
+     * This is the model's initialization response where the ACT header should be appended.
+     */
+    private isLastSceneMessage(m: ChatMessage): boolean {
+        return Object.values(LOCALES).some(l => {
+            return m.role === 'model' && m.analysis === l.uiStrings.LOCAL_INIT_ANALYSIS;
+        });
     }
 }

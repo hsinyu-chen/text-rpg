@@ -6,7 +6,7 @@
 `<Save>Scope or Revision Request`
 
 ## Processing Rules
-User requests an analysis of current plot progress to generate XML file updates.
+User requests an analysis of plot progress **since the `--- ACT START ---` marker** to generate XML file updates.
 
 ### Field Restrictions
 - **`analysis`** and **`summary`** fields MUST be empty strings `""`.
@@ -100,9 +100,9 @@ ACT Format:
 
 ## LOG Integration Rules & State Calculation
 
-- **[State Synchronization Rule]**: The provided `{{FILE_*}}` files are old records from the save point/scenario start. You MUST merge the accumulated changes from `character_log`, `inventory_log`, `quest_log`, and `world_log` to calculate the **"Accurate Current State"** before writing it into the file update commands (XML) below.
+- **[State Synchronization Rule]**: The provided `{{FILE_*}}` files are records from before this ACT started. You MUST merge the accumulated changes **after the `--- ACT START ---` marker** (from `character_log`, `inventory_log`, `quest_log`, and `world_log`) to calculate the **"Accurate Current State"** before writing it into the file update commands (XML) below.
 
-If the turn has LOG content, you **MUST** automatically generate corresponding `<save>` updates:
+If the current ACT (starting from `--- ACT START ---`) has LOG content, you **MUST** automatically generate corresponding `<save>` updates:
 
 ### `inventory_log` → Target Files
 - Protagonist's party's money change → `{{FILE_ASSETS}}`

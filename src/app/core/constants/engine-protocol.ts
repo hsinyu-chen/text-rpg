@@ -74,5 +74,6 @@ export const INJECTION_FILE_PATHS = {
     continue: 'injection_continue.md',
     fastforward: 'injection_fastforward.md',
     system: 'injection_system.md',
-    save: 'injection_save.md'
+    save: 'injection_save.md',
+    postprocess: 'postprocess_template.js'
 } as const;

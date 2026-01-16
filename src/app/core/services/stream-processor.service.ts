@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { ContentParserService } from './content-parser.service';
+import { PostProcessorService, PostProcessFields } from './post-processor.service';
 import { ExtendedPart, ThoughtPart, EngineResponseNested } from '../models/types';
 import { LLMStreamChunk } from './llm-provider';
 import { ChatMessage } from '../models/types';
@@ -25,6 +26,7 @@ export interface StreamProcessResult {
 })
 export class StreamProcessorService {
     private parser = inject(ContentParserService);
+    private postProcessor = inject(PostProcessorService);
 
     /**
      * Processes an LLM stream, updating the UI in real-time and returning the finalized content.
@@ -158,14 +160,25 @@ export class StreamProcessorService {
             finalStory = currentStoryPreview || ui.FORMAT_ERROR;
         }
 
+        // Apply user post-processing
+        const postProcessFields: PostProcessFields = {
+            story: finalStory,
+            summary: finalSummary,
+            character_log: finalCharacterLog,
+            inventory_log: finalInventoryLog,
+            quest_log: finalQuestLog,
+            world_log: finalWorldLog
+        };
+        const processed = this.postProcessor.process(postProcessFields);
+
         return {
             finalAnalysis,
-            finalStory,
-            finalSummary,
-            finalCharacterLog,
-            finalInventoryLog,
-            finalQuestLog,
-            finalWorldLog,
+            finalStory: processed.story,
+            finalSummary: processed.summary,
+            finalCharacterLog: processed.character_log,
+            finalInventoryLog: processed.inventory_log,
+            finalQuestLog: processed.quest_log,
+            finalWorldLog: processed.world_log,
             isCorrection,
             turnUsage,
             capturedFCs,

@@ -11,10 +11,11 @@ import { GameEngineService } from '../../../core/services/game-engine.service';
 import { GameStateService } from '../../../core/services/game-state.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { getUIStrings, getIntentLabels } from '../../../core/constants/engine-protocol';
+import { PostProcessorService } from '../../../core/services/post-processor.service';
 
 /** Injection type definition */
 interface InjectionType {
-    id: 'action' | 'continue' | 'fastforward' | 'system' | 'save';
+    id: 'action' | 'continue' | 'fastforward' | 'system' | 'save' | 'postprocess';
     label: string;
     icon: string;
 }
@@ -38,6 +39,7 @@ interface InjectionType {
 export class ChatConfigDialogComponent {
     private dialogRef = inject(MatDialogRef<ChatConfigDialogComponent>);
     private snackBar = inject(MatSnackBar);
+    private postProcessor = inject(PostProcessorService);
     engine = inject(GameEngineService);
     state = inject(GameStateService);
 
@@ -52,7 +54,8 @@ export class ChatConfigDialogComponent {
             { id: 'continue', label: labels.CONTINUE, icon: 'arrow_forward' },
             { id: 'fastforward', label: labels.FAST_FORWARD, icon: 'fast_forward' },
             { id: 'system', label: labels.SYSTEM, icon: 'settings' },
-            { id: 'save', label: labels.SAVE, icon: 'save' }
+            { id: 'save', label: labels.SAVE, icon: 'save' },
+            { id: 'postprocess', label: labels.POST_PROCESS, icon: 'code' }
         ];
     });
 
@@ -75,16 +78,18 @@ export class ChatConfigDialogComponent {
         files.set('fastforward', this.state.dynamicFastforwardInjection());
         files.set('system', this.state.dynamicSystemInjection());
         files.set('save', this.state.dynamicSaveInjection());
+        files.set('postprocess', this.state.postProcessScript());
         return files;
     });
 
-    // Monaco editor options
-    editorOptions = signal({
+    // Monaco editor options - language changes based on active type
+    editorOptions = computed(() => ({
         readOnly: false,
         minimap: { enabled: false },
         wordWrap: 'on' as const,
-        lineNumbers: 'on' as const
-    });
+        lineNumbers: 'on' as const,
+        language: this.activeType() === 'postprocess' ? 'javascript' : 'markdown'
+    }));
 
     constructor() {
         // Sync Monaco changes back to engine signals
@@ -141,6 +146,9 @@ export class ChatConfigDialogComponent {
             case 'save':
                 this.state.dynamicSaveInjection.set(content);
                 break;
+            case 'postprocess':
+                this.state.postProcessScript.set(content);
+                break;
         }
     }
 
@@ -163,6 +171,21 @@ export class ChatConfigDialogComponent {
             case 'save':
                 this.state.dynamicSaveInjection.set(content);
                 break;
+            case 'postprocess': {
+                // Validate before saving
+                const validation = this.postProcessor.validate(content);
+                if (!validation.valid) {
+                    const lang = this.state.config()?.outputLanguage || 'default';
+                    const ui = getUIStrings(lang);
+                    this.snackBar.open(
+                        ui.POST_PROCESS_ERROR.replace('{error}', validation.error || 'Unknown error'),
+                        ui.CLOSE,
+                        { duration: 5000, panelClass: 'error-snackbar' }
+                    );
+                }
+                this.state.postProcessScript.set(content);
+                break;
+            }
         }
     }
 
@@ -211,6 +234,7 @@ export class ChatConfigDialogComponent {
             case 'fastforward': return this.state.dynamicFastforwardInjection();
             case 'system': return this.state.dynamicSystemInjection();
             case 'save': return this.state.dynamicSaveInjection();
+            case 'postprocess': return this.state.postProcessScript();
         }
     }
 

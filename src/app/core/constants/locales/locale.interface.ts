@@ -12,6 +12,7 @@ export interface AppLocale {
         quest: string;
         world: string;
     };
+    actHeader: string;
     adultDeclaration: string;
     coreFilenames: {
         BASIC_SETTINGS: string;
@@ -37,6 +38,7 @@ export interface AppLocale {
         SYSTEM: string;
         SAVE: string;
         CONTINUE: string;
+        POST_PROCESS: string;
     };
     intentTags: {
         ACTION: string;
@@ -118,5 +120,7 @@ export interface AppLocale {
         ALL: string;
         ROLE_USER: string;
         ROLE_MODEL: string;
+        POST_PROCESS_ERROR: string;
+        POST_PROCESS_HINT: string;
     };
 }

@@ -94,6 +94,12 @@ export class ConfigService {
                 localStorage.setItem('dynamic_save_injection', text);
             }
         });
+        effect(() => {
+            const text = this.state.postProcessScript();
+            if (this.state.injectionSettingsLoaded()) {
+                localStorage.setItem('post_process_script', text);
+            }
+        });
     }
 
     /**

@@ -82,7 +82,7 @@ export class GameEngineService {
     /**
      * Resets injection defaults.
      */
-    async resetInjectionDefaults(type: 'action' | 'continue' | 'fastforward' | 'system' | 'save' | 'all' = 'all'): Promise<void> {
+    async resetInjectionDefaults(type: 'action' | 'continue' | 'fastforward' | 'system' | 'save' | 'postprocess' | 'all' = 'all'): Promise<void> {
         return this.injection.resetInjectionDefaults(type);
     }
 
@@ -408,10 +408,11 @@ export class GameEngineService {
 
                         // Replace {{USER_INPUT}} placeholder with actual user input
                         const mergedContent = injectionContent.replace(/\{\{USER_INPUT\}\}/g, userInput);
+                        const finalContent = this.contextBuilder.wrapUserMessage(mergedContent, history);
 
                         history.push({
                             role: 'user',
-                            parts: [{ text: mergedContent }]
+                            parts: [{ text: finalContent }]
                         });
                     }
                 }

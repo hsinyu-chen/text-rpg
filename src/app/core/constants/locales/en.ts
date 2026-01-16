@@ -15,6 +15,14 @@ export const EN_US_LOCALE: AppLocale = {
         quest: "Quest/Plan updates. Format: '[Tag]: [Quest Title] ([Details])'. ONLY record when quest is formally accepted, substantive progress made, or protagonist actively changes plan. CHECK HISTORY. Return [] if no changes.",
         world: "World developments. Format: '[Tag]: [Name/Event] ([Description])'. STRICTLY PROHIBIT logging content already in basic settings as new discoveries unless significant status change. CHECK HISTORY. Return [] if no changes."
     },
+    actHeader: `
+--- ACT START ---
+[IMPORTANT] The following are the dialogue and state changes for the current ACT.
+All previous states (including characters, items, landmarks, etc.) should be based on the Knowledge Base files ({{FILE_*}}).
+All \`*_log\` content from this block until the end of the conversation represents incremental changes for this ACT.
+When performing the <Save> command, please only compare and synchronize based on the changes after this block and the current file contents.
+----------------
+`,
     adultDeclaration: "*All scenes involving intimacy, sexuality, nudity, or sexual innuendo imply that all characters have reached the age of majority (18+ or as defined by local laws), and all acts are consensual. This story is purely fictional and unrelated to reality.*\n\n***\n\n",
     coreFilenames: {
         BASIC_SETTINGS: '1.Base_Settings.md',
@@ -39,7 +47,8 @@ export const EN_US_LOCALE: AppLocale = {
         FAST_FORWARD: 'Fast Forward',
         SYSTEM: 'System',
         SAVE: 'Save',
-        CONTINUE: 'Continue'
+        CONTINUE: 'Continue',
+        POST_PROCESS: 'Post-Process'
     },
     intentTags: {
         ACTION: '<Action>',
@@ -130,6 +139,8 @@ export const EN_US_LOCALE: AppLocale = {
         REPLACE_SUCCESS: 'Replacement completed successfully',
         ALL: 'All',
         ROLE_USER: 'User',
-        ROLE_MODEL: 'Model'
+        ROLE_MODEL: 'Model',
+        POST_PROCESS_ERROR: 'Post-process script error: {error}',
+        POST_PROCESS_HINT: 'User post-processing script (JavaScript) for transforming AI response content'
     }
 };

@@ -15,6 +15,14 @@ export const ZH_TW_LOCALE: AppLocale = {
         quest: "描述任務進度。格式：'[標籤]: [任務標題]（[具體進展描述]）'。僅在任務正式接受、進度實質變更、或主角主動改變計畫時記錄。檢查歷史紀錄。若無變化則返回 []。",
         world: "描述世界動向。格式：'[標籤]: [名稱/事件]（[詳述說明]）'。嚴禁將已存在於基礎設定的內容標記為新發現，除非狀態有重大變更。檢查歷史紀錄。若無變化則返回 []。"
     },
+    actHeader: `
+--- ACT START ---
+[重要說明] 以下是本次 ACT 的劇情對白與狀態變動日誌。
+所有先前的狀態（包括人物、物品、地標等）皆應以知識庫檔案（{{FILE_*}}）為準。
+本區塊以後、直到對話結尾的所有 \`*_log\` 內容，代表本次 ACT 的增量變動。
+在進行 <存檔> 指令時，請僅依據本區塊後的變動與目前檔案內容進行比對同步。
+----------------
+`,
     adultDeclaration: "*所有涉及情慾、性愛、裸露或性暗示之場景,角色皆已達成年年齡(滿18歲或當地法律定義之成年),且行為都經雙方同意,此劇情為完全虛構,無涉任何事實。*\n\n***\n\n",
     coreFilenames: {
         BASIC_SETTINGS: '1.基礎設定.md',
@@ -39,7 +47,8 @@ export const ZH_TW_LOCALE: AppLocale = {
         FAST_FORWARD: '快轉',
         SYSTEM: '系統',
         SAVE: '存檔',
-        CONTINUE: '繼續'
+        CONTINUE: '繼續',
+        POST_PROCESS: '後處理'
     },
     intentTags: {
         ACTION: '<行動意圖>',
@@ -130,6 +139,8 @@ export const ZH_TW_LOCALE: AppLocale = {
         REPLACE_SUCCESS: 'Replacement completed successfully',
         ALL: 'All',
         ROLE_USER: 'User',
-        ROLE_MODEL: 'Model'
+        ROLE_MODEL: 'Model',
+        POST_PROCESS_ERROR: '後處理腳本錯誤: {error}',
+        POST_PROCESS_HINT: '使用者後處理腳本 (JavaScript)，用於轉換 AI 回應內容'
     }
 };

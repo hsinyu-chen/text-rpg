@@ -146,8 +146,8 @@ When listing `<Action Intent>`, `<Continue>`, or `<Fast Forward>`, your thinking
 
 ##### Notes
 
-- **[State Synchronization Rule]**: Knowledge Base (KB) files represent static records at the "scenario start". The **Current Truth** = `KB Files` + `Current Dialogue History` (including accumulated changes in `character_log`, `inventory_log`, `quest_log`, and `world_log`). **In non-`<Save>` commands, do NOT attempt to request "file updates" in your response; file contents are fixed historical records.**
-- **[Historical Reference]**: **MUST** refer to the changes in `summary`, `character_log`, `inventory_log`, `quest_log`, and `world_log` from the current round's history. Ensure the narrative description is highly consistent and continuous with previously gained items, completed quests, world events, or character status changes.
+- **[State Synchronization Rule]**: Knowledge Base (KB) files represent static records at the "start of this ACT". The **Current Truth** = `KB Files` + accumulated changes in `character_log`, `inventory_log`, `quest_log`, and `world_log` **AFTER the `--- ACT START ---` marker**. **In non-`<Save>` commands, do NOT attempt to request "file updates" in your response; file contents are fixed historical records.**
+- **[Historical Reference]**: **MUST** refer to the changes in `summary`, `character_log`, `inventory_log`, `quest_log`, and `world_log` **after the `--- ACT START ---` marker**. Ensure the narrative description is highly consistent and continuous with previously gained items, completed quests, world events, or character status changes.
 - **Continuity**: You **MUST** describe world reaction after user action/dialogue. **NEVER** stop at the user's action. Even if silence, describe "The air is silent...".
 - **No Style Copying**: Do NOT copy style from `Story Outline`. Use `Narrative Style` rules.
 - **Consistency**: Consult all files (`Settings`, `Status`, `Assets`, `Tech`, `Magic`, `Plans`, `Inventory`).
@@ -184,7 +184,9 @@ Strictly follow these field definitions:
 
 - **story (Narrative Content)**:
   - The **ONLY** content visible to user. Use [Step 2] techniques. Include dialogue, system msgs, GM replies.
-  - **Mandatory Header**: Before text, MUST include: `[Calendar YYYY/MM/DD WeekD HH:MM / Location / Characters Present[Alias](State)]`.
+  - **Mandatory Header**: Before text, MUST include: `[Calendar Name YYYY/MM/DD WeekD HH:MM / Location / Characters Present[Alias](State)]`.
+    - **CRITICAL**: You MUST replace "Calendar Name" with the actual calendar name defined in `{{FILE_BASIC_SETTINGS}}` (e.g., Space Calendar, Moon Calendar). DO NOT output the literal string "Calendar Name" and DO NOT nest brackets (e.g., `[(Space Calendar 1000)...]`).
+    - **Example**: `[Space Calendar 1000/04/02 Tue 18:40 / Inn 1F / Cheng Yangzong]`
     - Example: `Cheng Yangzong[Loser], Lucifer(Coma), Lifi(Asleep)`
 
 - **summary (Plot Summary)**:

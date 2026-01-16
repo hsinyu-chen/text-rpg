@@ -76,6 +76,7 @@ export class GameStateService {
     dynamicFastforwardInjection = signal<string>('');
     dynamicSystemInjection = signal<string>('');
     dynamicSaveInjection = signal<string>('');
+    postProcessScript = signal<string>('');
 
     // Flag to prevent effects from saving until after initial load
     injectionSettingsLoaded = signal(false);

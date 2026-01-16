@@ -87,13 +87,14 @@ export class InjectionService {
             const loadPath = (filename: string) =>
                 this.loadInjectionFile(`assets/system_files/${langFolder}/${filename}`);
 
-            const [actionContent, continueContent, fastforwardContent, systemContent, saveContent] =
+            const [actionContent, continueContent, fastforwardContent, systemContent, saveContent, postprocessContent] =
                 await Promise.all([
                     loadPath(INJECTION_FILE_PATHS.action),
                     loadPath(INJECTION_FILE_PATHS.continue),
                     loadPath(INJECTION_FILE_PATHS.fastforward),
                     loadPath(INJECTION_FILE_PATHS.system),
-                    loadPath(INJECTION_FILE_PATHS.save)
+                    loadPath(INJECTION_FILE_PATHS.save),
+                    loadPath(INJECTION_FILE_PATHS.postprocess)
                 ]);
 
             const combinedContent =
@@ -111,6 +112,7 @@ export class InjectionService {
                 this.state.dynamicFastforwardInjection.set(this.applyPromptPlaceholders(fastforwardContent, lang));
                 this.state.dynamicSystemInjection.set(this.applyPromptPlaceholders(systemContent, lang));
                 this.state.dynamicSaveInjection.set(this.applyPromptPlaceholders(saveContent, lang));
+                this.state.postProcessScript.set(postprocessContent);
 
                 this.state.injectionSettingsLoaded.set(true);
                 localStorage.setItem('injection_content_hash', currentHash);
@@ -133,6 +135,10 @@ export class InjectionService {
             const savedSave = localStorage.getItem('dynamic_save_injection');
             if (savedSave !== null) this.state.dynamicSaveInjection.set(savedSave);
 
+            const savedPostprocess = localStorage.getItem('post_process_script');
+            // Load from localStorage if exists, otherwise use default template
+            this.state.postProcessScript.set(savedPostprocess !== null ? savedPostprocess : postprocessContent);
+
             this.state.injectionSettingsLoaded.set(true);
         } finally {
             this.isSettingsLoading = false;
@@ -143,13 +149,14 @@ export class InjectionService {
      * Resets injection prompts to defaults from MD files.
      */
     async resetInjectionDefaults(
-        type: 'action' | 'continue' | 'fastforward' | 'system' | 'save' | 'all' = 'all'
+        type: 'action' | 'continue' | 'fastforward' | 'system' | 'save' | 'postprocess' | 'all' = 'all'
     ): Promise<void> {
         const loadAction = type === 'action' || type === 'all';
         const loadContinue = type === 'continue' || type === 'all';
         const loadFastforward = type === 'fastforward' || type === 'all';
         const loadSystem = type === 'system' || type === 'all';
         const loadSave = type === 'save' || type === 'all';
+        const loadPostprocess = type === 'postprocess' || type === 'all';
 
         const lang =
             this.state.config()?.outputLanguage ||
@@ -164,6 +171,7 @@ export class InjectionService {
         if (loadFastforward) promises.push(this.loadInjectionFile(folderPath + INJECTION_FILE_PATHS.fastforward));
         if (loadSystem) promises.push(this.loadInjectionFile(folderPath + INJECTION_FILE_PATHS.system));
         if (loadSave) promises.push(this.loadInjectionFile(folderPath + INJECTION_FILE_PATHS.save));
+        if (loadPostprocess) promises.push(this.loadInjectionFile(folderPath + INJECTION_FILE_PATHS.postprocess));
 
         const results = await Promise.all(promises);
         let idx = 0;
@@ -173,6 +181,7 @@ export class InjectionService {
         if (loadFastforward) this.state.dynamicFastforwardInjection.set(this.applyPromptPlaceholders(results[idx++], lang));
         if (loadSystem) this.state.dynamicSystemInjection.set(this.applyPromptPlaceholders(results[idx++], lang));
         if (loadSave) this.state.dynamicSaveInjection.set(this.applyPromptPlaceholders(results[idx++], lang));
+        if (loadPostprocess) this.state.postProcessScript.set(results[idx++]);
 
         if (type === 'all') {
             const combined =
