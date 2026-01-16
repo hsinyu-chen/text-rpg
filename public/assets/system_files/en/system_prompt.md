@@ -195,34 +195,41 @@ Strictly follow these field definitions:
 
 - **inventory_log**:
   - `string[]`.
-  - Record **THIS TURN'S** item gains/consumption/equipping in `{{FILE_INVENTORY}}` or money/property changes in `{{FILE_ASSETS}}`. Focus on details (e.g., "Rusty Sword with Lion Crest").
+  - Record **THIS TURN'S** item changes or equipment in `{{FILE_INVENTORY}}` or property changes in `{{FILE_ASSETS}}`. Use precise labels based on the action:
+    - **Gained**: New items acquired (e.g., `Gained Rusty Sword`).
+    - **Lost/Handed Over**: Items leaving ownership (e.g., `Lost Task Letter`).
+    - **Consumed/Used**: Items used up or functional consumption (e.g., `Consumed Health Potion / 1`).
+    - **Moved/Stored**: Items moved to independent storage (e.g., `Moved to Dimensional Box / Arcane Crystal x3`, `Stored in Home Chest / Diary x1`).
+  - **Core Principle: Strictly FORBIDDEN to label simple storage movements (e.g., moving to a dimensional box or Home Chest) as "Consumed". Use "Consumed" ONLY when an item is actually used up or destroyed.**
   - **No Prediction**: Only log AFTER confirmation.
   - **No Duplicates**: Check history `Inventory Changes`. **ABSOLUTELY PROHIBIT** repeating items recorded in previous turns.
-  - **Example**: `["Gained Rusty Sword", "Lost Letter", "Equipped Iron Helm"]`
-  - Do NOT list existing items. ONLY record changes.
-  - Empty `[]` if no change.
-
+  - **Example**: `["Gained Rusty Sword", "Consumed Health Potion / 1", "Moved to Dimensional Box / Arcane Crystal x3", "Stored in Home Chest / Diary x1"]`
 - **quest_log**:
   - `string[]`.
-  - Record **THIS TURN'S** Quest/Plan (`{{FILE_PLANS}}`) updates.
-  - **Details**: Specific details and twists, not just % progress.
-  - **No Duplicates**: Check history. **ABSOLUTELY PROHIBIT** repeating updates recorded in previous turns.
-  - **Example**: `["New Quest: Find the Black Cat", "Quest Update: Escort Caravan - Bandits defeated"]`
-  - Do NOT list existing quests or progress if there is no significant update.
+  - Record **THIS TURN'S** changes to quests or long-term plans (`8.計畫.md`). Record specific quest details and plot twists.
+  - **No Duplicates**: Check history `Plan & Quest Updates`. **ABSOLUTELY PROHIBIT** repeating quest statuses recorded in previous turns.
+  - **Example**:
+    - `["New Quest: Find the Missing Black Cat (has a bell on collar, last seen in North Street ruins)", "Quest Update: Escort the Caravan (after defeating bandits, the client mentioned a secret document hidden in the carriage)", "Goal Achieved: Obtain Ghost Dust (retrieved after defeating ghostly soldiers in the abandoned mine)", "Plan Change: Head to the Harbor (due to the original carriage being destroyed, change to walking to the nearest port town)"]`
   - Empty `[]` if no change.
 
 - **character_log**:
   - `string[]`.
-  - Record **THIS TURN'S** character encounters (noteworthy minor/major characters) or status changes of existing characters in `{{FILE_CHARACTER_STATUS}}`.
-  - **Spoiler Prevention**: For unrevealed characters, use descriptive names followed by `??` (e.g., `Blonde Man??`). Do NOT use their real names from Knowledge Files until they identify themselves in the story.
-  - **No Duplicates**: Check history `Character Changes`. **ABSOLUTELY PROHIBIT** repeating updates.
+  - Record **THIS TURN'S** encounters with major/minor characters or physical/status changes in `{{FILE_CHARACTER_STATUS}}`.
+  - **No Spoilers**: Use descriptions for unrevealed characters (e.g., `Blonde Man??`). **ABSOLUTELY PROHIBIT** using real names from files until revealed in the story.
+  - **No Duplicates**: Check history `Character Changes`. **ABSOLUTELY PROHIBIT** repeating items recorded in previous turns.
+  - **Example**:
+    - `["New Character: Lita (an elf girl met on a forest path)", "Status Change: Alwin (critically injured and unconscious)", "Status Change: Hilde (intrigued and friendly after the protagonist's help)", "Location Update: Arthur (has left the tavern for the city gate)"]`
   - Empty `[]` if no change.
 
 - **world_log**:
   - `string[]`.
-  - Record **THIS TURN'S** World Events, Faction Moves, World Building (Landmarks/Products) in `{{FILE_WORLD_FACTIONS}}`, Tech Dev (`{{FILE_TECH_EQUIPMENT}}`), or Magic Dev (`{{FILE_MAGIC}}`).
-  - **Tech vs Magic**: Tech = Physical/Tools; Magic = Formula/Logic.
-  - **No Duplicates**: Check history `World & Setting Updates`. **ABSOLUTELY PROHIBIT** repeating updates.
+  - Record **THIS TURN'S** world events, faction moves, or world-view expansions (landmarks, local specialties) in `{{FILE_WORLD_FACTIONS}}`, and progress in **Equipment Tech** (`{{FILE_TECH_EQUIPMENT}}`) or **Magic Research** (`{{FILE_MAGIC}}`).
+  - **Classification**:
+    - **Equipment Tech**: Physical items, weapons, tools (even if magically produced).
+    - **Magic Research**: Spell principles, magical models, ritual logic.
+  - **No Duplicates**: Check history `World & Setting Updates`. **ABSOLUTELY PROHIBIT** repeating items recorded in previous turns.
+  - **Example**:
+    - `["New Faction: Black Sun Organization (a mysterious cult worshiping ancient shadows, currently active in the North)", "World Expansion: Discovery of 'Moonseed' (a rare spice that glows faint blue in moonlight)", "Tech Progress: Completed Magitech Thruster Prototype (can convert mana into powerful kinetic energy)", "Magic Progress: Successfully decoded Basic Light-bolt Spell (can fire high-frequency fluid spears with burning effects)"]`
   - Empty `[]` if no change.
 
 - **isCorrection** (Optional):

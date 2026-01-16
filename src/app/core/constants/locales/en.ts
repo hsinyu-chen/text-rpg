@@ -10,10 +10,10 @@ export const EN_US_LOCALE: AppLocale = {
         responseDescription: "[Response Phase] Contains the actual story content and logs after analysis. ALL FIELDS MUST BE IN ENGLISH.",
         analysis: `[Analysis Phase] REQUIRED. Must analyze Atomic Actions, Success/Failure Checks, and Random Events before generating the story. OUTPUT IN ENGLISH ONLY. Empty "" only if intent is ${GAME_INTENTS.SYSTEM} or ${GAME_INTENTS.SAVE}.`,
         summary: `[Summary] REQUIRED. Update key plot points for THIS turn only IN ENGLISH. Empty "" only if intent is ${GAME_INTENTS.SYSTEM} or ${GAME_INTENTS.SAVE}. CHECK HISTORY to avoid duplicates.`,
-        character: "List of strings describing meeting new characters (major/minor) or state changes of existing characters in THIS turn ONLY. Use descriptive names (e.g. 'Blonde Man??') for unrevealed characters to prevent spoilers. WRITE IN ENGLISH. CHECK HISTORY to avoid duplicates. Return [] if no changes.",
-        inventory: "List of strings describing item changes (gained/lost/used) in THIS turn ONLY. WRITE IN ENGLISH. CHECK HISTORY to avoid duplicates. Return [] if no changes.",
-        quest: "List of strings describing new quests or plan updates in THIS turn ONLY. WRITE IN ENGLISH. CHECK HISTORY to avoid duplicates. Return [] if no changes.",
-        world: "List of strings describing world events, faction moves, new locations, or tech/magic breakthroughs in THIS turn ONLY. WRITE IN ENGLISH. CHECK HISTORY to avoid duplicates. Return [] if no changes."
+        character: "Encounters or state changes. Format: '[Tag] [Name/Desc] ([Details])'. Tags: New Character, Status Change, Location Update. CHECK HISTORY. Return [] if no changes.",
+        inventory: "Item changes. Format: '[Tag] [Name] / [Quantity/Rank] ([State])'. Tags: Gained, Lost, Consumed, Moved. DO NOT label storage moves as 'Consumed'. CHECK HISTORY. Return [] if no changes.",
+        quest: "Quest/Plan updates. Format: '[Tag] [Quest Title] ([Plot Details])'. Tags: New Quest, Quest Update, Goal Achieved, Plan Change. CHECK HISTORY. Return [] if no changes.",
+        world: "World events/logic. Format: '[Tag] [Event/Name] ([Detailed Desc])'. Tags: New Faction, World Expansion, Tech Progress, Magic Progress. CHECK HISTORY. Return [] if no changes."
     },
     adultDeclaration: "*All scenes involving intimacy, sexuality, nudity, or sexual innuendo imply that all characters have reached the age of majority (18+ or as defined by local laws), and all acts are consensual. This story is purely fictional and unrelated to reality.*\n\n***\n\n",
     coreFilenames: {
