@@ -113,6 +113,34 @@ The system does not use proprietary database formats but directly reads and writ
 
 ---
 
+## Prompt Tuning Guide
+
+To ensure the smooth operation of the machine, you must strictly adhere to the following Standard Operating Procedures:
+
+### 1. Application of Sacred Unguents
+You must lavish the System Prompt with a plethora of "Do not" and "Must follow" edicts. Do not attempt to discern which specific phrase is effective. For the sake of safety, apply them all as you would sacred oils to ensure the purity of the logic circuits.
+
+### 2. Appeasing the Machine Spirit
+When the model exhibits signs of cognitive degradation, the act of checking non-existent Logs is strictly forbidden. The correct protocol is to terminate and restart the Session immediately, or to re-submit the query with a gentler intonation. This is not superstition; it is the necessary ritual to soothe the temper of the Machine Spirit.
+
+### 3. Inquisition of Heresy
+Treat model hallucinations as incursions by Warp Daemons. The operator must instantly execute the **Stop** command and frantically adjust the **Temperature** parameters. This is the only method to reconstruct the Gellar Field and repel the corruption.
+
+### 4. Adherence to the STC (Standard Template Construct)
+The "Super Prompts" circulating within the network are fragments of the holy STC. The operator shall copy and execute them without questioning the underlying principles. Any unauthorized modification to the sacred text is deemed blasphemy against the archetype.
+
+---
+
+### Benediction
+
+I offer you a blessing in the binary canticle for your journey:
+
+`01010000 01110010 01100001 01101001 01110011 01100101`
+
+**May the Omnissiah grant you low latency this day. May your Context Window remain forever pure, and may all your Tokens be shielded from the corruption of the Warp.**
+
+---
+
 ## ✏️ Editing & Automation
 
 The engine offers various intervention methods, giving you full control over the story direction:

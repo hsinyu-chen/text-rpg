@@ -201,6 +201,8 @@ Strictly follow these field definitions:
     - **Consumed/Used**: Items used up or functional consumption (e.g., `Consumed Health Potion / 1`).
     - **Moved/Stored**: Items moved to independent storage (e.g., `Moved to Dimensional Box / Arcane Crystal x3`, `Stored in Home Chest / Diary x1`).
   - **Core Principle: Strictly FORBIDDEN to label simple storage movements (e.g., moving to a dimensional box or Home Chest) as "Consumed". Use "Consumed" ONLY when an item is actually used up or destroyed.**
+  - **No Storage = No Log**: If an item was NOT explicitly stored (put in pocket, backpack, etc.), do NOT log "Gained".
+  - **Scene Consumables = No Log**: Items used directly within the scene (hotel-provided meals, items handed by NPCs, consumables taken from the environment) do NOT require logging. ONLY log items in `{{FILE_INVENTORY}}` or historical `inventory_log`.
   - **No Prediction**: Only log AFTER confirmation.
   - **No Duplicates**: Check history `Inventory Changes`. **ABSOLUTELY PROHIBIT** repeating items recorded in previous turns.
   - **Example**: `["Gained Rusty Sword", "Consumed Health Potion / 1", "Moved to Dimensional Box / Arcane Crystal x3", "Stored in Home Chest / Diary x1"]`

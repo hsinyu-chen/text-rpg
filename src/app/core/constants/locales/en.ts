@@ -11,7 +11,7 @@ export const EN_US_LOCALE: AppLocale = {
         analysis: `[Analysis Phase] REQUIRED. Must analyze Atomic Actions, Success/Failure Checks, and Random Events before generating the story. OUTPUT IN ENGLISH ONLY. Empty "" only if intent is ${GAME_INTENTS.SYSTEM} or ${GAME_INTENTS.SAVE}.`,
         summary: `[Summary] REQUIRED. Update key plot points for THIS turn only IN ENGLISH. Empty "" only if intent is ${GAME_INTENTS.SYSTEM} or ${GAME_INTENTS.SAVE}. CHECK HISTORY to avoid duplicates.`,
         character: "Encounters or state changes. Format: '[Tag] [Name/Desc] ([Details])'. Tags: New Character, Status Change, Location Update. CHECK HISTORY. Return [] if no changes.",
-        inventory: "Item changes. Format: '[Tag] [Name] / [Quantity/Rank] ([State])'. Tags: Gained, Lost, Consumed, Moved. DO NOT label storage moves as 'Consumed'. CHECK HISTORY. Return [] if no changes.",
+        inventory: "Item changes. Format: '[Tag]: [Name] / [Qty]'. Scene consumables (used in-place) NOT logged. ONLY log items in inventory file or history. Return [] if no changes.",
         quest: "Quest/Plan updates. Format: '[Tag]: [Quest Title] ([Details])'. ONLY record when quest is formally accepted, substantive progress made, or protagonist actively changes plan. CHECK HISTORY. Return [] if no changes.",
         world: "World developments. Format: '[Tag]: [Name/Event] ([Description])'. STRICTLY PROHIBIT logging content already in basic settings as new discoveries unless significant status change. CHECK HISTORY. Return [] if no changes."
     },
