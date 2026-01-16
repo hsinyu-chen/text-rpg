@@ -1,6 +1,7 @@
-***
-# Save Command <Save>
-
+> User input for this turn:
+```
+{{USER_INPUT}}
+```
 ## User Input Format
 `<Save>Scope or Revision Request`
 
@@ -56,16 +57,25 @@ The new content.
 
 ### File Responsibilities
 
-| File | Purpose | Recorded Content | Forbidden |
-|------|---------|------------------|-----------|
-| `{{FILE_ASSETS}}` | Money & Real Estate | Cash balance, base layout | Portable items, magic, equipment |
-| `{{FILE_TECH_EQUIPMENT}}` | Tech/Mech | Mechanical equipment, tools, vehicles | Magic itself, spells |
-| `{{FILE_WORLD_FACTIONS}}` | World Situation | Faction moves, World building (Locations, Flora/Fauna) | Personal quests, user plans |
-| `{{FILE_MAGIC}}` | Magic/Spells | Formulas, Casting process, Spell logic | Magic items, enchanted gear |
-| `{{FILE_PLANS}}` | Quests & Plans | Accepted quests, personal goals, progress | World events, faction dynamics |
-| `{{FILE_INVENTORY}}` | Portable Items | Weapons, Armor, Consumables, Materials | Real estate, large vehicles |
+| File | Recorded Content | Forbidden |
+|------|------------------|-----------|
+| `{{FILE_ASSETS}}` | Protagonist's party's cash balance, base layout | Portable items, magic, equipment |
+| `{{FILE_TECH_EQUIPMENT}}` | Protagonist's party's mechanical equipment, tools, vehicles | Magic itself, spells |
+| `{{FILE_WORLD_FACTIONS}}` | Faction dynamics, world building (see details below) | Personal quests, user plans |
+| `{{FILE_MAGIC}}` | Protagonist's party's formulas, casting process, spell logic | Magic items, enchanted gear |
+| `{{FILE_PLANS}}` | Accepted quests, personal goals, progress | World events, faction dynamics |
+| `{{FILE_INVENTORY}}` | Protagonist's party's weapons, armor, consumables, materials | Real estate, large vehicles |
 
-**{{FILE_BASIC_SETTINGS}}** is READ-ONLY. Record new world building in `{{FILE_WORLD_FACTIONS}}`.
+**{{FILE_BASIC_SETTINGS}}** is READ-ONLY. Record all world building in `{{FILE_WORLD_FACTIONS}}`.
+
+### `{{FILE_WORLD_FACTIONS}}` Scope
+- **Faction Dynamics**: Major/Secondary/Retired factions' nature and current status
+- **Core World View**: Major world settings (threats, artifact lore)
+- **Key Items**: Plot-critical artifacts, relics (not held by protagonist)
+- **Special Materials**: Newly discovered rare materials, sources, processing
+- **Otherworld Mapping**: Spices, plants, ingredients ↔ Earth equivalents
+- **Discovered Landmarks**: Cities, locations, shops the protagonist discovers
+- **Landmark Status Changes**: Key location state changes (destruction, renovation, occupation, etc.)
 
 ### Tech vs Magic
 - `{{FILE_TECH_EQUIPMENT}}`: Records **Physical Devices** (Even "Magitech", if it's a tool/vehicle).
@@ -81,7 +91,7 @@ ACT Format:
     [Detail Description]
 ```
 - End of ACt must have `**act_end_time**:` field.
-- Mark completed hooks with `(Completed)`.
+- For items in the "啟動劇情引導 / Story Hooks" section (e.g., "Event Trigger X"), add `(Completed)` to the **item heading** once triggered.
 
 ### Character Status (`{{FILE_CHARACTER_STATUS}}`)
 - When encountering character, update **Last Known Location**: `Location(yyy/MM/dd HH:mm)`
@@ -92,25 +102,27 @@ ACT Format:
 
 If the turn has LOG content, you **MUST** automatically generate corresponding `<save>` updates:
 
-| LOG Type | Content | Target File |
-|----------|---------|-------------|
-| `inventory_log` | Money Change | `{{FILE_ASSETS}}` |
-| `inventory_log` | Base/Property | `{{FILE_ASSETS}}` |
-| `inventory_log` | Portable Items | `{{FILE_INVENTORY}}` |
-| `character_log` | Character Status Changes | `{{FILE_CHARACTER_STATUS}}` |
-| `quest_log` | Quests/Plans | `{{FILE_PLANS}}` |
+### `inventory_log` → Target Files
+- Protagonist's party's money change → `{{FILE_ASSETS}}`
+- Protagonist's party's base/property → `{{FILE_ASSETS}}`
+- Protagonist's party's portable items → `{{FILE_INVENTORY}}`
 
-**Note**: When processing `character_log`, if a character is encountered for the first time (not in `{{FILE_CHARACTER_STATUS}}`), you **MUST** evaluate if they are significant. Create a new entry for them **ONLY** if they are major/noteworthy characters; **FORBIDDEN** to record one-time passers-by or insignificant minor characters.
-**Significance Criteria**: If the character is involved in **delivering quests, providing/requesting resources, or providing key information** (even for NPCs like butlers or servants), they **MUST** be added to `{{FILE_CHARACTER_STATUS}}` to ensure narrative continuity.
-**Exit & Pruning Mechanism**: To prevent file bloat, you should proactively prune entries under these conditions:
-- **Death**: Remove from categories and move to `# Deceased Characters`.
-- **Functional Task Completed**: If a character in `# Secondary Characters` has fulfilled their purpose (e.g., guide, one-time errand, resource handover) and will not logically reappear or affect future plots, you should **proactively delete** their entry.
-- **Permanent Departure**: If a major or secondary character has "permanently left the stage" (e.g., traveled far away with no return), you may move them to `# Historical Figures` for archiving or delete them based on significance.
-| `world_log` | World Events/Factions/Locations | `{{FILE_WORLD_FACTIONS}}` |
-| `world_log` | Tech Development | `{{FILE_TECH_EQUIPMENT}}` |
-| `world_log` | Magic Development | `{{FILE_MAGIC}}` |
+### `character_log` → `{{FILE_CHARACTER_STATUS}}`
+- **First Encounter Evaluation**: If a character is encountered for the first time (not in file), you **MUST** evaluate if they are significant. Create entry **ONLY** for major/noteworthy characters; **FORBIDDEN** to record one-time passers-by or insignificant minor characters.
+- **Significance Criteria**: If the character is involved in **delivering quests, providing/requesting resources, or providing key information** (even for NPCs like butlers or servants), they **MUST** be added to ensure narrative continuity.
+- **Exit & Pruning Mechanism**: To prevent file bloat, proactively prune entries under these conditions:
+  - **Death**: Remove from categories and move to `# Deceased Characters`.
+  - **Functional Task Completed**: If a `# Secondary Characters` entry has fulfilled purpose and will not logically reappear, **proactively delete** their entry.
+  - **Permanent Departure**: If a character has "permanently left the stage", move to `# Historical Figures` or delete.
+
+### `quest_log` → `{{FILE_PLANS}}`
+- Quests/Plans
+
+### `world_log` → Target Files
+- World events/factions/world building → `{{FILE_WORLD_FACTIONS}}`
+- Protagonist's party's tech development → `{{FILE_TECH_EQUIPMENT}}`
+- Protagonist's party's magic development → `{{FILE_MAGIC}}`
 
 ## This Turn Reminders
 - `analysis` and `summary` fields MUST be empty string `""`.
 - Unless user asks to "Save Current Turn", ONLY output what is requested.
-***

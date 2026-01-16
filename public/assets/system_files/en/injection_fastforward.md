@@ -1,6 +1,7 @@
-***
-# Fast Forward Command <Fast Forward>
-
+> User input for this turn:
+```
+{{USER_INPUT}}
+```
 ## User Input Format
 `<Fast Forward>Target Time or Location`
 
@@ -22,4 +23,3 @@ Must detail the check process. Example: "Checking Sat: No events. Checking Sun: 
 - Strictly check for events within the time interval.
 - Stop if event occurs; jump only if empty.
 - **PROHIBITED**: System notifications like "[System Notification: ...]" in the story.
-***

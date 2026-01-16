@@ -386,20 +386,14 @@ export class GameEngineService {
 
             if (injectionContent) {
                 console.log(`[GameEngine] Injecting Dynamic Prompt for ${currentIntent}`);
-                // Insert prompt BEFORE the last user message
+                // Merge injection content with user input into a single message
                 if (history.length > 0) {
                     const lastMsg = history.pop(); // Remove last user msg
-                    history.push({
-                        role: 'user',
-                        parts: [{ text: injectionContent }]
-                    });
-
-
 
                     if (lastMsg && lastMsg.parts && lastMsg.parts[0].text) {
-                        let finalContent = lastMsg.parts[0].text || '';
+                        let userInput = lastMsg.parts[0].text || '';
 
-
+                        // Prepend intent tag if needed
                         let tag = '';
                         if (currentIntent === GAME_INTENTS.ACTION) tag = tags.ACTION;
                         else if (currentIntent === GAME_INTENTS.CONTINUE) tag = tags.CONTINUE;
@@ -407,13 +401,17 @@ export class GameEngineService {
                         else if (currentIntent === GAME_INTENTS.SYSTEM) tag = tags.SYSTEM;
                         else if (currentIntent === GAME_INTENTS.SAVE) tag = tags.SAVE;
 
-
-                        if (tag && !finalContent.trim().startsWith(tag)) {
-                            finalContent = tag + finalContent; // e.g. <Action> + "I jump"
-                            lastMsg.parts[0].text = finalContent;
+                        if (tag && !userInput.trim().startsWith(tag)) {
+                            userInput = tag + userInput;
                         }
 
-                        history.push(lastMsg);
+                        // Replace {{USER_INPUT}} placeholder with actual user input
+                        const mergedContent = injectionContent.replace(/\{\{USER_INPUT\}\}/g, userInput);
+
+                        history.push({
+                            role: 'user',
+                            parts: [{ text: mergedContent }]
+                        });
                     }
                 }
             }

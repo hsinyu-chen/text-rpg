@@ -1,6 +1,7 @@
-***
-# Continue Command <Continue>
-
+> User input for this turn:
+```
+{{USER_INPUT}}
+```
 ## User Input Format
 `<Continue>`
 
@@ -14,4 +15,3 @@ User requests to proceed with the current story evolution. Please:
 - Strictly execute **World Reaction Calculation**.
 - **PROHIBITED**: System notifications like "[System Notification: ...]" in the story.
 - All setting reveals must blend naturally into narrative and dialogue.
-***

@@ -12,8 +12,8 @@ export const EN_US_LOCALE: AppLocale = {
         summary: `[Summary] REQUIRED. Update key plot points for THIS turn only IN ENGLISH. Empty "" only if intent is ${GAME_INTENTS.SYSTEM} or ${GAME_INTENTS.SAVE}. CHECK HISTORY to avoid duplicates.`,
         character: "Encounters or state changes. Format: '[Tag] [Name/Desc] ([Details])'. Tags: New Character, Status Change, Location Update. CHECK HISTORY. Return [] if no changes.",
         inventory: "Item changes. Format: '[Tag] [Name] / [Quantity/Rank] ([State])'. Tags: Gained, Lost, Consumed, Moved. DO NOT label storage moves as 'Consumed'. CHECK HISTORY. Return [] if no changes.",
-        quest: "Quest/Plan updates. Format: '[Tag] [Quest Title] ([Plot Details])'. Tags: New Quest, Quest Update, Goal Achieved, Plan Change. CHECK HISTORY. Return [] if no changes.",
-        world: "World events/logic. Format: '[Tag] [Event/Name] ([Detailed Desc])'. Tags: New Faction, World Expansion, Tech Progress, Magic Progress. CHECK HISTORY. Return [] if no changes."
+        quest: "Quest/Plan updates. Format: '[Tag]: [Quest Title] ([Details])'. ONLY record when quest is formally accepted, substantive progress made, or protagonist actively changes plan. CHECK HISTORY. Return [] if no changes.",
+        world: "World developments. Format: '[Tag]: [Name/Event] ([Description])'. STRICTLY PROHIBIT logging content already in basic settings as new discoveries unless significant status change. CHECK HISTORY. Return [] if no changes."
     },
     adultDeclaration: "*All scenes involving intimacy, sexuality, nudity, or sexual innuendo imply that all characters have reached the age of majority (18+ or as defined by local laws), and all acts are consensual. This story is purely fictional and unrelated to reality.*\n\n***\n\n",
     coreFilenames: {

@@ -1,6 +1,7 @@
-***
-# Plot Advancement Command <Action Intent>
-
+> User input for this turn:
+```
+{{USER_INPUT}}
+```
 ## User Input Format
 `<Action Intent>([Mood]Action)Dialogue or Inner Monologue`
 
@@ -16,4 +17,3 @@ This is the primary method for the user to drive the plot. You MUST refer to the
 - **PROHIBITED**: System notifications like "[System Notification: ...]" in the story.
 - All setting reveals must blend naturally into narrative and dialogue.
 - **[State Synchronization Rule]**: Knowledge Base Files are **OLD INFO**. You MUST merge changes in `character_log`, `inventory_log`, `quest_log`, and `world_log` to calculate the **CURRENT STATE**.
-***

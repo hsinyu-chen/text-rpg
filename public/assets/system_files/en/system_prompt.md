@@ -206,7 +206,12 @@ Strictly follow these field definitions:
   - **Example**: `["Gained Rusty Sword", "Consumed Health Potion / 1", "Moved to Dimensional Box / Arcane Crystal x3", "Stored in Home Chest / Diary x1"]`
 - **quest_log**:
   - `string[]`.
-  - Record **THIS TURN'S** changes to quests or long-term plans (`8.計畫.md`). Record specific quest details and plot twists.
+  - Record **THIS TURN'S** changes to quests or long-term plans (`{{FILE_PLANS}}`). Record specific quest details and plot twists.
+  - **Trigger Conditions**: ONLY record when:
+    - **New Quest Accepted**: Quest giver formally commissions AND protagonist accepts
+    - **Substantive Progress**: Quest goal achieved, failed, or significant progress made
+    - **Plan Actively Changed**: Protagonist actively decides to change plan direction
+  - **STRICTLY PROHIBIT**: Recording routine actions without substantive progress, repeating already-recorded quest states, or potential quests not yet accepted by protagonist
   - **No Duplicates**: Check history `Plan & Quest Updates`. **ABSOLUTELY PROHIBIT** repeating quest statuses recorded in previous turns.
   - **Example**:
     - `["New Quest: Find the Missing Black Cat (has a bell on collar, last seen in North Street ruins)", "Quest Update: Escort the Caravan (after defeating bandits, the client mentioned a secret document hidden in the carriage)", "Goal Achieved: Obtain Ghost Dust (retrieved after defeating ghostly soldiers in the abandoned mine)", "Plan Change: Head to the Harbor (due to the original carriage being destroyed, change to walking to the nearest port town)"]`
@@ -223,13 +228,22 @@ Strictly follow these field definitions:
 
 - **world_log**:
   - `string[]`.
-  - Record **THIS TURN'S** world events, faction moves, or world-view expansions (landmarks, local specialties) in `{{FILE_WORLD_FACTIONS}}`, and progress in **Equipment Tech** (`{{FILE_TECH_EQUIPMENT}}`) or **Magic Research** (`{{FILE_MAGIC}}`).
+  - Record **THIS TURN'S** world events, faction moves, or world-view expansions (landmarks, local specialties) in `{{FILE_WORLD_FACTIONS}}`, and progress in **Protagonist's party's Equipment Tech** (`{{FILE_TECH_EQUIPMENT}}`) or **Protagonist's party's Magic Research** (`{{FILE_MAGIC}}`).
+  - **[`{{FILE_WORLD_FACTIONS}}` Scope]**:
+    - **Faction Dynamics**: Major/Secondary/Retired factions' nature and current status
+    - **Core World View**: Major world settings (threats, artifact lore)
+    - **Key Items**: Plot-critical artifacts, relics (not held by protagonist)
+    - **Special Materials**: Newly discovered rare materials, sources, processing
+    - **Otherworld Mapping**: Spices, plants, ingredients ↔ Earth equivalents
+    - **Discovered Landmarks**: Cities, locations, shops the protagonist discovers
+    - **Landmark Status Changes**: Key location state changes (destruction, renovation, occupation, etc.)
   - **Classification**:
     - **Equipment Tech**: Physical items, weapons, tools (even if magically produced).
     - **Magic Research**: Spell principles, magical models, ritual logic.
   - **No Duplicates**: Check history `World & Setting Updates`. **ABSOLUTELY PROHIBIT** repeating items recorded in previous turns.
+  - **No Re-discovery**: **STRICTLY PROHIBIT** logging locations, resources, or factions that already exist in `{{FILE_BASIC_SETTINGS}}` as "new discoveries". Only log if there is a **significant status change** (e.g., destruction, occupation, renovation).
   - **Example**:
-    - `["New Faction: Black Sun Organization (a mysterious cult worshiping ancient shadows, currently active in the North)", "World Expansion: Discovery of 'Moonseed' (a rare spice that glows faint blue in moonlight)", "Tech Progress: Completed Magitech Thruster Prototype (can convert mana into powerful kinetic energy)", "Magic Progress: Successfully decoded Basic Light-bolt Spell (can fire high-frequency fluid spears with burning effects)"]`
+    - `["Discovery[Faction]: Silver Moon Guild (a mysterious merchant organization monopolizing northern mines)", "Discovery[Resource]: Moonseed (a rare spice that glows faint blue in moonlight)", "Develop[Equipment]: Reinforced Crossbow (effective range increased to 80 meters)", "Develop[Magic]: Wind Blade (can fire cutting blades of wind)", "Status Change: North Gate Fortress (fallen, now occupied by enemy forces)"]`
   - Empty `[]` if no change.
 
 - **isCorrection** (Optional):

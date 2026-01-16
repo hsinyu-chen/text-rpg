@@ -1,8 +1,9 @@
-***
-# System Command <System> (META Operation)
-
+> User input for this turn:
+```
+{{USER_INPUT}}
+```
 ## User Input Format
-`<System>Command Content`
+`<System>Question Content or Plot Dispute`
 
 ## Processing Rules
 Used for Story Correction or OOC questions.
@@ -27,7 +28,7 @@ When user challenges the plot, you **MUST** choose one:
 - ❌ Any form of evasion or stalling.
 
 ### General Conversation/Q&A
-If `<System>` is just asking a question or OOC chat (not a dispute):
+If just asking a question or OOC chat (not a dispute):
 - Keep `isCorrection: false`
 - Write answer in `story` field.
 
@@ -40,4 +41,3 @@ If `<System>` is just asking a question or OOC chat (not a dispute):
 - **NO Apologies** (e.g., "I'm sorry").
 - **NO Empty Promises** (e.g., "Won't happen again").
 - **NO System Tags** (e.g., "[System Hint]", "[Accept & Fix]").
-***
