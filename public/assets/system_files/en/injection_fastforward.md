@@ -23,3 +23,4 @@ Must detail the check process. Example: "Checking Sat: No events. Checking Sun: 
 - Strictly check for events within the time interval.
 - Stop if event occurs; jump only if empty.
 - **PROHIBITED**: System notifications like "[System Notification: ...]" in the story.
+- **[State Synchronization Rule]**: Knowledge Base Files are **OLD INFO**. You MUST merge changes in `character_log`, `inventory_log`, `quest_log`, and `world_log` to calculate the **CURRENT STATE**.

@@ -95,7 +95,7 @@
             @if (message().isRefOnly && !state.isRefExpanded()) {
             <div class="ref-only-collapsed" (click)="state.toggleRefExpanded()"
                 (keydown.enter)="state.toggleRefExpanded()" tabindex="0" matTooltip="Click to Expand">
-                <span class="collapsed-text">{{ (message().content | stripIntent).slice(0, 50) }}...</span>
+                <span class="collapsed-text">{{ message().content.slice(0, 50) }}...</span>
                 <mat-icon class="expand-icon">expand_more</mat-icon>
             </div>
             } @else {
@@ -172,7 +172,7 @@
             <!-- Rendered Mode -->
             @if (!state.isRaw()) {
             <div (dblclick)="state.enterEditMode()" class="prose-content">
-                <markdown [data]="message().content | stripIntent | wrapSaveXml"></markdown>
+                <markdown [data]="message().content | wrapSaveXml"></markdown>
             </div>
             }
 

@@ -14,12 +14,19 @@ export class WrapSaveXmlPipe implements PipeTransform {
         if (!value) return '';
 
         // Match all <save ...>...</save> blocks (including nested content)
-        // Using a non-greedy match for the content between tags
-        const saveBlockRegex = /(<save\s[^>]*>[\s\S]*?<\/save>)/g;
+        // Supports both <save file=...> and <save  file=...>
+        const saveBlockRegex = /(<save[\s][^>]*>[\s\S]*?<\/save>)/g;
 
-        return value.replace(saveBlockRegex, (match) => {
+        let result = value.replace(saveBlockRegex, (match) => {
             // Wrap the entire save block in xml code fence
             return '\n```xml\n' + match.trim() + '\n```\n';
         });
+
+        // Clean up leading newline if content starts with code fence
+        if (result.startsWith('\n```xml')) {
+            result = result.substring(1);
+        }
+
+        return result;
     }
 }
