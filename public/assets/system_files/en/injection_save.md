@@ -98,7 +98,9 @@ ACT Format:
 - ONLY add `Critical Turning Point` if core values/behavior change fundamentally.
 - **FORBIDDEN** to update User Character status.
 
-## LOG Integration Rules
+## LOG Integration Rules & State Calculation
+
+- **[State Synchronization Rule]**: The provided `{{FILE_*}}` files are old records from the save point/scenario start. You MUST merge the accumulated changes from `character_log`, `inventory_log`, `quest_log`, and `world_log` to calculate the **"Accurate Current State"** before writing it into the file update commands (XML) below.
 
 If the turn has LOG content, you **MUST** automatically generate corresponding `<save>` updates:
 
@@ -117,6 +119,7 @@ If the turn has LOG content, you **MUST** automatically generate corresponding `
 
 ### `quest_log` → `{{FILE_PLANS}}`
 - Quests/Plans
+- **Pruning Mechanism**: Proactively delete items that are **completed** and have no further influence on subsequent plots to prevent file bloat.
 
 ### `world_log` → Target Files
 - World events/factions/world building → `{{FILE_WORLD_FACTIONS}}`
