@@ -89,9 +89,13 @@ ACT Format:
 ## Act.[Number] - [Title]
 - **[Subtitle]**
     [Detail Description]
+- **[Subtitle]**
+    [Detail Description]
+  ...
 ```
 - End of ACt must have `**act_end_time**:` field.
 - For items in the "啟動劇情引導 / Story Hooks" section (e.g., "Event Trigger X"), add `(Completed)` to the **item heading** once triggered.
+- The plot summary details should be arranged in chronological order.
 
 ### Character Status (`{{FILE_CHARACTER_STATUS}}`)
 - When encountering character, update **Last Known Location**: `Location(yyy/MM/dd HH:mm)`
