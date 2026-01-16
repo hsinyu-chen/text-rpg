@@ -9,6 +9,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MarkdownModule } from 'ngx-markdown';
 import { TextFieldModule } from '@angular/cdk/text-field';
 import { StripIntentPipe } from '../../../../shared/pipes/strip-intent.pipe';
+import { WrapSaveXmlPipe } from '../../../../shared/pipes/wrap-save-xml.pipe';
 import { ChatMessage } from '../../../../core/models/types';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MessageStateService } from './message-state.service';
@@ -33,6 +34,7 @@ import { computed } from '@angular/core';
         MarkdownModule,
         TextFieldModule,
         StripIntentPipe,
+        WrapSaveXmlPipe,
         MatProgressSpinnerModule,
         TurnUpdateComponent
     ],

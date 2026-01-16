@@ -18,19 +18,12 @@
     width: 100%;
     margin-bottom: -16px;
 
-    ::ng-deep .mat-mdc-text-field-wrapper {
-        background-color: rgba(255, 255, 255, 0.03) !important;
-    }
 }
 
 .main-input {
     width: 100%;
     margin-bottom: -16px;
-    /* Mat Form Field spacing fix */
 
-    ::ng-deep .mat-mdc-text-field-wrapper {
-        background-color: rgba(255, 255, 255, 0.03) !important;
-    }
 }
 
 .send-btn,
@@ -91,30 +84,66 @@
     }
 }
 
+// Intent color CSS variables
+:host {
+    --intent-action: #81c784; // Green - primary action
+    --intent-continue: #64b5f6; // Blue - continue/flow
+    --intent-fastforward: #ba68c8; // Purple - fast forward
+    --intent-system: #ffb74d; // Orange/Amber - system
+    --intent-save: #f06292; // Pink - save
+}
+
 // Intent Dropdown Styles
+.intent-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    line-height: 27px;
+    margin: -2px 0;
+
+    mat-icon {
+        font-size: 16px;
+        width: 16px;
+        height: 16px;
+        line-height: 16px;
+    }
+}
+
 .intent-option {
     display: flex;
     flex-direction: column;
     padding: 8px 0;
     line-height: normal;
 
+    .intent-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 4px;
+
+        mat-icon {
+            font-size: 20px;
+            width: 20px;
+            height: 20px;
+        }
+    }
+
     .intent-label {
         font-weight: 500;
-        color: #e0e0e0;
         font-size: 14px;
-        margin-bottom: 2px;
         line-height: normal;
     }
 
     .intent-description {
         font-size: 11px;
-        color: rgba(255, 255, 255, 0.5);
+        color: rgba(255, 255, 255, 0.7);
         /* Muted / pale */
         white-space: normal;
         word-break: break-word;
         max-width: 400px;
         line-height: 1.2;
         display: block;
+        margin-left: 28px; // Align with label after icon
     }
 }
 

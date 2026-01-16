@@ -149,6 +149,13 @@
 
 .prose-content {
     color: #e0e0e0;
+
+    // Compact code blocks for save XML
+    ::ng-deep pre,
+    ::ng-deep code {
+        font-size: 80%;
+        opacity: 0.9;
+    }
 }
 
 .thought-container {

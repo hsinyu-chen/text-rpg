@@ -320,6 +320,7 @@ export class GameEngineService {
      * @param options Optional flags for hidden messages or specific intents.
      */
     async sendMessage(userText: string, options?: { isHidden?: boolean, intent?: string }) {
+        console.log('[GameEngine] sendMessage received with intent:', options?.intent);
         // Allow empty text for CONTINUE and SAVE intents
         const isActionOrSystem = !options?.intent || options.intent === GAME_INTENTS.ACTION || options.intent === GAME_INTENTS.SYSTEM || options.intent === GAME_INTENTS.FAST_FORWARD;
         if (!userText.trim() && isActionOrSystem) return;

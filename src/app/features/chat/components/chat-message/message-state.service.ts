@@ -9,8 +9,6 @@ import { FileUpdateService } from '../../../../core/services/file-update.service
 import { ChatMessage } from '../../../../core/models/types';
 import { AutoUpdateDialogComponent } from '../../../../shared/components/auto-update-dialog/auto-update-dialog.component';
 
-import { GAME_INTENTS } from '../../../../core/constants/game-intents';
-
 @Injectable()
 export class MessageStateService {
     private engine = inject(GameEngineService);
@@ -43,10 +41,7 @@ export class MessageStateService {
         computation: (isThinking) => isThinking ?? false
     });
 
-    isRaw = linkedSignal({
-        source: this.message,
-        computation: (msg) => (msg?.intent === GAME_INTENTS.SAVE || msg?.content.includes('<save>')) // Should check for tag if content based? 'save' is ID.
-    });
+    isRaw = signal(false);
 
     isRefExpanded = signal(false);
     isEditing = signal(false);

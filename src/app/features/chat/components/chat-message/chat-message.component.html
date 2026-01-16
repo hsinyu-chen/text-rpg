@@ -114,7 +114,7 @@
                 </div>
                 @if (state.isAnalysisVisible()) {
                 <div class="thought-content">
-                    <markdown [data]="message().analysis"></markdown>
+                    <markdown [data]="message().analysis | wrapSaveXml"></markdown>
                 </div>
                 }
             </div>
@@ -140,7 +140,7 @@
                 </div>
                 @if (state.isThoughtVisible()) {
                 <div class="thought-content">
-                    <markdown [data]="message().thought"></markdown>
+                    <markdown [data]="message().thought | wrapSaveXml"></markdown>
                 </div>
                 }
             </div>
@@ -172,7 +172,7 @@
             <!-- Rendered Mode -->
             @if (!state.isRaw()) {
             <div (dblclick)="state.enterEditMode()" class="prose-content">
-                <markdown [data]="message().content | stripIntent"></markdown>
+                <markdown [data]="message().content | stripIntent | wrapSaveXml"></markdown>
             </div>
             }
 

@@ -72,13 +72,19 @@
             <mat-select [(ngModel)]="selectedIntent" panelClass="intent-select-panel"
                 [disabled]="state.status() === 'generating' || !!editingMessageId()">
                 <mat-select-trigger>
-                    {{ getIntentLabel(selectedIntent()) }}
+                    <div class="intent-trigger">
+                        <mat-icon [style.color]="getIntentColor(selectedIntent())">{{ getIntentIcon(selectedIntent()) }}</mat-icon>
+                        <span [style.color]="getIntentColor(selectedIntent())">{{ getIntentLabel(selectedIntent()) }}</span>
+                    </div>
                 </mat-select-trigger>
 
                 @for (intent of intents; track intent) {
                 <mat-option [value]="intent">
                     <div class="intent-option">
-                        <div class="intent-label">{{ getIntentLabel(intent) }}</div>
+                        <div class="intent-header">
+                            <mat-icon [style.color]="getIntentColor(intent)">{{ getIntentIcon(intent) }}</mat-icon>
+                            <span class="intent-label" [style.color]="getIntentColor(intent)">{{ getIntentLabel(intent) }}</span>
+                        </div>
                         <div class="intent-description">{{ getIntentDescription(intent) }}</div>
                     </div>
                 </mat-option>

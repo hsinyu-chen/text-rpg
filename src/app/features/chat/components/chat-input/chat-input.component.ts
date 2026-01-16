@@ -87,6 +87,24 @@ export class ChatInputComponent {
         return '';
     }
 
+    getIntentIcon(intent: string): string {
+        if (intent === GAME_INTENTS.ACTION) return 'play_arrow';
+        if (intent === GAME_INTENTS.FAST_FORWARD) return 'fast_forward';
+        if (intent === GAME_INTENTS.SYSTEM) return 'settings';
+        if (intent === GAME_INTENTS.SAVE) return 'save';
+        if (intent === GAME_INTENTS.CONTINUE) return 'arrow_forward';
+        return 'help';
+    }
+
+    getIntentColor(intent: string): string {
+        if (intent === GAME_INTENTS.ACTION) return 'var(--intent-action)';
+        if (intent === GAME_INTENTS.FAST_FORWARD) return 'var(--intent-fastforward)';
+        if (intent === GAME_INTENTS.SYSTEM) return 'var(--intent-system)';
+        if (intent === GAME_INTENTS.SAVE) return 'var(--intent-save)';
+        if (intent === GAME_INTENTS.CONTINUE) return 'var(--intent-continue)';
+        return 'inherit';
+    }
+
     dynamicPlaceholder = computed(() => {
         if (this.editingMessageId()) return '';
         const intent = this.selectedIntent();
@@ -133,6 +151,7 @@ export class ChatInputComponent {
     async sendMessage() {
         const inputStr = this.userInput().trim();
         const intent = this.selectedIntent();
+        console.log('[ChatInput] sendMessage called with intent:', intent);
 
         // Validation
         if (!inputStr && (intent === GAME_INTENTS.ACTION || intent === GAME_INTENTS.SYSTEM || intent === GAME_INTENTS.SAVE)) return;
@@ -151,7 +170,9 @@ export class ChatInputComponent {
         }
 
         const msgContent = this.userInput();
+        console.log('[ChatInput] Calling engine.sendMessage with intent:', intent, 'content:', msgContent.substring(0, 50));
         this.engine.sendMessage(msgContent, { intent });
+        console.log('[ChatInput] engine.sendMessage called, intent was:', intent);
 
         // Reset
         this.userInput.set('');
