@@ -25,12 +25,7 @@ export class ContextBuilderService {
      * Gets the effective system instruction, replacing placeholders and adding language overrides.
      */
     public getEffectiveSystemInstruction(): string {
-        const config = this.state.config();
-        const lang = config?.outputLanguage || 'default';
-        const instruction = this.state.systemInstructionCache();
-
-
-        return instruction;
+        return this.state.systemInstructionCache();
     }
 
     /**

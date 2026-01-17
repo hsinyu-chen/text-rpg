@@ -136,7 +136,7 @@ export class GoogleDriveService {
 
     hasAuthError = signal(false);
 
-    private refreshTimer: any = null;
+    private refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
     private handleLoginSuccess(token: string, expiresInSeconds = 3599, refreshToken?: string) {
         this.accessToken.set(token);
