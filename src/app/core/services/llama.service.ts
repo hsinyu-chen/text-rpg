@@ -124,6 +124,11 @@ export class LlamaService implements LLMProvider {
                                 yield { text: delta.content };
                             }
 
+                            const finishReason = parsed.choices?.[0]?.finish_reason;
+                            if (finishReason) {
+                                yield { finishReason };
+                            }
+
                             if (parsed.usage) {
                                 yield {
                                     usageMetadata: {

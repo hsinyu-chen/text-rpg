@@ -152,6 +152,7 @@ When performing the <Save> command, please only compare and synchronize based on
         SYSTEM_PROMPT_TITLE: 'Main System Prompt (system_prompt.md)',
         CATEGORY_MAIN: 'Main',
         CATEGORY_INJECTION: 'Injection',
-        CATEGORY_PROCESS: 'Process'
+        CATEGORY_PROCESS: 'Process',
+        STOP_REASON_PREFIX: 'Model stopped due to:'
     }
 };

@@ -451,8 +451,21 @@ export class GameEngineService {
                 turnUsage,
                 capturedFCs,
                 capturedThoughtSignature,
-                finalThought
+                finalThought,
+                finalFinishReason
             } = result;
+
+            // Show stop reason notification if not normal
+            if (finalFinishReason) {
+                const normalizedReason = finalFinishReason.toLowerCase();
+                if (normalizedReason !== 'stop' && normalizedReason !== 'null') {
+                    const ui = getUIStrings(this.state.config()?.outputLanguage);
+                    this.snackBar.open(`${ui.STOP_REASON_PREFIX || 'Model Stopped:'} ${finalFinishReason}`, ui.CLOSE, {
+                        duration: 8000,
+                        panelClass: ['snackbar-warning']
+                    });
+                }
+            }
 
             // Correction Handling
             let correctedIntent: string | undefined;

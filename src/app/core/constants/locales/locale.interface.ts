@@ -133,5 +133,6 @@ export interface AppLocale {
         CATEGORY_MAIN: string;
         CATEGORY_INJECTION: string;
         CATEGORY_PROCESS: string;
+        STOP_REASON_PREFIX: string;
     };
 }

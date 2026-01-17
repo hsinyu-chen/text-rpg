@@ -152,6 +152,7 @@ export const ZH_TW_LOCALE: AppLocale = {
         SYSTEM_PROMPT_TITLE: '主系統提示 (system_prompt.md)',
         CATEGORY_MAIN: '主提示 (Main)',
         CATEGORY_INJECTION: '注入提示 (Injection)',
-        CATEGORY_PROCESS: '處理腳本 (Process)'
+        CATEGORY_PROCESS: '處理腳本 (Process)',
+        STOP_REASON_PREFIX: '模型停止原因：'
     }
 };

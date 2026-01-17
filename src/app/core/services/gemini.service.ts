@@ -147,6 +147,8 @@ export class GeminiService implements LLMProvider {
         // Yield converted chunks
         for await (const chunk of stream) {
             const candidate = chunk.candidates?.[0];
+            const finishReason = candidate?.finishReason;
+
             if (candidate?.content?.parts) {
                 for (const part of candidate.content.parts) {
                     const extPart = part as Part & { thought?: boolean; thoughtSignature?: string };
@@ -155,6 +157,7 @@ export class GeminiService implements LLMProvider {
                         thought: extPart.thought,
                         thoughtSignature: extPart.thoughtSignature,
                         functionCall: extPart.functionCall as object | undefined,
+                        finishReason,
                         usageMetadata: chunk.usageMetadata ? {
                             promptTokens: chunk.usageMetadata.promptTokenCount || 0,
                             completionTokens: chunk.usageMetadata.candidatesTokenCount || 0,
@@ -162,6 +165,16 @@ export class GeminiService implements LLMProvider {
                         } : undefined
                     };
                 }
+            } else if (finishReason) {
+                // Yield reason even if no parts (e.g. blocked or max tokens)
+                yield {
+                    finishReason,
+                    usageMetadata: chunk.usageMetadata ? {
+                        promptTokens: chunk.usageMetadata.promptTokenCount || 0,
+                        completionTokens: chunk.usageMetadata.candidatesTokenCount || 0,
+                        cachedTokens: chunk.usageMetadata.cachedContentTokenCount
+                    } : undefined
+                };
             }
         }
     }

@@ -19,6 +19,7 @@ export interface StreamProcessResult {
     capturedFCs: ExtendedPart[];
     capturedThoughtSignature?: string;
     finalThought: string;
+    finalFinishReason?: string;
 }
 
 @Injectable({
@@ -49,6 +50,7 @@ export class StreamProcessorService {
         let turnUsage = { prompt: 0, candidates: 0, cached: 0 };
         const capturedFCs: ExtendedPart[] = [];
         let capturedThoughtSignature: string | undefined;
+        let finalFinishReason: string | undefined;
 
         // Initialize empty model message
         updateCallback(prev => [...prev, { id: modelMsgId, role: 'model', content: '', thought: '', isThinking: true }]);
@@ -59,6 +61,10 @@ export class StreamProcessorService {
 
             if (extPart.thoughtSignature) {
                 capturedThoughtSignature = extPart.thoughtSignature;
+            }
+
+            if (extPart.finishReason) {
+                finalFinishReason = extPart.finishReason;
             }
 
             if (part.functionCall) {
@@ -183,7 +189,8 @@ export class StreamProcessorService {
             turnUsage,
             capturedFCs,
             capturedThoughtSignature,
-            finalThought: currentThought
+            finalThought: currentThought,
+            finalFinishReason
         };
     }
 }
