@@ -228,6 +228,13 @@ export class InjectionService {
                     // Load server default
                     this.setSignalContent(type.id as PromptType, processedServerContent);
                     localStorage.setItem(`prompt_user_modified_${type.id}`, 'false');
+
+                    // CRITICAL: Ensure the default content is in IDB to support "Unify Storage"
+                    // If we don't save it here, it won't be in prompt_store until modified.
+                    // We only save if legacyKey is empty (system_main) OR if it's not in DB yet.
+                    if (!dbRecord) {
+                        await this.storage.savePrompt(type.id, processedServerContent);
+                    }
                 }
             }
 

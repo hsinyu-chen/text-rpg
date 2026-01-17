@@ -57,49 +57,6 @@ export class ConfigService {
             localStorage.setItem('history_storage_cost_acc', hAcc.toString());
         });
 
-        // Auto-save Dynamic Injection Settings (only after initial load)
-        effect(() => {
-            const enabled = this.state.enableDynamicInjection();
-            if (this.state.injectionSettingsLoaded()) {
-                localStorage.setItem('enable_dynamic_injection', enabled.toString());
-            }
-        });
-        effect(() => {
-            const text = this.state.dynamicActionInjection();
-            if (this.state.injectionSettingsLoaded()) {
-                localStorage.setItem('dynamic_action_injection', text);
-            }
-        });
-        effect(() => {
-            const text = this.state.dynamicContinueInjection();
-            if (this.state.injectionSettingsLoaded()) {
-                localStorage.setItem('dynamic_continue_injection', text);
-            }
-        });
-        effect(() => {
-            const text = this.state.dynamicFastforwardInjection();
-            if (this.state.injectionSettingsLoaded()) {
-                localStorage.setItem('dynamic_fastforward_injection', text);
-            }
-        });
-        effect(() => {
-            const text = this.state.dynamicSystemInjection();
-            if (this.state.injectionSettingsLoaded()) {
-                localStorage.setItem('dynamic_system_injection', text);
-            }
-        });
-        effect(() => {
-            const text = this.state.dynamicSaveInjection();
-            if (this.state.injectionSettingsLoaded()) {
-                localStorage.setItem('dynamic_save_injection', text);
-            }
-        });
-        effect(() => {
-            const text = this.state.postProcessScript();
-            if (this.state.injectionSettingsLoaded()) {
-                localStorage.setItem('post_process_script', text);
-            }
-        });
     }
 
     /**

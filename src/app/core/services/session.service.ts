@@ -260,6 +260,8 @@ export class SessionService {
         this.state.loadedFiles.update(map => {
             const newMap = new Map(map);
             newMap.set(filePath, content);
+            // Recalculate hash immediately
+            this.updateKbHash(newMap);
             return newMap;
         });
 
@@ -337,14 +339,8 @@ export class SessionService {
             });
             */
             // Let's replicate this logic to ensure consistent hashing
-            let rawKbText = '';
-            contentMap.forEach((content, path) => {
-                if (!path.startsWith('system_files/') && path !== 'system_prompt.md') {
-                    rawKbText += `${LLM_MARKERS.FILE_CONTENT_SEPARATOR} [${path}] ---\\n${content}\\n\\n`;
-                }
-            });
-
-            const currentHash = this.kb.calculateKbHash(rawKbText, modelId, this.systemInstructionCache || '');
+            // 2b. Calculate Hash (using sorted keys for determinism)
+            const currentHash = this.updateKbHash(contentMap);
             const savedHash = localStorage.getItem('kb_cache_hash');
             const cachedTotal = localStorage.getItem('kb_cache_tokens');
 
@@ -362,9 +358,11 @@ export class SessionService {
 
             this.state.currentKbHash.set(currentHash);
 
+            const hasKbContent = Array.from(contentMap.keys()).some(path => !path.startsWith('system_files/') && path !== 'system_prompt.md');
+
             // Defer remote cleanup and upload to sendMessage -> checkCacheAndRefresh (via CacheManager logic mostly)
             // But here we just update local hash state
-            if (rawKbText.trim()) {
+            if (hasKbContent) {
                 if (savedHash !== currentHash) {
                     console.log('[SessionService] KB Content changed. Invalidating remote state.');
                     this.state.kbFileUri.set(null);
@@ -412,5 +410,27 @@ export class SessionService {
         if (Array.isArray(sunk)) {
             this.state.sunkUsageHistory.set(sunk);
         }
+    }
+    /**
+     * Recalculates the KB hash based on current files and system prompt.
+     * Updates the currentKbHash signal.
+     */
+    private updateKbHash(filesMap: Map<string, string>): string {
+        const modelId = this.state.config()?.modelId || this.provider.getDefaultModelId();
+        let rawKbText = '';
+
+        // Sort keys to ensure deterministic order regardless of insertion history
+        const sortedKeys = Array.from(filesMap.keys()).sort();
+
+        sortedKeys.forEach(path => {
+            const content = filesMap.get(path)!;
+            if (!path.startsWith('system_files/') && path !== 'system_prompt.md') {
+                rawKbText += `${LLM_MARKERS.FILE_CONTENT_SEPARATOR} [${path}] ---\\n${content}\\n\\n`;
+            }
+        });
+
+        const currentHash = this.kb.calculateKbHash(rawKbText, modelId, this.systemInstructionCache || '');
+        this.state.currentKbHash.set(currentHash);
+        return currentHash;
     }
 }
