@@ -18,6 +18,8 @@ import { LLMProviderInitService } from './core/services/llm-provider-init.servic
 import { IdleService } from './core/services/idle.service';
 import { SpaceInvadersComponent } from './features/screensaver/space-invaders.component';
 import { CodeScreensaverComponent } from './features/screensaver/code-screensaver.component';
+import { MigrationService } from './core/services/migration.service';
+
 
 @Component({
   selector: 'app-root',
@@ -66,6 +68,11 @@ export class AppComponent {
   sidenavMode = computed(() => (this.isMobile() ? 'over' : 'side'));
 
   constructor() {
+    // //MIGRATION CODE START
+    // Run data migrations before initializing engine
+    inject(MigrationService).runMigrations();
+    // //MIGRATION CODE END
+
     // Register LLM Providers
     this.providerInit.initialize();
 

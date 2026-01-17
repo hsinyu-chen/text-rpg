@@ -18,6 +18,7 @@ import { AutoSaveService } from '../../../../core/services/auto-save.service';
 import { SyncDialogComponent, SyncItem, SyncDialogData } from '../../../../shared/components/sync-dialog/sync-dialog.component';
 import { SaveSlotsDialogComponent, SaveSlotDialogData } from '../../../../shared/components/save-slots-dialog/save-slots-dialog.component';
 import { KbSlotsDialogComponent, KbSlot } from '../../../../shared/components/kb-slots-dialog/kb-slots-dialog.component';
+import { FILENAME_MIGRATIONS } from '../../../../core/constants/migrations';
 
 @Component({
     selector: 'app-sidebar-file-sync',
@@ -176,8 +177,24 @@ export class SidebarFileSyncComponent {
             const promises = files.map(async f => {
                 if (f.name.endsWith('.md') || f.mimeType === 'text/markdown' || f.mimeType === 'text/plain') {
                     try {
+                        // //MIGRATION CODE START - New filename takes priority
+                        const newName = FILENAME_MIGRATIONS[f.name] || f.name;
+
+                        // If this is a legacy file and the new file also exists in cloud, skip it
+                        if (FILENAME_MIGRATIONS[f.name]) {
+                            const newFileExists = files.some(file => file.name === newName);
+                            if (newFileExists) {
+                                console.log(`[Migration] Skipping legacy file ${f.name} - new file ${newName} exists`);
+                                return; // Skip this legacy file
+                            }
+                        }
+                        // //MIGRATION CODE END
+
                         const content = await this.driveService.readFile(f.id);
-                        folderFiles.set(f.name, content);
+                        if (newName !== f.name) {
+                            console.log(`[Migration] Cloud file: ${f.name} → ${newName}`);
+                        }
+                        folderFiles.set(newName, content);
                         loadedCount++;
                     } catch (e) {
                         console.error(`Failed to load ${f.name}`, e);

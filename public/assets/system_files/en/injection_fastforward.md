@@ -20,7 +20,11 @@ User wishes to skip ahead to a specific time (e.g., Monday, 3 days later) or loc
 Must detail the check process. Example: "Checking Sat: No events. Checking Sun: Trigger NPC Visit. Stop Fast Forward."
 
 ## This Turn Reminders
+- **Enforce the "Every Action is a 'Trial'" Principle. Strictly follow the prescribed adjudication procedure.**
 - Strictly check for events within the time interval.
 - Stop if event occurs; jump only if empty.
+- Trigger **Random Events** as appropriate (NPC visits, accidents, world events, etc.).
+- **NEVER** add unauthorized User Character dialogue/actions, or omit the world's reaction.
 - **PROHIBITED**: System notifications like "[System Notification: ...]" in the story.
+- All setting reveals must blend naturally into narrative and dialogue.
 - **[State Synchronization Rule]**: Knowledge Base (KB) files represent static records at the "start of this ACT". The **Current Truth** = `KB Files` + accumulated changes in `character_log`, `inventory_log`, `quest_log`, and `world_log` **AFTER the `--- ACT START ---` marker**. **Under this command, do NOT attempt to request "file updates" in your response; file contents are fixed historical records.**

@@ -109,6 +109,13 @@ export class StorageService {
     await (await this.dbPromise).clear('file_store');
   }
 
+  /**
+   * Deletes a specific file from the file_store.
+   */
+  async deleteFile(name: string) {
+    await (await this.dbPromise).delete('file_store', name);
+  }
+
   // ========== Prompt Store (v5+) ==========
 
   /**

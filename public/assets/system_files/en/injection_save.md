@@ -62,7 +62,7 @@ The new content.
 | `{{FILE_ASSETS}}` | Protagonist's party's cash balance, base layout | Portable items, magic, equipment |
 | `{{FILE_TECH_EQUIPMENT}}` | Protagonist's party's mechanical equipment, tools, vehicles | Magic itself, spells |
 | `{{FILE_WORLD_FACTIONS}}` | Faction dynamics, world building (see details below) | Personal quests, user plans |
-| `{{FILE_MAGIC}}` | Protagonist's party's formulas, casting process, spell logic | Magic items, enchanted gear |
+| `{{FILE_MAGIC_SKILLS}}` | Protagonist's party's formulas, casting process, spell logic, combat skills | Magic items, enchanted gear |
 | `{{FILE_PLANS}}` | Accepted quests, personal goals, progress | World events, faction dynamics |
 | `{{FILE_INVENTORY}}` | Protagonist's party's weapons, armor, consumables, materials | Real estate, large vehicles |
 
@@ -79,7 +79,7 @@ The new content.
 
 ### Tech vs Magic
 - `{{FILE_TECH_EQUIPMENT}}`: Records **Physical Devices** (Even "Magitech", if it's a tool/vehicle).
-- `{{FILE_MAGIC}}`: Records **The Art/Logic** (Pure spells, chanting, mana ability).
+- `{{FILE_MAGIC_SKILLS}}`: Records **The Art/Logic & Skills** (spells, chanting, mana ability, combat techniques).
 
 ## Specific File Update Rules
 
@@ -128,7 +128,7 @@ If the current ACT (starting from `--- ACT START ---`) has LOG content, you **MU
 ### `world_log` → Target Files
 - World events/factions/world building → `{{FILE_WORLD_FACTIONS}}`
 - Protagonist's party's tech development → `{{FILE_TECH_EQUIPMENT}}`
-- Protagonist's party's magic development → `{{FILE_MAGIC}}`
+- Protagonist's party's magic & skills development → `{{FILE_MAGIC_SKILLS}}`
 
 ## This Turn Reminders
 - `analysis` and `summary` fields MUST be empty string `""`.

@@ -31,7 +31,7 @@ When performing the <Save> command, please only compare and synchronize based on
         ASSETS: '4.Assets.md',
         TECH_EQUIPMENT: '5.Tech_Equipment.md',
         WORLD_FACTIONS: '6.Factions_and_World.md',
-        MAGIC: '7.Magic.md',
+        MAGIC: '7.Magic_and_Skills.md',
         PLANS: '8.Plans.md',
         INVENTORY: '9.Inventory.md'
     },
@@ -62,7 +62,7 @@ When performing the <Save> command, please only compare and synchronize based on
         FAST_FORWARD: 'Skip dull periods. Stops if a special event (e.g., NPC visit) occurs.',
         SYSTEM: 'Story correction or questions. Used for OOC dialogue or questioning the plot.',
         SAVE: 'Analysis and state synchronization. Summarizes chapter and outputs XML file updates.',
-        CONTINUE: 'Fluid progression. Used to wait for NPC reactions or observe environmental changes.'
+        CONTINUE: 'Fluid progression. Used to wait for NPC reactions or observe environmental changes. If protagonist is unconscious (comatose, deep sleep, etc.), auto-advances until consciousness is regained.'
     },
     inputPlaceholders: {
         ACTION: '([Mood]Action)Dialogue or Thoughts',

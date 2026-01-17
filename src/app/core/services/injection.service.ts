@@ -53,7 +53,7 @@ export class InjectionService {
             .replace(/\{\{FILE_ASSETS\}\}/g, filenames.ASSETS)
             .replace(/\{\{FILE_TECH_EQUIPMENT\}\}/g, filenames.TECH_EQUIPMENT)
             .replace(/\{\{FILE_WORLD_FACTIONS\}\}/g, filenames.WORLD_FACTIONS)
-            .replace(/\{\{FILE_MAGIC\}\}/g, filenames.MAGIC)
+            .replace(/\{\{FILE_MAGIC_SKILLS\}\}/g, filenames.MAGIC)
             .replace(/\{\{FILE_PLANS\}\}/g, filenames.PLANS)
             .replace(/\{\{FILE_INVENTORY\}\}/g, filenames.INVENTORY)
             .replace(/\{\{LANGUAGE_RULE\}\}/g, locale.promptHoles.LANGUAGE_RULE);

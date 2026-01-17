@@ -31,7 +31,7 @@ export const ZH_TW_LOCALE: AppLocale = {
         ASSETS: '4.資產.md',
         TECH_EQUIPMENT: '5.科技裝備.md',
         WORLD_FACTIONS: '6.勢力與世界.md',
-        MAGIC: '7.魔法.md',
+        MAGIC: '7.魔法與技能.md',
         PLANS: '8.計畫.md',
         INVENTORY: '9.物品欄.md'
     },
@@ -62,7 +62,7 @@ export const ZH_TW_LOCALE: AppLocale = {
         FAST_FORWARD: '跳過平淡時段。若期間發生特別事件（如 NPC 拜訪）會自動停止。',
         SYSTEM: '劇情修正或提問。用於 OOC 對話或對劇情提出質疑。',
         SAVE: '分析並同步狀態。總結本章節並輸出 XML 格式的檔案更新。',
-        CONTINUE: '自然推進。用於等待 NPC 反應或觀察環境變化。'
+        CONTINUE: '自然推進。用於等待 NPC 反應或觀察環境變化。若主角處於無意識狀態（昏迷、熟睡等），將自動推進至恢復意識為止。'
     },
     inputPlaceholders: {
         ACTION: '([心境]動作)台詞或內心獨白',

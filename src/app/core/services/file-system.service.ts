@@ -4,6 +4,7 @@ import { firstValueFrom } from 'rxjs';
 import { FileSystemWindow } from '../models/types';
 import { StorageService } from './storage.service';
 import { LOCALES } from '../constants/locales';
+import { FILENAME_MIGRATIONS } from '../constants/migrations';
 
 @Injectable({
     providedIn: 'root'
@@ -57,14 +58,32 @@ export class FileSystemService {
 
         await this.storage.clearFiles();
         for (const filename of storyFiles) {
+            // //MIGRATION CODE START - Try new filename first, fallback to legacy
+            let fileHandle: FileSystemFileHandle | null = null;
+
             try {
-                const fileHandle = await this.directoryHandle()!.getFileHandle(filename);
+                fileHandle = await this.directoryHandle()!.getFileHandle(filename);
+            } catch {
+                // Try legacy filename
+                const legacyName = Object.entries(FILENAME_MIGRATIONS)
+                    .find(([, newName]) => newName === filename)?.[0];
+                if (legacyName) {
+                    try {
+                        fileHandle = await this.directoryHandle()!.getFileHandle(legacyName);
+                        console.log(`[Migration] Found legacy file: ${legacyName} → saving as ${filename}`);
+                    } catch { /* not found */ }
+                }
+            }
+            // //MIGRATION CODE END
+
+            if (fileHandle) {
                 const file = await fileHandle.getFile();
                 const rawContent = await file.text();
                 const content = this.normalizeContent(rawContent);
+                // Always save with NEW filename
                 await this.storage.saveFile(filename, content);
-            } catch {
-                console.warn(`Initial sync: ${filename} not found.`);
+            } else {
+                console.warn(`Initial sync: ${filename} not found (checked legacy names too).`);
             }
         }
     }

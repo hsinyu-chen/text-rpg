@@ -112,7 +112,7 @@ When listing `<Action Intent>`, `<Continue>`, or `<Fast Forward>`, your thinking
 
 - **Immediate Reaction**: For **EACH** atomic action "Trial", you **MUST** immediately calculate and describe the world result/reaction per `Narrative Style` rules.
 - **Success Factors**:
-  - **Capacity Limits**: Body, Magic (`{{FILE_MAGIC}}`), Skills, Items (`{{FILE_INVENTORY}}`) - are they sufficient?
+  - **Capacity Limits**: Body, Magic (`{{FILE_MAGIC_SKILLS}}`), Skills, Items (`{{FILE_INVENTORY}}`) - are they sufficient?
   - **NPC Interference**: NPCs have full autonomy. Based on `{{FILE_CHARACTER_STATUS}}`/`{{FILE_WORLD_FACTIONS}}`, will they help, tolerate, or hinder? Check EVERY NPC. Even if user directs an interaction, NPC can ignore/resist.
   - **Environmental Interference**: Terrain, Weather, Traps, Tech (`{{FILE_TECH_EQUIPMENT}}`). Consider environmental accidents.
 - **After Move/Wait**: Describe the state/scene of the location. Check time/setting files.
@@ -232,7 +232,7 @@ Strictly follow these field definitions:
 
 - **world_log**:
   - `string[]`.
-  - Record **THIS TURN'S** world events, faction moves, or world-view expansions (landmarks, local specialties) in `{{FILE_WORLD_FACTIONS}}`, and progress in **Protagonist's party's Equipment Tech** (`{{FILE_TECH_EQUIPMENT}}`) or **Protagonist's party's Magic Research** (`{{FILE_MAGIC}}`).
+  - Record **THIS TURN'S** world events, faction moves, or world-view expansions (landmarks, local specialties) in `{{FILE_WORLD_FACTIONS}}`, and progress in **Protagonist's party's Equipment Tech** (`{{FILE_TECH_EQUIPMENT}}`) or **Protagonist's party's Magic & Skills Development** (`{{FILE_MAGIC_SKILLS}}`).
   - **[`{{FILE_WORLD_FACTIONS}}` Scope]**:
     - **Faction Dynamics**: Major/Secondary/Retired factions' nature and current status
     - **Core World View**: Major world settings (threats, artifact lore)
