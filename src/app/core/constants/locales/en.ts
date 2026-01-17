@@ -110,7 +110,6 @@ When performing the <Save> command, please only compare and synchronize based on
         HIDE_MENU: 'Hide Menu',
         RESET_CURRENT: 'Reset Current Item',
         RESET_ALL: 'Reset All Items',
-        INSTRUCTION_TYPE: 'Instruction Type',
         AUTO_INJECTION_HINT: 'Each instruction type will be automatically injected in the corresponding turn',
         ALIGNMENTS: {
             'Lawful Good': 'Lawful Good',
@@ -141,6 +140,18 @@ When performing the <Save> command, please only compare and synchronize based on
         ROLE_USER: 'User',
         ROLE_MODEL: 'Model',
         POST_PROCESS_ERROR: 'Post-process script error: {error}',
-        POST_PROCESS_HINT: 'User post-processing script (JavaScript) for transforming AI response content'
+        POST_PROCESS_HINT: 'User post-processing script (JavaScript) for transforming AI response content',
+        PROMPT_UPDATE_AVAILABLE: 'Prompt Update Available',
+        PROMPT_UPDATE_TITLE: 'Prompt Update Comparison',
+        UPDATE: 'Update',
+        IGNORE: 'Ignore',
+        SAVE: 'Save',
+        SAVE_ALL: 'Save All',
+        SAVE_SUCCESS: 'Configuration saved successfully',
+        SAVE_FAILED: 'Failed to save configuration',
+        SYSTEM_PROMPT_TITLE: 'Main System Prompt (system_prompt.md)',
+        CATEGORY_MAIN: 'Main',
+        CATEGORY_INJECTION: 'Injection',
+        CATEGORY_PROCESS: 'Process'
     }
 };

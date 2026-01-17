@@ -109,10 +109,11 @@ export class FileViewerDialogComponent {
     return list.sort();
   });
 
-  // Check if current file can be edited (system_files are always readonly)
+  // Check if current file can be edited
   canEdit = computed(() => {
     const active = this.activeFile();
-    return !active.startsWith('system_files/');
+    // Only allow editing files that aren't in system_files directory
+    return active && !active.startsWith('system_files/');
   });
 
   // Extract outline from markdown content

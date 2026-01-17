@@ -108,37 +108,18 @@ export class FileSystemService {
      * Loads system files from assets and story files from the selected directory.
      * @returns A map of file paths to their content strings.
      */
-    async loadInitialFiles(langFolder = 'zh-tw'): Promise<Map<string, { content: string, tokens?: number }>> {
+    /**
+     * Loads story files from the persistent store (IndexedDB).
+     * @returns A map of file paths to their content strings.
+     */
+    async loadInitialFiles(): Promise<Map<string, { content: string, tokens?: number }>> {
         const files = new Map<string, { content: string, tokens?: number }>();
-
-        // Construct URL based on language folder
-        const systemPromptUrl = `assets/system_files/${langFolder}/system_prompt.md`;
-        // We keep the internal key consistent so the engine finds it easily
-        const systemPromptKey = 'system_files/system_prompt.md';
-
-        try {
-            const assetContent = await this.getFallbackContent(systemPromptUrl);
-            const dbEntry = await this.storage.getFile(systemPromptKey);
-
-            // If the fresh asset matches the DB version, we can reuse the cached token count
-            if (dbEntry && dbEntry.content === assetContent) { // assetContent is already normalized by getFallbackContent
-                files.set(systemPromptKey, { content: assetContent, tokens: dbEntry.tokens });
-            } else {
-                files.set(systemPromptKey, { content: assetContent });
-            }
-        } catch (e) {
-            console.error('CRITICAL: Failed to load system files from assets', e);
-            throw new Error('System files missing in assets.');
-        }
 
         // Load story files from DB
         const dbFiles = await this.storage.getAllFiles();
         if (dbFiles && dbFiles.length > 0) {
             dbFiles.forEach(f => {
-                // Story files are everything EXCEPT the system prompt (which we just handled)
-                if (f.name !== systemPromptKey) {
-                    files.set(f.name, { content: f.content, tokens: f.tokens });
-                }
+                files.set(f.name, { content: f.content, tokens: f.tokens });
             });
         }
 
@@ -171,11 +152,6 @@ export class FileSystemService {
         });
 
         for (const filename of storyFiles) {
-            // Strictly exclude system files from the comparison view
-            if (filename.startsWith('system_files/') || filename === 'system_prompt.md') {
-                continue;
-            }
-
             const dbFile = dbFiles.find(f => f.name === filename);
             let diskContent: string | null = null;
             try {

@@ -110,7 +110,6 @@ export const ZH_TW_LOCALE: AppLocale = {
         HIDE_MENU: '隱藏選單',
         RESET_CURRENT: '重置目前項目',
         RESET_ALL: '重置所有項目',
-        INSTRUCTION_TYPE: '指令類型',
         AUTO_INJECTION_HINT: '每個指令類型會在對應回合自動注入',
         ALIGNMENTS: {
             'Lawful Good': '守序善良',
@@ -141,6 +140,18 @@ export const ZH_TW_LOCALE: AppLocale = {
         ROLE_USER: 'User',
         ROLE_MODEL: 'Model',
         POST_PROCESS_ERROR: '後處理腳本錯誤: {error}',
-        POST_PROCESS_HINT: '使用者後處理腳本 (JavaScript)，用於轉換 AI 回應內容'
+        POST_PROCESS_HINT: '使用者後處理腳本 (JavaScript)，用於轉換 AI 回應內容',
+        PROMPT_UPDATE_AVAILABLE: '提示詞有更新',
+        PROMPT_UPDATE_TITLE: '提示詞更新對比',
+        UPDATE: '更新',
+        IGNORE: '忽略',
+        SAVE: '儲存',
+        SAVE_ALL: '全部儲存',
+        SAVE_SUCCESS: '設定已成功儲存',
+        SAVE_FAILED: '儲存設定失敗',
+        SYSTEM_PROMPT_TITLE: '主系統提示 (system_prompt.md)',
+        CATEGORY_MAIN: '主提示 (Main)',
+        CATEGORY_INJECTION: '注入提示 (Injection)',
+        CATEGORY_PROCESS: '處理腳本 (Process)'
     }
 };

@@ -82,7 +82,7 @@ export class GameEngineService {
     /**
      * Resets injection defaults.
      */
-    async resetInjectionDefaults(type: 'action' | 'continue' | 'fastforward' | 'system' | 'save' | 'postprocess' | 'all' = 'all'): Promise<void> {
+    async resetInjectionDefaults(type: 'action' | 'continue' | 'fastforward' | 'system' | 'save' | 'postprocess' | 'system_main' | 'all' = 'all'): Promise<void> {
         return this.injection.resetInjectionDefaults(type);
     }
 

@@ -8,6 +8,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSelectModule } from '@angular/material/select';
 import { MatMenuModule } from '@angular/material/menu';
+import { MatBadgeModule } from '@angular/material/badge';
 import { TextFieldModule } from '@angular/cdk/text-field';
 import { GAME_INTENTS, STORY_INTENTS } from '../../../../core/constants/game-intents';
 import { getIntentLabels, getIntentDescriptions, getInputPlaceholders } from '../../../../core/constants/engine-protocol';
@@ -33,7 +34,8 @@ import { LanguageService } from '../../../../core/services/language.service';
         MatTooltipModule,
         MatSelectModule,
         MatMenuModule,
-        TextFieldModule
+        TextFieldModule,
+        MatBadgeModule
     ],
     templateUrl: './chat-input.component.html',
     styleUrl: './chat-input.component.scss',

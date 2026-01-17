@@ -88,48 +88,57 @@ export class AutoSaveService {
         const messages = this.state.messages();
         if (messages.length === 0) return;
 
-        try {
-            const saveId = 'autosave';
-            const saveName = 'AutoSave';
+        // Use a flag to track if AT LEAST ONE save method succeeded (for console log)
+        // But we handle errors independently.
+        let saved = false;
 
-            // Construct payload manually or via engine helper
-            const currentSession = this.engine.exportSession();
+        const saveId = 'autosave';
+        const saveName = 'AutoSave';
 
-            const save: SessionSave = {
-                ...currentSession,
-                id: saveId,
-                name: saveName,
-                timestamp: Date.now()
-            };
+        // Construct payload manually or via engine helper
+        const currentSession = this.engine.exportSession();
 
-            const content = JSON.stringify(save, null, 2);
-            let saved = false;
+        const save: SessionSave = {
+            ...currentSession,
+            id: saveId,
+            name: saveName,
+            timestamp: Date.now()
+        };
 
-            // 1. Local Auto-Save
-            if (this.fileSystem.hasHandle()) {
+        const content = JSON.stringify(save, null, 2);
+
+        // 1. Local Auto-Save
+        if (this.fileSystem.hasHandle()) {
+            try {
                 await this.fileSystem.writeSaveFile(`${saveId}.json`, content);
                 saved = true;
+            } catch (e) {
+                console.error('[AutoSave] Local save failed', e);
             }
-            // 2. Cloud Auto-Save (Fallback if no local folder, or parallel? User request implied "when selecting local... OR cloud...")
-            // The requirement: "當有選擇本地資料夾、雲端資料夾時" (When local folder OR cloud folder is selected)
-            // Implementation: We check both. If a cloud slot is active, we also save there.
+        }
 
-            // NOTE: SidebarFileSync uses 'kb_slot_id' in localStorage.
-            const cloudSlotId = localStorage.getItem('kb_slot_id');
-            const isCloudAuth = this.driveService.isAuthenticated();
+        // 2. Cloud Auto-Save
+        const cloudSlotId = localStorage.getItem('kb_slot_id');
+        const isCloudAuth = this.driveService.isAuthenticated();
 
-            if (cloudSlotId && isCloudAuth) {
+        if (cloudSlotId && isCloudAuth) {
+            try {
                 await this.driveService.uploadSave(save, cloudSlotId);
                 saved = true;
+            } catch (e) {
+                console.error('[AutoSave] Cloud save failed', e);
+                // Report auth error to UI (SidebarBadge / SyncComponent)
+                this.driveService.reportAuthError();
             }
-
-            if (saved) {
-                console.log('[AutoSave] Auto-save complete');
-            }
-
-        } catch (e) {
-            console.error('[AutoSave] Failed', e);
-            // Don't show snackbar error to avoid annoying user in background
         }
+
+        if (saved) {
+            console.log('[AutoSave] Auto-save complete');
+        }
+    }
+
+    retryAutoSave() {
+        console.log('[AutoSave] Retrying save...');
+        this.triggerSave();
     }
 }

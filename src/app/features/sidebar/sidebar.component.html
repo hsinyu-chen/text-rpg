@@ -21,9 +21,9 @@
     <mat-divider></mat-divider>
 
     <!-- Content Tabs -->
-    <mat-tab-group class="sidebar-tabs" growVertical="true">
+    <mat-tab-group class="sidebar-tabs" growVertical="true" [(selectedIndex)]="selectedTabIndex">
         <!-- Files Tab -->
-        <mat-tab>
+        <mat-tab [disabled]="!hasFiles()">
             <ng-template mat-tab-label>
                 <mat-icon>folder_open</mat-icon>
                 <span class="tab-label">Files</span>
@@ -38,7 +38,6 @@
                 </div>
                 <mat-list class="file-list">
                     @for (file of fileList(); track file.name) {
-                    @if(file.name !== 'system_files/system_prompt.md'){
                     <mat-list-item>
                         <mat-icon matListItemIcon>description</mat-icon>
                         <div matListItemTitle class="file-item-title">
@@ -60,7 +59,6 @@
                         </div>
                     </mat-list-item>
                     }
-                    }
 
                     @if (fileList().length === 0) {
                     <div class="empty-state">
@@ -74,7 +72,9 @@
         <!-- Storage Tab -->
         <mat-tab>
             <ng-template mat-tab-label>
-                <mat-icon>cloud_sync</mat-icon>
+                <div [matBadge]="showStorageWarning() ? '!' : null" matBadgeColor="warn" matBadgeOverlap="true">
+                    <mat-icon>cloud_sync</mat-icon>
+                </div>
                 <span class="tab-label">Storage</span>
             </ng-template>
             <div class="tab-content padded">

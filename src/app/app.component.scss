@@ -70,6 +70,35 @@
     color: #aaa;
 }
 
+.blocker-overlay.error {
+    background: rgba(0, 0, 0, 0.95);
+    color: #ff5252;
+    z-index: 2000;
+
+    .blocker-icon {
+        color: #ff5252;
+        width: 64px;
+        height: 64px;
+        font-size: 64px;
+    }
+
+    h2 {
+        margin-bottom: 24px;
+    }
+
+    p {
+        color: #ffcdd2;
+        font-size: 1.1rem;
+        max-width: 500px;
+    }
+
+    .sub-text {
+        margin-top: 16px;
+        font-size: 0.9rem;
+        opacity: 0.7;
+    }
+}
+
 .chat-component {
     flex: 1;
     height: 100%;

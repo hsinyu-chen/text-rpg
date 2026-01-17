@@ -6,12 +6,11 @@ import { LLMProviderRegistryService } from './llm-provider-registry.service';
 import { LLMProvider } from './llm-provider';
 import { CacheManagerService } from './cache-manager.service';
 import { KnowledgeService } from './knowledge.service';
-import { InjectionService } from './injection.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { SessionSave, Scenario } from '../models/types';
 import { GAME_INTENTS } from '../constants/game-intents';
 import { getCoreFilenames, getSectionHeaders, getUIStrings, LLM_MARKERS } from '../constants/engine-protocol';
-import { LOCALES, getLangFolder } from '../constants/locales';
+import { LOCALES } from '../constants/locales';
 
 @Injectable({
     providedIn: 'root'
@@ -23,7 +22,6 @@ export class SessionService {
     private providerRegistry = inject(LLMProviderRegistryService);
     private cacheManager = inject(CacheManagerService);
     private kb = inject(KnowledgeService);
-    private injection = inject(InjectionService);
     private snackBar = inject(MatSnackBar);
 
     private get provider(): LLMProvider {
@@ -32,10 +30,8 @@ export class SessionService {
         return p;
     }
 
-    private get systemInstructionCache() { return this.state.systemInstructionCache; }
-    private set systemInstructionCache(v: string) { this.state.systemInstructionCache = v; }
+    private get systemInstructionCache() { return this.state.systemInstructionCache(); }
     private set isContextInjected(v: boolean) { this.state.isContextInjected = v; }
-    private set kbCacheTokens(v: number) { this.state.kbCacheTokens = v; }
 
     /**
      * Initializes a new game session using scenario templates.
@@ -281,25 +277,16 @@ export class SessionService {
             }
             this.state.status.set('loading');
 
-            const lang = this.state.config()?.outputLanguage || localStorage.getItem('gemini_output_language') || 'default';
-            const langFolder = getLangFolder(lang);
 
-            const files = await this.fileSystem.loadInitialFiles(langFolder);
+            const files = await this.fileSystem.loadInitialFiles();
             const contentMap = new Map<string, string>();
             const tokenMap = new Map<string, number>();
 
             files.forEach((meta, name) => {
-                let content = meta.content;
-                if (name.startsWith('system_files/') || name === 'system_prompt.md') {
-                    content = this.injection.applyPromptPlaceholders(content, lang);
-                }
-                contentMap.set(name, content);
+                contentMap.set(name, meta.content);
             });
             this.state.loadedFiles.set(contentMap);
 
-            // 1. Set System Prompt
-            const systemFile = contentMap.get('system_files/system_prompt.md');
-            this.systemInstructionCache = systemFile || 'You are an interactive story engine.';
 
             // Calculate tokens
             const modelId = this.state.config()?.modelId || this.provider.getDefaultModelId();
@@ -318,10 +305,20 @@ export class SessionService {
                 await Promise.all(needsCount.map(async (item) => {
                     const count = await this.provider.countTokens(modelId, [{ role: 'user', parts: [{ text: item.content }] }]);
                     tokenMap.set(item.name, count);
-                    if (item.name !== 'system_files/system_prompt.md') {
-                        await this.storage.saveFile(item.name, item.content, count);
-                    }
+                    await this.storage.saveFile(item.name, item.content, count);
                 }));
+            }
+
+            // 1b. Handle System Prompt Tokens from prompt_store
+            const mainPrompt = await this.storage.getPrompt('system_main');
+            if (mainPrompt) {
+                if (mainPrompt.tokens) {
+                    tokenMap.set('system_files/system_prompt.md', mainPrompt.tokens);
+                } else {
+                    const count = await this.provider.countTokens(modelId, [{ role: 'user', parts: [{ text: mainPrompt.content }] }]);
+                    tokenMap.set('system_files/system_prompt.md', count);
+                    await this.storage.savePrompt('system_main', mainPrompt.content, count);
+                }
             }
             this.state.fileTokenCounts.set(tokenMap);
 

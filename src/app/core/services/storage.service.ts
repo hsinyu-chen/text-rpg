@@ -11,6 +11,10 @@ interface TextRPGDB extends DBSchema {
     key: string;
     value: { name: string, content: string, lastModified: number, tokens?: number };
   };
+  prompt_store: {
+    key: string;
+    value: { content: string, lastModified: number, tokens?: number };
+  };
 }
 
 @Injectable({
@@ -20,7 +24,7 @@ export class StorageService {
   private dbPromise: Promise<IDBPDatabase<TextRPGDB>>;
 
   constructor() {
-    this.dbPromise = openDB<TextRPGDB>('TextRPG_DB', 4, {
+    this.dbPromise = openDB<TextRPGDB>('TextRPG_DB', 5, {
       upgrade(db, oldVersion) {
         if (oldVersion < 1) {
           db.createObjectStore('chat_store');
@@ -33,6 +37,11 @@ export class StorageService {
           const legacyDb = db as unknown as IDBPDatabase<TextRPGDB & { saves_store: { key: string, value: unknown } }>;
           if (legacyDb.objectStoreNames.contains('saves_store')) {
             legacyDb.deleteObjectStore('saves_store');
+          }
+        }
+        if (oldVersion < 5) {
+          if (!db.objectStoreNames.contains('prompt_store')) {
+            db.createObjectStore('prompt_store');
           }
         }
       },
@@ -98,6 +107,29 @@ export class StorageService {
    */
   async clearFiles() {
     await (await this.dbPromise).clear('file_store');
+  }
+
+  // ========== Prompt Store (v5+) ==========
+
+  /**
+   * Retrieves a prompt from the prompt_store.
+   */
+  async getPrompt(name: string) {
+    return (await this.dbPromise).get('prompt_store', name);
+  }
+
+  /**
+   * Saves a prompt to the prompt_store.
+   */
+  async savePrompt(name: string, content: string, tokens?: number) {
+    await (await this.dbPromise).put('prompt_store', { content, tokens, lastModified: Date.now() }, name);
+  }
+
+  /**
+   * Clears all prompts from the prompt_store.
+   */
+  async clearPrompts() {
+    await (await this.dbPromise).clear('prompt_store');
   }
 
   // ========== Session Saves (REMOVED) ==========

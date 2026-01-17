@@ -5,8 +5,26 @@
             [matTooltip]="isSidebarCollapsed() ? ui().SHOW_MENU : ui().HIDE_MENU">
             <mat-icon>{{ isSidebarCollapsed() ? 'menu' : 'menu_open' }}</mat-icon>
         </button>
-        <span class="dialog-title">{{ ui().DYNAMIC_PROMPT_SETTINGS }} - {{ activeTypeLabel() }}</span>
+        <div class="dialog-title">
+            <span class="title-text">{{ ui().DYNAMIC_PROMPT_SETTINGS }} - {{ activeTypeLabel() }}</span>
+            @if (getIsDirty(activeType())) {
+            <span class="dirty-indicator"></span>
+            }
+        </div>
         <div class="header-actions">
+            <!-- Save Current -->
+            <button mat-raised-button color="primary" (click)="saveCurrent()" [disabled]="!getIsDirty(activeType())"
+                [matTooltip]="ui().SAVE">
+                <mat-icon>save</mat-icon> {{ ui().SAVE }}
+            </button>
+
+            <!-- Save All -->
+            <button mat-stroked-button color="primary" (click)="saveAll()" [disabled]="!hasAnyDirty()"
+                [matTooltip]="ui().SAVE_ALL">
+                <mat-icon>save_as</mat-icon> {{ ui().SAVE_ALL }}
+            </button>
+
+            <div class="header-divider"></div>
             <button mat-icon-button (click)="resetCurrent()" [matTooltip]="ui().RESET_CURRENT" color="warn">
                 <mat-icon>restart_alt</mat-icon>
             </button>
@@ -23,20 +41,35 @@
     <div class="dialog-body">
         <!-- Sidebar -->
         <div class="sidebar" [class.collapsed]="isSidebarCollapsed()">
-            <div class="sidebar-header">
-                <span>{{ ui().INSTRUCTION_TYPE }}</span>
-                <span class="type-count">{{ injectionTypes().length }}</span>
-            </div>
 
-            <mat-nav-list class="type-list">
-                @for (type of injectionTypes(); track type.id) {
-                <a mat-list-item [class.active]="activeType() === type.id" (click)="selectType(type.id)"
-                    (keydown.enter)="selectType(type.id)" tabindex="0">
-                    <mat-icon matListItemIcon>{{ type.icon }}</mat-icon>
-                    <span matListItemTitle>{{ type.label }}</span>
-                </a>
+            <div class="sidebar-list-container">
+                @for (group of groupedTypes(); track group.id) {
+                <div class="category-group">
+                    <div class="category-header">{{ group.label }}</div>
+                    <mat-nav-list class="type-list">
+                        @for (type of group.items; track type.id) {
+                        <a mat-list-item [class.active]="activeType() === type.id" (click)="selectType(type.id)"
+                            (keydown.enter)="selectType(type.id)" tabindex="0">
+                            <mat-icon matListItemIcon>{{ type.icon }}</mat-icon>
+                            <span matListItemTitle>{{ type.label }}</span>
+                            @if (getIsDirty(type.id)) {
+                            <span class="dirty-indicator sm"></span>
+                            }
+
+                            <!-- Update Warning Icon -->
+                            @if (state.promptUpdateStatus().get(type.id)?.hasUpdate) {
+                            <button mat-icon-button matListItemMeta color="warn"
+                                (click)="$event.stopPropagation(); openPromptUpdateDialog(type.id)"
+                                [matTooltip]="ui().PROMPT_UPDATE_AVAILABLE || 'Update Available'">
+                                <mat-icon>error</mat-icon>
+                            </button>
+                            }
+                        </a>
+                        }
+                    </mat-nav-list>
+                </div>
                 }
-            </mat-nav-list>
+            </div>
 
             <div class="sidebar-hint">
                 <mat-icon>info</mat-icon>

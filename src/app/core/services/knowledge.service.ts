@@ -19,18 +19,15 @@ export class KnowledgeService {
     buildKnowledgeBaseParts(files: Map<string, string>): LLMPart[] {
         const parts: LLMPart[] = [];
         files.forEach((content, path) => {
-            // Exclude system prompt from context injection as it's already in systemInstruction
-            if (!path.startsWith('system_files/') && path !== 'system_prompt.md') {
-                let processedContent = content;
-                // Strip last_scene from Story Outline
-                const isStoryOutline = Object.values(LOCALES).some(l => l.coreFilenames.STORY_OUTLINE === path);
+            let processedContent = content;
+            // Strip last_scene from Story Outline
+            const isStoryOutline = Object.values(LOCALES).some(l => l.coreFilenames.STORY_OUTLINE === path);
 
-                if (isStoryOutline) {
-                    const lastSceneRegex = /(?:^|\n)[#*_\s]*last[_-]?scene[#*_\s]*[:：]?[\s\S]*$/i;
-                    processedContent = content.replace(lastSceneRegex, '').trim();
-                }
-                parts.push({ text: `${LLM_MARKERS.FILE_CONTENT_SEPARATOR} [${path}] ---\\n${processedContent}\\n\\n` });
+            if (isStoryOutline) {
+                const lastSceneRegex = /(?:^|\n)[#*_\s]*last[_-]?scene[#*_\s]*[:：]?[\s\S]*$/i;
+                processedContent = content.replace(lastSceneRegex, '').trim();
             }
+            parts.push({ text: `${LLM_MARKERS.FILE_CONTENT_SEPARATOR} [${path}] ---\\n${processedContent}\\n\\n` });
         });
         return parts;
     }

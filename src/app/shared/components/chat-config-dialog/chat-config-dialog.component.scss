@@ -13,7 +13,7 @@
     padding: 8px 16px;
     background: var(--mat-sys-surface-container);
     border-bottom: 1px solid var(--mat-sys-outline-variant);
-    gap: 8px;
+    gap: 12px;
 
     .sidebar-toggle {
         flex-shrink: 0;
@@ -23,16 +23,31 @@
         flex: 1;
         font-weight: 500;
         font-size: 1rem;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        display: flex;
+        align-items: center;
+        overflow: visible; // Prevent clipping of the dirty indicator glow
+        min-width: 0;
+
+        .title-text {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            flex: 0 1 auto;
+        }
     }
 
     .header-actions {
         display: flex;
         align-items: center;
-        gap: 4px;
+        gap: 8px; // Increased gap
         flex-shrink: 0;
+
+        .header-divider {
+            width: 1px;
+            height: 24px;
+            background: var(--mat-sys-outline-variant);
+            margin: 0 4px;
+        }
 
         button {
             mat-icon {
@@ -41,6 +56,31 @@
                 height: 20px;
             }
         }
+    }
+}
+
+// Dirty Indicator Dot
+.dirty-indicator {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    min-width: 8px;
+    min-height: 8px;
+    border-radius: 50%;
+    background-color: #00bcd4 !important; // Cyan/Blue
+    margin-left: 12px; // More space for glow
+    box-shadow: 0 0 10px rgba(0, 188, 212, 0.9);
+    animation: pulse-dirty 2s infinite ease-in-out;
+    flex-shrink: 0;
+    z-index: 5;
+    position: relative;
+
+    &.sm {
+        width: 6px;
+        height: 6px;
+        min-width: 6px;
+        min-height: 6px;
+        margin-left: 8px;
     }
 }
 
@@ -53,8 +93,8 @@
 
 // Sidebar
 .sidebar {
-    width: 200px;
-    min-width: 200px;
+    width: 250px;
+    min-width: 250px;
     background: var(--mat-sys-surface-container-low);
     border-right: 1px solid var(--mat-sys-outline-variant);
     display: flex;
@@ -89,14 +129,39 @@
         }
     }
 
-    .type-list {
+    .sidebar-list-container {
         flex: 1;
+        overflow-y: auto;
+        overflow-x: hidden; // Prevent horizontal scroll
         padding: 8px 0;
+    }
+
+    .category-group {
+        &:not(:last-child) {
+            border-bottom: 1px solid var(--mat-sys-outline-variant);
+            margin-bottom: 4px;
+            padding-bottom: 4px;
+        }
+    }
+
+    .category-header {
+        padding: 8px 16px 4px 16px;
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--mat-sys-primary);
+        opacity: 0.9;
+    }
+
+    .type-list {
+        padding: 0;
 
         a.mat-mdc-list-item {
-            height: 44px;
+            height: 40px; // Slightly more compact
             margin: 2px 8px;
             border-radius: 8px;
+            overflow: visible !important;
 
             &:hover {
                 background: var(--mat-sys-surface-container-highest);
@@ -111,10 +176,50 @@
                 }
             }
 
-            mat-icon {
+            mat-icon[matListItemIcon] {
                 font-size: 20px;
                 width: 20px;
                 height: 20px;
+                margin-right: 12px;
+            }
+
+            span[matListItemTitle] {
+                flex: 1;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                font-size: 0.85rem; // Slightly smaller
+            }
+
+            // Critical fix for clipping effects like glows and halos
+            ::ng-deep .mdc-list-item__content {
+                display: flex !important;
+                align-items: center !important;
+                overflow: visible !important;
+                width: 100%;
+                padding-right: 8px;
+                min-width: 0;
+            }
+
+            // Fix for meta/update icon
+            ::ng-deep .mdc-list-item__end {
+                margin-left: 4px;
+                display: flex;
+                align-items: center;
+                overflow: visible !important;
+
+                button {
+                    width: 28px;
+                    height: 28px;
+                    padding: 4px;
+                    line-height: normal;
+
+                    mat-icon {
+                        font-size: 16px;
+                        width: 16px;
+                        height: 16px;
+                    }
+                }
             }
         }
     }
@@ -170,19 +275,39 @@
         bottom: 0;
         z-index: 10;
         box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
+        width: 280px;
+        min-width: 280px;
 
         &.collapsed {
-            left: -200px;
+            left: -280px;
         }
     }
 
     .header-actions {
         button[mat-stroked-button] {
-
-            // Hide text on mobile, show icon only
             span:not(.mat-icon) {
                 display: none;
             }
         }
+    }
+}
+
+@keyframes pulse-dirty {
+    0% {
+        transform: scale(1);
+        opacity: 0.8;
+        box-shadow: 0 0 6px rgba(0, 188, 212, 0.4);
+    }
+
+    50% {
+        transform: scale(1.3); // Reduced slightly for safety
+        opacity: 0.4;
+        box-shadow: 0 0 16px rgba(0, 188, 212, 0.9);
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 0.8;
+        box-shadow: 0 0 6px rgba(0, 188, 212, 0.4);
     }
 }

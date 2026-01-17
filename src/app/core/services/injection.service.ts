@@ -2,6 +2,9 @@ import { Injectable, inject } from '@angular/core';
 import { GameStateService } from './game-state.service';
 import { INJECTION_FILE_PATHS } from '../constants/engine-protocol';
 import { getLocale, getLangFolder } from '../constants/locales';
+import { StorageService } from './storage.service';
+
+export type PromptType = 'action' | 'continue' | 'fastforward' | 'system' | 'save' | 'postprocess' | 'system_main';
 
 /**
  * Service responsible for managing dynamic prompt injection settings.
@@ -12,6 +15,7 @@ import { getLocale, getLangFolder } from '../constants/locales';
 })
 export class InjectionService {
     private state = inject(GameStateService);
+    private storage = inject(StorageService);
     private isSettingsLoading = false;
 
     /**
@@ -62,15 +66,76 @@ export class InjectionService {
         try {
             const response = await fetch(path, { cache: 'no-store' });
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            return (await response.text()).trim();
+            return await response.text();
         } catch (err) {
             console.error(`[InjectionService] Failed to load injection file: ${path}`, err);
-            return '';
+            throw new Error(`Failed to load system file: ${path}`);
         }
     }
 
     /**
-     * Loads dynamic injection settings from localStorage or MD files.
+     * Marks a specific injection type as modified by the user.
+     */
+    markAsModified(type: PromptType): void {
+        localStorage.setItem(`prompt_user_modified_${type}`, 'true');
+    }
+
+    /**
+     * Saves the current content of a prompt to storage.
+     */
+    async saveToService(type: PromptType, content: string): Promise<void> {
+        await this.storage.savePrompt(type, content);
+        this.markAsModified(type);
+
+        // Update the signal immediately
+        switch (type) {
+            case 'action': this.state.dynamicActionInjection.set(content); break;
+            case 'continue': this.state.dynamicContinueInjection.set(content); break;
+            case 'fastforward': this.state.dynamicFastforwardInjection.set(content); break;
+            case 'system': this.state.dynamicSystemInjection.set(content); break;
+            case 'save': this.state.dynamicSaveInjection.set(content); break;
+            case 'system_main': this.state.dynamicSystemMainInjection.set(content); break;
+            case 'postprocess': this.state.postProcessScript.set(content); break;
+        }
+    }
+
+    /**
+     * Acknowledges an update for a specific type, updating the last seen hash.
+     * Optionally overwrites the user's content.
+     */
+    async acknowledgeUpdate(type: PromptType, applyUpdate: boolean): Promise<void> {
+        const status = this.state.promptUpdateStatus().get(type);
+        if (!status) return;
+
+        if (applyUpdate) {
+            switch (type) {
+                case 'action': this.state.dynamicActionInjection.set(status.serverContent); break;
+                case 'continue': this.state.dynamicContinueInjection.set(status.serverContent); break;
+                case 'fastforward': this.state.dynamicFastforwardInjection.set(status.serverContent); break;
+                case 'system': this.state.dynamicSystemInjection.set(status.serverContent); break;
+                case 'save': this.state.dynamicSaveInjection.set(status.serverContent); break;
+                case 'system_main': this.state.dynamicSystemMainInjection.set(status.serverContent); break;
+                case 'postprocess': this.state.postProcessScript.set(status.serverContent); break;
+            }
+            // If they apply the update, it's no longer "modified" relative to the new server version
+            localStorage.setItem(`prompt_user_modified_${type}`, 'false');
+            await this.storage.savePrompt(type, status.serverContent);
+        }
+
+        const newHash = this.hashString(this.normalizeLineEndings(status.serverContent));
+        localStorage.setItem(`prompt_last_server_hash_${type}`, newHash);
+
+        // Update status map
+        this.state.promptUpdateStatus.update(map => {
+            const newMap = new Map(map);
+            newMap.set(type, { ...status, hasUpdate: false });
+            return newMap;
+        });
+    }
+
+    /**
+     * Loads dynamic injection settings from StorageService (IndexedDB) or MD files.
+     * Includes migration from legacy localStorage.
      */
     async loadDynamicInjectionSettings() {
         if (this.isSettingsLoading) return;
@@ -87,114 +152,178 @@ export class InjectionService {
             const loadPath = (filename: string) =>
                 this.loadInjectionFile(`assets/system_files/${langFolder}/${filename}`);
 
-            const [actionContent, continueContent, fastforwardContent, systemContent, saveContent, postprocessContent] =
-                await Promise.all([
-                    loadPath(INJECTION_FILE_PATHS.action),
-                    loadPath(INJECTION_FILE_PATHS.continue),
-                    loadPath(INJECTION_FILE_PATHS.fastforward),
-                    loadPath(INJECTION_FILE_PATHS.system),
-                    loadPath(INJECTION_FILE_PATHS.save),
-                    loadPath(INJECTION_FILE_PATHS.postprocess)
-                ]);
+            // We must catch errors here; if any fails, we halt system
+            let actionDef, continueDef, fastforwardDef, systemDef, saveDef, systemMainDef, postprocessDef;
 
-            const combinedContent =
-                actionContent + continueContent + fastforwardContent + systemContent + saveContent;
-            const currentHash = this.hashString(this.normalizeLineEndings(combinedContent));
-            this.state.injectionContentHash = currentHash;
-
-            const savedHash = localStorage.getItem('injection_content_hash');
-
-            if (savedHash !== currentHash) {
-                console.log('[InjectionService] Injection files changed, loading new content. Hash:', currentHash);
-
-                this.state.dynamicActionInjection.set(this.applyPromptPlaceholders(actionContent, lang));
-                this.state.dynamicContinueInjection.set(this.applyPromptPlaceholders(continueContent, lang));
-                this.state.dynamicFastforwardInjection.set(this.applyPromptPlaceholders(fastforwardContent, lang));
-                this.state.dynamicSystemInjection.set(this.applyPromptPlaceholders(systemContent, lang));
-                this.state.dynamicSaveInjection.set(this.applyPromptPlaceholders(saveContent, lang));
-                this.state.postProcessScript.set(postprocessContent);
-
-                this.state.injectionSettingsLoaded.set(true);
-                localStorage.setItem('injection_content_hash', currentHash);
+            try {
+                [actionDef, continueDef, fastforwardDef, systemDef, saveDef, systemMainDef, postprocessDef] =
+                    await Promise.all([
+                        loadPath(INJECTION_FILE_PATHS.action),
+                        loadPath(INJECTION_FILE_PATHS.continue),
+                        loadPath(INJECTION_FILE_PATHS.fastforward),
+                        loadPath(INJECTION_FILE_PATHS.system),
+                        loadPath(INJECTION_FILE_PATHS.save),
+                        loadPath(INJECTION_FILE_PATHS.system_main),
+                        loadPath(INJECTION_FILE_PATHS.postprocess)
+                    ]);
+            } catch (err: unknown) {
+                console.error('[InjectionService] Critical Error loading prompts', err);
+                this.state.status.set('error');
+                const msg = err instanceof Error ? err.message : String(err);
+                this.state.criticalError.set(msg || 'Failed to load essential system files.');
                 return;
             }
 
-            // Same hash - load saved customizations from localStorage
-            // If saved content is empty/whitespace, use default template instead
-            const savedAction = localStorage.getItem('dynamic_action_injection');
-            this.state.dynamicActionInjection.set(savedAction?.trim() ? savedAction : this.applyPromptPlaceholders(actionContent, lang));
+            const types = [
+                { id: 'action', content: actionDef, legacyKey: 'dynamic_action_injection', isPost: false },
+                { id: 'continue', content: continueDef, legacyKey: 'dynamic_continue_injection', isPost: false },
+                { id: 'fastforward', content: fastforwardDef, legacyKey: 'dynamic_fastforward_injection', isPost: false },
+                { id: 'system', content: systemDef, legacyKey: 'dynamic_system_injection', isPost: false },
+                { id: 'save', content: saveDef, legacyKey: 'dynamic_save_injection', isPost: false },
+                { id: 'system_main', content: systemMainDef, legacyKey: '', isPost: false }, // system_main was previously in file_store, not LS
+                { id: 'postprocess', content: postprocessDef, legacyKey: 'post_process_script', isPost: true }
+            ] as const;
 
-            const savedContinue = localStorage.getItem('dynamic_continue_injection');
-            this.state.dynamicContinueInjection.set(savedContinue?.trim() ? savedContinue : this.applyPromptPlaceholders(continueContent, lang));
+            const updateStatusMap = new Map<string, { hasUpdate: boolean, serverContent: string }>();
 
-            const savedFastforward = localStorage.getItem('dynamic_fastforward_injection');
-            this.state.dynamicFastforwardInjection.set(savedFastforward?.trim() ? savedFastforward : this.applyPromptPlaceholders(fastforwardContent, lang));
+            for (const type of types) {
+                const processedServerContent = type.isPost ? type.content : this.applyPromptPlaceholders(type.content, lang);
+                const serverHash = this.hashString(this.normalizeLineEndings(processedServerContent));
+                const lastServerHash = localStorage.getItem(`prompt_last_server_hash_${type.id}`);
+                const isModified = localStorage.getItem(`prompt_user_modified_${type.id}`) === 'true';
 
-            const savedSystem = localStorage.getItem('dynamic_system_injection');
-            this.state.dynamicSystemInjection.set(savedSystem?.trim() ? savedSystem : this.applyPromptPlaceholders(systemContent, lang));
+                let hasUpdate = false;
 
-            const savedSave = localStorage.getItem('dynamic_save_injection');
-            this.state.dynamicSaveInjection.set(savedSave?.trim() ? savedSave : this.applyPromptPlaceholders(saveContent, lang));
+                if (lastServerHash === null) {
+                    localStorage.setItem(`prompt_last_server_hash_${type.id}`, serverHash);
+                } else if (serverHash !== lastServerHash) {
+                    if (isModified) {
+                        hasUpdate = true;
+                    } else {
+                        localStorage.setItem(`prompt_last_server_hash_${type.id}`, serverHash);
+                    }
+                }
 
-            const savedPostprocess = localStorage.getItem('post_process_script');
-            this.state.postProcessScript.set(savedPostprocess?.trim() ? savedPostprocess : postprocessContent);
+                updateStatusMap.set(type.id, { hasUpdate, serverContent: processedServerContent });
 
+                // Try to load from IndexedDB
+                let dbRecord = await this.storage.getPrompt(type.id);
+
+                // DATA MIGRATION: Check localStorage if not in DB
+                if (!dbRecord && type.legacyKey) {
+                    const legacyContent = localStorage.getItem(type.legacyKey);
+                    if (legacyContent) {
+                        console.log(`[InjectionService] Migrating ${type.id} from localStorage to IndexedDB`);
+                        await this.storage.savePrompt(type.id, legacyContent);
+                        dbRecord = { content: legacyContent, lastModified: Date.now() };
+                        localStorage.removeItem(type.legacyKey);
+                    }
+                }
+
+                // Decide what to load into the signal
+                if (isModified && dbRecord?.content?.trim()) {
+                    // Load user customization
+                    this.setSignalContent(type.id as PromptType, dbRecord.content);
+                } else {
+                    // Load server default
+                    this.setSignalContent(type.id as PromptType, processedServerContent);
+                    localStorage.setItem(`prompt_user_modified_${type.id}`, 'false');
+                }
+            }
+
+            this.state.promptUpdateStatus.set(updateStatusMap);
             this.state.injectionSettingsLoaded.set(true);
+        } catch (globalErr: unknown) {
+            console.error('[InjectionService] Global error in loader', globalErr);
+            this.state.status.set('error');
+            const msg = globalErr instanceof Error ? globalErr.message : String(globalErr);
+            this.state.criticalError.set(msg || 'Unknown system error');
         } finally {
             this.isSettingsLoading = false;
+        }
+    }
+
+    private setSignalContent(type: PromptType, content: string) {
+        switch (type) {
+            case 'action': this.state.dynamicActionInjection.set(content); break;
+            case 'continue': this.state.dynamicContinueInjection.set(content); break;
+            case 'fastforward': this.state.dynamicFastforwardInjection.set(content); break;
+            case 'system': this.state.dynamicSystemInjection.set(content); break;
+            case 'save': this.state.dynamicSaveInjection.set(content); break;
+            case 'system_main': this.state.dynamicSystemMainInjection.set(content); break;
+            case 'postprocess': this.state.postProcessScript.set(content); break;
         }
     }
 
     /**
      * Resets injection prompts to defaults from MD files.
      */
-    async resetInjectionDefaults(
-        type: 'action' | 'continue' | 'fastforward' | 'system' | 'save' | 'postprocess' | 'all' = 'all'
-    ): Promise<void> {
+    async resetInjectionDefaults(type: PromptType | 'all' = 'all'): Promise<void> {
         const loadAction = type === 'action' || type === 'all';
         const loadContinue = type === 'continue' || type === 'all';
         const loadFastforward = type === 'fastforward' || type === 'all';
         const loadSystem = type === 'system' || type === 'all';
         const loadSave = type === 'save' || type === 'all';
+        const loadSystemMain = type === 'system_main' || type === 'all';
         const loadPostprocess = type === 'postprocess' || type === 'all';
 
-        const lang =
-            this.state.config()?.outputLanguage ||
-            localStorage.getItem('gemini_output_language') ||
-            'default';
+        const lang = this.state.config()?.outputLanguage || localStorage.getItem('gemini_output_language') || 'default';
         const langFolder = getLangFolder(lang);
         const folderPath = `assets/system_files/${langFolder}/`;
 
-        const promises: Promise<string>[] = [];
-        if (loadAction) promises.push(this.loadInjectionFile(folderPath + INJECTION_FILE_PATHS.action));
-        if (loadContinue) promises.push(this.loadInjectionFile(folderPath + INJECTION_FILE_PATHS.continue));
-        if (loadFastforward) promises.push(this.loadInjectionFile(folderPath + INJECTION_FILE_PATHS.fastforward));
-        if (loadSystem) promises.push(this.loadInjectionFile(folderPath + INJECTION_FILE_PATHS.system));
-        if (loadSave) promises.push(this.loadInjectionFile(folderPath + INJECTION_FILE_PATHS.save));
-        if (loadPostprocess) promises.push(this.loadInjectionFile(folderPath + INJECTION_FILE_PATHS.postprocess));
+        const promises: Promise<{ id: PromptType, content: string }>[] = [];
+        const wrapLoad = async (id: PromptType, filename: string) => ({ id, content: await this.loadInjectionFile(folderPath + filename) });
+
+        if (loadAction) promises.push(wrapLoad('action', INJECTION_FILE_PATHS.action));
+        if (loadContinue) promises.push(wrapLoad('continue', INJECTION_FILE_PATHS.continue));
+        if (loadFastforward) promises.push(wrapLoad('fastforward', INJECTION_FILE_PATHS.fastforward));
+        if (loadSystem) promises.push(wrapLoad('system', INJECTION_FILE_PATHS.system));
+        if (loadSave) promises.push(wrapLoad('save', INJECTION_FILE_PATHS.save));
+        if (loadSystemMain) promises.push(wrapLoad('system_main', INJECTION_FILE_PATHS.system_main));
+        if (loadPostprocess) promises.push(wrapLoad('postprocess', INJECTION_FILE_PATHS.postprocess));
 
         const results = await Promise.all(promises);
-        let idx = 0;
 
-        if (loadAction) this.state.dynamicActionInjection.set(this.applyPromptPlaceholders(results[idx++], lang));
-        if (loadContinue) this.state.dynamicContinueInjection.set(this.applyPromptPlaceholders(results[idx++], lang));
-        if (loadFastforward) this.state.dynamicFastforwardInjection.set(this.applyPromptPlaceholders(results[idx++], lang));
-        if (loadSystem) this.state.dynamicSystemInjection.set(this.applyPromptPlaceholders(results[idx++], lang));
-        if (loadSave) this.state.dynamicSaveInjection.set(this.applyPromptPlaceholders(results[idx++], lang));
-        if (loadPostprocess) this.state.postProcessScript.set(results[idx++]);
+        for (const res of results) {
+            const processedContent = res.id === 'postprocess' ? res.content : this.applyPromptPlaceholders(res.content, lang);
+            this.setSignalContent(res.id, processedContent);
 
-        if (type === 'all') {
-            const combined =
-                this.state.dynamicActionInjection() +
-                this.state.dynamicContinueInjection() +
-                this.state.dynamicFastforwardInjection() +
-                this.state.dynamicSystemInjection() +
-                this.state.dynamicSaveInjection();
-            const newHash = this.hashString(this.normalizeLineEndings(combined));
-            this.state.injectionContentHash = newHash;
-            localStorage.setItem('injection_content_hash', newHash);
+            // Update IDB and hashes
+            // Note: If we reset, we effectively remove the "customization" in IDB and LS
+            const hash = this.hashString(this.normalizeLineEndings(processedContent));
+            localStorage.setItem(`prompt_last_server_hash_${res.id}`, hash);
+            localStorage.setItem(`prompt_user_modified_${res.id}`, 'false');
+
+            // CLEAR customization from IDB by saving the default content
+            // or we could just delete it from IDB. But saving default content is safer for "current" state.
+            await this.storage.savePrompt(res.id, processedContent);
+
+            // Update status map to clear update badge
+            this.state.promptUpdateStatus.update(map => {
+                const newMap = new Map(map);
+                const status = newMap.get(res.id);
+                if (status) {
+                    newMap.set(res.id, { ...status, hasUpdate: false });
+                }
+                return newMap;
+            });
         }
 
         console.log(`[InjectionService] Reset injection defaults: ${type}`);
+    }
+
+    /**
+     * Helper to get current signal content by type
+     */
+    getContentForType(type: PromptType): string {
+        switch (type) {
+            case 'action': return this.state.dynamicActionInjection();
+            case 'continue': return this.state.dynamicContinueInjection();
+            case 'fastforward': return this.state.dynamicFastforwardInjection();
+            case 'system': return this.state.dynamicSystemInjection();
+            case 'save': return this.state.dynamicSaveInjection();
+            case 'system_main': return this.state.dynamicSystemMainInjection();
+            case 'postprocess': return this.state.postProcessScript();
+        }
     }
 }

@@ -10,7 +10,8 @@
     "desktop": "tauri dev",
     "build:desktop": "tauri build",
     "build:desktop:bin": "tauri build --no-bundle",
-    "lint": "ng lint --fix"
+    "lint": "ng lint --fix",
+    "deploy:old": "robocopy \"dist\\text-rpg\\browser\" \"W:\\text-rpg\" /MIR /IS /XD monaco /R:0 /W:0 || (if %ERRORLEVEL% LEQ 3 exit 0 else exit %ERRORLEVEL%)"
   },
   "prettier": {
     "printWidth": 100,

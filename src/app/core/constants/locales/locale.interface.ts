@@ -100,7 +100,6 @@ export interface AppLocale {
         HIDE_MENU: string;
         RESET_CURRENT: string;
         RESET_ALL: string;
-        INSTRUCTION_TYPE: string;
         AUTO_INJECTION_HINT: string;
         ALIGNMENTS: Record<string, string>;
         BATCH_REPLACE: string;
@@ -122,5 +121,17 @@ export interface AppLocale {
         ROLE_MODEL: string;
         POST_PROCESS_ERROR: string;
         POST_PROCESS_HINT: string;
+        PROMPT_UPDATE_AVAILABLE: string;
+        PROMPT_UPDATE_TITLE: string;
+        UPDATE: string;
+        IGNORE: string;
+        SAVE: string;
+        SAVE_ALL: string;
+        SAVE_SUCCESS: string;
+        SAVE_FAILED: string;
+        SYSTEM_PROMPT_TITLE: string;
+        CATEGORY_MAIN: string;
+        CATEGORY_INJECTION: string;
+        CATEGORY_PROCESS: string;
     };
 }

@@ -1,6 +1,6 @@
-import { Component, inject, signal, computed, viewChild, effect } from '@angular/core';
+import { Component, inject, signal, computed, viewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
+import { MatDialogModule, MatDialogRef, MatDialog } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatListModule } from '@angular/material/list';
@@ -12,12 +12,22 @@ import { GameStateService } from '../../../core/services/game-state.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { getUIStrings, getIntentLabels } from '../../../core/constants/engine-protocol';
 import { PostProcessorService } from '../../../core/services/post-processor.service';
+import { InjectionService, PromptType } from '../../../core/services/injection.service';
+import { PromptDiffDialogComponent } from '../prompt-diff-dialog/prompt-diff-dialog.component';
+import { MatBadgeModule } from '@angular/material/badge';
 
 /** Injection type definition */
 interface InjectionType {
-    id: 'action' | 'continue' | 'fastforward' | 'system' | 'save' | 'postprocess';
+    id: 'action' | 'continue' | 'fastforward' | 'system' | 'save' | 'postprocess' | 'system_main';
     label: string;
     icon: string;
+    category: 'main' | 'injection' | 'process';
+}
+
+interface PromptCategory {
+    id: string;
+    label: string;
+    items: InjectionType[];
 }
 
 @Component({
@@ -30,6 +40,7 @@ interface InjectionType {
         MatIconModule,
         MatListModule,
         MatTooltipModule,
+        MatBadgeModule,
         FormsModule,
         MonacoEditorComponent
     ],
@@ -38,37 +49,56 @@ interface InjectionType {
 })
 export class ChatConfigDialogComponent {
     private dialogRef = inject(MatDialogRef<ChatConfigDialogComponent>);
+    private dialog = inject(MatDialog);
     private snackBar = inject(MatSnackBar);
     private postProcessor = inject(PostProcessorService);
+    private injection = inject(InjectionService);
     engine = inject(GameEngineService);
     state = inject(GameStateService);
 
     // Editor reference
     editorRef = viewChild<MonacoEditorComponent>('editorRef');
 
-    // Injection types for sidebar
-    readonly injectionTypes = computed((): InjectionType[] => {
-        const labels = getIntentLabels(this.state.config()?.outputLanguage);
-        return [
-            { id: 'action', label: labels.ACTION, icon: 'play_arrow' },
-            { id: 'continue', label: labels.CONTINUE, icon: 'arrow_forward' },
-            { id: 'fastforward', label: labels.FAST_FORWARD, icon: 'fast_forward' },
-            { id: 'system', label: labels.SYSTEM, icon: 'settings' },
-            { id: 'save', label: labels.SAVE, icon: 'save' },
-            { id: 'postprocess', label: labels.POST_PROCESS, icon: 'code' }
-        ];
-    });
-
-    // Active injection type
-    activeType = signal<InjectionType['id']>('action');
-
     ui = computed(() => {
         const lang = this.state.config()?.outputLanguage || 'default';
         return getUIStrings(lang);
     });
 
+    // Injection types for sidebar
+    readonly injectionTypes = computed((): InjectionType[] => {
+        const labels = getIntentLabels(this.state.config()?.outputLanguage);
+        const ui = this.ui();
+        return [
+            { id: 'system_main', label: ui.SYSTEM_PROMPT_TITLE || 'Main System Prompt', icon: 'settings', category: 'main' },
+            { id: 'system', label: labels.SYSTEM, icon: 'psychology', category: 'injection' },
+            { id: 'action', label: labels.ACTION, icon: 'play_arrow', category: 'injection' },
+            { id: 'continue', label: labels.CONTINUE, icon: 'arrow_forward', category: 'injection' },
+            { id: 'save', label: labels.SAVE, icon: 'save', category: 'injection' },
+            { id: 'fastforward', label: labels.FAST_FORWARD, icon: 'fast_forward', category: 'injection' },
+            { id: 'postprocess', label: labels.POST_PROCESS, icon: 'code', category: 'process' }
+        ];
+    });
+
+    // Grouped types for template rendering
+    readonly groupedTypes = computed((): PromptCategory[] => {
+        const types = this.injectionTypes();
+        const ui = this.ui();
+
+        return [
+            { id: 'main', label: ui.CATEGORY_MAIN, items: types.filter(t => t.category === 'main') },
+            { id: 'injection', label: ui.CATEGORY_INJECTION, items: types.filter(t => t.category === 'injection') },
+            { id: 'process', label: ui.CATEGORY_PROCESS, items: types.filter(t => t.category === 'process') }
+        ];
+    });
+
+    // Active injection type
+    activeType = signal<InjectionType['id']>('system_main');
+
     // Sidebar collapsed state (mobile)
     isSidebarCollapsed = signal(false);
+
+    // Track dirty state (unsaved changes) per type
+    dirtyState = signal<Map<string, boolean>>(new Map());
 
     // Build files map for Monaco multi-model mode
     injectionFiles = computed(() => {
@@ -78,6 +108,7 @@ export class ChatConfigDialogComponent {
         files.set('fastforward', this.state.dynamicFastforwardInjection());
         files.set('system', this.state.dynamicSystemInjection());
         files.set('save', this.state.dynamicSaveInjection());
+        files.set('system_main', this.state.dynamicSystemMainInjection());
         files.set('postprocess', this.state.postProcessScript());
         return files;
     });
@@ -91,28 +122,18 @@ export class ChatConfigDialogComponent {
         language: this.activeType() === 'postprocess' ? 'javascript' : 'markdown'
     }));
 
-    constructor() {
-        // Sync Monaco changes back to engine signals
-        effect(() => {
-            const editor = this.editorRef();
-            if (!editor) return;
-
-            // This effect will re-run when activeType changes
-            const type = this.activeType();
-            void type; // Trigger reactivity
-        });
-    }
-
-    /** Get current active type label */
     activeTypeLabel = computed(() => {
         const type = this.injectionTypes().find(t => t.id === this.activeType());
         return type?.label || '';
     });
 
+    /** Check if a type has unsaved changes */
+    getIsDirty(type: string): boolean {
+        return !!this.dirtyState().get(type);
+    }
+
     /** Select an injection type */
     selectType(type: InjectionType['id']): void {
-        // Save current content before switching
-        this.syncCurrentContent();
         this.activeType.set(type);
 
         // Collapse sidebar on mobile
@@ -121,8 +142,13 @@ export class ChatConfigDialogComponent {
         }
     }
 
-    /** Sync current editor content to engine signal */
-    private syncCurrentContent(): void {
+    /** Check if any file has unsaved changes */
+    hasAnyDirty = computed(() => {
+        return Array.from(this.dirtyState().values()).some(isDirty => isDirty);
+    });
+
+    /** Save only the current active file */
+    async saveCurrent(): Promise<void> {
         const editor = this.editorRef();
         if (!editor) return;
 
@@ -130,51 +156,95 @@ export class ChatConfigDialogComponent {
         const content = editor.getFileContent(type);
         if (content === undefined) return;
 
-        switch (type) {
-            case 'action':
-                this.state.dynamicActionInjection.set(content);
-                break;
-            case 'continue':
-                this.state.dynamicContinueInjection.set(content);
-                break;
-            case 'fastforward':
-                this.state.dynamicFastforwardInjection.set(content);
-                break;
-            case 'system':
-                this.state.dynamicSystemInjection.set(content);
-                break;
-            case 'save':
-                this.state.dynamicSaveInjection.set(content);
-                break;
-            case 'postprocess':
-                this.state.postProcessScript.set(content);
-                break;
+        await this.injection.saveToService(type as PromptType, content);
+
+        // Clear dirty flag for this specific type
+        this.dirtyState.update(map => {
+            const newMap = new Map(map);
+            newMap.set(type, false);
+            return newMap;
+        });
+
+        this.snackBar.open(this.ui().SAVE_SUCCESS, this.ui().CLOSE, { duration: 2000 });
+    }
+
+    /** Save all modified content to engine signals and storage */
+    async saveAll(): Promise<void> {
+        const editor = this.editorRef();
+        if (!editor) return;
+
+        const dirtyMap = this.dirtyState();
+        let savedCount = 0;
+
+        // Iterate through all tracked files and save those that are dirty
+        for (const [type, isDirty] of dirtyMap.entries()) {
+            if (!isDirty) continue;
+
+            const content = editor.getFileContent(type);
+            if (content === undefined) continue;
+
+            await this.injection.saveToService(type as PromptType, content);
+            savedCount++;
+        }
+
+        if (savedCount > 0) {
+            // Reset all dirty flags since we saved everything
+            this.dirtyState.set(new Map());
+            this.snackBar.open(this.ui().SAVE_SUCCESS, this.ui().CLOSE, { duration: 2000 });
         }
     }
 
     /** Handle value change from Monaco */
     onValueChange(content: string): void {
         const type = this.activeType();
-        switch (type) {
-            case 'action':
-                this.state.dynamicActionInjection.set(content);
-                break;
-            case 'continue':
-                this.state.dynamicContinueInjection.set(content);
-                break;
-            case 'fastforward':
-                this.state.dynamicFastforwardInjection.set(content);
-                break;
-            case 'system':
-                this.state.dynamicSystemInjection.set(content);
-                break;
-            case 'save':
-                this.state.dynamicSaveInjection.set(content);
-                break;
-            case 'postprocess':
-                // Just save, validation happens on close
-                this.state.postProcessScript.set(content);
-                break;
+        const originalContent = this.getContentForType(type);
+
+        // Simple dirty check: if content is different from original in GameStateService
+        const isDirty = content !== originalContent;
+
+        if (this.dirtyState().get(type) !== isDirty) {
+            this.dirtyState.update(map => {
+                const newMap = new Map(map);
+                newMap.set(type, isDirty);
+                return newMap;
+            });
+        }
+    }
+
+    /** Open the prompt update diff dialog */
+    async openPromptUpdateDialog(type: InjectionType['id']): Promise<void> {
+        const status = this.state.promptUpdateStatus().get(type);
+        if (!status) return;
+
+        const currentContent = this.getContentForType(type);
+        const typeLabel = this.injectionTypes().find(t => t.id === type)?.label || type;
+
+        const dialogRef = this.dialog.open(PromptDiffDialogComponent, {
+            data: {
+                type,
+                localContent: currentContent,
+                remoteContent: status.serverContent,
+                label: typeLabel
+            },
+            width: '95vw',
+            height: '95vh',
+            maxWidth: '1400px',
+            maxHeight: '1000px',
+            panelClass: 'custom-diff-dialog'
+        });
+
+        const result = await dialogRef.afterClosed().toPromise();
+        if (result === 'update') {
+            await this.injection.acknowledgeUpdate(type, true);
+
+            // Refresh editor content
+            const editor = this.editorRef();
+            if (editor) {
+                const content = this.getContentForType(type);
+                editor.updateFileContent(type, content);
+            }
+        } else if (result === 'ignore') {
+            await this.injection.acknowledgeUpdate(type, false);
         }
     }
 
@@ -190,7 +260,6 @@ export class ChatConfigDialogComponent {
             editor.updateFileContent(type, content);
         }
 
-        this.syncCurrentContent();
 
         const lang = this.state.config()?.outputLanguage || 'default';
         const ui = getUIStrings(lang);
@@ -217,14 +286,7 @@ export class ChatConfigDialogComponent {
 
     /** Get content for a specific type */
     private getContentForType(type: InjectionType['id']): string {
-        switch (type) {
-            case 'action': return this.state.dynamicActionInjection();
-            case 'continue': return this.state.dynamicContinueInjection();
-            case 'fastforward': return this.state.dynamicFastforwardInjection();
-            case 'system': return this.state.dynamicSystemInjection();
-            case 'save': return this.state.dynamicSaveInjection();
-            case 'postprocess': return this.state.postProcessScript();
-        }
+        return this.injection.getContentForType(type as PromptType);
     }
 
     /** Toggle sidebar visibility */
@@ -234,8 +296,21 @@ export class ChatConfigDialogComponent {
 
     /** Close the dialog */
     close(): void {
-        // Sync final content before closing
-        this.syncCurrentContent();
+        // Check for unsaved changes across all types
+        const dirtyTypes = Array.from(this.dirtyState().entries())
+            .filter((entry) => entry[1]) // entry[1] is isDirty
+            .map((entry) => entry[0]);   // entry[0] is type
+
+        if (dirtyTypes.length > 0) {
+            const lang = this.state.config()?.outputLanguage || 'default';
+            const confirmMsg = lang === 'zh-TW'
+                ? '尚有未儲存的變更，確定要關閉嗎？'
+                : 'There are unsaved changes. Are you sure you want to close?';
+
+            if (!confirm(confirmMsg)) {
+                return;
+            }
+        }
 
         // Validate postprocess script before closing
         const script = this.state.postProcessScript();

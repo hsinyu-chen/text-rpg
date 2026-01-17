@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -174,8 +174,7 @@ export class SidebarFileSyncComponent {
 
             let loadedCount = 0;
             const promises = files.map(async f => {
-                if ((f.name.endsWith('.md') || f.mimeType === 'text/markdown' || f.mimeType === 'text/plain') &&
-                    f.name !== 'system_files/system_prompt.md') {
+                if (f.name.endsWith('.md') || f.mimeType === 'text/markdown' || f.mimeType === 'text/plain') {
                     try {
                         const content = await this.driveService.readFile(f.id);
                         folderFiles.set(f.name, content);
@@ -202,6 +201,22 @@ export class SidebarFileSyncComponent {
         }
     }
 
+    showAuthWarning = computed(() => this.driveService.hasAuthError());
+
+    async reAuthenticate() {
+        try {
+            await this.driveService.login();
+            // If we are here, login succeeded
+            this.snackBar.open('Re-authentication successful. Retrying auto-save...', 'OK', { duration: 2000 });
+
+            // Retry auto-save
+            this.autoSave.retryAutoSave();
+        } catch (error) {
+            console.error('Re-authentication failed', error);
+            this.snackBar.open('Re-authentication failed.', 'Close');
+        }
+    }
+
     async syncToCloud() {
         let slotId = this.currentSlot()?.id;
         if (!slotId) {
@@ -223,8 +238,6 @@ export class SidebarFileSyncComponent {
 
             // Check local against remote
             for (const [name, content] of localFiles.entries()) {
-                // Strictly exclude system prompt from sync
-                if (name === 'system_files/system_prompt.md') continue;
 
                 const remote = remoteFiles.find(f => f.name === name);
                 if (remote) {

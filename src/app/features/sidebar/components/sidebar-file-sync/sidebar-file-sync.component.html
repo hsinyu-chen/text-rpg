@@ -53,6 +53,7 @@
 <mat-divider style="margin: 16px 0"></mat-divider>
 
 <!-- Google Drive Section -->
+@if (driveService.isConfigured) {
 <div class="sync-section">
     <div class="section-header">
         <mat-icon style="color: #4285f4;">cloud_queue</mat-icon>
@@ -80,25 +81,43 @@
 
     <div class="action-grid">
         <button mat-flat-button class="google-btn action-btn text-truncate" (click)="loadCloudFolder()"
-            [disabled]="state.isBusy() || !currentSlot()" style="background-color: #4285f4; color: white;">
+            [disabled]="state.isBusy() || !currentSlot()">
             <mat-icon>cloud_download</mat-icon>
             Load
         </button>
         <button mat-stroked-button class="google-btn action-btn text-truncate" (click)="syncToCloud()"
-            [disabled]="state.isBusy() || !currentSlot() || state.loadedFiles().size === 0"
-            style="color: #4285f4; border-color: #4285f4;">
+            [disabled]="state.isBusy() || !currentSlot() || state.loadedFiles().size === 0">
             <mat-icon>cloud_sync</mat-icon>
             Sync
         </button>
     </div>
 
-    <button mat-stroked-button class="full-width save-slots-btn" (click)="openSaveSlots()"
-        [disabled]="state.isBusy() || !currentSlot()" style="margin-top: 8px; color: #4285f4; border-color: #4285f4;">
-        @if (autoSave.isSaving()) {
-        <mat-spinner diameter="20" style="display:inline-block; vertical-align:middle; margin-right:8px;"></mat-spinner>
-        } @else {
-        <mat-icon>cloud_queue</mat-icon>
+    <div class="row-actions" style="margin-top: 8px; display: flex; gap: 8px;">
+        <button mat-stroked-button class="google-btn save-slots-btn" (click)="openSaveSlots()"
+            [disabled]="state.isBusy() || !currentSlot()" style="flex: 1;">
+            @if (autoSave.isSaving()) {
+            <mat-spinner diameter="20"
+                style="display:inline-block; vertical-align:middle; margin-right:8px;"></mat-spinner>
+            } @else {
+            <mat-icon>cloud_queue</mat-icon>
+            }
+            Cloud Save Slots
+        </button>
+
+        @if (showAuthWarning()) {
+        <button mat-mini-fab color="warn" matTooltip="Connection Error. Click to Re-connect."
+            (click)="reAuthenticate()">
+            <mat-icon>warning</mat-icon>
+        </button>
         }
-        Cloud Save Slots
-    </button>
+    </div>
 </div>
+} @else {
+<div class="sync-section disabled-section">
+    <div class="hint-text">
+        <mat-icon style="font-size: 18px; margin-bottom: -4px;">cloud_off</mat-icon>
+        <br>
+        Client ID not configured
+    </div>
+</div>
+}

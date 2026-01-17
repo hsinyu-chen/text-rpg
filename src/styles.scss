@@ -141,6 +141,19 @@ markdown {
     }
 }
 
+/* Custom Diff Dialog Panel */
+.custom-diff-dialog {
+    .mdc-dialog__surface {
+        background-color: var(--bg-dialog) !important;
+        border: 1px solid var(--border-color-strong) !important;
+        border-radius: 8px !important;
+    }
+
+    .mat-mdc-dialog-container {
+        padding: 0 !important;
+    }
+}
+
 /* File Viewer Dialog - Monaco Editor Layout (global for production build) */
 .fullscreen-dialog app-file-viewer-dialog {
     display: flex;

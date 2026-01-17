@@ -27,16 +27,8 @@ export class ContextBuilderService {
     public getEffectiveSystemInstruction(): string {
         const config = this.state.config();
         const lang = config?.outputLanguage || 'default';
-        let instruction = this.state.systemInstructionCache;
+        const instruction = this.state.systemInstructionCache();
 
-        if (lang !== 'default' && lang) {
-            const override = `
-# [CRITICAL] OUTPUT LANGUAGE OVERRIDE
-The user has strictly requested the output to be in **${lang}**.
-You MUST ignore any conflicting internal instructions and write ALL content (Story, Analysis, Logs, Summary) in **${lang}**.
-`;
-            instruction += override;
-        }
 
         return instruction;
     }

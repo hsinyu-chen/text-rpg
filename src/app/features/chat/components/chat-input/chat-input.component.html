@@ -3,7 +3,9 @@
 
         <!-- Mobile Menu Trigger -->
         <button mat-mini-fab class="mobile-menu-btn" [matMenuTriggerFor]="mobileMenu"
-            [disabled]="state.status() === 'generating'">
+            [disabled]="state.status() === 'generating'" aria-hidden="false"
+            [matBadge]="state.hasAnyPromptUpdate() ? '!' : ''" matBadgeColor="warn"
+            [matBadgeHidden]="!state.hasAnyPromptUpdate()">
             <mat-icon>more_vert</mat-icon>
         </button>
 
@@ -17,7 +19,8 @@
                 <span>Save Progress</span>
             </button>
             <button mat-menu-item (click)="openConfigDialog()">
-                <mat-icon>settings</mat-icon>
+                <mat-icon [matBadge]="state.hasAnyPromptUpdate() ? '!' : ''" matBadgeColor="warn"
+                    [matBadgeHidden]="!state.hasAnyPromptUpdate()">settings</mat-icon>
                 <span>Config</span>
             </button>
             <button mat-menu-item (click)="exportToMarkdown()">
@@ -44,7 +47,8 @@
         <!-- Config Button (Desktop) -->
         <button mat-mini-fab class="config-btn desktop-only"
             [disabled]="state.status() === 'generating' || !state.isConfigured()" (click)="openConfigDialog()"
-            matTooltip="Chat Config (Thinking Inject)">
+            [matBadge]="state.hasAnyPromptUpdate() ? '!' : ''" matBadgeColor="warn"
+            [matBadgeHidden]="!state.hasAnyPromptUpdate()" matTooltip="Chat Config (Thinking Inject)">
             <mat-icon>settings</mat-icon>
         </button>
 
@@ -73,8 +77,10 @@
                 [disabled]="state.status() === 'generating' || !!editingMessageId()">
                 <mat-select-trigger>
                     <div class="intent-trigger">
-                        <mat-icon [style.color]="getIntentColor(selectedIntent())">{{ getIntentIcon(selectedIntent()) }}</mat-icon>
-                        <span [style.color]="getIntentColor(selectedIntent())">{{ getIntentLabel(selectedIntent()) }}</span>
+                        <mat-icon [style.color]="getIntentColor(selectedIntent())">{{ getIntentIcon(selectedIntent())
+                            }}</mat-icon>
+                        <span [style.color]="getIntentColor(selectedIntent())">{{ getIntentLabel(selectedIntent())
+                            }}</span>
                     </div>
                 </mat-select-trigger>
 
@@ -83,7 +89,8 @@
                     <div class="intent-option">
                         <div class="intent-header">
                             <mat-icon [style.color]="getIntentColor(intent)">{{ getIntentIcon(intent) }}</mat-icon>
-                            <span class="intent-label" [style.color]="getIntentColor(intent)">{{ getIntentLabel(intent) }}</span>
+                            <span class="intent-label" [style.color]="getIntentColor(intent)">{{ getIntentLabel(intent)
+                                }}</span>
                         </div>
                         <div class="intent-description">{{ getIntentDescription(intent) }}</div>
                     </div>

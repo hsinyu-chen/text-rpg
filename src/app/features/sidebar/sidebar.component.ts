@@ -1,4 +1,4 @@
-import { Component, inject, computed, signal, output } from '@angular/core';
+import { Component, inject, computed, signal, output, linkedSignal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatListModule } from '@angular/material/list';
@@ -7,9 +7,11 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatTabsModule } from '@angular/material/tabs';
+import { MatBadgeModule } from '@angular/material/badge';
 
 import { GameEngineService } from '../../core/services/game-engine.service';
 import { GameStateService } from '../../core/services/game-state.service';
+import { GoogleDriveService } from '../../core/services/google-drive.service';
 import { SettingsDialogComponent } from '../settings/settings-dialog.component';
 import { FileViewerDialogComponent } from './file-viewer-dialog.component';
 
@@ -28,6 +30,7 @@ import { SidebarCostPredictionComponent } from './components/sidebar-cost-predic
     MatDividerModule,
     MatTooltipModule,
     MatTabsModule,
+    MatBadgeModule,
     SidebarFileSyncComponent,
     SidebarContextControlsComponent,
     SidebarCostPredictionComponent
@@ -38,7 +41,20 @@ import { SidebarCostPredictionComponent } from './components/sidebar-cost-predic
 export class SidebarComponent {
   engine = inject(GameEngineService);
   state = inject(GameStateService);
+  driveService = inject(GoogleDriveService); // Inject GoogleDriveService
   matDialog = inject(MatDialog);
+
+  hasFiles = computed(() => this.state.loadedFiles().size > 0);
+
+  showStorageWarning = computed(() => this.driveService.hasAuthError());
+
+  selectedTabIndex = linkedSignal({
+    source: this.hasFiles,
+    computation: (hasFiles, previous) => {
+      if (!hasFiles) return 2; // Session tab
+      return previous?.value ?? 2;
+    }
+  });
 
   displayMode = signal<'tokens' | 'chars'>('tokens');
 

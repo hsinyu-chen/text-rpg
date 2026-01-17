@@ -101,7 +101,13 @@ export class GoogleDriveService {
         }
 
         console.log('[GoogleDrive] Service initialized. Token expiry:', new Date(this.tokenExpiry()).toLocaleString());
-        this.loadScripts();
+        if (this.isConfigured) {
+            this.loadScripts();
+        }
+    }
+
+    get isConfigured(): boolean {
+        return !!environment.gcpOauthAppId && environment.gcpOauthAppId.length > 0;
     }
 
     private loadScripts() {
@@ -128,8 +134,11 @@ export class GoogleDriveService {
         });
     }
 
+    hasAuthError = signal(false);
+
     private handleLoginSuccess(token: string, expiresInSeconds = 3599, refreshToken?: string) {
         this.accessToken.set(token);
+        this.hasAuthError.set(false); // Clear any previous error
         // Set expiry to slightly before actual expiry (e.g., 5 min buffer)
         const expiry = Date.now() + (expiresInSeconds - 300) * 1000;
         this.tokenExpiry.set(expiry);
@@ -147,6 +156,10 @@ export class GoogleDriveService {
         if (!localStorage.getItem('gdrive_user_email')) {
             this.fetchAndSaveUserEmail(token);
         }
+    }
+
+    reportAuthError() {
+        this.hasAuthError.set(true);
     }
 
     private async fetchAndSaveUserEmail(token: string) {

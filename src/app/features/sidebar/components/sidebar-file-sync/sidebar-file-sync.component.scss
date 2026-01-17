@@ -11,9 +11,32 @@
 }
 
 .google-btn {
+
+    // Only apply custom color when NOT disabled
+    &:not(:disabled) {
+        &[mat-flat-button] {
+            background-color: #4285f4 !important;
+            color: white !important;
+        }
+
+        &[mat-stroked-button] {
+            color: #4285f4 !important;
+            border-color: #4285f4 !important;
+        }
+    }
+
     ::ng-deep .mat-icon {
         color: inherit;
     }
+}
+
+.disabled-section {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 16px;
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 8px;
 }
 
 .sync-section {

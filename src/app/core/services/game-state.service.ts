@@ -37,6 +37,7 @@ export class GameStateService {
     // ==================== Status ====================
     status = signal<'idle' | 'loading' | 'generating' | 'error'>('idle');
     isBusy = computed(() => this.status() === 'loading' || this.status() === 'generating');
+    criticalError = signal<string | null>(null);
 
     // ==================== Chat Messages ====================
     messages = signal<ChatMessage[]>([]);
@@ -76,10 +77,21 @@ export class GameStateService {
     dynamicFastforwardInjection = signal<string>('');
     dynamicSystemInjection = signal<string>('');
     dynamicSaveInjection = signal<string>('');
+    dynamicSystemMainInjection = signal<string>('');
     postProcessScript = signal<string>('');
 
     // Flag to prevent effects from saving until after initial load
     injectionSettingsLoaded = signal(false);
+
+    // ==================== Prompt Updates ====================
+    // Track status of prompt file updates: type -> { hasUpdate: boolean, serverContent: string }
+    promptUpdateStatus = signal<Map<string, { hasUpdate: boolean, serverContent: string }>>(new Map());
+    hasAnyPromptUpdate = computed(() => {
+        for (const status of this.promptUpdateStatus().values()) {
+            if (status.hasUpdate) return true;
+        }
+        return false;
+    });
 
     // ==================== Context Mode ====================
     contextMode = signal<'smart' | 'full'>('smart');
@@ -87,7 +99,7 @@ export class GameStateService {
     // ==================== Internal State (non-signal) ====================
     // These are mutable internal state used by services
     kbCacheTokens = 0;
-    systemInstructionCache = '';
+    systemInstructionCache = computed(() => this.dynamicSystemMainInjection());
     isContextInjected = false;
     injectionContentHash = '';
 }
