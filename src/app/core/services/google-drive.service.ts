@@ -136,11 +136,18 @@ export class GoogleDriveService {
 
     hasAuthError = signal(false);
 
+    private refreshTimer: any = null;
+
     private handleLoginSuccess(token: string, expiresInSeconds = 3599, refreshToken?: string) {
         this.accessToken.set(token);
         this.hasAuthError.set(false); // Clear any previous error
+
+        // Expiry calculation
+        const now = Date.now();
         // Set expiry to slightly before actual expiry (e.g., 5 min buffer)
-        const expiry = Date.now() + (expiresInSeconds - 300) * 1000;
+        // We use this buffer for "isAuthenticated()" check
+        const expiryBufferSeconds = 300;
+        const expiry = now + (expiresInSeconds - expiryBufferSeconds) * 1000;
         this.tokenExpiry.set(expiry);
 
         localStorage.setItem('gdrive_access_token', token);
@@ -155,6 +162,45 @@ export class GoogleDriveService {
         // Fetch user email if not present (for login hints)
         if (!localStorage.getItem('gdrive_user_email')) {
             this.fetchAndSaveUserEmail(token);
+        }
+
+        // Schedule proactive refresh
+        this.scheduleAutoRefresh(expiresInSeconds);
+    }
+
+    private scheduleAutoRefresh(expiresInSeconds: number) {
+        if (this.refreshTimer) {
+            clearTimeout(this.refreshTimer);
+            this.refreshTimer = null;
+        }
+
+        // Refresh 4 minutes before actual expiry (giving 1 min overlap with our 5min buffer)
+        // If expiresInSeconds is very short (e.g. testing), refresh halfway.
+        const refreshDelaySeconds = Math.max(10, expiresInSeconds - 300); // Trigger 5 mins before real expiry
+        const delayMs = refreshDelaySeconds * 1000;
+
+        console.log(`[GoogleDrive] Scheduling silent refresh in ${refreshDelaySeconds} seconds`);
+
+        this.refreshTimer = setTimeout(() => {
+            void this.performSilentRefresh();
+        }, delayMs);
+    }
+
+    private async performSilentRefresh() {
+        console.log('[GoogleDrive] Performing proactive silent refresh...');
+        try {
+            // Try refresh token first (Desktop/Tauri)
+            if (this.refreshToken()) {
+                await this.refreshAccessToken();
+            } else {
+                // Try silent web login (Web)
+                await this.loginWeb(false);
+            }
+            console.log('[GoogleDrive] Proactive refresh successful');
+        } catch (e) {
+            console.warn('[GoogleDrive] Proactive refresh failed. Will wait for manual interaction.', e);
+            // We don't reportAuthError here to avoid annoying user if they are idle.
+            // The next actual API call will fail and trigger the UI warning.
         }
     }
 
@@ -206,6 +252,10 @@ export class GoogleDriveService {
     }
 
     private clearTokens() {
+        if (this.refreshTimer) {
+            clearTimeout(this.refreshTimer);
+            this.refreshTimer = null;
+        }
         this.accessToken.set(null);
         this.refreshToken.set(null);
         this.tokenExpiry.set(0);

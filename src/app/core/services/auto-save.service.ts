@@ -121,14 +121,19 @@ export class AutoSaveService {
         const cloudSlotId = localStorage.getItem('kb_slot_id');
         const isCloudAuth = this.driveService.isAuthenticated();
 
-        if (cloudSlotId && isCloudAuth) {
-            try {
-                await this.driveService.uploadSave(save, cloudSlotId);
-                saved = true;
-            } catch (e) {
-                console.error('[AutoSave] Cloud save failed', e);
-                // Report auth error to UI (SidebarBadge / SyncComponent)
+        if (cloudSlotId) {
+            if (!isCloudAuth) {
+                console.warn('[AutoSave] Cloud save skipped - Auth expired');
                 this.driveService.reportAuthError();
+            } else {
+                try {
+                    await this.driveService.uploadSave(save, cloudSlotId);
+                    saved = true;
+                } catch (e) {
+                    console.error('[AutoSave] Cloud save failed', e);
+                    // Report auth error to UI (SidebarBadge / SyncComponent)
+                    this.driveService.reportAuthError();
+                }
             }
         }
 

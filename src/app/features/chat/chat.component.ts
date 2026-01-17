@@ -36,16 +36,16 @@ export class ChatComponent {
     engine = inject(GameEngineService);
     state = inject(GameStateService);
     private breakpointObserver = inject(BreakpointObserver);
-    private scrollContainer = viewChild<ElementRef>('scrollContainer');
+    private destroyRef = inject(DestroyRef);
 
-    // Removed chatInput viewChild approach if not strictly needed or kept for other reasons
-    // If needed to call startEdit, keep it. Confirmed used in onEditAndResend.
+    private scrollContainer = viewChild<ElementRef>('scrollContainer');
+    private contentWrapper = viewChild<ElementRef>('contentWrapper');
     private chatInput = viewChild<ChatInputComponent>('chatInput');
 
     userInput = signal('');
     selectedIntent = signal(GAME_INTENTS.ACTION);
     editingMessageId = signal<string | null>(null);
-    showScrollButton = false;
+    showScrollButton = signal(false);
     isSidebarOpen = signal(false);
 
     isMobile = toSignal(
@@ -55,61 +55,63 @@ export class ChatComponent {
 
     sidenavMode = computed(() => this.isMobile() ? 'over' : 'side');
 
-    private observer: MutationObserver | null = null;
-    private needsInitialScroll = false;
+    private resizeObserver: ResizeObserver | null = null;
     private userScrolledUp = false;
     private lastScrollTop = 0;
     private scrollFrameId: number | null = null;
-    private destroyRef = inject(DestroyRef);
 
     constructor() {
         // Init/Loading Jump Effect
         effect(() => {
             const status = this.state.status();
+            // When going to idle or generating (and not scrolled up), ensure we are at bottom.
             if ((status === 'idle' || status === 'generating') && !this.userScrolledUp) {
-                this.needsInitialScroll = true;
+                // We use a small timeout to allow new elements to render before scrolling
                 setTimeout(() => {
-                    if (this.needsInitialScroll) {
-                        this.scrollToBottom(true);
-                        this.needsInitialScroll = false;
-                    }
-                }, 100);
+                    this.scrollToBottom(true);
+                }, 50);
             }
         });
 
-        // Smart Follow via MutationObserver
         afterNextRender(() => {
-            this.observer = new MutationObserver(() => {
-                this.smartScroll();
-            });
-
-            const scrollEl = this.scrollContainer();
-            if (scrollEl && this.observer) {
-                this.observer.observe(scrollEl.nativeElement, {
-                    childList: true,
-                    subtree: true,
-                    characterData: true
-                });
-            }
-            setTimeout(() => this.scrollToBottom(true), 200);
+            this.initScrollObservers();
         });
 
         this.destroyRef.onDestroy(() => {
-            this.observer?.disconnect();
+            this.resizeObserver?.disconnect();
+            if (this.scrollFrameId) {
+                cancelAnimationFrame(this.scrollFrameId);
+            }
         });
     }
 
-    checkScroll() {
-        const scrollRef = this.scrollContainer();
-        if (!scrollRef) return;
-        const el = scrollRef.nativeElement;
+    private initScrollObservers() {
+        const scrollEl = this.scrollContainer()?.nativeElement;
+        const contentEl = this.contentWrapper()?.nativeElement;
 
+        if (!scrollEl || !contentEl) return;
+
+        // 1. Scroll Listener (Access user scroll state)
+        scrollEl.addEventListener('scroll', () => {
+            this.checkScroll(scrollEl);
+        }, { passive: true }); // passive improves scroll performance
+
+        // 2. Resize Observer (Detect content changes)
+        this.resizeObserver = new ResizeObserver(() => {
+            this.smartScroll();
+        });
+        this.resizeObserver.observe(contentEl);
+    }
+
+    checkScroll(el: HTMLElement) {
+        // Run light check logic
         const threshold = 300;
         const currentScrollTop = el.scrollTop;
         const distFromBottom = el.scrollHeight - currentScrollTop - el.clientHeight;
 
-        this.showScrollButton = distFromBottom > threshold;
+        const show = distFromBottom > threshold;
 
+        // Detect user intent (scrolling up vs down)
         if (distFromBottom < 50) {
             this.userScrolledUp = false;
         } else if (currentScrollTop < this.lastScrollTop - 5) {
@@ -117,9 +119,15 @@ export class ChatComponent {
         }
 
         this.lastScrollTop = currentScrollTop;
+
+        // Update signal only if changed
+        if (this.showScrollButton() !== show) {
+            this.showScrollButton.set(show);
+        }
     }
 
     private smartScroll() {
+        // Debounce with RAF to avoid thrashing if multiple resize events fire
         if (this.scrollFrameId) {
             cancelAnimationFrame(this.scrollFrameId);
         }
@@ -135,21 +143,20 @@ export class ChatComponent {
         if (!scrollRef) return;
         const el = scrollRef.nativeElement;
 
+        // Logic: specific thresholds for when to auto-scroll
         const isGenerating = this.state.status() === 'generating';
+
+        // If content is smaller than view, nothing to do
         if (el.scrollHeight <= el.clientHeight) return;
 
-        if (this.needsInitialScroll) {
-            this.scrollToBottom(true);
-            this.needsInitialScroll = false;
-            return;
-        }
-
+        // More generous threshold during generation
         const threshold = isGenerating ? 800 : 400;
         const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
 
         const shouldFollow = dist < threshold && !this.userScrolledUp;
 
         if (shouldFollow) {
+            // Instant scroll if very close or generating to keep up with stream
             const forceInstant = isGenerating || dist < 100;
             this.scrollToBottom(forceInstant);
         }
@@ -158,13 +165,17 @@ export class ChatComponent {
     scrollToBottom(force = false): void {
         const scrollRef = this.scrollContainer();
         if (!scrollRef) return;
+
+        // This is a UI update
+        const el = scrollRef.nativeElement;
         try {
-            const el = scrollRef.nativeElement;
             el.scrollTo({
                 top: el.scrollHeight,
                 behavior: force ? 'auto' : 'smooth'
             });
-            if (force || this.showScrollButton) {
+
+            // Allow auto-scroll to resume if we forced it down
+            if (force) {
                 this.userScrolledUp = false;
             }
         } catch { /* ignore */ }
@@ -194,12 +205,6 @@ export class ChatComponent {
     }
 
     onJumpToMessage(id: string) {
-        // Close sidebar on mobile, keep on desktop? 
-        // For simplicity, let's keep it open on desktop or follow user pref. 
-        // Current requirement implies just jumping. 
-        // If "Sidebar" matches the standard behavior, it might stay open.
-        // Let's scroll first.
-
         setTimeout(() => {
             const el = document.getElementById('message-' + id);
             if (el) {
@@ -207,6 +212,6 @@ export class ChatComponent {
                 el.classList.add('highlight-flash');
                 setTimeout(() => el.classList.remove('highlight-flash'), 2000);
             }
-        }, 100);
+        }, 50);
     }
 }

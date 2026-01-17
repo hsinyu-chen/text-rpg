@@ -20,7 +20,8 @@
             </button>
             <button mat-menu-item (click)="openConfigDialog()">
                 <mat-icon [matBadge]="state.hasAnyPromptUpdate() ? '!' : ''" matBadgeColor="warn"
-                    [matBadgeHidden]="!state.hasAnyPromptUpdate()">settings</mat-icon>
+                    [matBadgeHidden]="!state.hasAnyPromptUpdate()" aria-hidden="false"
+                    aria-label="Settings notification">settings</mat-icon>
                 <span>Config</span>
             </button>
             <button mat-menu-item (click)="exportToMarkdown()">

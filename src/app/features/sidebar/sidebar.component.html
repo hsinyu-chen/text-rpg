@@ -72,9 +72,8 @@
         <!-- Storage Tab -->
         <mat-tab>
             <ng-template mat-tab-label>
-                <div [matBadge]="showStorageWarning() ? '!' : null" matBadgeColor="warn" matBadgeOverlap="true">
-                    <mat-icon>cloud_sync</mat-icon>
-                </div>
+                <mat-icon [matBadge]="showStorageWarning() ? '!' : null" matBadgeColor="warn" matBadgeOverlap="true"
+                    aria-hidden="false" aria-label="Storage status">cloud_sync</mat-icon>
                 <span class="tab-label">Storage</span>
             </ng-template>
             <div class="tab-content padded">

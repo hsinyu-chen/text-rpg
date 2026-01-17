@@ -9,23 +9,26 @@
         <div class="chat-container">
 
             <!-- Thread -->
-            <div class="thread-area" #scrollContainer (scroll)="checkScroll()">
+            <!-- Removed (scroll)="checkScroll()" to use manual listener in OnPush/Zone-less optimized way -->
+            <div class="thread-area" #scrollContainer>
 
-                @for (msg of state.messages(); track msg.id; let i = $index) {
-                <!-- Add ID for scrolling -->
-                <div [id]="'message-' + msg.id" class="message-wrapper">
-                    <app-chat-message [message]="msg" [index]="i" [isBusy]="state.isBusy()"
-                        [isLastUser]="isLastUserMessage(msg.id)" (resend)="onEditAndResend($event)" />
-                </div>
-                }
+                <div class="thread-content" #contentWrapper>
+                    @for (msg of state.messages(); track msg.id; let i = $index) {
+                    <!-- Add ID for scrolling -->
+                    <div [id]="'message-' + msg.id" class="message-wrapper">
+                        <app-chat-message [message]="msg" [index]="i" [isBusy]="state.isBusy()"
+                            [isLastUser]="isLastUserMessage(msg.id)" (resend)="onEditAndResend($event)" />
+                    </div>
+                    }
 
-                <!-- Loading Indicator -->
-                @if (state.status() === 'generating') {
-                <div class="loading-row">
-                    <mat-spinner diameter="20"></mat-spinner>
-                    <span>Generative AI is thinking...</span>
+                    <!-- Loading Indicator -->
+                    @if (state.status() === 'generating') {
+                    <div class="loading-row">
+                        <mat-spinner diameter="20"></mat-spinner>
+                        <span>Generative AI is thinking...</span>
+                    </div>
+                    }
                 </div>
-                }
 
             </div>
 
@@ -34,7 +37,7 @@
                 (toggleSidebar)="toggleSidebar()" />
 
             <!-- Scroll to Bottom Button -->
-            @if (showScrollButton) {
+            @if (showScrollButton()) {
             <button mat-mini-fab color="accent" class="scroll-bottom-btn" (click)="scrollToBottom()">
                 <mat-icon>arrow_downward</mat-icon>
             </button>
