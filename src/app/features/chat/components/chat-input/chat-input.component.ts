@@ -18,6 +18,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { PayloadDialogComponent } from '../../../../shared/components/payload-dialog/payload-dialog.component';
 import { ChatConfigDialogComponent } from '../../../../shared/components/chat-config-dialog/chat-config-dialog.component';
 import { ChatReplaceDialogComponent } from '../chat-replace-dialog/chat-replace-dialog.component';
+import { ConfirmDialogComponent, ConfirmDialogData } from '../../../../shared/components/confirm-dialog/confirm-dialog.component';
 import { TauriWindow } from '../../../../core/models/types';
 import { LanguageService } from '../../../../core/services/language.service';
 
@@ -234,7 +235,7 @@ export class ChatInputComponent {
             .filter(m => m.role === 'model' && !m.isRefOnly && (!m.intent || (validIntents as string[]).includes(m.intent)))
             .map(m => m.content);
 
-        const content = storyParts.join('\n');
+        const content = storyParts.join('\n').replace(/<possible save point>/gi, '');
         let filename = 'act_export.md';
 
         for (let i = messages.length - 2; i >= 0; i--) {
@@ -314,5 +315,46 @@ export class ChatInputComponent {
         this.selectedIntent.set(intent);
         this.userInput.set(content);
         this.focusInput();
+    }
+
+    // Stop generation and delete the current generation message pair
+    async stopGeneration(): Promise<void> {
+        const messages = this.state.messages();
+        if (messages.length < 2) return;
+
+        // Find the last user message (the one that triggered this generation)
+        let lastUserMsgIndex = -1;
+        for (let i = messages.length - 1; i >= 0; i--) {
+            if (messages[i].role === 'user') {
+                lastUserMsgIndex = i;
+                break;
+            }
+        }
+
+        if (lastUserMsgIndex === -1) return;
+
+        const dialogRef = this.matDialog.open<ConfirmDialogComponent, ConfirmDialogData, boolean>(
+            ConfirmDialogComponent,
+            {
+                data: {
+                    title: this.lang.t('STOP_GENERATION_CONFIRM_TITLE'),
+                    message: this.lang.t('STOP_GENERATION_CONFIRM_MSG'),
+                    okText: this.lang.t('STOP_GENERATION'),
+                    cancelText: this.lang.t('CANCEL')
+                },
+                width: '400px'
+            }
+        );
+
+        dialogRef.afterClosed().subscribe(confirmed => {
+            if (!confirmed) return;
+
+            // Stop the generation by setting status to idle
+            this.state.status.set('idle');
+
+            // Delete from the last user message (rewindTo deletes from that message onwards)
+            const lastUserMsg = messages[lastUserMsgIndex];
+            this.engine.deleteFrom(lastUserMsg.id);
+        });
     }
 }

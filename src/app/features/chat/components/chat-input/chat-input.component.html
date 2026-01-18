@@ -121,10 +121,17 @@
             <mat-icon>visibility</mat-icon>
         </button>
 
+        @if (state.status() === 'generating') {
+        <button mat-mini-fab color="warn" class="stop-btn" (click)="stopGeneration()"
+            [matTooltip]="lang.t('STOP_GENERATION')">
+            <mat-icon>stop</mat-icon>
+        </button>
+        } @else {
         <button mat-mini-fab color="primary" class="send-btn" [disabled]="state.status() === 'generating'"
             (click)="sendMessage()" matTooltip="Send (Ctrl+Enter)">
             <mat-icon>send</mat-icon>
         </button>
+        }
 
     </div>
 </div>

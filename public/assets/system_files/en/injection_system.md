@@ -45,9 +45,10 @@ This turn's type determines output content. **Mixing is PROHIBITED**:
 ##### 1. `<save file="filename" context="path">`
 Define target file and node path:
 - **`file`**: Full filename (e.g., `{{FILE_CHARACTER_STATUS}}`)
-- **`context`**: Must **exactly match the heading string** in the original file, including `#` symbols, spaces, and `**` bold markers
+- **`context`**: **MUST** be an **existing** heading string in the original file, including `#` symbols, spaces, and `**` bold markers
 - Use ` > ` to separate levels (e.g., `# Core Characters > ## John Smith`)
 - Set to empty string `""` for top-level file operations
+- **FORBIDDEN** to use non-existent/new headers in `context`
 
 ##### 2. `<update>` 
 Wraps an atomic update. A single `<save>` can contain multiple `<update>` blocks.
@@ -64,6 +65,7 @@ The new content
 #### Operation Types
 - **Replace**: Provide both `<target>` and `<replacement>`
 - **Add**: Only provide `<replacement>`, appends to node end
+- **Delete**: Provide only `<target>` with no `<replacement>` (or empty `<replacement></replacement>`)
 - **Full File Replace**: `context=""` with no `<target>`
 
 #### Example

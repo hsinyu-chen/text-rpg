@@ -105,10 +105,12 @@ export class FileUpdateService {
      */
     generateLastSceneHunk(storyContent: string, lang = 'default'): FileUpdate {
         const names = getCoreFilenames(lang);
+        // Strip <possible save point> tag from story content
+        const cleanedContent = storyContent.replace(/<possible save point>/gi, '').trim();
         return {
             filePath: names.STORY_OUTLINE,
             context: '',
-            replacementContent: '# last_scene\n\n' + storyContent,
+            replacementContent: '# last_scene\n\n' + cleanedContent,
             label: 'Auto-generated last_scene'
         };
     }
@@ -197,6 +199,12 @@ export class FileUpdateService {
             // Pure ADD (Append) - still use line-based for section insertion
             const lines = content.split(/\r?\n/);
             const insertionIndex = this.findInsertionPoint(lines, update.context);
+
+            // If context was provided but not found, don't modify the file
+            if (insertionIndex === -1) {
+                console.warn(`Context not found in ${update.filePath}: ${update.context}`);
+                return content; // No change
+            }
 
             const replacementLines = update.replacementContent.split(/\r?\n/);
             lines.splice(insertionIndex, 0, ...replacementLines);
@@ -322,6 +330,15 @@ export class FileUpdateService {
                 // APPEND mode
                 const insertionIndex = this.findInsertionPoint(lines, update.context);
 
+                // If context was provided but not found, mark as failed
+                if (insertionIndex === -1) {
+                    return {
+                        exists: true,
+                        matched: false,
+                        failReason: 'context_mismatch'
+                    };
+                }
+
                 // Duplicate detection
                 let alreadyExists = false;
                 if (update.context) {
@@ -431,6 +448,7 @@ export class FileUpdateService {
 
         const crumbs = context.split('>').map(c => c.trim());
         let currentLine = 0;
+        let anyFound = false; // Track if at least one crumb was matched
 
         for (const crumb of crumbs) {
             let found = -1;
@@ -453,11 +471,13 @@ export class FileUpdateService {
                         // Strict Match: Must be a header, but ignore level (Allow # count mismatch)
                         if (isLineHeader) {
                             found = i;
+                            anyFound = true;
                             break;
                         }
                     } else {
                         // Loose Match: Just needs to be a header or matches text
                         found = i;
+                        anyFound = true;
                         break;
                     }
                 }
@@ -469,7 +489,9 @@ export class FileUpdateService {
             // If not found, continue searching next crumb from the SAME currentLine (Skipped Layer)
         }
 
-        if (currentLine === 0) return lines.length;
+        // If context was provided but no crumb was matched, return -1 to indicate failure
+        // This prevents inserting at file end when LLM gives a non-existent context
+        if (!anyFound) return -1;
 
         // Find end of section: next header of <= current level
         const headerLine = lines[currentLine - 1];
@@ -493,6 +515,7 @@ export class FileUpdateService {
     private verifyContext(lines: string[], matchIndex: number, context: string): boolean {
         const crumbs = context.split('>').map(c => c.trim()).reverse();
         let currentIdx = matchIndex;
+        let anyFound = false; // Track if at least one crumb was matched
 
         for (const crumb of crumbs) {
             let found = false;
@@ -514,11 +537,13 @@ export class FileUpdateService {
                         // Relaxed: Just check if it's a header line, ignore level
                         if (isLineHeader) {
                             found = true;
+                            anyFound = true;
                             currentIdx = i;
                             break;
                         }
                     } else {
                         found = true;
+                        anyFound = true;
                         currentIdx = i;
                         break;
                     }
@@ -530,6 +555,8 @@ export class FileUpdateService {
                 continue;
             }
         }
-        return true;
+        // Return true only if at least one crumb was matched
+        // This prevents insertion at file end when context doesn't exist at all
+        return anyFound;
     }
 }

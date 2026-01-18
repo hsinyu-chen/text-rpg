@@ -403,3 +403,28 @@
         opacity: 0.4;
     }
 }
+
+.save-point-section {
+    margin-top: 1rem;
+    padding-top: 0.5rem;
+
+    .save-point-divider {
+        border: none;
+        border-top: 1px solid rgba(255, 255, 255, 0.12);
+        margin-bottom: 0.75rem;
+    }
+
+    .save-point-btn {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        width: 100%;
+        justify-content: center;
+        color: #818cf8;
+        border-color: #818cf8;
+
+        &:hover {
+            background: rgba(129, 140, 248, 0.1);
+        }
+    }
+}

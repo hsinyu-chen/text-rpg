@@ -62,6 +62,18 @@ export class SidebarContextControlsComponent {
     }
 
     toggleContextMode() {
-        this.state.contextMode.update(m => m === 'smart' ? 'full' : 'smart');
+        this.state.contextMode.update(m => {
+            if (m === 'smart') return 'summarized';
+            if (m === 'summarized') return 'full';
+            return 'smart';
+        });
+    }
+
+    toggleSaveContextMode() {
+        this.state.saveContextMode.update(m => {
+            if (m === 'summarized') return 'full';
+            if (m === 'full') return 'smart';
+            return 'summarized';
+        });
     }
 }

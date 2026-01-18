@@ -48,18 +48,36 @@
 }
 <div class="toggle-section">
     <button mat-stroked-button class="full-width mode-btn" (click)="toggleContextMode()" [disabled]="state.isBusy()"
-        [class.active-smart]="state.contextMode() === 'smart'" [class.active-full]="state.contextMode() === 'full'">
-        <mat-icon>{{ state.contextMode() === 'smart' ? 'compress' : 'expand' }}</mat-icon>
-        Mode: {{ state.contextMode() === 'smart' ? 'Smart Context' : 'Full Context' }}
+        [class.active-smart]="state.contextMode() === 'smart'"
+        [class.active-summarized]="state.contextMode() === 'summarized'"
+        [class.active-full]="state.contextMode() === 'full'">
+        <mat-icon>{{ state.contextMode() === 'smart' ? 'compress' : (state.contextMode() === 'summarized' ?
+            'auto_stories' : 'expand') }}</mat-icon>
+        Mode: {{ state.contextMode() === 'smart' ? 'Smart' : (state.contextMode() === 'summarized' ? 'Summarized' :
+        'Full') }}
     </button>
-    @if (state.contextMode() === 'smart') {
     <p class="hint-text">
-        Summarizes older turns + Last 10 Full
-    </p>
-    }
-    @if (state.contextMode() === 'full') {
-    <p class="hint-text">
+        @if (state.contextMode() === 'smart') {
+        Older turns summarized + Last 10 Turns Full
+        } @else if (state.contextMode() === 'summarized') {
+        Older turns summarized + Last 1 Turn Full
+        } @else {
         Sends 100% full history (High Cost)
+        }
     </p>
-    }
+
+    <mat-divider style="margin: 8px 0"></mat-divider>
+
+    <button mat-stroked-button class="full-width mode-btn" (click)="toggleSaveContextMode()" [disabled]="state.isBusy()"
+        [class.active-smart]="state.saveContextMode() === 'smart'"
+        [class.active-summarized]="state.saveContextMode() === 'summarized'"
+        [class.active-full]="state.saveContextMode() === 'full'">
+        <mat-icon>{{ state.saveContextMode() === 'smart' ? 'compress' : (state.saveContextMode() === 'summarized' ?
+            'auto_stories' : 'expand') }}</mat-icon>
+        Save Mode: {{ state.saveContextMode() === 'smart' ? 'Smart' : (state.saveContextMode() === 'summarized' ?
+        'Summarized' : 'Full') }}
+    </button>
+    <p class="hint-text">
+        Context mode used for &lt;存檔&gt; tags
+    </p>
 </div>

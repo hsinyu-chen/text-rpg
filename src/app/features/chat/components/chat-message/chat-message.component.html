@@ -1,12 +1,13 @@
+@if (message(); as msg) {
 <!-- User Msg -->
-@if (message().role === 'user') {
+@if (msg.role === 'user') {
 <div class="msg-row user">
-    <div class="msg-bubble user-bubble" [class.ref-only]="message().isRefOnly">
+    <div class="msg-bubble user-bubble" [class.ref-only]="msg.isRefOnly">
         <!-- Toolbar for User Msg -->
         <div class="msg-toolbar">
             <button mat-icon-button class="mini-btn" (click)="state.toggleRefOnly()" [disabled]="isBusy()"
-                [matTooltip]="message().isRefOnly ? 'Include in Story' : 'Mark as Ref Only'">
-                <mat-icon>{{ message().isRefOnly ? 'link' : 'link_off' }}</mat-icon>
+                [matTooltip]="msg.isRefOnly ? 'Include in Story' : 'Mark as Ref Only'">
+                <mat-icon>{{ msg.isRefOnly ? 'link' : 'link_off' }}</mat-icon>
             </button>
             <!-- Rewind & Resend Button (Only Last User Msg) -->
             @if (isLastUser()) {
@@ -28,30 +29,30 @@
         <div (dblclick)="state.enterEditMode()" class="bubble-content">
 
             @if (!state.isEditing()) {
-            <div class="text-content">{{ message().content | stripIntent }}</div>
+            <div class="text-content">{{ msg.content | stripIntent }}</div>
             } @else {
             <ng-container *ngTemplateOutlet="editor" />
             }
 
         </div>
         <div class="msg-meta">
-            @if (message().intent) { <span class="intent-tag" [class.system]="message().intent === Intents.SYSTEM"
-                [class.save]="message().intent === Intents.SAVE">{{ getIntentLabel(message().intent) }}</span> }
-            User Action @if (message().isRefOnly) { <span>(Ref Only)</span> }
+            @if (msg.intent) { <span class="intent-tag" [class.system]="msg.intent === Intents.SYSTEM"
+                [class.save]="msg.intent === Intents.SAVE">{{ getIntentLabel(msg.intent) }}</span> }
+            User Action @if (msg.isRefOnly) { <span>(Ref Only)</span> }
         </div>
     </div>
 </div>
 }
 
 <!-- Model Msg -->
-@if (message().role === 'model') {
+@if (msg.role === 'model') {
 <div class="msg-row model">
     <div class="msg-wrapper">
-        <div class="msg-bubble model-bubble group" [class.ref-only]="message().isRefOnly">
+        <div class="msg-bubble model-bubble group" [class.ref-only]="msg.isRefOnly">
 
             <!-- Toolbar -->
             <div class="msg-toolbar">
-                @if (message().intent === Intents.SAVE || message().content.includes('<save')) { <button mat-icon-button
+                @if (msg.intent === Intents.SAVE || msg.content.includes('<save')) { <button mat-icon-button
                     class="mini-btn update-btn" (click)="state.openAutoUpdateDialog()" [disabled]="isBusy()"
                     matTooltip="Auto Update Files">
                     <mat-icon>auto_fix_high</mat-icon>
@@ -70,8 +71,8 @@
                         <mat-icon>edit</mat-icon>
                     </button>
                     <button mat-icon-button class="mini-btn" (click)="state.toggleRefOnly()" [disabled]="isBusy()"
-                        [matTooltip]="message().isRefOnly ? 'Include in Story' : 'Mark as Ref Only'">
-                        <mat-icon>{{ message().isRefOnly ? 'link' : 'link_off' }}</mat-icon>
+                        [matTooltip]="msg.isRefOnly ? 'Include in Story' : 'Mark as Ref Only'">
+                        <mat-icon>{{ msg.isRefOnly ? 'link' : 'link_off' }}</mat-icon>
                     </button>
                     <button mat-icon-button class="mini-btn delete-btn" (click)="state.deleteMessageAndFollowing()"
                         [disabled]="isBusy()" matTooltip="Delete This and All Following">
@@ -84,7 +85,7 @@
             </div>
 
             <!-- Context Status Indicator (If older than 5 turns) -->
-            @if (!state.inContext() && message().role === 'model' && !message().isRefOnly) {
+            @if (!state.inContext() && msg.role === 'model' && !msg.isRefOnly) {
             <div class="context-status" matTooltip="Referenced by Summary Only (Context Optimized)">
                 <mat-icon>history</mat-icon>
                 <span>Archived</span>
@@ -92,16 +93,16 @@
             }
 
             <!-- Ref Only Collapsible Wrapper -->
-            @if (message().isRefOnly && !state.isRefExpanded()) {
+            @if (msg.isRefOnly && !state.isRefExpanded()) {
             <div class="ref-only-collapsed" (click)="state.toggleRefExpanded()"
                 (keydown.enter)="state.toggleRefExpanded()" tabindex="0" matTooltip="Click to Expand">
-                <span class="collapsed-text">{{ message().content.slice(0, 50) }}...</span>
+                <span class="collapsed-text">{{ msg.content.slice(0, 50) }}...</span>
                 <mat-icon class="expand-icon">expand_more</mat-icon>
             </div>
             } @else {
 
             <!-- Analysis Section (Atomic Breakdown) -->
-            @if (message().analysis) {
+            @if (msg.analysis) {
             <div class="thought-container analysis-container">
                 <div class="thought-header analysis-header" (click)="state.toggleAnalysis()" tabindex="0"
                     (keydown.enter)="state.toggleAnalysis()"
@@ -114,25 +115,25 @@
                 </div>
                 @if (state.isAnalysisVisible()) {
                 <div class="thought-content">
-                    <markdown [data]="message().analysis | wrapSaveXml"></markdown>
+                    <markdown [data]="msg.analysis | wrapSaveXml"></markdown>
                 </div>
                 }
             </div>
             }
 
             <!-- Thought Section -->
-            @if (message().thought) {
-            <div class="thought-container" [class.streaming]="message().isThinking">
+            @if (msg.thought) {
+            <div class="thought-container" [class.streaming]="msg.isThinking">
                 <div class="thought-header" (click)="state.toggleThought()" tabindex="0"
                     (keydown.enter)="state.toggleThought()"
                     (keydown.space)="$event.preventDefault(); state.toggleThought()">
                     <div class="header-main">
-                        <mat-icon>{{ state.isThoughtVisible() || message().isThinking ? 'expand_more' : 'chevron_right'
+                        <mat-icon>{{ state.isThoughtVisible() || msg.isThinking ? 'expand_more' : 'chevron_right'
                             }}</mat-icon>
                         <mat-icon class="brain-icon">psychology</mat-icon>
                         <span>Model Thought Process</span>
                     </div>
-                    @if (message().isThinking) {
+                    @if (msg.isThinking) {
                     <div class="header-status">
                         Thinking...
                     </div>
@@ -140,15 +141,15 @@
                 </div>
                 @if (state.isThoughtVisible()) {
                 <div class="thought-content">
-                    <markdown [data]="message().thought | wrapSaveXml"></markdown>
+                    <markdown [data]="msg.thought | wrapSaveXml"></markdown>
                 </div>
                 }
             </div>
             }
 
             <!-- Turn Update Section -->
-            @if (message().summary || (message().inventory_log?.length ?? 0) > 0 || (message().quest_log?.length ?? 0) >
-            0 || (message().world_log?.length ?? 0) > 0) {
+            @if (msg.summary || (msg.inventory_log?.length ?? 0) > 0 || (msg.quest_log?.length ?? 0) >
+            0 || (msg.world_log?.length ?? 0) > 0) {
             <div class="thought-container update-panel-container">
                 <div class="thought-header update-panel-header" (click)="state.toggleUpdate()" tabindex="0"
                     (keydown.enter)="state.toggleUpdate()"
@@ -161,7 +162,7 @@
                 </div>
                 @if (state.isUpdateVisible()) {
                 <div class="thought-content">
-                    <app-turn-update [message]="message()" />
+                    <app-turn-update [message]="msg" />
                 </div>
                 }
             </div>
@@ -172,21 +173,30 @@
             <!-- Rendered Mode -->
             @if (!state.isRaw()) {
             <div (dblclick)="state.enterEditMode()" class="prose-content">
-                <markdown [data]="message().content | wrapSaveXml"></markdown>
+                <markdown [data]="msg.content | stripSavePoint | wrapSaveXml"></markdown>
             </div>
+            @if (hasSavePoint()) {
+            <div class="save-point-section">
+                <hr class="save-point-divider">
+                <button mat-stroked-button color="primary" class="save-point-btn" (click)="state.triggerSaveFlow()"
+                    [disabled]="isBusy()">
+                    <mat-icon>save</mat-icon>
+                    結束目前ACT並產生檔案更新
+                </button>
+            </div>
+            }
             }
 
             <!-- Raw Mode -->
             @if (state.isRaw()) {
             <div (dblclick)="state.enterEditMode()" class="raw-content">
-                {{ message().content }}
+                {{ msg.content }}
             </div>
             }
             } @else {
             <ng-container *ngTemplateOutlet="editor" />
             }
-
-            @if (message().isRefOnly) {
+            @if (msg.isRefOnly) {
             <div class="ref-only-collapse-footer" (click)="state.toggleRefExpanded()"
                 (keydown.enter)="state.toggleRefExpanded()" tabindex="0" matTooltip="Collapse">
                 <mat-icon>expand_less</mat-icon>
@@ -196,15 +206,16 @@
             }
 
             <div class="msg-meta">
-                @if (message().intent) { <span class="intent-tag" [class.system]="message().intent === Intents.SYSTEM"
-                    [class.save]="message().intent === Intents.SAVE">{{ getIntentLabel(message().intent) }}</span> }
-                @if (message().isCorrection) { <span class="correction-tag">(修正)</span> }
-                Model Response @if (message().isRefOnly) { <span>(Ref Only)</span> }
+                @if (msg.intent) { <span class="intent-tag" [class.system]="msg.intent === Intents.SYSTEM"
+                    [class.save]="msg.intent === Intents.SAVE">{{ getIntentLabel(msg.intent) }}</span> }
+                @if (msg.isCorrection) { <span class="correction-tag">(修正)</span> }
+                Model Response @if (msg.isRefOnly) { <span>(Ref Only)</span> }
 
             </div>
         </div>
     </div>
 </div>
+}
 }
 
 <!-- Editor Template (Shared) -->

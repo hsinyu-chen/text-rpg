@@ -20,6 +20,7 @@ import { CommonModule } from '@angular/common';
 import { ConfirmDialogComponent, ConfirmDialogData } from '../confirm-dialog/confirm-dialog.component';
 import { GAME_INTENTS } from '../../../core/constants/game-intents';
 import { getCoreFilenames } from '../../../core/constants/engine-protocol';
+import { getLocale } from '../../../core/constants/locales';
 
 interface ValidationStatus {
   exists: boolean;
@@ -88,6 +89,9 @@ export class AutoUpdateDialogComponent {
   private monacoEditor = viewChild(MonacoEditorComponent);
 
   activeGroup = () => this.groupedUpdates()[this.activeGroupIndex()] || null;
+
+  // Get current locale for i18n
+  locale = () => getLocale(this.state.config()?.outputLanguage);
 
   toggleSidebar() {
     this.isSidebarOpen.update(v => !v);
@@ -413,6 +417,42 @@ export class AutoUpdateDialogComponent {
 
   hasMismatch(group: GroupedUpdate): boolean {
     return group.updates.some(u => u.status && u.status.exists && !u.status.matched);
+  }
+
+  hasAnyMismatch(): boolean {
+    return this.groupedUpdates().some(g => this.hasMismatch(g));
+  }
+
+  /**
+   * Generate a prompt to ask LLM to regenerate save with failed items.
+   * Closes the dialog and sends the message.
+   */
+  onRegenerateSave() {
+    const locale = this.locale();
+    const intentTag = locale.intentTags.SAVE;
+    const promptText = locale.uiStrings.REGENERATE_SAVE_PROMPT;
+
+    // Collect all failed items
+    const failedItems: string[] = [];
+    for (const group of this.groupedUpdates()) {
+      for (const update of group.updates) {
+        if (update.status && update.status.exists && !update.status.matched) {
+          const reason = update.status.failReason === 'context_mismatch'
+            ? 'context mismatch'
+            : 'target not found';
+          const targetPreview = update.targetContent
+            ? update.targetContent.substring(0, 100).replace(/\n/g, ' ') + (update.targetContent.length > 100 ? '...' : '')
+            : '(append mode)';
+          failedItems.push(`- File: ${update.filePath}\n  Context: ${update.context || '(root)'}\n  Reason: ${reason}\n  Target: ${targetPreview}`);
+        }
+      }
+    }
+
+    const message = `${intentTag}${promptText}\n\n**Failed Items:**\n${failedItems.join('\n\n')}`;
+
+    // Send message and close dialog
+    this.engine.sendMessage(message, { intent: GAME_INTENTS.SAVE });
+    this.dialogRef.close();
   }
 
   hasSelectedUpdates(): boolean {

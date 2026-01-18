@@ -94,7 +94,8 @@ export class GameStateService {
     });
 
     // ==================== Context Mode ====================
-    contextMode = signal<'smart' | 'full'>('smart');
+    contextMode = signal<'smart' | 'full' | 'summarized'>('smart');
+    saveContextMode = signal<'smart' | 'full' | 'summarized'>('full');
 
     // ==================== Internal State (non-signal) ====================
     // These are mutable internal state used by services

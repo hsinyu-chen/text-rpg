@@ -153,6 +153,11 @@ export const ZH_TW_LOCALE: AppLocale = {
         CATEGORY_MAIN: '主提示 (Main)',
         CATEGORY_INJECTION: '注入提示 (Injection)',
         CATEGORY_PROCESS: '處理腳本 (Process)',
-        STOP_REASON_PREFIX: '模型停止原因：'
+        STOP_REASON_PREFIX: '模型停止原因：',
+        REGENERATE_SAVE_BTN: '提示LLM重新產生',
+        REGENERATE_SAVE_PROMPT: '重新產生完整存檔',
+        STOP_GENERATION: '停止生成',
+        STOP_GENERATION_CONFIRM_TITLE: '確認停止',
+        STOP_GENERATION_CONFIRM_MSG: '確定要停止生成並刪除這則訊息嗎？'
     }
 };

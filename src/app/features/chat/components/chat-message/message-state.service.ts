@@ -8,6 +8,8 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { FileUpdateService } from '../../../../core/services/file-update.service';
 import { ChatMessage } from '../../../../core/models/types';
 import { AutoUpdateDialogComponent } from '../../../../shared/components/auto-update-dialog/auto-update-dialog.component';
+import { GAME_INTENTS } from '../../../../core/constants/game-intents';
+import { getInputPlaceholders } from '../../../../core/constants/engine-protocol';
 
 @Injectable()
 export class MessageStateService {
@@ -126,6 +128,16 @@ export class MessageStateService {
             await this.engine.loadFiles(false);
             this.snackBar.open(`Applied ${results.length} file updates.`, 'OK', { duration: 3000 });
         }
+    }
+
+    /**
+     * Triggers the save flow - sends a save intent message like the save button in chat-input
+     */
+    triggerSaveFlow() {
+        const placeholders = getInputPlaceholders(this.gameState.config()?.outputLanguage);
+        this.gameState.contextMode.set('full');
+        this.engine.sendMessage(placeholders.SAVE, { intent: GAME_INTENTS.SAVE });
+        this.gameState.contextMode.set('smart');
     }
 
     copyPairJSON() {

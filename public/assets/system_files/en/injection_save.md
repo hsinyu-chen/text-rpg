@@ -18,9 +18,10 @@ User requests an analysis of plot progress **since the `--- ACT START ---` marke
 #### 1. `<save file="Filename" context="Path">`
 Defines target file and node path:
 - **`file`**: Full filepath (e.g., `{{FILE_CHARACTER_STATUS}}`)
-- **`context`**: **Exactly match the header string** from the original file, including `#`, spaces, and `**` bold markers.
+- **`context`**: **MUST** be an **existing** header string from the original file, including `#`, spaces, and `**` bold markers.
 - Use ` > ` to separate levels (e.g., `# Core Characters > ## Cheng Yangzong`).
 - Set to empty string `""` if targeting the file root.
+- **FORBIDDEN** to use non-existent/new headers in `context`
 
 #### 2. `<update>`
 Wraps a single atomic update. A `<save>` can contain multiple `<update>` tags.
@@ -37,7 +38,27 @@ The new content.
 ### Operation Types
 - **Replace**: Provide both `<target>` and `<replacement>`.
 - **Add**: Provide only `<replacement>` (Appends to node).
+- **Delete**: Provide only `<target>` with no `<replacement>` (or empty `<replacement></replacement>`).
 - **Full File Replace**: `context=""` and no `<target>`.
+
+### Correct Format for Adding New Entries
+When adding a new header entry (e.g., new character), `context` should point to the **parent node** (an existing header). The new header MUST be inside `<replacement>`:
+```xml
+<!-- ✓ Correct: Adding character under existing category -->
+<save file="{{FILE_CHARACTER_STATUS}}" context="# Core Characters">
+  <update>
+    <replacement>
+## New Character Name
+- **Identity**: xxx
+    </replacement>
+  </update>
+</save>
+
+<!-- ✗ Wrong: Using non-existent header in context -->
+<save file="{{FILE_CHARACTER_STATUS}}" context="# Core Characters > ## New Character Name">
+  ...
+</save>
+```
 
 ### Example
 ```xml
@@ -60,13 +81,26 @@ The new content.
 | File | Recorded Content | Forbidden |
 |------|------------------|-----------|
 | `{{FILE_ASSETS}}` | Protagonist's party's cash balance, base layout | Portable items, magic, equipment |
-| `{{FILE_TECH_EQUIPMENT}}` | Protagonist's party's mechanical equipment, tools, vehicles | Magic itself, spells |
-| `{{FILE_WORLD_FACTIONS}}` | Faction dynamics, world building (see details below) | Personal quests, user plans |
+| `{{FILE_TECH_EQUIPMENT}}` | **Detailed Specs/Settings** of developed or discovered technology, equipment, tools, vehicles | Magic itself, spells, **Current Stock** |
+| `{{FILE_WORLD_FACTIONS}}` | Faction dynamics, world building (see details below) | Personal quests, user plans, equipment items |
 | `{{FILE_MAGIC_SKILLS}}` | Protagonist's party's formulas, casting process, spell logic, combat skills | Magic items, enchanted gear |
 | `{{FILE_PLANS}}` | Accepted quests, personal goals, progress | World events, faction dynamics |
-| `{{FILE_INVENTORY}}` | Protagonist's party's weapons, armor, consumables, materials | Real estate, large vehicles |
+| `{{FILE_INVENTORY}}` | **Current Possession Status** of weapons, armor, consumables, materials, magical items | Real estate, large vehicles, **Detailed Specs** |
 
 **{{FILE_BASIC_SETTINGS}}** is READ-ONLY. Record all world building in `{{FILE_WORLD_FACTIONS}}`.
+
+> [!IMPORTANT]
+> **Item Archiving Absolute Rule**: Any physical item **held, discovered, or researched** by the protagonist (including **equipment, magic items, technical products, mechanical vehicles**) **MUST** be classified under `{{FILE_INVENTORY}}` or `{{FILE_TECH_EQUIPMENT}}`.
+> - **FORBIDDEN** to place physical equipment or technical products in `{{FILE_WORLD_FACTIONS}}`, even if they contain rich historical backgrounds or technical settings.
+> - **World Lore**: If the item involves important background (e.g., ruin relics, lost technology), record the lore or principles directly in the **"Notes"** field under that item.
+> - **Technical Items**: Newly developed technical products (e.g., new firearms, mechanical devices) belong to `{{FILE_TECH_EQUIPMENT}}` and should not be treated as "Faction Dynamics".
+> - Example:
+>   ```markdown
+>   ## Ancient Short Sword (Arcadian Style)
+>   - **Type**: One-handed Sword
+>   - **Description**: Forged from metal of the same origin as the ruins, with excellent magical conductivity.
+>   - **Notes**: Standard issue sidearm for Ruin Guardians. The metal alloy is unique to the Arcadian civilization.
+>   ```
 
 ### `{{FILE_WORLD_FACTIONS}}` Scope
 - **Faction Dynamics**: Major/Secondary/Retired factions' nature and current status
@@ -77,9 +111,16 @@ The new content.
 - **Discovered Landmarks**: Cities, locations, shops the protagonist discovers
 - **Landmark Status Changes**: Key location state changes (destruction, renovation, occupation, etc.)
 
-### Tech vs Magic
-- `{{FILE_TECH_EQUIPMENT}}`: Records **Physical Devices** (Even "Magitech", if it's a tool/vehicle).
-- `{{FILE_MAGIC_SKILLS}}`: Records **The Art/Logic & Skills** (spells, chanting, mana ability, combat techniques).
+### Tech & Equipment vs Inventory
+- **`{{FILE_TECH_EQUIPMENT}}` & `{{FILE_MAGIC_SKILLS}}`**: Records the **"Knowledge" (Specs, Designs, Principles)**. If you invent a new gun, its blueprint and stats go here.
+- **`{{FILE_INVENTORY}}`**: Records the **"Physical Object" (Possession)**. If you hold that gun, "Handgun x1" goes here.
+
+> [!IMPORTANT]
+> **Item Archiving Absolute Rule**:
+> 1. **Detailed Settings/Specs**: Any equipment/item **developed or discovered** with specific lore/stats MUST have its **Detailed Definition** recorded in `{{FILE_TECH_EQUIPMENT}}` (for physical/tech) or `{{FILE_MAGIC_SKILLS}}` (for magic/skills).
+> 2. **Possession**: The fact that the protagonist **holds** this item MUST be recorded in `{{FILE_INVENTORY}}`.
+> 3. **Forbidden**: Do NOT put equipment specs or possession in `{{FILE_WORLD_FACTIONS}}`.
+
 
 ## Specific File Update Rules
 
@@ -127,7 +168,7 @@ If the current ACT (starting from `--- ACT START ---`) has LOG content, you **MU
 
 ### `world_log` → Target Files
 - World events/factions/world building → `{{FILE_WORLD_FACTIONS}}`
-- Protagonist's party's tech development → `{{FILE_TECH_EQUIPMENT}}`
+- Protagonist's party's tech specs/blueprints development → `{{FILE_TECH_EQUIPMENT}}`
 - Protagonist's party's magic & skills development → `{{FILE_MAGIC_SKILLS}}`
 
 ## This Turn Reminders

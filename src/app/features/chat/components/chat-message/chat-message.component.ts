@@ -10,6 +10,7 @@ import { MarkdownModule } from 'ngx-markdown';
 import { TextFieldModule } from '@angular/cdk/text-field';
 import { StripIntentPipe } from '../../../../shared/pipes/strip-intent.pipe';
 import { WrapSaveXmlPipe } from '../../../../shared/pipes/wrap-save-xml.pipe';
+import { StripSavePointPipe } from '../../../../shared/pipes/strip-save-point.pipe';
 import { ChatMessage } from '../../../../core/models/types';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MessageStateService } from './message-state.service';
@@ -35,6 +36,7 @@ import { computed } from '@angular/core';
         TextFieldModule,
         StripIntentPipe,
         WrapSaveXmlPipe,
+        StripSavePointPipe,
         MatProgressSpinnerModule,
         TurnUpdateComponent
     ],
@@ -72,6 +74,16 @@ export class ChatMessageComponent {
 
     // Localized intent labels
     intentLabels = computed(() => getIntentLabels(this.gameState.config()?.outputLanguage));
+
+    // Detect save point tag in message content
+    // Detect save point tag in message content, ONLY show for the last message
+    hasSavePoint = computed(() => {
+        const msg = this.message();
+        const allMessages = this.gameState.messages();
+        const isLastModelMessage = allMessages.length > 0 && allMessages[allMessages.length - 1].id === msg.id;
+
+        return isLastModelMessage && msg.role === 'model' && /<possible save point>/i.test(msg.content);
+    });
 
     getIntentLabel(intent: string | undefined): string {
         if (!intent) return '';

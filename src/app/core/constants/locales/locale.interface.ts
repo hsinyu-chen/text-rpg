@@ -134,5 +134,10 @@ export interface AppLocale {
         CATEGORY_INJECTION: string;
         CATEGORY_PROCESS: string;
         STOP_REASON_PREFIX: string;
+        REGENERATE_SAVE_BTN: string;
+        REGENERATE_SAVE_PROMPT: string;
+        STOP_GENERATION: string;
+        STOP_GENERATION_CONFIRM_TITLE: string;
+        STOP_GENERATION_CONFIRM_MSG: string;
     };
 }

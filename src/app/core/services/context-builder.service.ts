@@ -7,6 +7,7 @@ import { LLM_MARKERS, getResponseSchema } from '../constants/engine-protocol';
 import { LLMProviderRegistryService } from './llm-provider-registry.service';
 import { LanguageService } from './language.service';
 import { LOCALES } from '../constants/locales';
+import { STORY_INTENTS } from '../constants/game-intents';
 
 @Injectable({
     providedIn: 'root'
@@ -93,10 +94,16 @@ export class ContextBuilderService {
         const filtered = all.filter(m => !m.isRefOnly || m.parts?.some(p => p.functionResponse));
 
         // We want to keep the last few messages intact for immediate context flow.
-        const RECENT_WINDOW = 20;
+        let RECENT_WINDOW = 20;
 
         // Use full context if forced (e.g., save commands) or if contextMode is 'full'
-        const useFullContext = forceFullContext || this.state.contextMode() === 'full';
+        const mode = forceFullContext ? this.state.saveContextMode() : this.state.contextMode();
+
+        const useFullContext = mode === 'full';
+        if (mode === 'summarized') {
+            RECENT_WINDOW = 2;
+        }
+
         const splitIndex = useFullContext ? 0 : Math.max(0, filtered.length - RECENT_WINDOW);
 
         const pastMessages = filtered.slice(0, splitIndex);
@@ -275,8 +282,13 @@ export class ContextBuilderService {
 
     private getDetailFields(m: ChatMessage): string[] {
         const stateUpdates: string[] = [];
-        if (m.summary) {
-            stateUpdates.push(`summary: ${m.summary}`);
+        const isStoryIntent = m.intent && (STORY_INTENTS as string[]).includes(m.intent);
+
+        if (isStoryIntent) {
+            if (m.summary) stateUpdates.push(`summary: ${m.summary}`);
+        } else {
+            // For system/save, use the actual content/story
+            if (m.content) stateUpdates.push(`story: ${m.content}`);
         }
         if (m.inventory_log && m.inventory_log.length > 0) {
             stateUpdates.push(`inventory_log:${JSON.stringify(m.inventory_log)}`);

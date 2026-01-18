@@ -56,6 +56,8 @@ TextRPG is a **Local-First**, **Bring Your Own Key (BYOK)** desktop application 
 *Example*: `([Tense]Holding the heroine, saying) Are you okay??`  
 > [!TIP]
 > Every action is a "trial." The AI determines success or failure based on skills, environment, and random events.
+>
+> **Tip to reduce API blocks**: It is strongly recommended to use **third-person** perspective with complete sentences for actions (e.g., "Leon hugged Mary"). Avoid omitting the subject (e.g., "Hugged Mary") or using first-person perspective (e.g., "I hugged Mary"). Clear subjects significantly reduce the chance of AI misinterpretation and API safety blocks.
 
 ### ⏩ Fast Forward : Skip dull periods
 **Format**: `Target Time or Location`  

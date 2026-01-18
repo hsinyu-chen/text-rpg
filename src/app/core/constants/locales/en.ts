@@ -153,6 +153,11 @@ When performing the <Save> command, please only compare and synchronize based on
         CATEGORY_MAIN: 'Main',
         CATEGORY_INJECTION: 'Injection',
         CATEGORY_PROCESS: 'Process',
-        STOP_REASON_PREFIX: 'Model stopped due to:'
+        STOP_REASON_PREFIX: 'Model stopped due to:',
+        REGENERATE_SAVE_BTN: 'Prompt LLM to Regenerate',
+        REGENERATE_SAVE_PROMPT: 'Regenerate complete save',
+        STOP_GENERATION: 'Stop Generation',
+        STOP_GENERATION_CONFIRM_TITLE: 'Confirm Stop',
+        STOP_GENERATION_CONFIRM_MSG: 'Are you sure you want to stop generation and delete this message?'
     }
 };

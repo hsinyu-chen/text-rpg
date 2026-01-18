@@ -108,6 +108,12 @@
 </mat-dialog-content>
 
 <mat-dialog-actions align="end">
+    @if (hasAnyMismatch()) {
+    <button mat-stroked-button color="warn" (click)="onRegenerateSave()">
+        <mat-icon>refresh</mat-icon>
+        {{ locale().uiStrings.REGENERATE_SAVE_BTN }}
+    </button>
+    }
     <button mat-button (click)="onCancel()">Cancel</button>
     @if (activeGroup(); as group) {
     <button mat-stroked-button color="accent" (click)="onApplyFile(group)" [disabled]="!hasSelectedInGroup(group)">
