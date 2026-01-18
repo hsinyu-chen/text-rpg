@@ -83,7 +83,7 @@ When adding a new header entry (e.g., new character), `context` should point to 
 | `{{FILE_ASSETS}}` | Protagonist's party's cash balance, base layout | Portable items, magic, equipment |
 | `{{FILE_TECH_EQUIPMENT}}` | **Detailed Specs/Settings** of developed or discovered technology, equipment, tools, vehicles | Magic itself, spells, **Current Stock** |
 | `{{FILE_WORLD_FACTIONS}}` | Faction dynamics, world building (see details below) | Personal quests, user plans, equipment items |
-| `{{FILE_MAGIC_SKILLS}}` | Protagonist's party's formulas, casting process, spell logic, combat skills | Magic items, enchanted gear |
+| `{{FILE_MAGIC_SKILLS}}` | Protagonist's party's **mastered, learned, or actively researched** formulas, casting process, spell logic, combat skills | Magic items, enchanted gear, **Observed NPC magic** |
 | `{{FILE_PLANS}}` | Accepted quests, personal goals, progress | World events, faction dynamics |
 | `{{FILE_INVENTORY}}` | **Current Possession Status** of weapons, armor, consumables, materials, magical items | Real estate, large vehicles, **Detailed Specs** |
 
@@ -112,14 +112,16 @@ When adding a new header entry (e.g., new character), `context` should point to 
 - **Landmark Status Changes**: Key location state changes (destruction, renovation, occupation, etc.)
 
 ### Tech & Equipment vs Inventory
-- **`{{FILE_TECH_EQUIPMENT}}` & `{{FILE_MAGIC_SKILLS}}`**: Records the **"Knowledge" (Specs, Designs, Principles)**. If you invent a new gun, its blueprint and stats go here.
-- **`{{FILE_INVENTORY}}`**: Records the **"Physical Object" (Possession)**. If you hold that gun, "Handgun x1" goes here.
+- **`{{FILE_MAGIC_SKILLS}}`**: Records the **"Learned Capability"**. If the protagonist masters a spell or weapon technique, it goes here.
+- **Observed Magic/World Settings**: If a spell is only **observed** (used by an NPC) or discovered as lore but NOT learned, it goes to **`{{FILE_WORLD_FACTIONS}}`** (under Core World View or Faction dynamics).
+- **Physical Media**: A magic scroll or book that hasn't been learned yet goes to **`{{FILE_INVENTORY}}`**.
 
 > [!IMPORTANT]
-> **Item Archiving Absolute Rule**:
-> 1. **Detailed Settings/Specs**: Any equipment/item **developed or discovered** with specific lore/stats MUST have its **Detailed Definition** recorded in `{{FILE_TECH_EQUIPMENT}}` (for physical/tech) or `{{FILE_MAGIC_SKILLS}}` (for magic/skills).
-> 2. **Possession**: The fact that the protagonist **holds** this item MUST be recorded in `{{FILE_INVENTORY}}`.
-> 3. **Forbidden**: Do NOT put equipment specs or possession in `{{FILE_WORLD_FACTIONS}}`.
+> **Archiving Absolute Rules**:
+> 1. **Detailed Settings/Specs**: Any equipment/item **developed or discovered** with specific lore/stats MUST have its **Detailed Definition** recorded in `{{FILE_TECH_EQUIPMENT}}`.
+> 2. **Learned Skills**: ONLY record spells and skills that the protagonist's party has **actually mastered, learned, or is actively researching**.
+> 3. **Possession**: The fact that the protagonist **holds** a physical item MUST be recorded in `{{FILE_INVENTORY}}`.
+> 4. **Forbidden**: Do NOT put learned skills in `{{FILE_WORLD_FACTIONS}}`. Do NOT put observed NPC magic in `{{FILE_MAGIC_SKILLS}}`.
 
 
 ## Specific File Update Rules
@@ -139,8 +141,9 @@ ACT Format:
 - The plot summary details should be arranged in chronological order.
 
 ### Character Status (`{{FILE_CHARACTER_STATUS}}`)
-- When encountering character, update **Last Known Location**: `Location(yyy/MM/dd HH:mm)`
-- ONLY add `Critical Turning Point` if core values/behavior change fundamentally.
+- **All-Field Review**: You MUST review and update **any field within the character entry** that has changed based on the current ACT and LOGs (e.g., **Current Status, Injuries, Relationship, Favorability, Current Goals**, etc.).
+- **Last Known Location**: Update this field whenever encountering a character or learning their movement: `Location(yyy/MM/dd HH:mm)`.
+- **Critical Turning Point**: ONLY add this if the character's core values, behavior, or fate undergoes a **fundamental qualitative change**.
 - **FORBIDDEN** to update User Character status.
 
 ## LOG Integration Rules & State Calculation
@@ -155,8 +158,12 @@ If the current ACT (starting from `--- ACT START ---`) has LOG content, you **MU
 - Protagonist's party's portable items → `{{FILE_INVENTORY}}`
 
 ### `character_log` → `{{FILE_CHARACTER_STATUS}}`
-- **First Encounter Evaluation**: If a character is encountered for the first time (not in file), you **MUST** evaluate if they are significant. Create entry **ONLY** for major/noteworthy characters; **FORBIDDEN** to record one-time passers-by, guards, villagers, or insignificant minor characters.
-- **Significance Criteria**: If the character is involved in **delivering quests, providing/requesting resources, or providing key information** (even for NPCs like butlers or servants), they **MUST** be added to ensure narrative continuity.
+- **First Encounter Evaluation**: If a character is encountered for the first time (not in file), you **MUST** evaluate if they are significant.
+  - **Unique Name Principle**: ONLY records characters with a **unique proper name** and **substantial plot influence**.
+  - **ABSOLUTE PROHIBITION**: Forbidden to record any character using generic labels, titles, or numbering (e.g., "Guard A", "Bandit B", "Random Villager", "Passerby", "Guard Member", etc.).
+  - **Excluded Categories**: One-time scene NPCs, background filler characters, or NPCs providing minimal information.
+- **Significance Criteria**: If the character is involved in **delivering quests, providing/requesting resources, or providing key information**, OR has a **unique name or a specific title** (e.g., "Manager XXX", "Village Head OO"), OR the **protagonist actively attempts to interact with them, asks for their name, or explicitly expresses interest**, they **MUST** be added to ensure narrative continuity.
+
 - **Exit & Pruning Mechanism**: To prevent file bloat, proactively prune entries under these conditions:
   - **Death**: Remove from categories and move to `# Deceased Characters`.
   - **Functional Task Completed**: If a `# Secondary Characters` entry has fulfilled purpose and will not logically reappear, **proactively delete** their entry.

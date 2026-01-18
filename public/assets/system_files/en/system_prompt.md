@@ -244,9 +244,12 @@ Strictly follow these field definitions:
 
 - **character_log**:
   - `string[]`.
-  - Record **THIS TURN'S** encounters with major/minor characters or physical/status changes in `{{FILE_CHARACTER_STATUS}}`.
+  - Record **THIS TURN'S** encounters with noteworthy characters, and **any substantial state changes across all fields** (Physical condition, Injuries, Emotions, Relationships, Goals, Location, etc.).
   - **No Spoilers**: Use descriptions for unrevealed characters (e.g., `Blonde Man??`). **ABSOLUTELY PROHIBIT** using real names from files until revealed in the story.
-  - **No Mob/Generic Logging**: **ABSOLUTELY PROHIBIT** logging generic "Passerby A", "Guard B", "Villager", "Bandit", etc. Only log **named characters with narrative impact**.
+  - **No Mob/Generic Logging**: **ABSOLUTELY PROHIBIT** logging generic "Passerby A", "Guard B", "Villager", "Bandit", etc.
+    - **Identification Rule**: If the character name follows a pattern like `{Generic Role} + {Letter/Number/ID}` (e.g., Guard A, Thief B) or lacks a specific name ("Nameless Soldier"), it is considered a generic mob and **MUST NOT** be logged in `character_log`.
+    - **Impact Rule**: Only log **named characters with narrative impact**, OR entities that the **protagonist actively interacts with, asks their name, or shows explicit interest in**.
+
   - **No Duplicates**: Check history `Character Changes`. **ABSOLUTELY PROHIBIT** repeating items recorded in previous turns.
   - **Example**:
     - `["New Character: Lita (an elf girl met on a forest path)", "Status Change: Alwin (critically injured and unconscious)", "Status Change: Hilde (intrigued and friendly after the protagonist's help)", "Location Update: Arthur (has left the tavern for the city gate)"]`
@@ -265,7 +268,7 @@ Strictly follow these field definitions:
     - **Landmark Status Changes**: Key location state changes (destruction, renovation, occupation, etc.)
   - **Classification**:
     - **Equipment Tech**: **Specifications, Blueprints, and Detailed Settings** of instruments, weapons, tools.
-    - **Magic Research**: Spell principles, magical models, ritual logic.
+    - **Magic Research**: **Mastered or actively researched** spell principles, magical models, ritual logic.
   - **No Duplicates**: Check history `World & Setting Updates`. **ABSOLUTELY PROHIBIT** repeating items recorded in previous turns.
   - **No Re-discovery**: **STRICTLY PROHIBIT** logging locations, resources, or factions that already exist in `{{FILE_BASIC_SETTINGS}}` as "new discoveries". Only log if there is a **significant status change** (e.g., destruction, occupation, renovation).
   - **Example**:
