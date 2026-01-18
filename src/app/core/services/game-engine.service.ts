@@ -40,6 +40,8 @@ export class GameEngineService {
     private configService = inject(ConfigService);
     private streamProcessor = inject(StreamProcessorService);
 
+    private currentAbortController: AbortController | null = null;
+
     /** Get the currently active LLM provider */
     private get provider(): LLMProvider {
         const p = this.providerRegistry.getActive();
@@ -418,13 +420,18 @@ export class GameEngineService {
                 }
             }
 
+            // Create and track AbortController
+            this.currentAbortController = new AbortController();
+            const signal = this.currentAbortController.signal;
+
             const stream = this.provider.generateContentStream(
                 history,
                 this.getEffectiveSystemInstruction(),
                 {
                     cachedContentName: this.state.kbCacheName() || undefined,
                     responseSchema: getResponseSchema(this.state.config()?.outputLanguage),
-                    responseMimeType: 'application/json'
+                    responseMimeType: 'application/json',
+                    signal: signal
                 }
             );
 
@@ -566,7 +573,13 @@ export class GameEngineService {
 - Turn Cost: $${turnCost.toFixed(5)}`);
 
             this.state.status.set('idle');
+            this.currentAbortController = null;
         } catch (e: unknown) {
+            this.currentAbortController = null;
+            if (e instanceof Error && e.name === 'AbortError') {
+                console.log('[GameEngine] Generation aborted by user.');
+                return;
+            }
             console.error(e);
             this.state.status.set('error');
 
@@ -681,6 +694,17 @@ export class GameEngineService {
 
     private updateMessages(updater: (prev: ChatMessage[]) => ChatMessage[]) {
         this.chatHistory.updateMessages(updater);
+    }
+
+    /**
+     * Aborts the current generation process.
+     */
+    stopGeneration() {
+        if (this.currentAbortController) {
+            this.currentAbortController.abort();
+            this.currentAbortController = null;
+        }
+        this.state.status.set('idle');
     }
 
     /**

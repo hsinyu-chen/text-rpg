@@ -158,6 +158,6 @@ When performing the <Save> command, please only compare and synchronize based on
         REGENERATE_SAVE_PROMPT: 'Regenerate complete save',
         STOP_GENERATION: 'Stop Generation',
         STOP_GENERATION_CONFIRM_TITLE: 'Confirm Stop',
-        STOP_GENERATION_CONFIRM_MSG: 'Are you sure you want to stop generation and delete this message?'
+        STOP_GENERATION_CONFIRM_MSG: 'Are you sure you want to stop the current generation?'
     }
 };

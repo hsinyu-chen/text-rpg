@@ -87,7 +87,8 @@ export class LlamaService implements LLMProvider {
             const response = await fetch(`${this.baseUrl}/v1/chat/completions`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(requestBody)
+                body: JSON.stringify(requestBody),
+                signal: config.signal
             });
 
             if (!response.ok) {

@@ -51,6 +51,7 @@ export interface LLMGenerateConfig {
     cachedContentName?: string;
     tools?: object[];
     toolConfig?: object;
+    signal?: AbortSignal;
 }
 
 /**

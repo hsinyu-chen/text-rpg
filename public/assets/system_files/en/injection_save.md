@@ -155,7 +155,7 @@ If the current ACT (starting from `--- ACT START ---`) has LOG content, you **MU
 - Protagonist's party's portable items → `{{FILE_INVENTORY}}`
 
 ### `character_log` → `{{FILE_CHARACTER_STATUS}}`
-- **First Encounter Evaluation**: If a character is encountered for the first time (not in file), you **MUST** evaluate if they are significant. Create entry **ONLY** for major/noteworthy characters; **FORBIDDEN** to record one-time passers-by or insignificant minor characters.
+- **First Encounter Evaluation**: If a character is encountered for the first time (not in file), you **MUST** evaluate if they are significant. Create entry **ONLY** for major/noteworthy characters; **FORBIDDEN** to record one-time passers-by, guards, villagers, or insignificant minor characters.
 - **Significance Criteria**: If the character is involved in **delivering quests, providing/requesting resources, or providing key information** (even for NPCs like butlers or servants), they **MUST** be added to ensure narrative continuity.
 - **Exit & Pruning Mechanism**: To prevent file bloat, proactively prune entries under these conditions:
   - **Death**: Remove from categories and move to `# Deceased Characters`.

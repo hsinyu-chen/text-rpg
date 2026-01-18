@@ -1,4 +1,5 @@
 import { Component, model, ChangeDetectionStrategy, inject, output, viewChild, ElementRef, computed } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -319,20 +320,6 @@ export class ChatInputComponent {
 
     // Stop generation and delete the current generation message pair
     async stopGeneration(): Promise<void> {
-        const messages = this.state.messages();
-        if (messages.length < 2) return;
-
-        // Find the last user message (the one that triggered this generation)
-        let lastUserMsgIndex = -1;
-        for (let i = messages.length - 1; i >= 0; i--) {
-            if (messages[i].role === 'user') {
-                lastUserMsgIndex = i;
-                break;
-            }
-        }
-
-        if (lastUserMsgIndex === -1) return;
-
         const dialogRef = this.matDialog.open<ConfirmDialogComponent, ConfirmDialogData, boolean>(
             ConfirmDialogComponent,
             {
@@ -346,15 +333,10 @@ export class ChatInputComponent {
             }
         );
 
-        dialogRef.afterClosed().subscribe(confirmed => {
-            if (!confirmed) return;
+        const confirmed = await firstValueFrom(dialogRef.afterClosed());
+        if (!confirmed) return;
 
-            // Stop the generation by setting status to idle
-            this.state.status.set('idle');
-
-            // Delete from the last user message (rewindTo deletes from that message onwards)
-            const lastUserMsg = messages[lastUserMsgIndex];
-            this.engine.deleteFrom(lastUserMsg.id);
-        });
+        // Stop the generation process
+        this.engine.stopGeneration();
     }
 }

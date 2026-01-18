@@ -146,6 +146,11 @@ export class GeminiService implements LLMProvider {
 
         // Yield converted chunks
         for await (const chunk of stream) {
+            // Check for abortion
+            if (config.signal?.aborted) {
+                return; // Stop yielding
+            }
+
             const candidate = chunk.candidates?.[0];
             const finishReason = candidate?.finishReason;
 

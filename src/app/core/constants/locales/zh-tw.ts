@@ -158,6 +158,6 @@ export const ZH_TW_LOCALE: AppLocale = {
         REGENERATE_SAVE_PROMPT: '重新產生完整存檔',
         STOP_GENERATION: '停止生成',
         STOP_GENERATION_CONFIRM_TITLE: '確認停止',
-        STOP_GENERATION_CONFIRM_MSG: '確定要停止生成並刪除這則訊息嗎？'
+        STOP_GENERATION_CONFIRM_MSG: '確定要停止目前的生成嗎？'
     }
 };
