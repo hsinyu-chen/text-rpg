@@ -33,7 +33,7 @@ export class ContextBuilderService {
      * Constructs the JSON payload that will be sent to the Gemini API for preview purposes.
      */
     public getPreviewPayload(userText: string, options?: { intent?: string }) {
-        const userMsgContent = (options?.intent || '') + userText;
+        const userMsgContent = (options?.intent || '') + this.stripSavePoints(userText);
 
         const history = this.getLLMHistory(); // This is the history BEFORE the new message
         const finalUserText = this.wrapUserMessage(userMsgContent, history);
@@ -161,12 +161,16 @@ export class ContextBuilderService {
                     if (p.text && p.text.startsWith(LLM_MARKERS.FILE_CONTENT_SEPARATOR)) return;
                     if (p.text && p.text.startsWith(LLM_MARKERS.SYSTEM_RULE_SEPARATOR)) return;
 
-                    parts.push({ ...p });
+                    if (p.text) {
+                        parts.push({ ...p, text: this.stripSavePoints(p.text) });
+                    } else {
+                        parts.push({ ...p });
+                    }
                 });
             }
             // Fallback if parts are empty (e.g. legacy or stripped)
             if (parts.length === 0 && m.content) {
-                parts.push({ text: m.content });
+                parts.push({ text: this.stripSavePoints(m.content) });
             }
 
             // For model messages: Append Turn Update (summary, inventory_log, quest_log)
@@ -288,7 +292,7 @@ export class ContextBuilderService {
             if (m.summary) stateUpdates.push(`summary: ${m.summary}`);
         } else {
             // For system/save, use the actual content/story
-            if (m.content) stateUpdates.push(`story: ${m.content}`);
+            if (m.content) stateUpdates.push(`story: ${this.stripSavePoints(m.content)}`);
         }
         if (m.inventory_log && m.inventory_log.length > 0) {
             stateUpdates.push(`inventory_log:${JSON.stringify(m.inventory_log)}`);
@@ -313,5 +317,10 @@ export class ContextBuilderService {
         return Object.values(LOCALES).some(l => {
             return m.role === 'model' && m.analysis === l.uiStrings.LOCAL_INIT_ANALYSIS;
         });
+    }
+
+    private stripSavePoints(text: string): string {
+        if (!text) return '';
+        return text.replace(/<possible save point>/gi, '');
     }
 }
