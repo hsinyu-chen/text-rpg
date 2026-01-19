@@ -86,12 +86,15 @@ export class ContextBuilderService {
      * Constructs the chat history in a provider-agnostic format.
      * Handles smart context consolidation and Knowledge Base injection.
      * @param forceFullContext Whether to force full context inclusion (e.g. for saves).
+     * @param filter Optional predicate to filter messages.
      * @returns Array of Content objects.
      */
-    public getLLMHistory(forceFullContext = false): LLMContent[] {
+    public getLLMHistory(forceFullContext = false, filter?: (m: ChatMessage) => boolean): LLMContent[] {
         const all = this.state.messages();
-        // Filter out RefOnly, but keep tool responses
-        const filtered = all.filter(m => !m.isRefOnly || m.parts?.some(p => p.functionResponse));
+
+        // Use custom filter or default: Filter out RefOnly, but keep tool responses
+        const defaultFilter = (m: ChatMessage) => !m.isRefOnly || m.parts?.some(p => p.functionResponse);
+        const filtered = all.filter(filter || defaultFilter);
 
         // We want to keep the last few messages intact for immediate context flow.
         let RECENT_WINDOW = 20;
@@ -282,6 +285,22 @@ export class ContextBuilderService {
         }
 
         return llmHistory;
+    }
+
+    /**
+     * Constructs a filtered chat history for save auditing.
+     * Removes system and save intent messages.
+     * Uses the standard context building logic (in save mode).
+     * @returns Array of Content objects.
+     */
+    public getAuditHistory(): LLMContent[] {
+        return this.getLLMHistory(true, (m: ChatMessage) => {
+            // Keep tool responses even if refOnly
+            if (m.isRefOnly && !m.parts?.some(p => p.functionResponse)) return false;
+            // Exclude system and save intents for auditing
+            if (m.intent === 'system' || m.intent === 'save') return false;
+            return true;
+        });
     }
 
     private getDetailFields(m: ChatMessage): string[] {

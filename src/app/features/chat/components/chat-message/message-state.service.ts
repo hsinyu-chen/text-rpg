@@ -130,6 +130,12 @@ export class MessageStateService {
         }
     }
 
+    async auditSaveDiff() {
+        const msg = this.message();
+        if (msg.role !== 'model') return;
+        await this.engine.auditSaveDiff(msg.id);
+    }
+
     /**
      * Triggers the save flow - sends a save intent message like the save button in chat-input
      */

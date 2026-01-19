@@ -10,43 +10,59 @@
  * - world_log: string[]      世界日誌
  */
 
-// 解構取得所有欄位
+// 1. 解構取得所有欄位
 const { story, summary, character_log, inventory_log, quest_log, world_log } = response;
 
-// 預設：直接返回原始資料
-// 取消下方註解開始自訂
+// 2. 安全術語替換 (常犯錯且可安全替換的用語)
+const safeReplacements = [
+  [/當前/g, '目前'],
+  [/數據/g, '資料'],
+  [/信息/g, '訊息'],
+  [/用戶/g, '使用者'],
+  [/屏幕/g, '螢幕'],
+  [/激活/g, '啟用'],
+  [/網絡/g, '網路'],
+  [/軟件/g, '軟體'],
+  [/硬件/g, '硬體'],
+  [/硬盤/g, '硬碟'],
+  [/視頻/g, '影片'],
+  [/音頻/g, '音訊']
+];
 
-/*
-// 範例：全域文字替換
-const replace = (text) => text.replace(/當前/g, '目前');
+let processedStory = story;
+let processedSummary = summary;
+let processedCharacter = character_log;
+let processedInventory = inventory_log;
+let processedQuest = quest_log;
+let processedWorld = world_log;
 
-return {
-  story: replace(story),
-  summary: replace(summary),
-  character_log: character_log.map(replace),
-  inventory_log: inventory_log.map(replace),
-  quest_log: quest_log.map(replace),
-  world_log: world_log.map(replace)
+const applyReplacements = (text) => {
+  if (typeof text !== 'string') return text;
+  let t = text;
+  for (const [pattern, replacement] of safeReplacements) {
+    t = t.replace(pattern, replacement);
+  }
+  return t;
 };
-*/
 
-/*
-// 範例：Object.keys 迴圈
-const replace = (v) => typeof v === 'string'
-  ? v.replace(/當前/g, '目前')
-  : v.map(s => s.replace(/當前/g, '目前'));
+processedStory = applyReplacements(processedStory);
+processedSummary = applyReplacements(processedSummary);
+processedCharacter = processedCharacter.map(applyReplacements);
+processedInventory = processedInventory.map(applyReplacements);
+processedQuest = processedQuest.map(applyReplacements);
+processedWorld = processedWorld.map(applyReplacements);
 
-const result = {};
-for (const key of Object.keys(response)) {
-  result[key] = replace(response[key]);
-}
-return result;
-*/
-
-// 預設處理：確保 story 開頭的 header [日期/地點/人物] 後有換行
-const fixedStory = story.replace(/^(\[[^\]]+\])([^\n])/, '$1\n$2');
+// 2. 故事格式修正：確保 story 開頭的 header [日期/地點/人物] 後有換行
+// 考慮到開頭可能有 <CREATIVE FICTION CONTEXT> 前綴
+processedStory = processedStory.replace(/^(<[^>]+>\s*)?(\[[^\]]+\])([^\n])/, (match, prefix, header, nextChar) => {
+  return (prefix || '') + header + '\n' + nextChar;
+});
 
 return {
-  ...response,
-  story: fixedStory
+  story: processedStory,
+  summary: processedSummary,
+  character_log: processedCharacter,
+  inventory_log: processedInventory,
+  quest_log: processedQuest,
+  world_log: processedWorld
 };

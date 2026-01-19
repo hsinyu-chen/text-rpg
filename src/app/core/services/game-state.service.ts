@@ -77,6 +77,7 @@ export class GameStateService {
     dynamicFastforwardInjection = signal<string>('');
     dynamicSystemInjection = signal<string>('');
     dynamicSaveInjection = signal<string>('');
+    dynamicAuditInjection = signal<string>('');
     dynamicSystemMainInjection = signal<string>('');
     postProcessScript = signal<string>('');
 
@@ -96,6 +97,19 @@ export class GameStateService {
     // ==================== Context Mode ====================
     contextMode = signal<'smart' | 'full' | 'summarized'>('smart');
     saveContextMode = signal<'smart' | 'full' | 'summarized'>('full');
+
+    // ==================== Save Prompt ====================
+    private static readonly SAVE_PROMPT_THRESHOLD = 25;
+
+    // Count turns (user messages) since ACT START
+    turnsSinceActStart = computed(() => {
+        const msgs = this.messages();
+        // Use robust billing logic: Count all valid model turns in the current session
+        return msgs.filter(m => m.role === 'model' && !m.isRefOnly).length;
+    });
+
+    // Prompt save when turns exceed threshold
+    shouldPromptSave = computed(() => this.turnsSinceActStart() >= GameStateService.SAVE_PROMPT_THRESHOLD);
 
     // ==================== Internal State (non-signal) ====================
     // These are mutable internal state used by services

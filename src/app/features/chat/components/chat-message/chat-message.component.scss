@@ -168,8 +168,52 @@
 }
 
 .thought-container.streaming {
-    border-color: rgba(103, 58, 183, 0.4);
     box-shadow: 0 0 10px rgba(103, 58, 183, 0.1);
+    animation: streaming-border 2s infinite ease-in-out;
+
+    &.analysis-container {
+        animation-name: streaming-border-blue;
+    }
+
+    &.update-panel-container {
+        animation-name: streaming-border-cyan;
+    }
+}
+
+@keyframes streaming-border {
+
+    0%,
+    100% {
+        border-color: rgba(103, 58, 183, 0.2);
+    }
+
+    50% {
+        border-color: rgba(103, 58, 183, 0.6);
+    }
+}
+
+@keyframes streaming-border-blue {
+
+    0%,
+    100% {
+        border-color: rgba(33, 150, 243, 0.2);
+    }
+
+    50% {
+        border-color: rgba(33, 150, 243, 0.6);
+    }
+}
+
+@keyframes streaming-border-cyan {
+
+    0%,
+    100% {
+        border-color: rgba(0, 188, 212, 0.2);
+    }
+
+    50% {
+        border-color: rgba(0, 188, 212, 0.6);
+    }
 }
 
 .thought-header {

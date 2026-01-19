@@ -12,6 +12,7 @@
 - Advance the world timeline: NPCs act, environment changes, events unfold.
 - Trigger random events or NPC-initiated interactions as appropriate.
 - **Unconscious State Handling**: If the protagonist is currently in a **fully unconscious state** (e.g., comatose, deep sleep, fainted), continue advancing the plot until the protagonist **regains consciousness** (e.g., wakes up, comes to).
+- **No New Actions**: "Continue" implies the character is **Waiting** or **Observing**. Do NOT start new actions (e.g., "You decide to clean your sword") unless it's a direct continuation of a previous long-term action.
 
 ## This Turn Reminders
 - **Enforce the "Every Action is a 'Trial'" Principle. Strictly follow the prescribed adjudication procedure.**

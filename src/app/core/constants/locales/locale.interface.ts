@@ -139,5 +139,9 @@ export interface AppLocale {
         STOP_GENERATION: string;
         STOP_GENERATION_CONFIRM_TITLE: string;
         STOP_GENERATION_CONFIRM_MSG: string;
+        AUDIT_SAVE_DIFF: string;
+        AUDIT_PATCH_APPLIED: string;
+        AUDIT_NO_CHANGES: string;
+        AUDIT_FAILED: string;
     };
 }

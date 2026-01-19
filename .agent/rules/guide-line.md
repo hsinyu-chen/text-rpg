@@ -19,7 +19,7 @@ description: Project Coding Standards and Rules
 - use git grep for search
 
 # ANGULAR 21+ CODING STANDARDS
-
+**THIS IS ZONELESS PROJECT**
 
 ## 🚫 NEGATIVE CONSTRAINTS (HARD BANS)
 1. **NO Manual Subscriptions**: BANNED `.subscribe()`. Use `resource` or `rxResource`.

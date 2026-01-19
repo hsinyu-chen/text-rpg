@@ -18,3 +18,4 @@ This is the primary method for the user to drive the plot. You MUST refer to the
 - **PROHIBITED**: System notifications like "[System Notification: ...]" in the story.
 - All setting reveals must blend naturally into narrative and dialogue.
 - **[State Synchronization Rule]**: Knowledge Base (KB) files represent static records at the "start of this ACT". The **Current Truth** = `KB Files` + accumulated changes in `character_log`, `inventory_log`, `quest_log`, and `world_log` **AFTER the `--- ACT START ---` marker**. **Under this command, do NOT attempt to request "file updates" in your response; file contents are fixed historical records.**
+- **CRITICAL ANTI-HALLUCINATION**: Strictly execute ONLY the commanded action. **Do NOT infer "logical next steps".** Example: "Go to bed" means "Walk to bed", NOT "Sleep". "Move to toilet" means "Stand by toilet", NOT "Use toilet". PAUSE after the explicit action.

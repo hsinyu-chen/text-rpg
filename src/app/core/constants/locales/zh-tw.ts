@@ -36,7 +36,7 @@ export const ZH_TW_LOCALE: AppLocale = {
         INVENTORY: '9.物品欄.md'
     },
     promptHoles: {
-        LANGUAGE_RULE: "必須使用繁體中文進行創作，嚴禁使用中國用語，如 當前(目前),數據(資料)....等等。"
+        LANGUAGE_RULE: "必須使用繁體中文進行創作，嚴禁使用中國用語。"
     },
     sectionHeaders: {
         START_SCENE: '## 開始場景',
@@ -158,6 +158,10 @@ export const ZH_TW_LOCALE: AppLocale = {
         REGENERATE_SAVE_PROMPT: '重新產生完整存檔',
         STOP_GENERATION: '停止生成',
         STOP_GENERATION_CONFIRM_TITLE: '確認停止',
-        STOP_GENERATION_CONFIRM_MSG: '確定要停止目前的生成嗎？'
+        STOP_GENERATION_CONFIRM_MSG: '確定要停止目前的生成嗎？',
+        AUDIT_SAVE_DIFF: '審核存檔差異',
+        AUDIT_PATCH_APPLIED: '審核補丁已套用至訊息。',
+        AUDIT_NO_CHANGES: '審核完成：未發現遺漏或錯誤。',
+        AUDIT_FAILED: '審核失敗：'
     }
 };

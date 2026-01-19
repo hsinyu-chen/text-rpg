@@ -8,9 +8,8 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MarkdownModule } from 'ngx-markdown';
 import { TextFieldModule } from '@angular/cdk/text-field';
-import { StripIntentPipe } from '../../../../shared/pipes/strip-intent.pipe';
+import { ContentSanitizerPipe } from '../../../../shared/pipes/content-sanitizer.pipe';
 import { WrapSaveXmlPipe } from '../../../../shared/pipes/wrap-save-xml.pipe';
-import { StripSavePointPipe } from '../../../../shared/pipes/strip-save-point.pipe';
 import { ChatMessage } from '../../../../core/models/types';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MessageStateService } from './message-state.service';
@@ -19,6 +18,7 @@ import { GameStateService } from '../../../../core/services/game-state.service';
 import { TurnUpdateComponent } from '../turn-update/turn-update.component';
 import { GAME_INTENTS } from '../../../../core/constants/game-intents';
 import { getIntentLabels } from '../../../../core/constants/engine-protocol';
+import { getLocale } from '../../../../core/constants/locales';
 import { computed } from '@angular/core';
 
 @Component({
@@ -34,9 +34,8 @@ import { computed } from '@angular/core';
         MatTooltipModule,
         MarkdownModule,
         TextFieldModule,
-        StripIntentPipe,
+        ContentSanitizerPipe,
         WrapSaveXmlPipe,
-        StripSavePointPipe,
         MatProgressSpinnerModule,
         TurnUpdateComponent
     ],
@@ -72,18 +71,9 @@ export class ChatMessageComponent {
         });
     }
 
-    // Localized intent labels
+    // Localized strings
+    locale = computed(() => getLocale(this.gameState.config()?.outputLanguage));
     intentLabels = computed(() => getIntentLabels(this.gameState.config()?.outputLanguage));
-
-    // Detect save point tag in message content
-    // Detect save point tag in message content, ONLY show for the last message
-    hasSavePoint = computed(() => {
-        const msg = this.message();
-        const allMessages = this.gameState.messages();
-        const isLastModelMessage = allMessages.length > 0 && allMessages[allMessages.length - 1].id === msg.id;
-
-        return isLastModelMessage && msg.role === 'model' && /<possible save point>/i.test(msg.content);
-    });
 
     getIntentLabel(intent: string | undefined): string {
         if (!intent) return '';

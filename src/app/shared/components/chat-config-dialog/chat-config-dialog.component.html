@@ -82,6 +82,17 @@
             <app-monaco-editor #editorRef [multiModelMode]="true" [files]="injectionFiles()" [activeFile]="activeType()"
                 [options]="editorOptions()" (valueChange)="onValueChange($event)">
             </app-monaco-editor>
+
+            <!-- Problems Panel -->
+            @if (activeType() === 'postprocess' && !validationResult().valid) {
+            <div class="problems-panel">
+                <mat-icon class="problem-icon">warning</mat-icon>
+                <div class="problem-content">
+                    <span class="problem-title">{{ (ui().POST_PROCESS_ERROR || 'Error').replace('{error}', '') }}</span>
+                    <span class="problem-msg">{{ validationResult().error }}</span>
+                </div>
+            </div>
+            }
         </div>
     </div>
 </div>

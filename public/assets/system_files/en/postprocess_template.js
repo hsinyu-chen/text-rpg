@@ -44,7 +44,10 @@ return result;
 */
 
 // Default: Ensure story header [date/location/characters] has trailing newline
-const fixedStory = story.replace(/^(\[[^\]]+\])([^\n])/, '$1\n$2');
+// Account for optional <CREATIVE FICTION CONTEXT> prefix
+const fixedStory = story.replace(/^(<[^>]+>\s*)?(\[[^\]]+\])([^\n])/, (match, prefix, header, nextChar) => {
+  return (prefix || '') + header + '\n' + nextChar;
+});
 
 return {
   ...response,

@@ -84,37 +84,52 @@ export class StreamProcessorService {
                 } else {
                     currentJSONAccumulator += part.text;
 
-                    // Streaming Parsers
-                    const analysisMatch = /"analysis"\s*:\s*"((?:[^"\\]|\\.)*)/.exec(currentJSONAccumulator);
-                    if (analysisMatch && analysisMatch[1]) {
-                        try {
-                            currentAnalysisPreview = this.parser.processModelField(analysisMatch[1]);
-                        } catch { /* ignore */ }
-                    }
+                    // Streaming Parsers for all fields
+                    try {
+                        const partial = this.parser.bestEffortJsonParser(currentJSONAccumulator) as Partial<EngineResponseNested>;
 
-                    const storyMatch = /"story"\s*:\s*"((?:[^"\\]|\\.)*)/.exec(currentJSONAccumulator);
-                    if (storyMatch && storyMatch[1]) {
-                        try {
-                            currentStoryPreview = this.parser.processModelField(storyMatch[1]);
-                        } catch { /* ignore */ }
-                    }
+                        // Real-time Update
+                        updateCallback(prev => {
+                            const arr = [...prev];
+                            const last = arr[arr.length - 1];
+                            if (last?.role === 'model') {
+                                const next = { ...last, isThinking: true };
+
+                                // Update Fields if they exist in partial
+                                if (partial.analysis) {
+                                    currentAnalysisPreview = this.parser.processModelField(partial.analysis);
+                                    next.analysis = this.postProcessor.applySafeReplacements(currentAnalysisPreview);
+                                }
+
+                                if (partial.response) {
+                                    if (partial.response.story) {
+                                        currentStoryPreview = this.parser.processModelField(partial.response.story);
+                                        next.content = this.postProcessor.applySafeReplacements(currentStoryPreview);
+                                    }
+                                    if (partial.response.summary) {
+                                        next.summary = this.postProcessor.applySafeReplacements(this.parser.processModelField(partial.response.summary));
+                                    }
+                                    if (Array.isArray(partial.response.character_log)) {
+                                        next.character_log = partial.response.character_log.map(c => this.postProcessor.applySafeReplacements(this.parser.processModelField(c)));
+                                    }
+                                    if (Array.isArray(partial.response.inventory_log)) {
+                                        next.inventory_log = partial.response.inventory_log.map(i => this.postProcessor.applySafeReplacements(this.parser.processModelField(i)));
+                                    }
+                                    if (Array.isArray(partial.response.quest_log)) {
+                                        next.quest_log = partial.response.quest_log.map(q => this.postProcessor.applySafeReplacements(this.parser.processModelField(q)));
+                                    }
+                                    if (Array.isArray(partial.response.world_log)) {
+                                        next.world_log = partial.response.world_log.map(w => this.postProcessor.applySafeReplacements(this.parser.processModelField(w)));
+                                    }
+                                }
+
+                                arr[arr.length - 1] = next;
+                            }
+                            return arr;
+                        });
+                    } catch { /* ignore parsing errors during stream */ }
                 }
             }
-
-            // Real-time Update
-            updateCallback(prev => {
-                const arr = [...prev];
-                const last = arr[arr.length - 1];
-                if (last?.role === 'model') {
-                    arr[arr.length - 1] = {
-                        ...last,
-                        content: currentStoryPreview,
-                        analysis: currentAnalysisPreview,
-                        isThinking: true
-                    };
-                }
-                return arr;
-            });
 
             if (chunk.usageMetadata) {
                 turnUsage = {

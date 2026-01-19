@@ -158,6 +158,10 @@ When performing the <Save> command, please only compare and synchronize based on
         REGENERATE_SAVE_PROMPT: 'Regenerate complete save',
         STOP_GENERATION: 'Stop Generation',
         STOP_GENERATION_CONFIRM_TITLE: 'Confirm Stop',
-        STOP_GENERATION_CONFIRM_MSG: 'Are you sure you want to stop the current generation?'
+        STOP_GENERATION_CONFIRM_MSG: 'Are you sure you want to stop the current generation?',
+        AUDIT_SAVE_DIFF: 'Audit Save Diff',
+        AUDIT_PATCH_APPLIED: 'Audit patch applied to message.',
+        AUDIT_NO_CHANGES: 'Audit complete: No omissions or errors found.',
+        AUDIT_FAILED: 'Audit failed: '
     }
 };

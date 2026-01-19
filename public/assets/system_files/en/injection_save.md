@@ -8,6 +8,20 @@
 ## Processing Rules
 User requests an analysis of plot progress **since the `--- ACT START ---` marker** to generate XML file updates.
 
+> [!CAUTION]
+> **COMPLETENESS IS MANDATORY**: Partial or lazy updates will **corrupt game state** and cause continuity errors. You MUST process ALL accumulated LOGs exhaustively. There is NO "save for later" - anything missed is PERMANENTLY LOST.
+
+### Mandatory Completeness Checklist
+Before outputting, verify you have processed:
+- [ ] **ALL** `inventory_log` entries → corresponding file updates
+- [ ] **ALL** `character_log` entries → `{{FILE_CHARACTER_STATUS}}` updates
+- [ ] **ALL** `quest_log` entries → `{{FILE_PLANS}}` updates  
+- [ ] **ALL** `world_log` entries → corresponding file updates
+- [ ] **ALL** state changes mentioned in `summary` logs → reflected in files
+- [ ] Story Outline updated with current ACT events
+
+**If ANY log entry lacks a corresponding `<save>` update, your output is INCOMPLETE and INVALID.**
+
 ### Field Restrictions
 - **`analysis`** and **`summary`** fields MUST be empty strings `""`.
 - All content must be output directly in the `story` field.
@@ -130,15 +144,24 @@ When adding a new header entry (e.g., new character), `context` should point to 
 ACT Format:
 ```
 ## Act.[Number] - [Title]
-- **[Subtitle]**
-    [Detail Description]
-- **[Subtitle]**
-    [Detail Description]
-  ...
+- **[Time Node/Key Event Name]**
+    [Event Details: Including motivation, process, key dialogue, and results]
+- **[Time Node/Key Event Name]**
+    [Event Details: Including motivation, process, key dialogue, and results]
 ```
-- End of ACt must have `**act_end_time**:` field.
+- End of ACT must have `**act_end_time**:` field.
 - For items in the "啟動劇情引導 / Story Hooks" section (e.g., "Event Trigger X"), add `(Completed)` to the **item heading** once triggered.
 - The plot summary details should be arranged in chronological order.
+
+> [!CRITICAL] High-Resolution Chronicle Protocol
+> You are now a "Chronicle Historian" rather than an "Editor". For long-form plots (e.g., 25-50 turns), generating only a 3-5 line summary is a serious failure.
+> 
+> **Granularity Enforcement**: You MUST decompose this plot into at least 5-8 independent **[Subtitle]** time nodes.
+> 
+> **No Mere Summaries**: Don't just write "They fought a monster and won". You must record "what strategy was used", "who was injured", and "key turning points in the battle".
+> 
+> **Dialogue & Psyche**: Key quotes from important characters (especially "golden quotes" that establish relationships or rules) must be excerpted into the content description.
+
 
 ### Character Status (`{{FILE_CHARACTER_STATUS}}`)
 - **All-Field Review**: You MUST review and update **any field within the character entry** that has changed based on the current ACT and LOGs (e.g., **Current Status, Injuries, Relationship, Favorability, Current Goals**, etc.).
@@ -181,3 +204,7 @@ If the current ACT (starting from `--- ACT START ---`) has LOG content, you **MU
 ## This Turn Reminders
 - `analysis` and `summary` fields MUST be empty string `""`.
 - Unless user asks to "Save Current Turn", ONLY output what is requested.
+
+> [!IMPORTANT]
+> **FINAL COMPLETENESS CHECK**:
+> Before submitting, re-read ALL logs since `--- ACT START ---` and verify EVERY single entry has a corresponding `<save>` command. Missing even ONE entry means corrupted game state. There are NO second chances - process EVERYTHING now.

@@ -2,10 +2,11 @@
     <div class="input-wrapper">
 
         <!-- Mobile Menu Trigger -->
+        <!-- Mobile Menu Trigger -->
         <button mat-mini-fab class="mobile-menu-btn" [matMenuTriggerFor]="mobileMenu"
             [disabled]="state.status() === 'generating'" aria-hidden="false"
-            [matBadge]="state.hasAnyPromptUpdate() ? '!' : ''" matBadgeColor="warn"
-            [matBadgeHidden]="!state.hasAnyPromptUpdate()">
+            [matBadge]="(state.hasAnyPromptUpdate() || state.shouldPromptSave()) ? '!' : ''" matBadgeColor="warn"
+            [matBadgeHidden]="!state.hasAnyPromptUpdate() && !state.shouldPromptSave()">
             <mat-icon>more_vert</mat-icon>
         </button>
 
@@ -15,7 +16,8 @@
                 <span>Turn Updates</span>
             </button>
             <button mat-menu-item (click)="saveProgress()">
-                <mat-icon>save</mat-icon>
+                <mat-icon [matBadge]="state.shouldPromptSave() ? '!' : ''" matBadgeColor="warn"
+                    [matBadgeHidden]="!state.shouldPromptSave()">save</mat-icon>
                 <span>Save Progress</span>
             </button>
             <button mat-menu-item (click)="openConfigDialog()">
@@ -41,7 +43,10 @@
         <!-- Save Button (Desktop) -->
         <button mat-mini-fab color="accent" class="save-btn desktop-only"
             [disabled]="state.status() === 'generating' || !state.isConfigured()" (click)="saveProgress()"
-            matTooltip="Save Progress (Full Context)">
+            [matBadge]="state.shouldPromptSave() ? '!' : ''" matBadgeColor="warn"
+            [matBadgeHidden]="!state.shouldPromptSave()" [matTooltip]="state.shouldPromptSave() 
+                ? 'Save Recommended! (' + state.turnsSinceActStart() + ' turns)' 
+                : 'Save Progress (Full Context)'">
             <mat-icon>save</mat-icon>
         </button>
 

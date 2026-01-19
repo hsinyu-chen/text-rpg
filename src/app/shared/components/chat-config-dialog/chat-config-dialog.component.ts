@@ -100,6 +100,9 @@ export class ChatConfigDialogComponent {
     // Track dirty state (unsaved changes) per type
     dirtyState = signal<Map<string, boolean>>(new Map());
 
+    // Validation result for postprocess script
+    validationResult = signal<{ valid: boolean, error?: string }>({ valid: true });
+
     // Build files map for Monaco multi-model mode
     injectionFiles = computed(() => {
         const files = new Map<string, string>();
@@ -135,6 +138,14 @@ export class ChatConfigDialogComponent {
     /** Select an injection type */
     selectType(type: InjectionType['id']): void {
         this.activeType.set(type);
+
+        // Reset validation when switching
+        if (type === 'postprocess') {
+            const content = this.getContentForType('postprocess');
+            this.validationResult.set(this.postProcessor.validate(content));
+        } else {
+            this.validationResult.set({ valid: true });
+        }
 
         // Collapse sidebar on mobile
         if (window.innerWidth < 768) {
@@ -208,6 +219,12 @@ export class ChatConfigDialogComponent {
                 newMap.set(type, isDirty);
                 return newMap;
             });
+        }
+
+        // Real-time validation for postprocess
+        if (type === 'postprocess') {
+            const validation = this.postProcessor.validate(content);
+            this.validationResult.set(validation);
         }
     }
 
@@ -313,19 +330,26 @@ export class ChatConfigDialogComponent {
         }
 
         // Validate postprocess script before closing
-        const script = this.state.postProcessScript();
-        const validation = this.postProcessor.validate(script);
+        // We check the editor content if it exists, otherwise the saved state
+        const editor = this.editorRef();
+        const currentScript = editor?.getFileContent('postprocess') ?? this.state.postProcessScript();
+        const validation = this.postProcessor.validate(currentScript);
 
         if (!validation.valid) {
             const lang = this.state.config()?.outputLanguage || 'default';
 
-            // Show confirm dialog
+            // If the user is currently looking at the postprocess tab, they already see the error.
+            // We just need a simple confirmation.
             const confirmMsg = lang === 'zh-TW'
-                ? `後處理腳本有錯誤：${validation.error}\n\n確定要關閉嗎？腳本將保持無效狀態。`
-                : `Post-process script error: ${validation.error}\n\nClose anyway? Script will remain invalid.`;
+                ? `後處理腳本仍有錯誤（${validation.error}），確定要關閉嗎？`
+                : `Post-process script still has errors (${validation.error}). Close anyway?`;
 
             if (!confirm(confirmMsg)) {
-                return; // User cancelled, don't close
+                // Focus postprocess tab if not already there
+                if (this.activeType() !== 'postprocess') {
+                    this.selectType('postprocess');
+                }
+                return;
             }
         }
 

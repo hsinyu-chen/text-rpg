@@ -606,54 +606,62 @@ export class GameEngineService {
         }
     }
 
-
     /**
-     * Executes the 'Update Story' command, which modifies the last story message or a specific target.
-     * @param newContent The new story content.
-     * @param _targetId Optional ID of the message to update.
-     * @param ignoreId Optional ID of the message to ignore.
-     * @returns The ID of the updated message.
+     * Audits the save content of a specific message by sending filtered history and the audit prompt.
+     * Updates the message content with the results.
      */
-    private executeUpdateStory(newContent: string, _targetId?: string, ignoreId?: string): string {
-        console.log('[GameEngine] executeUpdateStory called with:', { ignoreId, newContentLength: newContent?.length });
-        let resultMessage = '';
+    async auditSaveDiff(targetMessageId: string) {
+        this.state.status.set('generating');
+        try {
+            const history = this.contextBuilder.getAuditHistory();
+            const injectionContent = this.state.dynamicAuditInjection();
 
-        this.updateMessages(prev => {
-            const arr = [...prev];
+            // Prepare the target message content to be audited
+            const targetMsg = this.state.messages().find(m => m.id === targetMessageId);
+            if (!targetMsg) return;
+
+            const auditPrompt = injectionContent.replace(/\{\{CONTENT_TO_AUDIT\}\}/g, targetMsg.content);
+
+            // Add the audit prompt as a user message
+            history.push({
+                role: 'user',
+                parts: [{ text: auditPrompt }]
+            });
+
+            const stream = this.provider.generateContentStream(
+                history,
+                this.getEffectiveSystemInstruction(),
+                {
+                    cachedContentName: this.state.kbCacheName() || undefined,
+                    responseSchema: getResponseSchema(this.state.config()?.outputLanguage),
+                    responseMimeType: 'application/json'
+                }
+            );
+
+            const result = await this.streamProcessor.processStream(
+                stream,
+                crypto.randomUUID(), // Temp ID for streaming
+                this.state.config()?.outputLanguage || 'default',
+                () => { /* no-op */ } // No-op updater since we'll update the target manually
+            );
+
+            if (result.finalStory && result.finalStory.trim()) {
+                const newContent = targetMsg.content + '\n\n---\n**Audit Result (Full Save Regeneration):**\n' + result.finalStory;
+                this.updateMessageContent(targetMessageId, newContent);
+                const ui = getUIStrings(this.state.config()?.outputLanguage);
+                this.snackBar.open(ui.AUDIT_PATCH_APPLIED, 'OK', { duration: 3000 });
+            } else {
+                const ui = getUIStrings(this.state.config()?.outputLanguage);
+                this.snackBar.open(ui.AUDIT_NO_CHANGES, 'OK', { duration: 3000 });
+            }
+
+            this.state.status.set('idle');
+        } catch (e: unknown) {
+            console.error(e);
+            this.state.status.set('error');
             const ui = getUIStrings(this.state.config()?.outputLanguage);
-
-            // Always search backwards for last model message
-            console.log('[GameEngine] Searching backwards for last model message to update...');
-            let found = false;
-            for (let i = arr.length - 1; i >= 0; i--) {
-                if (ignoreId && arr[i].id === ignoreId) {
-                    continue;
-                }
-
-                const isModel = arr[i].role === 'model';
-                // Check if it's a tool-only message (skip those)
-                const isTool = arr[i].parts?.some(p => p['functionCall'] || p['functionResponse']);
-
-                // Skip RefOnly messages (Correction Confirmations, Error messages, etc.)
-                if (arr[i].isRefOnly) continue;
-
-                // Match intent: Find the last model message where intent matches the correction target (usually <行動意圖>)
-                if (isModel && !isTool && arr[i].intent === GAME_INTENTS.ACTION) {
-                    arr[i] = { ...arr[i], content: newContent };
-                    console.log(`[GameEngine] Found message to update with intent ${GAME_INTENTS.ACTION} at index:`, i);
-                    found = true;
-                    resultMessage = ui.CORRECTION_SUCCESS.replace('{id}', arr[i].id);
-                    break;
-                }
-            }
-
-            if (!found) {
-                resultMessage = ui.CORRECTION_NOT_FOUND;
-            }
-
-            return arr;
-        });
-        return resultMessage;
+            this.snackBar.open(ui.AUDIT_FAILED + (e instanceof Error ? e.message : 'Unknown error'), 'OK', { duration: 5000 });
+        }
     }
 
     /**

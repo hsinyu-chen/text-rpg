@@ -29,7 +29,7 @@
         <div (dblclick)="state.enterEditMode()" class="bubble-content">
 
             @if (!state.isEditing()) {
-            <div class="text-content">{{ msg.content | stripIntent }}</div>
+            <div class="text-content">{{ msg.content | sanitize:{stripIntent: true} }}</div>
             } @else {
             <ng-container *ngTemplateOutlet="editor" />
             }
@@ -56,6 +56,10 @@
                     class="mini-btn update-btn" (click)="state.openAutoUpdateDialog()" [disabled]="isBusy()"
                     matTooltip="Auto Update Files">
                     <mat-icon>auto_fix_high</mat-icon>
+                    </button>
+                    <button mat-icon-button class="mini-btn update-btn" (click)="state.auditSaveDiff()"
+                        [disabled]="isBusy()" [matTooltip]="locale().uiStrings.AUDIT_SAVE_DIFF">
+                        <mat-icon>fact_check</mat-icon>
                     </button>
                     }
                     <button mat-icon-button class="mini-btn" (click)="state.copyPairJSON()" [disabled]="isBusy()"
@@ -103,7 +107,7 @@
 
             <!-- Analysis Section (Atomic Breakdown) -->
             @if (msg.analysis) {
-            <div class="thought-container analysis-container">
+            <div class="thought-container analysis-container" [class.streaming]="msg.isThinking">
                 <div class="thought-header analysis-header" (click)="state.toggleAnalysis()" tabindex="0"
                     (keydown.enter)="state.toggleAnalysis()"
                     (keydown.space)="$event.preventDefault(); state.toggleAnalysis()">
@@ -112,6 +116,11 @@
                         <mat-icon class="brain-icon">fact_check</mat-icon>
                         <span>Atomic Breakdown & Check</span>
                     </div>
+                    @if (msg.isThinking && !msg.thought && msg.analysis) {
+                    <div class="header-status">
+                        Analyzing...
+                    </div>
+                    }
                 </div>
                 @if (state.isAnalysisVisible()) {
                 <div class="thought-content">
@@ -150,7 +159,7 @@
             <!-- Turn Update Section -->
             @if (msg.summary || (msg.inventory_log?.length ?? 0) > 0 || (msg.quest_log?.length ?? 0) >
             0 || (msg.world_log?.length ?? 0) > 0) {
-            <div class="thought-container update-panel-container">
+            <div class="thought-container update-panel-container" [class.streaming]="msg.isThinking">
                 <div class="thought-header update-panel-header" (click)="state.toggleUpdate()" tabindex="0"
                     (keydown.enter)="state.toggleUpdate()"
                     (keydown.space)="$event.preventDefault(); state.toggleUpdate()">
@@ -159,6 +168,12 @@
                         <mat-icon class="brain-icon">update</mat-icon>
                         <span>Turn Update</span>
                     </div>
+                    @if (msg.isThinking && (msg.summary || (msg.inventory_log?.length ?? 0) > 0 ||
+                    (msg.quest_log?.length ?? 0) > 0 || (msg.world_log?.length ?? 0) > 0)) {
+                    <div class="header-status">
+                        Updating...
+                    </div>
+                    }
                 </div>
                 @if (state.isUpdateVisible()) {
                 <div class="thought-content">
@@ -172,19 +187,9 @@
             @if (!state.isEditing()) {
             <!-- Rendered Mode -->
             @if (!state.isRaw()) {
-            <div (dblclick)="state.enterEditMode()" class="prose-content">
-                <markdown [data]="msg.content | stripSavePoint | wrapSaveXml"></markdown>
+            <div class="prose-content">
+                <markdown [data]="msg.content | sanitize | wrapSaveXml"></markdown>
             </div>
-            @if (hasSavePoint()) {
-            <div class="save-point-section">
-                <hr class="save-point-divider">
-                <button mat-stroked-button color="primary" class="save-point-btn" (click)="state.triggerSaveFlow()"
-                    [disabled]="isBusy()">
-                    <mat-icon>save</mat-icon>
-                    結束目前ACT並產生檔案更新
-                </button>
-            </div>
-            }
             }
 
             <!-- Raw Mode -->

@@ -20,6 +20,7 @@ When user challenges the plot, you **MUST** choose one:
 
 2. **[Refute & Explain]**
    - Set `isCorrection: false`
+   - **Mandatory Logic Chain**: Must use `[Setting Conflict Detection]` as the title and list: 1. User Request, 2. Existing Settings, 3. Physical/Logical Contradictions.
    - Provide **Specific Evidence** in the `story` field (Cite Knowledge Base, Physics, Character Settings).
    - Explain why the original plot is correct.
 
