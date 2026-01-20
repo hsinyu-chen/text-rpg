@@ -105,8 +105,11 @@ export class FileUpdateService {
      */
     generateLastSceneHunk(storyContent: string, lang = 'default'): FileUpdate {
         const names = getCoreFilenames(lang);
-        // Strip <possible save point> tag from story content
-        const cleanedContent = storyContent.replace(/<possible save point>/gi, '').trim();
+        // Strip tags and internal headers from story content
+        const cleanedContent = storyContent
+            .replace(/^<CREATIVE FICTION CONTEXT>\s*/i, '')
+            .replace(/<possible save point>/gi, '')
+            .trim();
         return {
             filePath: names.STORY_OUTLINE,
             context: '',
