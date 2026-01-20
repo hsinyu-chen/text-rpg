@@ -77,7 +77,6 @@ export class GameStateService {
     dynamicFastforwardInjection = signal<string>('');
     dynamicSystemInjection = signal<string>('');
     dynamicSaveInjection = signal<string>('');
-    dynamicAuditInjection = signal<string>('');
     dynamicSystemMainInjection = signal<string>('');
     postProcessScript = signal<string>('');
 

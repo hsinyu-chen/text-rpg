@@ -287,21 +287,6 @@ export class ContextBuilderService {
         return llmHistory;
     }
 
-    /**
-     * Constructs a filtered chat history for save auditing.
-     * Removes system and save intent messages.
-     * Uses the standard context building logic (in save mode).
-     * @returns Array of Content objects.
-     */
-    public getAuditHistory(): LLMContent[] {
-        return this.getLLMHistory(true, (m: ChatMessage) => {
-            // Keep tool responses even if refOnly
-            if (m.isRefOnly && !m.parts?.some(p => p.functionResponse)) return false;
-            // Exclude system and save intents for auditing
-            if (m.intent === 'system' || m.intent === 'save') return false;
-            return true;
-        });
-    }
 
     private getDetailFields(m: ChatMessage): string[] {
         const stateUpdates: string[] = [];

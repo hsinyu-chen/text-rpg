@@ -38,11 +38,24 @@ let processedWorld = world_log;
 
 const applyReplacements = (text) => {
   if (typeof text !== 'string') return text;
-  let t = text;
-  for (const [pattern, replacement] of safeReplacements) {
-    t = t.replace(pattern, replacement);
-  }
-  return t;
+
+  // Split by <save ... </save> blocks to protect them
+  // formatting constraints: <save ... </save>
+  const parts = text.split(/(<save[\s\S]*?<\/save>)/gi);
+
+  return parts.map(part => {
+    // If it is a save block, return as is
+    if (part.trim().toLowerCase().startsWith('<save')) {
+      return part;
+    }
+
+    // Otherwise apply replacements
+    let t = part;
+    for (const [pattern, replacement] of safeReplacements) {
+      t = t.replace(pattern, replacement);
+    }
+    return t;
+  }).join('');
 };
 
 processedStory = applyReplacements(processedStory);

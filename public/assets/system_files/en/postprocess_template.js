@@ -17,8 +17,17 @@ const { story, summary, character_log, inventory_log, quest_log, world_log } = r
 // Uncomment below to customize
 
 /*
-// Example: Global text replacement
-const replace = (text) => text.replace(/old/g, 'new');
+// Example: Global text replacement (Safe for Save Data)
+/*
+const replace = (text) => {
+  if (typeof text !== 'string') return text;
+  // Split by <save ... </save> blocks to protect them
+  const parts = text.split(/(<save[\s\S]*?<\/save>)/gi);
+  return parts.map(part => {
+    if (part.trim().toLowerCase().startsWith('<save')) return part;
+    return part.replace(/old/g, 'new');
+  }).join('');
+};
 
 return {
   story: replace(story),
@@ -29,6 +38,7 @@ return {
   world_log: world_log.map(replace)
 };
 */
+
 
 /*
 // Example: Loop with Object.keys

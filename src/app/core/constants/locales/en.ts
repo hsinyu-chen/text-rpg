@@ -154,14 +154,10 @@ When performing the <Save> command, please only compare and synchronize based on
         CATEGORY_INJECTION: 'Injection',
         CATEGORY_PROCESS: 'Process',
         STOP_REASON_PREFIX: 'Model stopped due to:',
-        REGENERATE_SAVE_BTN: 'Prompt LLM to Regenerate',
-        REGENERATE_SAVE_PROMPT: 'Regenerate complete save',
+        REGENERATE_SAVE_BTN: 'Regenerate Failed Blocks',
+        REGENERATE_SAVE_PROMPT: 'ONLY regenerate/output the XML blocks that had errors, using the standard format. Do not repeat successful blocks. Use the context and target provided below.',
         STOP_GENERATION: 'Stop Generation',
         STOP_GENERATION_CONFIRM_TITLE: 'Confirm Stop',
-        STOP_GENERATION_CONFIRM_MSG: 'Are you sure you want to stop the current generation?',
-        AUDIT_SAVE_DIFF: 'Audit Save Diff',
-        AUDIT_PATCH_APPLIED: 'Audit patch applied to message.',
-        AUDIT_NO_CHANGES: 'Audit complete: No omissions or errors found.',
-        AUDIT_FAILED: 'Audit failed: '
+        STOP_GENERATION_CONFIRM_MSG: 'Are you sure you want to stop the current generation?'
     }
 };

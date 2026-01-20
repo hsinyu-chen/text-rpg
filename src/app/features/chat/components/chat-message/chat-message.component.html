@@ -57,10 +57,6 @@
                     matTooltip="Auto Update Files">
                     <mat-icon>auto_fix_high</mat-icon>
                     </button>
-                    <button mat-icon-button class="mini-btn update-btn" (click)="state.auditSaveDiff()"
-                        [disabled]="isBusy()" [matTooltip]="locale().uiStrings.AUDIT_SAVE_DIFF">
-                        <mat-icon>fact_check</mat-icon>
-                    </button>
                     }
                     <button mat-icon-button class="mini-btn" (click)="state.copyPairJSON()" [disabled]="isBusy()"
                         matTooltip="Copy JSON Pair (User+Model)">

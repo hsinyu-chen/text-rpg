@@ -154,14 +154,10 @@ export const ZH_TW_LOCALE: AppLocale = {
         CATEGORY_INJECTION: '注入提示 (Injection)',
         CATEGORY_PROCESS: '處理腳本 (Process)',
         STOP_REASON_PREFIX: '模型停止原因：',
-        REGENERATE_SAVE_BTN: '提示LLM重新產生',
-        REGENERATE_SAVE_PROMPT: '重新產生完整存檔',
+        REGENERATE_SAVE_BTN: '僅重新產生錯誤區塊',
+        REGENERATE_SAVE_PROMPT: '僅針對下方有錯誤的 XML 區塊重新產生/輸出，使用標準格式。請勿重覆輸出已成功的區塊。參考下方提供的 Context 與 Target。',
         STOP_GENERATION: '停止生成',
         STOP_GENERATION_CONFIRM_TITLE: '確認停止',
-        STOP_GENERATION_CONFIRM_MSG: '確定要停止目前的生成嗎？',
-        AUDIT_SAVE_DIFF: '審核存檔差異',
-        AUDIT_PATCH_APPLIED: '審核補丁已套用至訊息。',
-        AUDIT_NO_CHANGES: '審核完成：未發現遺漏或錯誤。',
-        AUDIT_FAILED: '審核失敗：'
+        STOP_GENERATION_CONFIRM_MSG: '確定要停止目前的生成嗎？'
     }
 };

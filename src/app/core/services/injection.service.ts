@@ -4,7 +4,7 @@ import { INJECTION_FILE_PATHS } from '../constants/engine-protocol';
 import { getLocale, getLangFolder } from '../constants/locales';
 import { StorageService } from './storage.service';
 
-export type PromptType = 'action' | 'continue' | 'fastforward' | 'system' | 'save' | 'audit' | 'postprocess' | 'system_main';
+export type PromptType = 'action' | 'continue' | 'fastforward' | 'system' | 'save' | 'postprocess' | 'system_main';
 
 /**
  * Service responsible for managing dynamic prompt injection settings.
@@ -94,7 +94,6 @@ export class InjectionService {
             case 'fastforward': this.state.dynamicFastforwardInjection.set(content); break;
             case 'system': this.state.dynamicSystemInjection.set(content); break;
             case 'save': this.state.dynamicSaveInjection.set(content); break;
-            case 'audit': this.state.dynamicAuditInjection.set(content); break;
             case 'system_main': this.state.dynamicSystemMainInjection.set(content); break;
             case 'postprocess': this.state.postProcessScript.set(content); break;
         }
@@ -115,7 +114,6 @@ export class InjectionService {
                 case 'fastforward': this.state.dynamicFastforwardInjection.set(status.serverContent); break;
                 case 'system': this.state.dynamicSystemInjection.set(status.serverContent); break;
                 case 'save': this.state.dynamicSaveInjection.set(status.serverContent); break;
-                case 'audit': this.state.dynamicAuditInjection.set(status.serverContent); break;
                 case 'system_main': this.state.dynamicSystemMainInjection.set(status.serverContent); break;
                 case 'postprocess': this.state.postProcessScript.set(status.serverContent); break;
             }
@@ -155,17 +153,16 @@ export class InjectionService {
                 this.loadInjectionFile(`assets/system_files/${langFolder}/${filename}`);
 
             // We must catch errors here; if any fails, we halt system
-            let actionDef, continueDef, fastforwardDef, systemDef, saveDef, auditDef, systemMainDef, postprocessDef;
+            let actionDef, continueDef, fastforwardDef, systemDef, saveDef, systemMainDef, postprocessDef;
 
             try {
-                [actionDef, continueDef, fastforwardDef, systemDef, saveDef, auditDef, systemMainDef, postprocessDef] =
+                [actionDef, continueDef, fastforwardDef, systemDef, saveDef, systemMainDef, postprocessDef] =
                     await Promise.all([
                         loadPath(INJECTION_FILE_PATHS.action),
                         loadPath(INJECTION_FILE_PATHS.continue),
                         loadPath(INJECTION_FILE_PATHS.fastforward),
                         loadPath(INJECTION_FILE_PATHS.system),
                         loadPath(INJECTION_FILE_PATHS.save),
-                        loadPath(INJECTION_FILE_PATHS.audit),
                         loadPath(INJECTION_FILE_PATHS.system_main),
                         loadPath(INJECTION_FILE_PATHS.postprocess)
                     ]);
@@ -183,7 +180,6 @@ export class InjectionService {
                 { id: 'fastforward', content: fastforwardDef, legacyKey: 'dynamic_fastforward_injection', isPost: false },
                 { id: 'system', content: systemDef, legacyKey: 'dynamic_system_injection', isPost: false },
                 { id: 'save', content: saveDef, legacyKey: 'dynamic_save_injection', isPost: false },
-                { id: 'audit', content: auditDef, legacyKey: 'dynamic_audit_injection', isPost: false },
                 { id: 'system_main', content: systemMainDef, legacyKey: '', isPost: false }, // system_main was previously in file_store, not LS
                 { id: 'postprocess', content: postprocessDef, legacyKey: 'post_process_script', isPost: true }
             ] as const;
@@ -261,7 +257,6 @@ export class InjectionService {
             case 'fastforward': this.state.dynamicFastforwardInjection.set(content); break;
             case 'system': this.state.dynamicSystemInjection.set(content); break;
             case 'save': this.state.dynamicSaveInjection.set(content); break;
-            case 'audit': this.state.dynamicAuditInjection.set(content); break;
             case 'system_main': this.state.dynamicSystemMainInjection.set(content); break;
             case 'postprocess': this.state.postProcessScript.set(content); break;
         }
@@ -276,7 +271,6 @@ export class InjectionService {
         const loadFastforward = type === 'fastforward' || type === 'all';
         const loadSystem = type === 'system' || type === 'all';
         const loadSave = type === 'save' || type === 'all';
-        const loadAudit = type === 'audit' || type === 'all';
         const loadSystemMain = type === 'system_main' || type === 'all';
         const loadPostprocess = type === 'postprocess' || type === 'all';
 
@@ -292,7 +286,6 @@ export class InjectionService {
         if (loadFastforward) promises.push(wrapLoad('fastforward', INJECTION_FILE_PATHS.fastforward));
         if (loadSystem) promises.push(wrapLoad('system', INJECTION_FILE_PATHS.system));
         if (loadSave) promises.push(wrapLoad('save', INJECTION_FILE_PATHS.save));
-        if (loadAudit) promises.push(wrapLoad('audit', INJECTION_FILE_PATHS.audit));
         if (loadSystemMain) promises.push(wrapLoad('system_main', INJECTION_FILE_PATHS.system_main));
         if (loadPostprocess) promises.push(wrapLoad('postprocess', INJECTION_FILE_PATHS.postprocess));
 
@@ -336,7 +329,6 @@ export class InjectionService {
             case 'fastforward': return this.state.dynamicFastforwardInjection();
             case 'system': return this.state.dynamicSystemInjection();
             case 'save': return this.state.dynamicSaveInjection();
-            case 'audit': return this.state.dynamicAuditInjection();
             case 'system_main': return this.state.dynamicSystemMainInjection();
             case 'postprocess': return this.state.postProcessScript();
         }

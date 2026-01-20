@@ -226,6 +226,7 @@ export class FileUpdateService {
         if (!normalizedTarget) return null;
 
         let searchStart = 0;
+        const candidates: { start: number; end: number; score: number }[] = [];
 
         while (true) {
             // Find in normalized content
@@ -240,21 +241,27 @@ export class FileUpdateService {
             const end = lastCharIndex + 1;
 
             if (context) {
-                // Verify context by checking if target is under the expected section
                 const lines = content.split(/\r?\n/);
                 const lineIndex = this.getLineIndexFromCharIndex(content, start);
-                if (this.verifyContext(lines, lineIndex, context)) {
-                    return this.expandRange(content, target, start, end);
-                } else {
-                    searchStart = normalizedIndex + 1;
-                    continue;
+
+                // verifyContext returns a score (number of matched breadcrumbs)
+                // 0 means it failed verification
+                const score = this.verifyContext(lines, lineIndex, context);
+                if (score > 0) {
+                    candidates.push({ ...this.expandRange(content, target, start, end), score });
                 }
+            } else {
+                candidates.push({ ...this.expandRange(content, target, start, end), score: 1 });
             }
 
-            return this.expandRange(content, target, start, end);
+            searchStart = normalizedIndex + 1;
         }
 
-        return null;
+        if (candidates.length === 0) return null;
+
+        // Pick the candidate with the highest context match score
+        // If scores are tied, we prefer the first occurrence (lowest start) which matches current behavior
+        return candidates.sort((a, b) => b.score - a.score)[0];
     }
 
     /**
@@ -512,10 +519,10 @@ export class FileUpdateService {
         return lines.length;
     }
 
-    private verifyContext(lines: string[], matchIndex: number, context: string): boolean {
+    private verifyContext(lines: string[], matchIndex: number, context: string): number {
         const crumbs = context.split('>').map(c => c.trim()).reverse();
         let currentIdx = matchIndex;
-        let anyFound = false; // Track if at least one crumb was matched
+        let matchedCount = 0;
 
         for (const crumb of crumbs) {
             let found = false;
@@ -537,26 +544,25 @@ export class FileUpdateService {
                         // Relaxed: Just check if it's a header line, ignore level
                         if (isLineHeader) {
                             found = true;
-                            anyFound = true;
+                            matchedCount++;
                             currentIdx = i;
                             break;
                         }
                     } else {
                         found = true;
-                        anyFound = true;
+                        matchedCount++;
                         currentIdx = i;
                         break;
                     }
                 }
             }
             if (!found) {
-                // Allow Leaky Layers: If a crumb is not found, skip it and look for the next parent 
-                // higher up in the file (continue loop without resetting currentIdx)
-                continue;
+                // Strict mode: If a crumb is not found, the whole context verification fails
+                // Return 0 to indicate no match for this context
+                return 0;
             }
         }
-        // Return true only if at least one crumb was matched
-        // This prevents insertion at file end when context doesn't exist at all
-        return anyFound;
+
+        return matchedCount;
     }
 }

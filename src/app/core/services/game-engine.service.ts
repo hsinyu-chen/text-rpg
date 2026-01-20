@@ -606,63 +606,6 @@ export class GameEngineService {
         }
     }
 
-    /**
-     * Audits the save content of a specific message by sending filtered history and the audit prompt.
-     * Updates the message content with the results.
-     */
-    async auditSaveDiff(targetMessageId: string) {
-        this.state.status.set('generating');
-        try {
-            const history = this.contextBuilder.getAuditHistory();
-            const injectionContent = this.state.dynamicAuditInjection();
-
-            // Prepare the target message content to be audited
-            const targetMsg = this.state.messages().find(m => m.id === targetMessageId);
-            if (!targetMsg) return;
-
-            const auditPrompt = injectionContent.replace(/\{\{CONTENT_TO_AUDIT\}\}/g, targetMsg.content);
-
-            // Add the audit prompt as a user message
-            history.push({
-                role: 'user',
-                parts: [{ text: auditPrompt }]
-            });
-
-            const stream = this.provider.generateContentStream(
-                history,
-                this.getEffectiveSystemInstruction(),
-                {
-                    cachedContentName: this.state.kbCacheName() || undefined,
-                    responseSchema: getResponseSchema(this.state.config()?.outputLanguage),
-                    responseMimeType: 'application/json'
-                }
-            );
-
-            const result = await this.streamProcessor.processStream(
-                stream,
-                crypto.randomUUID(), // Temp ID for streaming
-                this.state.config()?.outputLanguage || 'default',
-                () => { /* no-op */ } // No-op updater since we'll update the target manually
-            );
-
-            if (result.finalStory && result.finalStory.trim()) {
-                const newContent = targetMsg.content + '\n\n---\n**Audit Result (Full Save Regeneration):**\n' + result.finalStory;
-                this.updateMessageContent(targetMessageId, newContent);
-                const ui = getUIStrings(this.state.config()?.outputLanguage);
-                this.snackBar.open(ui.AUDIT_PATCH_APPLIED, 'OK', { duration: 3000 });
-            } else {
-                const ui = getUIStrings(this.state.config()?.outputLanguage);
-                this.snackBar.open(ui.AUDIT_NO_CHANGES, 'OK', { duration: 3000 });
-            }
-
-            this.state.status.set('idle');
-        } catch (e: unknown) {
-            console.error(e);
-            this.state.status.set('error');
-            const ui = getUIStrings(this.state.config()?.outputLanguage);
-            this.snackBar.open(ui.AUDIT_FAILED + (e instanceof Error ? e.message : 'Unknown error'), 'OK', { duration: 5000 });
-        }
-    }
 
     /**
      * @category Chat History Delegates
