@@ -49,6 +49,7 @@ export class GameStateService {
     kbFileUri = signal<string | null>(null);
     fileTokenCounts = signal<Map<string, number>>(new Map());
     estimatedKbTokens = signal<number>(0);
+    unsavedFiles = signal<Set<string>>(new Set());
 
     // Reactive KB Hash
     currentKbHash = computed(() => {

@@ -7,12 +7,6 @@
         </button>
         <span class="file-title">{{ activeFile() }}</span>
         <div class="header-actions">
-            @if (canEdit()) {
-            <button mat-icon-button (click)="toggleEdit()" [color]="isEditing() ? 'accent' : 'default'"
-                [matTooltip]="isEditing() ? 'View Mode' : 'Edit Mode'">
-                <mat-icon>{{ isEditing() ? 'visibility' : 'edit' }}</mat-icon>
-            </button>
-            }
             <button mat-icon-button (click)="close()" matTooltip="Close">
                 <mat-icon>close</mat-icon>
             </button>
@@ -53,6 +47,9 @@
                             (keydown.enter)="selectFile(file)" tabindex="0">
                             <mat-icon matListItemIcon>description</mat-icon>
                             <span matListItemTitle class="file-name">{{ file }}</span>
+                            @if (unsavedFiles().has(file)) {
+                            <div matListItemMeta class="unsaved-indicator" title="Unsaved changes"></div>
+                            }
                         </a>
                         }
                     </mat-nav-list>
@@ -183,17 +180,16 @@
         <!-- Monaco Editor -->
         <div class="editor-container">
             <app-monaco-editor #editorRef [multiModelMode]="true" [files]="data.files" [activeFile]="activeFile()"
-                [options]="editorOptions()" (valueChange)="activeFileContent.set($event)">
+                [options]="editorOptions()" (valueChange)="onValueChange($event)">
             </app-monaco-editor>
         </div>
     </div>
 
     <!-- Footer Actions -->
     <mat-dialog-actions align="end">
-        @if (isEditing()) {
-        <button mat-flat-button color="primary" (click)="save()" [disabled]="isSaving()">
+        <button mat-flat-button color="primary" (click)="save()"
+            [disabled]="isSaving() || !unsavedFiles().has(activeFile())">
             {{ isSaving() ? 'Saving...' : 'Save Changes' }}
         </button>
-        }
     </mat-dialog-actions>
 </div>

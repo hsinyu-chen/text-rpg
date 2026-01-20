@@ -45,10 +45,6 @@
                                 (keydown.enter)="viewFile(file.name, file.content)"
                                 (keydown.space)="$event.preventDefault(); viewFile(file.name, file.content)"
                                 class="clickable-file">{{ file.name }}</span>
-                            <button mat-icon-button (click)="viewFile(file.name, file.content, true)"
-                                [disabled]="state.isBusy()" matTooltip="Edit File">
-                                <mat-icon>edit</mat-icon>
-                            </button>
                         </div>
                         <div matListItemLine>
                             @if (displayMode() === 'tokens') {
@@ -57,6 +53,9 @@
                             {{ formatCount(file.content.length) }} chars
                             }
                         </div>
+                        @if (state.unsavedFiles().has(file.name)) {
+                        <div matListItemMeta class="unsaved-indicator" title="Unsaved changes"></div>
+                        }
                     </mat-list-item>
                     }
 

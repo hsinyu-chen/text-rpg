@@ -1,5 +1,6 @@
-import { Component, inject, signal, computed, viewChild, effect, resource } from '@angular/core';
+import { Component, inject, signal, computed, viewChild, effect, resource, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { firstValueFrom } from 'rxjs';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -12,6 +13,9 @@ import { MonacoEditorComponent } from '../../shared/components/monaco-editor/mon
 import { FileSystemService } from '../../core/services/file-system.service';
 import { GameEngineService } from '../../core/services/game-engine.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
+import { MatDialog } from '@angular/material/dialog';
+import { GameStateService } from '../../core/services/game-state.service';
 
 /** Dialog data interface for multi-file viewer */
 export interface FileViewerDialogData {
@@ -57,12 +61,14 @@ export interface MarkdownHeader {
   templateUrl: './file-viewer-dialog.component.html',
   styleUrl: './file-viewer-dialog.component.scss'
 })
-export class FileViewerDialogComponent {
+export class FileViewerDialogComponent implements OnDestroy {
   data = inject(MAT_DIALOG_DATA) as FileViewerDialogData;
   private dialogRef = inject(MatDialogRef<FileViewerDialogComponent>);
   private fileSystem = inject(FileSystemService);
   private engine = inject(GameEngineService);
+  private state = inject(GameStateService);
   private snackBar = inject(MatSnackBar);
+  private matDialog = inject(MatDialog);
 
   // Editor reference
   editorRef = viewChild<MonacoEditorComponent>('editorRef');
@@ -70,11 +76,11 @@ export class FileViewerDialogComponent {
   // Active file selection
   activeFile = signal('');
 
-  // Edit mode toggle
-  isEditing = signal(false);
-
   // Saving state
   isSaving = signal(false);
+
+  // Set of filenames with unsaved changes - now tracked in GameStateService
+  unsavedFiles = this.state.unsavedFiles;
 
   // File list sidebar collapsed state (for mobile)
   isSidebarCollapsed = signal(false);
@@ -137,9 +143,9 @@ export class FileViewerDialogComponent {
     return headers;
   });
 
-  // Monaco editor options - readonly if not editing OR if system file
+  // Monaco editor options - always allowing editing now
   editorOptions = computed(() => ({
-    readOnly: !this.isEditing() || !this.canEdit(),
+    readOnly: false,
     minimap: { enabled: false }
   }));
 
@@ -239,9 +245,9 @@ export class FileViewerDialogComponent {
       }
     }
 
-    // Start in edit mode if requested
+    // Start in edit mode if requested (always true now, but keeping for compatibility)
     if (this.data.editMode && this.canEdit()) {
-      this.isEditing.set(true);
+      // isEditing removed
     }
 
     // Effect to sync content when active file changes
@@ -581,17 +587,54 @@ export class FileViewerDialogComponent {
 
   /** Select a file from the sidebar */
   selectFile(fileName: string): void {
+    if (this.activeFile() === fileName) return;
+
+    // Get current content from editor for the file we are leaving
+    const editor = this.editorRef();
+    if (editor) {
+      const currentContent = editor.getFileContent(this.activeFile());
+      if (currentContent !== undefined) {
+        this.activeFileContent.set(currentContent);
+      }
+    }
+
     this.activeFile.set(fileName);
+
+    // Update activeFileContent for the new file
+    const newInitialContent = this.data.files.get(fileName) || '';
+    // If it was already modified, Monaco will have the modified version, 
+    // but the outline needs the content. Monaco handles model switching.
+    // We should probably get the value from Monaco models if available.
+    if (editor) {
+      const existingModelContent = editor.getFileContent(fileName);
+      if (existingModelContent !== undefined) {
+        this.activeFileContent.set(existingModelContent);
+      } else {
+        this.activeFileContent.set(newInitialContent);
+      }
+    }
+
     // Collapse sidebar on mobile after selection
     if (window.innerWidth < 768) {
       this.isSidebarCollapsed.set(true);
     }
   }
 
-  /** Toggle edit mode */
-  toggleEdit(): void {
-    if (!this.canEdit()) return;
-    this.isEditing.update(v => !v);
+  /** Handle value changes from Monaco */
+  onValueChange(newValue: string): void {
+    this.activeFileContent.set(newValue);
+    const fileName = this.activeFile();
+    const originalContent = this.data.files.get(fileName) || '';
+
+    this.unsavedFiles.update((set: Set<string>) => {
+      const next = new Set(set);
+      if (newValue !== originalContent) {
+        next.add(fileName);
+      } else {
+        next.delete(fileName);
+      }
+      return next;
+    });
   }
 
   /** Toggle sidebar visibility */
@@ -622,7 +665,12 @@ export class FileViewerDialogComponent {
       this.snackBar.open('File saved successfully!', 'Close', { duration: 3000 });
       // Update the local data map
       this.data.files.set(fileName, content);
-      this.isEditing.set(false);
+      // Remove from unsaved files
+      this.unsavedFiles.update((set: Set<string>) => {
+        const next = new Set(set);
+        next.delete(fileName);
+        return next;
+      });
     } catch (err) {
       console.error('Save failed:', err);
       this.snackBar.open('Failed to save file.', 'Close', { duration: 5000 });
@@ -632,7 +680,27 @@ export class FileViewerDialogComponent {
   }
 
   /** Close the dialog */
-  close(): void {
+  async close(): Promise<void> {
+    if (this.unsavedFiles().size > 0) {
+      const ref = this.matDialog.open(ConfirmDialogComponent, {
+        data: {
+          title: 'Unsaved Changes',
+          message: `You have unsaved changes in ${this.unsavedFiles().size} file(s). Are you sure you want to leave?`,
+          okText: 'Leave',
+          cancelText: 'Stay'
+        }
+      });
+
+      const confirmed = await firstValueFrom(ref.afterClosed());
+      if (!confirmed) return;
+    }
+    // Clear unsaved files set when closing
+    this.unsavedFiles.set(new Set());
     this.dialogRef.close();
+  }
+
+  ngOnDestroy(): void {
+    // Also clear here just in case it was closed via backdrop or escape key
+    this.unsavedFiles.set(new Set());
   }
 }

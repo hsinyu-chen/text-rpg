@@ -583,6 +583,18 @@
             white-space: nowrap;
         }
 
+        .unsaved-indicator {
+            width: 10px;
+            height: 10px;
+            min-width: 10px;
+            margin-left: auto;
+            background: #ffc107; // Material Amber 500
+            border-radius: 50%;
+            display: inline-block;
+            box-shadow: 0 0 6px rgba(255, 193, 7, 0.8), 0 0 12px rgba(255, 193, 7, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
         .header-text {
             font-size: 12px;
             overflow: hidden;
