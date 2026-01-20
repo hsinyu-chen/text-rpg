@@ -12,24 +12,40 @@ import { LOCALES } from '../constants/locales';
 })
 export class KnowledgeService {
     /**
+     * Constructs the full Knowledge Base text from a file map, handling sorting and normalization.
+     * @param files Map of file paths to content.
+     * @returns The combined KB text string.
+     */
+    buildKnowledgeBaseText(files: Map<string, string>): string {
+        let kbText = '';
+        // Sort keys to ensure deterministic order regardless of insertion history
+        const sortedKeys = Array.from(files.keys()).sort();
+
+        sortedKeys.forEach(path => {
+            if (!path.startsWith('system_files/') && path !== 'system_prompt.md') {
+                let processedContent = files.get(path)!;
+                // Strip last_scene from Story Outline
+                const isStoryOutline = Object.values(LOCALES).some(l => l.coreFilenames.STORY_OUTLINE === path);
+
+                if (isStoryOutline) {
+                    const lastSceneRegex = /(?:^|\n)[#*_\s]*last[_-]?scene[#*_\s]*[:：]?[\s\S]*$/i;
+                    processedContent = processedContent.replace(lastSceneRegex, '').trim();
+                }
+                kbText += `${LLM_MARKERS.FILE_CONTENT_SEPARATOR} [${path}] ---\\n${processedContent}\\n\\n`;
+            }
+        });
+        return kbText;
+    }
+
+    /**
      * Constructs the Part array for the Knowledge Base content from a file map.
      * @param files Map of file paths to content.
      * @returns Array of Part objects containing the file contents.
      */
     buildKnowledgeBaseParts(files: Map<string, string>): LLMPart[] {
-        const parts: LLMPart[] = [];
-        files.forEach((content, path) => {
-            let processedContent = content;
-            // Strip last_scene from Story Outline
-            const isStoryOutline = Object.values(LOCALES).some(l => l.coreFilenames.STORY_OUTLINE === path);
-
-            if (isStoryOutline) {
-                const lastSceneRegex = /(?:^|\n)[#*_\s]*last[_-]?scene[#*_\s]*[:：]?[\s\S]*$/i;
-                processedContent = content.replace(lastSceneRegex, '').trim();
-            }
-            parts.push({ text: `${LLM_MARKERS.FILE_CONTENT_SEPARATOR} [${path}] ---\\n${processedContent}\\n\\n` });
-        });
-        return parts;
+        const text = this.buildKnowledgeBaseText(files);
+        if (!text) return [];
+        return [{ text }];
     }
 
     /**

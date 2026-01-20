@@ -9,7 +9,7 @@ import { KnowledgeService } from './knowledge.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { SessionSave, Scenario } from '../models/types';
 import { GAME_INTENTS } from '../constants/game-intents';
-import { getCoreFilenames, getSectionHeaders, getUIStrings, LLM_MARKERS } from '../constants/engine-protocol';
+import { getCoreFilenames, getSectionHeaders, getUIStrings } from '../constants/engine-protocol';
 import { LOCALES } from '../constants/locales';
 
 @Injectable({
@@ -178,7 +178,6 @@ export class SessionService {
             this.state.lastTurnCost.set(0);
             this.state.historyStorageCostAccumulated.set(0);
             this.state.sunkUsageHistory.set([]);
-            this.state.currentKbHash.set('');
 
             console.log('[SessionService] Local session wiped successfully.');
         } catch (e) {
@@ -260,8 +259,6 @@ export class SessionService {
         this.state.loadedFiles.update(map => {
             const newMap = new Map(map);
             newMap.set(filePath, content);
-            // Recalculate hash immediately
-            this.updateKbHash(newMap);
             return newMap;
         });
 
@@ -324,8 +321,7 @@ export class SessionService {
             }
             this.state.fileTokenCounts.set(tokenMap);
 
-            // 2. Build KB text logic delegated to KnowledgeService
-            const partsForCount = this.kb.buildKnowledgeBaseParts(contentMap);
+            // 2. Build KB text logic delegated to GameStateService reactive hash
 
             // Actually KB Service has calculateKbHash which takes string. 
             // Ideally we should reconstruct the "raw text" exactly as GameEngine did.
@@ -339,13 +335,15 @@ export class SessionService {
             });
             */
             // Let's replicate this logic to ensure consistent hashing
-            // 2b. Calculate Hash (using sorted keys for determinism)
-            const currentHash = this.updateKbHash(contentMap);
+            // 3. Calculate total tokens for KB
+            const partsForCount = this.kb.buildKnowledgeBaseParts(contentMap);
+
             const savedHash = localStorage.getItem('kb_cache_hash');
             const cachedTotal = localStorage.getItem('kb_cache_tokens');
+            const currentHashTmp = this.state.currentKbHash(); // Use reactive hash
 
             let totalTokenCount = 0;
-            if (savedHash === currentHash && cachedTotal) {
+            if (savedHash === currentHashTmp && cachedTotal) {
                 totalTokenCount = parseInt(cachedTotal);
                 console.log('[SessionService] Reusing cached total KB tokens:', totalTokenCount);
             } else {
@@ -353,17 +351,19 @@ export class SessionService {
                 localStorage.setItem('kb_cache_tokens', totalTokenCount.toString());
                 console.log('[SessionService] Counted new total KB tokens:', totalTokenCount);
             }
+
             this.state.estimatedKbTokens.set(totalTokenCount);
             console.log('[SessionService] Estimated KB Tokens:', totalTokenCount);
 
-            this.state.currentKbHash.set(currentHash);
+            // Hash is now reactive via GameStateService currentKbHash computed signal
+            const currentHash = this.state.currentKbHash();
 
             const hasKbContent = Array.from(contentMap.keys()).some(path => !path.startsWith('system_files/') && path !== 'system_prompt.md');
 
             // Defer remote cleanup and upload to sendMessage -> checkCacheAndRefresh (via CacheManager logic mostly)
             // But here we just update local hash state
             if (hasKbContent) {
-                if (savedHash !== currentHash) {
+                if (localStorage.getItem('kb_cache_hash') !== currentHash) {
                     console.log('[SessionService] KB Content changed. Invalidating remote state.');
                     this.state.kbFileUri.set(null);
                     this.state.kbCacheName.set(null);
@@ -410,27 +410,5 @@ export class SessionService {
         if (Array.isArray(sunk)) {
             this.state.sunkUsageHistory.set(sunk);
         }
-    }
-    /**
-     * Recalculates the KB hash based on current files and system prompt.
-     * Updates the currentKbHash signal.
-     */
-    private updateKbHash(filesMap: Map<string, string>): string {
-        const modelId = this.state.config()?.modelId || this.provider.getDefaultModelId();
-        let rawKbText = '';
-
-        // Sort keys to ensure deterministic order regardless of insertion history
-        const sortedKeys = Array.from(filesMap.keys()).sort();
-
-        sortedKeys.forEach(path => {
-            const content = filesMap.get(path)!;
-            if (!path.startsWith('system_files/') && path !== 'system_prompt.md') {
-                rawKbText += `${LLM_MARKERS.FILE_CONTENT_SEPARATOR} [${path}] ---\\n${content}\\n\\n`;
-            }
-        });
-
-        const currentHash = this.kb.calculateKbHash(rawKbText, modelId, this.systemInstructionCache || '');
-        this.state.currentKbHash.set(currentHash);
-        return currentHash;
     }
 }

@@ -1,6 +1,7 @@
 import { Injectable, signal, computed, inject } from '@angular/core';
 import { ChatMessage } from '../models/types';
 import { CostService } from './cost.service';
+import { KnowledgeService } from './knowledge.service';
 
 /**
  * Configuration for the game engine.
@@ -29,6 +30,7 @@ export interface GameEngineConfig {
 })
 export class GameStateService {
     private cost = inject(CostService);
+    private kb = inject(KnowledgeService);
 
     // ==================== Configuration ====================
     config = signal<GameEngineConfig | null>(null);
@@ -47,7 +49,16 @@ export class GameStateService {
     kbFileUri = signal<string | null>(null);
     fileTokenCounts = signal<Map<string, number>>(new Map());
     estimatedKbTokens = signal<number>(0);
-    currentKbHash = signal<string>('');
+
+    // Reactive KB Hash
+    currentKbHash = computed(() => {
+        const files = this.loadedFiles();
+        const modelId = this.config()?.modelId || 'gemini-prod';
+        const systemInstruction = this.systemInstructionCache();
+
+        const kbText = this.kb.buildKnowledgeBaseText(files);
+        return this.kb.calculateKbHash(kbText, modelId, systemInstruction);
+    });
 
     // ==================== Cache ====================
     kbCacheName = signal<string | null>(null);

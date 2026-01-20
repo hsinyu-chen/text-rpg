@@ -63,13 +63,13 @@ export class ConfigService {
      * Initializes the service by loading configuration and usage stats from localStorage.
      * Call this AFTER registering LLM Providers.
      */
-    public init() {
+    public async init() {
         // Trigger FX rate update (don't await to avoid blocking init)
         this.updateExchangeRateFromApi();
 
         // Initialize Injection Settings & History (Bootstrapping)
-        this.injection.loadDynamicInjectionSettings();
-        this.session.loadHistoryFromStorage();
+        await this.injection.loadDynamicInjectionSettings();
+        await this.session.loadHistoryFromStorage();
 
         const key = localStorage.getItem('gemini_api_key');
         const model = localStorage.getItem('gemini_model_id') || this.provider?.getDefaultModelId() || 'gemini-prod';
