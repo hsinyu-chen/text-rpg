@@ -437,18 +437,26 @@ export class AutoUpdateDialogComponent {
     for (const group of this.groupedUpdates()) {
       for (const update of group.updates) {
         if (update.status && update.status.exists && !update.status.matched) {
-          const reason = update.status.failReason === 'context_mismatch'
-            ? 'context mismatch'
-            : 'target not found';
+          const isTargetNotFound = update.status.failReason === 'target_not_found';
+          const reason = isTargetNotFound ? 'TARGET NOT FOUND (Erroneous Anchor)' : 'CONTEXT MISMATCH';
+
+          // Increase preview length to 500 and keep newlines for better anchor context
+          // But still cap it just in case of extreme cases
           const targetPreview = update.targetContent
-            ? update.targetContent.substring(0, 100).replace(/\n/g, ' ') + (update.targetContent.length > 100 ? '...' : '')
+            ? update.targetContent.substring(0, 500)
             : '(append mode)';
-          failedItems.push(`- File: ${update.filePath}\n  Context: ${update.context || '(root)'}\n  Reason: ${reason}\n  Target: ${targetPreview}`);
+
+          let itemText = `- File: ${update.filePath}\n  Context: ${update.context || '(root)'}\n  Reason: ${reason}\n  Target (DO NOT ECHO, FIND CORRECT ONE): \n  """\n  ${targetPreview}\n  """`;
+
+          if (isTargetNotFound) {
+            itemText += `\n  [INSTRUCTION] The above Target string could not be found in the file. Re-examine the Knowledge Base ({{FILE_*}}) to identify the correct content to update. Do NOT repeat this failed target in your output unless you have verified it matches the file exactly.`;
+          }
+          failedItems.push(itemText);
         }
       }
     }
 
-    const message = `${intentTag}${promptText}\n\n**Failed Items:**\n${failedItems.join('\n\n')}`;
+    const message = `${intentTag}${promptText}\n\n**FAILED ITEMS (ERRONEOUS REFERENCES):**\n${failedItems.join('\n\n')}`;
 
     // Send message and close dialog
     this.engine.sendMessage(message, { intent: GAME_INTENTS.SAVE });

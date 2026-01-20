@@ -155,7 +155,7 @@ When performing the <Save> command, please only compare and synchronize based on
         CATEGORY_PROCESS: 'Process',
         STOP_REASON_PREFIX: 'Model stopped due to:',
         REGENERATE_SAVE_BTN: 'Regenerate Failed Blocks',
-        REGENERATE_SAVE_PROMPT: 'ONLY regenerate/output the XML blocks that had errors, using the standard format. Do not repeat successful blocks. Use the context and target provided below.',
+        REGENERATE_SAVE_PROMPT: 'The items listed below FAILED to match. Use them as "erroneous references" only; identify the correct locations in the Knowledge Base and regenerate the XML blocks. Do not repeat successful blocks.',
         STOP_GENERATION: 'Stop Generation',
         STOP_GENERATION_CONFIRM_TITLE: 'Confirm Stop',
         STOP_GENERATION_CONFIRM_MSG: 'Are you sure you want to stop the current generation?'

@@ -84,7 +84,7 @@ export class SidebarComponent {
     this.matDialog.open(SettingsDialogComponent, { width: '550px' });
   }
 
-  viewFile(initialFile: string, _content: string) {
+  viewFile(initialFile: string) {
     // Pass all loaded files to the dialog with the clicked file as initial selection
     this.matDialog.open(FileViewerDialogComponent, {
       panelClass: 'fullscreen-dialog',

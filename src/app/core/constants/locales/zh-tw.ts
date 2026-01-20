@@ -155,7 +155,7 @@ export const ZH_TW_LOCALE: AppLocale = {
         CATEGORY_PROCESS: '處理腳本 (Process)',
         STOP_REASON_PREFIX: '模型停止原因：',
         REGENERATE_SAVE_BTN: '僅重新產生錯誤區塊',
-        REGENERATE_SAVE_PROMPT: '僅針對下方有錯誤的 XML 區塊重新產生/輸出，使用標準格式。請勿重覆輸出已成功的區塊。參考下方提供的 Context 與 Target。',
+        REGENERATE_SAVE_PROMPT: '下方列出的項目先前「比對失敗」。請將其視為「錯誤參考」，找出正確的檔案位置並重新產生 XML 更新區塊。請勿重複輸出已成功的區塊。參考下方提供的 Context 與錯誤 Target。',
         STOP_GENERATION: '停止生成',
         STOP_GENERATION_CONFIRM_TITLE: '確認停止',
         STOP_GENERATION_CONFIRM_MSG: '確定要停止目前的生成嗎？'

@@ -41,10 +41,9 @@
                     <mat-list-item>
                         <mat-icon matListItemIcon>description</mat-icon>
                         <div matListItemTitle class="file-item-title">
-                            <span (click)="viewFile(file.name, file.content)" tabindex="0"
-                                (keydown.enter)="viewFile(file.name, file.content)"
-                                (keydown.space)="$event.preventDefault(); viewFile(file.name, file.content)"
-                                class="clickable-file">{{ file.name }}</span>
+                            <span (click)="viewFile(file.name)" tabindex="0" (keydown.enter)="viewFile(file.name)"
+                                (keydown.space)="$event.preventDefault(); viewFile(file.name)" class="clickable-file">{{
+                                file.name }}</span>
                         </div>
                         <div matListItemLine>
                             @if (displayMode() === 'tokens') {
