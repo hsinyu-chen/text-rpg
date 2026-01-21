@@ -81,6 +81,7 @@ export class GeminiService implements LLMProvider {
             {
                 id: 'gemini-3-pro-preview',
                 name: 'Gemini 3 Pro Preview',
+                supportsThinking: true,
                 getRates: (prompt = 0) => {
                     const isLong = prompt > 200000;
                     return {
@@ -94,11 +95,25 @@ export class GeminiService implements LLMProvider {
             {
                 id: 'gemini-3-flash-preview',
                 name: 'Gemini 3 Flash Preview',
+                supportsThinking: true,
                 getRates: () => {
                     return {
                         input: 0.50,
                         output: 3.00,
                         cached: 0.05,
+                        cacheStorage: 1.00
+                    };
+                }
+            },
+            {
+                id: 'gemini-2.0-flash',
+                name: 'Gemini 2.0 Flash',
+                supportsThinking: false,
+                getRates: () => {
+                    return {
+                        input: 0.10,
+                        output: 0.40,
+                        cached: 0.025,
                         cacheStorage: 1.00
                     };
                 }
@@ -299,6 +314,10 @@ export class GeminiService implements LLMProvider {
     async sendMessageStream(contents: Content[], systemInstruction: string, cachedContentName?: string, responseSchema?: Schema, responseMimeType?: string, toolConfig?: object, intent?: string) {
         if (!this.client) throw new Error('Gemini client not initialized. Call initialize() first.');
 
+        // Check if current model supports thinking
+        const currentModel = this.getAvailableModels().find(m => m.id === this.lastModelId);
+        const modelSupportsThinking = currentModel?.supportsThinking ?? false;
+
         // Story intents use the story thinking level
         const storyIntents = ['action', 'fastforward', 'continue'];
         const currentThinkingLevel = intent && storyIntents.includes(intent)
@@ -307,10 +326,6 @@ export class GeminiService implements LLMProvider {
 
         // Build config object dynamicly to allow API defaults
         const generationConfig: GenerateContentConfig = {
-            thinkingConfig: {
-                includeThoughts: true,
-                thinkingLevel: currentThinkingLevel
-            },
             safetySettings: [
                 { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
                 { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -319,6 +334,14 @@ export class GeminiService implements LLMProvider {
                 { category: HarmCategory.HARM_CATEGORY_CIVIC_INTEGRITY, threshold: HarmBlockThreshold.BLOCK_NONE }
             ]
         };
+
+        // Only add thinkingConfig for models that support it
+        if (modelSupportsThinking) {
+            generationConfig.thinkingConfig = {
+                includeThoughts: true,
+                thinkingLevel: currentThinkingLevel
+            };
+        }
 
 
         // If using cache, DO NOT send systemInstruction again as it is baked into the cache

@@ -118,6 +118,8 @@ export interface LLMModelDefinition {
     name: string;
     /** Returns pricing rates, optionally based on prompt size */
     getRates: (promptTokens?: number) => LLMPricingRates;
+    /** Whether this model supports thinking/reasoning config */
+    supportsThinking?: boolean;
 }
 
 // ============================================================================
