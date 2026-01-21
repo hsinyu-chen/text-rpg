@@ -86,6 +86,7 @@ export class ConfigService {
         const currency = localStorage.getItem('app_currency') || 'TWD';
         const enableConversion = localStorage.getItem('app_enable_conversion') === 'true';
         const outputLanguage = localStorage.getItem('gemini_output_language') || 'default';
+        const idleOnBlur = localStorage.getItem('app_idle_on_blur') === 'true';
 
         if (key) {
             const cfg: GameEngineConfig = {
@@ -98,7 +99,8 @@ export class ConfigService {
                 currency,
                 enableConversion,
                 screensaverType,
-                outputLanguage
+                outputLanguage,
+                idleOnBlur
             };
             this.state.config.set(cfg);
 
@@ -188,7 +190,8 @@ export class ConfigService {
         currency?: string,
         enableConversion?: boolean,
         screensaverType?: 'invaders' | 'code',
-        outputLanguage?: string
+        outputLanguage?: string,
+        idleOnBlur?: boolean
     }) {
         localStorage.setItem('gemini_api_key', apiKey);
         localStorage.setItem('gemini_model_id', modelId);
@@ -198,6 +201,7 @@ export class ConfigService {
         if (genConfig.currency !== undefined) localStorage.setItem('app_currency', genConfig.currency);
         if (genConfig.enableConversion !== undefined) localStorage.setItem('app_enable_conversion', genConfig.enableConversion.toString());
         if (genConfig.outputLanguage !== undefined) localStorage.setItem('gemini_output_language', genConfig.outputLanguage);
+        if (genConfig.idleOnBlur !== undefined) localStorage.setItem('app_idle_on_blur', genConfig.idleOnBlur.toString());
 
         if (genConfig.exchangeRate !== undefined) localStorage.setItem('gemini_exchange_rate', genConfig.exchangeRate.toString());
 
@@ -252,7 +256,8 @@ export class ConfigService {
             currency: typeof cfg.currency === 'string' ? cfg.currency : undefined,
             enableConversion: typeof cfg.enableConversion === 'boolean' ? cfg.enableConversion : undefined,
             screensaverType: (cfg.screensaverType === 'invaders' || cfg.screensaverType === 'code') ? cfg.screensaverType : undefined,
-            outputLanguage: typeof cfg.outputLanguage === 'string' ? cfg.outputLanguage : undefined
+            outputLanguage: typeof cfg.outputLanguage === 'string' ? cfg.outputLanguage : undefined,
+            idleOnBlur: typeof cfg.idleOnBlur === 'boolean' ? cfg.idleOnBlur : undefined
         };
 
         // Reuse saveConfig to handle persistence (localStorage + Signal update + Service re-init)

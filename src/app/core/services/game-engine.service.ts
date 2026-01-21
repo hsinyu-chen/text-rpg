@@ -102,7 +102,8 @@ export class GameEngineService {
         currency?: string,
         enableConversion?: boolean,
         screensaverType?: 'invaders' | 'code',
-        outputLanguage?: string
+        outputLanguage?: string,
+        idleOnBlur?: boolean
     }) {
         await this.configService.saveConfig(apiKey, modelId, genConfig);
     }

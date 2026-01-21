@@ -2,6 +2,8 @@ import { Component, ElementRef, inject, afterNextRender, DestroyRef, viewChild }
 import { CommonModule } from '@angular/common';
 import { MonacoLoaderService } from '../../core/services/monaco-loader.service';
 import { IdleService } from '../../core/services/idle.service';
+import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
 import * as monaco from 'monaco-editor';
 
 const CODE_SNIPPETS = [
@@ -172,11 +174,13 @@ fn main() {
 @Component({
   selector: 'app-code-screensaver',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, MatButtonModule, MatIconModule],
   template: `
     <div class="screensaver-container">
       <div #monacoContainer class="monaco-container"></div>
-      <div class="exit-hotspot" (click)="exit()" (keydown.enter)="exit()" tabindex="0" aria-label="Exit Boss Key"></div>
+      <button mat-icon-button class="exit-btn" (click)="exit()" aria-label="Exit Boss Key">
+        <mat-icon>close</mat-icon>
+      </button>
       <div class="overlay"></div>
     </div>
   `,
@@ -195,15 +199,17 @@ fn main() {
       width: 100%;
       height: 100%;
     }
-    .exit-hotspot {
+    .exit-btn {
       position: absolute;
-      top: 0;
-      right: 0;
-      width: 50px;
-      height: 50px;
-      background: transparent;
-      cursor: default;
+      top: 20px;
+      right: 20px;
+      color: rgba(255, 255, 255, 0.3);
       z-index: 10001;
+      transition: color 0.3s, background-color 0.3s;
+    }
+    .exit-btn:hover {
+      color: white;
+      background-color: rgba(255, 255, 255, 0.1);
     }
     .overlay {
         position: absolute;

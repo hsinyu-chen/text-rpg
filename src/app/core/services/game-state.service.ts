@@ -17,6 +17,7 @@ export interface GameEngineConfig {
     enableConversion?: boolean;
     screensaverType?: 'invaders' | 'code';
     outputLanguage?: string;
+    idleOnBlur?: boolean;
 }
 
 /**

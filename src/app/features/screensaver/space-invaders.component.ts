@@ -2,14 +2,19 @@ import { Component, ElementRef, inject, afterNextRender, DestroyRef, viewChild }
 import Phaser from 'phaser';
 import { InvadersScene } from './invaders-scene';
 import { IdleService } from '../../core/services/idle.service';
+import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
 
 @Component({
     selector: 'app-space-invaders',
     standalone: true,
+    imports: [MatButtonModule, MatIconModule],
     template: `
     <div class="screensaver-container">
       <div #gameContainer class="phaser-container"></div>
-      <div class="exit-hotspot" (click)="exit()" (keydown.enter)="exit()" tabindex="0" aria-label="Exit Screensaver"></div>
+      <button mat-icon-button class="exit-btn" (click)="exit()" aria-label="Exit Screensaver">
+        <mat-icon>close</mat-icon>
+      </button>
       <div class="hint">Screensaver Active - Click Top Right to Exit</div>
     </div>
   `,
@@ -22,21 +27,22 @@ import { IdleService } from '../../core/services/idle.service';
       height: 100vh;
       background: black;
       z-index: 9999;
-      cursor: none;
     }
     .phaser-container {
       width: 100%;
       height: 100%;
     }
-    .exit-hotspot {
+    .exit-btn {
       position: absolute;
-      top: 0;
-      right: 0;
-      width: 100px;
-      height: 100px;
-      background: transparent;
-      cursor: pointer;
+      top: 20px;
+      right: 20px;
+      color: rgba(255, 255, 255, 0.5);
       z-index: 10000;
+      transition: color 0.3s, background-color 0.3s;
+    }
+    .exit-btn:hover {
+      color: white;
+      background-color: rgba(255, 255, 255, 0.1);
     }
     .hint {
         position: absolute;

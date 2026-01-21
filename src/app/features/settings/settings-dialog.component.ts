@@ -67,6 +67,7 @@ export class SettingsDialogComponent {
   currency = signal('TWD');
   enableConversion = signal(false);
   screensaverType = signal<'invaders' | 'code'>('invaders');
+  idleOnBlur = signal(false);
 
   // Language Settings
   outputLanguage = signal('default');
@@ -109,6 +110,7 @@ export class SettingsDialogComponent {
       this.currency.set(current.currency || 'TWD');
       this.enableConversion.set(current.enableConversion ?? false);
       this.screensaverType.set(current.screensaverType ?? 'invaders');
+      this.idleOnBlur.set(current.idleOnBlur ?? false);
 
       const isPreset = this.fontFamilies.some(f => f.value === current.fontFamily);
       if (current.fontFamily && !isPreset) {
@@ -146,6 +148,7 @@ export class SettingsDialogComponent {
           currency: this.currency(),
           enableConversion: this.enableConversion(),
           screensaverType: this.screensaverType(),
+          idleOnBlur: this.idleOnBlur(),
           outputLanguage: this.outputLanguage() === 'custom' ? this.customOutputLanguage() : this.outputLanguage()
         });
       }
@@ -168,6 +171,7 @@ export class SettingsDialogComponent {
           currency: this.currency(),
           enableConversion: this.enableConversion(),
           screensaverType: this.screensaverType(),
+          idleOnBlur: this.idleOnBlur(),
           outputLanguage: this.outputLanguage() === 'custom' ? this.customOutputLanguage() : this.outputLanguage()
         }
       );

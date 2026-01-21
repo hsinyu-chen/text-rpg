@@ -1,12 +1,14 @@
-import { Injectable, signal, effect } from '@angular/core';
+import { Injectable, signal, effect, inject } from '@angular/core';
 import { fromEvent, merge, throttleTime, timer, of, filter } from 'rxjs';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { rxResource } from '@angular/core/rxjs-interop';
+import { GameStateService } from './game-state.service';
 
 @Injectable({
     providedIn: 'root',
 })
 export class IdleService {
+    private state = inject(GameStateService);
     private readonly IDLE_TIME = 5 * 60 * 1000; // 5 minutes
 
     private showScreensaverSignal = signal(false);
@@ -71,6 +73,16 @@ export class IdleService {
             const event = hotkeySignal();
             if (event) {
                 event.preventDefault();
+                this.showScreensaverSignal.set(true);
+            }
+        });
+
+        // Window Blur listener: 離開焦點立刻進入
+        const blur$ = fromEvent(window, 'blur').pipe(takeUntilDestroyed());
+        const blurSignal = toSignal(blur$);
+
+        effect(() => {
+            if (blurSignal() !== undefined && this.state.config()?.idleOnBlur) {
                 this.showScreensaverSignal.set(true);
             }
         });
