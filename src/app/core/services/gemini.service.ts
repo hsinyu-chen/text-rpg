@@ -80,11 +80,11 @@ export class GeminiService implements LLMProvider {
                 id: 'gemini-3-pro-preview',
                 name: 'Gemini 3 Pro Preview',
                 getRates: (prompt = 0) => {
-                    const isLong = prompt > 128000;
+                    const isLong = prompt > 200000;
                     return {
-                        input: isLong ? 7.00 : 3.50,
-                        output: isLong ? 21.00 : 10.50,
-                        cached: isLong ? 1.75 : 0.875,
+                        input: isLong ? 4.00 : 2.00,
+                        output: isLong ? 18.00 : 12.00,
+                        cached: isLong ? 0.40 : 0.20,
                         cacheStorage: 4.50
                     };
                 }
@@ -92,12 +92,11 @@ export class GeminiService implements LLMProvider {
             {
                 id: 'gemini-3-flash-preview',
                 name: 'Gemini 3 Flash Preview',
-                getRates: (prompt = 0) => {
-                    const isLong = prompt > 128000;
+                getRates: () => {
                     return {
-                        input: isLong ? 0.20 : 0.10,
-                        output: isLong ? 0.80 : 0.40,
-                        cached: isLong ? 0.05 : 0.025,
+                        input: 0.50,
+                        output: 3.00,
+                        cached: 0.05,
                         cacheStorage: 1.00
                     };
                 }
