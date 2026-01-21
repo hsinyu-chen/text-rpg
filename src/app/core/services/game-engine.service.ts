@@ -103,7 +103,9 @@ export class GameEngineService {
         enableConversion?: boolean,
         screensaverType?: 'invaders' | 'code',
         outputLanguage?: string,
-        idleOnBlur?: boolean
+        idleOnBlur?: boolean,
+        thinkingLevelStory?: string,
+        thinkingLevelGeneral?: string
     }) {
         await this.configService.saveConfig(apiKey, modelId, genConfig);
     }
@@ -432,6 +434,7 @@ export class GameEngineService {
                     cachedContentName: this.state.kbCacheName() || undefined,
                     responseSchema: getResponseSchema(this.state.config()?.outputLanguage),
                     responseMimeType: 'application/json',
+                    intent: currentIntent,
                     signal: signal
                 }
             );

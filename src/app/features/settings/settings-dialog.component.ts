@@ -149,7 +149,9 @@ export class SettingsDialogComponent {
           enableConversion: this.enableConversion(),
           screensaverType: this.screensaverType(),
           idleOnBlur: this.idleOnBlur(),
-          outputLanguage: this.outputLanguage() === 'custom' ? this.customOutputLanguage() : this.outputLanguage()
+          outputLanguage: this.outputLanguage() === 'custom' ? this.customOutputLanguage() : this.outputLanguage(),
+          thinkingLevelStory: settings.thinkingLevelStory,
+          thinkingLevelGeneral: settings.thinkingLevelGeneral
         });
       }
     } else {

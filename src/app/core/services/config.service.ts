@@ -87,6 +87,8 @@ export class ConfigService {
         const enableConversion = localStorage.getItem('app_enable_conversion') === 'true';
         const outputLanguage = localStorage.getItem('gemini_output_language') || 'default';
         const idleOnBlur = localStorage.getItem('app_idle_on_blur') === 'true';
+        const thinkingLevelStory = localStorage.getItem('gemini_thinking_level_story') || 'minimal';
+        const thinkingLevelGeneral = localStorage.getItem('gemini_thinking_level_general') || 'high';
 
         if (key) {
             const cfg: GameEngineConfig = {
@@ -100,7 +102,9 @@ export class ConfigService {
                 enableConversion,
                 screensaverType,
                 outputLanguage,
-                idleOnBlur
+                idleOnBlur,
+                thinkingLevelStory,
+                thinkingLevelGeneral
             };
             this.state.config.set(cfg);
 
@@ -191,7 +195,9 @@ export class ConfigService {
         enableConversion?: boolean,
         screensaverType?: 'invaders' | 'code',
         outputLanguage?: string,
-        idleOnBlur?: boolean
+        idleOnBlur?: boolean,
+        thinkingLevelStory?: string,
+        thinkingLevelGeneral?: string
     }) {
         localStorage.setItem('gemini_api_key', apiKey);
         localStorage.setItem('gemini_model_id', modelId);
@@ -202,6 +208,8 @@ export class ConfigService {
         if (genConfig.enableConversion !== undefined) localStorage.setItem('app_enable_conversion', genConfig.enableConversion.toString());
         if (genConfig.outputLanguage !== undefined) localStorage.setItem('gemini_output_language', genConfig.outputLanguage);
         if (genConfig.idleOnBlur !== undefined) localStorage.setItem('app_idle_on_blur', genConfig.idleOnBlur.toString());
+        if (genConfig.thinkingLevelStory !== undefined) localStorage.setItem('gemini_thinking_level_story', genConfig.thinkingLevelStory);
+        if (genConfig.thinkingLevelGeneral !== undefined) localStorage.setItem('gemini_thinking_level_general', genConfig.thinkingLevelGeneral);
 
         if (genConfig.exchangeRate !== undefined) localStorage.setItem('gemini_exchange_rate', genConfig.exchangeRate.toString());
 
@@ -257,7 +265,9 @@ export class ConfigService {
             enableConversion: typeof cfg.enableConversion === 'boolean' ? cfg.enableConversion : undefined,
             screensaverType: (cfg.screensaverType === 'invaders' || cfg.screensaverType === 'code') ? cfg.screensaverType : undefined,
             outputLanguage: typeof cfg.outputLanguage === 'string' ? cfg.outputLanguage : undefined,
-            idleOnBlur: typeof cfg.idleOnBlur === 'boolean' ? cfg.idleOnBlur : undefined
+            idleOnBlur: typeof cfg.idleOnBlur === 'boolean' ? cfg.idleOnBlur : undefined,
+            thinkingLevelStory: typeof cfg.thinkingLevelStory === 'string' ? cfg.thinkingLevelStory : undefined,
+            thinkingLevelGeneral: typeof cfg.thinkingLevelGeneral === 'string' ? cfg.thinkingLevelGeneral : undefined
         };
 
         // Reuse saveConfig to handle persistence (localStorage + Signal update + Service re-init)

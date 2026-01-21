@@ -51,6 +51,7 @@ export interface LLMGenerateConfig {
     cachedContentName?: string;
     tools?: object[];
     toolConfig?: object;
+    intent?: string;
     signal?: AbortSignal;
 }
 
@@ -282,4 +283,8 @@ export interface LLMProviderConfig {
     modelId?: string;
     /** Base URL for the API endpoint (for self-hosted providers) */
     baseUrl?: string;
+    /** Thinking level for story context */
+    thinkingLevelStory?: string;
+    /** Thinking level for general context */
+    thinkingLevelGeneral?: string;
 }

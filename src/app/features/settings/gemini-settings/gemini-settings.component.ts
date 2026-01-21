@@ -33,6 +33,8 @@ export class GeminiSettingsComponent {
     modelId = signal(DEFAULT_GEMINI_MODEL_ID);
     hideKey = signal(true);
     enableCache = signal(false);
+    thinkingLevelStory = signal('minimal');
+    thinkingLevelGeneral = signal('high');
 
     // Model options from provider
     models = signal<LLMModelDefinition[]>([]);
@@ -46,13 +48,17 @@ export class GeminiSettingsComponent {
         this.apiKey.set(localStorage.getItem('gemini_api_key') || '');
         this.modelId.set(localStorage.getItem('gemini_model_id') || DEFAULT_GEMINI_MODEL_ID);
         this.enableCache.set(localStorage.getItem('gemini_enable_cache') === 'true');
+        this.thinkingLevelStory.set(localStorage.getItem('gemini_thinking_level_story') || 'minimal');
+        this.thinkingLevelGeneral.set(localStorage.getItem('gemini_thinking_level_general') || 'high');
     }
 
     getSettings(): GeminiSettings {
         return {
             apiKey: this.apiKey(),
             modelId: this.modelId(),
-            enableCache: this.enableCache()
+            enableCache: this.enableCache(),
+            thinkingLevelStory: this.thinkingLevelStory(),
+            thinkingLevelGeneral: this.thinkingLevelGeneral()
         };
     }
 
@@ -65,5 +71,7 @@ export interface GeminiSettings {
     apiKey: string;
     modelId: string;
     enableCache: boolean;
+    thinkingLevelStory: string;
+    thinkingLevelGeneral: string;
 }
 

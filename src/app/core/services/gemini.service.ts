@@ -25,6 +25,8 @@ export class GeminiService implements LLMProvider {
 
     private client: GoogleGenAI = null!;
     private lastModelId: string = DEFAULT_GEMINI_MODEL_ID;
+    private thinkingLevelStory: ThinkingLevel = ThinkingLevel.MINIMAL;
+    private thinkingLevelGeneral: ThinkingLevel = ThinkingLevel.HIGH;
 
     private readonly defaultTools: Tool[] = [];
 
@@ -120,6 +122,8 @@ export class GeminiService implements LLMProvider {
             config.apiKey,
             config.modelId || DEFAULT_GEMINI_MODEL_ID
         );
+        if (config.thinkingLevelStory) this.thinkingLevelStory = this.mapThinkingLevel(config.thinkingLevelStory);
+        if (config.thinkingLevelGeneral) this.thinkingLevelGeneral = this.mapThinkingLevel(config.thinkingLevelGeneral);
     }
 
     /**
@@ -140,7 +144,8 @@ export class GeminiService implements LLMProvider {
             config.cachedContentName,
             config.responseSchema as Schema,
             config.responseMimeType,
-            config.toolConfig
+            config.toolConfig,
+            config.intent
         );
 
         // Yield converted chunks
@@ -291,14 +296,20 @@ export class GeminiService implements LLMProvider {
      * @param toolConfig Optional configuration for tools.
      * @returns A streaming response object.
      */
-    async sendMessageStream(contents: Content[], systemInstruction: string, cachedContentName?: string, responseSchema?: Schema, responseMimeType?: string, toolConfig?: object) {
+    async sendMessageStream(contents: Content[], systemInstruction: string, cachedContentName?: string, responseSchema?: Schema, responseMimeType?: string, toolConfig?: object, intent?: string) {
         if (!this.client) throw new Error('Gemini client not initialized. Call initialize() first.');
+
+        // Story intents use the story thinking level
+        const storyIntents = ['action', 'fastforward', 'continue'];
+        const currentThinkingLevel = intent && storyIntents.includes(intent)
+            ? this.thinkingLevelStory
+            : this.thinkingLevelGeneral;
 
         // Build config object dynamicly to allow API defaults
         const generationConfig: GenerateContentConfig = {
             thinkingConfig: {
                 includeThoughts: true,
-                thinkingLevel: ThinkingLevel.HIGH
+                thinkingLevel: currentThinkingLevel
             },
             safetySettings: [
                 { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -551,6 +562,19 @@ export class GeminiService implements LLMProvider {
      */
     async deleteAllFiles(excludeUri?: string): Promise<void> {
         await this.listAndDeleteAllFiles(excludeUri);
+    }
+
+    /**
+     * Maps string thinking level to ThinkingLevel enum.
+     */
+    private mapThinkingLevel(level: string): ThinkingLevel {
+        switch (level.toLowerCase()) {
+            case 'minimal': return ThinkingLevel.MINIMAL;
+            case 'low': return ThinkingLevel.LOW;
+            case 'medium': return ThinkingLevel.MEDIUM;
+            case 'high': return ThinkingLevel.HIGH;
+            default: return ThinkingLevel.HIGH;
+        }
     }
 }
 
