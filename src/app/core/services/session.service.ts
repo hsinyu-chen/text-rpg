@@ -373,19 +373,14 @@ export class SessionService {
             if (hasKbContent) {
                 if (localStorage.getItem('kb_cache_hash') !== currentHash) {
                     console.log('[SessionService] KB Content changed. Invalidating remote state.');
-                    this.state.kbFileUri.set(null);
                     this.state.kbCacheName.set(null);
-                    localStorage.removeItem('kb_file_uri');
                     localStorage.removeItem('kb_cache_name');
                     localStorage.setItem('kb_cache_hash', currentHash);
                 }
-            } else {
-                this.state.kbFileUri.set(null);
-                localStorage.removeItem('kb_file_uri');
-            }
 
-            this.isContextInjected = false;
-            this.state.status.set('idle');
+                this.isContextInjected = false;
+                this.state.status.set('idle');
+            }
         } catch (e) {
             console.error(e);
             this.state.status.set('error');

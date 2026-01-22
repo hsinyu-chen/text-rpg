@@ -6,29 +6,30 @@
 
     <!-- Last Turn Breakdown -->
     <div class="turn-stats">
-        @if (state.loadedFiles().size > 0 && !state.kbCacheName() && !state.kbFileUri()) {
+        @if (state.loadedFiles().size > 0 && !state.kbCacheName()) {
         <div class="kb-warning">
             <mat-icon>warning</mat-icon>
             <span>KB changed. Next send will rebuild cache.</span>
         </div>
         }
-        @if (state.lastTurnUsage(); as turn) {
+        @if (computedLastTurnUsage(); as turn) {
         <div class="stat-header">LAST TURN</div>
-        <div class="stat-row turn"><span>New:</span> <span class="val">{{ turn.freshInput | number }}</span></div>
+        <div class="stat-row turn"><span>New:</span> <span class="val">{{ (turn.prompt - turn.cached) | number }}</span>
+        </div>
         <div class="stat-row turn-cached"><span>Cached:</span> <span class="val">{{ turn.cached | number }}</span>
         </div>
-        <div class="stat-row turn-total"><span>Total Input:</span> <span class="val">{{ (turn.freshInput +
-                turn.cached) | number }}</span></div>
-        <div class="stat-row turn"><span>Output:</span> <span class="val">{{ turn.output | number }}</span></div>
+        <div class="stat-row turn-total"><span>Total Input:</span> <span class="val">{{ turn.prompt | number }}</span>
+        </div>
+        <div class="stat-row turn"><span>Output:</span> <span class="val">{{ turn.candidates | number }}</span></div>
         <div class="stat-row turn-total">
             <span>Last Turn Est. Cost:</span>
-            <span class="val">{{ (state.lastTurnCost() * displayRate()) |
+            <span class="val">{{ (lastTurnCost() * displayRate()) |
                 currency:displayCurrency():'symbol-narrow':(displayCurrency() === 'USD' ? '1.4-6' : '1.2-2') }}</span>
         </div>
         }
     </div>
 
-    @if (state.tokenUsage(); as usage) {
+    @if (activeUsage(); as usage) {
     <div class="token-stats">
         <div class="stat-header">SESSION TOTAL</div>
         <div class="stat-row" matTooltip="Number of model responses in this session"><span>Turns:</span> <span

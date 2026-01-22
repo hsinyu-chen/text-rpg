@@ -34,7 +34,6 @@ export class LlamaService implements LLMProvider {
 
     getCapabilities(): LLMProviderCapabilities {
         return {
-            supportsFileUpload: false,
             supportsContextCaching: false, // Local handles caching implicitly
             supportsThinking: false,
             supportsStructuredOutput: true, // Supported via Shim + JSON Mode

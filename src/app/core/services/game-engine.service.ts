@@ -345,8 +345,10 @@ export class GameEngineService {
 
         // 2. Ensure cache is valid before generating
         try {
-            const hasCache = !!this.state.kbCacheName();
-            await this.cacheManager.checkCacheAndRefresh(this.contextBuilder.getEffectiveSystemInstruction(!hasCache));
+            // ALWAYS pass clean instruction to CacheManager. 
+            // If CacheManager needs to create/refresh an explicit cache, it will use this as header.
+            // KB content is already handled by CacheManager via fileParts in createCache.
+            await this.cacheManager.checkCacheAndRefresh(this.contextBuilder.getEffectiveSystemInstruction(false));
         } catch (e: unknown) {
             if (e instanceof Error && e.message === 'SESSION_EXPIRED') {
                 this.snackBar.open('Session Expired: Please reload your Knowledge Base folder to continue.', 'Close', {

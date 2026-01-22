@@ -188,7 +188,6 @@ export class ContextBuilderService {
             if (m.parts && m.parts.length > 0) {
                 m.parts.forEach(p => {
                     if ((p as ExtendedPart).thought && !(p as ExtendedPart).thoughtSignature) return;
-                    if (p.fileData && p.fileData.fileUri === this.state.kbFileUri()) return;
                     if (p.text && p.text.startsWith(LLM_MARKERS.FILE_CONTENT_SEPARATOR)) return;
                     if (p.text && p.text.startsWith(LLM_MARKERS.SYSTEM_RULE_SEPARATOR)) return;
 

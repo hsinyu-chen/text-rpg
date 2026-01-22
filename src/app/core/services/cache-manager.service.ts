@@ -61,7 +61,6 @@ export class CacheManagerService {
         const config = this.state.config();
         const useCache = !!config?.enableCache;
         const cacheName = this.state.kbCacheName();
-        let fileUri = this.state.kbFileUri();
         const hasLocalFiles = this.state.loadedFiles().size > 0;
         const ttlSeconds = 1800; // 30 minutes
 
@@ -101,22 +100,6 @@ export class CacheManagerService {
                     // Proactive cleanup
                     this.state.kbCacheName.set(null);
                     localStorage.removeItem('kb_cache_name');
-                }
-            }
-        } else {
-            if (fileUri) {
-                console.log('[CacheManager] Validating remote file:', fileUri);
-                let isAvailable = false;
-                if (this.provider.isFileAvailable) {
-                    isAvailable = await this.provider.isFileAvailable(fileUri);
-                }
-                if (isAvailable) {
-                    validationSuccess = true;
-                    console.log('[CacheManager] Remote file validated.');
-                } else {
-                    // Proactive cleanup
-                    this.state.kbFileUri.set(null);
-                    localStorage.removeItem('kb_file_uri');
                 }
             }
         }
@@ -159,44 +142,14 @@ export class CacheManagerService {
                             validationSuccess = true;
                             console.log('[CacheManager] Auto-cache creation successful:', cacheRes.name);
                         }
-                    } else {
-                        const blob = new Blob([kbText], { type: 'text/plain' });
-                        if (this.provider.uploadFile) {
-                            const { uri } = await this.provider.uploadFile(blob, 'text/plain');
-                            fileUri = uri; // Assign to let variable
-
-                            this.state.kbFileUri.set(uri);
-                            localStorage.setItem('kb_file_uri', uri);
-                            validationSuccess = true;
-                            console.log('[CacheManager] Auto-file upload successful:', uri);
-                        } else {
-                            console.warn('Provider does not support file upload.');
-                        }
                     }
                 } catch (err) {
-                    console.error(useCache ? '[CacheManager] Auto-cache creation failed:' : '[CacheManager] Auto-file upload failed:', err);
+                    console.error('[CacheManager] Auto-cache creation failed:', err);
                 }
             } else {
-                // FALLBACK: Last ditch effort - check if the "other" method exists
-                console.log('[CacheManager] No local files. Checking fallback context...');
-                if (useCache && fileUri) {
-                    let isStillAvailable = false;
-                    if (this.provider.isFileAvailable) {
-                        isStillAvailable = await this.provider.isFileAvailable(fileUri);
-                    }
-
-                    if (isStillAvailable) {
-                        console.log('[CacheManager] Cache missing, but using existing File URI as fallback.');
-                        validationSuccess = true;
-                        // Note: kbCacheName was already cleared in Step 1
-                    }
-                } else if (!useCache && cacheName && this.provider.getCache) {
-                    const status = await this.provider.getCache(cacheName);
-                    if (status) {
-                        console.log('[CacheManager] File missing, but using existing Cache as fallback.');
-                        validationSuccess = true;
-                        // Note: kbFileUri was already cleared in Step 1
-                    }
+                if (!useCache) {
+                    // Fallback when cache is disabled: No remote context, but treated as success to allow send (it will inject via System Prompt)
+                    validationSuccess = true;
                 }
             }
         }
@@ -205,43 +158,29 @@ export class CacheManagerService {
         if (!validationSuccess) {
             console.error('[CacheManager] KB context lost and cannot be recovered.');
             this.state.kbCacheName.set(null);
-            this.state.kbFileUri.set(null);
             localStorage.removeItem('kb_cache_name');
-            localStorage.removeItem('kb_file_uri');
             throw new Error('SESSION_EXPIRED');
         }
 
         // 4. Proactive cleanup of "leftover" resources from the OTHER mode
         // If we reached here, validationSuccess is true for the CURRENT mode.
         try {
-            if (useCache) {
-                // We are in Cache mode. If there's a leftover File URI, clean it up.
-                if (fileUri) {
-                    console.log('[CacheManager] Cleaning up leftover File URI after successful Cache validation.');
-                    if (this.provider.deleteAllFiles) {
-                        await this.provider.deleteAllFiles(); // Delete all files to be thorough
-                    }
-                    this.state.kbFileUri.set(null);
-                    localStorage.removeItem('kb_file_uri');
+            if (!useCache && cacheName) {
+                // We are in No-Cache/Implicit mode. If there's a leftover Cache, clean it up to save costs.
+                console.log('[CacheManager] Cleaning up leftover Cache while in Implicit mode.');
+                if (this.provider.deleteCache) {
+                    await this.provider.deleteCache(cacheName);
                 }
-            } else {
-                // We are in File mode. If there's a leftover Cache, clean it up to save costs.
-                if (cacheName) {
-                    console.log('[CacheManager] Cleaning up leftover Cache after successful File validation.');
-                    if (this.provider.deleteCache) {
-                        await this.provider.deleteCache(cacheName);
-                    }
-                    this.state.kbCacheName.set(null);
-                    this.state.kbCacheExpireTime.set(null);
-                    this.state.kbCacheTokens = 0;
-                    this.stopStorageTimer();
-                    localStorage.removeItem('kb_cache_name');
-                    localStorage.removeItem('kb_cache_hash');
-                    localStorage.removeItem('kb_cache_tokens');
-                }
+                this.state.kbCacheName.set(null);
+                this.state.kbCacheExpireTime.set(null);
+                this.state.kbCacheTokens = 0;
+                this.stopStorageTimer();
+                localStorage.removeItem('kb_cache_name');
+                localStorage.removeItem('kb_cache_hash');
+                localStorage.removeItem('kb_cache_tokens');
             }
         } catch (cleanupErr) {
-            console.warn('[CacheManager] Non-critical cleanup error during mode switch handover:', cleanupErr);
+            console.warn('[CacheManager] Non-critical cleanup error during mode switch:', cleanupErr);
         }
     }
 
@@ -270,7 +209,6 @@ export class CacheManagerService {
             localStorage.removeItem('kb_cache_hash');
             localStorage.removeItem('kb_cache_expire');
             localStorage.removeItem('kb_cache_tokens'); // Also remove tokens
-            localStorage.removeItem('kb_file_uri'); // Clear file URI as well
             this.stopStorageTimer();
             this.state.kbCacheTokens = 0;
         }
@@ -289,14 +227,8 @@ export class CacheManagerService {
                 count = await this.provider.deleteAllCaches();
             }
 
-            // ALSO delete all uploaded files
-            if (this.provider.deleteAllFiles) {
-                await this.provider.deleteAllFiles();
-            }
-
             this.state.kbCacheName.set(null);
             this.state.kbCacheExpireTime.set(null);
-            this.state.kbFileUri.set(null);
             this.state.storageCostAccumulated.set(0);
             this.state.historyStorageCostAccumulated.set(0);
             this.state.kbCacheTokens = 0;
@@ -306,7 +238,6 @@ export class CacheManagerService {
             localStorage.removeItem('kb_cache_expire');
             localStorage.removeItem('kb_cache_tokens');
             localStorage.removeItem('kb_cache_hash');
-            localStorage.removeItem('kb_file_uri');
             localStorage.removeItem('history_storage_cost_acc');
             localStorage.removeItem('storage_cost_acc');
             localStorage.removeItem('estimated_cost');

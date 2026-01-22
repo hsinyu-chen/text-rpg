@@ -113,15 +113,9 @@ export class ConfigService {
                 modelId: model
             });
 
-            // Restore cache/file state
+            // Restore cache state
             const cacheName = localStorage.getItem('kb_cache_name');
-            const savedFileUri = localStorage.getItem('kb_file_uri');
-            console.log('[ConfigService] initConfig Read:', { name: cacheName, fileUri: savedFileUri });
-
-            if (savedFileUri) {
-                this.state.kbFileUri.set(savedFileUri);
-                console.log('[ConfigService] Restored KB File URI:', savedFileUri);
-            }
+            console.log('[ConfigService] initConfig Read:', { name: cacheName });
 
             if (cacheName) {
                 this.state.kbCacheName.set(cacheName);

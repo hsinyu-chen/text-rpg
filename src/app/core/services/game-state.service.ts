@@ -49,7 +49,6 @@ export class GameStateService {
 
     // ==================== Files & Knowledge Base ====================
     loadedFiles = signal<Map<string, string>>(new Map());
-    kbFileUri = signal<string | null>(null);
     fileTokenCounts = signal<Map<string, number>>(new Map());
     estimatedKbTokens = signal<number>(0);
     unsavedFiles = signal<Set<string>>(new Set());

@@ -78,7 +78,6 @@ export class LLMProviderRegistryService {
         }
         // Default: no capabilities
         return {
-            supportsFileUpload: false,
             supportsContextCaching: false,
             supportsThinking: false,
             supportsStructuredOutput: false,

@@ -35,11 +35,6 @@ export interface LLMPart {
     thoughtSignature?: string;
     functionCall?: object;
     functionResponse?: object;
-    // For file/image references (Gemini-specific, but kept for compatibility)
-    fileData?: {
-        fileUri: string;
-        mimeType: string;
-    };
 }
 
 /**
@@ -76,13 +71,6 @@ export interface LLMStreamChunk {
     finishReason?: string;
 }
 
-/**
- * File upload result.
- */
-export interface LLMFileInfo {
-    uri: string;
-    name: string;
-}
 
 /**
  * Cache information.
@@ -131,8 +119,6 @@ export interface LLMModelDefinition {
  * Used by GameEngineService to determine which features are available.
  */
 export interface LLMProviderCapabilities {
-    /** Provider supports file upload API */
-    supportsFileUpload: boolean;
     /** Provider supports context caching (Gemini-specific) */
     supportsContextCaching: boolean;
     /** Provider supports thinking/reasoning mode */
@@ -157,7 +143,6 @@ export interface LLMProviderCapabilities {
  * - getCapabilities(): Return feature flags
  *
  * Optional methods (implement only if supported):
- * - uploadFile(), isFileAvailable(), deleteAllFiles(): File operations
  * - createCache(), getCache(), updateCacheTTL(), deleteCache(), deleteAllCaches(): Caching
  */
 export interface LLMProvider {
@@ -216,24 +201,6 @@ export interface LLMProvider {
      */
     getPreview?(contents: LLMContent[]): LLMContent[];
 
-    // -------------------------------------------------------------------------
-    // Optional Methods - File Operations
-    // -------------------------------------------------------------------------
-
-    /**
-     * Upload a file to the provider's storage.
-     */
-    uploadFile?(blob: Blob, mimeType: string): Promise<LLMFileInfo>;
-
-    /**
-     * Check if a file is still available on the server.
-     */
-    isFileAvailable?(uri: string): Promise<boolean>;
-
-    /**
-     * Delete all uploaded files (optionally excluding one).
-     */
-    deleteAllFiles?(excludeUri?: string): Promise<void>;
 
     // -------------------------------------------------------------------------
     // Optional Methods - Context Caching

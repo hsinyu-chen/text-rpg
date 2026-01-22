@@ -52,7 +52,6 @@ export class GeminiService implements LLMProvider {
         if (part.text !== undefined) result.text = part.text;
         if (part.functionCall) result.functionCall = part.functionCall as Part['functionCall'];
         if (part.functionResponse) result.functionResponse = part.functionResponse as Part['functionResponse'];
-        if (part.fileData) result.fileData = part.fileData;
         return result;
     }
 
@@ -65,7 +64,6 @@ export class GeminiService implements LLMProvider {
      */
     getCapabilities(): LLMProviderCapabilities {
         return {
-            supportsFileUpload: true,
             supportsContextCaching: true,
             supportsThinking: true,
             supportsStructuredOutput: true,
@@ -232,75 +230,6 @@ export class GeminiService implements LLMProvider {
         this.lastModelId = modelId;
     }
 
-    /**
-     * Uploads a file (blob) to the Gemini File API.
-     * @param blob The file content as a Blob.
-     * @param mimeType The file's MIME type.
-     * @returns Object containing the uploaded file's URI and name.
-     */
-    async uploadFile(blob: Blob, mimeType: string): Promise<{ uri: string, name: string }> {
-        if (!this.client) throw new Error('Gemini client not initialized.');
-
-        const response = await this.client.files.upload({
-            file: blob,
-            config: { mimeType }
-        });
-
-        return { uri: response.uri!, name: response.name! };
-    }
-
-    /**
-     * Checks if a specific file URI is active and available on the server.
-     * @param uri The file URI or name.
-     * @returns True if the file is active, false otherwise.
-     */
-    async isFileAvailable(uri: string): Promise<boolean> {
-        if (!this.client) return false;
-        try {
-            const response = await this.client.files.list();
-            for await (const f of response) {
-                if ((f.uri === uri || (f.name && uri.endsWith(f.name))) && f.state === 'ACTIVE') {
-                    return true;
-                }
-            }
-        } catch (e) {
-            console.warn('Error checking file availability:', e);
-        }
-        return false;
-    }
-
-    /**
-     * Lists and deletes all uploaded files from the Gemini server.
-     * @param excludeUri Optional URI to exclude from deletion.
-     */
-    async listAndDeleteAllFiles(excludeUri?: string) {
-        if (!this.client) return;
-        try {
-            const response = await this.client.files.list();
-
-            let deletedCount = 0;
-            for await (const f of response) {
-                // Check exclusion by URI match or name
-                if (excludeUri && (f.uri === excludeUri || (f.name && excludeUri.endsWith(f.name)))) {
-                    continue;
-                }
-                if (f.name) {
-                    try {
-                        await this.client.files.delete({ name: f.name });
-                        deletedCount++;
-                    } catch (delErr) {
-                        console.warn(`Failed to delete file ${f.name}:`, delErr);
-                    }
-                }
-            }
-
-            if (deletedCount > 0) {
-                console.log(`Deleted ${deletedCount} old files from Google storage.`);
-            }
-        } catch (e) {
-            console.error('Error cleaning up files:', e);
-        }
-    }
     /**
      * Sends a stream of contents and system instructions to the Gemini model for generation.
      * @param contents Array of Content objects representing chat history.
@@ -575,16 +504,6 @@ export class GeminiService implements LLMProvider {
         return this.listAndDeleteAllCaches();
     }
 
-    // =========================================================================
-    // LLMProvider Interface - File Operations (Optional)
-    // =========================================================================
-
-    /**
-     * LLMProvider interface: Delete all files.
-     */
-    async deleteAllFiles(excludeUri?: string): Promise<void> {
-        await this.listAndDeleteAllFiles(excludeUri);
-    }
 
     /**
      * Maps string thinking level to ThinkingLevel enum.
