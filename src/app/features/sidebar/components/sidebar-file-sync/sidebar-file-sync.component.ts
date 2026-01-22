@@ -45,6 +45,7 @@ export class SidebarFileSyncComponent {
         const savedName = localStorage.getItem('kb_slot_name');
         if (savedId && savedName) {
             this.currentSlot.set({ id: savedId, name: savedName });
+            this.driveService.currentSlotId.set(savedId);
         }
     }
 
@@ -140,6 +141,7 @@ export class SidebarFileSyncComponent {
         const result: KbSlot | undefined = await ref.afterClosed().toPromise();
         if (result) {
             this.currentSlot.set({ id: result.id, name: result.name });
+            this.driveService.currentSlotId.set(result.id);
             localStorage.setItem('kb_slot_id', result.id);
             localStorage.setItem('kb_slot_name', result.name);
             return result;

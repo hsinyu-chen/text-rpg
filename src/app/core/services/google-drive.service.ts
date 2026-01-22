@@ -80,6 +80,9 @@ export class GoogleDriveService {
     private refreshToken = signal<string | null>(null);
     private tokenExpiry = signal<number>(0);
 
+    /** The currently selected Google Drive slot ID for this game session */
+    currentSlotId = signal<string | null>(null);
+
     // Tauri detection
     private isTauri = !!(window.__TAURI_INTERNALS__ || window.__TAURI__);
 
@@ -98,6 +101,11 @@ export class GoogleDriveService {
         if (savedRefreshToken) {
             this.refreshToken.set(savedRefreshToken);
             console.log('[GoogleDrive] Restored refresh token from localStorage');
+        }
+
+        const savedSlotId = localStorage.getItem('kb_slot_id');
+        if (savedSlotId) {
+            this.currentSlotId.set(savedSlotId);
         }
 
         console.log('[GoogleDrive] Service initialized. Token expiry:', new Date(this.tokenExpiry()).toLocaleString());

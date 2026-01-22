@@ -27,6 +27,14 @@
     Restart Session
 </button>
 
+<button mat-flat-button color="accent" (click)="saveAndNext()"
+    [disabled]="state.messages().length === 0 || state.isBusy() || !hasStorageTarget()" class="full-width save-next-btn"
+    [matTooltip]="!hasStorageTarget() ? 'Please select a Local Folder or Cloud Slot first' : ''"
+    style="margin-top: 8px; margin-bottom: 8px; font-weight: bold; background: linear-gradient(45deg, #11998e 0%, #38ef7d 100%); color: white;">
+    <mat-icon>auto_awesome</mat-icon>
+    Save & Next
+</button>
+
 <button mat-stroked-button color="warn" (click)="clearAllRemoteData()" [disabled]="state.isBusy()"
     class="full-width clear-all-btn">
     <mat-icon>cloud_off</mat-icon>

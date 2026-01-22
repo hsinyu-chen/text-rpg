@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 
 import { LLMProviderRegistryService } from './llm-provider-registry.service';
-import { LLMProvider, LLMContent } from './llm-provider';
+import { LLMProvider } from './llm-provider';
 import { CostService } from './cost.service';
 import { GameStateService } from './game-state.service';
 import { ChatHistoryService } from './chat-history.service';
@@ -74,12 +74,6 @@ export class GameEngineService {
         this.configService.init();
     }
 
-    /**
-     * Gets the effective system instruction, replacing placeholders and adding language overrides.
-     */
-    private getEffectiveSystemInstruction(): string {
-        return this.contextBuilder.getEffectiveSystemInstruction();
-    }
 
     /**
      * Resets injection defaults.
@@ -351,7 +345,8 @@ export class GameEngineService {
 
         // 2. Ensure cache is valid before generating
         try {
-            await this.cacheManager.checkCacheAndRefresh(this.getEffectiveSystemInstruction());
+            const hasCache = !!this.state.kbCacheName();
+            await this.cacheManager.checkCacheAndRefresh(this.contextBuilder.getEffectiveSystemInstruction(!hasCache));
         } catch (e: unknown) {
             if (e instanceof Error && e.message === 'SESSION_EXPIRED') {
                 this.snackBar.open('Session Expired: Please reload your Knowledge Base folder to continue.', 'Close', {
@@ -369,7 +364,7 @@ export class GameEngineService {
         }
 
         try {
-            const history = this.getLLMHistory(forceFullContext);
+            const history = this.contextBuilder.getLLMHistory(forceFullContext);
 
 
             const currentIntent = options?.intent || GAME_INTENTS.ACTION;
@@ -425,17 +420,18 @@ export class GameEngineService {
 
             // Create and track AbortController
             this.currentAbortController = new AbortController();
-            const signal = this.currentAbortController.signal;
+            const abortSignal = this.currentAbortController.signal;
 
+            const hasCache = !!this.state.kbCacheName();
             const stream = this.provider.generateContentStream(
                 history,
-                this.getEffectiveSystemInstruction(),
+                this.contextBuilder.getEffectiveSystemInstruction(!hasCache),
                 {
                     cachedContentName: this.state.kbCacheName() || undefined,
                     responseSchema: getResponseSchema(this.state.config()?.outputLanguage),
                     responseMimeType: 'application/json',
                     intent: currentIntent,
-                    signal: signal
+                    signal: abortSignal
                 }
             );
 
@@ -672,9 +668,6 @@ export class GameEngineService {
      * Handles smart context consolidation and Knowledge Base injection.
      * @returns Array of Content objects.
      */
-    private getLLMHistory(forceFullContext = false): LLMContent[] {
-        return this.contextBuilder.getLLMHistory(forceFullContext);
-    }
 
 
 }

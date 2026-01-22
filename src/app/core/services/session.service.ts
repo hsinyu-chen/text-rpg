@@ -230,6 +230,34 @@ export class SessionService {
     }
 
     /**
+     * Extracts the act/chapter name from the chat history for naming save slots.
+     * Follows logic inspired by chat-input.component.ts exportToMarkdown.
+     */
+    extractActName(): string | null {
+        const messages = this.state.messages();
+
+        // Search backwards for the most recent model message that contains an act/chapter marker
+        for (let i = messages.length - 1; i >= 0; i--) {
+            const msg = messages[i];
+            if (msg.role === 'model' && msg.content) {
+                // Primary pattern: ## Act.1
+                const actMatch = msg.content.match(/## Act\.(\d+)/i);
+                if (actMatch) {
+                    return `Act.${actMatch[1]}`;
+                }
+
+                // Fallback: 第N章
+                const zhMatch = msg.content.match(/第\s*(\d+)\s*章/);
+                if (zhMatch) {
+                    return `第${zhMatch[1]}章`;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Bulk imports files into the persistent store (IndexedDB) and reloads the engine state.
      */
     async importFiles(files: Map<string, string>) {
@@ -308,7 +336,6 @@ export class SessionService {
                 }));
             }
 
-            // 1b. Handle System Prompt Tokens from prompt_store
             const mainPrompt = await this.storage.getPrompt('system_main');
             if (mainPrompt) {
                 if (mainPrompt.tokens) {
@@ -320,22 +347,6 @@ export class SessionService {
                 }
             }
             this.state.fileTokenCounts.set(tokenMap);
-
-            // 2. Build KB text logic delegated to GameStateService reactive hash
-
-            // Actually KB Service has calculateKbHash which takes string. 
-            // Ideally we should reconstruct the "raw text" exactly as GameEngine did.
-            // GameEngine loop:
-            /*
-            let kbText = '';
-            contentMap.forEach((content, path) => {
-                if (!path.startsWith('system_files/') && path !== 'system_prompt.md') {
-                    kbText += `${LLM_MARKERS.FILE_CONTENT_SEPARATOR} [${path}] ---\\n${content}\\n\\n`;
-                }
-            });
-            */
-            // Let's replicate this logic to ensure consistent hashing
-            // 3. Calculate total tokens for KB
             const partsForCount = this.kb.buildKnowledgeBaseParts(contentMap);
 
             const savedHash = localStorage.getItem('kb_cache_hash');
@@ -355,13 +366,10 @@ export class SessionService {
             this.state.estimatedKbTokens.set(totalTokenCount);
             console.log('[SessionService] Estimated KB Tokens:', totalTokenCount);
 
-            // Hash is now reactive via GameStateService currentKbHash computed signal
             const currentHash = this.state.currentKbHash();
 
             const hasKbContent = Array.from(contentMap.keys()).some(path => !path.startsWith('system_files/') && path !== 'system_prompt.md');
 
-            // Defer remote cleanup and upload to sendMessage -> checkCacheAndRefresh (via CacheManager logic mostly)
-            // But here we just update local hash state
             if (hasKbContent) {
                 if (localStorage.getItem('kb_cache_hash') !== currentHash) {
                     console.log('[SessionService] KB Content changed. Invalidating remote state.');

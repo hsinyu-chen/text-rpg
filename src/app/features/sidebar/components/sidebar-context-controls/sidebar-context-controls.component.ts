@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -10,6 +10,12 @@ import { NewGameDialogComponent } from '../new-game-dialog/new-game-dialog.compo
 import { GameEngineService } from '../../../../core/services/game-engine.service';
 import { GameStateService } from '../../../../core/services/game-state.service';
 import { DialogService } from '../../../../core/services/dialog.service';
+import { SessionService } from '../../../../core/services/session.service';
+import { FileSystemService } from '../../../../core/services/file-system.service';
+import { GoogleDriveService } from '../../../../core/services/google-drive.service';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { SaveNameDialogComponent } from '../../../../shared/components/save-name-dialog/save-name-dialog.component';
+import { firstValueFrom } from 'rxjs';
 
 @Component({
     selector: 'app-sidebar-context-controls',
@@ -22,10 +28,113 @@ export class SidebarContextControlsComponent {
     engine = inject(GameEngineService);
     state = inject(GameStateService);
     dialog = inject(DialogService);
+    session = inject(SessionService);
+    fileSystem = inject(FileSystemService);
+    driveService = inject(GoogleDriveService);
+    snackBar = inject(MatSnackBar);
     private matDialog = inject(MatDialog);
+
+    hasStorageTarget = computed(() => {
+        const localReady = this.fileSystem.hasHandle();
+        const googleReady = this.driveService.isAuthenticated() && !!this.driveService.currentSlotId();
+        return localReady || googleReady;
+    });
 
     startSession() {
         this.engine.startSession();
+    }
+
+    /**
+     * Extracts Act name, saves the session, and starts a new one.
+     */
+    async saveAndNext() {
+        if (this.state.messages().length === 0) {
+            this.snackBar.open('No history to save.', 'OK', { duration: 3000 });
+            return;
+        }
+
+        let saveName = this.session.extractActName();
+        const isCloud = !!this.driveService.currentSlotId();
+        const cloudSlotId = this.driveService.currentSlotId();
+
+        // Check for duplicates if we have a name
+        if (saveName) {
+            const isDuplicate = await this.checkDuplicateName(saveName, isCloud, cloudSlotId);
+            if (isDuplicate) {
+                saveName = await this.promptForName(`Name "${saveName}" already exists. Please enter a new name:`, saveName);
+            }
+        } else {
+            saveName = await this.promptForName('Could not extract Act name. Please enter a save name:');
+        }
+
+        if (!saveName) return; // User cancelled
+
+        // Perform Save
+        this.state.status.set('loading');
+        try {
+            const currentSession = this.session.exportSession();
+            const saveId = crypto.randomUUID();
+            const filename = `${saveId}.json`;
+            const save = {
+                ...currentSession,
+                id: saveId,
+                name: saveName,
+                timestamp: Date.now()
+            };
+            const content = JSON.stringify(save, null, 2);
+
+            if (isCloud && cloudSlotId) {
+                await this.driveService.uploadSave(save, cloudSlotId);
+            } else if (this.fileSystem.hasHandle()) {
+                await this.fileSystem.writeSaveFile(filename, content);
+            } else {
+                throw new Error('No storage target (Local Folder or Cloud Slot) selected.');
+            }
+
+            this.snackBar.open(`Saved to slot: ${saveName}`, 'OK', { duration: 3000 });
+
+            // Restart Session
+            this.engine.clearHistory();
+            this.engine.startSession();
+
+        } catch (err) {
+            console.error('[SidebarContext] Save & Next failed:', err);
+            this.snackBar.open(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'Close', { duration: 5000 });
+        } finally {
+            this.state.status.set('idle');
+        }
+    }
+
+    private async checkDuplicateName(name: string, isCloud: boolean, cloudSlotId: string | null): Promise<boolean> {
+        try {
+            if (isCloud && cloudSlotId) {
+                const cloudSaves = await this.driveService.listSaves(cloudSlotId);
+                for (const f of cloudSaves) {
+                    const content = await this.driveService.readFile(f.id);
+                    const data = JSON.parse(content);
+                    if (data.name === name) return true;
+                }
+            } else if (this.fileSystem.hasHandle()) {
+                const localSaves = await this.fileSystem.listLocalSaves();
+                for (const f of localSaves) {
+                    const content = await this.fileSystem.readSaveFile(f.name);
+                    const data = JSON.parse(content);
+                    if (data.name === name) return true;
+                }
+            }
+        } catch (e) {
+            console.warn('[SidebarContext] Duplicate check failed, assuming no duplicate:', e);
+        }
+        return false;
+    }
+
+    private async promptForName(title: string, initialName = ''): Promise<string | null> {
+        const dialogRef = this.matDialog.open(SaveNameDialogComponent, {
+            width: '400px',
+            data: { title, initialName }
+        });
+        const result = await firstValueFrom(dialogRef.afterClosed());
+        return result || null;
     }
 
     async releaseCache() {

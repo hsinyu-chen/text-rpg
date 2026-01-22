@@ -344,7 +344,6 @@ export class GeminiService implements LLMProvider {
         }
 
 
-        // If using cache, DO NOT send systemInstruction again as it is baked into the cache
         if (systemInstruction && !cachedContentName) {
             generationConfig.systemInstruction = {
                 parts: [{ text: systemInstruction }]

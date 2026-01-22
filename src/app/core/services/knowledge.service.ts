@@ -31,7 +31,7 @@ export class KnowledgeService {
                     const lastSceneRegex = /(?:^|\n)[#*_\s]*last[_-]?scene[#*_\s]*[:：]?[\s\S]*$/i;
                     processedContent = processedContent.replace(lastSceneRegex, '').trim();
                 }
-                kbText += `${LLM_MARKERS.FILE_CONTENT_SEPARATOR} [${path}] ---\\n${processedContent}\\n\\n`;
+                kbText += `${LLM_MARKERS.FILE_CONTENT_SEPARATOR} [${path}] ---\n${processedContent}\n\n`;
             }
         });
         return kbText;

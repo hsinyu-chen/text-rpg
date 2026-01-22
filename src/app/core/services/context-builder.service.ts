@@ -24,9 +24,17 @@ export class ContextBuilderService {
 
     /**
      * Gets the effective system instruction, replacing placeholders and adding language overrides.
+     * @param includeKB Whether to append the full Knowledge Base text to the system prompt.
      */
-    public getEffectiveSystemInstruction(): string {
-        return this.state.systemInstructionCache();
+    public getEffectiveSystemInstruction(includeKB = false): string {
+        let base = this.state.systemInstructionCache();
+        if (includeKB) {
+            const kbText = this.kb.buildKnowledgeBaseText(this.state.loadedFiles());
+            if (kbText) {
+                base += '\n\n' + LLM_MARKERS.FILE_CONTENT_SEPARATOR + '\n' + kbText;
+            }
+        }
+        return base;
     }
 
     /**
@@ -59,11 +67,12 @@ export class ContextBuilderService {
             generationConfig.cachedContentName = cachedContentName;
         }
 
+        const includeKB = !cachedContentName; // Include KB in system prompt if no cache
         return {
             model: modelId,
             contents: finalContent,
             config: generationConfig,
-            systemInstruction: this.getEffectiveSystemInstruction()
+            systemInstruction: this.getEffectiveSystemInstruction(includeKB)
         };
     }
 
@@ -113,15 +122,16 @@ export class ContextBuilderService {
         const recentMessages = filtered.slice(splitIndex);
 
 
-        // 1. Consolidate Past Summaries
-        let historicalContext = '';
+        // 1. Process Past Summaries into Layered Blocks
+        const summaryBlocks: LLMContent[] = [];
+        const SUMMARY_BLOCK_SIZE = 10;
         let actHeaderInserted = false;
         const actHeader = this.lang.locale().actHeader.trim();
 
+        let currentBlockText = '';
+        let modelCountInCurrentBlock = 0;
+
         if (!useFullContext && pastMessages.length > 0) {
-            // When compression is active, prepend ACT header BEFORE historical context
-            historicalContext = actHeader + '\n';
-            actHeaderInserted = true;
 
             pastMessages.forEach((m) => {
                 if (m.role === 'model') {
@@ -131,35 +141,53 @@ export class ContextBuilderService {
                         const headerMatch = m.content.match(/\[\s*[^\]]*\d+年\s*\d+月\d+日[^\]]*\]/);
                         const baseHeader = headerMatch ? headerMatch[0] : '';
 
-                        // Extract all [T XXX] time markers across the entire message content
+                        // Extract time markers
                         const tMatches = [...m.content.matchAll(/\[T\s*([^\]]+)\]/g)];
                         let timeHeader = '';
                         if (tMatches.length > 1) {
-                            // If multiple markers exist (e.g., spans across time), format as range
                             const start = tMatches[0][1].trim();
                             const end = tMatches[tMatches.length - 1][1].trim();
                             timeHeader = `[T ${start}~T ${end}]`;
                         } else if (tMatches.length === 1) {
-                            // Just use the single marker found
                             timeHeader = tMatches[0][0];
                         }
 
                         const finalHeader = [baseHeader, timeHeader].filter(h => !!h).join(' ');
-                        historicalContext += (finalHeader ? `${finalHeader} ` : '') + `---\n${stateUpdates.join('\n')}\n---\n`;
+                        currentBlockText += (finalHeader ? `${finalHeader} ` : '') + `---\n${stateUpdates.join('\n')}\n---\n`;
+                        modelCountInCurrentBlock++;
+
+                        // If block is full, push as a stable message
+                        if (modelCountInCurrentBlock >= SUMMARY_BLOCK_SIZE) {
+                            summaryBlocks.push({ role: 'user', parts: [{ text: currentBlockText }] });
+                            currentBlockText = '';
+                            modelCountInCurrentBlock = 0;
+                        }
                     }
                 }
             });
+
+            // NEW: Only push FULL blocks to ensure they stay 100% static for caching
+            // Any leftovers will be handled separately in the dynamic section
+
+            // Note: actHeader should still be handled. We'll prepend it to the first available block
+            // or the first recent message later.
+            if (summaryBlocks.length > 0) {
+                const firstPart = summaryBlocks[0].parts[0];
+                firstPart.text = actHeader + '\n' + (firstPart.text || '');
+                actHeaderInserted = true;
+            }
         }
 
         // 2. Build Recent History (Standard Format)
+        // ... (llmHistory building remains mostly same, but we need to inject leftover summaries)
+        const leftoverSummary = currentBlockText; // From the closure above
+        let finalActHeaderInserted = actHeaderInserted;
         const llmHistory: LLMContent[] = recentMessages.map((m, idx) => {
             const parts: LLMPart[] = [];
 
             if (m.parts && m.parts.length > 0) {
                 m.parts.forEach(p => {
-                    // Skip internal thought parts ONLY if they don't carry a required signature
                     if ((p as ExtendedPart).thought && !(p as ExtendedPart).thoughtSignature) return;
-                    // Skip existing file/context parts matches (to avoid duplication if re-injecting)
                     if (p.fileData && p.fileData.fileUri === this.state.kbFileUri()) return;
                     if (p.text && p.text.startsWith(LLM_MARKERS.FILE_CONTENT_SEPARATOR)) return;
                     if (p.text && p.text.startsWith(LLM_MARKERS.SYSTEM_RULE_SEPARATOR)) return;
@@ -171,18 +199,13 @@ export class ContextBuilderService {
                     }
                 });
             }
-            // Fallback if parts are empty (e.g. legacy or stripped)
             if (parts.length === 0 && m.content) {
                 parts.push({ text: this.stripSavePoints(m.content) });
             }
 
-            // For model messages: Append Turn Update (summary, inventory_log, quest_log)
-            // This ensures LLM sees previous state changes and doesn't regenerate them
             if (m.role === 'model') {
                 const turnUpdateParts: string[] = this.getDetailFields(m);
-
                 if (turnUpdateParts.length > 0) {
-                    // Find last text part (non-thought) and append
                     let lastTextPartIndex = -1;
                     for (let i = parts.length - 1; i >= 0; i--) {
                         if (parts[i].text !== undefined && !(parts[i] as ExtendedPart).thought) {
@@ -202,9 +225,7 @@ export class ContextBuilderService {
                 }
             }
 
-            // If this is the 'last scene' model message (within recent), append ACT header AFTER its content
-            if (!actHeaderInserted && this.isLastSceneMessage(recentMessages[idx])) {
-                // Find last text part and append the header
+            if (!finalActHeaderInserted && this.isLastSceneMessage(recentMessages[idx])) {
                 let lastTextPartIndex = -1;
                 for (let i = parts.length - 1; i >= 0; i--) {
                     if (parts[i].text !== undefined && !(parts[i] as ExtendedPart).thought) {
@@ -220,69 +241,53 @@ export class ContextBuilderService {
                 } else {
                     parts.push({ text: actHeader });
                 }
-                actHeaderInserted = true;
+                finalActHeaderInserted = true;
             }
 
             return { role: m.role, parts };
         });
 
-        // 3. Inject Historical Context into the First Message
-        const contextBlock = historicalContext.trim();
-
-        if (contextBlock) {
-
+        // 3. Assemble: [KB] + [Stable Summary Blocks] + [Leftover Summaries + Recent History]
+        // Prepend leftover (dynamic) summary to the first recent message
+        if (leftoverSummary.trim()) {
             if (llmHistory.length > 0) {
-                const firstMsg = llmHistory[0];
+                const firstRecent = llmHistory[0];
+                // Ensure actHeader is there if not yet inserted
+                const prefix = (!finalActHeaderInserted ? actHeader + '\n' : '');
 
-                const msgParts = firstMsg.parts || [];
-                let targetPart = msgParts.find(p => p.text !== undefined);
-                if (!targetPart) {
-                    targetPart = { text: '' };
-                    msgParts.unshift(targetPart);
-                }
-
-                // Prepend context
-                targetPart.text = contextBlock + (targetPart.text || '');
-                firstMsg.parts = msgParts;
-            } else {
-                // If no recent messages (rare?), create one
-                llmHistory.push({ role: 'user', parts: [{ text: contextBlock }] });
-            }
-            console.log(`[ContextBuilder] Consolidated ${pastMessages.length} past messages into a single context block.`);
-        }
-
-        // 4. DYNAMIC CONTEXT INJECTION (Files/KB)
-        // If NOT using Cache, we must manually inject the context (File or Text) into the first message
-        // This is separate from Historical Context.
-        if (!this.state.kbCacheName()) {
-            let contextParts: LLMPart[] = [];
-
-            if (this.state.kbFileUri()) {
-                contextParts.push({
-                    fileData: {
-                        fileUri: this.state.kbFileUri()!,
-                        mimeType: 'text/plain'
-                    }
-                });
-            } else if (this.state.loadedFiles().size > 0) {
-                contextParts = this.kb.buildKnowledgeBaseParts(this.state.loadedFiles());
-            }
-
-            if (contextParts.length > 0) {
-                if (llmHistory.length > 0) {
-                    const firstMsg = llmHistory[0];
-                    if (firstMsg.role === 'user') {
-                        const msgParts = firstMsg.parts || [];
-                        firstMsg.parts = [...contextParts, ...msgParts];
-                    } else {
-                        llmHistory.unshift({ role: 'user', parts: contextParts });
-                    }
+                const targetPart = firstRecent.parts.find(p => p.text !== undefined) || firstRecent.parts[0];
+                if (targetPart && targetPart.text !== undefined) {
+                    targetPart.text = prefix + leftoverSummary + targetPart.text;
                 } else {
-                    llmHistory.push({ role: 'user', parts: contextParts });
+                    firstRecent.parts.unshift({ text: prefix + leftoverSummary });
                 }
-                console.log('[ContextBuilder] Dynamically injected KB context into history.');
+                if (prefix) finalActHeaderInserted = true;
+            } else {
+                // Rare case: No recent messages, just push the leftover
+                const prefix = (!finalActHeaderInserted ? actHeader + '\n' : '');
+                llmHistory.push({ role: 'user', parts: [{ text: prefix + leftoverSummary }] });
+                if (prefix) finalActHeaderInserted = true;
             }
+        } else if (!finalActHeaderInserted && llmHistory.length > 0) {
+            // No leftover summary, but still need to insert actHeader somewhere if not yet done
+            const firstRecent = llmHistory[0];
+            const targetPart = firstRecent.parts.find(p => p.text !== undefined) || firstRecent.parts[0];
+            if (targetPart && targetPart.text !== undefined) {
+                targetPart.text = actHeader + '\n' + targetPart.text;
+            } else {
+                firstRecent.parts.unshift({ text: actHeader + '\n' });
+            }
+            finalActHeaderInserted = true;
         }
+
+        // Unshift stable blocks
+        llmHistory.unshift(...summaryBlocks);
+
+        if (summaryBlocks.length > 0) {
+            console.log(`[ContextBuilder] Created ${summaryBlocks.length} summary blocks for ${pastMessages.length} past messages.`);
+        }
+
+        // KB is now handled in systemInstruction for better Implicit Caching stability.
 
         return llmHistory;
     }
