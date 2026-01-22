@@ -11,6 +11,7 @@ import { SessionSave, Scenario } from '../models/types';
 import { GAME_INTENTS } from '../constants/game-intents';
 import { getCoreFilenames, getSectionHeaders, getUIStrings } from '../constants/engine-protocol';
 import { LOCALES } from '../constants/locales';
+import { InjectionService } from './injection.service';
 
 @Injectable({
     providedIn: 'root'
@@ -23,6 +24,7 @@ export class SessionService {
     private cacheManager = inject(CacheManagerService);
     private kb = inject(KnowledgeService);
     private snackBar = inject(MatSnackBar);
+    private injection = inject(InjectionService);
 
     private get provider(): LLMProvider {
         const p = this.providerRegistry.getActive();
@@ -282,15 +284,47 @@ export class SessionService {
      * Updates a single file in storage and refreshes the loadedFiles signal.
      */
     async updateSingleFile(filePath: string, content: string): Promise<void> {
-        await this.storage.saveFile(filePath, content);
+        // 1. Handle special files (system prompts)
+        if (filePath === 'system_files/system_prompt.md' || filePath === 'system_prompt.md') {
+            await this.injection.saveToService('system_main', content);
+        } else {
+            // Save regular file and compute tokens
+            const modelId = this.state.config()?.modelId || this.provider.getDefaultModelId();
+            const count = await this.provider.countTokens(modelId, [{ role: 'user', parts: [{ text: content }] }]);
+            await this.storage.saveFile(filePath, content, count);
 
-        this.state.loadedFiles.update(map => {
-            const newMap = new Map(map);
-            newMap.set(filePath, content);
-            return newMap;
-        });
+            this.state.loadedFiles.update(map => {
+                const newMap = new Map(map);
+                newMap.set(filePath, content);
+                return newMap;
+            });
+
+            // Update individual token count in state
+            this.state.fileTokenCounts.update(map => {
+                const newMap = new Map(map);
+                newMap.set(filePath, count);
+                return newMap;
+            });
+        }
 
         console.log('[SessionService] Updated file:', filePath);
+
+        // 2. Invalidate cache if KB hash changes (immediate UI feedback)
+        const currentHash = this.state.currentKbHash();
+        if (localStorage.getItem('kb_cache_hash') !== currentHash) {
+            console.log('[SessionService] KB Content changed through single update. Invalidating remote state.');
+            this.state.kbCacheName.set(null);
+            localStorage.removeItem('kb_cache_name');
+            localStorage.setItem('kb_cache_hash', currentHash);
+
+            // Also re-calculate total estimated tokens
+            const contentMap = this.state.loadedFiles();
+            const partsForCount = this.kb.buildKnowledgeBaseParts(contentMap);
+            const modelId = this.state.config()?.modelId || this.provider.getDefaultModelId();
+            const totalTokenCount = await this.provider.countTokens(modelId, [{ role: 'user', parts: partsForCount }]);
+            this.state.estimatedKbTokens.set(totalTokenCount);
+            localStorage.setItem('kb_cache_tokens', totalTokenCount.toString());
+        }
     }
 
     /**
