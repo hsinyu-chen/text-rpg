@@ -39,15 +39,27 @@
         </button>
     </div>
 
-    <button mat-stroked-button color="primary" class="full-width save-slots-btn" (click)="openLocalSaveSlots()"
-        [disabled]="state.isBusy() || !fileSystem.hasHandle()" style="margin-top: 8px;">
-        @if (autoSave.isSaving()) {
-        <mat-spinner diameter="20" style="display:inline-block; vertical-align:middle; margin-right:8px;"></mat-spinner>
-        } @else {
-        <mat-icon>bookmarks</mat-icon>
-        }
-        Local Save Slots
-    </button>
+    <div class="row-actions" style="margin-top: 8px; display: flex; gap: 8px;">
+        <button mat-stroked-button color="primary" class="save-slots-btn" (click)="openLocalSaveSlots()"
+            [disabled]="state.isBusy() || !fileSystem.hasHandle()" style="flex: 1;">
+            @if (autoSave.isSaving()) {
+            <mat-spinner diameter="20"
+                style="display:inline-block; vertical-align:middle; margin-right:8px;"></mat-spinner>
+            } @else {
+            <mat-icon>bookmarks</mat-icon>
+            }
+            Local Slots
+        </button>
+        <button mat-icon-button color="primary" (click)="fastSave(true)"
+            [disabled]="state.isBusy() || !fileSystem.hasHandle() || state.messages().length === 0"
+            matTooltip="Fast Save (Local)">
+            <mat-icon>save</mat-icon>
+        </button>
+        <button mat-icon-button color="primary" (click)="fastLoad(true)"
+            [disabled]="state.isBusy() || !fileSystem.hasHandle()" matTooltip="Fast Load (Local)">
+            <mat-icon>file_open</mat-icon>
+        </button>
+    </div>
 </div>
 
 <mat-divider style="margin: 16px 0"></mat-divider>
@@ -101,7 +113,16 @@
             } @else {
             <mat-icon>cloud_queue</mat-icon>
             }
-            Cloud Save Slots
+            Cloud Slots
+        </button>
+        <button mat-icon-button class="google-btn" (click)="fastSave(false)"
+            [disabled]="state.isBusy() || !currentSlot() || state.messages().length === 0"
+            matTooltip="Fast Save (Cloud)">
+            <mat-icon>save</mat-icon>
+        </button>
+        <button mat-icon-button class="google-btn" (click)="fastLoad(false)"
+            [disabled]="state.isBusy() || !currentSlot()" matTooltip="Fast Load (Cloud)">
+            <mat-icon>file_open</mat-icon>
         </button>
 
         @if (showAuthWarning()) {

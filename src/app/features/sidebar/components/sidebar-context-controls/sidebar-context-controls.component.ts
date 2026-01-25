@@ -137,11 +137,6 @@ export class SidebarContextControlsComponent {
         return result || null;
     }
 
-    async releaseCache() {
-        if (await this.dialog.confirm('Are you sure you want to release the remote cache? This will stop storage costs but will retain your chat history. The cache will be rebuilt automatically next time you send a message.')) {
-            await this.engine.releaseCache();
-        }
-    }
 
     newGame() {
         this.matDialog.open(NewGameDialogComponent, {
@@ -156,10 +151,10 @@ export class SidebarContextControlsComponent {
         }
     }
 
-    async clearAllRemoteData() {
-        if (await this.dialog.confirm('Delete ALL server-side caches/files and RESTART your current session? This will wipe the conversation and all uploaded data to ensure state safety.')) {
+    async clearServerDataAndStats() {
+        if (await this.dialog.confirm('Delete ALL server-side caches and RESET all cost/usage statistics? This will ensure state safety and reset your billed token counters for the current session.')) {
             const count = await this.engine.clearAllServerCaches();
-            await this.dialog.alert(`Successfully cleared ${count} caches and all uploaded files. Session restarted.`);
+            await this.dialog.alert(`Successfully cleared ${count} caches and reset all usage statistics. Session state refreshed.`);
         }
     }
 

@@ -126,7 +126,7 @@ export class GameStateService {
 
     // ==================== Internal State (non-signal) ====================
     // These are mutable internal state used by services
-    kbCacheTokens = 0;
+    kbCacheTokens = signal<number>(0);
     systemInstructionCache = computed(() => this.dynamicSystemMainInjection());
     isContextInjected = false;
     injectionContentHash = '';

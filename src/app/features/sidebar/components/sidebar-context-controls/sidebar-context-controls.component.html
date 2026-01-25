@@ -13,13 +13,6 @@
 </button>
 
 
-@if (state.kbCacheName()) {
-<button mat-stroked-button color="warn" (click)="releaseCache()" [disabled]="state.isBusy()"
-    class="full-width release-btn" style="margin-top: 8px;">
-    <mat-icon>phonelink_erase</mat-icon>
-    Release Current Cache
-</button>
-}
 
 <button mat-stroked-button color="warn" (click)="clearHistory()"
     [disabled]="state.messages().length === 0 || state.isBusy()" class="full-width restart-btn">
@@ -35,10 +28,10 @@
     Save & Next
 </button>
 
-<button mat-stroked-button color="warn" (click)="clearAllRemoteData()" [disabled]="state.isBusy()"
-    class="full-width clear-all-btn">
-    <mat-icon>cloud_off</mat-icon>
-    Wipe Remote Data & Reset
+<button mat-stroked-button color="warn" (click)="clearServerDataAndStats()" [disabled]="state.isBusy()"
+    class="full-width clear-all-btn" style="margin-top: 8px;">
+    <mat-icon>cleaning_services</mat-icon>
+    Clear Server Caches & Usage Stats
 </button>
 
 <button mat-stroked-button color="warn" (click)="wipeLocalSession()" [disabled]="state.isBusy()"

@@ -120,9 +120,19 @@ export class ConfigService {
             if (cacheName) {
                 this.state.kbCacheName.set(cacheName);
                 const savedTokens = localStorage.getItem('kb_cache_tokens');
-                this.state.kbCacheTokens = savedTokens ? parseInt(savedTokens, 10) : 0;
+                this.state.kbCacheTokens.set(savedTokens ? parseInt(savedTokens, 10) : 0);
 
-                // Fetch expiration from API immediately to restore timer
+                const savedExpire = localStorage.getItem('kb_cache_expire');
+                if (savedExpire) {
+                    const expireMs = parseInt(savedExpire, 10);
+                    if (!isNaN(expireMs) && expireMs > Date.now()) {
+                        this.state.kbCacheExpireTime.set(expireMs);
+                        console.log('[ConfigService] Restored cache expiration from storage:', new Date(expireMs).toLocaleString());
+                        this.cacheManager.startStorageTimer();
+                    }
+                }
+
+                // Fetch fresh status from API to ensure reliability
                 if (this.provider?.getCache) {
                     this.provider.getCache(cacheName).then(cacheStatus => {
                         if (cacheStatus && cacheStatus.expireTime) {
@@ -130,13 +140,15 @@ export class ConfigService {
                                 ? cacheStatus.expireTime
                                 : new Date(cacheStatus.expireTime).getTime();
                             this.state.kbCacheExpireTime.set(expireMs);
-                            console.log('[ConfigService] Restored cache state from API:', cacheName, 'Expires at:', new Date(expireMs).toLocaleString());
+                            localStorage.setItem('kb_cache_expire', expireMs.toString());
+                            console.log('[ConfigService] Synced cache state from API:', cacheName, 'Expires at:', new Date(expireMs).toLocaleString());
                             this.cacheManager.startStorageTimer();
                         } else {
                             console.warn('[ConfigService] Saved cache not found on server or expired:', cacheName);
                             this.state.kbCacheName.set(null);
                             localStorage.removeItem('kb_cache_name');
                             localStorage.removeItem('kb_cache_hash');
+                            localStorage.removeItem('kb_cache_expire');
                         }
                     });
                 }

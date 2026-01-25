@@ -83,6 +83,20 @@ export class CostService {
     }
 
     /**
+     * Calculates the cost of creating or refreshing a context cache.
+     * This is billed as standard input tokens.
+     */
+    calculateCacheCreationCost(tokens: number, modelId?: string): number {
+        if (tokens <= 0) return 0;
+        if (!modelId) {
+            const active = this.providerRegistry.getActive();
+            modelId = active ? active.getDefaultModelId() : 'unknown';
+        }
+        const rates = this.getModelDefinition(modelId).getRates(tokens);
+        return (tokens / 1000000) * rates.input;
+    }
+
+    /**
      * Calculates the estimated cost of a single turn based on token usage.
      */
     calculateTurnCost(turnUsage: { prompt: number, candidates: number, cached: number }, modelId?: string) {
@@ -92,7 +106,11 @@ export class CostService {
         }
         const rates = this.getModelDefinition(modelId).getRates(turnUsage.prompt);
 
-        const fresh = turnUsage.prompt - turnUsage.cached;
+        // Robust calculation: prompt may be inclusive or exclusive of cached depending on SDK version
+        const fresh = turnUsage.prompt >= turnUsage.cached
+            ? turnUsage.prompt - turnUsage.cached
+            : turnUsage.prompt;
+
         // Transaction costs: Fresh input + Output + Cache recall
         const cost = (fresh / 1000000 * rates.input) +
             (turnUsage.candidates / 1000000 * rates.output) +
@@ -154,7 +172,9 @@ export class CostService {
                 // Get rates for THIS specific turn's input size (handles tiered pricing)
                 const rates = model.getRates(msg.usage.prompt);
 
-                const fresh = msg.usage.prompt - msg.usage.cached;
+                const fresh = msg.usage.prompt >= msg.usage.cached
+                    ? msg.usage.prompt - msg.usage.cached
+                    : msg.usage.prompt;
 
                 const turnCost = (fresh / 1_000_000 * rates.input) +
                     (msg.usage.candidates / 1_000_000 * rates.output) +

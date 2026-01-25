@@ -32,7 +32,7 @@
 
         @if (currentItem()) {
         <app-monaco-editor [isDiff]="true" [originalValue]="currentItem().remoteContent || ''"
-            [(ngModel)]="currentItem().localContent" language="markdown"
+            [(ngModel)]="currentItem().localContent" language="markdown" [options]="editorOptions()"
             style="height: calc(90vh - 220px); width: 100%; display: block;">
         </app-monaco-editor>
         }

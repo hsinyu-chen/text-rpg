@@ -5,6 +5,7 @@ import { LLMProvider, LLMCacheInfo } from './llm-provider';
 import { CostService } from './cost.service';
 import { KnowledgeService } from './knowledge.service';
 import { StorageService } from './storage.service';
+import { ChatHistoryService } from './chat-history.service';
 
 /**
  * Service responsible for managing remote Cache and File lifecycle.
@@ -19,6 +20,7 @@ export class CacheManagerService {
     private cost = inject(CostService);
     private kb = inject(KnowledgeService);
     private storage = inject(StorageService);
+    private chatHistory = inject(ChatHistoryService);
 
     /** Get the currently active LLM provider */
     private get provider(): LLMProvider {
@@ -34,7 +36,7 @@ export class CacheManagerService {
      */
     startStorageTimer(): void {
         this.cost.updateContextState(
-            this.state.kbCacheTokens,
+            this.state.kbCacheTokens(),
             this.state.kbCacheExpireTime(),
             this.state.config()?.modelId || this.provider.getDefaultModelId(),
             this.state.kbCacheName()
@@ -136,8 +138,16 @@ export class CacheManagerService {
                             this.state.kbCacheExpireTime.set(expireTime);
                             localStorage.setItem('kb_cache_name', cacheRes.name);
                             localStorage.setItem('kb_cache_hash', newHash);
-                            this.state.kbCacheTokens = cacheRes.usageMetadata?.totalTokenCount || 0;
-                            localStorage.setItem('kb_cache_tokens', this.state.kbCacheTokens.toString());
+                            localStorage.setItem('kb_cache_expire', expireTime.toString());
+                            this.state.kbCacheTokens.set(cacheRes.usageMetadata?.totalTokenCount || 0);
+                            localStorage.setItem('kb_cache_tokens', this.state.kbCacheTokens().toString());
+
+                            // Record cache creation as sunk usage to ensure persistent billing
+                            if (this.state.kbCacheTokens() > 0) {
+                                this.chatHistory.recordSunkUsage(this.state.kbCacheTokens(), 0, 0);
+                                console.log('[CacheManager] Recorded cache creation usage:', this.state.kbCacheTokens(), 'tokens');
+                            }
+
                             this.startStorageTimer();
                             validationSuccess = true;
                             console.log('[CacheManager] Auto-cache creation successful:', cacheRes.name);
@@ -173,10 +183,11 @@ export class CacheManagerService {
                 }
                 this.state.kbCacheName.set(null);
                 this.state.kbCacheExpireTime.set(null);
-                this.state.kbCacheTokens = 0;
+                this.state.kbCacheTokens.set(0);
                 this.stopStorageTimer();
                 localStorage.removeItem('kb_cache_name');
                 localStorage.removeItem('kb_cache_hash');
+                localStorage.removeItem('kb_cache_expire');
                 localStorage.removeItem('kb_cache_tokens');
             }
         } catch (cleanupErr) {
@@ -210,7 +221,7 @@ export class CacheManagerService {
             localStorage.removeItem('kb_cache_expire');
             localStorage.removeItem('kb_cache_tokens'); // Also remove tokens
             this.stopStorageTimer();
-            this.state.kbCacheTokens = 0;
+            this.state.kbCacheTokens.set(0);
         }
     }
 
@@ -231,7 +242,7 @@ export class CacheManagerService {
             this.state.kbCacheExpireTime.set(null);
             this.state.storageCostAccumulated.set(0);
             this.state.historyStorageCostAccumulated.set(0);
-            this.state.kbCacheTokens = 0;
+            this.state.kbCacheTokens.set(0);
             this.stopStorageTimer();
 
             localStorage.removeItem('kb_cache_name');
@@ -278,7 +289,7 @@ export class CacheManagerService {
         this.state.kbCacheName.set(null);
         this.state.kbCacheExpireTime.set(null);
         this.state.storageCostAccumulated.set(0);
-        this.state.kbCacheTokens = 0;
+        this.state.kbCacheTokens.set(0);
         this.stopStorageTimer();
 
         localStorage.removeItem('kb_cache_name');
@@ -297,7 +308,7 @@ export class CacheManagerService {
     resetCacheState(): void {
         this.state.kbCacheName.set(null);
         this.state.kbCacheExpireTime.set(null);
-        this.state.kbCacheTokens = 0;
+        this.state.kbCacheTokens.set(0);
         this.stopStorageTimer();
 
         localStorage.removeItem('kb_cache_name');

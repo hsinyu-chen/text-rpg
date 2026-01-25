@@ -163,6 +163,13 @@ export class ChatHistoryService {
     }
 
     /**
+     * Public method to manually record sunk usage (e.g., for cache creation).
+     */
+    public recordSunkUsage(prompt: number, cached: number, candidates: number) {
+        this.accumulateSunkUsage([{ prompt, cached, candidates }]);
+    }
+
+    /**
      * Extracts individual usage metrics from model messages.
      */
     private calculateSunkUsage(messages: ChatMessage[]): { prompt: number, cached: number, candidates: number }[] {

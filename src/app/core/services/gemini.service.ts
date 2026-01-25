@@ -183,7 +183,7 @@ export class GeminiService implements LLMProvider {
                         usageMetadata: chunk.usageMetadata ? {
                             promptTokens: chunk.usageMetadata.promptTokenCount || 0,
                             completionTokens: chunk.usageMetadata.candidatesTokenCount || 0,
-                            cachedTokens: chunk.usageMetadata.cachedContentTokenCount
+                            cachedTokens: chunk.usageMetadata.cachedContentTokenCount || 0
                         } : undefined
                     };
                 }
@@ -194,7 +194,7 @@ export class GeminiService implements LLMProvider {
                     usageMetadata: chunk.usageMetadata ? {
                         promptTokens: chunk.usageMetadata.promptTokenCount || 0,
                         completionTokens: chunk.usageMetadata.candidatesTokenCount || 0,
-                        cachedTokens: chunk.usageMetadata.cachedContentTokenCount
+                        cachedTokens: chunk.usageMetadata.cachedContentTokenCount || 0
                     } : undefined
                 };
             }

@@ -19,6 +19,7 @@ import { SyncDialogComponent, SyncItem, SyncDialogData } from '../../../../share
 import { SaveSlotsDialogComponent, SaveSlotDialogData } from '../../../../shared/components/save-slots-dialog/save-slots-dialog.component';
 import { KbSlotsDialogComponent, KbSlot } from '../../../../shared/components/kb-slots-dialog/kb-slots-dialog.component';
 import { FILENAME_MIGRATIONS } from '../../../../core/constants/migrations';
+import { SessionSave } from '../../../../core/models/types';
 
 @Component({
     selector: 'app-sidebar-file-sync',
@@ -343,6 +344,123 @@ export class SidebarFileSyncComponent {
 
             await this.engine.importSession(result.save);
             this.snackBar.open(`Loaded save "${result.save.name}" successfully.`, 'OK', { duration: 3000 });
+        }
+    }
+
+    async fastSave(localOnly: boolean) {
+        if (this.state.messages().length === 0) {
+            this.snackBar.open('No active session to save.', 'Close', { duration: 3000 });
+            return;
+        }
+
+        const modeText = localOnly ? 'Local' : 'Cloud';
+        if (!await this.dialog.confirm(`Overwrite ${modeText} Fast Save with current session?`, 'Fast Save', 'Overwrite', 'Cancel')) {
+            return;
+        }
+
+        this.loading.show('Performing Fast Save...');
+        try {
+            const currentSession = this.engine.exportSession();
+            const save: SessionSave = {
+                ...currentSession,
+                id: 'fastsave',
+                name: 'Fast Save',
+                timestamp: Date.now()
+            };
+
+            const content = JSON.stringify(save, null, 2);
+
+            if (localOnly) {
+                if (!this.fileSystem.hasHandle()) {
+                    await this.loadFolder();
+                    if (!this.fileSystem.hasHandle()) return;
+                }
+                const filename = 'fastsave.json';
+                await this.fileSystem.writeSaveFile(filename, content);
+            } else {
+                const slotId = this.currentSlot()?.id;
+                if (!slotId) {
+                    const slot = await this.selectSlot();
+                    if (!slot) return;
+                }
+                await this.driveService.uploadSave(save, this.currentSlot()!.id);
+            }
+
+            this.snackBar.open(`${modeText} Fast Save completed.`, 'OK', { duration: 3000 });
+        } catch (e) {
+            console.error('Fast save failed:', e);
+            this.snackBar.open('Fast save failed.', 'Close', { duration: 5000 });
+        } finally {
+            this.loading.hide();
+        }
+    }
+
+    async fastLoad(localOnly: boolean) {
+        const modeText = localOnly ? 'Local' : 'Cloud';
+        this.loading.show(`Checking ${modeText} Fast Save...`);
+        try {
+            let saveData: SessionSave | null = null;
+            const filename = 'fastsave.json';
+
+            if (localOnly) {
+                if (!this.fileSystem.hasHandle()) {
+                    await this.loadFolder();
+                    if (!this.fileSystem.hasHandle()) return;
+                }
+                const saves = await this.fileSystem.listLocalSaves();
+                const fastsave = saves.find(s => s.name === filename);
+                if (fastsave) {
+                    const content = await this.fileSystem.readSaveFile(filename);
+                    saveData = JSON.parse(content);
+                }
+            } else {
+                const slotId = this.currentSlot()?.id;
+                if (!slotId) {
+                    const slot = await this.selectSlot();
+                    if (!slot) return;
+                }
+                const cloudSaves = await this.driveService.listSaves(this.currentSlot()!.id);
+                const fastsave = cloudSaves.find(s => s.name === filename);
+                if (fastsave) {
+                    const content = await this.driveService.readFile(fastsave.id);
+                    saveData = JSON.parse(content);
+                }
+            }
+
+            if (!saveData) {
+                await this.dialog.alert(`${modeText} Fast Save file not found.`, 'Load Failed');
+                return;
+            }
+
+            // Confirmation
+            const currentHash = this.state.currentKbHash();
+            const savedHash = saveData.kbHash;
+            let confirmMessage = `Load ${modeText} Fast Save? Unsaved progress in current session will be lost.`;
+
+            if (savedHash && currentHash && savedHash !== currentHash) {
+                confirmMessage = `⚠️ WARNING: This save's Knowledge Base (Hash: ${savedHash.substring(0, 8)}) matches a different version than your current loaded files (Hash: ${currentHash.substring(0, 8)}).\n\nAre you sure you want to load?`;
+            }
+
+            if (!await this.dialog.confirm(confirmMessage, 'Fast Load', 'Load', 'Cancel')) {
+                return;
+            }
+
+            // Auto-load KB files if empty
+            if (this.state.loadedFiles().size === 0) {
+                if (localOnly) {
+                    await this.engine.loadFiles(false);
+                } else if (this.currentSlot()) {
+                    await this._performCloudLoad(this.currentSlot()!.id);
+                }
+            }
+
+            await this.engine.importSession(saveData);
+            this.snackBar.open(`${modeText} Fast Save loaded successfully.`, 'OK', { duration: 3000 });
+        } catch (e) {
+            console.error('Fast load failed:', e);
+            this.snackBar.open('Fast load failed.', 'Close', { duration: 5000 });
+        } finally {
+            this.loading.hide();
         }
     }
 }

@@ -91,11 +91,11 @@ export class SidebarCostPredictionComponent {
 
         let sunkTxn = 0;
         for (const usage of sunkHistory) {
-            const rates = model.getRates(usage.prompt);
-            const fresh = usage.prompt - usage.cached;
-            sunkTxn += (fresh / 1_000_000 * rates.input) +
-                (usage.candidates / 1_000_000 * rates.output) +
-                (usage.cached / 1_000_000 * (rates.cached || 0));
+            sunkTxn += this.costService.calculateTurnCost({
+                prompt: usage.prompt,
+                cached: usage.cached,
+                candidates: usage.candidates
+            }, model.id);
         }
 
         const storage = this.state.storageCostAccumulated() + this.state.historyStorageCostAccumulated();
@@ -183,11 +183,11 @@ export class SidebarCostPredictionComponent {
             // 1.b Sunk Transaction Cost
             let sunkTransactionCost = 0;
             for (const u of sunkHistory) {
-                const rates = model.getRates(u.prompt);
-                const fresh = u.prompt - u.cached;
-                sunkTransactionCost += (fresh / 1_000_000 * rates.input) +
-                    (u.candidates / 1_000_000 * rates.output) +
-                    (u.cached / 1_000_000 * (rates.cached || 0));
+                sunkTransactionCost += this.costService.calculateTurnCost({
+                    prompt: u.prompt,
+                    cached: u.cached,
+                    candidates: u.candidates
+                }, model.id);
             }
 
             // 2. Storage Cost: Estimated scaling

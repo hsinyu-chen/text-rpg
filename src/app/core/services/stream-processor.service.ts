@@ -132,10 +132,11 @@ export class StreamProcessorService {
             }
 
             if (chunk.usageMetadata) {
+                // "Sticky" update: Only update if non-zero to avoid losing data in final chunks
                 turnUsage = {
-                    prompt: chunk.usageMetadata.promptTokens || 0,
-                    candidates: chunk.usageMetadata.completionTokens || 0,
-                    cached: chunk.usageMetadata.cachedTokens || 0
+                    prompt: chunk.usageMetadata.promptTokens || turnUsage.prompt,
+                    candidates: chunk.usageMetadata.completionTokens || turnUsage.candidates,
+                    cached: chunk.usageMetadata.cachedTokens || turnUsage.cached
                 };
             }
         }

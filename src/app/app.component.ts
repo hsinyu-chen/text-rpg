@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, effect, isDevMode } from '@angular/core';
+import { Component, inject, signal, computed, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatIconModule } from '@angular/material/icon';
@@ -37,10 +37,7 @@ import { MigrationService } from './core/services/migration.service';
     CodeScreensaverComponent
   ],
   templateUrl: './app.component.html',
-  styleUrl: './app.component.scss',
-  host: {
-    '(window:beforeunload)': 'cleanup()'
-  }
+  styleUrl: './app.component.scss'
 })
 export class AppComponent {
   engine = inject(GameEngineService);
@@ -99,15 +96,6 @@ export class AppComponent {
     });
   }
 
-  async cleanup() {
-    // DEV MODE: Keep cache enabled for fast/cheap reloading
-    // PROD MODE: Cleanup cache to avoid continuous storage charges
-    if (!isDevMode()) {
-      await this.engine.cleanupCache();
-    } else {
-      console.log('[DevMode] Skipping auto-cleanup to preserve cache for reload.');
-    }
-  }
 
   openSettings() {
     this.dialog.open(SettingsDialogComponent, {

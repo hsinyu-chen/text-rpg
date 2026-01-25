@@ -91,6 +91,10 @@ export class SyncDialogComponent {
     }
 
     currentItem = computed(() => this.syncItems()[this.currentTabIndex()]);
+    editorOptions = computed(() => ({
+        readOnly: false,
+        renderSideBySide: true
+    }));
 
     onTabChange(event: MatTabChangeEvent) {
         this.currentTabIndex.set(event.index);

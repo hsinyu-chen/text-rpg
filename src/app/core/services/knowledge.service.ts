@@ -65,8 +65,8 @@ export class KnowledgeService {
      * @returns A string hash.
      */
     calculateKbHash(kbText: string, modelId: string, systemInstruction: string): string {
-        const rawInput = this.normalizeLineEndings(kbText) + (modelId || '') + (systemInstruction || '');
-        return this.hashString(rawInput.trim());
+        const rawInput = (kbText || '') + (modelId || '') + (systemInstruction || '');
+        return this.hashString(this.normalizeLineEndings(rawInput).trim());
     }
 
     /**
