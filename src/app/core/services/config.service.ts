@@ -89,6 +89,8 @@ export class ConfigService {
         const idleOnBlur = localStorage.getItem('app_idle_on_blur') === 'true';
         const thinkingLevelStory = localStorage.getItem('gemini_thinking_level_story') || 'minimal';
         const thinkingLevelGeneral = localStorage.getItem('gemini_thinking_level_general') || 'high';
+        const sSmartTurns = localStorage.getItem('gemini_smart_context_turns');
+        const smartContextTurns = sSmartTurns ? parseInt(sSmartTurns, 10) : 10;
 
         if (key) {
             const cfg: GameEngineConfig = {
@@ -104,7 +106,8 @@ export class ConfigService {
                 outputLanguage,
                 idleOnBlur,
                 thinkingLevelStory,
-                thinkingLevelGeneral
+                thinkingLevelGeneral,
+                smartContextTurns
             };
             this.state.config.set(cfg);
 
@@ -203,7 +206,8 @@ export class ConfigService {
         outputLanguage?: string,
         idleOnBlur?: boolean,
         thinkingLevelStory?: string,
-        thinkingLevelGeneral?: string
+        thinkingLevelGeneral?: string,
+        smartContextTurns?: number
     }) {
         localStorage.setItem('gemini_api_key', apiKey);
         localStorage.setItem('gemini_model_id', modelId);
@@ -216,6 +220,10 @@ export class ConfigService {
         if (genConfig.idleOnBlur !== undefined) localStorage.setItem('app_idle_on_blur', genConfig.idleOnBlur.toString());
         if (genConfig.thinkingLevelStory !== undefined) localStorage.setItem('gemini_thinking_level_story', genConfig.thinkingLevelStory);
         if (genConfig.thinkingLevelGeneral !== undefined) localStorage.setItem('gemini_thinking_level_general', genConfig.thinkingLevelGeneral);
+
+        if (genConfig.smartContextTurns !== undefined) {
+            localStorage.setItem('gemini_smart_context_turns', genConfig.smartContextTurns.toString());
+        }
 
         if (genConfig.exchangeRate !== undefined) localStorage.setItem('gemini_exchange_rate', genConfig.exchangeRate.toString());
 
@@ -273,7 +281,8 @@ export class ConfigService {
             outputLanguage: typeof cfg.outputLanguage === 'string' ? cfg.outputLanguage : undefined,
             idleOnBlur: typeof cfg.idleOnBlur === 'boolean' ? cfg.idleOnBlur : undefined,
             thinkingLevelStory: typeof cfg.thinkingLevelStory === 'string' ? cfg.thinkingLevelStory : undefined,
-            thinkingLevelGeneral: typeof cfg.thinkingLevelGeneral === 'string' ? cfg.thinkingLevelGeneral : undefined
+            thinkingLevelGeneral: typeof cfg.thinkingLevelGeneral === 'string' ? cfg.thinkingLevelGeneral : undefined,
+            smartContextTurns: typeof cfg.smartContextTurns === 'number' ? cfg.smartContextTurns : undefined
         };
 
         // Reuse saveConfig to handle persistence (localStorage + Signal update + Service re-init)

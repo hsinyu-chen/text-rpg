@@ -48,18 +48,26 @@
 </p>
 }
 <div class="toggle-section">
-    <button mat-stroked-button class="full-width mode-btn" (click)="toggleContextMode()" [disabled]="state.isBusy()"
-        [class.active-smart]="state.contextMode() === 'smart'"
-        [class.active-summarized]="state.contextMode() === 'summarized'"
-        [class.active-full]="state.contextMode() === 'full'">
-        <mat-icon>{{ state.contextMode() === 'smart' ? 'compress' : (state.contextMode() === 'summarized' ?
-            'auto_stories' : 'expand') }}</mat-icon>
-        Mode: {{ state.contextMode() === 'smart' ? 'Smart' : (state.contextMode() === 'summarized' ? 'Summarized' :
-        'Full') }}
-    </button>
+    <div class="mode-btn-container">
+        <button mat-stroked-button class="mode-btn" (click)="toggleContextMode()" [disabled]="state.isBusy()"
+            [class.active-smart]="state.contextMode() === 'smart'"
+            [class.active-summarized]="state.contextMode() === 'summarized'"
+            [class.active-full]="state.contextMode() === 'full'">
+            <mat-icon>{{ state.contextMode() === 'smart' ? 'compress' : (state.contextMode() === 'summarized' ?
+                'auto_stories' : 'expand') }}</mat-icon>
+            Mode: {{ state.contextMode() === 'smart' ? 'Smart' : (state.contextMode() === 'summarized' ? 'Summarized' :
+            'Full') }}
+        </button>
+        @if (state.contextMode() === 'smart') {
+        <button mat-stroked-button class="settings-btn" (click)="editSmartContextTurns()" [disabled]="state.isBusy()"
+            matTooltip="Edit Smart Context Turns">
+            <mat-icon style="margin-right: 0;">settings</mat-icon>
+        </button>
+        }
+    </div>
     <p class="hint-text">
         @if (state.contextMode() === 'smart') {
-        Older turns summarized + Last 10 Turns Full
+        Older turns summarized + Last {{ state.config()?.smartContextTurns ?? 10 }} Turns Full
         } @else if (state.contextMode() === 'summarized') {
         Older turns summarized + Last 1 Turn Full
         } @else {

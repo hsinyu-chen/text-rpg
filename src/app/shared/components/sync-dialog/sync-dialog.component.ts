@@ -10,6 +10,7 @@ import { FormsModule } from '@angular/forms';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { FileSystemService } from '../../../core/services/file-system.service';
 import { GoogleDriveService } from '../../../core/services/google-drive.service';
+import { GameEngineService } from '../../../core/services/game-engine.service';
 import { MonacoEditorComponent } from '../monaco-editor/monaco-editor.component';
 
 export type SyncMode = 'DISK' | 'CLOUD';
@@ -54,6 +55,8 @@ export class SyncDialogComponent {
     private snackBar = inject(MatSnackBar);
     private fileSystem = inject(FileSystemService);
     private driveService = inject(GoogleDriveService);
+
+    private engine = inject(GameEngineService);
 
     syncItems = signal<{
         name: string;
@@ -110,13 +113,20 @@ export class SyncDialogComponent {
         try {
             const selectedItems = this.syncItems().filter(i => i.selected());
 
+            // 1. Update Database (IndexedDB) first for all selected items
+            // This ensures if user edited the right side of the diff, it's saved locally
+            for (const item of selectedItems) {
+                await this.engine.updateSingleFile(item.name, item.localContent());
+            }
+
+            // 2. Update Target (Disk or Cloud)
             if (this.data.mode === 'DISK') {
                 if (!this.data.diskHandle) throw new Error('No disk handle provided');
 
                 for (const item of selectedItems) {
                     await this.fileSystem.writeToDiskHandle(this.data.diskHandle, item.name, item.localContent());
                 }
-                this.snackBar.open(`Successfully synced ${selectedItems.length} files to Disk.`, 'OK', { duration: 3000 });
+                this.snackBar.open(`Successfully synced ${selectedItems.length} files to Disk and DB.`, 'OK', { duration: 3000 });
             } else { // CLOUD
                 if (!this.data.parentId) throw new Error('No parent ID provided');
 
@@ -129,7 +139,7 @@ export class SyncDialogComponent {
                     }
                     count++;
                 }
-                this.snackBar.open(`Successfully synced ${count} files to Drive.`, 'OK', { duration: 3000 });
+                this.snackBar.open(`Successfully synced ${count} files to Drive and DB.`, 'OK', { duration: 3000 });
             }
 
             this.dialogRef.close(true);

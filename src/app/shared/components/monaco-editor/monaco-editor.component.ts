@@ -324,17 +324,25 @@ export class MonacoEditorComponent implements OnDestroy, ControlValueAccessor {
     revealLine(lineNumber: number, column = 1): void {
         if (!this.editor) return;
 
+        let targetEditor: import('monaco-editor').editor.IStandaloneCodeEditor;
         if (this.isDiff()) {
-            const diffEditor = this.editor as import('monaco-editor').editor.IStandaloneDiffEditor;
-            // For diff editor, reveal on the modified side
-            const modifiedEditor = diffEditor.getModifiedEditor();
-            modifiedEditor.revealLineInCenter(lineNumber);
-            modifiedEditor.setPosition({ lineNumber, column });
+            targetEditor = (this.editor as import('monaco-editor').editor.IStandaloneDiffEditor).getModifiedEditor();
         } else {
-            const codeEditor = this.editor as import('monaco-editor').editor.IStandaloneCodeEditor;
-            codeEditor.revealLineInCenter(lineNumber);
-            codeEditor.setPosition({ lineNumber, column });
+            targetEditor = this.editor as import('monaco-editor').editor.IStandaloneCodeEditor;
         }
+
+        const model = targetEditor.getModel();
+        if (!model) return;
+
+        // Safety Guard: Ensure line number is within valid range of the current model
+        const lineCount = model.getLineCount();
+        if (lineNumber < 1 || lineNumber > lineCount) {
+            console.warn(`[MonacoEditor] revealLine requested out-of-range line ${lineNumber} (Total lines: ${lineCount}). Ignoring to prevent crash.`);
+            return;
+        }
+
+        targetEditor.revealLineInCenter(lineNumber);
+        targetEditor.setPosition({ lineNumber, column });
     }
 
     ngOnDestroy() {
@@ -358,26 +366,27 @@ export class MonacoEditorComponent implements OnDestroy, ControlValueAccessor {
 
         if (this.editor) {
             try {
-                // Dispose models first, then editor
-                // Note: Do NOT call setModel(null) on diff editors - it causes Monaco to try to create a new ViewModel
+                // Keep references to models for disposal after editor disposal
+                let modelsToDispose: (import('monaco-editor').editor.ITextModel | undefined)[] = [];
                 if (this.isDiff()) {
                     const diffEditor = this.editor as import('monaco-editor').editor.IStandaloneDiffEditor;
                     const model = diffEditor.getModel();
-                    // Dispose editor first, then models
-                    this.editor.dispose();
                     if (model) {
-                        model.original?.dispose();
-                        model.modified?.dispose();
+                        modelsToDispose = [model.original, model.modified];
                     }
-                } else {
-                    // For multi-model mode, models are already disposed above, just dispose editor
-                    this.editor.dispose();
                 }
+
+                // Dispose editor first
+                this.editor.dispose();
+                this.editor = null;
+
+                // Then dispose models
+                modelsToDispose.forEach(m => m?.dispose());
             } catch (e) {
                 // Editor may already be disposed or in an invalid state, ignore errors
                 console.warn('[MonacoEditor] Error during cleanup:', e);
+                this.editor = null;
             }
-            this.editor = null;
         }
     }
 

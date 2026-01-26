@@ -8,7 +8,7 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { NewGameDialogComponent } from '../new-game-dialog/new-game-dialog.component';
 
 import { GameEngineService } from '../../../../core/services/game-engine.service';
-import { GameStateService } from '../../../../core/services/game-state.service';
+import { GameStateService, GameEngineConfig } from '../../../../core/services/game-state.service';
 import { DialogService } from '../../../../core/services/dialog.service';
 import { SessionService } from '../../../../core/services/session.service';
 import { FileSystemService } from '../../../../core/services/file-system.service';
@@ -16,6 +16,7 @@ import { GoogleDriveService } from '../../../../core/services/google-drive.servi
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { SaveNameDialogComponent } from '../../../../shared/components/save-name-dialog/save-name-dialog.component';
 import { firstValueFrom } from 'rxjs';
+import { ConfigService } from '../../../../core/services/config.service';
 
 @Component({
     selector: 'app-sidebar-context-controls',
@@ -32,6 +33,7 @@ export class SidebarContextControlsComponent {
     fileSystem = inject(FileSystemService);
     driveService = inject(GoogleDriveService);
     snackBar = inject(MatSnackBar);
+    configService = inject(ConfigService);
     private matDialog = inject(MatDialog);
 
     hasStorageTarget = computed(() => {
@@ -179,5 +181,37 @@ export class SidebarContextControlsComponent {
             if (m === 'full') return 'smart';
             return 'summarized';
         });
+    }
+
+    async editSmartContextTurns() {
+        const currentTurns = this.state.config()?.smartContextTurns ?? 10;
+        const dialogRef = this.matDialog.open(SaveNameDialogComponent, {
+            width: '400px',
+            data: {
+                title: 'Smart Context Full-sized Turns',
+                initialName: currentTurns.toString(),
+                placeholder: 'Enter number of turns (e.g. 10)',
+                inputType: 'number',
+                min: 1
+            }
+        });
+
+        const result = await firstValueFrom(dialogRef.afterClosed());
+        if (result) {
+            const turns = parseInt(result, 10);
+            if (!isNaN(turns) && turns > 0) {
+                const cfg = this.state.config();
+                if (cfg) {
+                    const newConfig: GameEngineConfig = {
+                        ...cfg,
+                        smartContextTurns: turns
+                    };
+                    await this.configService.saveConfig(cfg.apiKey || '', cfg.modelId || '', newConfig);
+                    this.snackBar.open(`Smart context set to ${turns} turns.`, 'OK', { duration: 3000 });
+                }
+            } else {
+                this.snackBar.open('Invalid turn count.', 'OK', { duration: 3000 });
+            }
+        }
     }
 }

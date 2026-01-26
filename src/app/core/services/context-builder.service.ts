@@ -114,6 +114,8 @@ export class ContextBuilderService {
         const useFullContext = mode === 'full';
         if (mode === 'summarized') {
             RECENT_WINDOW = 2;
+        } else if (mode === 'smart') {
+            RECENT_WINDOW = (this.state.config()?.smartContextTurns ?? 10) * 2;
         }
 
         const splitIndex = useFullContext ? 0 : Math.max(0, filtered.length - RECENT_WINDOW);

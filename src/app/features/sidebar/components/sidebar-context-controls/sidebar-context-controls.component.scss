@@ -21,7 +21,6 @@
 }
 
 .mode-btn {
-    margin-bottom: 4px;
     transition: all 0.3s ease;
 
     &.active-smart {
@@ -32,6 +31,30 @@
     &.active-full {
         border-color: #ff9800;
         color: #ff9800;
+    }
+}
+
+.mode-btn-container {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+    margin-bottom: 4px;
+
+    .mode-btn {
+        flex: 1;
+    }
+
+    .settings-btn {
+        min-width: 40px;
+        width: 40px;
+        padding: 0;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+
+        mat-icon {
+            margin: 0;
+        }
     }
 }
 

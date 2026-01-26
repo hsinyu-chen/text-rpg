@@ -20,6 +20,7 @@ export interface GameEngineConfig {
     idleOnBlur?: boolean;
     thinkingLevelStory?: string;
     thinkingLevelGeneral?: string;
+    smartContextTurns?: number;
 }
 
 /**
