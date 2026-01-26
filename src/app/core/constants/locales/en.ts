@@ -18,7 +18,7 @@ export const EN_US_LOCALE: AppLocale = {
     actHeader: `
 --- ACT START ---
 [IMPORTANT] The following are the dialogue and state changes for the current ACT.
-All previous states (including characters, items, landmarks, etc.) should be based on the Knowledge Base files ({{FILE_*}}).
+All previous states (including characters, items, landmarks, etc.) should be based on the Knowledge Base files.
 All \`*_log\` content from this block until the end of the conversation represents incremental changes for this ACT.
 When performing the <Save> command, please only compare and synchronize based on the changes after this block and the current file contents.
 ----------------

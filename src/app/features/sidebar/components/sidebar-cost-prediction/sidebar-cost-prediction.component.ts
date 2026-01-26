@@ -98,8 +98,23 @@ export class SidebarCostPredictionComponent {
             }, model.id);
         }
 
-        const storage = this.state.storageCostAccumulated() + this.state.historyStorageCostAccumulated();
-        return activeTxn + sunkTxn + storage;
+        const activeUsage = this.state.storageUsageAccumulated();
+        const historyUsage = this.state.historyStorageUsageAccumulated();
+
+        const storageCost = this.costService.calculateStorageCost(activeUsage + historyUsage, model.id);
+
+        return activeTxn + sunkTxn + storageCost;
+    });
+
+    // Helper computed for Template Display
+    activeStorageCostDisplay = computed(() => {
+        const usage = this.state.storageUsageAccumulated();
+        return this.costService.calculateStorageCost(usage, this.state.config()?.modelId);
+    });
+
+    historyStorageCostDisplay = computed(() => {
+        const usage = this.state.historyStorageUsageAccumulated();
+        return this.costService.calculateStorageCost(usage, this.state.config()?.modelId);
     });
 
     displayCurrency = computed(() => {
@@ -132,7 +147,7 @@ export class SidebarCostPredictionComponent {
         if (!activeProvider) return;
 
         const activeModelId = config?.modelId || activeProvider.getDefaultModelId();
-        const activeModel = activeProvider.getAvailableModels().find(m => m.id === activeModelId);
+        // activeModel variable removed as it was unused
 
         // Derive Active Token Usage from message history (Robust computed signal)
         const activeUsage = this.activeUsage();
@@ -144,9 +159,14 @@ export class SidebarCostPredictionComponent {
         const lastTurnCostVal = this.lastTurnCost();
         const totalSessionCostVal = this.totalSessionCost();
 
-        // Base Storage Costs (Accumulated on active sessions)
-        const storageCostAcc = this.state.storageCostAccumulated();
-        const historyStorageCostAcc = this.state.historyStorageCostAccumulated();
+        // Base Storage Usage (Accumulated on active sessions)
+        const storageUsageAcc = this.state.storageUsageAccumulated();
+        const historyStorageUsageAcc = this.state.historyStorageUsageAccumulated();
+
+        // Calculate storage COST for current model
+        const currentModelId = config?.modelId || activeModelId;
+        const currentModelStorageCost = this.costService.calculateStorageCost(storageUsageAcc, currentModelId);
+        const historyModelStorageCost = this.costService.calculateStorageCost(historyStorageUsageAcc, currentModelId);
 
         const models = activeProvider.getAvailableModels();
         const turns = this.turnCount();
@@ -177,13 +197,13 @@ export class SidebarCostPredictionComponent {
         }
 
         // Add Storage Cost Breakdown (Match UI rows)
-        if (storageCostAcc > 0 || historyStorageCostAcc > 0) {
-            markdown += `### Storage Costs\n`;
-            if (storageCostAcc > 0) {
-                markdown += `- Storage Cost: ${formatMoney(storageCostAcc)} (Active)\n`;
+        if (storageUsageAcc > 0 || historyStorageUsageAcc > 0) {
+            markdown += `### Storage Costs (Est.)\n`;
+            if (storageUsageAcc > 0) {
+                markdown += `- Storage Cost: ${formatMoney(currentModelStorageCost)} (Active)\n`;
             }
-            if (historyStorageCostAcc > 0) {
-                markdown += `- Hist. Cache Cost: ${formatMoney(historyStorageCostAcc)}\n`;
+            if (historyStorageUsageAcc > 0) {
+                markdown += `- Hist. Cache Cost: ${formatMoney(historyModelStorageCost)}\n`;
             }
             markdown += `\n`;
         }
@@ -207,21 +227,9 @@ export class SidebarCostPredictionComponent {
                 }, model.id);
             }
 
-            // 2. Storage Cost: Estimated scaling
-            let modelStorageCost = 0;
-            const baseTotalStorageCost = storageCostAcc + historyStorageCostAcc;
-            if (activeModel) {
-                const activeStorageRate = activeModel.getRates(0).cacheStorage || 0;
-                const modelStorageRate = model.getRates(0).cacheStorage || 0;
-
-                if (activeStorageRate > 0) {
-                    modelStorageCost = baseTotalStorageCost * (modelStorageRate / activeStorageRate);
-                } else if (isActive) {
-                    modelStorageCost = baseTotalStorageCost;
-                }
-            } else if (isActive) {
-                modelStorageCost = baseTotalStorageCost;
-            }
+            // 2. Storage Cost: Calculated Dynamically from Token-Seconds
+            const totalUsage = storageUsageAcc + historyStorageUsageAcc;
+            const modelStorageCost = this.costService.calculateStorageCost(totalUsage, model.id);
 
             const totalCost = transactionCost + sunkTransactionCost + modelStorageCost;
 

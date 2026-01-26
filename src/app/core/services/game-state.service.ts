@@ -70,7 +70,7 @@ export class GameStateService {
 
     // Delegate to CostService for cache countdown
     cacheCountdown = this.cost.cacheCountdown;
-    storageCostAccumulated = this.cost.storageCostAccumulated;
+    storageUsageAccumulated = this.cost.storageUsageAccumulated;
 
     // ==================== Token Usage & Cost ====================
     tokenUsage = signal<{ freshInput: number; cached: number; output: number; total: number }>({
@@ -82,8 +82,16 @@ export class GameStateService {
     estimatedCost = signal<number>(0);
     lastTurnUsage = signal<{ freshInput: number; cached: number; output: number } | null>(null);
     lastTurnCost = signal<number>(0);
-    historyStorageCostAccumulated = signal<number>(0);
+    historyStorageUsageAccumulated = signal<number>(0);
     sunkUsageHistory = signal<{ prompt: number, cached: number, candidates: number }[]>([]);
+
+    constructor() {
+        // Restore history usage from NEW localstorage key
+        const savedHistory = localStorage.getItem('history_storage_usage_acc');
+        if (savedHistory) {
+            this.historyStorageUsageAccumulated.set(parseFloat(savedHistory));
+        }
+    }
 
     // ==================== Dynamic Injection ====================
     enableDynamicInjection = signal<boolean>(true);

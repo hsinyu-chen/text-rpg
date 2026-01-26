@@ -178,8 +178,11 @@ export class SessionService {
             this.state.estimatedCost.set(0);
             this.state.lastTurnUsage.set(null);
             this.state.lastTurnCost.set(0);
-            this.state.historyStorageCostAccumulated.set(0);
+            this.state.historyStorageUsageAccumulated.set(0);
             this.state.sunkUsageHistory.set([]);
+
+            localStorage.removeItem('history_storage_usage_acc');
+            localStorage.removeItem('kb_storage_usage_acc');
 
             console.log('[SessionService] Local session wiped successfully.');
         } catch (e) {
@@ -205,6 +208,7 @@ export class SessionService {
             messages: msgs,
             tokenUsage: this.state.tokenUsage(),
             estimatedCost: this.state.estimatedCost(),
+            historyStorageUsage: this.state.historyStorageUsageAccumulated(),
             sunkUsageHistory: this.state.sunkUsageHistory(),
             storyPreview: preview,
             kbHash: this.state.currentKbHash()
@@ -223,6 +227,11 @@ export class SessionService {
         this.state.tokenUsage.set(save.tokenUsage);
         this.state.estimatedCost.set(save.estimatedCost);
         this.state.sunkUsageHistory.set(save.sunkUsageHistory || []);
+
+        // Restore history usage (Token-Seconds)
+        const historyUsage = save.historyStorageUsage || 0;
+        this.state.historyStorageUsageAccumulated.set(historyUsage);
+        localStorage.setItem('history_storage_usage_acc', historyUsage.toString());
 
         if (save.messages.length > 0) {
             this.isContextInjected = true;

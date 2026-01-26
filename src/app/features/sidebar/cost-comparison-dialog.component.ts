@@ -175,9 +175,17 @@ export class CostComparisonDialogComponent {
         const activeModel = activeProvider ? activeProvider.getAvailableModels().find(m => m.id === activeModelId) : null;
 
         // Base Storage Costs
-        const storageCost = this.state.storageCostAccumulated();
-        const historyStorageCost = this.state.historyStorageCostAccumulated();
-        const baseTotalStorageCost = storageCost + historyStorageCost;
+        const storageUsage = this.state.storageUsageAccumulated();
+        const historyStorageUsage = this.state.historyStorageUsageAccumulated();
+
+        // Calculate Cost dynamically for the ACTIVE model (since this is "Session Total")
+        // NOTE: This might be slightly inaccurate if comparison uses different models, but "Session Total" usually means "Current Actual".
+        // For comparison rows below, we should recalculate per model.
+        // Calculate Cost dynamically for the ACTIVE model (since this is "Session Total")
+        // NOTE: This might be slightly inaccurate if comparison uses different models, but "Session Total" usually means "Current Actual".
+        // For comparison rows below, we should recalculate per model.
+        const storageCost = this.costService.calculateStorageCost(storageUsage + historyStorageUsage, activeModelId);
+        const baseTotalStorageCost = storageCost;
 
         const models = activeProvider ? activeProvider.getAvailableModels() : [];
         const messages = this.state.messages();
@@ -210,20 +218,10 @@ export class CostComparisonDialogComponent {
                     (usage.cached / 1_000_000 * (rates.cached || 0));
             }
 
-            // 2. Storage Cost: Estimated scaling
-            let modelStorageCost = 0;
-            if (activeModel) {
-                const activeStorageRate = activeModel.getRates(0).cacheStorage || 0;
-                const modelStorageRate = model.getRates(0).cacheStorage || 0;
-
-                if (activeStorageRate > 0) {
-                    modelStorageCost = baseTotalStorageCost * (modelStorageRate / activeStorageRate);
-                } else if (isActive) {
-                    modelStorageCost = baseTotalStorageCost;
-                }
-            } else if (isActive) {
-                modelStorageCost = baseTotalStorageCost;
-            }
+            // 2. Storage Cost: Calculated Dynamically
+            // Use the accumulated usage (Token-Seconds) to calculate cost for THIS model's rate
+            const totalUsage = storageUsage + historyStorageUsage;
+            const modelStorageCost = this.costService.calculateStorageCost(totalUsage, model.id);
 
             const totalCost = transactionCost + sunkTransactionCost + modelStorageCost;
 

@@ -46,16 +46,16 @@
         <div class="stat-row storage"
             matTooltip="Real-time cost increment for active context cache. Rate: $1.00 - $4.50/1M/hr">
             <span>Storage Cost:</span>
-            <span class="val">{{ (state.storageCostAccumulated() * displayRate()) |
+            <span class="val">{{ (activeStorageCostDisplay() * displayRate()) |
                 currency:displayCurrency():'symbol-narrow':(displayCurrency() === 'USD' ? '1.4-6' : '1.2-2') }}</span>
         </div>
         }
 
-        @if (state.historyStorageCostAccumulated() > 0) {
+        @if (historyStorageCostDisplay() > 0) {
         <div class="stat-row storage history"
             matTooltip="Accumulated storage cost from previous/deleted caches in this session.">
             <span>Hist. Cache Cost:</span>
-            <span class="val">{{ (state.historyStorageCostAccumulated() * displayRate()) |
+            <span class="val">{{ (historyStorageCostDisplay() * displayRate()) |
                 currency:displayCurrency():'symbol-narrow':(displayCurrency() === 'USD' ? '1.4-6' : '1.2-2') }}</span>
         </div>
         }

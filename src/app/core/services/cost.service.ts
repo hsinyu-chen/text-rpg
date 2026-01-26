@@ -10,7 +10,7 @@ export class CostService {
     private providerRegistry = inject(LLMProviderRegistryService);
 
     // Signals
-    storageCostAccumulated = signal<number>(0);
+    storageUsageAccumulated = signal<number>(0);
     cacheCountdown = signal<string | null>(null);
     exchangeRate = signal<number>(32.5); // Default fallback
 
@@ -26,6 +26,12 @@ export class CostService {
 
     constructor() {
         this.loadExchangeRate();
+
+        // Restore usage from NEW localstorage key
+        const savedUsage = localStorage.getItem('kb_storage_usage_acc');
+        if (savedUsage) {
+            this.storageUsageAccumulated.set(parseFloat(savedUsage));
+        }
     }
 
     /**
@@ -68,7 +74,7 @@ export class CostService {
         this.stopStorageTimer();
         this.storageTimer = setInterval(() => {
             this.updateCacheCountdown();
-            this.incrementStorageCost();
+            this.incrementStorageUsage();
         }, 1000);
     }
 
@@ -120,6 +126,28 @@ export class CostService {
     }
 
     /**
+     * Helper to calculate storage cost from accumulated Token-Seconds.
+     */
+    calculateStorageCost(tokenSeconds: number, modelId?: string): number {
+        if (tokenSeconds <= 0) return 0;
+
+        if (!modelId) {
+            const active = this.providerRegistry.getActive();
+            modelId = active ? active.getDefaultModelId() : 'unknown';
+        }
+
+        // Rate is per 1M tokens per HOUR
+        const modelDef = this.getModelDefinition(modelId);
+        // Get generic rate (using 0 as fallback for size-independent lookup)
+        const hourlyRate = modelDef.getRates(0).cacheStorage || 0;
+
+        // tokenSeconds / 3600 = Token-Hours
+        // Token-Hours / 1,000,000 = Million-Token-Hours
+        // Cost = Million-Token-Hours * Rate
+        return (tokenSeconds / 3600 / 1000000) * hourlyRate;
+    }
+
+    /**
      * Calculates the remaining time before the context cache expires and updates the countdown signal.
      */
     private updateCacheCountdown() {
@@ -142,22 +170,24 @@ export class CostService {
     }
 
     /**
-     * Calculates and adds the storage cost of the context cache to the accumulated cost.
+     * Calculates and adds the storage usage (Token-Seconds) to the accumulated usage.
      */
-    private incrementStorageCost() {
+    private incrementStorageUsage() {
         const state = this.contextState();
         if (!state || !state.expireTime) return;
 
-        const modelId = state.modelId;
         const tokens = state.tokens;
         const now = Date.now();
         const expireTime = state.expireTime;
 
         if (tokens > 0 && expireTime && expireTime > now) {
-            const rates = this.getModelDefinition(modelId).getRates(tokens);
-            const hourlyRate = rates.cacheStorage || 0;
-            const perSecondCost = (tokens / 1000000) * hourlyRate / 3600;
-            this.storageCostAccumulated.update(v => v + perSecondCost);
+            // Add (Tokens * 1 second) to usage
+            this.storageUsageAccumulated.update(v => {
+                const newVal = v + tokens;
+                // Periodic save to local storage (debounce could be better but this is 1/sec)
+                localStorage.setItem('kb_storage_usage_acc', newVal.toString());
+                return newVal;
+            });
         }
     }
 

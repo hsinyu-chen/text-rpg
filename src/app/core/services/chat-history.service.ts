@@ -147,8 +147,8 @@ export class ChatHistoryService {
         this.state.tokenUsage.set({ freshInput: 0, cached: 0, output: 0, total: 0 });
         this.state.lastTurnCost.set(0);
         this.state.estimatedCost.set(0);
-        this.state.storageCostAccumulated.set(0);
-        this.state.historyStorageCostAccumulated.set(0);
+        this.state.storageUsageAccumulated.set(0);
+        this.state.historyStorageUsageAccumulated.set(0);
         this.state.sunkUsageHistory.set([]);
 
         localStorage.removeItem('usage_stats');

@@ -449,7 +449,7 @@ export class AutoUpdateDialogComponent {
           let itemText = `- File: ${update.filePath}\n  Context: ${update.context || '(root)'}\n  Reason: ${reason}\n  Target (DO NOT ECHO, FIND CORRECT ONE): \n  """\n  ${targetPreview}\n  """`;
 
           if (isTargetNotFound) {
-            itemText += `\n  [INSTRUCTION] The above Target string could not be found in the file. Re-examine the Knowledge Base ({{FILE_*}}) to identify the correct content to update. Do NOT repeat this failed target in your output unless you have verified it matches the file exactly.`;
+            itemText += `\n  [INSTRUCTION] The above Target string could not be found in the file. Re-examine the Knowledge Base to identify the correct content to update. Do NOT repeat this failed target in your output unless you have verified it matches the file exactly.`;
           }
           failedItems.push(itemText);
         }

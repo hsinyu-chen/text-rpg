@@ -204,11 +204,16 @@ export class CacheManagerService {
         if (this.state.kbCacheName()) {
             console.log('[CacheManager] Cleaning up cache:', this.state.kbCacheName());
 
-            // Before clearing, add the current session's storage cost to history
-            const currentAcc = this.state.storageCostAccumulated();
+            // Before clearing, add the current session's storage usage to history
+            const currentAcc = this.state.storageUsageAccumulated();
             if (currentAcc > 0) {
-                this.state.historyStorageCostAccumulated.update(v => v + currentAcc);
-                this.state.storageCostAccumulated.set(0);
+                this.state.historyStorageUsageAccumulated.update(v => {
+                    const newVal = v + currentAcc;
+                    localStorage.setItem('history_storage_usage_acc', newVal.toString());
+                    return newVal;
+                });
+                this.state.storageUsageAccumulated.set(0);
+                localStorage.setItem('kb_storage_usage_acc', '0');
             }
 
             if (this.provider.deleteCache) {
@@ -238,19 +243,34 @@ export class CacheManagerService {
                 count = await this.provider.deleteAllCaches();
             }
 
+            // Transfer Active Usage to History (Preserving costs)
+            const currentAcc = this.state.storageUsageAccumulated();
+            if (currentAcc > 0) {
+                this.state.historyStorageUsageAccumulated.update(v => {
+                    const newVal = v + currentAcc;
+                    localStorage.setItem('history_storage_usage_acc', newVal.toString());
+                    return newVal;
+                });
+            }
+
+            // Reset only active cache signals
             this.state.kbCacheName.set(null);
             this.state.kbCacheExpireTime.set(null);
-            this.state.storageCostAccumulated.set(0);
-            this.state.historyStorageCostAccumulated.set(0);
+            this.state.storageUsageAccumulated.set(0);
             this.state.kbCacheTokens.set(0);
             this.stopStorageTimer();
 
+            // Clear persistence, but PRESERVE history_storage_usage_acc
             localStorage.removeItem('kb_cache_name');
             localStorage.removeItem('kb_cache_expire');
             localStorage.removeItem('kb_cache_tokens');
             localStorage.removeItem('kb_cache_hash');
-            localStorage.removeItem('history_storage_cost_acc');
+            localStorage.removeItem('kb_storage_usage_acc'); // Reset active usage
+
+            // Clean up old legacy keys if they exist
             localStorage.removeItem('storage_cost_acc');
+            localStorage.removeItem('history_storage_cost_acc');
+
             localStorage.removeItem('estimated_cost');
             localStorage.removeItem('usage_stats');
 
@@ -272,9 +292,13 @@ export class CacheManagerService {
             console.log('[CacheManager] Manually releasing cache:', cacheName);
             try {
                 // Add current to history before release
-                const currentAcc = this.state.storageCostAccumulated();
+                const currentAcc = this.state.storageUsageAccumulated();
                 if (currentAcc > 0) {
-                    this.state.historyStorageCostAccumulated.update(v => v + currentAcc);
+                    this.state.historyStorageUsageAccumulated.update(v => {
+                        const newVal = v + currentAcc;
+                        localStorage.setItem('history_storage_usage_acc', newVal.toString());
+                        return newVal;
+                    });
                 }
 
                 if (this.provider.deleteCache) {
@@ -288,7 +312,7 @@ export class CacheManagerService {
         // Clear local state
         this.state.kbCacheName.set(null);
         this.state.kbCacheExpireTime.set(null);
-        this.state.storageCostAccumulated.set(0);
+        this.state.storageUsageAccumulated.set(0);
         this.state.kbCacheTokens.set(0);
         this.stopStorageTimer();
 
@@ -296,7 +320,8 @@ export class CacheManagerService {
         localStorage.removeItem('kb_cache_expire');
         localStorage.removeItem('kb_cache_tokens');
         localStorage.removeItem('kb_cache_hash');
-        localStorage.removeItem('storage_cost_acc');
+
+        localStorage.removeItem('kb_storage_usage_acc');
 
         console.log('[CacheManager] Cache released successfully.');
     }
@@ -315,5 +340,8 @@ export class CacheManagerService {
         localStorage.removeItem('kb_cache_expire');
         localStorage.removeItem('kb_cache_tokens');
         localStorage.removeItem('kb_cache_hash');
+
+        localStorage.removeItem('kb_storage_usage_acc');
+        // history_storage_usage_acc should be handled by SessionService wipe
     }
 }

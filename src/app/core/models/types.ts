@@ -72,6 +72,7 @@ export interface SessionSave {
     messages: ChatMessage[];
     tokenUsage: { freshInput: number, cached: number, output: number, total: number };
     estimatedCost: number;
+    historyStorageUsage?: number; // Token-Seconds (optional for backward compatibility)
     sunkUsageHistory: { prompt: number, cached: number, candidates: number }[];
     storyPreview: string; // First ~200 chars of last model message for display
     kbHash?: string;

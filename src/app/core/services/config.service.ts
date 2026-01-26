@@ -49,12 +49,16 @@ export class ConfigService {
             localStorage.setItem('estimated_cost', cost.toString());
         });
         effect(() => {
-            const acc = this.state.storageCostAccumulated();
-            localStorage.setItem('storage_cost_acc', acc.toString());
-        });
-        effect(() => {
-            const hAcc = this.state.historyStorageCostAccumulated();
-            localStorage.setItem('history_storage_cost_acc', hAcc.toString());
+            const acc = this.state.storageUsageAccumulated();
+            if (acc > 0) {
+                // Save usage (Token-Seconds)
+                localStorage.setItem('kb_storage_usage_acc', acc.toString());
+            }
+
+            const hAcc = this.state.historyStorageUsageAccumulated();
+            if (hAcc > 0) {
+                localStorage.setItem('history_storage_usage_acc', hAcc.toString());
+            }
         });
 
     }
@@ -170,13 +174,14 @@ export class ConfigService {
             if (savedCost) {
                 this.state.estimatedCost.set(parseFloat(savedCost));
             }
-            const savedStorageCost = localStorage.getItem('storage_cost_acc');
-            if (savedStorageCost) {
-                this.state.storageCostAccumulated.set(parseFloat(savedStorageCost));
+            const savedStorageUsage = localStorage.getItem('kb_storage_usage_acc');
+            if (savedStorageUsage) {
+                this.state.storageUsageAccumulated.set(parseFloat(savedStorageUsage));
             }
-            const savedHistoryStorageCost = localStorage.getItem('history_storage_cost_acc');
-            if (savedHistoryStorageCost) {
-                this.state.historyStorageCostAccumulated.set(parseFloat(savedHistoryStorageCost));
+
+            const savedHistoryUsage = localStorage.getItem('history_storage_usage_acc');
+            if (savedHistoryUsage) {
+                this.state.historyStorageUsageAccumulated.set(parseFloat(savedHistoryUsage));
             }
             // Sync files from DB on startup
             this.session.loadFiles(false);

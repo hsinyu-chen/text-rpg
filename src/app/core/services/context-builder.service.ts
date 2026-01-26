@@ -140,7 +140,7 @@ export class ContextBuilderService {
                     const stateUpdates: string[] = this.getDetailFields(m);
 
                     if (stateUpdates.length > 0) {
-                        const headerMatch = m.content.match(/\[\s*[^\]]*\d+年\s*\d+月\d+日[^\]]*\]/);
+                        const headerMatch = m.content.match(/\[\s*[^\]]*\d+[^\]]*\]/);
                         const baseHeader = headerMatch ? headerMatch[0] : '';
 
                         // Extract time markers
