@@ -138,37 +138,54 @@ export class SidebarCostPredictionComponent {
         const activeUsage = this.activeUsage();
 
         // Identfy Last Turn Data (Robust computed signal)
-        const messages = this.state.messages();
         const lastTurn = this.computedLastTurnUsage();
+
+        // Costs for active session and last turn
+        const lastTurnCostVal = this.lastTurnCost();
+        const totalSessionCostVal = this.totalSessionCost();
 
         // Base Storage Costs (Accumulated on active sessions)
         const storageCostAcc = this.state.storageCostAccumulated();
         const historyStorageCostAcc = this.state.historyStorageCostAccumulated();
-        const baseTotalStorageCost = storageCostAcc + historyStorageCostAcc;
 
         const models = activeProvider.getAvailableModels();
         const turns = this.turnCount();
         const sunkHistory = this.state.sunkUsageHistory();
 
-        const sunkTurns = sunkHistory.length;
-        const sunkFresh = sunkHistory.reduce((acc, u) => acc + (u.prompt - u.cached), 0);
-        const sunkCached = sunkHistory.reduce((acc, u) => acc + u.cached, 0);
-        const sunkOutput = sunkHistory.reduce((acc, u) => acc + u.candidates, 0);
-
         let markdown = `## SESSION TOTAL\n\n`;
+        const formatMoney = (val: number) => {
+            const formatted = (val * exchangeRate).toFixed(currency === 'USD' ? 4 : 2);
+            return `${currency} ${formatted}`;
+        };
+
         if (lastTurn) {
-            markdown += `| Metric | Last Turn | Active | Sunk | Total |\n|--------|-----------|-------|------|-------|\n`;
-            markdown += `| New Input | ${(lastTurn.prompt - lastTurn.cached).toLocaleString()} | ${activeUsage.freshInput.toLocaleString()} | ${sunkFresh.toLocaleString()} | ${(activeUsage.freshInput + sunkFresh).toLocaleString()} |\n`;
-            markdown += `| Cached | ${lastTurn.cached.toLocaleString()} | ${activeUsage.cached.toLocaleString()} | ${sunkCached.toLocaleString()} | ${(activeUsage.cached + sunkCached).toLocaleString()} |\n`;
-            markdown += `| Output | ${lastTurn.candidates.toLocaleString()} | ${activeUsage.output.toLocaleString()} | ${sunkOutput.toLocaleString()} | ${(activeUsage.output + sunkOutput).toLocaleString()} |\n`;
-            markdown += `| Total Sent | ${(lastTurn.prompt + lastTurn.candidates).toLocaleString()} | ${activeUsage.total.toLocaleString()} | ${(sunkFresh + sunkCached + sunkOutput).toLocaleString()} | ${(activeUsage.total + sunkFresh + sunkCached + sunkOutput).toLocaleString()} |\n\n`;
+            markdown += `| Metric | Last Turn | Session Total |\n|--------|-----------|---------------|\n`;
+            markdown += `| Turns | 1 | ${turns} |\n`;
+            markdown += `| New Input | ${(lastTurn.prompt - lastTurn.cached).toLocaleString()} | ${activeUsage.freshInput.toLocaleString()} |\n`;
+            markdown += `| Cached | ${lastTurn.cached.toLocaleString()} | ${activeUsage.cached.toLocaleString()} |\n`;
+            markdown += `| Output | ${lastTurn.candidates.toLocaleString()} | ${activeUsage.output.toLocaleString()} |\n`;
+            markdown += `| Total Sent | ${(lastTurn.prompt + lastTurn.candidates).toLocaleString()} | ${activeUsage.total.toLocaleString()} |\n`;
+            markdown += `| Est. Cost | ${formatMoney(lastTurnCostVal)} | ${formatMoney(totalSessionCostVal)} |\n\n`;
         } else {
-            markdown += `| Metric | Active | Sunk | Total |\n|--------|-------|------|-------|\n`;
-            markdown += `| Turns | ${turns} | ${sunkTurns} | ${turns + sunkTurns} |\n`;
-            markdown += `| New Input | ${activeUsage.freshInput.toLocaleString()} | ${sunkFresh.toLocaleString()} | ${(activeUsage.freshInput + sunkFresh).toLocaleString()} |\n`;
-            markdown += `| Cached | ${activeUsage.cached.toLocaleString()} | ${sunkCached.toLocaleString()} | ${(activeUsage.cached + sunkCached).toLocaleString()} |\n`;
-            markdown += `| Output | ${activeUsage.output.toLocaleString()} | ${sunkOutput.toLocaleString()} | ${(activeUsage.output + sunkOutput).toLocaleString()} |\n`;
-            markdown += `| Total Sent | ${activeUsage.total.toLocaleString()} | ${(sunkFresh + sunkCached + sunkOutput).toLocaleString()} | ${(activeUsage.total + sunkFresh + sunkCached + sunkOutput).toLocaleString()} |\n\n`;
+            markdown += `| Metric | Session Total |\n|--------|---------------|\n`;
+            markdown += `| Turns | ${turns} |\n`;
+            markdown += `| New Input | ${activeUsage.freshInput.toLocaleString()} |\n`;
+            markdown += `| Cached | ${activeUsage.cached.toLocaleString()} |\n`;
+            markdown += `| Output | ${activeUsage.output.toLocaleString()} |\n`;
+            markdown += `| Total Sent | ${activeUsage.total.toLocaleString()} |\n`;
+            markdown += `| Est. Cost | ${formatMoney(totalSessionCostVal)} |\n\n`;
+        }
+
+        // Add Storage Cost Breakdown (Match UI rows)
+        if (storageCostAcc > 0 || historyStorageCostAcc > 0) {
+            markdown += `### Storage Costs\n`;
+            if (storageCostAcc > 0) {
+                markdown += `- Storage Cost: ${formatMoney(storageCostAcc)} (Active)\n`;
+            }
+            if (historyStorageCostAcc > 0) {
+                markdown += `- Hist. Cache Cost: ${formatMoney(historyStorageCostAcc)}\n`;
+            }
+            markdown += `\n`;
         }
 
         markdown += `## Model Cost Comparison\n\n`;
@@ -178,9 +195,9 @@ export class SidebarCostPredictionComponent {
             const isActive = model.id === activeModelId;
 
             // 1. Transaction Cost: 100% Accurate Replay
-            const transactionCost = this.costService.calculateSessionTransactionCost(messages, model);
+            const transactionCost = this.costService.calculateSessionTransactionCost(this.state.messages(), model);
 
-            // 1.b Sunk Transaction Cost
+            // 1.b Sunk Transaction Cost (Included in total just like UI's "Total Est. Cost")
             let sunkTransactionCost = 0;
             for (const u of sunkHistory) {
                 sunkTransactionCost += this.costService.calculateTurnCost({
@@ -191,10 +208,9 @@ export class SidebarCostPredictionComponent {
             }
 
             // 2. Storage Cost: Estimated scaling
-            // Scale storage cost based on the ratio of storage rates (if active model is known)
             let modelStorageCost = 0;
+            const baseTotalStorageCost = storageCostAcc + historyStorageCostAcc;
             if (activeModel) {
-                // Get approximate storage rates (using 0 tokens to get base rate, as typical storage rate is constant per 1M)
                 const activeStorageRate = activeModel.getRates(0).cacheStorage || 0;
                 const modelStorageRate = model.getRates(0).cacheStorage || 0;
 
