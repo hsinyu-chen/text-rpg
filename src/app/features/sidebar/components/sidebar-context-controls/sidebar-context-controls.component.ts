@@ -55,25 +55,30 @@ export class SidebarContextControlsComponent {
             return;
         }
 
-        let saveName = this.session.extractActName();
-        const isCloud = !!this.driveService.currentSlotId();
-        const cloudSlotId = this.driveService.currentSlotId();
-
-        // Check for duplicates if we have a name
-        if (saveName) {
-            const isDuplicate = await this.checkDuplicateName(saveName, isCloud, cloudSlotId);
-            if (isDuplicate) {
-                saveName = await this.promptForName(`Name "${saveName}" already exists. Please enter a new name:`, saveName);
-            }
-        } else {
-            saveName = await this.promptForName('Could not extract Act name. Please enter a save name:');
-        }
-
-        if (!saveName) return; // User cancelled
-
-        // Perform Save
         this.state.status.set('loading');
+
         try {
+            let saveName = this.session.extractActName();
+            const isCloud = !!this.driveService.currentSlotId();
+            const cloudSlotId = this.driveService.currentSlotId();
+
+            // Check for duplicates if we have a name
+            if (saveName) {
+                const isDuplicate = await this.checkDuplicateName(saveName, isCloud, cloudSlotId);
+                if (isDuplicate) {
+                    this.state.status.set('idle');
+                    saveName = await this.promptForName(`Name "${saveName}" already exists. Please enter a new name:`, saveName);
+                    if (!saveName) return; // User cancelled
+                    this.state.status.set('loading');
+                }
+            } else {
+                this.state.status.set('idle');
+                saveName = await this.promptForName('Could not extract Act name. Please enter a save name:');
+                if (!saveName) return; // User cancelled
+                this.state.status.set('loading');
+            }
+
+            // Perform Save
             const currentSession = this.session.exportSession();
             const saveId = crypto.randomUUID();
             const filename = `${saveId}.json`;
@@ -94,6 +99,9 @@ export class SidebarContextControlsComponent {
             }
 
             this.snackBar.open(`Saved to slot: ${saveName}`, 'OK', { duration: 3000 });
+
+            // Clear ALL server caches and usage stats as requested (ensures clean next session)
+            await this.engine.clearAllServerCaches();
 
             // Restart Session
             this.engine.clearHistory();
