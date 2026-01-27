@@ -178,7 +178,8 @@ export class SidebarFileSyncComponent {
 
             let loadedCount = 0;
             const promises = files.map(async f => {
-                if (f.name.endsWith('.md') || f.mimeType === 'text/markdown' || f.mimeType === 'text/plain') {
+                // Only load .md files - exclude settings.json and other non-KB files
+                if (f.name.endsWith('.md')) {
                     try {
                         // //MIGRATION CODE START - New filename takes priority
                         const newName = FILENAME_MIGRATIONS[f.name] || f.name;
