@@ -121,7 +121,7 @@ export class GameStateService {
     saveContextMode = signal<'smart' | 'full' | 'summarized'>('full');
 
     // ==================== Save Prompt ====================
-    private static readonly SAVE_PROMPT_THRESHOLD = 25;
+    private static readonly SAVE_PROMPT_THRESHOLD = 10;
 
     // Count turns (user messages) since ACT START
     turnsSinceActStart = computed(() => {
@@ -130,8 +130,18 @@ export class GameStateService {
         return msgs.filter(m => m.role === 'model' && !m.isRefOnly).length;
     });
 
-    // Prompt save when turns exceed threshold
-    shouldPromptSave = computed(() => this.turnsSinceActStart() >= GameStateService.SAVE_PROMPT_THRESHOLD);
+    // Prompt save when: cached > new & new > 15K & turn > 10
+    shouldPromptSave = computed(() => {
+        const lastTurn = this.lastTurnUsage();
+        const turnCount = this.turnsSinceActStart();
+
+        if (!lastTurn) return false;
+
+        // Condition: cached > new token (freshInput) AND new token > 15K AND turn > 10
+        return lastTurn.cached > lastTurn.freshInput &&
+            lastTurn.freshInput > 15000 &&
+            turnCount > GameStateService.SAVE_PROMPT_THRESHOLD;
+    });
 
     // ==================== Internal State (non-signal) ====================
     // These are mutable internal state used by services

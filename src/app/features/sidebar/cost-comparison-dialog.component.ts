@@ -172,20 +172,13 @@ export class CostComparisonDialogComponent {
         // Active Model for Storage Scaling
         const activeModelId = this.state.config()?.modelId || 'gemini-3-flash-preview';
         const activeProvider = this.providerRegistry.getActive();
-        const activeModel = activeProvider ? activeProvider.getAvailableModels().find(m => m.id === activeModelId) : null;
 
         // Base Storage Costs
         const storageUsage = this.state.storageUsageAccumulated();
         const historyStorageUsage = this.state.historyStorageUsageAccumulated();
 
         // Calculate Cost dynamically for the ACTIVE model (since this is "Session Total")
-        // NOTE: This might be slightly inaccurate if comparison uses different models, but "Session Total" usually means "Current Actual".
-        // For comparison rows below, we should recalculate per model.
-        // Calculate Cost dynamically for the ACTIVE model (since this is "Session Total")
-        // NOTE: This might be slightly inaccurate if comparison uses different models, but "Session Total" usually means "Current Actual".
-        // For comparison rows below, we should recalculate per model.
-        const storageCost = this.costService.calculateStorageCost(storageUsage + historyStorageUsage, activeModelId);
-        const baseTotalStorageCost = storageCost;
+        this.costService.calculateStorageCost(storageUsage + historyStorageUsage, activeModelId);
 
         const models = activeProvider ? activeProvider.getAvailableModels() : [];
         const messages = this.state.messages();

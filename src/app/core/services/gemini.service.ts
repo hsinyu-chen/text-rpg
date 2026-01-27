@@ -14,6 +14,12 @@ import {
     LLMCacheInfo
 } from './llm-provider';
 
+interface ExtendedThinkingConfig {
+    includeThoughts?: boolean;
+    thinkingLevel?: ThinkingLevel;
+    thinkingBudget?: number;
+}
+
 /** Default Gemini model ID */
 export const DEFAULT_GEMINI_MODEL_ID = 'gemini-3-flash-preview';
 
@@ -295,7 +301,7 @@ export class GeminiService implements LLMProvider {
             if (currentModel?.thinkingBudgetLevelMapping) {
                 const budget = currentModel.thinkingBudgetLevelMapping[currentThinkingLevel];
                 if (budget !== undefined) {
-                    (generationConfig.thinkingConfig as any).thinkingBudget = budget;
+                    (generationConfig.thinkingConfig as ExtendedThinkingConfig).thinkingBudget = budget;
                 }
             }
             // Handle Legacy Thinking Level (e.g. Gemini 3)
