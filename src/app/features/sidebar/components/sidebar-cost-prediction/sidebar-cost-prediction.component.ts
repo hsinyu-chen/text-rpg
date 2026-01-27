@@ -27,6 +27,17 @@ export class SidebarCostPredictionComponent {
     public providerRegistry = inject(LLMProviderRegistryService);
     public costService = inject(CostService);
 
+    // Current Model ID
+    currentModelId = computed(() => {
+        const activeProvider = this.providerRegistry.getActive();
+        return this.state.config()?.modelId || activeProvider?.getDefaultModelId() || 'Unknown';
+    });
+
+    // Explicit Context Caching Status
+    isCacheEnabled = computed(() => {
+        return !!this.state.config()?.enableCache;
+    });
+
     // Count model responses as turns
     turnCount = computed(() => {
         return this.state.messages().filter(m => m.role === 'model' && !m.isRefOnly).length;

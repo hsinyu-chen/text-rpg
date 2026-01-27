@@ -1,4 +1,16 @@
 <div class="status-indicator" [class]="state.status()">
+    <div class="model-config-info">
+        <div class="config-row">
+            <span class="label">Model:</span>
+            <span class="value" [matTooltip]="currentModelId()">{{ currentModelId() }}</span>
+        </div>
+        <div class="config-row">
+            <span class="label">Explicit Cache:</span>
+            <span class="value" [class.enabled]="isCacheEnabled()" [class.disabled]="!isCacheEnabled()">
+                {{ isCacheEnabled() ? 'ON' : 'OFF' }}
+            </span>
+        </div>
+    </div>
     <div class="status-header">
         <div class="status-dot"></div>
         <span class="status-text">{{ state.status() | uppercase }}</span>

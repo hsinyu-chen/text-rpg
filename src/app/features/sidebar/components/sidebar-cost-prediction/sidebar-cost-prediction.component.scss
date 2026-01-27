@@ -27,6 +27,41 @@ $border-color: rgba(255, 255, 255, 0.1);
         box-shadow: 0 0 8px #f44336;
     }
 
+    .model-config-info {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        margin-bottom: 8px;
+        padding-bottom: 8px;
+        border-bottom: 1px dashed rgba(255, 255, 255, 0.1);
+        font-size: 11px;
+
+        .config-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+
+            .label {
+                color: #888;
+            }
+
+            .value {
+                color: #e0e0e0;
+                font-family: 'Roboto Mono', monospace;
+                font-size: 10px;
+
+                &.enabled {
+                    color: #81c784;
+                    font-weight: bold;
+                }
+
+                &.disabled {
+                    color: #757575;
+                }
+            }
+        }
+    }
+
     .status-header {
         display: flex;
         align-items: center;
