@@ -21,20 +21,18 @@
     <mat-form-field appearance="outline" class="full-width">
         <mat-label>Story Thinking Level (action/fastforward/continue)</mat-label>
         <mat-select [(ngModel)]="thinkingLevelStory">
-            <mat-option value="minimal">Minimal (Default)</mat-option>
-            <mat-option value="low">Low</mat-option>
-            <mat-option value="medium">Medium</mat-option>
-            <mat-option value="high">High</mat-option>
+            @for (level of availableThinkingLevels(); track level) {
+            <mat-option [value]="level">{{ getThinkingLevelLabel(level) }}</mat-option>
+            }
         </mat-select>
     </mat-form-field>
 
     <mat-form-field appearance="outline" class="full-width">
         <mat-label>General Thinking Level (system/save/others)</mat-label>
         <mat-select [(ngModel)]="thinkingLevelGeneral">
-            <mat-option value="minimal">Minimal</mat-option>
-            <mat-option value="low">Low</mat-option>
-            <mat-option value="medium">Medium</mat-option>
-            <mat-option value="high">High (Default)</mat-option>
+            @for (level of availableThinkingLevels(); track level) {
+            <mat-option [value]="level">{{ getThinkingLevelLabel(level) }}</mat-option>
+            }
         </mat-select>
     </mat-form-field>
 

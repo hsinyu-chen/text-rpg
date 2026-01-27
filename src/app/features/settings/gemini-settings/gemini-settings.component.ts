@@ -1,4 +1,4 @@
-import { Component, inject, output, signal } from '@angular/core';
+import { Component, inject, output, signal, computed, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatInputModule } from '@angular/material/input';
@@ -42,6 +42,23 @@ export class GeminiSettingsComponent {
     constructor() {
         this.models.set(this.gemini.getAvailableModels());
         this.loadSettings();
+
+        // Auto-correct thinking levels when model changes
+        effect(() => {
+            const levels = this.availableThinkingLevels();
+
+            // Story: Default to lowest option if current is invalid
+            const story = this.thinkingLevelStory();
+            if (!levels.includes(story)) {
+                this.thinkingLevelStory.set(levels[0]);
+            }
+
+            // General: Default to highest option if current is invalid
+            const general = this.thinkingLevelGeneral();
+            if (!levels.includes(general)) {
+                this.thinkingLevelGeneral.set(levels[levels.length - 1]);
+            }
+        });
     }
 
     private loadSettings(): void {
@@ -52,7 +69,26 @@ export class GeminiSettingsComponent {
         this.thinkingLevelGeneral.set(localStorage.getItem('gemini_thinking_level_general') || 'high');
     }
 
+    currentModelDef = computed(() => this.models().find(m => m.id === this.modelId()));
+
+    availableThinkingLevels = computed(() => {
+        const m = this.currentModelDef();
+        if (!m) return ['minimal', 'low', 'medium', 'high'];
+        return m.allowedThinkingLevels || ['minimal', 'low', 'medium', 'high'];
+    });
+
+    getThinkingLevelLabel(level: string): string {
+        switch (level) {
+            case 'minimal': return 'Minimal';
+            case 'low': return 'Low';
+            case 'medium': return 'Medium';
+            case 'high': return 'High';
+            default: return level;
+        }
+    }
+
     getSettings(): GeminiSettings {
+
         return {
             apiKey: this.apiKey(),
             modelId: this.modelId(),

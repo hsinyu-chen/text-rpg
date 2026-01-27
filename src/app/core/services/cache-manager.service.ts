@@ -152,6 +152,10 @@ export class CacheManagerService {
                             validationSuccess = true;
                             console.log('[CacheManager] Auto-cache creation successful:', cacheRes.name);
                         }
+                    } else {
+                        // If not using cache, local files are sufficient.
+                        validationSuccess = true;
+                        console.log('[CacheManager] Cache disabled. Using local files directly.');
                     }
                 } catch (err) {
                     console.error('[CacheManager] Auto-cache creation failed:', err);

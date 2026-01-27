@@ -108,6 +108,10 @@ export interface LLMModelDefinition {
     getRates: (promptTokens?: number) => LLMPricingRates;
     /** Whether this model supports thinking/reasoning config */
     supportsThinking?: boolean;
+    /** Restrict available thinking levels (e.g. ['low', 'high']) */
+    allowedThinkingLevels?: string[];
+    /** Map thinking levels to token budgets (e.g. {'high': 2048}) */
+    thinkingBudgetLevelMapping?: Record<string, number>;
 }
 
 // ============================================================================

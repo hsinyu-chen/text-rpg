@@ -80,6 +80,7 @@ export class GeminiService implements LLMProvider {
                 id: 'gemini-3-pro-preview',
                 name: 'Gemini 3 Pro Preview',
                 supportsThinking: true,
+                allowedThinkingLevels: ['low', 'high'],
                 getRates: (prompt = 0) => {
                     const isLong = prompt > 200000;
                     return {
@@ -94,11 +95,31 @@ export class GeminiService implements LLMProvider {
                 id: 'gemini-3-flash-preview',
                 name: 'Gemini 3 Flash Preview',
                 supportsThinking: true,
+                allowedThinkingLevels: ['minimal', 'low', 'medium', 'high'],
                 getRates: () => {
                     return {
                         input: 0.50,
                         output: 3.00,
                         cached: 0.05,
+                        cacheStorage: 1.00
+                    };
+                }
+            },
+            {
+                id: 'gemini-2.5-flash',
+                name: 'Gemini 2.5 Flash',
+                supportsThinking: true,
+                thinkingBudgetLevelMapping: {
+                    minimal: 1024,
+                    low: 4096,
+                    medium: 12288,
+                    high: 24576
+                },
+                getRates: () => {
+                    return {
+                        input: 0.30,
+                        output: 2.50,
+                        cached: 0.03,
                         cacheStorage: 1.00
                     };
                 }
@@ -267,11 +288,21 @@ export class GeminiService implements LLMProvider {
         // Only add thinkingConfig for models that support it
         if (modelSupportsThinking) {
             generationConfig.thinkingConfig = {
-                includeThoughts: true,
-                thinkingLevel: currentThinkingLevel
+                includeThoughts: true
             };
-        }
 
+            // Handle Thinking Budget Mapping (e.g. Gemini 2.5 Flash)
+            if (currentModel?.thinkingBudgetLevelMapping) {
+                const budget = currentModel.thinkingBudgetLevelMapping[currentThinkingLevel];
+                if (budget !== undefined) {
+                    (generationConfig.thinkingConfig as any).thinkingBudget = budget;
+                }
+            }
+            // Handle Legacy Thinking Level (e.g. Gemini 3)
+            else {
+                generationConfig.thinkingConfig.thinkingLevel = currentThinkingLevel;
+            }
+        }
 
         if (systemInstruction && !cachedContentName) {
             generationConfig.systemInstruction = {
