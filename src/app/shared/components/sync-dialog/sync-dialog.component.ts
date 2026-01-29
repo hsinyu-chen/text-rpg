@@ -11,6 +11,8 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { FileSystemService } from '../../../core/services/file-system.service';
 import { GoogleDriveService } from '../../../core/services/google-drive.service';
 import { GameEngineService } from '../../../core/services/game-engine.service';
+
+import { CacheManagerService } from '../../../core/services/cache-manager.service';
 import { MonacoEditorComponent } from '../monaco-editor/monaco-editor.component';
 
 export type SyncMode = 'DISK' | 'CLOUD';
@@ -55,6 +57,7 @@ export class SyncDialogComponent {
     private snackBar = inject(MatSnackBar);
     private fileSystem = inject(FileSystemService);
     private driveService = inject(GoogleDriveService);
+    private cacheManager = inject(CacheManagerService);
 
     private engine = inject(GameEngineService);
 
@@ -141,6 +144,9 @@ export class SyncDialogComponent {
                 }
                 this.snackBar.open(`Successfully synced ${count} files to Drive and DB.`, 'OK', { duration: 3000 });
             }
+
+            // [Added] Clear remote cache since files have changed
+            await this.cacheManager.clearAllServerCaches();
 
             this.dialogRef.close(true);
         } catch (error) {

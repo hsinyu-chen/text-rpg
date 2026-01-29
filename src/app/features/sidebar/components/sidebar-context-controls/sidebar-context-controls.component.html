@@ -28,10 +28,10 @@
     Save & Next
 </button>
 
-<button mat-stroked-button color="warn" (click)="clearServerDataAndStats()" [disabled]="state.isBusy()"
+<button mat-stroked-button color="warn" (click)="clearServerData()" [disabled]="state.isBusy()"
     class="full-width clear-all-btn" style="margin-top: 8px;">
     <mat-icon>cleaning_services</mat-icon>
-    Clear Server Caches & Usage Stats
+    Clear Server Caches
 </button>
 
 <button mat-stroked-button color="warn" (click)="wipeLocalSession()" [disabled]="state.isBusy()"

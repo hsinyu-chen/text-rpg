@@ -17,6 +17,8 @@ import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/c
 import { MatDialog } from '@angular/material/dialog';
 import { GameStateService } from '../../core/services/game-state.service';
 
+import { CacheManagerService } from '../../core/services/cache-manager.service';
+
 /** Dialog data interface for multi-file viewer */
 export interface FileViewerDialogData {
   /** All files to load: filename -> content */
@@ -69,6 +71,7 @@ export class FileViewerDialogComponent implements OnDestroy {
   private state = inject(GameStateService);
   private snackBar = inject(MatSnackBar);
   private matDialog = inject(MatDialog);
+  private cacheManager = inject(CacheManagerService);
 
   // Editor reference
   editorRef = viewChild<MonacoEditorComponent>('editorRef');
@@ -659,6 +662,10 @@ export class FileViewerDialogComponent implements OnDestroy {
       }
 
       await this.fileSystem.writeTextFile(fileName, content);
+
+      // [Added] Clear remote cache since files have changed
+      await this.cacheManager.clearAllServerCaches();
+
       // Refresh counts and memory
       await this.engine.loadFiles(false);
 

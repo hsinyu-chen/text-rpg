@@ -17,6 +17,7 @@ import { FileSystemService } from '../../../core/services/file-system.service';
 import { GameEngineService } from '../../../core/services/game-engine.service';
 import { GameStateService } from '../../../core/services/game-state.service';
 import { CommonModule } from '@angular/common';
+import { CacheManagerService } from '../../../core/services/cache-manager.service';
 import { ConfirmDialogComponent, ConfirmDialogData } from '../confirm-dialog/confirm-dialog.component';
 import { GAME_INTENTS } from '../../../core/constants/game-intents';
 import { getCoreFilenames } from '../../../core/constants/engine-protocol';
@@ -76,6 +77,7 @@ export class AutoUpdateDialogComponent {
   private state = inject(GameStateService);
   private snackBar = inject(MatSnackBar);
   private dialog = inject(MatDialog);
+  private cacheManager = inject(CacheManagerService);
 
   updates = signal<FileUpdate[]>([]);
   groupedUpdates = signal<GroupedUpdate[]>([]);
@@ -505,6 +507,10 @@ export class AutoUpdateDialogComponent {
           await this.engine.updateSingleFile(group.fileName, group.combinedContent());
         }
       }
+
+      // [Added] Clear remote cache since files have changed
+      await this.cacheManager.clearAllServerCaches();
+
       this.dialogRef.close(true);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
@@ -541,6 +547,9 @@ export class AutoUpdateDialogComponent {
     try {
       // Apply the combined content for this specific file
       await this.engine.updateSingleFile(group.fileName, group.combinedContent());
+
+      // [Added] Clear remote cache since files have changed
+      await this.cacheManager.clearAllServerCaches();
 
       // Refresh: update originalContent to match what was just written
       group.originalContent.set(group.combinedContent());

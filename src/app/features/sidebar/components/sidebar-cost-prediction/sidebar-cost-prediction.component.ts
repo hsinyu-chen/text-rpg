@@ -46,6 +46,18 @@ export class SidebarCostPredictionComponent {
     // Derive Active Token Usage from message history (More robust than signal, which might be cleared)
     activeUsage = computed(() => {
         const messages = this.state.messages();
+        const sunkHistory = this.state.sunkUsageHistory();
+
+        // Start with Sunk Usage (e.g., Cache Creation)
+        const initial = sunkHistory.reduce((acc, usage) => {
+            acc.freshInput += (usage.prompt - usage.cached);
+            acc.cached += usage.cached;
+            acc.output += (usage.candidates || 0); // candidates might be undefined? explicitly handle just in case, though interface says number
+            acc.total += (usage.prompt + (usage.candidates || 0));
+            return acc;
+        }, { freshInput: 0, cached: 0, output: 0, total: 0 });
+
+        // Add Active Message Usage
         return messages.reduce((acc, msg) => {
             if (msg.role === 'model' && msg.usage && !msg.isRefOnly) {
                 acc.freshInput += (msg.usage.prompt - msg.usage.cached);
@@ -54,7 +66,7 @@ export class SidebarCostPredictionComponent {
                 acc.total += (msg.usage.prompt + msg.usage.candidates);
             }
             return acc;
-        }, { freshInput: 0, cached: 0, output: 0, total: 0 });
+        }, initial);
     });
 
     // robust Last Turn Data (Prefer signal, fallback to last valid history item)

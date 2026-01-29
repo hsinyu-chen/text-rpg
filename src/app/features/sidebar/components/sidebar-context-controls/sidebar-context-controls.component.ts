@@ -161,10 +161,10 @@ export class SidebarContextControlsComponent {
         }
     }
 
-    async clearServerDataAndStats() {
-        if (await this.dialog.confirm('Delete ALL server-side caches and RESET all cost/usage statistics? This will ensure state safety and reset your billed token counters for the current session.')) {
+    async clearServerData() {
+        if (await this.dialog.confirm('Delete ALL server-side caches? This will ensure state safety and reset your billed token counters for the current session.')) {
             const count = await this.engine.clearAllServerCaches();
-            await this.dialog.alert(`Successfully cleared ${count} caches and reset all usage statistics. Session state refreshed.`);
+            await this.dialog.alert(`Successfully cleared ${count} caches. Session state refreshed.`);
         }
     }
 

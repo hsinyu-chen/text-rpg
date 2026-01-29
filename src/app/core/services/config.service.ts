@@ -53,11 +53,15 @@ export class ConfigService {
             if (acc > 0) {
                 // Save usage (Token-Seconds)
                 localStorage.setItem('kb_storage_usage_acc', acc.toString());
+            } else {
+                localStorage.removeItem('kb_storage_usage_acc');
             }
 
             const hAcc = this.state.historyStorageUsageAccumulated();
             if (hAcc > 0) {
                 localStorage.setItem('history_storage_usage_acc', hAcc.toString());
+            } else {
+                localStorage.removeItem('history_storage_usage_acc');
             }
         });
 

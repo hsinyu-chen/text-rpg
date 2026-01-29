@@ -70,38 +70,54 @@ export class CacheManagerService {
 
         // 1. Validate based on CURRENT MODE (Cache or File)
         if (useCache) {
+            // [New] Hash Check for Staleness
+            // Calculate current hash to ensure we're not using a stale cache
+            const files = this.state.loadedFiles();
+            const fileParts = this.kb.buildKnowledgeBaseParts(files);
+            const kbText = fileParts.map(p => p.text).join('');
+            const currentHash = this.kb.calculateKbHash(kbText, config?.modelId || '', systemInstruction);
+            const storedHash = localStorage.getItem('kb_cache_hash');
+
             if (cacheName && this.provider.getCache) {
                 console.log('[CacheManager] Validating remote cache:', cacheName);
-                const cacheStatus = await this.provider.getCache(cacheName);
-                if (cacheStatus) {
-                    try {
-                        let updated: LLMCacheInfo | null = null;
-                        if (this.provider.updateCacheTTL) {
-                            updated = await this.provider.updateCacheTTL(cacheName, ttlSeconds);
-                        }
 
-                        // If updated valid, or just exists (fall through)
-                        if (updated?.expireTime) {
-                            const expireMs = typeof updated.expireTime === 'number'
-                                ? updated.expireTime
-                                : new Date(updated.expireTime).getTime();
-                            this.state.kbCacheExpireTime.set(expireMs);
-                            validationSuccess = true;
-                            this.startStorageTimer();
-                            console.log('[CacheManager] Cache validated and TTL extended.');
-                        } else {
-                            // If update failed but cache exists, we assume success but maybe no TTL extension
-                            validationSuccess = true;
-                            console.log('[CacheManager] Cache exists (TTL update skipped/failed).');
-                        }
-                    } catch (err) {
-                        console.warn('[CacheManager] Cache TTL update failed, but cache exists.', err);
-                        validationSuccess = true; // Still exists, so we can use it
-                    }
+                // Check Hash first
+                if (storedHash && currentHash !== storedHash) {
+                    console.log('[CacheManager] Cache hash mismatch (Stale). Deleting stale cache...');
+                    await this.cleanupCache(); // Properly clean up old cache & local state
+                    validationSuccess = false; // Force rebuild
                 } else {
-                    // Proactive cleanup
-                    this.state.kbCacheName.set(null);
-                    localStorage.removeItem('kb_cache_name');
+                    const cacheStatus = await this.provider.getCache(cacheName);
+                    if (cacheStatus) {
+                        try {
+                            let updated: LLMCacheInfo | null = null;
+                            if (this.provider.updateCacheTTL) {
+                                updated = await this.provider.updateCacheTTL(cacheName, ttlSeconds);
+                            }
+
+                            // If updated valid, or just exists (fall through)
+                            if (updated?.expireTime) {
+                                const expireMs = typeof updated.expireTime === 'number'
+                                    ? updated.expireTime
+                                    : new Date(updated.expireTime).getTime();
+                                this.state.kbCacheExpireTime.set(expireMs);
+                                validationSuccess = true;
+                                this.startStorageTimer();
+                                console.log('[CacheManager] Cache validated and TTL extended.');
+                            } else {
+                                // If update failed but cache exists, we assume success but maybe no TTL extension
+                                validationSuccess = true;
+                                console.log('[CacheManager] Cache exists (TTL update skipped/failed).');
+                            }
+                        } catch (err) {
+                            console.warn('[CacheManager] Cache TTL update failed, but cache exists.', err);
+                            validationSuccess = true; // Still exists, so we can use it
+                        }
+                    } else {
+                        // Proactive cleanup
+                        this.state.kbCacheName.set(null);
+                        localStorage.removeItem('kb_cache_name');
+                    }
                 }
             }
         }

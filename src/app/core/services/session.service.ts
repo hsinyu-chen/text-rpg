@@ -183,6 +183,7 @@ export class SessionService {
 
             localStorage.removeItem('history_storage_usage_acc');
             localStorage.removeItem('kb_storage_usage_acc');
+            this.state.storageUsageAccumulated.set(0);
 
             console.log('[SessionService] Local session wiped successfully.');
         } catch (e) {

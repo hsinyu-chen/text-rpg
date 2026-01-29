@@ -157,6 +157,9 @@ export class ChatHistoryService {
         localStorage.removeItem('history_storage_cost_acc');
         localStorage.removeItem('sunk_usage_history');
 
+        localStorage.removeItem('kb_storage_usage_acc');
+        localStorage.removeItem('history_storage_usage_acc');
+
         await this.storage.delete('chat_history');
         await this.storage.delete('sunk_usage_history');
         this.state.status.set('idle');
