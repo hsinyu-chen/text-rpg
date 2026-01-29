@@ -79,7 +79,6 @@ export class GameStateService {
         output: 0,
         total: 0
     });
-    estimatedCost = signal<number>(0);
     lastTurnUsage = signal<{ freshInput: number; cached: number; output: number } | null>(null);
     lastTurnCost = signal<number>(0);
     historyStorageUsageAccumulated = signal<number>(0);

@@ -1,7 +1,13 @@
 <mat-sidenav-container class="app-sidenav-container">
     <!-- Sidebar -->
     <mat-sidenav [mode]="sidenavMode()" [opened]="sidenavOpened()" (closed)="closeSidebar()" class="app-sidebar">
-        <app-sidebar (closeSidebar)="closeSidebar()"></app-sidebar>
+        <app-sidebar (closeSidebar)="closeSidebar()" (openBooks)="toggleBookList()"></app-sidebar>
+    </mat-sidenav>
+
+    <!-- Book List (Right Sidebar) -->
+    <mat-sidenav position="end" mode="over" [opened]="bookListOpen()" (closed)="closeBookList()"
+        class="book-list-sidebar">
+        <app-book-list (closePanel)="closeBookList()"></app-book-list>
     </mat-sidenav>
 
     <!-- Main Content (Chat) -->

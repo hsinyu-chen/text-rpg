@@ -45,10 +45,6 @@ export class ConfigService {
             localStorage.setItem('usage_stats', JSON.stringify(usage));
         });
         effect(() => {
-            const cost = this.state.estimatedCost();
-            localStorage.setItem('estimated_cost', cost.toString());
-        });
-        effect(() => {
             const acc = this.state.storageUsageAccumulated();
             if (acc > 0) {
                 // Save usage (Token-Seconds)
@@ -173,10 +169,6 @@ export class ConfigService {
                 } catch (err) {
                     console.warn('Failed to parse saved usage stats', err);
                 }
-            }
-            const savedCost = localStorage.getItem('estimated_cost');
-            if (savedCost) {
-                this.state.estimatedCost.set(parseFloat(savedCost));
             }
             const savedStorageUsage = localStorage.getItem('kb_storage_usage_acc');
             if (savedStorageUsage) {

@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
-import { StorageValue, SessionSave, ChatMessage } from '../models/types';
+import { StorageValue, SessionSave, ChatMessage, Book } from '../models/types';
 
 interface TextRPGDB extends DBSchema {
   chat_store: {
@@ -15,6 +15,10 @@ interface TextRPGDB extends DBSchema {
     key: string;
     value: { content: string, lastModified: number, tokens?: number };
   };
+  books_store: {
+    key: string;
+    value: Book;
+  };
 }
 
 @Injectable({
@@ -24,7 +28,7 @@ export class StorageService {
   private dbPromise: Promise<IDBPDatabase<TextRPGDB>>;
 
   constructor() {
-    this.dbPromise = openDB<TextRPGDB>('TextRPG_DB', 5, {
+    this.dbPromise = openDB<TextRPGDB>('TextRPG_DB', 6, {
       upgrade(db, oldVersion) {
         if (oldVersion < 1) {
           db.createObjectStore('chat_store');
@@ -42,6 +46,11 @@ export class StorageService {
         if (oldVersion < 5) {
           if (!db.objectStoreNames.contains('prompt_store')) {
             db.createObjectStore('prompt_store');
+          }
+        }
+        if (oldVersion < 6) {
+          if (!db.objectStoreNames.contains('books_store')) {
+            db.createObjectStore('books_store');
           }
         }
       },
@@ -137,6 +146,24 @@ export class StorageService {
    */
   async clearPrompts() {
     await (await this.dbPromise).clear('prompt_store');
+  }
+
+  // ========== Books Store (v6+) ==========
+
+  async getBooks(): Promise<Book[]> {
+    return (await this.dbPromise).getAll('books_store');
+  }
+
+  async getBook(id: string): Promise<Book | undefined> {
+    return (await this.dbPromise).get('books_store', id);
+  }
+
+  async saveBook(book: Book): Promise<void> {
+    await (await this.dbPromise).put('books_store', book, book.id);
+  }
+
+  async deleteBook(id: string): Promise<void> {
+    await (await this.dbPromise).delete('books_store', id);
   }
 
   // ========== Session Saves (REMOVED) ==========

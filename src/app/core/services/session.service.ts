@@ -1,13 +1,14 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, signal, effect } from '@angular/core';
 import { GameStateService } from './game-state.service';
 import { StorageService } from './storage.service';
 import { FileSystemService } from './file-system.service';
 import { LLMProviderRegistryService } from './llm-provider-registry.service';
 import { LLMProvider } from './llm-provider';
 import { CacheManagerService } from './cache-manager.service';
+import { CostService } from './cost.service';
 import { KnowledgeService } from './knowledge.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { SessionSave, Scenario } from '../models/types';
+import { SessionSave, Scenario, Book } from '../models/types';
 import { GAME_INTENTS } from '../constants/game-intents';
 import { getCoreFilenames, getSectionHeaders, getUIStrings } from '../constants/engine-protocol';
 import { LOCALES } from '../constants/locales';
@@ -22,9 +23,54 @@ export class SessionService {
     private fileSystem = inject(FileSystemService);
     private providerRegistry = inject(LLMProviderRegistryService);
     private cacheManager = inject(CacheManagerService);
+    private costService = inject(CostService);
     private kb = inject(KnowledgeService);
     private snackBar = inject(MatSnackBar);
     private injection = inject(InjectionService);
+
+    constructor() {
+        effect(() => {
+            const id = this.currentBookId();
+            if (id) {
+                localStorage.setItem('last_active_book_id', id);
+            } else {
+                localStorage.removeItem('last_active_book_id');
+            }
+        });
+    }
+
+    // Signals
+    currentBookId = signal<string | null>(null);
+
+    /**
+     * Initializes the SessionService. 
+     * Restores the last active book ID to ensure session continuity.
+     */
+    async init() {
+        const lastBookId = localStorage.getItem('last_active_book_id');
+        if (lastBookId) {
+            try {
+                // Check if it exists first to avoid unnecessary load attempts
+                const book = await this.storage.getBook(lastBookId);
+                if (book) {
+                    console.log(`[SessionService] Auto-loading last book: ${book.name} (${lastBookId})`);
+                    await this.loadBook(lastBookId);
+                } else {
+                    console.warn(`[SessionService] Last active book ${lastBookId} not found. Clearing.`);
+                    localStorage.removeItem('last_active_book_id');
+                    this.currentBookId.set(null);
+                }
+            } catch (error) {
+                console.error('[SessionService] Failed to auto-load last book', error);
+                // Ensure we don't leave the app in a broken loading state
+                this.state.status.set('idle');
+                this.currentBookId.set(null);
+                localStorage.removeItem('last_active_book_id');
+            }
+        }
+
+        // Auto-persist future changes
+    }
 
     private get provider(): LLMProvider {
         const p = this.providerRegistry.getActive();
@@ -54,8 +100,39 @@ export class SessionService {
             console.log(`[SessionService] Starting New Game (${scenarioId}) with profile:`, profile);
 
             // CRITICAL: Clear existing session and files to prevent cross-session pollution
-            await this.storage.clear();
-            await this.storage.clearFiles();
+            // Auto-save current if exists, then unload
+            await this.unloadCurrentSession(true);
+
+            // Create a new Book entry
+            const newBookId = crypto.randomUUID();
+            this.currentBookId.set(newBookId);
+
+            // We don't save the book object immediately here; we just set the ID.
+            // The first auto-save or unload will actually write the book to DB.
+            // But to ensure it exists in the list, we can create a skeletal one.
+            const newBook: Book = {
+                id: newBookId,
+                name: profile.name || 'New Adventure',
+                createdAt: Date.now(),
+                lastActiveAt: Date.now(),
+                preview: 'Beginning...',
+                messages: [],
+                files: [],
+                prompts: {},
+                stats: {
+                    tokenUsage: { freshInput: 0, cached: 0, output: 0, total: 0 },
+                    estimatedCost: 0,
+                    historyStorageUsage: 0,
+                    sunkUsageHistory: [],
+                    kbCacheName: null,
+                    kbCacheExpireTime: null,
+                    kbCacheTokens: 0,
+                    kbCacheHash: null,
+                    kbStorageUsageAcc: 0
+                }
+            };
+            await this.storage.saveBook(newBook);
+
             console.log(`[SessionService] Storage cleared for new game (${scenarioId})`);
 
             const coreKeys: (keyof ReturnType<typeof getCoreFilenames>)[] = [
@@ -159,39 +236,431 @@ export class SessionService {
     /**
      * Completely wipes all local game progress, including IndexedDB stores and signals.
      */
-    async wipeLocalSession() {
-        console.log('[SessionService] Wiping local session...');
+    /**
+     * Unloads the current session from active memory/storage.
+     * Optionally serializes current state to a Book before clearing.
+     */
+    async unloadCurrentSession(save: boolean) {
+        console.log('[SessionService] Unloading current session...', { save });
         this.state.status.set('loading');
         try {
-            // 1. Clear all IndexedDB stores
+            if (save) {
+                await this.saveCurrentSessionToBook();
+            }
+
+            // 1. Clear all IndexedDB stores used for ACTIVE session
             await this.storage.clear(); // chat_store
             await this.storage.clearFiles(); // file_store
+            await this.storage.clearPrompts(); // prompt_store (assuming prompts are per-session)
 
             // 2. Reset all signals and local state
             this.state.messages.set([]);
             this.state.loadedFiles.set(new Map());
 
-            this.cacheManager.resetCacheState();
+            // 3. Reset Cache/Cost signals but DO NOT delete server cache
+            // The metadata was saved to the Book in saveCurrentSessionToBook()
+            this.cacheManager.resetCacheState(); // This just clears local keys/signals
 
             this.state.tokenUsage.set({ freshInput: 0, cached: 0, output: 0, total: 0 });
             this.state.estimatedKbTokens.set(0);
-            this.state.estimatedCost.set(0);
             this.state.lastTurnUsage.set(null);
             this.state.lastTurnCost.set(0);
             this.state.historyStorageUsageAccumulated.set(0);
             this.state.sunkUsageHistory.set([]);
-
-            localStorage.removeItem('history_storage_usage_acc');
-            localStorage.removeItem('kb_storage_usage_acc');
             this.state.storageUsageAccumulated.set(0);
 
-            console.log('[SessionService] Local session wiped successfully.');
+            // 4. Clear active session localstorage keys
+            localStorage.removeItem('history_storage_usage_acc');
+            localStorage.removeItem('kb_storage_usage_acc');
+            localStorage.removeItem('kb_slot_id');
+            localStorage.removeItem('kb_slot_name');
+            // Cache keys are cleared by cacheManager.resetCacheState()
+
+            this.currentBookId.set(null);
+
+            console.log('[SessionService] Session unloaded successfully.');
         } catch (e) {
-            console.error('Failed to wipe local session', e);
+            console.error('Failed to unload session', e);
             throw e;
         } finally {
             this.state.status.set('idle');
         }
+    }
+
+    /**
+     * Dehydrates the currently active session into a Book object and saves it to IndexedDB.
+     */
+    async startEmptySession() {
+        // 1. Unload current session and save it
+        if (this.currentBookId()) {
+            await this.unloadCurrentSession(true);
+        } else {
+            // Just clear if no book was active (clean state)
+            await this.unloadCurrentSession(false);
+        }
+
+        // 2. Create new empty Book ID
+        const bookId = crypto.randomUUID();
+        this.currentBookId.set(bookId);
+
+        // 3. Initialize fresh stats
+        this.state.tokenUsage.set({ freshInput: 0, cached: 0, output: 0, total: 0 });
+        this.cacheManager.resetCacheState();
+
+        // 4. Save initial empty book to persist it immediately
+        const book: Book = {
+            id: bookId,
+            name: 'New Session',
+            createdAt: Date.now(),
+            lastActiveAt: Date.now(),
+            preview: 'Empty Session',
+            messages: [],
+            files: [],
+            prompts: {},
+            stats: {
+                tokenUsage: this.state.tokenUsage(),
+                estimatedCost: 0,
+                historyStorageUsage: 0,
+                sunkUsageHistory: [],
+                kbStorageUsageAcc: 0,
+                kbCacheName: null,
+                kbCacheExpireTime: null,
+                kbCacheTokens: 0,
+                kbCacheHash: null,
+                kbSlotId: undefined,
+                kbSlotName: undefined
+            }
+        };
+
+        await this.storage.saveBook(book);
+        console.log('[SessionService] Started empty session:', bookId);
+    }
+    async saveCurrentSessionToBook() {
+        const bookId = this.currentBookId();
+        if (!bookId) {
+            console.warn('[SessionService] No current book ID to save to.');
+            return;
+        }
+
+        console.log(`[SessionService] Saving current session to Book ${bookId}...`);
+
+        // Gather data
+        const messages = this.state.messages();
+        const filesMap = this.state.loadedFiles();
+        const fileTokens = this.state.fileTokenCounts();
+
+        const files: { name: string, content: string, tokens?: number }[] = [];
+        for (const [name, content] of filesMap.entries()) {
+            files.push({ name, content, tokens: fileTokens.get(name) });
+        }
+
+        // Get system prompts via storage service (async)
+        // Or we could just assume system_files/system_prompt.md is in filesMap if loaded?
+        // Actually, prompts in 'prompt_store' are separate if using InjectionService logic.
+        // For simplicity, let's grab what we can from storage or re-construction.
+        // Assuming prompt_store is per-session, we blindly grab all.
+        // TODO: Access prompt_store directly? 
+        // For now, let's assume system_prompt.md is often in loadedFiles or we don't strictly need to persist prompts separate from files if we rely on file loading.
+        // BUT, user code edits system_prompt via InjectionService which saves to prompt_store.
+        const prompts: Record<string, { content: string, tokens?: number }> = {};
+        const mainPrompt = await this.storage.getPrompt('system_main');
+        if (mainPrompt) prompts['system_main'] = { content: mainPrompt.content, tokens: mainPrompt.tokens };
+
+        // Cache Metadata
+        const kbCacheName = this.state.kbCacheName();
+        const kbCacheExpireTime = this.state.kbCacheExpireTime();
+        const kbCacheTokens = this.state.kbCacheTokens();
+        // Since hash might be computed, let's grab from reactive or calc
+        const kbCacheHash = localStorage.getItem('kb_cache_hash');
+
+        // Usage Stats
+        const tokenUsage = this.state.tokenUsage();
+        const historyStorageUsage = this.state.historyStorageUsageAccumulated();
+        const sunkUsageHistory = this.state.sunkUsageHistory();
+        const kbStorageUsageAcc = this.state.storageUsageAccumulated(); // Active accumulation
+        const kbSlotId = localStorage.getItem('kb_slot_id') || undefined;
+        const kbSlotName = localStorage.getItem('kb_slot_name') || undefined;
+
+        // Calculate estimated cost dynamically (same as sidebar-cost-prediction)
+        const activeProvider = this.providerRegistry.getActive();
+        const activeModelId = this.state.config()?.modelId || activeProvider?.getDefaultModelId();
+        const model = activeProvider?.getAvailableModels().find(m => m.id === activeModelId);
+        let estimatedCost = 0;
+        if (model) {
+            const activeTxn = this.costService.calculateSessionTransactionCost(messages, model);
+            let sunkTxn = 0;
+            for (const usage of sunkUsageHistory) {
+                sunkTxn += this.costService.calculateTurnCost({
+                    prompt: usage.prompt,
+                    cached: usage.cached,
+                    candidates: usage.candidates
+                }, model.id);
+            }
+            const storageCost = this.costService.calculateStorageCost(kbStorageUsageAcc + historyStorageUsage, model.id);
+            estimatedCost = activeTxn + sunkTxn + storageCost;
+        }
+
+        const lastParams = [...this.state.messages()].reverse().find(m => m.role === 'model')?.content?.substring(0, 100) || '...';
+
+        const book: Book = {
+            id: bookId,
+            name: this.state.messages().length > 0 ? (this.extractActName() || 'Untitled Session') : 'Empty Session', // Could optimize to not overwrite name if user set it customly? Ideally we just update auto-generated names.
+            // For now, let's preserve existing name if we fetch it first?
+            // Expensive to fetch just to check name. Let's start with auto-updating.
+            // Better: `saveCurrentSessionToBook` should arguably just UPDATE the existing book in DB.
+            createdAt: Date.now(), // This will be clobbered if we treat this as "create new". We need to READ first.
+            lastActiveAt: Date.now(),
+            preview: lastParams,
+            messages,
+            files,
+            prompts,
+            stats: {
+                tokenUsage,
+                estimatedCost,
+                historyStorageUsage,
+                sunkUsageHistory,
+                kbCacheName,
+                kbCacheExpireTime,
+                kbCacheTokens,
+                kbCacheHash,
+                kbStorageUsageAcc,
+                kbSlotId,
+                kbSlotName
+            }
+        };
+
+        // Attempt to merge with existing to preserve ID/Name/Created 
+        const existing = await this.storage.getBook(bookId);
+        if (existing) {
+            book.name = existing.name; // Keep user-defined name
+            book.createdAt = existing.createdAt;
+        }
+
+        await this.storage.saveBook(book);
+        console.log(`[SessionService] Book ${bookId} saved.`);
+    }
+
+    /**
+     * Loads a Book into the active session.
+     */
+    async loadBook(id: string) {
+        console.log(`[SessionService] Loading Book ${id}...`);
+
+        // 1. Unload current (Save it first!)
+        if (this.currentBookId()) {
+            await this.unloadCurrentSession(true);
+        }
+
+        // 2. Fetch target Book
+        const book = await this.storage.getBook(id);
+        if (!book) {
+            throw new Error(`Book ${id} not found!`);
+        }
+
+        this.state.status.set('loading');
+        try {
+            // 3. Rehydrate State
+            this.currentBookId.set(book.id);
+
+            // Restore Files
+            await this.storage.clearFiles();
+            const filesMap = new Map<string, string>();
+            const tokensMap = new Map<string, number>();
+
+            for (const f of book.files) {
+                await this.storage.saveFile(f.name, f.content, f.tokens);
+                filesMap.set(f.name, f.content);
+                if (f.tokens) tokensMap.set(f.name, f.tokens);
+            }
+            this.state.loadedFiles.set(filesMap);
+            this.state.fileTokenCounts.set(tokensMap);
+
+            // Restore Prompts
+            await this.storage.clearPrompts();
+            for (const [key, p] of Object.entries(book.prompts)) {
+                await this.storage.savePrompt(key, p.content, p.tokens);
+            }
+
+            // Restore Messages
+            await this.storage.clear(); // chat_store
+            // We need to re-save messages to chat_store so `loadHistoryFromStorage` works? 
+            // Or just set signals directly. `storage.set('chat_history', ...)` is important for persistence within session.
+            await this.storage.set('chat_history', book.messages);
+            this.state.messages.set(book.messages);
+            if (book.messages.length > 0) this.isContextInjected = true;
+
+            // Restore Stats
+            this.state.tokenUsage.set(book.stats.tokenUsage);
+            this.state.historyStorageUsageAccumulated.set(book.stats.historyStorageUsage);
+            localStorage.setItem('history_storage_usage_acc', book.stats.historyStorageUsage.toString());
+            this.state.sunkUsageHistory.set(book.stats.sunkUsageHistory);
+
+            // Restore Cost Active Accumulation
+            this.state.storageUsageAccumulated.set(book.stats.kbStorageUsageAcc);
+            localStorage.setItem('kb_storage_usage_acc', book.stats.kbStorageUsageAcc.toString());
+
+            // Restore Cache Metadata
+            const stats = book.stats;
+            if (stats.kbCacheName) {
+                this.state.kbCacheName.set(stats.kbCacheName);
+                if (stats.kbCacheExpireTime) this.state.kbCacheExpireTime.set(stats.kbCacheExpireTime);
+                this.state.kbCacheTokens.set(stats.kbCacheTokens);
+
+                // Set localStorage keys for CacheManager/Services to pick up
+                localStorage.setItem('kb_cache_name', stats.kbCacheName);
+                if (stats.kbCacheHash) localStorage.setItem('kb_cache_hash', stats.kbCacheHash);
+                if (stats.kbCacheExpireTime) localStorage.setItem('kb_cache_expire', stats.kbCacheExpireTime.toString());
+                localStorage.setItem('kb_cache_tokens', stats.kbCacheTokens.toString());
+
+                // Restart Timer
+                this.cacheManager.startStorageTimer();
+            } else {
+                this.cacheManager.resetCacheState(); // Ensures clean slate if book has no cache
+            }
+
+            // Restore KB Slot
+            if (stats.kbSlotId) {
+                localStorage.setItem('kb_slot_id', stats.kbSlotId);
+                // Also update driveService if needed, but SidebarFileSync handles initialization from localStorage
+                // We might need to poke DriveService if it's already instantiated
+                // inject -> driveService.currentSlotId.set(stats.kbSlotId);
+            } else {
+                localStorage.removeItem('kb_slot_id');
+            }
+
+            if (stats.kbSlotName) {
+                localStorage.setItem('kb_slot_name', stats.kbSlotName);
+            } else {
+                localStorage.removeItem('kb_slot_name');
+            }
+
+            console.log(`[SessionService] Book ${id} loaded.`);
+        } catch (e) {
+            console.error(`[SessionService] Failed to load book ${id} `, e);
+            this.state.status.set('error');
+            throw e;
+        } finally {
+            this.state.status.set('idle');
+        }
+    }
+
+    async renameBook(id: string, newName: string) {
+        if (!newName || !newName.trim()) return;
+        const book = await this.storage.getBook(id);
+        if (book) {
+            book.name = newName.trim();
+            await this.storage.saveBook(book);
+        }
+    }
+
+    async createNextBook() {
+        const currentId = this.currentBookId();
+        if (!currentId) return;
+
+        // 1. Determine Naming & State BEFORE Unloading
+        // We use the current in-memory state which is most up-to-date
+        const actName = this.extractActName() || 'Act.1';
+        let currentActNum = 1;
+        const match = actName.match(/Act\.(\d+)/i) || actName.match(/第\s*(\d+)\s*章/);
+        if (match) {
+            currentActNum = parseInt(match[1]);
+        }
+
+        const kbSlotName = localStorage.getItem('kb_slot_name') || 'Default'; // Active slot
+        // If we are "Creating Next", it implies the current session effectively IS "Act N".
+        // Example: Playing "Legacy Adventure", reached Act 2. 
+        // User clicks "Create Next". Old book becomes "Legacy Adventure Act.2". New Book becomes "Legacy Adventure Act.3".
+
+        const newNameForOldBook = `${kbSlotName} Act.${currentActNum}`;
+        const newNameForNewBook = `${kbSlotName} Act.${currentActNum + 1}`;
+
+        console.log(`[SessionService] Create Next: Renaming current to "${newNameForOldBook}", creating "${newNameForNewBook}"`);
+
+        // 2. Unload and Save Current
+        await this.unloadCurrentSession(true);
+
+        // 3. Update Old Book Name
+        const oldBook = await this.storage.getBook(currentId);
+        if (!oldBook) return;
+
+        oldBook.name = newNameForOldBook;
+
+        // Critical: Ensure files exist. If oldBook.files is empty, it means save failed or state was broken.
+        // But we just called unloadCurrentSession(true) which calls saveCurrentSessionToBook.
+        // saveCurrentSessionToBook grabs files from this.state.loadedFiles().
+        // If that was empty, we are in trouble.
+        if (!oldBook.files || oldBook.files.length === 0) {
+            console.warn('[SessionService] Old book files are empty! Attempting to recover from storage/cache if possible?');
+            // If really empty, we can't do much but warn.
+        }
+
+        await this.storage.saveBook(oldBook);
+
+        // 4. Create NEW Book
+        const newBookId = crypto.randomUUID();
+
+        // We do NOT set this.currentBookId directly here.
+        // We let loadBook() handle the switch.
+        // Also, we do NOT clear this.state.* manually, because unloadCurrentSession already did that or loadBook will do it.
+        // If we set currentBookId here, loadBook() will trigger unloadCurrentSession() AGAIN, 
+        // which will save the *current empty state* (loadedFiles is empty!) to the NEW book, wiping out the files we are about to save.
+
+        // Copy Files from Old Book
+
+        // Copy Files from Old Book
+        // logic reused from loadBook but applied to current 'loadedFiles' which are cleared.
+        // We need to reload them from the Old Book data since we unloaded.
+        const files = oldBook.files; // These are safe to copy
+        // Prompts? 
+        const prompts = oldBook.prompts;
+
+        const newBook: Book = {
+            id: newBookId,
+            name: newNameForNewBook,
+            // User didn't specify name for new book, but usually it continues.
+            // Let's name it "Act.N+1" for convenience.
+            createdAt: Date.now(),
+            lastActiveAt: Date.now(),
+            preview: 'New Chapter',
+            messages: [],
+            files: files, // COPIED KB
+            prompts: prompts,
+            stats: {
+                tokenUsage: { freshInput: 0, cached: 0, output: 0, total: 0 },
+                estimatedCost: 0,
+                historyStorageUsage: 0, // Reset for new book
+                sunkUsageHistory: [],
+                kbStorageUsageAcc: 0,
+                kbCacheName: null,
+                kbCacheExpireTime: null,
+                kbCacheTokens: 0,
+                kbCacheHash: null,
+                kbSlotId: oldBook.stats.kbSlotId, // Persist Slot ID
+                kbSlotName: oldBook.stats.kbSlotName
+            }
+        };
+
+        await this.storage.saveBook(newBook);
+
+        // Load the new book (rehydrate files)
+        await this.loadBook(newBookId);
+
+        // Initialize Story (Start Session)
+        // Note: The UI component will handle triggering the actual engine initialization
+        // to avoid circular dependencies between SessionService and GameEngineService.
+    }
+
+    async deleteBook(id: string) {
+        console.log(`[SessionService] Deleting book ${id} `);
+        // If it's the current book, unload strictly without saving
+        if (this.currentBookId() === id) {
+            await this.unloadCurrentSession(false);
+        }
+        await this.storage.deleteBook(id);
+    }
+
+    async nukeAllCaches() {
+        return this.cacheManager.clearAllServerCaches();
     }
 
     /**
@@ -208,7 +677,6 @@ export class SessionService {
             timestamp: Date.now(),
             messages: msgs,
             tokenUsage: this.state.tokenUsage(),
-            estimatedCost: this.state.estimatedCost(),
             historyStorageUsage: this.state.historyStorageUsageAccumulated(),
             sunkUsageHistory: this.state.sunkUsageHistory(),
             storyPreview: preview,
@@ -226,7 +694,6 @@ export class SessionService {
 
         // Restore usage stats
         this.state.tokenUsage.set(save.tokenUsage);
-        this.state.estimatedCost.set(save.estimatedCost);
         this.state.sunkUsageHistory.set(save.sunkUsageHistory || []);
 
         // Restore history usage (Token-Seconds)
@@ -255,13 +722,13 @@ export class SessionService {
                 // Primary pattern: ## Act.1
                 const actMatch = msg.content.match(/## Act\.(\d+)/i);
                 if (actMatch) {
-                    return `Act.${actMatch[1]}`;
+                    return `Act.${actMatch[1]} `;
                 }
 
                 // Fallback: 第N章
                 const zhMatch = msg.content.match(/第\s*(\d+)\s*章/);
                 if (zhMatch) {
-                    return `第${zhMatch[1]}章`;
+                    return `第${zhMatch[1]} 章`;
                 }
             }
         }

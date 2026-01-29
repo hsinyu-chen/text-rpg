@@ -1,4 +1,4 @@
-import { Component, inject, computed, signal, output, linkedSignal } from '@angular/core';
+import { Component, inject, computed, signal, linkedSignal, output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatListModule } from '@angular/material/list';
@@ -59,6 +59,7 @@ export class SidebarComponent {
   displayMode = signal<'tokens' | 'chars'>('tokens');
 
   closeSidebar = output<void>();
+  openBooks = output<void>();
 
 
   fileList = computed(() => {

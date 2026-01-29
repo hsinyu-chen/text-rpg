@@ -71,7 +71,6 @@ export interface SessionSave {
     timestamp: number;
     messages: ChatMessage[];
     tokenUsage: { freshInput: number, cached: number, output: number, total: number };
-    estimatedCost: number;
     historyStorageUsage?: number; // Token-Seconds (optional for backward compatibility)
     sunkUsageHistory: { prompt: number, cached: number, candidates: number }[];
     storyPreview: string; // First ~200 chars of last model message for display
@@ -87,4 +86,34 @@ export interface Scenario {
     description?: string;
     baseDir: string;
     files: Record<string, string>;
+}
+
+export interface Book {
+    id: string; // UUID
+    name: string; // User-friendly name
+    createdAt: number;
+    lastActiveAt: number;
+    preview: string; // Short preview text
+
+    // Serialized State
+    messages: ChatMessage[];
+    files: { name: string, content: string, tokens?: number }[];
+    prompts: Record<string, { content: string, tokens?: number }>; // e.g. system prompts
+
+    // Stats & Metadata
+    stats: {
+        tokenUsage: { freshInput: number, cached: number, output: number, total: number };
+        estimatedCost: number;
+        historyStorageUsage: number;
+        sunkUsageHistory: { prompt: number, cached: number, candidates: number }[];
+
+        // Cache Metadata
+        kbCacheName: string | null;
+        kbCacheExpireTime: number | null; // Timestamp
+        kbCacheTokens: number;
+        kbCacheHash: string | null;
+        kbStorageUsageAcc: number; // Active accumulated storage usage (Token-Seconds)
+        kbSlotId?: string;
+        kbSlotName?: string;
+    };
 }

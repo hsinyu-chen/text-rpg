@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, effect } from '@angular/core';
+import { Component, inject, signal, computed, effect, viewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatIconModule } from '@angular/material/icon';
@@ -19,6 +19,8 @@ import { IdleService } from './core/services/idle.service';
 import { SpaceInvadersComponent } from './features/screensaver/space-invaders.component';
 import { CodeScreensaverComponent } from './features/screensaver/code-screensaver.component';
 import { MigrationService } from './core/services/migration.service';
+import { BookListComponent } from './features/sidebar/components/book-list/book-list.component';
+import { SessionService } from './core/services/session.service';
 
 
 @Component({
@@ -34,7 +36,8 @@ import { MigrationService } from './core/services/migration.service';
     SidebarComponent,
     ChatComponent,
     SpaceInvadersComponent,
-    CodeScreensaverComponent
+    CodeScreensaverComponent,
+    BookListComponent
   ],
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss'
@@ -42,6 +45,7 @@ import { MigrationService } from './core/services/migration.service';
 export class AppComponent {
   engine = inject(GameEngineService);
   state = inject(GameStateService);
+  session = inject(SessionService); // Public for template access if needed, or private
   loading = inject(LoadingService);
   dialog = inject(MatDialog);
   private breakpointObserver = inject(BreakpointObserver);
@@ -57,8 +61,11 @@ export class AppComponent {
     { initialValue: false }
   );
 
+  bookList = viewChild(BookListComponent);
+
   // Manual toggle
   sidebarOpen = signal(true);
+  bookListOpen = signal(false);
 
   // Computed state for sidenav
   sidenavOpened = computed(() => this.sidebarOpen());
@@ -69,12 +76,14 @@ export class AppComponent {
     // Run data migrations before initializing engine
     inject(MigrationService).runMigrations();
     // //MIGRATION CODE END
-
     // Register LLM Providers
     this.providerInit.initialize();
 
     // Initialize Engine (Providers must be registered first)
     this.engine.init();
+
+    // Initialize Session (Restore active book)
+    this.session.init();
 
     // Initialize sidebar state based on mobile
     if (this.isMobile()) {
@@ -110,6 +119,17 @@ export class AppComponent {
 
   closeSidebar() {
     this.sidebarOpen.set(false);
+  }
+
+  toggleBookList() {
+    this.bookListOpen.update(v => !v);
+    if (this.bookListOpen() && this.bookList()) {
+      this.bookList()!.loadBooks();
+    }
+  }
+
+  closeBookList() {
+    this.bookListOpen.set(false);
   }
 
   private autoSave = inject(AutoSaveService);

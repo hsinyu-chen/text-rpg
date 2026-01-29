@@ -13,6 +13,7 @@ import { DialogService } from '../../../../core/services/dialog.service';
 import { SessionService } from '../../../../core/services/session.service';
 import { FileSystemService } from '../../../../core/services/file-system.service';
 import { GoogleDriveService } from '../../../../core/services/google-drive.service';
+import { CacheManagerService } from '../../../../core/services/cache-manager.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { SaveNameDialogComponent } from '../../../../shared/components/save-name-dialog/save-name-dialog.component';
 import { firstValueFrom } from 'rxjs';
@@ -34,6 +35,7 @@ export class SidebarContextControlsComponent {
     driveService = inject(GoogleDriveService);
     snackBar = inject(MatSnackBar);
     configService = inject(ConfigService);
+    cacheManager = inject(CacheManagerService);
     private matDialog = inject(MatDialog);
 
     hasStorageTarget = computed(() => {
@@ -47,104 +49,35 @@ export class SidebarContextControlsComponent {
     }
 
     /**
-     * Extracts Act name, saves the session, and starts a new one.
+     * Creates the next Act by renaming the current book and creating a new one.
      */
-    async saveAndNext() {
-        if (this.state.messages().length === 0) {
-            this.snackBar.open('No history to save.', 'OK', { duration: 3000 });
+    async createNext() {
+        if (!this.session.currentBookId()) {
+            this.snackBar.open('No active session (Book) to create next from.', 'OK');
+            return;
+        }
+
+        if (!await this.dialog.confirm(
+            'This will:\n1. Rename the current session to "[Slot] Act.N"\n2. Create a NEW session "[Slot] Act.N+1" with copied memory\n3. Switch to the new session\n\nContinue?',
+            'Create Next Act', 'Create', 'Cancel'
+        )) {
             return;
         }
 
         this.state.status.set('loading');
-
         try {
-            let saveName = this.session.extractActName();
-            const isCloud = !!this.driveService.currentSlotId();
-            const cloudSlotId = this.driveService.currentSlotId();
+            await this.session.createNextBook();
+            this.snackBar.open('Created next Act successfully.', 'OK', { duration: 3000 });
 
-            // Check for duplicates if we have a name
-            if (saveName) {
-                const isDuplicate = await this.checkDuplicateName(saveName, isCloud, cloudSlotId);
-                if (isDuplicate) {
-                    this.state.status.set('idle');
-                    saveName = await this.promptForName(`Name "${saveName}" already exists. Please enter a new name:`, saveName);
-                    if (!saveName) return; // User cancelled
-                    this.state.status.set('loading');
-                }
-            } else {
-                this.state.status.set('idle');
-                saveName = await this.promptForName('Could not extract Act name. Please enter a save name:');
-                if (!saveName) return; // User cancelled
-                this.state.status.set('loading');
-            }
-
-            // Perform Save
-            const currentSession = this.session.exportSession();
-            const saveId = crypto.randomUUID();
-            const filename = `${saveId}.json`;
-            const save = {
-                ...currentSession,
-                id: saveId,
-                name: saveName,
-                timestamp: Date.now()
-            };
-            const content = JSON.stringify(save, null, 2);
-
-            if (isCloud && cloudSlotId) {
-                await this.driveService.uploadSave(save, cloudSlotId);
-            } else if (this.fileSystem.hasHandle()) {
-                await this.fileSystem.writeSaveFile(filename, content);
-            } else {
-                throw new Error('No storage target (Local Folder or Cloud Slot) selected.');
-            }
-
-            this.snackBar.open(`Saved to slot: ${saveName}`, 'OK', { duration: 3000 });
-
-            // Clear ALL server caches and usage stats as requested (ensures clean next session)
-            await this.engine.clearAllServerCaches();
-
-            // Restart Session
-            this.engine.clearHistory();
+            // Initialize the story for the new act
             this.engine.startSession();
 
-        } catch (err) {
-            console.error('[SidebarContext] Save & Next failed:', err);
-            this.snackBar.open(`Save failed: ${err instanceof Error ? err.message : String(err)}`, 'Close', { duration: 5000 });
+        } catch (e) {
+            console.error('Failed to create next Act', e);
+            this.snackBar.open('Failed to create next Act.', 'Close');
         } finally {
             this.state.status.set('idle');
         }
-    }
-
-    private async checkDuplicateName(name: string, isCloud: boolean, cloudSlotId: string | null): Promise<boolean> {
-        try {
-            if (isCloud && cloudSlotId) {
-                const cloudSaves = await this.driveService.listSaves(cloudSlotId);
-                for (const f of cloudSaves) {
-                    const content = await this.driveService.readFile(f.id);
-                    const data = JSON.parse(content);
-                    if (data.name === name) return true;
-                }
-            } else if (this.fileSystem.hasHandle()) {
-                const localSaves = await this.fileSystem.listLocalSaves();
-                for (const f of localSaves) {
-                    const content = await this.fileSystem.readSaveFile(f.name);
-                    const data = JSON.parse(content);
-                    if (data.name === name) return true;
-                }
-            }
-        } catch (e) {
-            console.warn('[SidebarContext] Duplicate check failed, assuming no duplicate:', e);
-        }
-        return false;
-    }
-
-    private async promptForName(title: string, initialName = ''): Promise<string | null> {
-        const dialogRef = this.matDialog.open(SaveNameDialogComponent, {
-            width: '400px',
-            data: { title, initialName }
-        });
-        const result = await firstValueFrom(dialogRef.afterClosed());
-        return result || null;
     }
 
 
@@ -162,16 +95,9 @@ export class SidebarContextControlsComponent {
     }
 
     async clearServerData() {
-        if (await this.dialog.confirm('Delete ALL server-side caches? This will ensure state safety and reset your billed token counters for the current session.')) {
-            const count = await this.engine.clearAllServerCaches();
-            await this.dialog.alert(`Successfully cleared ${count} caches. Session state refreshed.`);
-        }
-    }
-
-    async wipeLocalSession() {
-        if (await this.dialog.confirm('Are you sure you want to WIPE all local data? This will delete all chat history, scenario files, and manual saves stored in this browser. This action CANNOT be undone.')) {
-            await this.engine.wipeLocalSession();
-            await this.dialog.alert('Local session has been completely wiped.');
+        if (await this.dialog.confirm('Clear the active Cloud Cache for this session? Billing for this context will stop, and it will be re-uploaded on the next turn.')) {
+            await this.cacheManager.cleanupCache();
+            await this.dialog.alert(`Active cache cleared.`);
         }
     }
 

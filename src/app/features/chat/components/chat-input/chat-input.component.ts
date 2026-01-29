@@ -15,6 +15,7 @@ import { GAME_INTENTS, STORY_INTENTS } from '../../../../core/constants/game-int
 import { getIntentLabels, getIntentDescriptions, getInputPlaceholders } from '../../../../core/constants/engine-protocol';
 import { GameEngineService } from '../../../../core/services/game-engine.service';
 import { GameStateService } from '../../../../core/services/game-state.service';
+import { SessionService } from '../../../../core/services/session.service';
 import { MatDialog } from '@angular/material/dialog';
 import { PayloadDialogComponent } from '../../../../shared/components/payload-dialog/payload-dialog.component';
 import { ChatConfigDialogComponent } from '../../../../shared/components/chat-config-dialog/chat-config-dialog.component';
@@ -47,8 +48,12 @@ export class ChatInputComponent {
     // Services
     engine = inject(GameEngineService);
     state = inject(GameStateService);
+    session = inject(SessionService);
     lang = inject(LanguageService);
     private matDialog = inject(MatDialog);
+
+    // Computed: Whether there's an active session (book) to work with
+    hasActiveSession = computed(() => !!this.session.currentBookId());
 
     // Queries
     messageInput = viewChild.required<ElementRef<HTMLTextAreaElement>>('messageInput');

@@ -196,7 +196,7 @@ export class GameEngineService {
      * Completely wipes all local game progress, including IndexedDB stores and signals.
      */
     async wipeLocalSession() {
-        await this.session.wipeLocalSession();
+        await this.session.unloadCurrentSession(false);
     }
 
     /**
@@ -565,7 +565,6 @@ export class GameEngineService {
                     total: prev.total + turnUsage.prompt + turnUsage.candidates
                 };
             });
-            this.state.estimatedCost.update(prev => prev + turnCost);
 
             console.log(`[GameEngine] Turn Usage Breakdown:
 - FRESH Input (Not in Cache): ${fresh.toLocaleString()} tokens

@@ -4,6 +4,9 @@
             <img src="text_rpg_logo.png" alt="Text RPG Logo" class="sidebar-logo">
         </div>
         <div class="header-actions">
+            <button mat-icon-button (click)="openBooks.emit()" [disabled]="state.isBusy()" matTooltip="Adventure Books">
+                <mat-icon>auto_stories</mat-icon>
+            </button>
             <button mat-icon-button (click)="openSettings()" [disabled]="state.isBusy()" matTooltip="Settings">
                 <mat-icon>settings</mat-icon>
             </button>
