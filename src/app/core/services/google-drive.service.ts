@@ -219,7 +219,8 @@ export class GoogleDriveService {
     private async fetchAndSaveUserEmail(token: string) {
         try {
             const res = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-                headers: { Authorization: `Bearer ${token}` }
+                headers: { Authorization: `Bearer ${token}` },
+                cache: 'no-store'
             });
             if (res.ok) {
                 const data = await res.json();
@@ -551,7 +552,8 @@ export class GoogleDriveService {
             const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,parents,modifiedTime)&spaces=appDataFolder`;
 
             const res = await fetch(url, {
-                headers: { Authorization: `Bearer ${token}` }
+                headers: { Authorization: `Bearer ${token}` },
+                cache: 'no-store'
             });
 
             if (!res.ok) throw { status: res.status, message: res.statusText };
@@ -570,7 +572,8 @@ export class GoogleDriveService {
             const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,parents,modifiedTime)&spaces=appDataFolder`;
 
             const res = await fetch(url, {
-                headers: { Authorization: `Bearer ${token}` }
+                headers: { Authorization: `Bearer ${token}` },
+                cache: 'no-store'
             });
 
             if (!res.ok) throw { status: res.status, message: res.statusText };
@@ -609,7 +612,8 @@ export class GoogleDriveService {
         return this.execute(async (token) => {
             const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
             const res = await fetch(url, {
-                headers: { Authorization: `Bearer ${token}` }
+                headers: { Authorization: `Bearer ${token}` },
+                cache: 'no-store'
             });
             if (!res.ok) throw { status: res.status, message: res.statusText };
             return await res.text();
@@ -675,7 +679,8 @@ export class GoogleDriveService {
             const searchUrl = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&spaces=appDataFolder`;
 
             const searchRes = await fetch(searchUrl, {
-                headers: { Authorization: `Bearer ${token}` }
+                headers: { Authorization: `Bearer ${token}` },
+                cache: 'no-store'
             });
             if (!searchRes.ok) throw { status: searchRes.status, message: searchRes.statusText };
             const searchData = await searchRes.json();
@@ -718,7 +723,8 @@ export class GoogleDriveService {
             const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,modifiedTime)&spaces=appDataFolder`;
 
             const res = await fetch(url, {
-                headers: { Authorization: `Bearer ${token}` }
+                headers: { Authorization: `Bearer ${token}` },
+                cache: 'no-store'
             });
             if (!res.ok) throw { status: res.status, message: res.statusText };
             const data = await res.json();
@@ -781,7 +787,8 @@ export class GoogleDriveService {
         return this.execute(async (token) => {
             const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
             const res = await fetch(url, {
-                headers: { Authorization: `Bearer ${token}` }
+                headers: { Authorization: `Bearer ${token}` },
+                cache: 'no-store'
             });
             if (!res.ok) throw { status: res.status, message: res.statusText };
             const text = await res.text();
