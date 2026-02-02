@@ -226,6 +226,10 @@ export class GameEngineService {
      * or prompting the AI to start the story.
      */
     startSession() {
+        if (!this.state.isConfigured() || this.state.loadedFiles().size === 0) {
+            console.log('[GameEngine] startSession aborted: Engine not configured or Knowledge Base is empty.');
+            return;
+        }
         if (this.state.messages().length === 0) {
             const lang = this.state.config()?.outputLanguage || 'default';
             const ui = getUIStrings(lang);
@@ -572,6 +576,9 @@ export class GameEngineService {
 - CACHED Input (Knowledge Base): ${turnUsage.cached.toLocaleString()} tokens
 - Output: ${turnUsage.candidates.toLocaleString()} tokens
 - Turn Cost: $${turnCost.toFixed(5)}`);
+
+            // Auto-save current session to update lastActiveAt and stats in the book list
+            await this.session.saveCurrentSessionToBook();
 
             this.state.status.set('idle');
             this.currentAbortController = null;

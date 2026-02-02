@@ -83,7 +83,9 @@ export class AppComponent {
     this.engine.init();
 
     // Initialize Session (Restore active book)
-    this.session.init();
+    this.session.init().then(() => {
+      this.engine.startSession();
+    });
 
     // Initialize sidebar state based on mobile
     if (this.isMobile()) {

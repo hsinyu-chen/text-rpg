@@ -890,8 +890,8 @@ export class SessionService {
                 }
 
                 this.isContextInjected = false;
-                this.state.status.set('idle');
             }
+            this.state.status.set('idle');
         } catch (e) {
             console.error(e);
             this.state.status.set('error');

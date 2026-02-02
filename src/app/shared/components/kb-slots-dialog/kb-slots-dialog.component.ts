@@ -10,6 +10,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { FormsModule } from '@angular/forms';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { GoogleDriveService } from '../../../core/services/google-drive.service';
+import { RESERVED_FOLDER_NAMES } from '../../../core/constants/constants';
 
 export interface KbSlot {
     id: string; // 'appDataFolder' for root, or folderId
@@ -60,9 +61,9 @@ export class KbSlotsDialogComponent {
 
             const folders = await this.driveService.listFolders();
 
-            // Filter out 'saves' folder as it's reserved
+            // Filter out reserved folders
             folders.forEach(f => {
-                if (f.name !== 'saves') {
+                if (!RESERVED_FOLDER_NAMES.includes(f.name)) {
                     items.push({
                         id: f.id,
                         name: f.name,
@@ -81,11 +82,17 @@ export class KbSlotsDialogComponent {
     }
 
     async createSlot() {
-        if (!this.newSlotName().trim()) return;
+        const name = this.newSlotName().trim();
+        if (!name) return;
+
+        if (RESERVED_FOLDER_NAMES.includes(name)) {
+            this.snackBar.open(`"${name}" is a reserved name. Please use another name.`, 'OK', { duration: 3000 });
+            return;
+        }
 
         this.isLoading.set(true);
         try {
-            const folder = await this.driveService.createFolder('appDataFolder', this.newSlotName().trim());
+            const folder = await this.driveService.createFolder('appDataFolder', name);
             this.newSlotName.set('');
             this.showNewSlotInput.set(false);
             await this.loadSlots();

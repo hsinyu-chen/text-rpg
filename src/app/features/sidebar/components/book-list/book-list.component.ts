@@ -7,6 +7,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialog } from '@angular/material/dialog';
 import { SessionService } from '../../../../core/services/session.service';
 import { StorageService } from '../../../../core/services/storage.service';
+import { GameEngineService } from '../../../../core/services/game-engine.service';
 import { GameStateService } from '../../../../core/services/game-state.service';
 import { CostService } from '../../../../core/services/cost.service';
 import { LLMProviderRegistryService } from '../../../../core/services/llm-provider-registry.service';
@@ -242,6 +243,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
   `],
 })
 export class BookListComponent {
+    engine = inject(GameEngineService);
     session = inject(SessionService);
     storage = inject(StorageService);
     state = inject(GameStateService);
@@ -402,6 +404,7 @@ export class BookListComponent {
     async startNewSession() {
         await this.session.startEmptySession();
         await this.loadBooks();
+        this.engine.startSession();
         this.closePanel.emit();
     }
 
