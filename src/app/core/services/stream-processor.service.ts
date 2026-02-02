@@ -76,8 +76,9 @@ export class StreamProcessorService {
                     currentThought += part.text;
                     updateCallback(prev => {
                         const arr = [...prev];
-                        if (arr[arr.length - 1]?.role === 'model') {
-                            arr[arr.length - 1].thought = currentThought;
+                        const last = arr[arr.length - 1];
+                        if (last?.role === 'model') {
+                            arr[arr.length - 1] = { ...last, thought: currentThought };
                         }
                         return arr;
                     });
