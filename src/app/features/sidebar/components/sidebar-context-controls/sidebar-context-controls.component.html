@@ -12,7 +12,7 @@
     Start New Game
 </button>
 
-<button mat-flat-button class="full-width create-next-btn" (click)="createNext()" [disabled]="!hasStorageTarget()"
+<button mat-flat-button class="full-width create-next-btn" (click)="createNext()" [disabled]="!session.currentBookId() || state.isBusy()"
     matTooltip="Rename Current & Next Act"
     style="margin-top: 8px; font-weight: bold; background: linear-gradient(45deg, #11998e 0%, #38ef7d 100%); color: white;">
     <mat-icon>fast_forward</mat-icon>
