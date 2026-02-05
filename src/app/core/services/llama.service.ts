@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, signal } from '@angular/core';
 import {
     LLMProvider,
     LLMProviderCapabilities,
@@ -20,16 +20,77 @@ import {
 export class LlamaService implements LLMProvider {
     readonly providerName = 'llama.cpp';
 
-    private baseUrl = 'http://localhost:8080';
-    private modelId = 'local-model';
+    private baseUrl = signal('http://localhost:8080');
+    private modelId = signal('local-model');
 
-    init(config: LLMProviderConfig): void {
+    constructor() {
+        // Load settings from localStorage on initialization
+        this.loadSettings();
+    }
+
+    /**
+     * Get the current base URL from localStorage
+     * This ensures we always use the latest value
+     */
+    private getBaseUrlFromStorage(): string {
+        const savedUrl = localStorage.getItem('llama_base_url');
+        if (savedUrl) {
+            return savedUrl.replace(/\/$/, '');
+        }
+        return 'http://localhost:8080';
+    }
+
+    /**
+     * Get the current model ID from localStorage
+     * This ensures we always use the latest value
+     */
+    private getModelIdFromStorage(): string {
+        const savedModelId = localStorage.getItem('llama_model_id');
+        if (savedModelId) {
+            return savedModelId;
+        }
+        return 'local-model';
+    }
+
+    /**
+     * Load settings from localStorage
+     */
+    private loadSettings(): void {
+        this.baseUrl.set(this.getBaseUrlFromStorage());
+        this.modelId.set(this.getModelIdFromStorage());
+    }
+
+    /**
+     * Refresh settings from localStorage
+     */
+    refreshSettings(): void {
+        this.baseUrl.set(this.getBaseUrlFromStorage());
+        this.modelId.set(this.getModelIdFromStorage());
+    }
+
+    /**
+     * Update settings from external configuration
+     * @param config LLMProviderConfig containing baseUrl and modelId
+     */
+    updateSettings(config: Partial<{ baseUrl: string; modelId: string }>): void {
         if (config.baseUrl) {
-            this.baseUrl = config.baseUrl.replace(/\/$/, '');
+            this.baseUrl.set(config.baseUrl.replace(/\/$/, ''));
         }
         if (config.modelId) {
-            this.modelId = config.modelId;
+            this.modelId.set(config.modelId);
         }
+    }
+
+    init(config: LLMProviderConfig): void {
+        // Override with config values if provided (e.g., from ConfigService)
+        if (config.baseUrl) {
+            this.baseUrl.set(config.baseUrl.replace(/\/$/, ''));
+        }
+        if (config.modelId) {
+            this.modelId.set(config.modelId);
+        }
+        // Also refresh from localStorage to ensure latest values are used
+        this.refreshSettings();
     }
 
     getCapabilities(): LLMProviderCapabilities {
@@ -44,15 +105,15 @@ export class LlamaService implements LLMProvider {
     getAvailableModels(): LLMModelDefinition[] {
         return [
             {
-                id: this.modelId,
-                name: `Local Model (${this.modelId})`,
+                id: this.modelId(),
+                name: `Local Model (${this.modelId()})`,
                 getRates: () => ({ input: 0, output: 0, cached: 0, cacheStorage: 0 })
             }
         ];
     }
 
     getDefaultModelId(): string {
-        return this.modelId;
+        return this.modelId();
     }
 
     async *generateContentStream(
@@ -60,6 +121,8 @@ export class LlamaService implements LLMProvider {
         systemInstruction: string,
         config: LLMGenerateConfig
     ): AsyncGenerator<LLMStreamChunk> {
+        const baseUrl = this.baseUrl();
+        const modelId = this.modelId();
 
         // 1. Inject Schema into System Prompt (Crucial for Local Models!)
         const messages = this.toOpenAIMessages(
@@ -70,7 +133,7 @@ export class LlamaService implements LLMProvider {
 
         // 2. Build Request
         const requestBody = {
-            model: this.modelId,
+            model: modelId,
             messages,
             stream: true,
 
@@ -83,7 +146,7 @@ export class LlamaService implements LLMProvider {
         };
 
         try {
-            const response = await fetch(`${this.baseUrl}/v1/chat/completions`, {
+            const response = await fetch(`${baseUrl}/v1/chat/completions`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(requestBody),
@@ -147,7 +210,7 @@ export class LlamaService implements LLMProvider {
         } catch (error: unknown) {
             const err = error as { name?: string, message?: string };
             if (err.name === 'TypeError' && err.message?.includes('fetch')) {
-                throw new Error(`Connection Failed: Check if llama.cpp server is running at ${this.baseUrl}`);
+                throw new Error(`Connection Failed: Check if llama.cpp server is running at ${baseUrl}`);
             }
             throw error;
         }
@@ -157,7 +220,7 @@ export class LlamaService implements LLMProvider {
         const text = contents.flatMap(c => c.parts).map(p => p.text || '').join('\n');
         if (!text) return 0;
         try {
-            const response = await fetch(`${this.baseUrl}/tokenize`, {
+            const response = await fetch(`${this.baseUrl()}/tokenize`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ content: text })

@@ -77,6 +77,10 @@ export class ConfigService {
 
         const key = localStorage.getItem('gemini_api_key');
         const model = localStorage.getItem('gemini_model_id') || this.provider?.getDefaultModelId() || 'gemini-prod';
+        
+        // Get llama.cpp settings if active provider
+        const llamaBaseUrl = localStorage.getItem('llama_base_url');
+        const llamaModelId = localStorage.getItem('llama_model_id');
 
         const sSize = localStorage.getItem('app_font_size');
         const sFamily = localStorage.getItem('app_font_family');
@@ -115,10 +119,24 @@ export class ConfigService {
             };
             this.state.config.set(cfg);
 
-            this.provider?.init({
+            // Initialize provider with appropriate settings
+            const providerConfig: { apiKey?: string; modelId?: string; baseUrl?: string } = {
                 apiKey: key,
                 modelId: model
-            });
+            };
+            
+            // Add llama.cpp specific settings if active provider
+            const activeProvider = this.providerRegistry.getActive();
+            if (activeProvider?.providerName === 'llama.cpp') {
+                if (llamaBaseUrl) {
+                    providerConfig.baseUrl = llamaBaseUrl.replace(/\/$/, '');
+                }
+                if (llamaModelId) {
+                    providerConfig.modelId = llamaModelId;
+                }
+            }
+            
+            this.provider?.init(providerConfig);
 
             // Restore cache state
             const cacheName = localStorage.getItem('kb_cache_name');
@@ -240,11 +258,27 @@ export class ConfigService {
         const fullConfig: GameEngineConfig = { apiKey, modelId, ...genConfig };
         this.state.config.set(fullConfig);
 
-        this.provider?.init({
+        // Initialize provider with appropriate settings
+        const providerConfig: { apiKey?: string; modelId?: string; baseUrl?: string } = {
             apiKey,
             modelId,
             ...genConfig
-        });
+        };
+        
+        // Add llama.cpp specific settings if active provider
+        const activeProvider = this.providerRegistry.getActive();
+        if (activeProvider?.providerName === 'llama.cpp') {
+            const llamaBaseUrl = localStorage.getItem('llama_base_url');
+            const llamaModelId = localStorage.getItem('llama_model_id');
+            if (llamaBaseUrl) {
+                providerConfig.baseUrl = llamaBaseUrl.replace(/\/$/, '');
+            }
+            if (llamaModelId) {
+                providerConfig.modelId = llamaModelId;
+            }
+        }
+        
+        this.provider?.init(providerConfig);
 
         // Persist to IndexedDB for other services (e.g. Google Drive) to access
         this.storage.set('settings', fullConfig);
