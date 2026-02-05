@@ -88,7 +88,7 @@ export class GameEngineService {
      * @param modelId The Gemini Model ID to use.
      * @param genConfig Generation parameters (temperature, etc.) and UI settings.
      */
-    async saveConfig(apiKey: string, modelId: string, genConfig: {
+    async saveConfig(genConfig: {
         fontSize?: number,
         fontFamily?: string,
         enableCache?: boolean,
@@ -101,7 +101,7 @@ export class GameEngineService {
         thinkingLevelStory?: string,
         thinkingLevelGeneral?: string
     }) {
-        await this.configService.saveConfig(apiKey, modelId, genConfig);
+        await this.configService.saveConfig(genConfig);
     }
 
     /**

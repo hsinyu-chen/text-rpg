@@ -229,7 +229,7 @@ export class CostService {
                 if (rate) {
                     console.log('[CostService] FX Rate Updated:', rate);
                     this.exchangeRate.set(rate);
-                    localStorage.setItem('gemini_exchange_rate', rate.toString());
+                    localStorage.setItem('app_exchange_rate', rate.toString());
                 }
             } else {
                 console.error('[CostService] FX API error response:', response.status, response.statusText);
@@ -240,7 +240,7 @@ export class CostService {
     }
 
     private loadExchangeRate() {
-        const stored = localStorage.getItem('gemini_exchange_rate');
+        const stored = localStorage.getItem('app_exchange_rate') || localStorage.getItem('gemini_exchange_rate');
         if (stored) {
             const rate = parseFloat(stored);
             if (!isNaN(rate)) {

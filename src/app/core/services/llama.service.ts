@@ -1,4 +1,4 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, signal, Type } from '@angular/core';
 import {
     LLMProvider,
     LLMProviderCapabilities,
@@ -6,7 +6,8 @@ import {
     LLMContent,
     LLMGenerateConfig,
     LLMStreamChunk,
-    LLMModelDefinition
+    LLMModelDefinition,
+    LLMSettingsComponent
 } from './llm-provider';
 
 /**
@@ -19,9 +20,13 @@ import {
 })
 export class LlamaService implements LLMProvider {
     readonly providerName = 'llama.cpp';
+    settingsComponent?: Type<LLMSettingsComponent>;
 
     private baseUrl = signal('http://localhost:8080');
     private modelId = signal('local-model');
+    private temperature = signal(0.5);
+    private inputPrice = signal(0);
+    private outputPrice = signal(0);
 
     constructor() {
         // Load settings from localStorage on initialization
@@ -58,37 +63,64 @@ export class LlamaService implements LLMProvider {
     private loadSettings(): void {
         this.baseUrl.set(this.getBaseUrlFromStorage());
         this.modelId.set(this.getModelIdFromStorage());
+        const savedTemp = localStorage.getItem('llama_temperature');
+        if (savedTemp) {
+            this.temperature.set(parseFloat(savedTemp));
+        }
+        this.inputPrice.set(parseFloat(localStorage.getItem('llama_input_price') || '0'));
+        this.outputPrice.set(parseFloat(localStorage.getItem('llama_output_price') || '0'));
     }
 
     /**
      * Refresh settings from localStorage
      */
     refreshSettings(): void {
-        this.baseUrl.set(this.getBaseUrlFromStorage());
-        this.modelId.set(this.getModelIdFromStorage());
+        this.baseUrl.set(localStorage.getItem('llama_base_url') || 'http://localhost:8080');
+        this.modelId.set(localStorage.getItem('llama_model_id') || 'local-model');
+        const savedTemp = localStorage.getItem('llama_temperature');
+        if (savedTemp) {
+            this.temperature.set(parseFloat(savedTemp));
+        }
+        this.inputPrice.set(parseFloat(localStorage.getItem('llama_input_price') || '0'));
+        this.outputPrice.set(parseFloat(localStorage.getItem('llama_output_price') || '0'));
     }
 
     /**
      * Update settings from external configuration
      * @param config LLMProviderConfig containing baseUrl and modelId
      */
-    updateSettings(config: Partial<{ baseUrl: string; modelId: string }>): void {
-        if (config.baseUrl) {
-            this.baseUrl.set(config.baseUrl.replace(/\/$/, ''));
+    private updateSettings(settings: { baseUrl?: string; modelId?: string; temperature?: number, inputPrice?: number, outputPrice?: number }): void {
+        if (settings.baseUrl) {
+            const cleanedUrl = settings.baseUrl.replace(/\/$/, '');
+            this.baseUrl.set(cleanedUrl);
+            localStorage.setItem('llama_base_url', cleanedUrl);
         }
-        if (config.modelId) {
-            this.modelId.set(config.modelId);
+        if (settings.modelId) {
+            this.modelId.set(settings.modelId);
+            localStorage.setItem('llama_model_id', settings.modelId);
+        }
+        if (settings.temperature !== undefined) {
+            this.temperature.set(settings.temperature);
+            localStorage.setItem('llama_temperature', settings.temperature.toString());
+        }
+        if (settings.inputPrice !== undefined) {
+            this.inputPrice.set(settings.inputPrice);
+            localStorage.setItem('llama_input_price', settings.inputPrice.toString());
+        }
+        if (settings.outputPrice !== undefined) {
+            this.outputPrice.set(settings.outputPrice);
+            localStorage.setItem('llama_output_price', settings.outputPrice.toString());
         }
     }
 
     init(config: LLMProviderConfig): void {
-        // Override with config values if provided (e.g., from ConfigService)
-        if (config.baseUrl) {
-            this.baseUrl.set(config.baseUrl.replace(/\/$/, ''));
-        }
-        if (config.modelId) {
-            this.modelId.set(config.modelId);
-        }
+        this.updateSettings({
+            baseUrl: config.baseUrl,
+            modelId: config.modelId,
+            temperature: config.temperature,
+            inputPrice: config.inputPrice,
+            outputPrice: config.outputPrice
+        });
         // Also refresh from localStorage to ensure latest values are used
         this.refreshSettings();
     }
@@ -107,48 +139,81 @@ export class LlamaService implements LLMProvider {
             {
                 id: this.modelId(),
                 name: `Local Model (${this.modelId()})`,
-                getRates: () => ({ input: 0, output: 0, cached: 0, cacheStorage: 0 })
+                getRates: () => ({
+                    input: this.inputPrice(),
+                    output: this.outputPrice(),
+                    cached: 0,
+                    cacheStorage: 0
+                })
             }
         ];
     }
 
     getDefaultModelId(): string {
+        return this.getModelIdFromStorage();
+    }
+
+    getModelId(): string {
         return this.modelId();
     }
 
+    saveConfig(config: LLMProviderConfig): void {
+        if (config.baseUrl) localStorage.setItem('llama_base_url', config.baseUrl);
+        if (config.modelId) localStorage.setItem('llama_model_id', config.modelId);
+        if (config.temperature !== undefined) localStorage.setItem('llama_temperature', config.temperature.toString());
+        if (config.inputPrice !== undefined) localStorage.setItem('llama_input_price', config.inputPrice.toString());
+        if (config.outputPrice !== undefined) localStorage.setItem('llama_output_price', config.outputPrice.toString());
+
+        this.init(config);
+    }
+
+    getConfigFromStorage(): LLMProviderConfig {
+        return {
+            baseUrl: localStorage.getItem('llama_base_url') || 'http://localhost:8080',
+            modelId: localStorage.getItem('llama_model_id') || 'local-model',
+            temperature: parseFloat(localStorage.getItem('llama_temperature') || '0.5'),
+            inputPrice: parseFloat(localStorage.getItem('llama_input_price') || '0'),
+            outputPrice: parseFloat(localStorage.getItem('llama_output_price') || '0')
+        };
+    }
     async *generateContentStream(
         contents: LLMContent[],
         systemInstruction: string,
         config: LLMGenerateConfig
     ): AsyncGenerator<LLMStreamChunk> {
         const baseUrl = this.baseUrl();
-        const modelId = this.modelId();
 
-        // 1. Inject Schema into System Prompt (Crucial for Local Models!)
-        const messages = this.toOpenAIMessages(
-            contents,
-            systemInstruction,
-            config.responseSchema // Pass schema to helper
-        );
+        // 1. Build Native Prompt
+        // We use Llama 3 format as default for llama.cpp service
+        // IMPORTANT: We skip prefill if using json_schema to avoid grammatical inconsistency in the generator
+        const prompt = this.toNativePrompt(contents, systemInstruction, !!config.responseSchema);
 
         // 2. Build Request
         const requestBody = {
-            model: modelId,
-            messages,
+            prompt,
             stream: true,
-
+            n_predict: -1,
+            temperature: this.temperature(),
             repeat_penalty: 1.1,
-
-            // Force valid JSON Syntax
-            ...(config.responseSchema && {
-                response_format: { type: 'json_object' }
-            })
+            stop: ["<|eot_id|>", "<|end_of_text|>", "\n\n\n", "</s>"],
+            ...(config.responseSchema ? {
+                // Clean schema for llama.cpp internal GBNF converter
+                json_schema: this.cleanSchema(config.responseSchema)
+            } : {})
         };
 
+        if (config.responseSchema) {
+            console.log('[LlamaService] Native GBNF Grammar + Prefill strategy active.');
+        } else {
+            console.log('[LlamaService] Schema not provided, running in free-text mode.');
+        }
+
         try {
-            const response = await fetch(`${baseUrl}/v1/chat/completions`, {
+            const response = await fetch(`${baseUrl}/completion`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json'
+                },
                 body: JSON.stringify(requestBody),
                 signal: config.signal
             });
@@ -158,6 +223,9 @@ export class LlamaService implements LLMProvider {
             }
 
             if (!response.body) throw new Error('No response body from server.');
+
+            // No manual yield of '{' here because llama.cpp's json_schema 
+            // will generate it as the first token of the output.
 
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
@@ -177,55 +245,25 @@ export class LlamaService implements LLMProvider {
                         if (!trimmed.startsWith('data: ')) continue;
 
                         const data = trimmed.slice(6);
-                        if (data === '[DONE]') continue;
 
                         try {
                             const parsed = JSON.parse(data);
-                            const delta = parsed.choices?.[0]?.delta;
 
-                            if (delta?.content) {
-                                yield { text: delta.content };
+                            if (parsed.content) {
+                                yield { text: parsed.content };
                             }
 
-                            const finishReason = parsed.choices?.[0]?.finish_reason;
-                            if (finishReason) {
-                                yield { finishReason };
+                            if (parsed.stop) {
+                                yield { finishReason: 'stop' };
                             }
 
-                            if (parsed.usage) {
-                                // Handle new llama.cpp usage format:
-                                // {
-                                //   "input_tokens": 36,
-                                //   "input_tokens_details": { "cached_tokens": 0 },
-                                //   "output_tokens": 87,
-                                //   "output_tokens_details": { "reasoning_tokens": 0 },
-                                //   "total_tokens": 123
-                                // }
-                                const usage = parsed.usage;
-                                const inputTokens = usage.input_tokens || usage.prompt_tokens || 0;
-                                const outputTokens = usage.output_tokens || usage.completion_tokens || 0;
-                                const cachedTokens = usage.input_tokens_details?.cached_tokens || usage.cached_tokens || 0;
-
+                            // Native llama.cpp usage is in the final chunk or included timings
+                            if (parsed.tokens_predicted || parsed.tokens_evaluated) {
                                 yield {
                                     usageMetadata: {
-                                        promptTokens: inputTokens,
-                                        completionTokens: outputTokens,
-                                        cachedTokens: cachedTokens
-                                    }
-                                };
-                            } else if (parsed.timings) {
-                                // Fallback: Handle timings format (some llama.cpp versions use this)
-                                // timings: { cache_n: 0, prompt_n: 19167, predicted_n: 719 }
-                                const timings = parsed.timings;
-                                const inputTokens = timings.prompt_n || 0;
-                                const outputTokens = timings.predicted_n || 0;
-                                const cachedTokens = timings.cache_n || 0;
-
-                                yield {
-                                    usageMetadata: {
-                                        promptTokens: inputTokens,
-                                        completionTokens: outputTokens,
-                                        cachedTokens: cachedTokens
+                                        promptTokens: parsed.tokens_evaluated || 0,
+                                        completionTokens: parsed.tokens_predicted || 0,
+                                        cachedTokens: parsed.tokens_cached || 0
                                     }
                                 };
                             }
@@ -236,9 +274,9 @@ export class LlamaService implements LLMProvider {
                 reader.releaseLock();
             }
 
-        } catch (error: unknown) {
-            const err = error as { name?: string, message?: string };
-            if (err.name === 'TypeError' && err.message?.includes('fetch')) {
+        } catch (error) {
+            console.error('Llama generation failed:', error);
+            if (error instanceof TypeError && error.message?.includes('fetch')) {
                 throw new Error(`Connection Failed: Check if llama.cpp server is running at ${baseUrl}`);
             }
             throw error;
@@ -266,33 +304,61 @@ export class LlamaService implements LLMProvider {
     // Helper Methods
     // =========================================================================
 
-    private toOpenAIMessages(
+    /**
+     * Converts provider-agnostic contents to a Llama 3 formatted prompt string.
+     */
+    private toNativePrompt(
         contents: LLMContent[],
         systemInstruction: string,
-        schema?: object // Accept schema
-    ): { role: string; content: string }[] {
-        const messages: { role: string; content: string }[] = [];
+        isStrictJSON: boolean
+    ): string {
+        let prompt = `<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\n`;
 
-        let finalSystemInstruction = systemInstruction || '';
+        // Add System prompt
+        const finalSystemInstruction = systemInstruction || '';
+        prompt += `${finalSystemInstruction}<|eot_id|>`;
 
-        // [SHIM] Inject Schema Definition into System Prompt
-        // This tells Qwen/Llama exactly WHAT fields to generate
-        if (schema) {
-            finalSystemInstruction += `\n\n[SYSTEM REQUIREMENT: STRUCTURED OUTPUT]\nYou must STRICTLY output a valid JSON object adhering to the following schema. Do NOT wrap in markdown blocks.\n${JSON.stringify(schema, null, 2)}`;
-        }
-
-        if (finalSystemInstruction) {
-            messages.push({ role: 'system', content: finalSystemInstruction });
-        }
-
+        // Add history
         for (const content of contents) {
             const role = content.role === 'model' ? 'assistant' : content.role;
             const text = content.parts.map(p => p.text || '').filter(t => t).join('\n');
             if (text) {
-                messages.push({ role, content: text });
+                prompt += `<|start_header_id|>${role}<|end_header_id|>\n\n${text}<|eot_id|>`;
             }
         }
 
-        return messages;
+        // assistant start
+        prompt += `<|start_header_id|>assistant<|end_header_id|>\n\n`;
+        // NOTE: No '{' prefill here when using native json_schema parameter 
+        // because the server's grammar expects the generated text to START with '{'.
+        // However, if we aren't using strict JSON mode (no schema), we don't add it.
+        // We'll keep it simple for now as GBNF is the primary driver.
+
+        return prompt;
+    }
+
+    /**
+     * Recursively removes 'description' keys from a JSON schema.
+     * llama.cpp's internal schema-to-gbnf converter can fail on non-structural fields.
+     */
+    private cleanSchema(schema: object): object {
+        if (!schema || typeof schema !== 'object') return schema;
+
+        if (Array.isArray(schema)) {
+            return schema.map(item => this.cleanSchema(item));
+        }
+
+        const cleaned: Record<string, object | string | number | boolean | null> = {};
+        const entries = Object.entries(schema);
+
+        for (const [key, value] of entries) {
+            if (key === 'description') continue;
+            if (value !== null && typeof value === 'object') {
+                cleaned[key] = this.cleanSchema(value);
+            } else {
+                cleaned[key] = value;
+            }
+        }
+        return cleaned;
     }
 }

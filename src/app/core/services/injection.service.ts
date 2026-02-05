@@ -147,7 +147,7 @@ export class InjectionService {
                 this.state.enableDynamicInjection.set(savedEnabled === 'true');
             }
 
-            const lang = localStorage.getItem('gemini_output_language') || 'default';
+            const lang = localStorage.getItem('app_output_language') || localStorage.getItem('gemini_output_language') || 'default';
             const langFolder = getLangFolder(lang);
             const loadPath = (filename: string) =>
                 this.loadInjectionFile(`assets/system_files/${langFolder}/${filename}`);
@@ -274,7 +274,7 @@ export class InjectionService {
         const loadSystemMain = type === 'system_main' || type === 'all';
         const loadPostprocess = type === 'postprocess' || type === 'all';
 
-        const lang = this.state.config()?.outputLanguage || localStorage.getItem('gemini_output_language') || 'default';
+        const lang = this.state.config()?.outputLanguage || localStorage.getItem('app_output_language') || localStorage.getItem('gemini_output_language') || 'default';
         const langFolder = getLangFolder(lang);
         const folderPath = `assets/system_files/${langFolder}/`;
 

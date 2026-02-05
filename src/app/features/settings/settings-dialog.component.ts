@@ -1,25 +1,27 @@
-import { Component, inject, viewChild, signal } from '@angular/core';
+import { Component, inject, signal, computed, ComponentRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { firstValueFrom } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
-import { MatButtonModule } from '@angular/material/button';
-import { MatInputModule } from '@angular/material/input';
 import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatIconModule } from '@angular/material/icon';
-import { MatSliderModule } from '@angular/material/slider';
+import { MatInputModule } from '@angular/material/input';
+import { MatButtonModule } from '@angular/material/button';
 import { MatSelectModule } from '@angular/material/select';
+import { MatTabsModule } from '@angular/material/tabs';
+import { MatIconModule } from '@angular/material/icon';
+import { MatExpansionModule } from '@angular/material/expansion';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
+import { MatSliderModule } from '@angular/material/slider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { PortalModule, ComponentPortal, CdkPortalOutletAttachedRef } from '@angular/cdk/portal';
 import { GameEngineService } from '../../core/services/game-engine.service';
 import { GameStateService } from '../../core/services/game-state.service';
-import { getLanguagesList } from '../../core/constants/locales';
+import { LLMProviderRegistryService } from '../../core/services/llm-provider-registry.service';
 import { GoogleDriveService } from '../../core/services/google-drive.service';
 import { LoadingService } from '../../core/services/loading.service';
-import { MatSnackBar } from '@angular/material/snack-bar';
-import { LLMProviderRegistryService } from '../../core/services/llm-provider-registry.service';
-import { GeminiSettingsComponent } from './gemini-settings/gemini-settings.component';
-import { LlamaSettingsComponent } from './llama-settings/llama-settings.component';
+import { LLMSettingsComponent } from '../../core/services/llm-provider';
+import { getLanguagesList } from '../../core/constants/locales';
 
 @Component({
   selector: 'app-settings-dialog',
@@ -32,39 +34,49 @@ import { LlamaSettingsComponent } from './llama-settings/llama-settings.componen
     MatInputModule,
     MatIconModule,
     MatDialogModule,
-    MatSliderModule,
     MatSelectModule,
     MatSlideToggleModule,
+    MatTabsModule,
+    MatExpansionModule,
+    MatSliderModule,
     MatProgressSpinnerModule,
-    GeminiSettingsComponent,
-    LlamaSettingsComponent
+    PortalModule
   ],
   templateUrl: './settings-dialog.component.html',
   styleUrl: './settings-dialog.component.scss'
 })
 export class SettingsDialogComponent {
-  engine = inject(GameEngineService);
+  private dialogRef = inject(MatDialogRef<SettingsDialogComponent>);
+  private engine = inject(GameEngineService);
   state = inject(GameStateService);
-  dialogRef = inject(MatDialogRef);
+  private providerRegistry = inject(LLMProviderRegistryService);
   loading = inject(LoadingService);
   private driveService = inject(GoogleDriveService);
   private snackBar = inject(MatSnackBar);
-  private providerRegistry = inject(LLMProviderRegistryService);
 
-  // Provider components (for accessing their settings)
-  geminiSettings = viewChild<GeminiSettingsComponent>('geminiSettings');
-  llamaSettings = viewChild<LlamaSettingsComponent>('llamaSettings');
-
-  // Provider selection
-  activeProvider = signal<'gemini' | 'llama.cpp'>('gemini');
+  // Active provider selection
+  activeProvider = signal('gemini');
   providers = [
     { id: 'gemini', name: 'Gemini (Cloud)', icon: 'cloud' },
-    { id: 'llama.cpp', name: 'llama.cpp (Local)', icon: 'computer' }
+    { id: 'llama.cpp', name: 'llama.cpp (Local)', icon: 'computer' },
+    { id: 'openai', name: 'OpenAI (Compatible)', icon: 'bolt' }
   ];
 
-  // Shared UI settings
-  fontSize = signal<number | undefined>(undefined);
-  fontFamily = signal<string | undefined>(undefined);
+  // Dynamic Portal for Provider Settings
+  activeSettingsPortal = computed(() => {
+    const provider = this.providerRegistry.getProvider(this.activeProvider());
+    if (provider?.settingsComponent) {
+      return new ComponentPortal(provider.settingsComponent);
+    }
+    return null;
+  });
+
+  // Track the instance of the dynamic component
+  private activeComponentRef = signal<LLMSettingsComponent | null>(null);
+
+  // Common UI settings
+  fontSize = signal(16);
+  fontFamily = signal('sans-serif');
   exchangeRate = signal(30);
   currency = signal('TWD');
   enableConversion = signal(false);
@@ -75,7 +87,7 @@ export class SettingsDialogComponent {
   outputLanguage = signal('default');
   customOutputLanguage = signal('');
 
-  languages = getLanguagesList();
+  languages: { value: string; label: string }[] = getLanguagesList();
 
   currencies = [
     { code: 'TWD', name: 'New Taiwan Dollar (NT$)', symbol: 'NT$' },
@@ -94,7 +106,23 @@ export class SettingsDialogComponent {
     { name: 'Custom...', value: 'custom' }
   ];
 
-  customFontName = signal('iansui');
+  customFontName = signal('');
+
+  onPortalAttached(ref: CdkPortalOutletAttachedRef): void {
+    if (ref instanceof ComponentRef) {
+      this.activeComponentRef.set(ref.instance as LLMSettingsComponent);
+    }
+  }
+
+  isValid = computed(() => {
+    // Shared validation
+    if (this.outputLanguage() === 'custom' && !this.customOutputLanguage().trim()) return false;
+    if (this.fontFamily() === 'custom' && !this.customFontName().trim()) return false;
+
+    // Provider Specific validation (Polymorphic)
+    const component = this.activeComponentRef();
+    return component ? component.isValid() : true;
+  });
 
   constructor() {
     this.loadSettings();
@@ -102,26 +130,29 @@ export class SettingsDialogComponent {
 
   private loadSettings(): void {
     // Load active provider
-    this.activeProvider.set((localStorage.getItem('llm_provider') as 'gemini' | 'llama.cpp') || 'gemini');
+    this.activeProvider.set(localStorage.getItem('llm_provider') || 'gemini');
 
     // Load shared UI settings
     const current = this.state.config();
     if (current) {
-      this.fontSize.set(current.fontSize);
+      this.fontSize.set(current.fontSize || 16);
+
+      // Font parsing
+      const standardFonts = this.fontFamilies.map(f => f.value); // Use existing fontFamilies for comparison
+      if (current.fontFamily && !standardFonts.includes(current.fontFamily)) {
+        this.fontFamily.set('custom');
+        this.customFontName.set(current.fontFamily);
+      } else {
+        this.fontFamily.set(current.fontFamily || 'sans-serif');
+      }
+
       this.exchangeRate.set(current.exchangeRate ?? 30);
       this.currency.set(current.currency || 'TWD');
       this.enableConversion.set(current.enableConversion ?? false);
       this.screensaverType.set(current.screensaverType ?? 'invaders');
       this.idleOnBlur.set(current.idleOnBlur ?? false);
 
-      const isPreset = this.fontFamilies.some(f => f.value === current.fontFamily);
-      if (current.fontFamily && !isPreset) {
-        this.fontFamily.set('custom');
-        this.customFontName.set(current.fontFamily);
-      } else {
-        this.fontFamily.set(current.fontFamily);
-      }
-      // Load Language
+      // Language parsing
       const lang = current.outputLanguage || 'default';
       const isPresetLang = this.languages.some(l => l.value === lang);
       if (!isPresetLang && lang !== 'default') {
@@ -134,72 +165,43 @@ export class SettingsDialogComponent {
   }
 
   save(): void {
-    // Save active provider
-    const selectedProvider = this.activeProvider();
-    localStorage.setItem('llm_provider', selectedProvider);
+    const selectedProviderId = this.activeProvider();
 
-    // Update active provider immediately
-    if (this.providerRegistry.hasProvider(selectedProvider)) {
-      this.providerRegistry.setActive(selectedProvider);
+    // 1. Persist the provider selection
+    localStorage.setItem('llm_provider', selectedProviderId);
+
+    // 2. Set as active in registry
+    if (this.providerRegistry.hasProvider(selectedProviderId)) {
+      this.providerRegistry.setActive(selectedProviderId);
     }
 
-    // Save provider-specific settings
-    if (this.activeProvider() === 'gemini') {
-      const gemini = this.geminiSettings();
-      if (gemini) {
-        const settings = gemini.getSettings();
-        this.engine.saveConfig(settings.apiKey, settings.modelId, {
-          fontSize: this.fontSize(),
-          fontFamily: this.fontFamily() === 'custom' ? this.customFontName() : this.fontFamily(),
-          enableCache: settings.enableCache,
-          exchangeRate: this.exchangeRate(),
-          currency: this.currency(),
-          enableConversion: this.enableConversion(),
-          screensaverType: this.screensaverType(),
-          idleOnBlur: this.idleOnBlur(),
-          outputLanguage: this.outputLanguage() === 'custom' ? this.customOutputLanguage() : this.outputLanguage(),
-          thinkingLevelStory: settings.thinkingLevelStory,
-          thinkingLevelGeneral: settings.thinkingLevelGeneral
-        });
-      }
-    } else {
-      const llama = this.llamaSettings();
-      if (llama) {
-        const settings = llama.getSettings();
-        localStorage.setItem('llama_base_url', settings.baseUrl);
-        localStorage.setItem('llama_model_id', settings.modelId);
-      }
+    const providerInstance = this.providerRegistry.getActive();
+    const componentInstance = this.activeComponentRef();
 
-      // Still save shared UI settings via engine
-      this.engine.saveConfig(
-        localStorage.getItem('gemini_api_key') || '',
-        localStorage.getItem('gemini_model_id') || 'gemini-3-flash-preview',
-        {
-          fontSize: this.fontSize(),
-          fontFamily: this.fontFamily() === 'custom' ? this.customFontName() : this.fontFamily(),
-          exchangeRate: this.exchangeRate(),
-          currency: this.currency(),
-          enableConversion: this.enableConversion(),
-          screensaverType: this.screensaverType(),
-          idleOnBlur: this.idleOnBlur(),
-          outputLanguage: this.outputLanguage() === 'custom' ? this.customOutputLanguage() : this.outputLanguage()
-        }
-      );
+    // 3. Polymorphic Save with verification to prevent cross-provider pollution
+    if (componentInstance && providerInstance) {
+      // Basic check: we only save if the ComponentRef exists and matches the active provider.
+      // Since components are swapped via portals, we trust the registry and activeComponentRef pairing
+      // but we still want to be careful about passing the right settings to the right provider.
+      providerInstance.saveConfig(componentInstance.getSettings());
     }
+
+    // 4. Save Common UI Config via Engine (provider-agnostic)
+    const commonConfig = {
+      fontSize: this.fontSize(),
+      fontFamily: this.fontFamily() === 'custom' ? this.customFontName() : this.fontFamily(),
+      exchangeRate: this.exchangeRate(),
+      currency: this.currency(),
+      enableConversion: this.enableConversion(),
+      screensaverType: this.screensaverType(),
+      idleOnBlur: this.idleOnBlur(),
+      outputLanguage: this.outputLanguage() === 'custom' ? this.customOutputLanguage() : this.outputLanguage(),
+    };
+
+    this.engine.saveConfig(commonConfig);
 
     this.dialogRef.close();
   }
-
-  isValid(): boolean {
-    if (this.activeProvider() === 'gemini') {
-      const gemini = this.geminiSettings();
-      return gemini?.isValid() ?? false;
-    } else {
-      const llama = this.llamaSettings();
-      return llama?.isValid() ?? true;
-    }
-  }
-
   async uploadSettings(): Promise<void> {
     this.loading.show('Uploading settings to Cloud...');
     try {

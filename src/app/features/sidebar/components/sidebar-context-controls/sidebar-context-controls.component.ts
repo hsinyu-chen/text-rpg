@@ -140,7 +140,7 @@ export class SidebarContextControlsComponent {
                         ...cfg,
                         smartContextTurns: turns
                     };
-                    await this.configService.saveConfig(cfg.apiKey || '', cfg.modelId || '', newConfig);
+                    await this.configService.saveConfig(newConfig);
                     this.snackBar.open(`Smart context set to ${turns} turns.`, 'OK', { duration: 3000 });
                 }
             } else {

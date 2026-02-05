@@ -1,6 +1,10 @@
 <div class="status-indicator" [class]="state.status()">
     <div class="model-config-info">
         <div class="config-row">
+            <span class="label">Provider:</span>
+            <span class="value">{{ activeProviderName() }}</span>
+        </div>
+        <div class="config-row">
             <span class="label">Model:</span>
             <span class="value" [matTooltip]="currentModelId()">{{ currentModelId() }}</span>
         </div>

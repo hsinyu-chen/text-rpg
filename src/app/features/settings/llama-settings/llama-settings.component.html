@@ -1,22 +1,50 @@
-<div class="provider-settings">
+<div class="settings-grid">
     <mat-form-field appearance="outline" class="full-width">
         <mat-label>Server URL</mat-label>
-        <input matInput [(ngModel)]="baseUrl" placeholder="http://localhost:8080">
-        <mat-hint>OpenAI-compatible API endpoint (e.g., /v1/chat/completions)</mat-hint>
+        <input matInput [ngModel]="baseUrl()" (ngModelChange)="baseUrl.set($event)"
+            placeholder="e.g http://localhost:8080">
+        <mat-icon matPrefix>lan</mat-icon>
+        <mat-hint>The API endpoint of your llama.cpp server</mat-hint>
     </mat-form-field>
 
     <mat-form-field appearance="outline" class="full-width">
-        <mat-label>Model Name</mat-label>
-        <input matInput [(ngModel)]="modelId" placeholder="local-model">
-        <mat-hint>Identifier for the loaded model</mat-hint>
+        <mat-label>Model Reference</mat-label>
+        <input matInput [ngModel]="modelId()" (ngModelChange)="modelId.set($event)" placeholder="e.g. Llama-3-8B">
+        <mat-icon matPrefix>label</mat-icon>
+        <mat-hint>Metadata name for tracking usage</mat-hint>
     </mat-form-field>
 
-    <div class="info-section">
-        <mat-icon>info</mat-icon>
-        <div>
-            <p><strong>Local Inference</strong></p>
-            <p>llama.cpp runs entirely on your machine - no API costs or data sent externally.</p>
-            <p>Ensure your llama.cpp server is running before starting a session.</p>
-        </div>
+    <div class="slider-row">
+        <span>Temperature: {{ temperature() }}</span>
+        <mat-slider min="0" max="2" step="0.1" showTickMarks discrete>
+            <input matSliderThumb [aria-label]="'Temperature'" [ngModel]="temperature()"
+                (ngModelChange)="temperature.set($event)">
+        </mat-slider>
+        <p class="hint-text">Higher values make the output more random.</p>
+    </div>
+
+    <div class="pricing-row" style="display: flex; gap: 16px; margin-top: 16px;">
+        <mat-form-field appearance="outline" style="flex: 1;">
+            <mat-label>Input Price (USD/1M)</mat-label>
+            <input matInput type="number" [ngModel]="inputPrice()" (ngModelChange)="inputPrice.set($event)" step="0.01"
+                min="0">
+            <mat-icon matPrefix>login</mat-icon>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" style="flex: 1;">
+            <mat-label>Output Price (USD/1M)</mat-label>
+            <input matInput type="number" [ngModel]="outputPrice()" (ngModelChange)="outputPrice.set($event)"
+                step="0.01" min="0">
+            <mat-icon matPrefix>logout</mat-icon>
+        </mat-form-field>
+    </div>
+</div>
+
+<div class="info-section">
+    <mat-icon>info</mat-icon>
+    <div>
+        <p><strong>Local Inference</strong></p>
+        <p>llama.cpp runs entirely on your machine - no API costs or data sent externally.</p>
+        <p>Ensure your llama.cpp server is running before starting a session.</p>
     </div>
 </div>

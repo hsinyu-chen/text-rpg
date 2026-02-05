@@ -9,7 +9,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatButtonModule } from '@angular/material/button';
 import { GeminiService, DEFAULT_GEMINI_MODEL_ID } from '../../../core/services/gemini.service';
-import { LLMModelDefinition } from '../../../core/services/llm-provider';
+import { LLMSettingsComponent, LLMModelDefinition } from '../../../core/services/llm-provider';
 
 /**
  * Gemini-specific settings component.
@@ -22,7 +22,7 @@ import { LLMModelDefinition } from '../../../core/services/llm-provider';
     templateUrl: './gemini-settings.component.html',
     styleUrl: './gemini-settings.component.scss'
 })
-export class GeminiSettingsComponent {
+export class GeminiSettingsComponent implements LLMSettingsComponent {
     private gemini = inject(GeminiService);
 
     // Emits when settings change

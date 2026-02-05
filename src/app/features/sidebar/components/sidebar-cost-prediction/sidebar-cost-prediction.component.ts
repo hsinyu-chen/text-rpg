@@ -31,14 +31,12 @@ export class SidebarCostPredictionComponent {
     currentModelId = computed(() => {
         const activeProvider = this.providerRegistry.getActive();
         if (!activeProvider) return 'Unknown';
+        return activeProvider.getModelId();
+    });
 
-        if (activeProvider.providerName === 'llama.cpp') {
-            // For llama.cpp, get model ID from localStorage or provider's modelId signal
-            return localStorage.getItem('llama_model_id') || this.state.config()?.modelId || activeProvider.getDefaultModelId();
-        }
-        
-        // For other providers (e.g., Gemini), get from config
-        return this.state.config()?.modelId || activeProvider.getDefaultModelId();
+    activeProviderName = computed(() => {
+        const activeProvider = this.providerRegistry.getActive();
+        return activeProvider?.providerName || 'Unknown';
     });
 
     // Explicit Context Caching Status
@@ -103,10 +101,7 @@ export class SidebarCostPredictionComponent {
     // Helper to get the correct model ID for cost calculation
     private getModelIdForCost(): string {
         const activeProvider = this.providerRegistry.getActive();
-        if (activeProvider?.providerName === 'llama.cpp') {
-            return localStorage.getItem('llama_model_id') || this.state.config()?.modelId || activeProvider.getDefaultModelId();
-        }
-        return this.state.config()?.modelId || activeProvider?.getDefaultModelId() || 'unknown';
+        return activeProvider?.getModelId() || 'unknown';
     }
 
     lastTurnCost = computed(() => {
@@ -178,7 +173,6 @@ export class SidebarCostPredictionComponent {
     }
 
     copySessionStats() {
-        const config = this.state.config();
 
         const currency = this.displayCurrency();
         const exchangeRate = this.displayRate();

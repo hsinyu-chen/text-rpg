@@ -1,3 +1,5 @@
+import { Type } from '@angular/core';
+
 /**
  * LLM Provider Abstraction Layer
  *
@@ -164,6 +166,17 @@ export interface LLMProvider {
     init(config: LLMProviderConfig): void;
 
     /**
+     * Persists the provider's configuration.
+     * @param config The configuration to save.
+     */
+    saveConfig(config: LLMProviderConfig): void;
+
+    /**
+     * Reads the provider's configuration from storage.
+     */
+    getConfigFromStorage(): LLMProviderConfig;
+
+    /**
      * Generate content with streaming response.
      * @param contents The chat history/context
      * @param systemInstruction System-level prompt
@@ -198,6 +211,11 @@ export interface LLMProvider {
      * Get the default model ID for this provider.
      */
     getDefaultModelId(): string;
+
+    /**
+     * Get the currently active model ID.
+     */
+    getModelId(): string;
 
     /**
      * Get a preview-friendly version of the contents.
@@ -239,6 +257,26 @@ export interface LLMProvider {
      * Delete all caches.
      */
     deleteAllCaches?(): Promise<number>;
+
+    /**
+     * Component to use for provider-specific settings UI.
+     */
+    settingsComponent?: Type<LLMSettingsComponent>;
+}
+
+/**
+ * Common interface for all LLM provider settings components.
+ */
+export interface LLMSettingsComponent {
+    /**
+     * returns true if the current form state is valid.
+     */
+    isValid(): boolean;
+
+    /**
+     * Returns the finalized provider configuration for saving.
+     */
+    getSettings(): LLMProviderConfig;
 }
 
 // ============================================================================
@@ -260,4 +298,12 @@ export interface LLMProviderConfig {
     thinkingLevelStory?: string;
     /** Thinking level for general context */
     thinkingLevelGeneral?: string;
+    /** Temperature setting for generation */
+    temperature?: number;
+    /** Whether to enable context caching (Gemini-specific) */
+    enableCache?: boolean;
+    /** Custom input token price (per 1M) */
+    inputPrice?: number;
+    /** Custom output token price (per 1M) */
+    outputPrice?: number;
 }

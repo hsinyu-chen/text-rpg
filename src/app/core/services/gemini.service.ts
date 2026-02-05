@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, Type } from '@angular/core';
 import { CachedContent, Content, Part, CreateCachedContentParameters, CreateCachedContentConfig, GoogleGenAI, ThinkingLevel, GenerateContentParameters, GenerateContentConfig, Tool, HarmCategory, HarmBlockThreshold } from '@google/genai';
 
 import { Schema } from '../models/types';
@@ -11,6 +11,7 @@ import {
     LLMGenerateConfig,
     LLMStreamChunk,
     LLMModelDefinition,
+    LLMSettingsComponent,
     LLMCacheInfo
 } from './llm-provider';
 
@@ -28,6 +29,7 @@ export const DEFAULT_GEMINI_MODEL_ID = 'gemini-3-flash-preview';
 })
 export class GeminiService implements LLMProvider {
     readonly providerName = 'gemini';
+    settingsComponent?: Type<LLMSettingsComponent>;
 
     private client: GoogleGenAI = null!;
     private lastModelId: string = DEFAULT_GEMINI_MODEL_ID;
@@ -153,6 +155,28 @@ export class GeminiService implements LLMProvider {
         return DEFAULT_GEMINI_MODEL_ID;
     }
 
+    getModelId(): string {
+        return this.lastModelId;
+    }
+
+    saveConfig(config: LLMProviderConfig): void {
+        if (config.apiKey) localStorage.setItem('gemini_api_key', config.apiKey);
+        if (config.modelId) localStorage.setItem('gemini_model_id', config.modelId);
+        if (config.enableCache !== undefined) localStorage.setItem('gemini_enable_cache', config.enableCache.toString());
+        if (config.thinkingLevelStory) localStorage.setItem('gemini_thinking_level_story', config.thinkingLevelStory);
+        if (config.thinkingLevelGeneral) localStorage.setItem('gemini_thinking_level_general', config.thinkingLevelGeneral);
+
+        this.init(config);
+    }
+
+    getConfigFromStorage(): LLMProviderConfig {
+        return {
+            apiKey: localStorage.getItem('gemini_api_key') || '',
+            modelId: localStorage.getItem('gemini_model_id') || this.getDefaultModelId(),
+            thinkingLevelStory: localStorage.getItem('gemini_thinking_level_story') || 'minimal',
+            thinkingLevelGeneral: localStorage.getItem('gemini_thinking_level_general') || 'high'
+        };
+    }
     /**
      * Initialize using LLMProviderConfig (LLMProvider interface method).
      */
@@ -378,7 +402,7 @@ export class GeminiService implements LLMProvider {
                     parts: [{ text: systemInstruction }]
                 },
                 tools: this.defaultTools,
-                ttl: `${ttlSeconds}s`
+                ttl: ttlSeconds + ' s'
             };
 
             const params: CreateCachedContentParameters = {
@@ -407,7 +431,7 @@ export class GeminiService implements LLMProvider {
             const cache = await this.client.caches.update({
                 name,
                 config: {
-                    ttl: `${ttlSeconds}s`
+                    ttl: ttlSeconds + ' s'
                 }
             });
             console.log('Cache TTL updated:', name);

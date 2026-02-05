@@ -203,7 +203,7 @@ When listing `<Action Intent>`, `<Continue>`, or `<Fast Forward>`, your thinking
 
 # Output Format Specifications
 
-Strictly follow these field definitions:
+Strictly follow these JSON field definitions:
 
 - **analysis (Atomic Breakdown & Adjudication)**:
   - Follow [Step 1] Logic.

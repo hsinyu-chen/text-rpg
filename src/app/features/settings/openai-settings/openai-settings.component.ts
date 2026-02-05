@@ -8,24 +8,25 @@ import { MatSliderModule } from '@angular/material/slider';
 import { LLMSettingsComponent } from '../../../core/services/llm-provider';
 
 /**
- * llama.cpp-specific settings component.
- * Handles server URL and model identifier configuration.
+ * OpenAI-specific settings component.
+ * Handles API key, base URL, and model identifier configuration.
  */
 @Component({
-    selector: 'app-llama-settings',
+    selector: 'app-openai-settings',
     standalone: true,
     imports: [CommonModule, FormsModule, MatFormFieldModule, MatInputModule, MatIconModule, MatSliderModule],
-    templateUrl: './llama-settings.component.html',
-    styleUrl: './llama-settings.component.scss'
+    templateUrl: './openai-settings.component.html',
+    styleUrl: './openai-settings.component.scss'
 })
-export class LlamaSettingsComponent implements LLMSettingsComponent {
+export class OpenAISettingsComponent implements LLMSettingsComponent {
     // Emits when settings change
-    settingsChange = output<LlamaSettings>();
+    settingsChange = output<OpenAISettings>();
 
     // Form fields
-    baseUrl = signal('http://localhost:8080');
-    modelId = signal('local-model');
-    temperature = signal(0.5);
+    baseUrl = signal('https://api.openai.com/v1');
+    apiKey = signal('');
+    modelId = signal('gpt-4o');
+    temperature = signal(0.7);
     inputPrice = signal(0);
     outputPrice = signal(0);
 
@@ -34,19 +35,21 @@ export class LlamaSettingsComponent implements LLMSettingsComponent {
     }
 
     private loadSettings(): void {
-        this.baseUrl.set(localStorage.getItem('llama_base_url') || 'http://localhost:8080');
-        this.modelId.set(localStorage.getItem('llama_model_id') || 'local-model');
-        const savedTemp = localStorage.getItem('llama_temperature');
+        this.baseUrl.set(localStorage.getItem('openai_base_url') || 'https://api.openai.com/v1');
+        this.apiKey.set(localStorage.getItem('openai_api_key') || '');
+        this.modelId.set(localStorage.getItem('openai_model_id') || 'gpt-4o');
+        const savedTemp = localStorage.getItem('openai_temperature');
         if (savedTemp) {
             this.temperature.set(parseFloat(savedTemp));
         }
-        this.inputPrice.set(parseFloat(localStorage.getItem('llama_input_price') || '0'));
-        this.outputPrice.set(parseFloat(localStorage.getItem('llama_output_price') || '0'));
+        this.inputPrice.set(parseFloat(localStorage.getItem('openai_input_price') || '0'));
+        this.outputPrice.set(parseFloat(localStorage.getItem('openai_output_price') || '0'));
     }
 
-    getSettings(): LlamaSettings {
+    getSettings(): OpenAISettings {
         return {
             baseUrl: this.baseUrl(),
+            apiKey: this.apiKey(),
             modelId: this.modelId(),
             temperature: this.temperature(),
             inputPrice: this.inputPrice(),
@@ -55,12 +58,14 @@ export class LlamaSettingsComponent implements LLMSettingsComponent {
     }
 
     isValid(): boolean {
-        return !!this.baseUrl().trim();
+        // API Key is usually required unless it's a local proxy without auth
+        return !!this.baseUrl().trim() && !!this.modelId().trim();
     }
 }
 
-export interface LlamaSettings {
+export interface OpenAISettings {
     baseUrl: string;
+    apiKey: string;
     modelId: string;
     temperature: number;
     inputPrice: number;

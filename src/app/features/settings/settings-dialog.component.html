@@ -7,7 +7,7 @@
             <h3>LLM Provider</h3>
             <mat-form-field appearance="outline" class="full-width">
                 <mat-label>Select Provider</mat-label>
-                <mat-select [(ngModel)]="activeProvider">
+                <mat-select [ngModel]="activeProvider()" (ngModelChange)="activeProvider.set($event)">
                     @for (p of providers; track p.id) {
                     <mat-option [value]="p.id">
                         <mat-icon>{{ p.icon }}</mat-icon>
@@ -20,11 +20,7 @@
 
         <!-- Dynamic Provider Settings -->
         <div class="provider-content">
-            @if (activeProvider() === 'gemini') {
-            <app-gemini-settings #geminiSettings></app-gemini-settings>
-            } @else {
-            <app-llama-settings #llamaSettings></app-llama-settings>
-            }
+            <ng-template [cdkPortalOutlet]="activeSettingsPortal()" (attached)="onPortalAttached($event)"></ng-template>
         </div>
 
         <!-- Game Settings -->
@@ -32,7 +28,7 @@
             <h3>Game Settings</h3>
             <mat-form-field appearance="outline" class="full-width">
                 <mat-label>Output Language (Override)</mat-label>
-                <mat-select [(ngModel)]="outputLanguage">
+                <mat-select [ngModel]="outputLanguage()" (ngModelChange)="outputLanguage.set($event)">
                     @for (l of languages; track l.value) {
                     <mat-option [value]="l.value">
                         {{ l.label }}
@@ -45,7 +41,8 @@
             @if (outputLanguage() === 'custom') {
             <mat-form-field appearance="outline" class="full-width">
                 <mat-label>Enter Language</mat-label>
-                <input matInput [(ngModel)]="customOutputLanguage" placeholder="e.g. French, Korean">
+                <input matInput [ngModel]="customOutputLanguage()" (ngModelChange)="customOutputLanguage.set($event)"
+                    placeholder="e.g. French, Korean">
             </mat-form-field>
             }
         </div>
@@ -55,13 +52,14 @@
             <div class="slider-row">
                 <label for="fontSize-slider">Font Size: {{ fontSize() || 17 }}px</label>
                 <mat-slider min="12" max="32" step="1" showTickMarks discrete>
-                    <input matSliderThumb id="fontSize-slider" [(ngModel)]="fontSize">
+                    <input matSliderThumb id="fontSize-slider" [ngModel]="fontSize()"
+                        (ngModelChange)="fontSize.set($event)">
                 </mat-slider>
             </div>
 
             <mat-form-field appearance="outline" class="full-width">
                 <mat-label>Font Family</mat-label>
-                <mat-select [(ngModel)]="fontFamily">
+                <mat-select [ngModel]="fontFamily()" (ngModelChange)="fontFamily.set($event)">
                     @for (f of fontFamilies; track f.value) {
                     <mat-option [value]="f.value">
                         {{ f.name }}
@@ -73,13 +71,14 @@
             @if (fontFamily() === 'custom') {
             <mat-form-field appearance="outline" class="full-width">
                 <mat-label>Enter Font Name</mat-label>
-                <input matInput [(ngModel)]="customFontName" placeholder="e.g. Inter, Consolas">
+                <input matInput [ngModel]="customFontName()" (ngModelChange)="customFontName.set($event)"
+                    placeholder="e.g. Inter, Consolas">
             </mat-form-field>
             }
 
             <mat-form-field appearance="outline" class="full-width">
                 <mat-label>Screensaver Type</mat-label>
-                <mat-select [(ngModel)]="screensaverType">
+                <mat-select [ngModel]="screensaverType()" (ngModelChange)="screensaverType.set($event)">
                     <mat-option value="invaders">
                         <mat-icon>videogame_asset</mat-icon> Space Invaders
                     </mat-option>
@@ -90,7 +89,7 @@
             </mat-form-field>
 
             <div class="toggle-row">
-                <mat-slide-toggle [(ngModel)]="idleOnBlur" color="primary">
+                <mat-slide-toggle [ngModel]="idleOnBlur()" (ngModelChange)="idleOnBlur.set($event)" color="primary">
                     Immediate Idle on Focus Loss
                 </mat-slide-toggle>
             </div>
@@ -101,7 +100,8 @@
             <h3>Billing & Currency</h3>
 
             <div class="toggle-row">
-                <mat-slide-toggle [(ngModel)]="enableConversion" color="primary">
+                <mat-slide-toggle [ngModel]="enableConversion()" (ngModelChange)="enableConversion.set($event)"
+                    color="primary">
                     Enable Currency Conversion
                 </mat-slide-toggle>
             </div>
@@ -109,7 +109,8 @@
             <div class="currency-row">
                 <mat-form-field appearance="outline" class="half-width">
                     <mat-label>Display Currency</mat-label>
-                    <mat-select [(ngModel)]="currency" [disabled]="!enableConversion()">
+                    <mat-select [ngModel]="currency()" (ngModelChange)="currency.set($event)"
+                        [disabled]="!enableConversion()">
                         @for (c of currencies; track c.code) {
                         <mat-option [value]="c.code">
                             {{ c.name }}
@@ -121,7 +122,8 @@
                 @if (currency() !== 'USD') {
                 <mat-form-field appearance="outline" class="half-width">
                     <mat-label>Exchange Rate</mat-label>
-                    <input matInput type="number" [(ngModel)]="exchangeRate" [disabled]="!enableConversion()">
+                    <input matInput type="number" [ngModel]="exchangeRate()" (ngModelChange)="exchangeRate.set($event)"
+                        [disabled]="!enableConversion()">
                     <span matSuffix>{{ currency() }}/USD</span>
                 </mat-form-field>
                 }

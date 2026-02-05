@@ -75,131 +75,106 @@ export class ConfigService {
         await this.injection.loadDynamicInjectionSettings();
         await this.session.loadHistoryFromStorage();
 
-        const key = localStorage.getItem('gemini_api_key');
-        const model = localStorage.getItem('gemini_model_id') || this.provider?.getDefaultModelId() || 'gemini-prod';
-        
-        // Get llama.cpp settings if active provider
-        const llamaBaseUrl = localStorage.getItem('llama_base_url');
-        const llamaModelId = localStorage.getItem('llama_model_id');
-
+        // Get Global UI settings
         const sSize = localStorage.getItem('app_font_size');
         const sFamily = localStorage.getItem('app_font_family');
-
         const fontSize = sSize ? parseInt(sSize, 10) : undefined;
         const fontFamily = sFamily || undefined;
-        const enableCache = localStorage.getItem('gemini_enable_cache') === 'true';
-        const sRate = localStorage.getItem('gemini_exchange_rate');
-        const exchangeRate = sRate ? parseFloat(sRate) : 30;
+
         const screensaverType = (localStorage.getItem('app_screensaver_type') as 'invaders' | 'code') || 'invaders';
         const currency = localStorage.getItem('app_currency') || 'TWD';
         const enableConversion = localStorage.getItem('app_enable_conversion') === 'true';
-        const outputLanguage = localStorage.getItem('gemini_output_language') || 'default';
         const idleOnBlur = localStorage.getItem('app_idle_on_blur') === 'true';
-        const thinkingLevelStory = localStorage.getItem('gemini_thinking_level_story') || 'minimal';
-        const thinkingLevelGeneral = localStorage.getItem('gemini_thinking_level_general') || 'high';
-        const sSmartTurns = localStorage.getItem('gemini_smart_context_turns');
-        const smartContextTurns = sSmartTurns ? parseInt(sSmartTurns, 10) : 10;
 
-        if (key) {
-            const cfg: GameEngineConfig = {
-                apiKey: key,
-                modelId: model,
-                fontSize,
-                fontFamily,
-                enableCache,
-                exchangeRate,
-                currency,
-                enableConversion,
-                screensaverType,
-                outputLanguage,
-                idleOnBlur,
-                thinkingLevelStory,
-                thinkingLevelGeneral,
-                smartContextTurns
-            };
-            this.state.config.set(cfg);
+        // Get Provider-Specific settings from the active provider
+        const activeProvider = this.providerRegistry.getActive();
+        const providerConfig = activeProvider?.getConfigFromStorage() || {};
 
-            // Initialize provider with appropriate settings
-            const providerConfig: { apiKey?: string; modelId?: string; baseUrl?: string } = {
-                apiKey: key,
-                modelId: model
-            };
-            
-            // Add llama.cpp specific settings if active provider
-            const activeProvider = this.providerRegistry.getActive();
-            if (activeProvider?.providerName === 'llama.cpp') {
-                if (llamaBaseUrl) {
-                    providerConfig.baseUrl = llamaBaseUrl.replace(/\/$/, '');
-                }
-                if (llamaModelId) {
-                    providerConfig.modelId = llamaModelId;
-                }
-            }
-            
-            this.provider?.init(providerConfig);
+        const cfg: GameEngineConfig = {
+            apiKey: providerConfig.apiKey || '',
+            modelId: providerConfig.modelId || activeProvider?.getDefaultModelId() || '',
+            fontSize,
+            fontFamily,
+            enableCache: providerConfig.enableCache ?? (localStorage.getItem('app_enable_cache') === 'true'),
+            exchangeRate: parseFloat(localStorage.getItem('app_exchange_rate') || localStorage.getItem('gemini_exchange_rate') || '30'),
+            currency,
+            enableConversion,
+            screensaverType,
+            outputLanguage: localStorage.getItem('app_output_language') || localStorage.getItem('gemini_output_language') || 'default',
+            idleOnBlur,
+            thinkingLevelStory: providerConfig.thinkingLevelStory || 'minimal',
+            thinkingLevelGeneral: providerConfig.thinkingLevelGeneral || 'high',
+            smartContextTurns: parseInt(localStorage.getItem('app_smart_context_turns') || localStorage.getItem('gemini_smart_context_turns') || '10', 10)
+        };
 
-            // Restore cache state
-            const cacheName = localStorage.getItem('kb_cache_name');
-            console.log('[ConfigService] initConfig Read:', { name: cacheName });
+        this.state.config.set(cfg);
 
-            if (cacheName) {
-                this.state.kbCacheName.set(cacheName);
-                const savedTokens = localStorage.getItem('kb_cache_tokens');
-                this.state.kbCacheTokens.set(savedTokens ? parseInt(savedTokens, 10) : 0);
-
-                const savedExpire = localStorage.getItem('kb_cache_expire');
-                if (savedExpire) {
-                    const expireMs = parseInt(savedExpire, 10);
-                    if (!isNaN(expireMs) && expireMs > Date.now()) {
-                        this.state.kbCacheExpireTime.set(expireMs);
-                        console.log('[ConfigService] Restored cache expiration from storage:', new Date(expireMs).toLocaleString());
-                        this.cacheManager.startStorageTimer();
-                    }
-                }
-
-                // Fetch fresh status from API to ensure reliability
-                if (this.provider?.getCache) {
-                    this.provider.getCache(cacheName).then(cacheStatus => {
-                        if (cacheStatus && cacheStatus.expireTime) {
-                            const expireMs = typeof cacheStatus.expireTime === 'number'
-                                ? cacheStatus.expireTime
-                                : new Date(cacheStatus.expireTime).getTime();
-                            this.state.kbCacheExpireTime.set(expireMs);
-                            localStorage.setItem('kb_cache_expire', expireMs.toString());
-                            console.log('[ConfigService] Synced cache state from API:', cacheName, 'Expires at:', new Date(expireMs).toLocaleString());
-                            this.cacheManager.startStorageTimer();
-                        } else {
-                            console.warn('[ConfigService] Saved cache not found on server or expired:', cacheName);
-                            this.state.kbCacheName.set(null);
-                            localStorage.removeItem('kb_cache_name');
-                            localStorage.removeItem('kb_cache_hash');
-                            localStorage.removeItem('kb_cache_expire');
-                        }
-                    });
-                }
-            }
-
-            // Restore Usage Stats
-            const savedUsage = localStorage.getItem('usage_stats');
-            if (savedUsage) {
-                try {
-                    this.state.tokenUsage.set(JSON.parse(savedUsage));
-                } catch (err) {
-                    console.warn('Failed to parse saved usage stats', err);
-                }
-            }
-            const savedStorageUsage = localStorage.getItem('kb_storage_usage_acc');
-            if (savedStorageUsage) {
-                this.state.storageUsageAccumulated.set(parseFloat(savedStorageUsage));
-            }
-
-            const savedHistoryUsage = localStorage.getItem('history_storage_usage_acc');
-            if (savedHistoryUsage) {
-                this.state.historyStorageUsageAccumulated.set(parseFloat(savedHistoryUsage));
-            }
-            // Sync files from DB on startup
-            this.session.loadFiles(false);
+        // Initialize provider instance
+        if (activeProvider) {
+            activeProvider.init(providerConfig);
         }
+
+        // Restore cache state
+        const cacheName = localStorage.getItem('kb_cache_name');
+        console.log('[ConfigService] initConfig Read:', { name: cacheName });
+
+        if (cacheName) {
+            this.state.kbCacheName.set(cacheName);
+            const savedTokens = localStorage.getItem('kb_cache_tokens');
+            this.state.kbCacheTokens.set(savedTokens ? parseInt(savedTokens, 10) : 0);
+
+            const savedExpire = localStorage.getItem('kb_cache_expire');
+            if (savedExpire) {
+                const expireMs = parseInt(savedExpire, 10);
+                if (!isNaN(expireMs) && expireMs > Date.now()) {
+                    this.state.kbCacheExpireTime.set(expireMs);
+                    console.log('[ConfigService] Restored cache expiration from storage:', new Date(expireMs).toLocaleString());
+                    this.cacheManager.startStorageTimer();
+                }
+            }
+
+            // Fetch fresh status from API to ensure reliability
+            if (activeProvider?.getCache) {
+                activeProvider.getCache(cacheName).then(cacheStatus => {
+                    if (cacheStatus && cacheStatus.expireTime) {
+                        const expireMs = typeof cacheStatus.expireTime === 'number'
+                            ? cacheStatus.expireTime
+                            : new Date(cacheStatus.expireTime).getTime();
+                        this.state.kbCacheExpireTime.set(expireMs);
+                        localStorage.setItem('kb_cache_expire', expireMs.toString());
+                        console.log('[ConfigService] Synced cache state from API:', cacheName, 'Expires at:', new Date(expireMs).toLocaleString());
+                        this.cacheManager.startStorageTimer();
+                    } else {
+                        console.warn('[ConfigService] Saved cache not found on server or expired:', cacheName);
+                        this.state.kbCacheName.set(null);
+                        localStorage.removeItem('kb_cache_name');
+                        localStorage.removeItem('kb_cache_hash');
+                        localStorage.removeItem('kb_cache_expire');
+                    }
+                });
+            }
+        }
+
+        // Restore Usage Stats
+        const savedUsage = localStorage.getItem('usage_stats');
+        if (savedUsage) {
+            try {
+                this.state.tokenUsage.set(JSON.parse(savedUsage));
+            } catch (err) {
+                console.warn('Failed to parse saved usage stats', err);
+            }
+        }
+        const savedStorageUsage = localStorage.getItem('kb_storage_usage_acc');
+        if (savedStorageUsage) {
+            this.state.storageUsageAccumulated.set(parseFloat(savedStorageUsage));
+        }
+
+        const savedHistoryUsage = localStorage.getItem('history_storage_usage_acc');
+        if (savedHistoryUsage) {
+            this.state.historyStorageUsageAccumulated.set(parseFloat(savedHistoryUsage));
+        }
+        // Sync files from DB on startup
+        this.session.loadFiles(false);
     }
 
     /**
@@ -214,7 +189,7 @@ export class ConfigService {
     /**
      * Saves application configuration to localStorage and updates the engine state.
      */
-    async saveConfig(apiKey: string, modelId: string, genConfig: {
+    async saveConfig(genConfig: {
         fontSize?: number,
         fontFamily?: string,
         enableCache?: boolean,
@@ -228,23 +203,24 @@ export class ConfigService {
         thinkingLevelGeneral?: string,
         smartContextTurns?: number
     }) {
-        localStorage.setItem('gemini_api_key', apiKey);
-        localStorage.setItem('gemini_model_id', modelId);
+        // API Key and Model ID handling is now provider-specific via saveConfig, 
+        // but we still update the active config signal.
 
         if (genConfig.screensaverType !== undefined) localStorage.setItem('app_screensaver_type', genConfig.screensaverType);
 
         if (genConfig.currency !== undefined) localStorage.setItem('app_currency', genConfig.currency);
         if (genConfig.enableConversion !== undefined) localStorage.setItem('app_enable_conversion', genConfig.enableConversion.toString());
-        if (genConfig.outputLanguage !== undefined) localStorage.setItem('gemini_output_language', genConfig.outputLanguage);
+        if (genConfig.outputLanguage !== undefined) localStorage.setItem('app_output_language', genConfig.outputLanguage);
         if (genConfig.idleOnBlur !== undefined) localStorage.setItem('app_idle_on_blur', genConfig.idleOnBlur.toString());
-        if (genConfig.thinkingLevelStory !== undefined) localStorage.setItem('gemini_thinking_level_story', genConfig.thinkingLevelStory);
-        if (genConfig.thinkingLevelGeneral !== undefined) localStorage.setItem('gemini_thinking_level_general', genConfig.thinkingLevelGeneral);
+
+        // Caching and Thinking levels are mostly provider specific but can be toggled in global config if common
+        if (genConfig.enableCache !== undefined) localStorage.setItem('app_enable_cache', genConfig.enableCache.toString());
 
         if (genConfig.smartContextTurns !== undefined) {
-            localStorage.setItem('gemini_smart_context_turns', genConfig.smartContextTurns.toString());
+            localStorage.setItem('app_smart_context_turns', genConfig.smartContextTurns.toString());
         }
 
-        if (genConfig.exchangeRate !== undefined) localStorage.setItem('gemini_exchange_rate', genConfig.exchangeRate.toString());
+        if (genConfig.exchangeRate !== undefined) localStorage.setItem('app_exchange_rate', genConfig.exchangeRate.toString());
 
         if (genConfig.fontSize !== undefined) localStorage.setItem('app_font_size', genConfig.fontSize.toString());
         else localStorage.removeItem('app_font_size');
@@ -252,33 +228,16 @@ export class ConfigService {
         if (genConfig.fontFamily !== undefined) localStorage.setItem('app_font_family', genConfig.fontFamily);
         else localStorage.removeItem('app_font_family');
 
-        if (genConfig.enableCache !== undefined) localStorage.setItem('gemini_enable_cache', genConfig.enableCache.toString());
-        else localStorage.removeItem('gemini_enable_cache');
+        // Fetch current provider state for the signal
+        const activeProvider = this.providerRegistry.getActive();
+        const providerConfig = activeProvider?.getConfigFromStorage() || {};
 
-        const fullConfig: GameEngineConfig = { apiKey, modelId, ...genConfig };
-        this.state.config.set(fullConfig);
-
-        // Initialize provider with appropriate settings
-        const providerConfig: { apiKey?: string; modelId?: string; baseUrl?: string } = {
-            apiKey,
-            modelId,
+        const fullConfig: GameEngineConfig = {
+            apiKey: providerConfig.apiKey || '',
+            modelId: providerConfig.modelId || activeProvider?.getDefaultModelId() || '',
             ...genConfig
         };
-        
-        // Add llama.cpp specific settings if active provider
-        const activeProvider = this.providerRegistry.getActive();
-        if (activeProvider?.providerName === 'llama.cpp') {
-            const llamaBaseUrl = localStorage.getItem('llama_base_url');
-            const llamaModelId = localStorage.getItem('llama_model_id');
-            if (llamaBaseUrl) {
-                providerConfig.baseUrl = llamaBaseUrl.replace(/\/$/, '');
-            }
-            if (llamaModelId) {
-                providerConfig.modelId = llamaModelId;
-            }
-        }
-        
-        this.provider?.init(providerConfig);
+        this.state.config.set(fullConfig);
 
         // Persist to IndexedDB for other services (e.g. Google Drive) to access
         this.storage.set('settings', fullConfig);
@@ -300,10 +259,6 @@ export class ConfigService {
         }
         const cfg = config as GameEngineConfig;
 
-        // Validate essential fields or just apply what we can
-        const apiKey = cfg.apiKey || '';
-        const modelId = cfg.modelId || this.provider?.getDefaultModelId() || 'gemini-prod';
-
         // Construct the full config object, ensuring sections
         const genConfig = {
             fontSize: typeof cfg.fontSize === 'number' ? cfg.fontSize : undefined,
@@ -321,7 +276,21 @@ export class ConfigService {
         };
 
         // Reuse saveConfig to handle persistence (localStorage + Signal update + Service re-init)
-        this.saveConfig(apiKey, modelId, genConfig);
+        this.saveConfig(genConfig);
+
+        // Also update provider if it was in the import
+        if (cfg.apiKey || cfg.modelId) {
+            const activeProvider = this.providerRegistry.getActive();
+            if (activeProvider) {
+                activeProvider.saveConfig({
+                    apiKey: cfg.apiKey,
+                    modelId: cfg.modelId,
+                    enableCache: cfg.enableCache,
+                    thinkingLevelStory: cfg.thinkingLevelStory,
+                    thinkingLevelGeneral: cfg.thinkingLevelGeneral
+                });
+            }
+        }
         console.log('[ConfigService] Configuration imported successfully.');
     }
 }
