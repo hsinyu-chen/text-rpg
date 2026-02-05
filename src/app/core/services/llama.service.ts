@@ -193,10 +193,39 @@ export class LlamaService implements LLMProvider {
                             }
 
                             if (parsed.usage) {
+                                // Handle new llama.cpp usage format:
+                                // {
+                                //   "input_tokens": 36,
+                                //   "input_tokens_details": { "cached_tokens": 0 },
+                                //   "output_tokens": 87,
+                                //   "output_tokens_details": { "reasoning_tokens": 0 },
+                                //   "total_tokens": 123
+                                // }
+                                const usage = parsed.usage;
+                                const inputTokens = usage.input_tokens || usage.prompt_tokens || 0;
+                                const outputTokens = usage.output_tokens || usage.completion_tokens || 0;
+                                const cachedTokens = usage.input_tokens_details?.cached_tokens || usage.cached_tokens || 0;
+
                                 yield {
                                     usageMetadata: {
-                                        promptTokens: parsed.usage.prompt_tokens || 0,
-                                        completionTokens: parsed.usage.completion_tokens || 0
+                                        promptTokens: inputTokens,
+                                        completionTokens: outputTokens,
+                                        cachedTokens: cachedTokens
+                                    }
+                                };
+                            } else if (parsed.timings) {
+                                // Fallback: Handle timings format (some llama.cpp versions use this)
+                                // timings: { cache_n: 0, prompt_n: 19167, predicted_n: 719 }
+                                const timings = parsed.timings;
+                                const inputTokens = timings.prompt_n || 0;
+                                const outputTokens = timings.predicted_n || 0;
+                                const cachedTokens = timings.cache_n || 0;
+
+                                yield {
+                                    usageMetadata: {
+                                        promptTokens: inputTokens,
+                                        completionTokens: outputTokens,
+                                        cachedTokens: cachedTokens
                                     }
                                 };
                             }

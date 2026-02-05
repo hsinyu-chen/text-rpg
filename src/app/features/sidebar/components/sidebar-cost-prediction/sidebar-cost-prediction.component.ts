@@ -32,13 +32,13 @@ export class SidebarCostPredictionComponent {
         const activeProvider = this.providerRegistry.getActive();
         if (!activeProvider) return 'Unknown';
 
-        if (activeProvider.providerName === 'gemini') {
-            return this.state.config()?.modelId || activeProvider.getDefaultModelId();
-        } else if (activeProvider.providerName === 'llama.cpp') {
-            return localStorage.getItem('llama_model_id') || activeProvider.getDefaultModelId();
+        if (activeProvider.providerName === 'llama.cpp') {
+            // For llama.cpp, get model ID from localStorage or provider's modelId signal
+            return localStorage.getItem('llama_model_id') || this.state.config()?.modelId || activeProvider.getDefaultModelId();
         }
-
-        return activeProvider.getDefaultModelId();
+        
+        // For other providers (e.g., Gemini), get from config
+        return this.state.config()?.modelId || activeProvider.getDefaultModelId();
     });
 
     // Explicit Context Caching Status
@@ -100,17 +100,26 @@ export class SidebarCostPredictionComponent {
         return null;
     });
 
+    // Helper to get the correct model ID for cost calculation
+    private getModelIdForCost(): string {
+        const activeProvider = this.providerRegistry.getActive();
+        if (activeProvider?.providerName === 'llama.cpp') {
+            return localStorage.getItem('llama_model_id') || this.state.config()?.modelId || activeProvider.getDefaultModelId();
+        }
+        return this.state.config()?.modelId || activeProvider?.getDefaultModelId() || 'unknown';
+    }
+
     lastTurnCost = computed(() => {
         const turn = this.computedLastTurnUsage();
         if (!turn) return 0;
-        return this.costService.calculateTurnCost(turn, this.state.config()?.modelId);
+        return this.costService.calculateTurnCost(turn, this.getModelIdForCost());
     });
 
     // Real-time Total Cost (Transactions + Storage) for Active Model
     // Re-calculated from history to ensure consistency with Copy/Dialog and handle Rewinds correctly
     totalSessionCost = computed(() => {
         const activeProvider = this.providerRegistry.getActive();
-        const activeModelId = this.state.config()?.modelId || activeProvider?.getDefaultModelId();
+        const activeModelId = this.getModelIdForCost();
         const model = activeProvider?.getAvailableModels().find(m => m.id === activeModelId);
 
         if (!model) return 0;
@@ -140,12 +149,12 @@ export class SidebarCostPredictionComponent {
     // Helper computed for Template Display
     activeStorageCostDisplay = computed(() => {
         const usage = this.state.storageUsageAccumulated();
-        return this.costService.calculateStorageCost(usage, this.state.config()?.modelId);
+        return this.costService.calculateStorageCost(usage, this.getModelIdForCost());
     });
 
     historyStorageCostDisplay = computed(() => {
         const usage = this.state.historyStorageUsageAccumulated();
-        return this.costService.calculateStorageCost(usage, this.state.config()?.modelId);
+        return this.costService.calculateStorageCost(usage, this.getModelIdForCost());
     });
 
     displayCurrency = computed(() => {
@@ -177,7 +186,8 @@ export class SidebarCostPredictionComponent {
         const activeProvider = this.providerRegistry.getActive();
         if (!activeProvider) return;
 
-        const activeModelId = config?.modelId || activeProvider.getDefaultModelId();
+        // Use the same model ID logic as the computed properties
+        const activeModelId = this.getModelIdForCost();
         // activeModel variable removed as it was unused
 
         // Derive Active Token Usage from message history (Robust computed signal)
@@ -195,7 +205,7 @@ export class SidebarCostPredictionComponent {
         const historyStorageUsageAcc = this.state.historyStorageUsageAccumulated();
 
         // Calculate storage COST for current model
-        const currentModelId = config?.modelId || activeModelId;
+        const currentModelId = activeModelId;
         const currentModelStorageCost = this.costService.calculateStorageCost(storageUsageAcc, currentModelId);
         const historyModelStorageCost = this.costService.calculateStorageCost(historyStorageUsageAcc, currentModelId);
 
