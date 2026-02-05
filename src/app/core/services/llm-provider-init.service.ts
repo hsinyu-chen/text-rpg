@@ -16,9 +16,15 @@ export class LLMProviderInitService {
         this.registry.register(this.gemini);
         this.registry.register(this.llama);
 
-        // Ensure a default provider is active immediately
-        this.registry.setActive(DEFAULT_PROVIDER_ID);
+        // Load persisted provider choice
+        const savedProvider = localStorage.getItem('llm_provider');
+        if (savedProvider && this.registry.hasProvider(savedProvider)) {
+            this.registry.setActive(savedProvider);
+        } else {
+            // Ensure a default provider is active immediately
+            this.registry.setActive(DEFAULT_PROVIDER_ID);
+        }
 
-        console.log('[LLMProviderInit] Providers registered and default activated.');
+        console.log(`[LLMProviderInit] Providers registered. Active: ${this.registry.getActive()?.providerName}`);
     }
 }

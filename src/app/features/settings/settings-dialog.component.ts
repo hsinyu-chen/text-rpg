@@ -17,6 +17,7 @@ import { getLanguagesList } from '../../core/constants/locales';
 import { GoogleDriveService } from '../../core/services/google-drive.service';
 import { LoadingService } from '../../core/services/loading.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { LLMProviderRegistryService } from '../../core/services/llm-provider-registry.service';
 import { GeminiSettingsComponent } from './gemini-settings/gemini-settings.component';
 import { LlamaSettingsComponent } from './llama-settings/llama-settings.component';
 
@@ -48,6 +49,7 @@ export class SettingsDialogComponent {
   loading = inject(LoadingService);
   private driveService = inject(GoogleDriveService);
   private snackBar = inject(MatSnackBar);
+  private providerRegistry = inject(LLMProviderRegistryService);
 
   // Provider components (for accessing their settings)
   geminiSettings = viewChild<GeminiSettingsComponent>('geminiSettings');
@@ -133,7 +135,13 @@ export class SettingsDialogComponent {
 
   save(): void {
     // Save active provider
-    localStorage.setItem('llm_provider', this.activeProvider());
+    const selectedProvider = this.activeProvider();
+    localStorage.setItem('llm_provider', selectedProvider);
+
+    // Update active provider immediately
+    if (this.providerRegistry.hasProvider(selectedProvider)) {
+      this.providerRegistry.setActive(selectedProvider);
+    }
 
     // Save provider-specific settings
     if (this.activeProvider() === 'gemini') {

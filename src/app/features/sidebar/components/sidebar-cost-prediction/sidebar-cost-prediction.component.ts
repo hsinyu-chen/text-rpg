@@ -30,7 +30,15 @@ export class SidebarCostPredictionComponent {
     // Current Model ID
     currentModelId = computed(() => {
         const activeProvider = this.providerRegistry.getActive();
-        return this.state.config()?.modelId || activeProvider?.getDefaultModelId() || 'Unknown';
+        if (!activeProvider) return 'Unknown';
+
+        if (activeProvider.providerName === 'gemini') {
+            return this.state.config()?.modelId || activeProvider.getDefaultModelId();
+        } else if (activeProvider.providerName === 'llama.cpp') {
+            return localStorage.getItem('llama_model_id') || activeProvider.getDefaultModelId();
+        }
+
+        return activeProvider.getDefaultModelId();
     });
 
     // Explicit Context Caching Status
