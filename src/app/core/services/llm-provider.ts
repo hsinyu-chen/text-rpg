@@ -198,6 +198,12 @@ export interface LLMProvider {
     countTokens(modelId: string, contents: LLMContent[]): Promise<number>;
 
     /**
+     * Checks if the provider is correctly configured (e.g., API key, base URL).
+     * @returns True if configured.
+     */
+    isConfigured(): boolean;
+
+    /**
      * Get capability flags for this provider.
      */
     getCapabilities(): LLMProviderCapabilities;

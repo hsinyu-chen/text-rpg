@@ -2,6 +2,7 @@ import { Injectable, signal, computed, inject } from '@angular/core';
 import { ChatMessage } from '../models/types';
 import { CostService } from './cost.service';
 import { KnowledgeService } from './knowledge.service';
+import { LLMProviderRegistryService } from './llm-provider-registry.service';
 
 /**
  * Configuration for the game engine.
@@ -35,10 +36,14 @@ export interface GameEngineConfig {
 export class GameStateService {
     private cost = inject(CostService);
     private kb = inject(KnowledgeService);
+    private providerRegistry = inject(LLMProviderRegistryService);
 
     // ==================== Configuration ====================
     config = signal<GameEngineConfig | null>(null);
-    isConfigured = computed(() => !!this.config()?.apiKey);
+    isConfigured = computed(() => {
+        const provider = this.providerRegistry.activeProvider();
+        return provider ? provider.isConfigured() : false;
+    });
 
     // ==================== Status ====================
     status = signal<'idle' | 'loading' | 'generating' | 'error'>('idle');

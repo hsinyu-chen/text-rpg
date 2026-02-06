@@ -1,4 +1,4 @@
-import { Injectable, Type } from '@angular/core';
+import { Injectable, Type, signal } from '@angular/core';
 import { CachedContent, Content, Part, CreateCachedContentParameters, CreateCachedContentConfig, GoogleGenAI, ThinkingLevel, GenerateContentParameters, GenerateContentConfig, Tool, HarmCategory, HarmBlockThreshold } from '@google/genai';
 
 import { Schema } from '../models/types';
@@ -33,6 +33,7 @@ export class GeminiService implements LLMProvider {
 
     private client: GoogleGenAI = null!;
     private lastModelId: string = DEFAULT_GEMINI_MODEL_ID;
+    private apiKey = signal('');
     private thinkingLevelStory: ThinkingLevel = ThinkingLevel.MINIMAL;
     private thinkingLevelGeneral: ThinkingLevel = ThinkingLevel.HIGH;
 
@@ -181,13 +182,17 @@ export class GeminiService implements LLMProvider {
      * Initialize using LLMProviderConfig (LLMProvider interface method).
      */
     init(config: LLMProviderConfig): void {
-        if (!config.apiKey) throw new Error('Gemini requires an API key.');
+        this.apiKey.set(config.apiKey || '');
         this.initialize(
-            config.apiKey,
+            this.apiKey(),
             config.modelId || DEFAULT_GEMINI_MODEL_ID
         );
         if (config.thinkingLevelStory) this.thinkingLevelStory = this.mapThinkingLevel(config.thinkingLevelStory);
         if (config.thinkingLevelGeneral) this.thinkingLevelGeneral = this.mapThinkingLevel(config.thinkingLevelGeneral);
+    }
+
+    isConfigured(): boolean {
+        return !!this.apiKey().trim();
     }
 
     /**

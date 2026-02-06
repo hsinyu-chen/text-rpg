@@ -125,6 +125,10 @@ export class LlamaService implements LLMProvider {
         this.refreshSettings();
     }
 
+    isConfigured(): boolean {
+        return !!this.baseUrl().trim();
+    }
+
     getCapabilities(): LLMProviderCapabilities {
         return {
             supportsContextCaching: false, // Local handles caching implicitly
@@ -186,7 +190,7 @@ export class LlamaService implements LLMProvider {
         // 1. Build Native Prompt
         // We use Llama 3 format as default for llama.cpp service
         // IMPORTANT: We skip prefill if using json_schema to avoid grammatical inconsistency in the generator
-        const prompt = this.toNativePrompt(contents, systemInstruction, !!config.responseSchema);
+        const prompt = this.toNativePrompt(contents, systemInstruction);
 
         // 2. Build Request
         const requestBody = {
@@ -196,6 +200,7 @@ export class LlamaService implements LLMProvider {
             temperature: this.temperature(),
             repeat_penalty: 1.1,
             stop: ["<|eot_id|>", "<|end_of_text|>", "\n\n\n", "</s>"],
+            cache_prompt: true, // Optimizes for llama.cpp prompt caching
             ...(config.responseSchema ? {
                 // Clean schema for llama.cpp internal GBNF converter
                 json_schema: this.cleanSchema(config.responseSchema)
@@ -309,8 +314,7 @@ export class LlamaService implements LLMProvider {
      */
     private toNativePrompt(
         contents: LLMContent[],
-        systemInstruction: string,
-        isStrictJSON: boolean
+        systemInstruction: string
     ): string {
         let prompt = `<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\n`;
 

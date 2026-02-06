@@ -88,6 +88,10 @@ export class OpenAIService implements LLMProvider {
         this.loadSettings();
     }
 
+    isConfigured(): boolean {
+        return !!this.apiKey().trim() && !!this.baseUrl().trim();
+    }
+
     getCapabilities(): LLMProviderCapabilities {
         return {
             supportsContextCaching: false,
@@ -162,6 +166,7 @@ export class OpenAIService implements LLMProvider {
             stream: true,
             temperature: this.temperature(),
             stream_options: { include_usage: true },
+            cache_prompt: true, // Optimizes for llama.cpp / LocalAI caching
             ...(config.responseSchema ? {
                 response_format: {
                     type: 'json_schema',
