@@ -38,11 +38,13 @@
    *   **更新世界**: 點擊 **Auto Update** 按鈕將劇情變動寫回設定檔。
 
 3. **備份與同步 (Backup & Sync)**
-   *   **同步所有冒險之書**: 使用 Book List 中的 **"Sync All to Cloud"** 按鈕將所有冒險之書備份至 Google Drive (`books_v1` 資料夾)。
-   *   **舊版同步**: 舊有的 "Sync to Cloud" (Save Slots) 已 **廢棄 (OBSOLETE)**，僅供遷移舊資料使用。
+   *   **雲端同步**: 在 **Session** (冒險之書列表) 點擊 **"Sync All to Cloud"**，將所有進度備份至 Google Drive (`books_v1`)。
+   *   **本地備份**: 也可以使用 **資料夾圖示** 將當前書籍匯出至本機目錄保存。
 
-4. **接續遊玩**
-   *   **讀取**: 開啟 Book List 並選擇您的冒險之書，即可從上次離開的地方繼續。
+4. **下一章節 (Next Session / Act II+)**
+   *   **建立下一章**: 當章節結束時，點擊側邊欄的 **"Create Next"** (建立下一章) 按鈕，系統會自動繼承所有記憶與數值，建立一本新的冒險之書（例如 "Act 2"）。
+   *   **繼續遊玩**: 開啟 **Session** 列表 -> 選擇最新的冒險之書繼續。
+   *   **循環**: 遊玩 -> `<存檔>` -> **Auto Update** -> **Create Next**。
 
 ---
 
@@ -199,6 +201,11 @@ npm run desktop
 *   **Model ID**: 支援 `gemini-3-pro-preview`, `gemini-3-flash-preview` 等模型。
 *   **Exchange Rate**: 用於即時成本估算的匯率。
 *   **Output Language**: 選擇 AI 輸出語言（繁體中文、英文）。
+
+> [!TIP]
+> **成本優化建議**：使用 Gemini 模型時，強烈建議在 `Settings` -> `Gemini Provider` 中啟用 **Explicit Context Caching** (顯式上下文快取)，以大幅降低長窗口遊玩的 Token 費用。
+>
+> **重要提醒**：結束遊玩時，請務必點擊側邊欄的 **"Clear Current Cache"** (清除快取/掃把圖示) 按鈕，以停止快取租賃計費！
 
 ---
 

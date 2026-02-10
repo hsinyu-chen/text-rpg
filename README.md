@@ -39,13 +39,13 @@ TextRPG is a **Local-First**, **Bring Your Own Key (BYOK)** desktop application 
    *   **Update World**: Click the **Auto Update** button (Magic Wand icon) to apply world changes to your files.
 
 2. **Backup (Crucial)**
-   *   **Sync**: It is highly recommended to immediately backup your progress.
-   *   **Method**: Go to **Session** tab -> Use **Sync to Local Disk** (Folder Icon) or **Sync to Cloud** (Cloud Icon, requires GCP) to backup your files.
+   *   **Cloud Sync**: Go to **Session** (Book List) -> Click **"Sync All to Cloud"** to backup all Adventure Books to Google Drive (`books_v1`).
+   *   **Local Export**: You can also use the **Folder Icon** to export the current book to a local folder for safekeeping.
 
 3. **Next Session (Act II+)**
-   *   **Init**: Reset session (or refresh) -> Click **Initialize Story**. (Note: **Load Files** is only required if IndexedDB is cleared or switching devices).
-   *   **Play**: Continue the story deduction.
-   *   **Loop**: Finish Act -> `<Save>` -> **Auto Update** -> **Backup**.
+   *   **Create Next Act**: When an Act concludes, clicking **"Create Next"** in the sidebar will automatically generate a new Adventure Book (e.g., "Act 2") inheriting all memory and stats.
+   *   **Continue**: Open **Session** (Book List) -> Select the latest Book to resume play.
+   *   **Loop**: Play -> `<Save>` -> **Auto Update** -> **Create Next**.
 
 ---
 
@@ -203,6 +203,11 @@ On first launch, configure via the Settings panel:
 *   **Model ID**: Supports `gemini-3-pro-preview`, `gemini-3-flash-preview`, etc.
 *   **Exchange Rate**: For real-time cost estimation.
 *   **Output Language**: Select AI output language (Traditional Chinese, English).
+
+> [!TIP]
+> **Cost Optimization**: When using Gemini models, it is highly recommended to enable **Explicit Context Caching** in `Settings` -> `Gemini Provider` to reduce costs for long sessions.
+>
+> **Important**: Remember to click the **"Clear Current Cache"** button in the sidebar (Broom Icon) when you are done playing to stop the cache rental billing!
 
 ---
 
