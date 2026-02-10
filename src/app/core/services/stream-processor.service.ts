@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { ContentParserService } from './content-parser.service';
 import { PostProcessorService, PostProcessFields } from './post-processor.service';
 import { ExtendedPart, ThoughtPart, EngineResponseNested } from '../models/types';
-import { LLMStreamChunk } from './llm-provider';
+import { LLMStreamChunk, LLMUsageMetadata } from './llm-provider';
 import { ChatMessage } from '../models/types';
 import { getUIStrings } from '../constants/engine-protocol';
 
@@ -15,7 +15,7 @@ export interface StreamProcessResult {
     finalQuestLog: string[];
     finalWorldLog: string[];
     isCorrection: boolean;
-    turnUsage: { prompt: number, candidates: number, cached: number };
+    turnUsage: LLMUsageMetadata;
     capturedFCs: ExtendedPart[];
     capturedThoughtSignature?: string;
     finalThought: string;
@@ -47,7 +47,7 @@ export class StreamProcessorService {
         let currentStoryPreview = '';
         let currentAnalysisPreview = '';
         let currentThought = '';
-        let turnUsage = { prompt: 0, candidates: 0, cached: 0 };
+        let turnUsage: LLMUsageMetadata = { prompt: 0, candidates: 0, cached: 0 };
         const capturedFCs: ExtendedPart[] = [];
         let capturedThoughtSignature: string | undefined;
         let finalFinishReason: string | undefined;
@@ -135,10 +135,26 @@ export class StreamProcessorService {
             if (chunk.usageMetadata) {
                 // "Sticky" update: Only update if non-zero to avoid losing data in final chunks
                 turnUsage = {
-                    prompt: chunk.usageMetadata.promptTokens || turnUsage.prompt,
-                    candidates: chunk.usageMetadata.completionTokens || turnUsage.candidates,
-                    cached: chunk.usageMetadata.cachedTokens || turnUsage.cached
+                    ...turnUsage,
+                    prompt: chunk.usageMetadata.prompt || turnUsage.prompt,
+                    candidates: chunk.usageMetadata.candidates || turnUsage.candidates,
+                    cached: chunk.usageMetadata.cached || turnUsage.cached,
+                    promptSpeed: chunk.usageMetadata.promptSpeed || turnUsage.promptSpeed,
+                    completionSpeed: chunk.usageMetadata.completionSpeed || turnUsage.completionSpeed,
+                    totalDuration: chunk.usageMetadata.totalDuration || turnUsage.totalDuration,
+                    promptProgress: chunk.usageMetadata.promptProgress !== undefined ? chunk.usageMetadata.promptProgress : turnUsage.promptProgress
                 };
+
+                if (chunk.usageMetadata.promptProgress !== undefined) {
+                    updateCallback(prev => {
+                        const arr = [...prev];
+                        const last = arr[arr.length - 1];
+                        if (last?.role === 'model') {
+                            arr[arr.length - 1] = { ...last, progress: chunk.usageMetadata!.promptProgress };
+                        }
+                        return arr;
+                    });
+                }
             }
         }
 

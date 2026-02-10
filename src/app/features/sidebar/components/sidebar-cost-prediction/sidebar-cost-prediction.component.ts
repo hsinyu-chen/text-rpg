@@ -58,7 +58,7 @@ export class SidebarCostPredictionComponent {
         const initial = sunkHistory.reduce((acc, usage) => {
             acc.freshInput += (usage.prompt - usage.cached);
             acc.cached += usage.cached;
-            acc.output += (usage.candidates || 0); // candidates might be undefined? explicitly handle just in case, though interface says number
+            acc.output += (usage.candidates || 0);
             acc.total += (usage.prompt + (usage.candidates || 0));
             return acc;
         }, { freshInput: 0, cached: 0, output: 0, total: 0 });
@@ -66,8 +66,8 @@ export class SidebarCostPredictionComponent {
         // Add Active Message Usage
         return messages.reduce((acc, msg) => {
             if (msg.role === 'model' && msg.usage && !msg.isRefOnly) {
-                acc.freshInput += (msg.usage.prompt - msg.usage.cached);
-                acc.cached += msg.usage.cached;
+                acc.freshInput += (msg.usage.prompt - (msg.usage.cached || 0));
+                acc.cached += (msg.usage.cached || 0);
                 acc.output += msg.usage.candidates;
                 acc.total += (msg.usage.prompt + msg.usage.candidates);
             }
@@ -91,7 +91,7 @@ export class SidebarCostPredictionComponent {
         if (lastModelMsg && lastModelMsg.usage) {
             return {
                 prompt: lastModelMsg.usage.prompt,
-                cached: lastModelMsg.usage.cached,
+                cached: lastModelMsg.usage.cached || 0,
                 candidates: lastModelMsg.usage.candidates
             };
         }

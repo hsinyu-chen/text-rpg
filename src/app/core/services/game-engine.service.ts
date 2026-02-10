@@ -551,22 +551,26 @@ export class GameEngineService {
             });
 
             // Update local state with fresh usage stats
-            const fresh = turnUsage.prompt - turnUsage.cached;
+            const fresh = (turnUsage.prompt || 0) - (turnUsage.cached || 0);
             this.state.lastTurnUsage.set({
                 freshInput: fresh,
-                cached: turnUsage.cached,
-                output: turnUsage.candidates
+                cached: turnUsage.cached || 0,
+                output: turnUsage.candidates || 0
             });
 
-            const turnCost = this.calculateTurnCost(turnUsage);
+            const turnCost = this.calculateTurnCost({
+                prompt: turnUsage.prompt || 0,
+                candidates: turnUsage.candidates || 0,
+                cached: turnUsage.cached || 0
+            });
             this.state.lastTurnCost.set(turnCost);
 
             this.state.tokenUsage.update(prev => {
                 return {
                     freshInput: prev.freshInput + fresh,
-                    cached: prev.cached + turnUsage.cached,
-                    output: prev.output + turnUsage.candidates,
-                    total: prev.total + turnUsage.prompt + turnUsage.candidates
+                    cached: prev.cached + (turnUsage.cached || 0),
+                    output: prev.output + (turnUsage.candidates || 0),
+                    total: prev.total + (turnUsage.prompt || 0) + (turnUsage.candidates || 0)
                 };
             });
 

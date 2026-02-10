@@ -180,7 +180,7 @@ export class ChatHistoryService {
             if (msg.role === 'model' && msg.usage) {
                 history.push({
                     prompt: msg.usage.prompt,
-                    cached: msg.usage.cached,
+                    cached: msg.usage.cached || 0,
                     candidates: msg.usage.candidates
                 });
             }

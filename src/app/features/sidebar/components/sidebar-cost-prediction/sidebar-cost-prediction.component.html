@@ -30,13 +30,16 @@
         }
         @if (computedLastTurnUsage(); as turn) {
         <div class="stat-header">LAST TURN</div>
-        <div class="stat-row turn"><span>New:</span> <span class="val">{{ (turn.prompt - turn.cached) | number }}</span>
+        <div class="stat-row turn"><span>New:</span> <span class="val">{{ (turn.prompt - turn.cached) |
+                number }}</span>
         </div>
         <div class="stat-row turn-cached"><span>Cached:</span> <span class="val">{{ turn.cached | number }}</span>
         </div>
-        <div class="stat-row turn-total"><span>Total Input:</span> <span class="val">{{ turn.prompt | number }}</span>
+        <div class="stat-row turn-total"><span>Total Input:</span> <span class="val">{{ turn.prompt | number
+                }}</span>
         </div>
-        <div class="stat-row turn"><span>Output:</span> <span class="val">{{ turn.candidates | number }}</span></div>
+        <div class="stat-row turn"><span>Output:</span> <span class="val">{{ turn.candidates | number }}</span>
+        </div>
         <div class="stat-row turn-total">
             <span>Last Turn Est. Cost:</span>
             <span class="val">{{ (lastTurnCost() * displayRate()) |

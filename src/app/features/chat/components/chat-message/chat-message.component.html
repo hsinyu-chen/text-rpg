@@ -114,124 +114,136 @@
                     </div>
                     @if (msg.isThinking && !msg.thought && msg.analysis) {
                     <div class="header-status">
-                        Analyzing...
+                        @if (msg.progress !== undefined && msg.progress < 1) { Processing {{ (msg.progress * 100) |
+                            number:'1.0-0' }}%... } @else { Analyzing... } </div>
+                            }
+                    </div>
+                    @if (state.isAnalysisVisible()) {
+                    <div class="thought-content">
+                        <markdown [data]="msg.analysis | wrapSaveXml"></markdown>
                     </div>
                     }
                 </div>
-                @if (state.isAnalysisVisible()) {
-                <div class="thought-content">
-                    <markdown [data]="msg.analysis | wrapSaveXml"></markdown>
-                </div>
                 }
-            </div>
-            }
 
-            <!-- Thought Section -->
-            @if (msg.thought) {
-            <div class="thought-container" [class.streaming]="msg.isThinking">
-                <div class="thought-header" (click)="state.toggleThought()" tabindex="0"
-                    (keydown.enter)="state.toggleThought()"
-                    (keydown.space)="$event.preventDefault(); state.toggleThought()">
-                    <div class="header-main">
-                        <mat-icon>{{ state.isThoughtVisible() || msg.isThinking ? 'expand_more' : 'chevron_right'
-                            }}</mat-icon>
-                        <mat-icon class="brain-icon">psychology</mat-icon>
-                        <span>Model Thought Process</span>
-                    </div>
-                    @if (msg.isThinking) {
-                    <div class="header-status">
-                        Thinking...
+                <!-- Thought Section -->
+                @if (msg.thought) {
+                <div class="thought-container" [class.streaming]="msg.isThinking">
+                    <div class="thought-header" (click)="state.toggleThought()" tabindex="0"
+                        (keydown.enter)="state.toggleThought()"
+                        (keydown.space)="$event.preventDefault(); state.toggleThought()">
+                        <div class="header-main">
+                            <mat-icon>{{ state.isThoughtVisible() || msg.isThinking ? 'expand_more' : 'chevron_right'
+                                }}</mat-icon>
+                            <mat-icon class="brain-icon">psychology</mat-icon>
+                            <span>Model Thought Process</span>
+                        </div>
+                        @if (msg.isThinking) {
+                        <div class="header-status">
+                            @if (msg.progress !== undefined && msg.progress < 1) { Processing {{ (msg.progress * 100) |
+                                number:'1.0-0' }}%... } @else { Thinking... } </div>
+                                }
+                        </div>
+                        @if (state.isThoughtVisible()) {
+                        <div class="thought-content">
+                            <markdown [data]="msg.thought | wrapSaveXml"></markdown>
+                        </div>
+                        }
                     </div>
                     }
-                </div>
-                @if (state.isThoughtVisible()) {
-                <div class="thought-content">
-                    <markdown [data]="msg.thought | wrapSaveXml"></markdown>
-                </div>
-                }
-            </div>
-            }
 
-            <!-- Turn Update Section -->
-            @if (msg.summary || (msg.inventory_log?.length ?? 0) > 0 || (msg.quest_log?.length ?? 0) >
-            0 || (msg.world_log?.length ?? 0) > 0) {
-            <div class="thought-container update-panel-container" [class.streaming]="msg.isThinking">
-                <div class="thought-header update-panel-header" (click)="state.toggleUpdate()" tabindex="0"
-                    (keydown.enter)="state.toggleUpdate()"
-                    (keydown.space)="$event.preventDefault(); state.toggleUpdate()">
-                    <div class="header-main">
-                        <mat-icon>{{ state.isUpdateVisible() ? 'expand_more' : 'chevron_right' }}</mat-icon>
-                        <mat-icon class="brain-icon">update</mat-icon>
-                        <span>Turn Update</span>
-                    </div>
-                    @if (msg.isThinking && (msg.summary || (msg.inventory_log?.length ?? 0) > 0 ||
-                    (msg.quest_log?.length ?? 0) > 0 || (msg.world_log?.length ?? 0) > 0)) {
-                    <div class="header-status">
-                        Updating...
+                    <!-- Turn Update Section -->
+                    @if (msg.summary || (msg.inventory_log?.length ?? 0) > 0 || (msg.quest_log?.length ?? 0) >
+                    0 || (msg.world_log?.length ?? 0) > 0) {
+                    <div class="thought-container update-panel-container" [class.streaming]="msg.isThinking">
+                        <div class="thought-header update-panel-header" (click)="state.toggleUpdate()" tabindex="0"
+                            (keydown.enter)="state.toggleUpdate()"
+                            (keydown.space)="$event.preventDefault(); state.toggleUpdate()">
+                            <div class="header-main">
+                                <mat-icon>{{ state.isUpdateVisible() ? 'expand_more' : 'chevron_right' }}</mat-icon>
+                                <mat-icon class="brain-icon">update</mat-icon>
+                                <span>Turn Update</span>
+                            </div>
+                            @if (msg.isThinking && (msg.summary || (msg.inventory_log?.length ?? 0) > 0 ||
+                            (msg.quest_log?.length ?? 0) > 0 || (msg.world_log?.length ?? 0) > 0)) {
+                            <div class="header-status">
+                                Updating...
+                            </div>
+                            }
+                        </div>
+                        @if (state.isUpdateVisible()) {
+                        <div class="thought-content">
+                            <app-turn-update [message]="msg" />
+                        </div>
+                        }
                     </div>
                     }
+
+
+                    @if (!state.isEditing()) {
+                    <!-- Rendered Mode -->
+                    @if (!state.isRaw()) {
+                    <div class="prose-content">
+                        <markdown [data]="msg.content | sanitize | wrapSaveXml"></markdown>
+                    </div>
+                    }
+
+                    <!-- Raw Mode -->
+                    @if (state.isRaw()) {
+                    <div (dblclick)="state.enterEditMode()" class="raw-content">
+                        {{ msg.content }}
+                    </div>
+                    }
+                    } @else {
+                    <ng-container *ngTemplateOutlet="editor" />
+                    }
+                    @if (msg.isRefOnly) {
+                    <div class="ref-only-collapse-footer" (click)="state.toggleRefExpanded()"
+                        (keydown.enter)="state.toggleRefExpanded()" tabindex="0" matTooltip="Collapse">
+                        <mat-icon>expand_less</mat-icon>
+                    </div>
+                    }
+
+                    }
+
+                    <div class="msg-meta">
+                        @if (msg.intent) { <span class="intent-tag" [class.system]="msg.intent === Intents.SYSTEM"
+                            [class.save]="msg.intent === Intents.SAVE">{{ getIntentLabel(msg.intent) }}</span> }
+                        @if (msg.isCorrection) { <span class="correction-tag">(修正)</span> }
+                        Model Response @if (msg.isRefOnly) { <span>(Ref Only)</span> }
+                        @if (msg.usage) {
+                        @if (msg.usage.promptSpeed) {
+                        <span class="metric-tag" [matTooltip]="'Prompt Processing: ' + msg.usage.prompt + ' tokens'">PP:
+                            {{
+                            msg.usage.promptSpeed | number:'1.1-1' }} tk/s</span>
+                        }
+                        @if (msg.usage.completionSpeed) {
+                        <span class="metric-tag" [matTooltip]="'Completion: ' + msg.usage.candidates + ' tokens'">Out:
+                            {{
+                            msg.usage.completionSpeed | number:'1.1-1' }} tk/s</span>
+                        }
+                        }
+
+                    </div>
                 </div>
-                @if (state.isUpdateVisible()) {
-                <div class="thought-content">
-                    <app-turn-update [message]="msg" />
-                </div>
-                }
-            </div>
-            }
-
-
-            @if (!state.isEditing()) {
-            <!-- Rendered Mode -->
-            @if (!state.isRaw()) {
-            <div class="prose-content">
-                <markdown [data]="msg.content | sanitize | wrapSaveXml"></markdown>
-            </div>
-            }
-
-            <!-- Raw Mode -->
-            @if (state.isRaw()) {
-            <div (dblclick)="state.enterEditMode()" class="raw-content">
-                {{ msg.content }}
-            </div>
-            }
-            } @else {
-            <ng-container *ngTemplateOutlet="editor" />
-            }
-            @if (msg.isRefOnly) {
-            <div class="ref-only-collapse-footer" (click)="state.toggleRefExpanded()"
-                (keydown.enter)="state.toggleRefExpanded()" tabindex="0" matTooltip="Collapse">
-                <mat-icon>expand_less</mat-icon>
-            </div>
-            }
-
-            }
-
-            <div class="msg-meta">
-                @if (msg.intent) { <span class="intent-tag" [class.system]="msg.intent === Intents.SYSTEM"
-                    [class.save]="msg.intent === Intents.SAVE">{{ getIntentLabel(msg.intent) }}</span> }
-                @if (msg.isCorrection) { <span class="correction-tag">(修正)</span> }
-                Model Response @if (msg.isRefOnly) { <span>(Ref Only)</span> }
-
             </div>
         </div>
-    </div>
-</div>
-}
-}
+        }
+        }
 
-<!-- Editor Template (Shared) -->
-<ng-template #editor>
-    <div class="editor-box">
-        <mat-form-field class="editor-field" appearance="outline">
-            <textarea matInput cdkTextareaAutosize [ngModel]="state.editContent()"
-                (ngModelChange)="state.editContent.set($event)"
-                (keydown.control.enter)="state.saveEdit(); $event.preventDefault()"
-                (keydown.meta.enter)="state.saveEdit(); $event.preventDefault()">
+        <!-- Editor Template (Shared) -->
+        <ng-template #editor>
+            <div class="editor-box">
+                <mat-form-field class="editor-field" appearance="outline">
+                    <textarea matInput cdkTextareaAutosize [ngModel]="state.editContent()"
+                        (ngModelChange)="state.editContent.set($event)"
+                        (keydown.control.enter)="state.saveEdit(); $event.preventDefault()"
+                        (keydown.meta.enter)="state.saveEdit(); $event.preventDefault()">
             </textarea>
-        </mat-form-field>
-        <div class="editor-actions">
-            <button mat-button color="warn" (click)="state.cancelEdit()">Cancel</button>
-            <button mat-flat-button color="primary" (click)="state.saveEdit()">Save</button>
-        </div>
-    </div>
-</ng-template>
+                </mat-form-field>
+                <div class="editor-actions">
+                    <button mat-button color="warn" (click)="state.cancelEdit()">Cancel</button>
+                    <button mat-flat-button color="primary" (click)="state.saveEdit()">Save</button>
+                </div>
+            </div>
+        </ng-template>

@@ -202,13 +202,13 @@ export class CostService {
                 // Get rates for THIS specific turn's input size (handles tiered pricing)
                 const rates = model.getRates(msg.usage.prompt);
 
-                const fresh = msg.usage.prompt >= msg.usage.cached
-                    ? msg.usage.prompt - msg.usage.cached
+                const fresh = msg.usage.prompt >= (msg.usage.cached || 0)
+                    ? msg.usage.prompt - (msg.usage.cached || 0)
                     : msg.usage.prompt;
 
                 const turnCost = (fresh / 1_000_000 * rates.input) +
                     (msg.usage.candidates / 1_000_000 * rates.output) +
-                    (msg.usage.cached / 1_000_000 * (rates.cached || 0));
+                    ((msg.usage.cached || 0) / 1_000_000 * (rates.cached || 0));
 
                 totalCost += turnCost;
             }

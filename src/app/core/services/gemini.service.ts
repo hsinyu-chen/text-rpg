@@ -237,9 +237,9 @@ export class GeminiService implements LLMProvider {
                         functionCall: extPart.functionCall as object | undefined,
                         finishReason,
                         usageMetadata: chunk.usageMetadata ? {
-                            promptTokens: chunk.usageMetadata.promptTokenCount || 0,
-                            completionTokens: chunk.usageMetadata.candidatesTokenCount || 0,
-                            cachedTokens: chunk.usageMetadata.cachedContentTokenCount || 0
+                            prompt: chunk.usageMetadata.promptTokenCount || 0,
+                            candidates: chunk.usageMetadata.candidatesTokenCount || 0,
+                            cached: chunk.usageMetadata.cachedContentTokenCount || 0
                         } : undefined
                     };
                 }
@@ -248,9 +248,9 @@ export class GeminiService implements LLMProvider {
                 yield {
                     finishReason,
                     usageMetadata: chunk.usageMetadata ? {
-                        promptTokens: chunk.usageMetadata.promptTokenCount || 0,
-                        completionTokens: chunk.usageMetadata.candidatesTokenCount || 0,
-                        cachedTokens: chunk.usageMetadata.cachedContentTokenCount || 0
+                        prompt: chunk.usageMetadata.promptTokenCount || 0,
+                        candidates: chunk.usageMetadata.candidatesTokenCount || 0,
+                        cached: chunk.usageMetadata.cachedContentTokenCount || 0
                     } : undefined
                 };
             }

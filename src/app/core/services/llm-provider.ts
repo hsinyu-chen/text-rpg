@@ -56,9 +56,13 @@ export interface LLMGenerateConfig {
  * Token usage metadata from a generation response.
  */
 export interface LLMUsageMetadata {
-    promptTokens: number;
-    completionTokens: number;
-    cachedTokens?: number;
+    prompt: number;
+    candidates: number;
+    cached: number;
+    promptSpeed?: number;      // tokens/s
+    completionSpeed?: number;  // tokens/s
+    totalDuration?: number;    // ms
+    promptProgress?: number;   // 0-1
 }
 
 /**
@@ -107,7 +111,7 @@ export interface LLMModelDefinition {
     id: string;
     name: string;
     /** Returns pricing rates, optionally based on prompt size */
-    getRates: (promptTokens?: number) => LLMPricingRates;
+    getRates: (prompt?: number) => LLMPricingRates;
     /** Whether this model supports thinking/reasoning config */
     supportsThinking?: boolean;
     /** Restrict available thinking levels (e.g. ['low', 'high']) */

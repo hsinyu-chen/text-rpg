@@ -8,7 +8,7 @@ A local-first TRPG engine built on Google Gemini models, focusing on rigorous st
 
 TextRPG is a **Local-First**, **Bring Your Own Key (BYOK)** desktop application designed specifically for the long-context capabilities of Google Gemini 3 series models. Unlike traditional AI chatbots, it treats the LLM as a rigorous "Dungeon Master (DM)", advancing the plot through structured thinking and logical adjudication. First" workflow and persists game state (inventory, quests, plot summaries) in local Markdown files.
 
-## 🎬 Feature Demo
+## Feature Demo
 
 ![Main Game Interface](images/1.png)
 ![Auto World Update - Diff Analysis](images/2.png)
@@ -16,21 +16,21 @@ TextRPG is a **Local-First**, **Bring Your Own Key (BYOK)** desktop application 
 
 ---
 
-## � Getting Started
+## Getting Started
 
-1.  **Installation & Launch**:
+1. **Installation & Launch**:
     *   Download the source code.
     *   Open terminal/command prompt in the project folder.
     *   Run `npm install` to install dependencies.
     *   Run `npm start` to launch the web interface.
     *   *(If `npm` sounds like a sneeze to you, please consult your friendly neighborhood AI assistant—they answer these questions 24/7!)* 🤖
 
-2.  **Initial Setup**:
+2. **Initial Setup**:
     *   Click the **Settings** button (Gear Icon, usually Top Left).
     *   Enter your **Google Gemini API Key**.
     *   **Output Language** defaults to Traditional Chinese; switch it if needed.
 
-## �🔄 Recommended Usage Flow
+## Recommended Usage Flow
 
 1. **First Run (Act I)**
    *   **Start**: Go to **Session** tab -> Click **New Game**.
@@ -49,9 +49,9 @@ TextRPG is a **Local-First**, **Bring Your Own Key (BYOK)** desktop application 
 
 ---
 
-## 🎮 Game Command Guide
+## Game Command Guide
 
-### 🎯 Action : The main way to progress the story
+### Action : The main way to progress the story
 **Format**: `([Mood]Action)Dialogue or Inner Monologue`  
 *Example*: `([Tense]Holding the heroine, saying) Are you okay??`  
 > [!TIP]
@@ -59,32 +59,32 @@ TextRPG is a **Local-First**, **Bring Your Own Key (BYOK)** desktop application 
 >
 > **Tip to reduce API blocks**: It is strongly recommended to use **third-person** perspective with complete sentences for actions (e.g., "Leon hugged Mary"). Avoid omitting the subject (e.g., "Hugged Mary") or using first-person perspective (e.g., "I hugged Mary"). Clear subjects significantly reduce the chance of AI misinterpretation and API safety blocks.
 
-### ⏩ Fast Forward : Skip dull periods
+### Fast Forward : Skip dull periods
 **Format**: `Target Time or Location`  
 *Example*: `Three days later` or `Back to the inn`  
 > [!NOTE]
 > If a special event (e.g., an NPC visit) occurs during the fast-forward, the system will stop and enter dialogue.
 
-### ⚙️ System : Story correction or questions
+### System : Story correction or questions
 **Format**: `Command Content`  
 *Example*: `This NPC's reaction doesn't match their setting; they should be more cautious.`  
 > [!IMPORTANT]
 > Used for OOC dialogue or questioning the plot. The AI will directly correct the story or provide a logical explanation.
 
-### 💾 Save : Analysis and state synchronization
+### Save : Analysis and state synchronization
 **Format**: `Save Scope or Correction Request`  
 *Example*: `Save current story progress`  
 > [!NOTE]
 > The AI summarizes the chapter and outputs XML file updates to ensure the world state is correctly recorded.
 
-### 🔄 Continue : Fluid progression
+### Continue : Fluid progression
 **Action**: Just click send or type `Continue`  
 > [!TIP]
 > Used to wait for NPC reactions or observe environmental changes.
 
 ---
 
-## 🏗️ Technical Architecture
+## Technical Architecture
 
 ### 1. Two-Stage Reasoning
 To avoid common logical inconsistencies and hallucinations in LLMs, each turn's generation is strictly defined in two stages:
@@ -98,14 +98,15 @@ Optimized for the long context window of Gemini 3, the engine implements multipl
 
 ### 3. File System Access API
 The system does not use proprietary database formats but directly reads and writes to the user's local file system:
-*   **Source of Truth**: User's local Markdown files (`1.BasicSettings.md`, `3.CharacterStatus.md`, etc.).
+*   **Source of Truth**: User's local Markdown files (`1.Base_Settings.md`, `3.Character_Status.md`, etc.).
 *   **Sync Mechanism**: Directly mounts local directories via the browser's File System Access API, enabling two-way synchronization with external editors (VS Code/Obsidian).
 *   **State Persistence**: Application state and chat logs are stored in IndexedDB and local JSON files.
 
-## ⚙️ Feature Specifications
+## Feature Specifications
 
 | Feature Module | Technical Implementation Details |
 | :--- | :--- |
+| **Adventure Book** | Supports "Adventure Books" (Campaigns), enabling players to manage multiple parallel stories with isolated context and history. |
 | **State Tracking** | Uses Gemini's JSON Mode to output structured data, automatically parsing and updating frontend state (Signals). |
 | **World Log** | New `world_log` tracking field for recording world events, faction moves, and tech/magic progression, enabling automated world-building evolution. |
 | **Currency** | Built-in real-time exchange rate conversion (TWD, USD, JPY, KRW...) with customizable display currency to precisely monitor token costs. |
@@ -143,7 +144,7 @@ I offer you a blessing in the binary canticle for your journey:
 
 ---
 
-## ✏️ Editing & Automation
+## Editing & Automation
 
 The engine offers various intervention methods, giving you full control over the story direction:
 
@@ -174,7 +175,7 @@ In addition to dialogue and logs, you can directly edit the game's underlying kn
 
 ---
 
-## 🛠️ Development
+## Development
 
 ### Tech Stack
 *   **Frontend**: Angular 21 (Standalone, Signals)
@@ -205,7 +206,7 @@ On first launch, configure via the Settings panel:
 
 ---
 
-## 📦 Deployment Guide
+## Deployment Guide
 
 This project supports three main deployment methods:
 
@@ -295,7 +296,7 @@ TextRPG supports **dynamic language switching** without restarting the applicati
 ---
 
 
-## 🌐 Localization (I18N) Guide
+## Localization (I18N) Guide
 
 TextRPG uses a **custom locale system** with dynamic language switching support. The system includes built-in support for two languages, and **most parts require no manual translation**.
 
@@ -321,7 +322,7 @@ The following parts are automatically handled by the system and **require no man
 
 ### Manual Localization Required
 
-#### 📼 Scenario Content
+#### Scenario Content
 If you want to add a new language version for existing scenarios, you need to translate the following files:
 
 *   **Location**: `public/assets/system_files/scenario/<SCENARIO_ID>/`
@@ -355,7 +356,7 @@ If you want to add a language not yet supported by the system (e.g., French, Ger
 
 ---
 
-## 🎮 New Game & Template Export
+## New Game & Template Export
 
 The engine includes a built-in "Scenario Template Generator", so you don't need to create files manually:
 
@@ -368,6 +369,6 @@ The engine includes a built-in "Scenario Template Generator", so you don't need 
  
  ---
  
- ## 📄 License
+ ## License
  
  This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)** - see the [LICENSE](LICENSE) file for details.

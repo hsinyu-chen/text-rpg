@@ -187,12 +187,38 @@ export class LlamaService implements LLMProvider {
     ): AsyncGenerator<LLMStreamChunk> {
         const baseUrl = this.baseUrl();
 
-        // 1. Build Native Prompt
-        // We use Llama 3 format as default for llama.cpp service
-        // IMPORTANT: We skip prefill if using json_schema to avoid grammatical inconsistency in the generator
-        const prompt = this.toNativePrompt(contents, systemInstruction);
+        // 1. Build Native Prompt Parts
+        // We separate System Prompt to calculate its token count for n_keep
+        const systemPart = `<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\n${systemInstruction || ''}<|eot_id|>`;
 
-        // 2. Build Request
+        let historyPart = '';
+        for (const content of contents) {
+            const role = content.role === 'model' ? 'assistant' : content.role;
+            const text = content.parts.map(p => p.text || '').filter(t => t).join('\n');
+            if (text) {
+                historyPart += `<|start_header_id|>${role}<|end_header_id|>\n\n${text}<|eot_id|>`;
+            }
+        }
+        historyPart += `<|start_header_id|>assistant<|end_header_id|>\n\n`;
+
+        const prompt = systemPart + historyPart;
+
+        // 2. Calculate n_keep (Dynamic Caching)
+        // We want to keep the entire System Prompt (Script + KB) in cache forever.
+        // SWA will only evict tokens from 'historyPart' when context fills.
+        let n_keep = -1;
+        try {
+            // Check cache/estimate for system block
+            // We use the same service method but manually construct the content wrapper
+            // Note: This adds a small RTT but guarantees cache stability
+            const sysTokens = await this.countTokens(this.modelId(), [{ role: 'system', parts: [{ text: systemPart }] }]);
+            n_keep = sysTokens;
+            // console.log(`[LlamaService] Calculated n_keep: ${n_keep} tokens (System+KB)`);
+        } catch (e) {
+            console.warn('[LlamaService] Failed to calculate n_keep, defaulting to -1 (Keep All)', e);
+        }
+
+        // 3. Build Request
         const requestBody = {
             prompt,
             stream: true,
@@ -200,15 +226,16 @@ export class LlamaService implements LLMProvider {
             temperature: this.temperature(),
             repeat_penalty: 1.1,
             stop: ["<|eot_id|>", "<|end_of_text|>", "\n\n\n", "</s>"],
-            cache_prompt: true, // Optimizes for llama.cpp prompt caching
+            cache_prompt: true,
+            n_keep: n_keep,
+            return_progress: true,
             ...(config.responseSchema ? {
-                // Clean schema for llama.cpp internal GBNF converter
                 json_schema: this.cleanSchema(config.responseSchema)
             } : {})
         };
 
         if (config.responseSchema) {
-            console.log('[LlamaService] Native GBNF Grammar + Prefill strategy active.');
+            console.log(`[LlamaService] Native Schema active. n_keep=${n_keep}.`);
         } else {
             console.log('[LlamaService] Schema not provided, running in free-text mode.');
         }
@@ -262,13 +289,30 @@ export class LlamaService implements LLMProvider {
                                 yield { finishReason: 'stop' };
                             }
 
-                            // Native llama.cpp usage is in the final chunk or included timings
-                            if (parsed.tokens_predicted || parsed.tokens_evaluated) {
+                            // Handle Prompt Processing Progress
+                            if (parsed.prompt_progress) {
+                                const total = parsed.prompt_progress.total || 1;
+                                const processed = parsed.prompt_progress.processed || 0;
                                 yield {
                                     usageMetadata: {
-                                        promptTokens: parsed.tokens_evaluated || 0,
-                                        completionTokens: parsed.tokens_predicted || 0,
-                                        cachedTokens: parsed.tokens_cached || 0
+                                        prompt: total,
+                                        candidates: 0,
+                                        cached: 0,
+                                        promptProgress: processed / total
+                                    }
+                                };
+                            }
+
+                            // Native llama.cpp usage and timings (final chunk usually)
+                            if (parsed.tokens_predicted || parsed.tokens_evaluated || parsed.timings) {
+                                yield {
+                                    usageMetadata: {
+                                        prompt: parsed.tokens_evaluated || 0,
+                                        candidates: parsed.tokens_predicted || 0,
+                                        cached: parsed.tokens_cached || 0,
+                                        promptSpeed: parsed.timings?.prompt_per_second,
+                                        completionSpeed: parsed.timings?.predicted_per_second,
+                                        totalDuration: (parsed.timings?.predicted_ms || 0) + (parsed.timings?.prompt_ms || 0)
                                     }
                                 };
                             }
@@ -309,37 +353,7 @@ export class LlamaService implements LLMProvider {
     // Helper Methods
     // =========================================================================
 
-    /**
-     * Converts provider-agnostic contents to a Llama 3 formatted prompt string.
-     */
-    private toNativePrompt(
-        contents: LLMContent[],
-        systemInstruction: string
-    ): string {
-        let prompt = `<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\n`;
-
-        // Add System prompt
-        const finalSystemInstruction = systemInstruction || '';
-        prompt += `${finalSystemInstruction}<|eot_id|>`;
-
-        // Add history
-        for (const content of contents) {
-            const role = content.role === 'model' ? 'assistant' : content.role;
-            const text = content.parts.map(p => p.text || '').filter(t => t).join('\n');
-            if (text) {
-                prompt += `<|start_header_id|>${role}<|end_header_id|>\n\n${text}<|eot_id|>`;
-            }
-        }
-
-        // assistant start
-        prompt += `<|start_header_id|>assistant<|end_header_id|>\n\n`;
-        // NOTE: No '{' prefill here when using native json_schema parameter 
-        // because the server's grammar expects the generated text to START with '{'.
-        // However, if we aren't using strict JSON mode (no schema), we don't add it.
-        // We'll keep it simple for now as GBNF is the primary driver.
-
-        return prompt;
-    }
+    // NOTE: toNativePrompt removed (inlined in generateContentStream for n_keep calculation)
 
     /**
      * Recursively removes 'description' keys from a JSON schema.

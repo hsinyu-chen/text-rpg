@@ -12,6 +12,7 @@ import { ContentSanitizerPipe } from '../../../../shared/pipes/content-sanitizer
 import { WrapSaveXmlPipe } from '../../../../shared/pipes/wrap-save-xml.pipe';
 import { ChatMessage } from '../../../../core/models/types';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MessageStateService } from './message-state.service';
 import { GameEngineService } from '../../../../core/services/game-engine.service';
 import { GameStateService } from '../../../../core/services/game-state.service';
@@ -37,6 +38,7 @@ import { computed } from '@angular/core';
         ContentSanitizerPipe,
         WrapSaveXmlPipe,
         MatProgressSpinnerModule,
+        MatProgressBarModule,
         TurnUpdateComponent
     ],
     templateUrl: './chat-message.component.html',

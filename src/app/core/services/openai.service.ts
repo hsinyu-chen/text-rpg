@@ -252,8 +252,9 @@ export class OpenAIService implements LLMProvider {
                             if (data.usage) {
                                 yield {
                                     usageMetadata: {
-                                        promptTokens: data.usage.prompt_tokens || 0,
-                                        completionTokens: data.usage.completion_tokens || 0
+                                        prompt: data.usage.prompt_tokens || 0,
+                                        candidates: data.usage.completion_tokens || 0,
+                                        cached: 0
                                     }
                                 };
                             }
@@ -261,8 +262,9 @@ export class OpenAIService implements LLMProvider {
                             else if (data.timings) {
                                 yield {
                                     usageMetadata: {
-                                        promptTokens: data.timings.prompt_n || 0,
-                                        completionTokens: data.timings.predicted_n || 0
+                                        prompt: data.timings.prompt_n || 0,
+                                        candidates: data.timings.predicted_n || 0,
+                                        cached: 0
                                     }
                                 };
                             }

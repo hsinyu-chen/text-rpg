@@ -1,4 +1,4 @@
-import { LLMPart } from '../services/llm-provider';
+import { LLMPart, LLMUsageMetadata } from '../services/llm-provider';
 
 export type Schema = object;
 
@@ -43,7 +43,8 @@ export interface ChatMessage {
     thought?: string;
     isThinking?: boolean;
     parts?: ExtendedPart[];
-    usage?: { prompt: number, candidates: number, cached: number };
+    usage?: LLMUsageMetadata;
+    progress?: number;
     isRefOnly?: boolean;
     character_log?: string[];
     inventory_log?: string[];
