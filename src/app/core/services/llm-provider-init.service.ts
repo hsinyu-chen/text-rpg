@@ -7,6 +7,7 @@ import { DEFAULT_PROVIDER_ID } from './llm-provider';
 import { GeminiSettingsComponent } from '../../features/settings/gemini-settings/gemini-settings.component';
 import { LlamaSettingsComponent } from '../../features/settings/llama-settings/llama-settings.component';
 import { OpenAISettingsComponent } from '../../features/settings/openai-settings/openai-settings.component';
+import { LlamaV2Service } from './llama-v2.service';
 
 @Injectable({
     providedIn: 'root'
@@ -16,7 +17,7 @@ export class LLMProviderInitService {
     private gemini = inject(GeminiService);
     private llama = inject(LlamaService);
     private openai = inject(OpenAIService);
-
+    private llamaV2 = inject(LlamaV2Service);
     initialize() {
         // Wire up UIs
         this.gemini.settingsComponent = GeminiSettingsComponent;
@@ -24,7 +25,7 @@ export class LLMProviderInitService {
         this.openai.settingsComponent = OpenAISettingsComponent;
 
         this.registry.register(this.gemini);
-        this.registry.register(this.llama);
+        this.registry.register(this.llamaV2);
         this.registry.register(this.openai);
 
         // Load persisted provider choice
