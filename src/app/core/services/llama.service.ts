@@ -187,45 +187,45 @@ export class LlamaService implements LLMProvider {
     ): AsyncGenerator<LLMStreamChunk> {
         const baseUrl = this.baseUrl();
 
-        // 1. Build Native Prompt Parts
-        // We separate System Prompt to calculate its token count for n_keep
-        const systemPart = `<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\n${systemInstruction || ''}<|eot_id|>`;
+        const systemPart = `<|start|>system<|message|>Reasoning: low\n\n${systemInstruction || ''}<|end|>`;
 
         let historyPart = '';
         for (const content of contents) {
             const role = content.role === 'model' ? 'assistant' : content.role;
             const text = content.parts.map(p => p.text || '').filter(t => t).join('\n');
-            if (text) {
-                historyPart += `<|start_header_id|>${role}<|end_header_id|>\n\n${text}<|eot_id|>`;
+            if (role === 'assistant') {
+                historyPart += `<|start|>assistant<|channel|>final<|message|>${text}<|end|>`;
+            } else {
+                historyPart += `<|start|>${role}<|message|>${text}<|end|>`;
             }
         }
-        historyPart += `<|start_header_id|>assistant<|end_header_id|>\n\n`;
+        historyPart += `<|start|>assistant<|channel|>final<|message|>{`;
 
         const prompt = systemPart + historyPart;
 
-        // 2. Calculate n_keep (Dynamic Caching)
-        // We want to keep the entire System Prompt (Script + KB) in cache forever.
-        // SWA will only evict tokens from 'historyPart' when context fills.
         let n_keep = -1;
         try {
-            // Check cache/estimate for system block
-            // We use the same service method but manually construct the content wrapper
-            // Note: This adds a small RTT but guarantees cache stability
             const sysTokens = await this.countTokens(this.modelId(), [{ role: 'system', parts: [{ text: systemPart }] }]);
             n_keep = sysTokens;
-            // console.log(`[LlamaService] Calculated n_keep: ${n_keep} tokens (System+KB)`);
         } catch (e) {
             console.warn('[LlamaService] Failed to calculate n_keep, defaulting to -1 (Keep All)', e);
         }
 
-        // 3. Build Request
         const requestBody = {
             prompt,
             stream: true,
             n_predict: -1,
             temperature: this.temperature(),
             repeat_penalty: 1.1,
-            stop: ["<|eot_id|>", "<|end_of_text|>", "\n\n\n", "</s>"],
+            stop: [
+                "\nUser:",
+                "\nSystem:",
+                "\n\n\n",
+                "</s>",
+                "<|eot_id|>",
+                "<|im_end|>",
+                "<|end|>"
+            ],
             cache_prompt: true,
             n_keep: n_keep,
             return_progress: true,
