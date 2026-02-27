@@ -105,7 +105,7 @@ export class CostService {
     /**
      * Calculates the estimated cost of a single turn based on token usage.
      */
-    calculateTurnCost(turnUsage: { prompt: number, candidates: number, cached: number }, modelId?: string) {
+    calculateTurnCost(turnUsage: { prompt: number, candidates: number, cached?: number }, modelId?: string) {
         if (!modelId) {
             const active = this.providerRegistry.getActive();
             modelId = active ? active.getDefaultModelId() : 'unknown';
@@ -113,14 +113,15 @@ export class CostService {
         const rates = this.getModelDefinition(modelId).getRates(turnUsage.prompt);
 
         // Robust calculation: prompt may be inclusive or exclusive of cached depending on SDK version
-        const fresh = turnUsage.prompt >= turnUsage.cached
-            ? turnUsage.prompt - turnUsage.cached
+        const cached = turnUsage.cached || 0;
+        const fresh = turnUsage.prompt >= cached
+            ? turnUsage.prompt - cached
             : turnUsage.prompt;
 
         // Transaction costs: Fresh input + Output + Cache recall
         const cost = (fresh / 1000000 * rates.input) +
             (turnUsage.candidates / 1000000 * rates.output) +
-            (turnUsage.cached / 1000000 * (rates.cached || 0));
+            (cached / 1000000 * (rates.cached || 0));
 
         return cost;
     }

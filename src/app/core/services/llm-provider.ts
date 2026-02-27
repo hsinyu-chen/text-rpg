@@ -58,7 +58,7 @@ export interface LLMGenerateConfig {
 export interface LLMUsageMetadata {
     prompt: number;
     candidates: number;
-    cached: number;
+    cached?: number;
     promptSpeed?: number;      // tokens/s
     completionSpeed?: number;  // tokens/s
     totalDuration?: number;    // ms
@@ -320,4 +320,6 @@ export interface LLMProviderConfig {
     inputPrice?: number;
     /** Custom output token price (per 1M) */
     outputPrice?: number;
+    /** Custom cached input token price (per 1M) */
+    cachedPrice?: number;
 }

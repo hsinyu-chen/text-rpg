@@ -28,6 +28,7 @@ export class LlamaSettingsComponent implements LLMSettingsComponent {
     temperature = signal<number | undefined>(undefined);
     inputPrice = signal<number | undefined>(undefined);
     outputPrice = signal<number | undefined>(undefined);
+    cachedPrice = signal<number | undefined>(undefined);
 
     constructor() {
         this.loadSettings();
@@ -42,6 +43,8 @@ export class LlamaSettingsComponent implements LLMSettingsComponent {
         this.inputPrice.set(savedInPrice ? parseFloat(savedInPrice) : undefined);
         const savedOutPrice = localStorage.getItem('llama_output_price');
         this.outputPrice.set(savedOutPrice ? parseFloat(savedOutPrice) : undefined);
+        const savedCachedPrice = localStorage.getItem('llama_cached_price');
+        this.cachedPrice.set(savedCachedPrice ? parseFloat(savedCachedPrice) : undefined);
     }
 
     getSettings(): LlamaSettings {
@@ -50,7 +53,8 @@ export class LlamaSettingsComponent implements LLMSettingsComponent {
             modelId: this.modelId(),
             temperature: this.temperature(),
             inputPrice: this.inputPrice(),
-            outputPrice: this.outputPrice()
+            outputPrice: this.outputPrice(),
+            cachedPrice: this.cachedPrice()
         };
     }
 
@@ -65,4 +69,5 @@ export interface LlamaSettings {
     temperature?: number;
     inputPrice?: number;
     outputPrice?: number;
+    cachedPrice?: number;
 }

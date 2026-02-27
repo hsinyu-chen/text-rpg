@@ -50,6 +50,7 @@ export class OpenAIService implements LLMProvider {
     private presencePenalty = signal<number | undefined>(undefined);
     private inputPrice = signal<number | undefined>(undefined);
     private outputPrice = signal<number | undefined>(undefined);
+    private cachedPrice = signal<number | undefined>(undefined);
 
     init(config: LLMProviderConfig): void {
         if (config.baseUrl) {
@@ -76,6 +77,9 @@ export class OpenAIService implements LLMProvider {
         if (config.outputPrice !== undefined) {
             this.outputPrice.set(config.outputPrice);
         }
+        if (config.cachedPrice !== undefined) {
+            this.cachedPrice.set(config.cachedPrice);
+        }
     }
 
     isConfigured(): boolean {
@@ -98,7 +102,8 @@ export class OpenAIService implements LLMProvider {
                 name: `OpenAI: ${this.modelId()}`,
                 getRates: () => ({
                     input: this.inputPrice() ?? 0,
-                    output: this.outputPrice() ?? 0
+                    output: this.outputPrice() ?? 0,
+                    cached: this.cachedPrice() ?? 0
                 })
             }
         ];
@@ -249,6 +254,9 @@ export class OpenAIService implements LLMProvider {
         if (config.outputPrice !== undefined && config.outputPrice !== null) localStorage.setItem('openai_output_price', config.outputPrice.toString());
         else localStorage.removeItem('openai_output_price');
 
+        if (config.cachedPrice !== undefined && config.cachedPrice !== null) localStorage.setItem('openai_cached_price', config.cachedPrice.toString());
+        else localStorage.removeItem('openai_cached_price');
+
         this.init(config);
     }
 
@@ -258,6 +266,7 @@ export class OpenAIService implements LLMProvider {
         const presPenalty = localStorage.getItem('openai_presence_penalty');
         const inPrice = localStorage.getItem('openai_input_price');
         const outPrice = localStorage.getItem('openai_output_price');
+        const cachedPrice = localStorage.getItem('openai_cached_price');
 
         return {
             baseUrl: localStorage.getItem('openai_base_url') || 'https://api.openai.com/v1',
@@ -267,7 +276,8 @@ export class OpenAIService implements LLMProvider {
             frequencyPenalty: freqPenalty ? parseFloat(freqPenalty) : undefined,
             presencePenalty: presPenalty ? parseFloat(presPenalty) : undefined,
             inputPrice: inPrice ? parseFloat(inPrice) : undefined,
-            outputPrice: outPrice ? parseFloat(outPrice) : undefined
+            outputPrice: outPrice ? parseFloat(outPrice) : undefined,
+            cachedPrice: cachedPrice ? parseFloat(cachedPrice) : undefined
         };
     }
     /**
@@ -276,29 +286,30 @@ export class OpenAIService implements LLMProvider {
      * 2. Forces additionalProperties: false
      * 3. Ensures all properties are in 'required' array
      */
-    private prepareSchema(schema: any): any {
-        if (!schema || typeof schema !== 'object') return schema;
+    private prepareSchema(schema: object): Record<string, unknown> {
+        if (!schema || typeof schema !== 'object') return schema as Record<string, unknown>;
 
         const result = JSON.parse(JSON.stringify(schema)); // Clone
 
-        const process = (obj: any) => {
-            if (obj.type === 'object' && obj.properties) {
+        const process = (obj: Record<string, unknown>) => {
+            if (obj['type'] === 'object' && obj['properties']) {
                 // Mandatory for strict mode:
-                obj.additionalProperties = false;
-                obj.required = Object.keys(obj.properties);
+                obj['additionalProperties'] = false;
+                obj['required'] = Object.keys(obj['properties'] as object);
 
-                for (const key in obj.properties) {
-                    process(obj.properties[key]);
+                const properties = obj['properties'] as Record<string, Record<string, unknown>>;
+                for (const key in properties) {
+                    process(properties[key]);
                 }
-            } else if (obj.type === 'array' && obj.items) {
-                process(obj.items);
+            } else if (obj['type'] === 'array' && obj['items']) {
+                process(obj['items'] as Record<string, unknown>);
             }
 
             // Strip metadata
-            delete obj.title;
-            delete obj.description;
-            delete obj.default;
-            delete obj.$schema;
+            delete obj['title'];
+            delete obj['description'];
+            delete obj['default'];
+            delete obj['$schema'];
         };
 
         process(result);

@@ -56,7 +56,7 @@ export class GameEngineService {
      * @param turnUsage Object containing prompt, candidates, and cached tokens.
      * @returns The calculated cost in USD.
      */
-    private calculateTurnCost(turnUsage: { prompt: number, candidates: number, cached: number }) {
+    private calculateTurnCost(turnUsage: { prompt: number, candidates: number, cached?: number }) {
         return this.cost.calculateTurnCost(turnUsage, this.state.config()?.modelId);
     }
 
@@ -577,7 +577,7 @@ export class GameEngineService {
             console.log(`[GameEngine] Turn Usage Breakdown:
 - FRESH Input (Not in Cache): ${fresh.toLocaleString()} tokens
   (Includes Chat History + Tool Outputs + System Instructions not in KB)
-- CACHED Input (Knowledge Base): ${turnUsage.cached.toLocaleString()} tokens
+- CACHED Input (Knowledge Base): ${(turnUsage.cached || 0).toLocaleString()} tokens
 - Output: ${turnUsage.candidates.toLocaleString()} tokens
 - Turn Cost: $${turnCost.toFixed(5)}`);
 
