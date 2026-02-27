@@ -25,9 +25,9 @@ export class LlamaSettingsComponent implements LLMSettingsComponent {
     // Form fields
     baseUrl = signal('http://localhost:8080');
     modelId = signal('local-model');
-    temperature = signal(0.5);
-    inputPrice = signal(0);
-    outputPrice = signal(0);
+    temperature = signal<number | undefined>(undefined);
+    inputPrice = signal<number | undefined>(undefined);
+    outputPrice = signal<number | undefined>(undefined);
 
     constructor() {
         this.loadSettings();
@@ -37,11 +37,11 @@ export class LlamaSettingsComponent implements LLMSettingsComponent {
         this.baseUrl.set(localStorage.getItem('llama_base_url') || 'http://localhost:8080');
         this.modelId.set(localStorage.getItem('llama_model_id') || 'local-model');
         const savedTemp = localStorage.getItem('llama_temperature');
-        if (savedTemp) {
-            this.temperature.set(parseFloat(savedTemp));
-        }
-        this.inputPrice.set(parseFloat(localStorage.getItem('llama_input_price') || '0'));
-        this.outputPrice.set(parseFloat(localStorage.getItem('llama_output_price') || '0'));
+        this.temperature.set(savedTemp ? parseFloat(savedTemp) : undefined);
+        const savedInPrice = localStorage.getItem('llama_input_price');
+        this.inputPrice.set(savedInPrice ? parseFloat(savedInPrice) : undefined);
+        const savedOutPrice = localStorage.getItem('llama_output_price');
+        this.outputPrice.set(savedOutPrice ? parseFloat(savedOutPrice) : undefined);
     }
 
     getSettings(): LlamaSettings {
@@ -62,7 +62,7 @@ export class LlamaSettingsComponent implements LLMSettingsComponent {
 export interface LlamaSettings {
     baseUrl: string;
     modelId: string;
-    temperature: number;
-    inputPrice: number;
-    outputPrice: number;
+    temperature?: number;
+    inputPrice?: number;
+    outputPrice?: number;
 }

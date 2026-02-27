@@ -10,6 +10,27 @@ import {
     LLMSettingsComponent
 } from './llm-provider';
 
+interface OpenAIResponse {
+    choices?: {
+        delta?: {
+            content?: string;
+            reasoning_content?: string;
+        };
+    }[];
+    usage?: {
+        prompt_tokens?: number;
+        completion_tokens?: number;
+        prompt_tokens_details?: {
+            cached_tokens?: number;
+        };
+    };
+    timings?: {
+        prompt_n?: number;
+        predicted_n?: number;
+        cache_n?: number;
+    };
+}
+
 /**
  * OpenAIService - OpenAI-Compatible Provider
  * Supports standard /v1/chat/completions endpoint.
@@ -24,68 +45,37 @@ export class OpenAIService implements LLMProvider {
     private baseUrl = signal('https://api.openai.com/v1');
     private apiKey = signal('');
     private modelId = signal('gpt-4o');
-    private temperature = signal(0.7);
-    private inputPrice = signal(0);
-    private outputPrice = signal(0);
-
-    constructor() {
-        this.loadSettings();
-    }
-
-    private loadSettings(): void {
-        this.baseUrl.set(localStorage.getItem('openai_base_url') || 'https://api.openai.com/v1');
-        this.apiKey.set(localStorage.getItem('openai_api_key') || '');
-        this.modelId.set(localStorage.getItem('openai_model_id') || 'gpt-4o');
-        const savedTemp = localStorage.getItem('openai_temperature');
-        if (savedTemp) {
-            this.temperature.set(parseFloat(savedTemp));
-        }
-        this.inputPrice.set(parseFloat(localStorage.getItem('openai_input_price') || '0'));
-        this.outputPrice.set(parseFloat(localStorage.getItem('openai_output_price') || '0'));
-    }
-
-    private updateSettings(settings: { baseUrl?: string; apiKey?: string; modelId?: string; temperature?: number, inputPrice?: number, outputPrice?: number }): void {
-        if (settings.baseUrl) {
-            const cleanedUrl = settings.baseUrl.replace(/\/$/, '');
-            this.baseUrl.set(cleanedUrl);
-            localStorage.setItem('openai_base_url', cleanedUrl);
-        }
-        if (settings.apiKey !== undefined) {
-            this.apiKey.set(settings.apiKey);
-            localStorage.setItem('openai_api_key', settings.apiKey);
-        }
-        if (settings.modelId) {
-            this.modelId.set(settings.modelId);
-            localStorage.setItem('openai_model_id', settings.modelId);
-        }
-        if (settings.temperature !== undefined) {
-            this.temperature.set(settings.temperature);
-            localStorage.setItem('openai_temperature', settings.temperature.toString());
-        }
-        if (settings.inputPrice !== undefined) {
-            this.inputPrice.set(settings.inputPrice);
-            localStorage.setItem('openai_input_price', settings.inputPrice.toString());
-        }
-        if (settings.outputPrice !== undefined) {
-            this.outputPrice.set(settings.outputPrice);
-            localStorage.setItem('openai_output_price', settings.outputPrice.toString());
-        }
-    }
+    private temperature = signal<number | undefined>(undefined);
+    private frequencyPenalty = signal<number | undefined>(undefined);
+    private presencePenalty = signal<number | undefined>(undefined);
+    private inputPrice = signal<number | undefined>(undefined);
+    private outputPrice = signal<number | undefined>(undefined);
 
     init(config: LLMProviderConfig): void {
-        this.updateSettings({
-            baseUrl: config.baseUrl,
-            apiKey: config.apiKey,
-            modelId: config.modelId,
-            temperature: config.temperature,
-            inputPrice: config.inputPrice,
-            outputPrice: config.outputPrice
-        });
-        this.refreshSettings();
-    }
-
-    refreshSettings(): void {
-        this.loadSettings();
+        if (config.baseUrl) {
+            this.baseUrl.set(config.baseUrl.replace(/\/$/, ''));
+        }
+        if (config.apiKey !== undefined) {
+            this.apiKey.set(config.apiKey);
+        }
+        if (config.modelId) {
+            this.modelId.set(config.modelId);
+        }
+        if (config.temperature !== undefined) {
+            this.temperature.set(config.temperature);
+        }
+        if (config.frequencyPenalty !== undefined) {
+            this.frequencyPenalty.set(config.frequencyPenalty);
+        }
+        if (config.presencePenalty !== undefined) {
+            this.presencePenalty.set(config.presencePenalty);
+        }
+        if (config.inputPrice !== undefined) {
+            this.inputPrice.set(config.inputPrice);
+        }
+        if (config.outputPrice !== undefined) {
+            this.outputPrice.set(config.outputPrice);
+        }
     }
 
     isConfigured(): boolean {
@@ -107,8 +97,8 @@ export class OpenAIService implements LLMProvider {
                 id: this.modelId(),
                 name: `OpenAI: ${this.modelId()}`,
                 getRates: () => ({
-                    input: this.inputPrice(),
-                    output: this.outputPrice()
+                    input: this.inputPrice() ?? 0,
+                    output: this.outputPrice() ?? 0
                 })
             }
         ];
@@ -122,27 +112,7 @@ export class OpenAIService implements LLMProvider {
         return this.modelId();
     }
 
-    saveConfig(config: LLMProviderConfig): void {
-        if (config.baseUrl) localStorage.setItem('openai_base_url', config.baseUrl);
-        if (config.apiKey) localStorage.setItem('openai_api_key', config.apiKey);
-        if (config.modelId) localStorage.setItem('openai_model_id', config.modelId);
-        if (config.temperature !== undefined) localStorage.setItem('openai_temperature', config.temperature.toString());
-        if (config.inputPrice !== undefined) localStorage.setItem('openai_input_price', config.inputPrice.toString());
-        if (config.outputPrice !== undefined) localStorage.setItem('openai_output_price', config.outputPrice.toString());
 
-        this.init(config);
-    }
-
-    getConfigFromStorage(): LLMProviderConfig {
-        return {
-            baseUrl: localStorage.getItem('openai_base_url') || 'https://api.openai.com/v1',
-            apiKey: localStorage.getItem('openai_api_key') || '',
-            modelId: localStorage.getItem('openai_model_id') || 'gpt-4o',
-            temperature: parseFloat(localStorage.getItem('openai_temperature') || '0.7'),
-            inputPrice: parseFloat(localStorage.getItem('openai_input_price') || '0'),
-            outputPrice: parseFloat(localStorage.getItem('openai_output_price') || '0')
-        };
-    }
 
     async *generateContentStream(
         contents: LLMContent[],
@@ -160,26 +130,25 @@ export class OpenAIService implements LLMProvider {
             }))
         ];
 
-        const requestBody: Record<string, unknown> = {
+        const requestBody: Record<string, unknown> = this.cleanObject({
             model: this.modelId(),
             messages,
             stream: true,
             temperature: this.temperature(),
+            frequency_penalty: this.frequencyPenalty(),
+            presence_penalty: this.presencePenalty(),
             stream_options: { include_usage: true },
-            cache_prompt: true, // Optimizes for llama.cpp / LocalAI caching
             ...(config.responseSchema ? {
                 response_format: {
                     type: 'json_schema',
                     json_schema: {
                         name: 'structured_output',
                         strict: true,
-                        schema: this.prepareSchema(config.responseSchema, true)
+                        schema: this.prepareSchema(config.responseSchema)
                     }
-                },
-                // Top-level json_schema for some local backends (llama.cpp)
-                json_schema: this.prepareSchema(config.responseSchema, true)
+                }
             } : {})
-        };
+        });
 
         try {
             const response = await fetch(`${baseUrl}/chat/completions`, {
@@ -202,7 +171,6 @@ export class OpenAIService implements LLMProvider {
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             let buffer = '';
-            let isDiscardingGarbage = !!config.responseSchema;
 
             try {
                 while (true) {
@@ -219,52 +187,27 @@ export class OpenAIService implements LLMProvider {
                         if (!trimmed.startsWith('data: ')) continue;
 
                         try {
-                            const data = JSON.parse(trimmed.slice(6));
+                            const data = JSON.parse(trimmed.slice(6)) as OpenAIResponse;
                             const delta = data.choices?.[0]?.delta;
 
                             if (delta?.content) {
-                                let content = delta.content;
-
-                                // Robust JSON Scan: Discard everything until we find '{' or '"'
-                                if (isDiscardingGarbage) {
-                                    const matchIndex = content.search(/[{"]/);
-
-                                    if (matchIndex !== -1) {
-                                        // Found start!
-                                        const char = content[matchIndex];
-                                        isDiscardingGarbage = false;
-
-                                        // If we hit a quote first, it means the brace was missed. Inject it.
-                                        const prefix = char === '"' ? '{' : '';
-
-                                        // Keep only the valid part
-                                        content = prefix + content.slice(matchIndex);
-                                    } else {
-                                        // No valid start token in this chunk, discard entirely
-                                        continue;
-                                    }
-                                }
-
-                                yield { text: content };
+                                yield { text: delta.content };
                             }
 
-                            // Usage tracking for official OpenAI
-                            if (data.usage) {
-                                yield {
-                                    usageMetadata: {
-                                        prompt: data.usage.prompt_tokens || 0,
-                                        candidates: data.usage.completion_tokens || 0,
-                                        cached: 0
-                                    }
-                                };
+                            // Handle explicit thinking content (if server supports it)
+                            if (delta?.reasoning_content) {
+                                yield { text: delta.reasoning_content, thought: true };
                             }
-                            // Usage tracking for llama.cpp OpenAI-compatible servers
-                            else if (data.timings) {
+
+                            // Usage tracking
+                            if (data.usage || data.timings) {
+                                const usage = data.usage;
+                                const timings = data.timings;
                                 yield {
                                     usageMetadata: {
-                                        prompt: data.timings.prompt_n || 0,
-                                        candidates: data.timings.predicted_n || 0,
-                                        cached: 0
+                                        prompt: (usage?.prompt_tokens ?? timings?.prompt_n) || 0,
+                                        candidates: (usage?.completion_tokens ?? timings?.predicted_n) || 0,
+                                        cached: (usage?.prompt_tokens_details?.cached_tokens ?? timings?.cache_n) || 0
                                     }
                                 };
                             }
@@ -287,44 +230,91 @@ export class OpenAIService implements LLMProvider {
         const text = contents.flatMap(c => c.parts).map(p => p.text || '').join('\n');
         return Math.ceil(text.length / 4);
     }
+    saveConfig(config: LLMProviderConfig): void {
+        if (config.baseUrl) localStorage.setItem('openai_base_url', config.baseUrl);
+        if (config.apiKey) localStorage.setItem('openai_api_key', config.apiKey);
+        if (config.modelId) localStorage.setItem('openai_model_id', config.modelId);
+        if (config.temperature !== undefined && config.temperature !== null) localStorage.setItem('openai_temperature', config.temperature.toString());
+        else localStorage.removeItem('openai_temperature');
+
+        if (config.frequencyPenalty !== undefined && config.frequencyPenalty !== null) localStorage.setItem('openai_frequency_penalty', config.frequencyPenalty.toString());
+        else localStorage.removeItem('openai_frequency_penalty');
+
+        if (config.presencePenalty !== undefined && config.presencePenalty !== null) localStorage.setItem('openai_presence_penalty', config.presencePenalty.toString());
+        else localStorage.removeItem('openai_presence_penalty');
+
+        if (config.inputPrice !== undefined && config.inputPrice !== null) localStorage.setItem('openai_input_price', config.inputPrice.toString());
+        else localStorage.removeItem('openai_input_price');
+
+        if (config.outputPrice !== undefined && config.outputPrice !== null) localStorage.setItem('openai_output_price', config.outputPrice.toString());
+        else localStorage.removeItem('openai_output_price');
+
+        this.init(config);
+    }
+
+    getConfigFromStorage(): LLMProviderConfig {
+        const temperature = localStorage.getItem('openai_temperature');
+        const freqPenalty = localStorage.getItem('openai_frequency_penalty');
+        const presPenalty = localStorage.getItem('openai_presence_penalty');
+        const inPrice = localStorage.getItem('openai_input_price');
+        const outPrice = localStorage.getItem('openai_output_price');
+
+        return {
+            baseUrl: localStorage.getItem('openai_base_url') || 'https://api.openai.com/v1',
+            apiKey: localStorage.getItem('openai_api_key') || '',
+            modelId: localStorage.getItem('openai_model_id') || 'gpt-4o',
+            temperature: temperature ? parseFloat(temperature) : undefined,
+            frequencyPenalty: freqPenalty ? parseFloat(freqPenalty) : undefined,
+            presencePenalty: presPenalty ? parseFloat(presPenalty) : undefined,
+            inputPrice: inPrice ? parseFloat(inPrice) : undefined,
+            outputPrice: outPrice ? parseFloat(outPrice) : undefined
+        };
+    }
+    /**
+     * Robust schema preparation for Structured Outputs.
+     * 1. Removes non-structural fields (title, description, etc.)
+     * 2. Forces additionalProperties: false
+     * 3. Ensures all properties are in 'required' array
+     */
+    private prepareSchema(schema: any): any {
+        if (!schema || typeof schema !== 'object') return schema;
+
+        const result = JSON.parse(JSON.stringify(schema)); // Clone
+
+        const process = (obj: any) => {
+            if (obj.type === 'object' && obj.properties) {
+                // Mandatory for strict mode:
+                obj.additionalProperties = false;
+                obj.required = Object.keys(obj.properties);
+
+                for (const key in obj.properties) {
+                    process(obj.properties[key]);
+                }
+            } else if (obj.type === 'array' && obj.items) {
+                process(obj.items);
+            }
+
+            // Strip metadata
+            delete obj.title;
+            delete obj.description;
+            delete obj.default;
+            delete obj.$schema;
+        };
+
+        process(result);
+        return result;
+    }
 
     /**
-     * Prepares the schema for strict mode:
-     * 1. Removes descriptions (for cleaner local compat).
-     * 2. Injects additionalProperties: false.
-     * 3. Ensures all properties are required.
+     * Filters out null, undefined, and empty string properties from an object.
      */
-    private prepareSchema(schema: unknown, strictMode: boolean): object {
-        if (!schema || typeof schema !== 'object') return schema as object;
-
-        if (Array.isArray(schema)) {
-            return schema.map(item => this.prepareSchema(item, strictMode));
-        }
-
-        const processed: Record<string, unknown> = {};
-        const input = schema as Record<string, unknown>;
-
-        // Copy and recurse
-        for (const [key, value] of Object.entries(input)) {
-            if (key === 'description') continue;
-            if (value !== null && typeof value === 'object') {
-                processed[key] = this.prepareSchema(value, strictMode);
-            } else {
-                processed[key] = value;
-            }
-        }
-
-        // Apply strict requirements to Objects
-        if (strictMode && processed['type'] === 'object') {
-            processed['additionalProperties'] = false;
-
-            // OpenAI Strict Mode requires all properties to be in the 'required' array
-            const props = processed['properties'] as Record<string, unknown> | undefined;
-            if (props) {
-                processed['required'] = Object.keys(props);
-            }
-        }
-
-        return processed;
+    private cleanObject(obj: Record<string, number | string | boolean | object | undefined | null>): Record<string, unknown> {
+        return Object.fromEntries(
+            Object.entries(obj).filter(([, v]) => {
+                if (v === null || v === undefined) return false;
+                if (typeof v === 'string' && v.trim() === '') return false;
+                return true;
+            })
+        );
     }
 }

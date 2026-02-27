@@ -15,7 +15,7 @@
     </mat-form-field>
 
     <div class="slider-row">
-        <span>Temperature: {{ temperature() }}</span>
+        <span>Temperature: {{ temperature() ?? 'Default' }}</span>
         <mat-slider min="0" max="2" step="0.1" showTickMarks discrete>
             <input matSliderThumb [aria-label]="'Temperature'" [ngModel]="temperature()"
                 (ngModelChange)="temperature.set($event)">

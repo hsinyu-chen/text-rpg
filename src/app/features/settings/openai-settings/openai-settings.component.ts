@@ -26,9 +26,9 @@ export class OpenAISettingsComponent implements LLMSettingsComponent {
     baseUrl = signal('https://api.openai.com/v1');
     apiKey = signal('');
     modelId = signal('gpt-4o');
-    temperature = signal(0.7);
-    inputPrice = signal(0);
-    outputPrice = signal(0);
+    temperature = signal<number | undefined>(undefined);
+    inputPrice = signal<number | undefined>(undefined);
+    outputPrice = signal<number | undefined>(undefined);
 
     constructor() {
         this.loadSettings();
@@ -39,11 +39,11 @@ export class OpenAISettingsComponent implements LLMSettingsComponent {
         this.apiKey.set(localStorage.getItem('openai_api_key') || '');
         this.modelId.set(localStorage.getItem('openai_model_id') || 'gpt-4o');
         const savedTemp = localStorage.getItem('openai_temperature');
-        if (savedTemp) {
-            this.temperature.set(parseFloat(savedTemp));
-        }
-        this.inputPrice.set(parseFloat(localStorage.getItem('openai_input_price') || '0'));
-        this.outputPrice.set(parseFloat(localStorage.getItem('openai_output_price') || '0'));
+        this.temperature.set(savedTemp ? parseFloat(savedTemp) : undefined);
+        const savedInPrice = localStorage.getItem('openai_input_price');
+        this.inputPrice.set(savedInPrice ? parseFloat(savedInPrice) : undefined);
+        const savedOutPrice = localStorage.getItem('openai_output_price');
+        this.outputPrice.set(savedOutPrice ? parseFloat(savedOutPrice) : undefined);
     }
 
     getSettings(): OpenAISettings {
@@ -67,7 +67,7 @@ export interface OpenAISettings {
     baseUrl: string;
     apiKey: string;
     modelId: string;
-    temperature: number;
-    inputPrice: number;
-    outputPrice: number;
+    temperature?: number;
+    inputPrice?: number;
+    outputPrice?: number;
 }

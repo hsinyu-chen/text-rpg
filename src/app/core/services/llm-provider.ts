@@ -310,6 +310,10 @@ export interface LLMProviderConfig {
     thinkingLevelGeneral?: string;
     /** Temperature setting for generation */
     temperature?: number;
+    /** Frequency penalty for generation */
+    frequencyPenalty?: number;
+    /** Presence penalty for generation */
+    presencePenalty?: number;
     /** Whether to enable context caching (Gemini-specific) */
     enableCache?: boolean;
     /** Custom input token price (per 1M) */

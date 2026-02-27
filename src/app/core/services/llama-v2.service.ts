@@ -10,6 +10,29 @@ import {
     LLMSettingsComponent
 } from './llm-provider';
 
+interface LlamaResponse {
+    choices?: {
+        delta?: {
+            content?: string;
+            reasoning_content?: string;
+        };
+    }[];
+    usage?: {
+        prompt_tokens?: number;
+        completion_tokens?: number;
+        prompt_tokens_details?: {
+            cached_tokens?: number;
+        };
+    };
+    timings?: {
+        prompt_n?: number;
+        predicted_n?: number;
+        cache_n?: number;
+        prompt_per_second?: number;
+        predicted_per_second?: number;
+    };
+}
+
 /**
  * LlamaV2Service - Optimized llama.cpp Provider
  * Uses OpenAI-compatible /v1/chat/completions to support:
@@ -26,11 +49,11 @@ export class LlamaV2Service implements LLMProvider {
 
     private baseUrl = signal('http://localhost:8080');
     private modelId = signal('local-model');
-    private temperature = signal(0.8);
-    private frequencyPenalty = signal(0.6);
-    private presencePenalty = signal(0.4);
-    private inputPrice = signal(0);
-    private outputPrice = signal(0);
+    private temperature = signal<number | undefined>(undefined);
+    private frequencyPenalty = signal<number | undefined>(undefined);
+    private presencePenalty = signal<number | undefined>(undefined);
+    private inputPrice = signal<number | undefined>(undefined);
+    private outputPrice = signal<number | undefined>(undefined);
 
     // Dynamic props from server
     private serverChatTemplate = signal<string | null>(null);
@@ -45,6 +68,12 @@ export class LlamaV2Service implements LLMProvider {
         if (config.temperature !== undefined) {
             this.temperature.set(config.temperature);
         }
+        if (config.frequencyPenalty !== undefined) {
+            this.frequencyPenalty.set(config.frequencyPenalty);
+        }
+        if (config.presencePenalty !== undefined) {
+            this.presencePenalty.set(config.presencePenalty);
+        }
         if (config.inputPrice !== undefined) {
             this.inputPrice.set(config.inputPrice);
         }
@@ -55,23 +84,42 @@ export class LlamaV2Service implements LLMProvider {
         // Proactively fetch props to identify model and template
         this.fetchProps();
     }
-saveConfig(config: LLMProviderConfig): void {
+    saveConfig(config: LLMProviderConfig): void {
         if (config.baseUrl) localStorage.setItem('llama_base_url', config.baseUrl);
         if (config.modelId) localStorage.setItem('llama_model_id', config.modelId);
-        if (config.temperature !== undefined) localStorage.setItem('llama_temperature', config.temperature.toString());
-        if (config.inputPrice !== undefined) localStorage.setItem('llama_input_price', config.inputPrice.toString());
-        if (config.outputPrice !== undefined) localStorage.setItem('llama_output_price', config.outputPrice.toString());
+        if (config.temperature !== undefined && config.temperature !== null) localStorage.setItem('llama_temperature', config.temperature.toString());
+        else localStorage.removeItem('llama_temperature');
+
+        if (config.frequencyPenalty !== undefined && config.frequencyPenalty !== null) localStorage.setItem('llama_frequency_penalty', config.frequencyPenalty.toString());
+        else localStorage.removeItem('llama_frequency_penalty');
+
+        if (config.presencePenalty !== undefined && config.presencePenalty !== null) localStorage.setItem('llama_presence_penalty', config.presencePenalty.toString());
+        else localStorage.removeItem('llama_presence_penalty');
+
+        if (config.inputPrice !== undefined && config.inputPrice !== null) localStorage.setItem('llama_input_price', config.inputPrice.toString());
+        else localStorage.removeItem('llama_input_price');
+
+        if (config.outputPrice !== undefined && config.outputPrice !== null) localStorage.setItem('llama_output_price', config.outputPrice.toString());
+        else localStorage.removeItem('llama_output_price');
 
         this.init(config);
     }
 
     getConfigFromStorage(): LLMProviderConfig {
+        const temperature = localStorage.getItem('llama_temperature');
+        const freqPenalty = localStorage.getItem('llama_frequency_penalty');
+        const presPenalty = localStorage.getItem('llama_presence_penalty');
+        const inPrice = localStorage.getItem('llama_input_price');
+        const outPrice = localStorage.getItem('llama_output_price');
+
         return {
             baseUrl: localStorage.getItem('llama_base_url') || 'http://localhost:8080',
             modelId: localStorage.getItem('llama_model_id') || 'local-model',
-            temperature: parseFloat(localStorage.getItem('llama_temperature') || '0.5'),
-            inputPrice: parseFloat(localStorage.getItem('llama_input_price') || '0'),
-            outputPrice: parseFloat(localStorage.getItem('llama_output_price') || '0')
+            temperature: temperature ? parseFloat(temperature) : undefined,
+            frequencyPenalty: freqPenalty ? parseFloat(freqPenalty) : undefined,
+            presencePenalty: presPenalty ? parseFloat(presPenalty) : undefined,
+            inputPrice: inPrice ? parseFloat(inPrice) : undefined,
+            outputPrice: outPrice ? parseFloat(outPrice) : undefined
         };
     }
     private async fetchProps() {
@@ -112,8 +160,8 @@ saveConfig(config: LLMProviderConfig): void {
                 id: this.modelId(),
                 name: `Local Model (${this.modelId()})`,
                 getRates: () => ({
-                    input: this.inputPrice(),
-                    output: this.outputPrice(),
+                    input: this.inputPrice() ?? 0,
+                    output: this.outputPrice() ?? 0,
                     cached: 0,
                     cacheStorage: 0
                 })
@@ -164,7 +212,7 @@ saveConfig(config: LLMProviderConfig): void {
 
         const preparedSchema = config.responseSchema ? this.prepareSchema(config.responseSchema) : null;
 
-        const requestBody: Record<string, unknown> = {
+        const requestBody: Record<string, unknown> = this.cleanObject({
             model: this.modelId(),
             messages,
             stream: true,
@@ -191,7 +239,7 @@ saveConfig(config: LLMProviderConfig): void {
                     schema: this.prepareSchema(config.responseSchema)
                 }
             } : {})
-        };
+        });
 
         try {
             const response = await fetch(`${baseUrl}/v1/chat/completions`, {
@@ -228,7 +276,7 @@ saveConfig(config: LLMProviderConfig): void {
                         if (!trimmed.startsWith('data: ')) continue;
 
                         try {
-                            const data = JSON.parse(trimmed.slice(6));
+                            const data = JSON.parse(trimmed.slice(6)) as LlamaResponse;
                             const delta = data.choices?.[0]?.delta;
 
                             // Handle standard content
@@ -326,5 +374,18 @@ saveConfig(config: LLMProviderConfig): void {
 
         process(result);
         return result;
+    }
+
+    /**
+     * Filters out null, undefined, and empty string properties from an object.
+     */
+    private cleanObject(obj: Record<string, number | string | boolean | object | undefined | null>): Record<string, unknown> {
+        return Object.fromEntries(
+            Object.entries(obj).filter(([, v]) => {
+                if (v === null || v === undefined) return false;
+                if (typeof v === 'string' && v.trim() === '') return false;
+                return true;
+            })
+        );
     }
 }
