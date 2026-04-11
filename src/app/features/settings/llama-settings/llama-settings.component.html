@@ -1,52 +1,93 @@
 <div class="settings-grid">
     <mat-form-field appearance="outline" class="full-width">
         <mat-label>Server URL</mat-label>
-        <input matInput [ngModel]="baseUrl()" (ngModelChange)="baseUrl.set($event)"
+        <input matInput [ngModel]="baseUrl()" (ngModelChange)="onBaseUrlChange($event)"
             placeholder="e.g http://localhost:8080">
         <mat-icon matPrefix>lan</mat-icon>
         <mat-hint>The API endpoint of your llama.cpp server</mat-hint>
     </mat-form-field>
-
-    <mat-form-field appearance="outline" class="full-width">
-        <mat-label>Model Reference</mat-label>
-        <input matInput [ngModel]="modelId()" (ngModelChange)="modelId.set($event)" placeholder="e.g. Llama-3-8B">
-        <mat-icon matPrefix>label</mat-icon>
-        <mat-hint>Metadata name for tracking usage</mat-hint>
-    </mat-form-field>
-
+    <!-- Model Reference is now automatically fetched from the server -->
     <div class="slider-row">
         <span>Temperature: {{ temperature() ?? 'Default' }}</span>
         <mat-slider min="0" max="2" step="0.1" showTickMarks discrete>
-            <input matSliderThumb [aria-label]="'Temperature'" [ngModel]="temperature()"
+            <input matSliderThumb title="Temperature" [aria-label]="'Temperature'" [ngModel]="temperature()"
                 (ngModelChange)="temperature.set($event)">
         </mat-slider>
         <p class="hint-text">Higher values make the output more random.</p>
     </div>
-
-    <div class="pricing-row" style="display: flex; gap: 16px; margin-top: 16px;">
-        <mat-form-field appearance="outline" style="flex: 1;">
+    <!-- Sampling Parameters -->
+    <h3 class="section-title">Sampling Parameters</h3>
+    <div class="settings-grid parameters-grid">
+        <div class="slider-row">
+            <span>Top P: {{ topP() ?? 'Default' }}</span>
+            <mat-slider min="0" max="1" step="0.05" showTickMarks discrete>
+                <input matSliderThumb title="Top P" [ngModel]="topP()" (ngModelChange)="topP.set($event)">
+            </mat-slider>
+            <p class="hint-text">Nucleus sampling: only consider tokens with top-p probability.</p>
+        </div>
+        <div class="slider-row">
+            <span>Min P: {{ minP() ?? 'Default' }}</span>
+            <mat-slider min="0" max="1" step="0.05" showTickMarks discrete>
+                <input matSliderThumb title="Min P" [ngModel]="minP()" (ngModelChange)="minP.set($event)">
+            </mat-slider>
+            <p class="hint-text">Minimum probability relative to the most likely token.</p>
+        </div>
+        <div class="slider-row">
+            <span>Repetition Penalty: {{ repetitionPenalty() ?? 'Default' }}</span>
+            <mat-slider min="1" max="2" step="0.05" showTickMarks discrete>
+                <input matSliderThumb title="Repetition Penalty" [ngModel]="repetitionPenalty()" (ngModelChange)="repetitionPenalty.set($event)">
+            </mat-slider>
+            <p class="hint-text">Penalty for repeating the same tokens.</p>
+        </div>
+        <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Top K</mat-label>
+            <input matInput type="number" [ngModel]="topK()" (ngModelChange)="topK.set($event)" placeholder="e.g. 40">
+            <mat-icon matPrefix>format_list_numbered</mat-icon>
+            <mat-hint>Only sample from the top K most likely tokens.</mat-hint>
+        </mat-form-field>
+    </div>
+    <!-- Thinking / Reasoning -->
+    <h3 class="section-title">Thinking / Reasoning</h3>
+    <div class="thinking-section">
+        <div class="thinking-controls">
+            <mat-slide-toggle [ngModel]="enableThinking()" (ngModelChange)="enableThinking.set($event)">
+                Enable Thinking Mode
+            </mat-slide-toggle>
+            @if (enableThinking()) {
+            <mat-form-field appearance="outline">
+                <mat-label>Reasoning Effort</mat-label>
+                <mat-select [ngModel]="reasoningEffort()" (ngModelChange)="reasoningEffort.set($event)">
+                    <mat-option value="low">Low (512 tokens)</mat-option>
+                    <mat-option value="medium">Medium (2048 tokens)</mat-option>
+                    <mat-option value="high">High (8192 tokens)</mat-option>
+                </mat-select>
+            </mat-form-field>
+            }
+        </div>
+        <p class="hint-text">Thinking mode enables Chain of Thought (CoT) reasoning for supporting models.</p>
+    </div>
+    <h3 class="section-title">Pricing (Optional Metrics)</h3>
+    <div class="pricing-row">
+        <mat-form-field appearance="outline">
             <mat-label>Input Price (USD/1M)</mat-label>
-            <input matInput type="number" [ngModel]="inputPrice()" (ngModelChange)="inputPrice.set($event)" step="0.01"
+            <input matInput title="Input Price" type="number" [ngModel]="inputPrice()" (ngModelChange)="inputPrice.set($event)" step="0.01"
                 min="0">
             <mat-icon matPrefix>login</mat-icon>
         </mat-form-field>
-
-        <mat-form-field appearance="outline" style="flex: 1;">
+        <mat-form-field appearance="outline">
             <mat-label>Output Price (USD/1M)</mat-label>
-            <input matInput type="number" [ngModel]="outputPrice()" (ngModelChange)="outputPrice.set($event)"
+            <input matInput title="Output Price" type="number" [ngModel]="outputPrice()" (ngModelChange)="outputPrice.set($event)"
                 step="0.01" min="0">
             <mat-icon matPrefix>logout</mat-icon>
         </mat-form-field>
-
-        <mat-form-field appearance="outline" style="flex: 1;">
+        <mat-form-field appearance="outline">
             <mat-label>Cache Price (USD/1M)</mat-label>
-            <input matInput type="number" [ngModel]="cachedPrice()" (ngModelChange)="cachedPrice.set($event)"
+            <input matInput title="Cache Price" type="number" [ngModel]="cachedPrice()" (ngModelChange)="cachedPrice.set($event)"
                 step="0.01" min="0">
             <mat-icon matPrefix>memory</mat-icon>
         </mat-form-field>
     </div>
 </div>
-
 <div class="info-section">
     <mat-icon>info</mat-icon>
     <div>

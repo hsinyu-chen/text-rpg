@@ -40,3 +40,28 @@
         }
     }
 }
+
+.thinking-section {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+
+    .thinking-controls {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+
+        mat-form-field {
+            flex: 1;
+        }
+    }
+}
+
+.pricing-row {
+    display: flex;
+    gap: 16px;
+
+    mat-form-field {
+        flex: 1;
+    }
+}

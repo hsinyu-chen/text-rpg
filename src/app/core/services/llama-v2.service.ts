@@ -31,6 +31,11 @@ interface LlamaResponse {
         prompt_per_second?: number;
         predicted_per_second?: number;
     };
+    prompt_progress?: {
+        total: number;
+        processed: number;
+        cache: number;
+    };
 }
 
 /**
@@ -55,81 +60,155 @@ export class LlamaV2Service implements LLMProvider {
     private inputPrice = signal<number | undefined>(undefined);
     private outputPrice = signal<number | undefined>(undefined);
     private cachedPrice = signal<number | undefined>(undefined);
+    private topP = signal<number | undefined>(undefined);
+    private topK = signal<number | undefined>(undefined);
+    private minP = signal<number | undefined>(undefined);
+    private repetitionPenalty = signal<number | undefined>(undefined);
+    private enableThinking = signal<boolean>(false);
+    private reasoningEffort = signal<string>('low');
 
     // Dynamic props from server
     private serverChatTemplate = signal<string | null>(null);
 
     init(config: LLMProviderConfig): void {
+        const cleanStr = (val: unknown) => (typeof val === 'string' && val.trim() === '') ? undefined : val as number;
+
         if (config.baseUrl) {
             this.baseUrl.set(config.baseUrl.replace(/\/$/, ''));
         }
-        if (config.modelId) {
-            this.modelId.set(config.modelId);
+        if (config.modelId !== undefined) {
+            this.modelId.set((typeof config.modelId === 'string' && config.modelId.trim() === '') ? 'local-model' : config.modelId);
         }
         if (config.temperature !== undefined) {
-            this.temperature.set(config.temperature);
+            this.temperature.set(cleanStr(config.temperature));
         }
         if (config.frequencyPenalty !== undefined) {
-            this.frequencyPenalty.set(config.frequencyPenalty);
+            this.frequencyPenalty.set(cleanStr(config.frequencyPenalty));
         }
         if (config.presencePenalty !== undefined) {
-            this.presencePenalty.set(config.presencePenalty);
+            this.presencePenalty.set(cleanStr(config.presencePenalty));
         }
         if (config.inputPrice !== undefined) {
-            this.inputPrice.set(config.inputPrice);
+            this.inputPrice.set(cleanStr(config.inputPrice));
         }
         if (config.outputPrice !== undefined) {
-            this.outputPrice.set(config.outputPrice);
+            this.outputPrice.set(cleanStr(config.outputPrice));
         }
         if (config.cachedPrice !== undefined) {
-            this.cachedPrice.set(config.cachedPrice);
+            this.cachedPrice.set(cleanStr(config.cachedPrice));
+        }
+
+        if (config.topP !== undefined) {
+            this.topP.set(cleanStr(config.topP));
+        }
+        if (config.topK !== undefined) {
+            this.topK.set(cleanStr(config.topK));
+        }
+        if (config.minP !== undefined) {
+            this.minP.set(cleanStr(config.minP));
+        }
+        if (config.repetitionPenalty !== undefined) {
+            this.repetitionPenalty.set(cleanStr(config.repetitionPenalty));
+        }
+        if (config.enableThinking !== undefined) {
+            this.enableThinking.set(config.enableThinking);
+        }
+        if (config.reasoningEffort !== undefined) {
+            this.reasoningEffort.set(config.reasoningEffort);
+        }
+
+        const settings = config.additionalSettings || {};
+        if (settings['topP'] !== undefined) {
+            this.topP.set(cleanStr(settings['topP']));
+        }
+        if (settings['topK'] !== undefined) {
+            this.topK.set(cleanStr(settings['topK']));
+        }
+        if (settings['minP'] !== undefined) {
+            this.minP.set(cleanStr(settings['minP']));
+        }
+        if (settings['repetitionPenalty'] !== undefined) {
+            this.repetitionPenalty.set(cleanStr(settings['repetitionPenalty']));
+        }
+        if (settings['enableThinking'] !== undefined) {
+            this.enableThinking.set(settings['enableThinking'] as boolean);
+        }
+        if (settings['reasoningEffort'] !== undefined) {
+            this.reasoningEffort.set(settings['reasoningEffort'] as string);
         }
 
         // Proactively fetch props to identify model and template
         this.fetchProps();
     }
     saveConfig(config: LLMProviderConfig): void {
+        const setOrRemove = (key: string, val: unknown) => {
+            if (val !== undefined && val !== null) localStorage.setItem(key, String(val));
+            else localStorage.removeItem(key);
+        };
+
         if (config.baseUrl) localStorage.setItem('llama_base_url', config.baseUrl);
         if (config.modelId) localStorage.setItem('llama_model_id', config.modelId);
-        if (config.temperature !== undefined && config.temperature !== null) localStorage.setItem('llama_temperature', config.temperature.toString());
-        else localStorage.removeItem('llama_temperature');
+        setOrRemove('llama_temperature', config.temperature);
+        setOrRemove('llama_frequency_penalty', config.frequencyPenalty);
+        setOrRemove('llama_presence_penalty', config.presencePenalty);
+        setOrRemove('llama_input_price', config.inputPrice);
+        setOrRemove('llama_output_price', config.outputPrice);
+        setOrRemove('llama_cached_price', config.cachedPrice);
+        setOrRemove('llama_top_p', config.topP);
+        setOrRemove('llama_top_k', config.topK);
+        setOrRemove('llama_min_p', config.minP);
+        setOrRemove('llama_repetition_penalty', config.repetitionPenalty);
+        setOrRemove('llama_enable_thinking', config.enableThinking);
+        setOrRemove('llama_reasoning_effort', config.reasoningEffort);
 
-        if (config.frequencyPenalty !== undefined && config.frequencyPenalty !== null) localStorage.setItem('llama_frequency_penalty', config.frequencyPenalty.toString());
-        else localStorage.removeItem('llama_frequency_penalty');
-
-        if (config.presencePenalty !== undefined && config.presencePenalty !== null) localStorage.setItem('llama_presence_penalty', config.presencePenalty.toString());
-        else localStorage.removeItem('llama_presence_penalty');
-
-        if (config.inputPrice !== undefined && config.inputPrice !== null) localStorage.setItem('llama_input_price', config.inputPrice.toString());
-        else localStorage.removeItem('llama_input_price');
-
-        if (config.outputPrice !== undefined && config.outputPrice !== null) localStorage.setItem('llama_output_price', config.outputPrice.toString());
-        else localStorage.removeItem('llama_output_price');
-
-        if (config.cachedPrice !== undefined && config.cachedPrice !== null) localStorage.setItem('llama_cached_price', config.cachedPrice.toString());
-        else localStorage.removeItem('llama_cached_price');
+        // Also save from additionalSettings if present
+        const settings = config.additionalSettings || {};
+        setOrRemove('llama_top_p', settings['topP'] ?? config.topP);
+        setOrRemove('llama_top_k', settings['topK'] ?? config.topK);
+        setOrRemove('llama_min_p', settings['minP'] ?? config.minP);
+        setOrRemove('llama_repetition_penalty', settings['repetitionPenalty'] ?? config.repetitionPenalty);
+        setOrRemove('llama_enable_thinking', settings['enableThinking'] ?? config.enableThinking);
+        setOrRemove('llama_reasoning_effort', settings['reasoningEffort'] ?? config.reasoningEffort);
 
         this.init(config);
     }
 
     getConfigFromStorage(): LLMProviderConfig {
-        const temperature = localStorage.getItem('llama_temperature');
-        const freqPenalty = localStorage.getItem('llama_frequency_penalty');
-        const presPenalty = localStorage.getItem('llama_presence_penalty');
-        const inPrice = localStorage.getItem('llama_input_price');
-        const outPrice = localStorage.getItem('llama_output_price');
-        const cachedPrice = localStorage.getItem('llama_cached_price');
+        const getNum = (key: string) => {
+            const val = localStorage.getItem(key);
+            return val ? parseFloat(val) : undefined;
+        };
+        const getBool = (key: string) => localStorage.getItem(key) === 'true';
+        const getStr = (key: string) => localStorage.getItem(key) || undefined;
 
-        return {
+        const baseConfig: LLMProviderConfig = {
             baseUrl: localStorage.getItem('llama_base_url') || 'http://localhost:8080',
             modelId: localStorage.getItem('llama_model_id') || 'local-model',
-            temperature: temperature ? parseFloat(temperature) : undefined,
-            frequencyPenalty: freqPenalty ? parseFloat(freqPenalty) : undefined,
-            presencePenalty: presPenalty ? parseFloat(presPenalty) : undefined,
-            inputPrice: inPrice ? parseFloat(inPrice) : undefined,
-            outputPrice: outPrice ? parseFloat(outPrice) : undefined,
-            cachedPrice: cachedPrice ? parseFloat(cachedPrice) : undefined
+            temperature: getNum('llama_temperature'),
+            frequencyPenalty: getNum('llama_frequency_penalty'),
+            presencePenalty: getNum('llama_presence_penalty'),
+            inputPrice: getNum('llama_input_price'),
+            outputPrice: getNum('llama_output_price'),
+            cachedPrice: getNum('llama_cached_price'),
+            topP: getNum('llama_top_p'),
+            topK: getNum('llama_top_k'),
+            minP: getNum('llama_min_p'),
+            repetitionPenalty: getNum('llama_repetition_penalty'),
+            enableThinking: localStorage.getItem('llama_enable_thinking') ? getBool('llama_enable_thinking') : undefined,
+            reasoningEffort: getStr('llama_reasoning_effort'),
         };
+
+        // Populate additionalSettings as well for backward compatibility / flexibility
+        baseConfig.additionalSettings = {
+            topP: baseConfig.topP,
+            topK: baseConfig.topK,
+            minP: baseConfig.minP,
+            repetitionPenalty: baseConfig.repetitionPenalty,
+            enableThinking: baseConfig.enableThinking,
+            reasoningEffort: baseConfig.reasoningEffort
+        };
+
+        return baseConfig;
     }
     private async fetchProps() {
         try {
@@ -159,7 +238,8 @@ export class LlamaV2Service implements LLMProvider {
             supportsContextCaching: true, // Supported via n_keep + cache_prompt
             supportsThinking: true,      // Supported via OpenAI reasoning_content
             supportsStructuredOutput: true,
-            isLocalProvider: true
+            isLocalProvider: true,
+            supportsSpeedMetrics: true
         };
     }
 
@@ -221,6 +301,13 @@ export class LlamaV2Service implements LLMProvider {
 
         const preparedSchema = config.responseSchema ? this.prepareSchema(config.responseSchema) : null;
 
+        // Map reasoning effort to token budget (llama.cpp uses reasoning_budget, not reasoning_effort)
+        const reasoningBudgetMap: Record<string, number> = { low: 512, medium: 2048, high: 8192 };
+        const thinkingEnabled = this.enableThinking();
+        const reasoningBudget = thinkingEnabled
+            ? (reasoningBudgetMap[this.reasoningEffort()] ?? 2048)
+            : 0;
+
         const requestBody: Record<string, unknown> = this.cleanObject({
             model: this.modelId(),
             messages,
@@ -228,7 +315,12 @@ export class LlamaV2Service implements LLMProvider {
             temperature: this.temperature(),
             frequency_penalty: this.frequencyPenalty(),
             presence_penalty: this.presencePenalty(),
+            top_p: this.topP(),
+            top_k: this.topK(),
+            min_p: this.minP(),
+            repetition_penalty: this.repetitionPenalty(),
             stream_options: { include_usage: true },
+            return_progress: true,
             cache_prompt: true,
             n_keep: n_keep,
             ...(config.responseSchema ? {
@@ -247,7 +339,12 @@ export class LlamaV2Service implements LLMProvider {
                     strict: true,
                     schema: preparedSchema
                 }
-            } : {})
+            } : {}),
+            // llama.cpp native: enable_thinking must be inside chat_template_kwargs
+            chat_template_kwargs: {
+                enable_thinking: thinkingEnabled
+            },
+            reasoning_budget: reasoningBudget
         });
 
         try {
@@ -307,9 +404,11 @@ export class LlamaV2Service implements LLMProvider {
                             }
 
                             // Usage and timings
-                            if (data.usage || data.timings) {
+                            if (data.usage || data.timings || data.prompt_progress) {
                                 const usage = data.usage;
                                 const timings = data.timings;
+                                const progress = data.prompt_progress;
+
                                 yield {
                                     usageMetadata: {
                                         // Prefer timings for more detail (cached vs active prompt)
@@ -317,7 +416,8 @@ export class LlamaV2Service implements LLMProvider {
                                         candidates: (timings?.predicted_n ?? usage?.completion_tokens) || 0,
                                         cached: (timings?.cache_n ?? usage?.prompt_tokens_details?.cached_tokens) || 0,
                                         promptSpeed: timings?.prompt_per_second,
-                                        completionSpeed: timings?.predicted_per_second
+                                        completionSpeed: timings?.predicted_per_second,
+                                        promptProgress: progress && progress.total > 0 ? (progress.processed / progress.total) : undefined
                                     }
                                 };
                             }

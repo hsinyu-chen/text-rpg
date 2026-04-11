@@ -139,5 +139,10 @@ export interface AppLocale {
         STOP_GENERATION: string;
         STOP_GENERATION_CONFIRM_TITLE: string;
         STOP_GENERATION_CONFIRM_MSG: string;
+        PROMPT_PROFILE_LABEL: string;
+        PROFILE_CLOUD: string;
+        PROFILE_LOCAL: string;
+        PROFILE_CLOUD_DESC: string;
+        PROFILE_LOCAL_DESC: string;
     };
 }

@@ -137,6 +137,8 @@ export interface LLMProviderCapabilities {
     supportsStructuredOutput: boolean;
     /** Provider runs locally (no API costs) */
     isLocalProvider: boolean;
+    /** Provider supports specific speed metrics like prompt/completion speed */
+    supportsSpeedMetrics?: boolean;
 }
 
 // ============================================================================
@@ -322,4 +324,18 @@ export interface LLMProviderConfig {
     outputPrice?: number;
     /** Custom cached input token price (per 1M) */
     cachedPrice?: number;
+    /** Nucleus sampling parameter (top_p) */
+    topP?: number;
+    /** Top-K sampling parameter (top_k) */
+    topK?: number;
+    /** Minimum probability parameter (min_p) */
+    minP?: number;
+    /** Repetition penalty parameter */
+    repetitionPenalty?: number;
+    /** Explicitly enable thinking/reasoning mode */
+    enableThinking?: boolean;
+    /** Define the effort/budget for reasoning (low, medium, high) */
+    reasoningEffort?: string;
+    /** Additional parameters for provider-specific capabilities */
+    additionalSettings?: Record<string, unknown>;
 }

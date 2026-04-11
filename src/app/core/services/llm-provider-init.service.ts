@@ -21,7 +21,7 @@ export class LLMProviderInitService {
     initialize() {
         // Wire up UIs
         this.gemini.settingsComponent = GeminiSettingsComponent;
-        this.llama.settingsComponent = LlamaSettingsComponent;
+        this.llamaV2.settingsComponent = LlamaSettingsComponent; // Fixed: LlamaV2 is the registered provider
         this.openai.settingsComponent = OpenAISettingsComponent;
 
         this.registry.register(this.gemini);

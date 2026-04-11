@@ -42,6 +42,20 @@
         <!-- Sidebar -->
         <div class="sidebar" [class.collapsed]="isSidebarCollapsed()">
 
+            <!-- Profile Selector -->
+            <div class="profile-selector">
+                <div class="profile-label">{{ ui().PROMPT_PROFILE_LABEL }}</div>
+                <mat-button-toggle-group [value]="activeProfileId()" (change)="switchProfile($event.value)"
+                    [disabled]="isSwitchingProfile()" class="profile-toggle-group" hideSingleSelectionIndicator>
+                    @for (profile of profiles; track profile.id) {
+                    <mat-button-toggle [value]="profile.id"
+                        [matTooltip]="getProfileDescription(profile.descriptionKey)">
+                        {{ getProfileLabel(profile.nameKey) }}
+                    </mat-button-toggle>
+                    }
+                </mat-button-toggle-group>
+            </div>
+
             <div class="sidebar-list-container">
                 @for (group of groupedTypes(); track group.id) {
                 <div class="category-group">

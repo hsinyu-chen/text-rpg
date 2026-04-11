@@ -1,0 +1,65 @@
+/**
+ * User-defined post-processing script
+ *
+ * response object contains:
+ * - story: string        Story content
+ * - summary: string      Summary
+ * - character_log: string[]  Character logs
+ * - inventory_log: string[]  Inventory logs
+ * - quest_log: string[]      Quest logs
+ * - world_log: string[]      World logs
+ */
+
+// Destructure all fields
+const { story, summary, character_log, inventory_log, quest_log, world_log } = response;
+
+// Default: return original data
+// Uncomment below to customize
+
+/*
+// Example: Global text replacement (Safe for Save Data)
+/*
+const replace = (text) => {
+  if (typeof text !== 'string') return text;
+  // Split by <save ... </save> blocks to protect them
+  const parts = text.split(/(<save[\s\S]*?<\/save>)/gi);
+  return parts.map(part => {
+    if (part.trim().toLowerCase().startsWith('<save')) return part;
+    return part.replace(/old/g, 'new');
+  }).join('');
+};
+
+return {
+  story: replace(story),
+  summary: replace(summary),
+  character_log: character_log.map(replace),
+  inventory_log: inventory_log.map(replace),
+  quest_log: quest_log.map(replace),
+  world_log: world_log.map(replace)
+};
+*/
+
+
+/*
+// Example: Loop with Object.keys
+const replace = (v) => typeof v === 'string'
+  ? v.replace(/old/g, 'new')
+  : v.map(s => s.replace(/old/g, 'new'));
+
+const result = {};
+for (const key of Object.keys(response)) {
+  result[key] = replace(response[key]);
+}
+return result;
+*/
+
+// Default: Ensure story header [date/location/characters] has trailing newline
+// Account for optional <CREATIVE FICTION CONTEXT> prefix
+const fixedStory = story.replace(/^(<[^>]+>\s*)?(\[[^\]]+\])([^\n])/, (match, prefix, header, nextChar) => {
+  return (prefix || '') + header + '\n' + nextChar;
+});
+
+return {
+  ...response,
+  story: fixedStory
+};

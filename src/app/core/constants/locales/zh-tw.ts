@@ -158,6 +158,11 @@ export const ZH_TW_LOCALE: AppLocale = {
         REGENERATE_SAVE_PROMPT: '下方列出的項目先前「比對失敗」。請將其視為「錯誤參考」，找出正確的檔案位置並重新產生 XML 更新區塊。請勿重複輸出已成功的區塊。參考下方提供的 Context 與錯誤 Target。',
         STOP_GENERATION: '停止生成',
         STOP_GENERATION_CONFIRM_TITLE: '確認停止',
-        STOP_GENERATION_CONFIRM_MSG: '確定要停止目前的生成嗎？'
+        STOP_GENERATION_CONFIRM_MSG: '確定要停止目前的生成嗎？',
+        PROMPT_PROFILE_LABEL: '提示詞方案',
+        PROFILE_CLOUD: '雲端版',
+        PROFILE_LOCAL: '本地版',
+        PROFILE_CLOUD_DESC: '完整版（含越獄提示，適用雲端 API）',
+        PROFILE_LOCAL_DESC: '精簡版（適用本地模型，減少不需要的提示）'
     }
 };

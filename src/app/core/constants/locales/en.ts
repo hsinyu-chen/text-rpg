@@ -158,6 +158,11 @@ When performing the <Save> command, please only compare and synchronize based on
         REGENERATE_SAVE_PROMPT: 'The items listed below FAILED to match. Use them as "erroneous references" only; identify the correct locations in the Knowledge Base and regenerate the XML blocks. Do not repeat successful blocks.',
         STOP_GENERATION: 'Stop Generation',
         STOP_GENERATION_CONFIRM_TITLE: 'Confirm Stop',
-        STOP_GENERATION_CONFIRM_MSG: 'Are you sure you want to stop the current generation?'
+        STOP_GENERATION_CONFIRM_MSG: 'Are you sure you want to stop the current generation?',
+        PROMPT_PROFILE_LABEL: 'Prompt Profile',
+        PROFILE_CLOUD: 'Cloud',
+        PROFILE_LOCAL: 'Local',
+        PROFILE_CLOUD_DESC: 'Full version (with jailbreak prompts, for cloud APIs)',
+        PROFILE_LOCAL_DESC: 'Simplified version (for local models, reduced prompts)'
     }
 };

@@ -84,6 +84,17 @@
                     </button>
             </div>
 
+            <!-- Prefill Progress (Shows while processing context/prompt) -->
+            @if (msg.progress !== undefined && msg.progress < 1 && !msg.content && !msg.thought && !msg.analysis) {
+            <div class="prefill-container">
+                <mat-progress-bar mode="determinate" [value]="msg.progress * 100" class="prefill-progress"></mat-progress-bar>
+                <div class="prefill-status">
+                    <mat-icon class="status-icon">sync_alt</mat-icon>
+                    <span class="status-text">Prefilling Context... {{ (msg.progress * 100) | number:'1.0-0' }}%</span>
+                </div>
+            </div>
+            }
+
             <!-- Context Status Indicator (If older than 5 turns) -->
             @if (!state.inContext() && msg.role === 'model' && !msg.isRefOnly) {
             <div class="context-status" matTooltip="Referenced by Summary Only (Context Optimized)">

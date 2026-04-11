@@ -3,6 +3,7 @@ import { ChatMessage } from '../models/types';
 import { CostService } from './cost.service';
 import { KnowledgeService } from './knowledge.service';
 import { LLMProviderRegistryService } from './llm-provider-registry.service';
+import { DEFAULT_PROFILE_ID } from '../constants/prompt-profiles';
 
 /**
  * Configuration for the game engine.
@@ -109,6 +110,11 @@ export class GameStateService {
 
     // Flag to prevent effects from saving until after initial load
     injectionSettingsLoaded = signal(false);
+
+    // Active Prompt Profile (e.g., 'cloud', 'local')
+    activePromptProfile = signal<string>(
+        localStorage.getItem('app_active_prompt_profile') || DEFAULT_PROFILE_ID
+    );
 
     // ==================== Prompt Updates ====================
     // Track status of prompt file updates: type -> { hasUpdate: boolean, serverContent: string }

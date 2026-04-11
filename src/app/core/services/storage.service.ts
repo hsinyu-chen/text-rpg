@@ -148,6 +148,29 @@ export class StorageService {
     await (await this.dbPromise).clear('prompt_store');
   }
 
+  /**
+   * Gets a profile-scoped prompt key.
+   * Default profile ('cloud') uses the bare key for backward compatibility.
+   */
+  private getProfilePromptKey(name: string, profileId: string): string {
+    return profileId === 'cloud' ? name : `${profileId}:${name}`;
+  }
+
+  /**
+   * Retrieves a prompt scoped to a specific profile.
+   */
+  async getProfilePrompt(name: string, profileId: string) {
+    return (await this.dbPromise).get('prompt_store', this.getProfilePromptKey(name, profileId));
+  }
+
+  /**
+   * Saves a prompt scoped to a specific profile.
+   */
+  async saveProfilePrompt(name: string, profileId: string, content: string, tokens?: number) {
+    const key = this.getProfilePromptKey(name, profileId);
+    await (await this.dbPromise).put('prompt_store', { content, tokens, lastModified: Date.now() }, key);
+  }
+
   // ========== Books Store (v6+) ==========
 
   async getBooks(): Promise<Book[]> {

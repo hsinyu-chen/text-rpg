@@ -3,12 +3,14 @@ import { GameStateService } from './game-state.service';
 import { INJECTION_FILE_PATHS } from '../constants/engine-protocol';
 import { getLocale, getLangFolder } from '../constants/locales';
 import { StorageService } from './storage.service';
+import { getProfileBasePath, getProfileScopedKey, BUILT_IN_PROFILES, DEFAULT_PROFILE_ID } from '../constants/prompt-profiles';
 
 export type PromptType = 'action' | 'continue' | 'fastforward' | 'system' | 'save' | 'postprocess' | 'system_main';
 
 /**
  * Service responsible for managing dynamic prompt injection settings.
  * Handles loading, saving, and resetting injection prompts.
+ * Supports multiple Prompt Profiles (e.g. 'cloud' vs 'local').
  */
 @Injectable({
     providedIn: 'root'
@@ -17,6 +19,11 @@ export class InjectionService {
     private state = inject(GameStateService);
     private storage = inject(StorageService);
     private isSettingsLoading = false;
+
+    /** Current active profile ID (convenience accessor) */
+    private get profileId(): string {
+        return this.state.activePromptProfile();
+    }
 
     /**
      * Normalizes line endings to LF for consistent hashing across platforms.
@@ -37,6 +44,13 @@ export class InjectionService {
             hash |= 0;
         }
         return hash.toString();
+    }
+
+    /**
+     * Gets a profile-scoped localStorage key.
+     */
+    private lsKey(baseKey: string, overrideProfileId?: string): string {
+        return getProfileScopedKey(baseKey, overrideProfileId ?? this.profileId);
     }
 
     /**
@@ -74,29 +88,43 @@ export class InjectionService {
     }
 
     /**
-     * Marks a specific injection type as modified by the user.
+     * Loads a prompt file with profile fallback.
+     * If the file doesn't exist in the profile's sub-directory, falls back to the root (cloud) directory.
      */
-    markAsModified(type: PromptType): void {
-        localStorage.setItem(`prompt_user_modified_${type}`, 'true');
+    private async loadWithFallback(langFolder: string, filename: string, targetProfileId: string): Promise<string> {
+        const profileBase = getProfileBasePath(langFolder, targetProfileId);
+        const profilePath = `${profileBase}/${filename}`;
+
+        try {
+            return await this.loadInjectionFile(profilePath);
+        } catch {
+            // Fallback to root (cloud) directory
+            if (targetProfileId !== DEFAULT_PROFILE_ID) {
+                const fallbackBase = getProfileBasePath(langFolder, DEFAULT_PROFILE_ID);
+                const fallbackPath = `${fallbackBase}/${filename}`;
+                console.log(`[InjectionService] Falling back to default profile for ${filename}`);
+                return this.loadInjectionFile(fallbackPath);
+            }
+            throw new Error(`Failed to load system file: ${profilePath}`);
+        }
     }
 
     /**
-     * Saves the current content of a prompt to storage.
+     * Marks a specific injection type as modified by the user (profile-scoped).
+     */
+    markAsModified(type: PromptType): void {
+        localStorage.setItem(this.lsKey(`prompt_user_modified_${type}`), 'true');
+    }
+
+    /**
+     * Saves the current content of a prompt to storage (profile-scoped).
      */
     async saveToService(type: PromptType, content: string): Promise<void> {
-        await this.storage.savePrompt(type, content);
+        await this.storage.saveProfilePrompt(type, this.profileId, content);
         this.markAsModified(type);
 
         // Update the signal immediately
-        switch (type) {
-            case 'action': this.state.dynamicActionInjection.set(content); break;
-            case 'continue': this.state.dynamicContinueInjection.set(content); break;
-            case 'fastforward': this.state.dynamicFastforwardInjection.set(content); break;
-            case 'system': this.state.dynamicSystemInjection.set(content); break;
-            case 'save': this.state.dynamicSaveInjection.set(content); break;
-            case 'system_main': this.state.dynamicSystemMainInjection.set(content); break;
-            case 'postprocess': this.state.postProcessScript.set(content); break;
-        }
+        this.setSignalContent(type, content);
     }
 
     /**
@@ -108,22 +136,14 @@ export class InjectionService {
         if (!status) return;
 
         if (applyUpdate) {
-            switch (type) {
-                case 'action': this.state.dynamicActionInjection.set(status.serverContent); break;
-                case 'continue': this.state.dynamicContinueInjection.set(status.serverContent); break;
-                case 'fastforward': this.state.dynamicFastforwardInjection.set(status.serverContent); break;
-                case 'system': this.state.dynamicSystemInjection.set(status.serverContent); break;
-                case 'save': this.state.dynamicSaveInjection.set(status.serverContent); break;
-                case 'system_main': this.state.dynamicSystemMainInjection.set(status.serverContent); break;
-                case 'postprocess': this.state.postProcessScript.set(status.serverContent); break;
-            }
+            this.setSignalContent(type, status.serverContent);
             // If they apply the update, it's no longer "modified" relative to the new server version
-            localStorage.setItem(`prompt_user_modified_${type}`, 'false');
-            await this.storage.savePrompt(type, status.serverContent);
+            localStorage.setItem(this.lsKey(`prompt_user_modified_${type}`), 'false');
+            await this.storage.saveProfilePrompt(type, this.profileId, status.serverContent);
         }
 
         const newHash = this.hashString(this.normalizeLineEndings(status.serverContent));
-        localStorage.setItem(`prompt_last_server_hash_${type}`, newHash);
+        localStorage.setItem(this.lsKey(`prompt_last_server_hash_${type}`), newHash);
 
         // Update status map
         this.state.promptUpdateStatus.update(map => {
@@ -136,6 +156,7 @@ export class InjectionService {
     /**
      * Loads dynamic injection settings from StorageService (IndexedDB) or MD files.
      * Includes migration from legacy localStorage.
+     * Profile-aware: loads from the active profile's directory with fallback.
      */
     async loadDynamicInjectionSettings() {
         if (this.isSettingsLoading) return;
@@ -149,8 +170,10 @@ export class InjectionService {
 
             const lang = localStorage.getItem('app_output_language') || localStorage.getItem('gemini_output_language') || 'default';
             const langFolder = getLangFolder(lang);
+            const currentProfile = this.profileId;
+
             const loadPath = (filename: string) =>
-                this.loadInjectionFile(`assets/system_files/${langFolder}/${filename}`);
+                this.loadWithFallback(langFolder, filename, currentProfile);
 
             // We must catch errors here; if any fails, we halt system
             let actionDef, continueDef, fastforwardDef, systemDef, saveDef, systemMainDef, postprocessDef;
@@ -189,32 +212,34 @@ export class InjectionService {
             for (const type of types) {
                 const processedServerContent = type.isPost ? type.content : this.applyPromptPlaceholders(type.content, lang);
                 const serverHash = this.hashString(this.normalizeLineEndings(processedServerContent));
-                const lastServerHash = localStorage.getItem(`prompt_last_server_hash_${type.id}`);
-                const isModified = localStorage.getItem(`prompt_user_modified_${type.id}`) === 'true';
+                const hashKey = this.lsKey(`prompt_last_server_hash_${type.id}`, currentProfile);
+                const modifiedKey = this.lsKey(`prompt_user_modified_${type.id}`, currentProfile);
+                const lastServerHash = localStorage.getItem(hashKey);
+                const isModified = localStorage.getItem(modifiedKey) === 'true';
 
                 let hasUpdate = false;
 
                 if (lastServerHash === null) {
-                    localStorage.setItem(`prompt_last_server_hash_${type.id}`, serverHash);
+                    localStorage.setItem(hashKey, serverHash);
                 } else if (serverHash !== lastServerHash) {
                     if (isModified) {
                         hasUpdate = true;
                     } else {
-                        localStorage.setItem(`prompt_last_server_hash_${type.id}`, serverHash);
+                        localStorage.setItem(hashKey, serverHash);
                     }
                 }
 
                 updateStatusMap.set(type.id, { hasUpdate, serverContent: processedServerContent });
 
-                // Try to load from IndexedDB
-                let dbRecord = await this.storage.getPrompt(type.id);
+                // Try to load from IndexedDB (profile-scoped)
+                let dbRecord = await this.storage.getProfilePrompt(type.id, currentProfile);
 
-                // DATA MIGRATION: Check localStorage if not in DB
-                if (!dbRecord && type.legacyKey) {
+                // DATA MIGRATION: Check localStorage if not in DB (only for default/cloud profile)
+                if (!dbRecord && type.legacyKey && currentProfile === DEFAULT_PROFILE_ID) {
                     const legacyContent = localStorage.getItem(type.legacyKey);
                     if (legacyContent) {
                         console.log(`[InjectionService] Migrating ${type.id} from localStorage to IndexedDB`);
-                        await this.storage.savePrompt(type.id, legacyContent);
+                        await this.storage.saveProfilePrompt(type.id, currentProfile, legacyContent);
                         dbRecord = { content: legacyContent, lastModified: Date.now() };
                         localStorage.removeItem(type.legacyKey);
                     }
@@ -227,19 +252,20 @@ export class InjectionService {
                 } else {
                     // Load server default
                     this.setSignalContent(type.id as PromptType, processedServerContent);
-                    localStorage.setItem(`prompt_user_modified_${type.id}`, 'false');
+                    localStorage.setItem(modifiedKey, 'false');
 
                     // CRITICAL: Ensure the default content is in IDB to support "Unify Storage"
                     // If we don't save it here, it won't be in prompt_store until modified.
                     // We only save if legacyKey is empty (system_main) OR if it's not in DB yet.
                     if (!dbRecord) {
-                        await this.storage.savePrompt(type.id, processedServerContent);
+                        await this.storage.saveProfilePrompt(type.id, currentProfile, processedServerContent);
                     }
                 }
             }
 
             this.state.promptUpdateStatus.set(updateStatusMap);
             this.state.injectionSettingsLoaded.set(true);
+            console.log(`[InjectionService] Settings loaded for profile: ${currentProfile}`);
         } catch (globalErr: unknown) {
             console.error('[InjectionService] Global error in loader', globalErr);
             this.state.status.set('error');
@@ -263,7 +289,33 @@ export class InjectionService {
     }
 
     /**
-     * Resets injection prompts to defaults from MD files.
+     * Switches the active prompt profile.
+     * Saves current profile's state, then loads the new profile's prompts.
+     */
+    async switchProfile(newProfileId: string): Promise<void> {
+        const profile = BUILT_IN_PROFILES.find(p => p.id === newProfileId);
+        if (!profile) {
+            console.error(`[InjectionService] Unknown profile: ${newProfileId}`);
+            return;
+        }
+
+        const oldProfileId = this.profileId;
+        if (oldProfileId === newProfileId) return;
+
+        console.log(`[InjectionService] Switching profile: ${oldProfileId} → ${newProfileId}`);
+
+        // 1. Persist the new profile choice
+        this.state.activePromptProfile.set(newProfileId);
+        localStorage.setItem('app_active_prompt_profile', newProfileId);
+
+        // 2. Force a re-load with the new profile
+        this.isSettingsLoading = false; // Reset guard
+        this.state.injectionSettingsLoaded.set(false);
+        await this.loadDynamicInjectionSettings();
+    }
+
+    /**
+     * Resets injection prompts to defaults from MD files (profile-aware).
      */
     async resetInjectionDefaults(type: PromptType | 'all' = 'all'): Promise<void> {
         const loadAction = type === 'action' || type === 'all';
@@ -276,10 +328,13 @@ export class InjectionService {
 
         const lang = this.state.config()?.outputLanguage || localStorage.getItem('app_output_language') || localStorage.getItem('gemini_output_language') || 'default';
         const langFolder = getLangFolder(lang);
-        const folderPath = `assets/system_files/${langFolder}/`;
+        const currentProfile = this.profileId;
 
         const promises: Promise<{ id: PromptType, content: string }>[] = [];
-        const wrapLoad = async (id: PromptType, filename: string) => ({ id, content: await this.loadInjectionFile(folderPath + filename) });
+        const wrapLoad = async (id: PromptType, filename: string) => ({
+            id,
+            content: await this.loadWithFallback(langFolder, filename, currentProfile)
+        });
 
         if (loadAction) promises.push(wrapLoad('action', INJECTION_FILE_PATHS.action));
         if (loadContinue) promises.push(wrapLoad('continue', INJECTION_FILE_PATHS.continue));
@@ -295,15 +350,15 @@ export class InjectionService {
             const processedContent = res.id === 'postprocess' ? res.content : this.applyPromptPlaceholders(res.content, lang);
             this.setSignalContent(res.id, processedContent);
 
-            // Update IDB and hashes
+            // Update IDB and hashes (profile-scoped)
             // Note: If we reset, we effectively remove the "customization" in IDB and LS
             const hash = this.hashString(this.normalizeLineEndings(processedContent));
-            localStorage.setItem(`prompt_last_server_hash_${res.id}`, hash);
-            localStorage.setItem(`prompt_user_modified_${res.id}`, 'false');
+            localStorage.setItem(this.lsKey(`prompt_last_server_hash_${res.id}`, currentProfile), hash);
+            localStorage.setItem(this.lsKey(`prompt_user_modified_${res.id}`, currentProfile), 'false');
 
             // CLEAR customization from IDB by saving the default content
             // or we could just delete it from IDB. But saving default content is safer for "current" state.
-            await this.storage.savePrompt(res.id, processedContent);
+            await this.storage.saveProfilePrompt(res.id, currentProfile, processedContent);
 
             // Update status map to clear update badge
             this.state.promptUpdateStatus.update(map => {
@@ -316,7 +371,7 @@ export class InjectionService {
             });
         }
 
-        console.log(`[InjectionService] Reset injection defaults: ${type}`);
+        console.log(`[InjectionService] Reset injection defaults: ${type} (profile: ${currentProfile})`);
     }
 
     /**

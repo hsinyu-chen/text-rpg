@@ -212,7 +212,8 @@ export class OpenAIService implements LLMProvider {
                                     usageMetadata: {
                                         prompt: (usage?.prompt_tokens ?? timings?.prompt_n) || 0,
                                         candidates: (usage?.completion_tokens ?? timings?.predicted_n) || 0,
-                                        cached: (usage?.prompt_tokens_details?.cached_tokens ?? timings?.cache_n) || 0
+                                        cached: (usage?.prompt_tokens_details?.cached_tokens ?? timings?.cache_n) || 0,
+                                        promptProgress: undefined
                                     }
                                 };
                             }

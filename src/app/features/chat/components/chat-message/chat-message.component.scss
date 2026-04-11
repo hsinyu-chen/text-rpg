@@ -490,3 +490,46 @@
         }
     }
 }
+.prefill-container {
+    margin-bottom: 16px;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+
+    .prefill-progress {
+        height: 4px;
+        border-radius: 2px;
+        margin-bottom: 8px;
+    }
+
+    .prefill-status {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 11px;
+        color: #9e9e9e;
+
+        .status-icon {
+            font-size: 16px;
+            width: 16px;
+            height: 16px;
+            color: #64b5f6;
+            animation: rotate-sync 2s linear infinite;
+        }
+
+        .status-text {
+            font-style: italic;
+        }
+    }
+}
+
+@keyframes rotate-sync {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}

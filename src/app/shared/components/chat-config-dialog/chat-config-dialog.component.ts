@@ -5,6 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatListModule } from '@angular/material/list';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatButtonToggleModule } from '@angular/material/button-toggle';
 import { FormsModule } from '@angular/forms';
 import { MonacoEditorComponent } from '../monaco-editor/monaco-editor.component';
 import { GameEngineService } from '../../../core/services/game-engine.service';
@@ -15,6 +16,7 @@ import { PostProcessorService } from '../../../core/services/post-processor.serv
 import { InjectionService, PromptType } from '../../../core/services/injection.service';
 import { PromptDiffDialogComponent } from '../prompt-diff-dialog/prompt-diff-dialog.component';
 import { MatBadgeModule } from '@angular/material/badge';
+import { BUILT_IN_PROFILES } from '../../../core/constants/prompt-profiles';
 
 /** Injection type definition */
 interface InjectionType {
@@ -40,6 +42,7 @@ interface PromptCategory {
         MatIconModule,
         MatListModule,
         MatTooltipModule,
+        MatButtonToggleModule,
         MatBadgeModule,
         FormsModule,
         MonacoEditorComponent
@@ -93,6 +96,21 @@ export class ChatConfigDialogComponent {
 
     // Active injection type
     activeType = signal<InjectionType['id']>('system_main');
+
+    // Profile system
+    readonly profiles = BUILT_IN_PROFILES;
+    activeProfileId = computed(() => this.state.activePromptProfile());
+    isSwitchingProfile = signal(false);
+
+    /** Resolve a profile's display name from its nameKey */
+    getProfileLabel(nameKey: string): string {
+        return (this.ui() as unknown as Record<string, string>)[nameKey] ?? nameKey;
+    }
+
+    /** Resolve a profile's description from its descriptionKey */
+    getProfileDescription(descKey: string): string {
+        return (this.ui() as unknown as Record<string, string>)[descKey] ?? descKey;
+    }
 
     // Sidebar collapsed state (mobile)
     isSidebarCollapsed = signal(false);
@@ -304,6 +322,39 @@ export class ChatConfigDialogComponent {
     /** Get content for a specific type */
     private getContentForType(type: InjectionType['id']): string {
         return this.injection.getContentForType(type as PromptType);
+    }
+
+    /** Switch to a different prompt profile */
+    async switchProfile(newProfileId: string): Promise<void> {
+        if (newProfileId === this.activeProfileId()) return;
+
+        // Check for unsaved changes
+        if (this.hasAnyDirty()) {
+            const lang = this.state.config()?.outputLanguage || 'default';
+            const confirmMsg = lang === 'zh-TW'
+                ? '切換方案將丟棄未儲存的變更，確定要繼續嗎？'
+                : 'Switching profile will discard unsaved changes. Continue?';
+            if (!confirm(confirmMsg)) return;
+        }
+
+        this.isSwitchingProfile.set(true);
+        try {
+            await this.injection.switchProfile(newProfileId);
+
+            // Refresh all editor models
+            const editor = this.editorRef();
+            if (editor) {
+                for (const type of this.injectionTypes()) {
+                    const content = this.getContentForType(type.id);
+                    editor.updateFileContent(type.id, content);
+                }
+            }
+
+            // Clear dirty state
+            this.dirtyState.set(new Map());
+        } finally {
+            this.isSwitchingProfile.set(false);
+        }
     }
 
     /** Toggle sidebar visibility */
