@@ -54,26 +54,84 @@
                             <span class="update-label">{{ update.label || 'Hunk #' + (j + 1) }}</span>
 
                             <!-- Status Icon -->
-                            @if (update.status) {
-                            @if (update.status.validating) {
-                            <mat-spinner diameter="16"></mat-spinner>
-                            } @else if (!update.status.exists) {
-                            <mat-icon class="status-icon info" matTooltip="New File">fiber_new</mat-icon>
-                            } @else if (update.status.matched) {
-                            <mat-icon class="status-icon success" matTooltip="Match Found">check_circle</mat-icon>
-                            } @else if (update.status.failReason === 'context_mismatch') {
-                            <mat-icon class="status-icon warning"
-                                matTooltip="Context Mismatch: Target found but not under expected path">warning</mat-icon>
-                            } @else {
-                            <mat-icon class="status-icon warning"
-                                matTooltip="Target Not Found: Content to replace does not exist">warning</mat-icon>
-                            }
-                            }
+                            <div class="status-container">
+                                @if (update.status) {
+                                @if (update.status.validating) {
+                                <mat-spinner diameter="16"></mat-spinner>
+                                } @else if (!update.status.exists) {
+                                <mat-icon class="status-icon info" matTooltip="New File">fiber_new</mat-icon>
+                                } @else if (update.status.matched) {
+                                <mat-icon class="status-icon success" matTooltip="Match Found">check_circle</mat-icon>
+                                } @else {
+                                <mat-icon class="status-icon warning"
+                                    [matTooltip]="update.status.failReason === 'context_mismatch' ? 'Context Mismatch' : 'Target Not Found'">warning</mat-icon>
+                                }
+
+                                <!-- Calibration Action -->
+                                <button mat-icon-button class="calibrate-btn"
+                                    [class.active]="calibratingUpdateId() === update.id"
+                                    [matTooltip]="locale().uiStrings.CALIBRATE_TOOLTIP"
+                                    (click)="startCalibration(update); $event.stopPropagation()">
+                                    <mat-icon class="calibrate-icon">my_location</mat-icon>
+                                </button>
+                                }
+                            </div>
                         </div>
 
-                        @if(update.context) {
+                        @if(update.context && calibratingUpdateId() !== update.id) {
                         <div class="item-context" [matTooltip]="update.context">
                             {{ update.context }}
+                        </div>
+                        }
+
+                        <!-- Calibration Panel (Accordion) -->
+                        @if(calibratingUpdateId() === update.id) {
+                        <div class="calibration-panel" (click)="$event.stopPropagation()"
+                            (keydown.enter)="$event.stopPropagation()" tabindex="0" role="region">
+                            <div class="calibration-header">
+                                <mat-icon>edit_note</mat-icon>
+                                <span>{{ locale().uiStrings.CALIBRATE_MODE_TITLE }}</span>
+                            </div>
+
+                            <!-- LIVE SELECTION PREVIEW -->
+                            @if(currentSelection(); as selection) {
+                            <div class="selection-preview pulse">
+                                <div class="preview-text">{{ selection.text }}</div>
+                                <div class="preview-actions">
+                                    <button mat-flat-button color="primary" size="small"
+                                        (click)="applyCalibration(update)">
+                                        <mat-icon>check</mat-icon>
+                                        {{ locale().uiStrings.CALIBRATE_CONFIRM }}
+                                    </button>
+                                    <button mat-icon-button (click)="currentSelection.set(null)">
+                                        <mat-icon>close</mat-icon>
+                                    </button>
+                                </div>
+                            </div>
+                            }
+
+                            <!-- MANUAL TEXT AREAS (Fallback) -->
+                            <div class="hunk-edit-group">
+                                <label class="hunk-label" [attr.for]="'target-' + update.id">Target</label>
+                                <textarea [id]="'target-' + update.id" cdkTextareaAutosize [value]="update.targetContent || ''"
+                                    (input)="onHunkContentChange(update, 'target', $event)"
+                                    class="hunk-textarea"
+                                    placeholder="Enter text to find..."></textarea>
+                            </div>
+
+                            <div class="hunk-edit-group">
+                                <label class="hunk-label" [attr.for]="'replacement-' + update.id">Replacement</label>
+                                <textarea [id]="'replacement-' + update.id" cdkTextareaAutosize [value]="update.replacementContent || ''"
+                                    (input)="onHunkContentChange(update, 'replacement', $event)"
+                                    class="hunk-textarea"
+                                    placeholder="Enter replacement text..."></textarea>
+                            </div>
+
+                            <div class="calibration-footer">
+                                <button mat-button color="warn" (click)="cancelCalibration()">
+                                    {{ locale().uiStrings.CALIBRATE_CANCEL }}
+                                </button>
+                            </div>
                         </div>
                         }
                     </div>
@@ -95,7 +153,8 @@
 
                 <div class="monaco-wrapper">
                     <app-monaco-editor [isDiff]="true" [originalValue]="group.originalContent()"
-                        [(ngModel)]="group.combinedContent" language="markdown" [options]="{readOnly: false}">
+                        [(ngModel)]="group.combinedContent" language="markdown" [options]="{readOnly: false}"
+                        (selectionChange)="onMonacoSelectionChange($event)">
                     </app-monaco-editor>
                 </div>
             </div>

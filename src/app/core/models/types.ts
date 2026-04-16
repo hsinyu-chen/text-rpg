@@ -112,6 +112,7 @@ export interface Book {
         kbCacheName: string | null;
         kbCacheExpireTime: number | null; // Timestamp
         kbCacheTokens: number;
+        estimatedKbTokens: number; // Added: Total KB tokens for UI display
         kbCacheHash: string | null;
         kbStorageUsageAcc: number; // Active accumulated storage usage (Token-Seconds)
         kbSlotId?: string;

@@ -155,7 +155,7 @@ export const ZH_TW_LOCALE: AppLocale = {
         CATEGORY_PROCESS: '處理腳本 (Process)',
         STOP_REASON_PREFIX: '模型停止原因：',
         REGENERATE_SAVE_BTN: '僅重新產生錯誤區塊',
-        REGENERATE_SAVE_PROMPT: '下方列出的項目先前「比對失敗」。請將其視為「錯誤參考」，找出正確的檔案位置並重新產生 XML 更新區塊。請勿重複輸出已成功的區塊。參考下方提供的 Context 與錯誤 Target。',
+        REGENERATE_SAVE_PROMPT: '以下存檔比對失敗。請務必找出正確的文字位置，並確保 <target> 內的文字與原始檔案「完全一致」（包含標點符號與縮排），否則將無法套用。請勿重複輸出已成功的部分。',
         STOP_GENERATION: '停止生成',
         STOP_GENERATION_CONFIRM_TITLE: '確認停止',
         STOP_GENERATION_CONFIRM_MSG: '確定要停止目前的生成嗎？',
@@ -163,6 +163,15 @@ export const ZH_TW_LOCALE: AppLocale = {
         PROFILE_CLOUD: '雲端版',
         PROFILE_LOCAL: '本地版',
         PROFILE_CLOUD_DESC: '完整版（含越獄提示，適用雲端 API）',
-        PROFILE_LOCAL_DESC: '精簡版（適用本地模型，減少不需要的提示）'
+        PROFILE_LOCAL_DESC: '精簡版（適用本地模型，減少不需要的提示）',
+        REGEN_SUCCESS_TITLE: '**以下項目的 XML 更新「已成功」比對，請【絕對不要】再次輸出這些區塊：**',
+        REGEN_FAILED_TITLE: '**請【僅針對】以下失敗項目重新產生 XML 更新：**',
+        REGEN_SUCCESS_LABEL: '[已成功]',
+        REGEN_FILE_LABEL: '[檔案]',
+        REGEN_ERROR_LABEL: '[錯誤錨點] (檔案中找不到此段落，請重新定位文字並確保字元完全一致，包含標點與空格)：',
+        CALIBRATE_TOOLTIP: '視覺化校準：在左側選取正確文字以自動修正',
+        CALIBRATE_MODE_TITLE: '【視覺化校正中】請在左側檔案預覽區，圈選正確的文字片段：',
+        CALIBRATE_CONFIRM: '確認並套用校正',
+        CALIBRATE_CANCEL: '取消校正'
     }
 };

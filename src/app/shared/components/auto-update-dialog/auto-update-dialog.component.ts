@@ -86,6 +86,8 @@ export class AutoUpdateDialogComponent {
   isInitializing = signal(true);
   filesLoaded = signal(false);
   isSidebarOpen = signal(true); // Controls left panel visibility on mobile
+  calibratingUpdateId = signal<string | null>(null);
+  currentSelection = signal<{ text: string, startLineNumber: number } | null>(null);
 
   // Reference to the Monaco editor component
   private monacoEditor = viewChild(MonacoEditorComponent);
@@ -135,6 +137,29 @@ export class AutoUpdateDialogComponent {
           this.validateAll();
         });
       }
+    });
+
+    // 4. Real-time preview & Auto-sync: update target fields when selection finishes
+    effect(() => {
+      const selection = this.currentSelection();
+      const calibratingId = this.calibratingUpdateId();
+      
+      untracked(() => {
+        const group = this.activeGroup();
+        if (!group) return;
+
+        // If we have a selection and are calibrating, sync it to the hunk properties instantly
+        if (calibratingId && selection) {
+          const update = group.updates.find(u => u.id === calibratingId);
+          if (update) {
+            update.targetContent = selection.text;
+            update.context = this.updateService.inferContextFromLine(group.originalContent(), selection.startLineNumber - 1);
+          }
+        }
+
+        // Always recompute to reflect either the new selection or the reverted state
+        this.recomputeCombinedContent(group);
+      });
     });
   }
 
@@ -250,10 +275,25 @@ export class AutoUpdateDialogComponent {
 
   recomputeCombinedContent(group: GroupedUpdate) {
     let result = group.originalContent();
+    const calibratingId = this.calibratingUpdateId();
+    const selection = this.currentSelection();
+
     // Apply all selected updates to the original content
     for (const update of group.updates) {
       if (update.selected()) {
-        result = this.localApplyUpdate(result, update);
+        // If this specific hunk is being calibrated and we have a selection,
+        // use the selection text and INFERRED context for an instant preview!
+        if (update.id === calibratingId && selection) {
+          const tempContext = this.updateService.inferContextFromLine(group.originalContent(), selection.startLineNumber - 1);
+          const tempUpdate = {
+            ...update,
+            targetContent: selection.text,
+            context: tempContext
+          };
+          result = this.localApplyUpdate(result, tempUpdate);
+        } else {
+          result = this.localApplyUpdate(result, update);
+        }
       }
     }
     group.computedContent.set(result);
@@ -325,6 +365,13 @@ export class AutoUpdateDialogComponent {
       const lineNumber = combinedContentStr.substring(0, range.start).split(/\r?\n/).length;
       // Small delay to ensure editor is ready after tab switch
       setTimeout(() => editor.revealLine(lineNumber), 50);
+    } else if (update.context) {
+      // FALLBACK: If content match failed, but we have a context, scroll to the section header
+      const contextLine = this.updateService.findContextLine(combinedContentStr, update.context);
+      if (contextLine !== null) {
+        // findContextLine returns 0-indexed, Monaco expects 1-indexed
+        setTimeout(() => editor.revealLine(contextLine + 1), 50);
+      }
     }
   }
 
@@ -434,31 +481,37 @@ export class AutoUpdateDialogComponent {
     const intentTag = locale.intentTags.SAVE;
     const promptText = locale.uiStrings.REGENERATE_SAVE_PROMPT;
 
-    // Collect all failed items
+    const matchedItems: string[] = [];
     const failedItems: string[] = [];
+
     for (const group of this.groupedUpdates()) {
       for (const update of group.updates) {
-        if (update.status && update.status.exists && !update.status.matched) {
-          const isTargetNotFound = update.status.failReason === 'target_not_found';
-          const reason = isTargetNotFound ? 'TARGET NOT FOUND (Erroneous Anchor)' : 'CONTEXT MISMATCH';
+        if (!update.status || !update.status.exists) continue;
 
-          // Increase preview length to 500 and keep newlines for better anchor context
-          // But still cap it just in case of extreme cases
+        if (update.status.matched) {
+          // List successful items as a "DO NOT TOUCH" reference
+          matchedItems.push(`- ${locale.uiStrings.REGEN_SUCCESS_LABEL} ${update.filePath} (${update.context || 'root'})`);
+        } else {
+          // Failed items
           const targetPreview = update.targetContent
             ? update.targetContent.substring(0, 500)
             : '(append mode)';
 
-          let itemText = `- File: ${update.filePath}\n  Context: ${update.context || '(root)'}\n  Reason: ${reason}\n  Target (DO NOT ECHO, FIND CORRECT ONE): \n  """\n  ${targetPreview}\n  """`;
-
-          if (isTargetNotFound) {
-            itemText += `\n  [INSTRUCTION] The above Target string could not be found in the file. Re-examine the Knowledge Base to identify the correct content to update. Do NOT repeat this failed target in your output unless you have verified it matches the file exactly.`;
-          }
+          const itemText = `- ${locale.uiStrings.REGEN_FILE_LABEL} ${update.filePath} (${update.context || 'root'})\n  ${locale.uiStrings.REGEN_ERROR_LABEL}\n  """\n  ${targetPreview}\n  """`;
           failedItems.push(itemText);
         }
       }
     }
 
-    const message = `${intentTag}${promptText}\n\n**FAILED ITEMS (ERRONEOUS REFERENCES):**\n${failedItems.join('\n\n')}`;
+    let message = `${intentTag}${promptText}\n\n`;
+
+    if (matchedItems.length > 0) {
+      message += `${locale.uiStrings.REGEN_SUCCESS_TITLE}\n${matchedItems.join('\n')}\n\n`;
+    }
+
+    if (failedItems.length > 0) {
+      message += `${locale.uiStrings.REGEN_FAILED_TITLE}\n${failedItems.join('\n\n')}`;
+    }
 
     // Send message and close dialog
     this.engine.sendMessage(message, { intent: GAME_INTENTS.SAVE });
@@ -571,5 +624,96 @@ export class AutoUpdateDialogComponent {
     } finally {
       this.isInitializing.set(false);
     }
+  }
+
+  onMonacoSelectionChange(event: { text: string; startLineNumber: number } | null) {
+    this.currentSelection.set(event);
+  }
+
+  startCalibration(update: MonacoUpdateItem) {
+    this.calibratingUpdateId.set(update.id);
+    this.currentSelection.set(null);
+    this.selectUpdate(update);
+  }
+
+  cancelCalibration() {
+    this.calibratingUpdateId.set(null);
+    this.currentSelection.set(null);
+  }
+
+  async applyCalibration(update: MonacoUpdateItem) {
+    const selection = this.currentSelection();
+    if (!selection) return;
+
+    const group = this.activeGroup();
+    if (!group) return;
+
+    // 1. Update the Hunk's Target Content
+    update.targetContent = selection.text;
+
+    // 2. Automatically Infer Context (Smart Context)
+    // selection.startLineNumber is 1-indexed from Monaco, inferContextLine expects 0-indexed
+    const newContext = this.updateService.inferContextFromLine(group.originalContent(), selection.startLineNumber - 1);
+    update.context = newContext;
+
+    // 3. Clear Calibration State
+    this.cancelCalibration();
+
+    // 4. Revalidate and Refresh
+    await this.revalidateUpdate(update, group);
+    this.snackBar.open('Calibration applied successfully', 'OK', { duration: 2000 });
+  }
+
+  /**
+   * Re-validates a single hunk and recomputes the preview.
+   */
+  private async revalidateUpdate(update: MonacoUpdateItem, group: GroupedUpdate) {
+    update.status = { ...update.status!, validating: true };
+    this.groupedUpdates.update(groups => [...groups]);
+
+    try {
+      const result = await this.updateService.validateUpdate(update);
+      update.status = {
+        exists: result.exists,
+        matched: result.matched,
+        alreadyExists: result.alreadyExists,
+        beforeLines: result.beforeLines,
+        afterLines: result.afterLines,
+        matchIndex: result.matchIndex,
+        failReason: result.failReason,
+        validating: false
+      };
+
+      // Refresh Monaco preview
+      this.recomputeCombinedContent(group);
+      
+      // Update active selection to show new status
+      if (this.activeUpdate()?.id === update.id) {
+        this.activeUpdate.set({ ...update });
+      }
+    } catch (err) {
+      console.error('Revalidation failed:', err);
+      update.status.validating = false;
+    }
+    
+    this.groupedUpdates.update(groups => [...groups]);
+  }
+
+  /**
+   * Handle manual edits to target/replacement content
+   */
+  onHunkContentChange(update: MonacoUpdateItem, type: 'target' | 'replacement', event: Event) {
+    const newVal = (event.target as HTMLTextAreaElement).value;
+    const group = this.activeGroup();
+    if (!group) return;
+
+    if (type === 'target') {
+      update.targetContent = newVal;
+    } else {
+      update.replacementContent = newVal;
+    }
+
+    // Debounce revalidation? For now just trigger it
+    this.revalidateUpdate(update, group);
   }
 }

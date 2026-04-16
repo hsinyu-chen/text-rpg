@@ -37,10 +37,10 @@ export class MessageStateService {
         computation: (isThinking) => isThinking ?? false
     });
 
-    // Auto-expand on start thinking, auto-collapse on finish thinking
+    // Auto-expand on start thinking, auto-collapse when analysis starts
     isThoughtVisible = linkedSignal({
-        source: () => this.message()?.isThinking,
-        computation: (isThinking) => isThinking ?? false
+        source: () => ({ isThinking: this.message()?.isThinking, hasAnalysis: !!this.message()?.analysis }),
+        computation: ({ isThinking, hasAnalysis }) => (isThinking && !hasAnalysis)
     });
 
     isRaw = signal(false);

@@ -35,6 +35,7 @@ interface LlamaResponse {
         total: number;
         processed: number;
         cache: number;
+        time_ms?: number;
     };
 }
 
@@ -412,12 +413,15 @@ export class LlamaV2Service implements LLMProvider {
                                 yield {
                                     usageMetadata: {
                                         // Prefer timings for more detail (cached vs active prompt)
-                                        prompt: (timings?.prompt_n ?? usage?.prompt_tokens) || 0,
+                                        prompt: (timings?.prompt_n ?? usage?.prompt_tokens ?? progress?.total) || 0,
                                         candidates: (timings?.predicted_n ?? usage?.completion_tokens) || 0,
-                                        cached: (timings?.cache_n ?? usage?.prompt_tokens_details?.cached_tokens) || 0,
-                                        promptSpeed: timings?.prompt_per_second,
+                                        cached: (timings?.cache_n ?? usage?.prompt_tokens_details?.cached_tokens ?? progress?.cache) || 0,
+                                        promptSpeed: timings?.prompt_per_second ?? (progress?.time_ms ? (progress.processed / (progress.time_ms / 1000)) : undefined),
                                         completionSpeed: timings?.predicted_per_second,
-                                        promptProgress: progress && progress.total > 0 ? (progress.processed / progress.total) : undefined
+                                        promptProgress: progress && progress.total > 0 ? (progress.processed / progress.total) : undefined,
+                                        promptTotal: progress?.total,
+                                        promptProcessed: progress?.processed,
+                                        promptCache: progress?.cache
                                     }
                                 };
                             }

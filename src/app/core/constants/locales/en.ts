@@ -155,7 +155,7 @@ When performing the <Save> command, please only compare and synchronize based on
         CATEGORY_PROCESS: 'Process',
         STOP_REASON_PREFIX: 'Model stopped due to:',
         REGENERATE_SAVE_BTN: 'Regenerate Failed Blocks',
-        REGENERATE_SAVE_PROMPT: 'The items listed below FAILED to match. Use them as "erroneous references" only; identify the correct locations in the Knowledge Base and regenerate the XML blocks. Do not repeat successful blocks.',
+        REGENERATE_SAVE_PROMPT: 'The following updates failed to match. You MUST locate the exact text and ensure the content inside <target> is IDENTICAL to the file (including punctuation and indentation). Otherwise, the update will fail. Do not repeat successful ones.',
         STOP_GENERATION: 'Stop Generation',
         STOP_GENERATION_CONFIRM_TITLE: 'Confirm Stop',
         STOP_GENERATION_CONFIRM_MSG: 'Are you sure you want to stop the current generation?',
@@ -163,6 +163,15 @@ When performing the <Save> command, please only compare and synchronize based on
         PROFILE_CLOUD: 'Cloud',
         PROFILE_LOCAL: 'Local',
         PROFILE_CLOUD_DESC: 'Full version (with jailbreak prompts, for cloud APIs)',
-        PROFILE_LOCAL_DESC: 'Simplified version (for local models, reduced prompts)'
+        PROFILE_LOCAL_DESC: 'Simplified version (for local models, reduced prompts)',
+        REGEN_SUCCESS_TITLE: '**The following items matched SUCCESSFULLY. Do NOT re-generate these blocks:**',
+        REGEN_FAILED_TITLE: '**Please ONLY re-generate XML for the following FAILED items:**',
+        REGEN_SUCCESS_LABEL: '[MATCHED]',
+        REGEN_FILE_LABEL: '[File]',
+        REGEN_ERROR_LABEL: '[Invalid Match] (Target text not found. Select the correct text in the left pane to fix):',
+        CALIBRATE_TOOLTIP: 'Visual Calibration: Select correct text on the left to fix',
+        CALIBRATE_MODE_TITLE: '[Visual Calibrating] Select the correct text segment in the left pane:',
+        CALIBRATE_CONFIRM: 'Confirm & Apply Fix',
+        CALIBRATE_CANCEL: 'Cancel Calibration'
     }
 };

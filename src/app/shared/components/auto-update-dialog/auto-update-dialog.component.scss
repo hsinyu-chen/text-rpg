@@ -205,6 +205,195 @@ mat-tab-nav-panel {
     font-family: monospace;
 }
 
+.status-container {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.calibrate-btn {
+    width: 24px !important;
+    height: 24px !important;
+    line-height: 24px !important;
+    padding: 0 !important;
+    color: #6366f1;
+    opacity: 0.7;
+
+    mat-icon {
+        font-size: 16px !important;
+        width: 16px !important;
+        height: 16px !important;
+    }
+
+    &:hover {
+        opacity: 1;
+        background: rgba(99, 102, 241, 0.1);
+    }
+}
+
+/* Calibration Panel */
+.calibration-panel {
+    margin-top: 12px;
+    padding: 12px;
+    background: var(--bg-surface-dark);
+    border-radius: 8px;
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    cursor: default;
+
+    .calibration-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.8rem;
+        font-weight: bold;
+        color: #818cf8;
+        margin-bottom: 12px;
+
+        mat-icon {
+            font-size: 18px;
+            width: 18px;
+            height: 18px;
+        }
+    }
+}
+
+.selection-preview {
+    margin-bottom: 12px;
+    padding: 10px;
+    background: linear-gradient(135deg, rgba(79, 70, 229, 0.1) 0%, rgba(124, 58, 237, 0.1) 100%);
+    border: 1px dashed #6366f1;
+    border-radius: 6px;
+    box-sizing: border-box; // Ensure padding doesn't cause overflow
+
+    .preview-text {
+        font-family: monospace;
+        font-size: 0.75rem;
+        color: #e2e8f0;
+        margin-bottom: 12px;
+        max-height: 120px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        word-break: break-all;
+    }
+
+    .preview-actions {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        gap: 8px;
+        border-top: 1px solid rgba(255, 255, 255, 0.05);
+        padding-top: 8px;
+
+        button[mat-flat-button] {
+            height: 28px;
+            line-height: 28px;
+            font-size: 0.75rem;
+            padding: 0 12px;
+            flex: 1; // Allow button to take space
+
+            mat-icon {
+                font-size: 14px;
+                width: 14px;
+                height: 14px;
+                margin-right: 4px;
+            }
+        }
+
+        button[mat-icon-button] {
+            width: 28px;
+            height: 28px;
+            display: inline-flex; // FORCE FLEX CENTERING
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            background: rgba(255, 255, 255, 0.05);
+
+            mat-icon {
+                font-size: 16px; // Slightly larger for better visibility
+                width: 16px;
+                height: 16px;
+                display: block;
+                margin: 0; // RESET MARGINS
+            }
+
+            &:hover {
+                background: rgba(239, 68, 68, 0.2);
+                color: #f87171;
+            }
+        }
+    }
+}
+
+.pulse {
+    animation: pulse-border 2s infinite;
+}
+
+@keyframes pulse-border {
+    0% {
+        border-color: #6366f1;
+        box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4);
+    }
+
+    70% {
+        border-color: #818cf8;
+        box-shadow: 0 0 0 4px rgba(99, 102, 241, 0);
+    }
+
+    100% {
+        border-color: #6366f1;
+        box-shadow: 0 0 0 0 rgba(99, 102, 241, 0);
+    }
+}
+
+.hunk-edit-group {
+    margin-bottom: 12px;
+}
+
+.hunk-label {
+    display: block;
+    font-size: 0.7rem;
+    color: #94a3b8;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: bold;
+}
+
+.hunk-textarea {
+    width: 100%;
+    box-sizing: border-box; // CRITICAL: Stop width overflow
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    color: #e2e8f0;
+    font-family: monospace;
+    font-size: 0.75rem;
+    padding: 8px;
+    min-height: 48px; // Ensure it's not too short
+    resize: none;
+    outline: none;
+    transition: border-color 0.2s;
+
+    &:focus {
+        border-color: #6366f1;
+        background: rgba(0, 0, 0, 0.4);
+    }
+
+    &::placeholder {
+        color: #475569;
+    }
+}
+
+.calibration-footer {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 8px;
+
+    button {
+        font-size: 0.75rem;
+    }
+}
+
 /* RIGHT PANE: Editor */
 .editor-pane {
     flex: 1;

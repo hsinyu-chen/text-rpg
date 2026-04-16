@@ -23,6 +23,38 @@ export interface FileUpdate {
  */
 export class FileUpdateParser {
     /**
+     * Removes common leading whitespace from all lines in a block.
+     * Also trims leading/trailing empty lines.
+     */
+    static dedent(content: string): string {
+        if (!content) return '';
+
+        // 1. Split into lines and remove the very first/last newline if it's there (XML wrap)
+        const lines = content.replace(/^[\r\n]+/, '').replace(/[\r\n]+\s*$/, '').split(/\r?\n/);
+
+        if (lines.length === 0) return '';
+
+        // 2. Find minimum common indentation across all non-empty lines
+        let minIndent: number | null = null;
+        for (const line of lines) {
+            if (line.trim().length === 0) continue;
+            const indentMatch = line.match(/^(\s*)/);
+            const indentLen = indentMatch ? indentMatch[1].length : 0;
+            if (minIndent === null || indentLen < minIndent) {
+                minIndent = indentLen;
+            }
+        }
+
+        if (minIndent === null || minIndent === 0) return lines.join('\n');
+
+        // 3. Remove the minIndent from each line
+        return lines.map(line => {
+            if (line.trim().length === 0) return '';
+            return line.substring(minIndent!);
+        }).join('\n');
+    }
+
+    /**
      * Parses the LLM output to extract file updates using XML-like tags.
      * Format: <save file="..." context="..."> <update> <target>...</target> <replacement>...</replacement> </update> </save>
      */
@@ -56,8 +88,8 @@ export class FileUpdateParser {
                     updates.push({
                         filePath,
                         context,
-                        targetContent: targetMatch ? targetMatch[1].trim() : undefined,
-                        replacementContent: replacementMatch ? replacementMatch[1].trim() : undefined
+                        targetContent: targetMatch ? this.dedent(targetMatch[1]) : undefined,
+                        replacementContent: replacementMatch ? this.dedent(replacementMatch[1]) : undefined
                     });
                 }
             }
@@ -71,8 +103,8 @@ export class FileUpdateParser {
                 updates.push({
                     filePath,
                     context,
-                    targetContent: targetDirect ? targetDirect[1].trim() : undefined,
-                    replacementContent: replacementDirect ? replacementDirect[1].trim() : undefined
+                    targetContent: targetDirect ? this.dedent(targetDirect[1]) : undefined,
+                    replacementContent: replacementDirect ? this.dedent(replacementDirect[1]) : undefined
                 });
             }
         }
@@ -188,8 +220,28 @@ export class FileUpdateService {
                 const before = content.substring(0, range.start);
                 const after = content.substring(range.end);
 
-                if (update.replacementContent) {
-                    return before + update.replacementContent + after;
+                if (update.replacementContent !== undefined) {
+                    const replacement = update.replacementContent;
+
+                    // HEURISTIC: Aware vs Lazy
+                    // 1. Detect if LLM provided indentation in the target
+                    const targetIndent = update.targetContent?.match(/^([ \t]*)/)?.[1] || '';
+                    const fileIndent = this.getIndentation(content, range.start);
+
+                    const isAware = targetIndent.length > 0 && targetIndent === fileIndent;
+                    const replacementIndent = replacement.match(/^([ \t]*)/)?.[1] || '';
+
+                    if (!isAware && replacementIndent.length === 0 && fileIndent.length > 0) {
+                        // LAZY MODE: LLM provided no indent in target and no indent in replacement.
+                        // We must re-indent the replacement to match the file context.
+                        const reindented = replacement.split(/\r?\n/).map((line, idx) => {
+                            if (idx === 0) return line; // First line is already placed at fileIndent position
+                            return fileIndent + line;
+                        }).join('\n');
+                        return before + reindented + after;
+                    }
+
+                    return before + replacement + after;
                 } else {
                     // Just Delete
                     return before + after;
@@ -239,9 +291,27 @@ export class FileUpdateService {
             }
 
             // Map strict bounds
-            const start = this.mapNormalizedIndexToOriginal(content, normalizedIndex);
+            let start = this.mapNormalizedIndexToOriginal(content, normalizedIndex);
             const lastCharIndex = this.mapNormalizedIndexToOriginal(content, normalizedIndex + normalizedTarget.length - 1);
-            const end = lastCharIndex + 1;
+            let end = lastCharIndex + 1;
+
+            // EXPAND RANGE: If target content has leading/trailing horizontal whitespace, 
+            // including those in the match range makes replacement more predictable.
+            const leadingSpaceMatch = target.match(/^([ \t]+)/);
+            if (leadingSpaceMatch) {
+                const spaces = leadingSpaceMatch[1];
+                if (content.substring(Math.max(0, start - spaces.length), start) === spaces) {
+                    start -= spaces.length;
+                }
+            }
+
+            const trailingSpaceMatch = target.match(/([ \t]+)$/);
+            if (trailingSpaceMatch) {
+                const spaces = trailingSpaceMatch[1];
+                if (content.substring(end, end + spaces.length) === spaces) {
+                    end += spaces.length;
+                }
+            }
 
             if (context) {
                 const lines = content.split(/\r?\n/);
@@ -265,6 +335,38 @@ export class FileUpdateService {
         // Pick the candidate with the highest context match score
         // If scores are tied, we prefer the first occurrence (lowest start) which matches current behavior
         return candidates.sort((a, b) => b.score - a.score)[0];
+    }
+
+    /**
+     * Scans backwards from a line index to infer the Markdown heading context.
+     * Builds a path like "# Header 1 > ## Sub Header 2".
+     * @param content Full file content
+     * @param lineIndex 0-indexed line number to start from
+     */
+    public inferContextFromLine(content: string, lineIndex: number): string {
+        const lines = content.split(/\r?\n/);
+        const crumbs: string[] = [];
+        let currentLevel = Infinity;
+
+        // Ensure we don't go out of bounds
+        const start = Math.min(lineIndex, lines.length - 1);
+
+        for (let i = start; i >= 0; i--) {
+            const line = lines[i].trim();
+            const match = line.match(/^(#+)\s*(.*)/);
+            if (match) {
+                const level = match[1].length;
+                if (level < currentLevel) {
+                    crumbs.unshift(line); // Keep the full header line including hashes
+                    currentLevel = level;
+                    
+                    // If we reached a top-level header (#), we stop as we found the complete path
+                    if (level === 1) break;
+                }
+            }
+        }
+
+        return crumbs.join(' > ');
     }
 
     /**
@@ -378,6 +480,16 @@ export class FileUpdateService {
         }
     }
 
+    private getIndentation(content: string, index: number): string {
+        let lineStart = index;
+        while (lineStart > 0 && content[lineStart - 1] !== '\n' && content[lineStart - 1] !== '\r') {
+            lineStart--;
+        }
+        const lineFragment = content.substring(lineStart, index);
+        const match = lineFragment.match(/^([ \t]*)/);
+        return match ? match[1] : '';
+    }
+
     private getLineIndexFromCharIndex(content: string, charIndex: number): number {
         const before = content.substring(0, charIndex);
         return before.split(/\r?\n/).length - 1;
@@ -423,12 +535,11 @@ export class FileUpdateService {
 
         return results;
     }
-
     public mapNormalizedIndexToOriginal(original: string, normalizedIndex: number): number {
         let normalizedCount = 0;
         for (let i = 0; i < original.length; i++) {
             const char = original[i];
-            // Skip whitespace and hashes in counting (same as normalizeForComparison)
+            // MUST stay in sync with normalizeForComparison
             if (!/[#\s]/.test(char)) {
                 if (normalizedCount === normalizedIndex) {
                     return i;
@@ -450,7 +561,7 @@ export class FileUpdateService {
             .replace(/！/g, '!')
             .replace(/？/g, '?')
             .replace(/—/g, '-') // Em-dash to hyphen
-            .replace(/[#\s]/g, ''); // Remove ALL whitespace and hashes (allow loose header matching)
+            .replace(/[#\s]/g, ''); // ONLY remove whitespace and hashes for index mapping safety
     }
 
     public findInsertionPoint(lines: string[], context?: string): number {
@@ -520,6 +631,48 @@ export class FileUpdateService {
         }
 
         return lines.length;
+    }
+
+    /**
+     * Finds the line number (0-indexed) of the LAST crumb in the context path.
+     * Useful for navigating to a section header even when content fails to match.
+     */
+    public findContextLine(content: string, context: string): number | null {
+        if (!context) return null;
+        const lines = content.split(/\r?\n/);
+        const crumbs = context.split('>').map(c => c.trim());
+        let currentLine = 0;
+        let lastFoundLine: number | null = null;
+
+        for (const crumb of crumbs) {
+            const headerMatch = crumb.match(/^(#+)\s*(.*)/);
+            const isStrictHeader = !!headerMatch;
+            const crumbText = isStrictHeader ? headerMatch![2] : crumb;
+            const normalizedCrumb = this.normalizeForComparison(crumbText);
+
+            let found = -1;
+            for (let i = currentLine; i < lines.length; i++) {
+                const line = lines[i].trim();
+                const lineHeaderMatch = line.match(/^(#+)\s*(.*)/);
+                const isLineHeader = !!lineHeaderMatch;
+                const lineText = isLineHeader ? lineHeaderMatch![2] : line;
+                const normalizedLine = this.normalizeForComparison(lineText);
+
+                if (normalizedLine.includes(normalizedCrumb)) {
+                    if (!isStrictHeader || isLineHeader) {
+                        found = i;
+                        break;
+                    }
+                }
+            }
+
+            if (found !== -1) {
+                lastFoundLine = found;
+                currentLine = found + 1;
+            }
+        }
+
+        return lastFoundLine;
     }
 
     private verifyContext(lines: string[], matchIndex: number, context: string): number {

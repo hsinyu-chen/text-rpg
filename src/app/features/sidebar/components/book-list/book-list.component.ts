@@ -516,6 +516,17 @@ export class BookListComponent {
             // 6. Refresh List
             await this.loadBooks();
 
+            // [Added] If the current active book was updated/downloaded from cloud, reload it
+            // We reload WITHOUT saving (autoSave=false) to prevent stale memory state from overwriting new cloud data.
+            const currentId = this.session.currentBookId();
+            if (currentId && (uploadCount > 0 || downloadCount > 0)) {
+                // To be precise, we only reload if the current book was actually modified
+                // But for simplicity and safety, reloading if ANY sync happened is a robust baseline.
+                // More precise check: did we download the current book?
+                console.log(`[BookList] Post-sync: Reloading active session ${currentId}`);
+                await this.session.loadBook(currentId, false);
+            }
+
             this.snackBar.open(`Sync Complete! Uploaded: ${uploadCount}, Downloaded: ${downloadCount}, Deleted: ${deleteCount}`, 'OK', { duration: 3000 });
         } catch (e) {
             console.error('[BookList] Sync failed', e);

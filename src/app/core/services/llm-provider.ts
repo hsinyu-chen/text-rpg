@@ -63,6 +63,9 @@ export interface LLMUsageMetadata {
     completionSpeed?: number;  // tokens/s
     totalDuration?: number;    // ms
     promptProgress?: number;   // 0-1
+    promptTotal?: number;      // Total tokens to process in prefill
+    promptProcessed?: number;  // Tokens processed so far
+    promptCache?: number;      // Tokens found in cache
 }
 
 /**

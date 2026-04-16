@@ -65,7 +65,12 @@
               }
             ],
             "styles": [
+              "node_modules/katex/dist/katex.min.css",
               "src/styles.scss"
+            ],
+            "scripts": [
+              "node_modules/katex/dist/katex.min.js",
+              "node_modules/katex/dist/contrib/auto-render.min.js"
             ]
           },
           "configurations": {

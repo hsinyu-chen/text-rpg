@@ -77,6 +77,30 @@ export class ChatMessageComponent {
     locale = computed(() => getLocale(this.gameState.config()?.outputLanguage));
     intentLabels = computed(() => getIntentLabels(this.gameState.config()?.outputLanguage));
 
+    // Prefill Metrics
+    prefillSpeed = computed(() => {
+        const usage = this.message().usage;
+        if (!usage || !usage.promptSpeed) return null;
+        return usage.promptSpeed;
+    });
+
+    prefillETA = computed(() => {
+        const usage = this.message().usage;
+        if (!usage || !usage.promptTotal || !usage.promptProcessed || !usage.promptSpeed) return null;
+
+        const remaining = usage.promptTotal - usage.promptProcessed;
+        if (remaining <= 0) return null;
+
+        const seconds = Math.ceil(remaining / usage.promptSpeed);
+
+        if (seconds > 60) {
+            const m = Math.floor(seconds / 60);
+            const s = seconds % 60;
+            return `${m}m ${s}s`;
+        }
+        return `${seconds}s`;
+    });
+
     getIntentLabel(intent: string | undefined): string {
         if (!intent) return '';
         const labels = this.intentLabels();

@@ -62,6 +62,8 @@ export class MonacoEditorComponent implements OnDestroy, ControlValueAccessor {
     initialized = output<import('monaco-editor').editor.IStandaloneCodeEditor | import('monaco-editor').editor.IStandaloneDiffEditor>();
     valueChange = output<string>();
     activeFileChange = output<string>();
+    /** Emitted when text is selected in the ORIGINAL editor (left pane in diff mode) */
+    selectionChange = output<{ text: string, startLineNumber: number, endLineNumber: number } | null>();
 
     private editor: import('monaco-editor').editor.IStandaloneCodeEditor | import('monaco-editor').editor.IStandaloneDiffEditor | null = null;
     private resizeObserver?: ResizeObserver;
@@ -70,6 +72,7 @@ export class MonacoEditorComponent implements OnDestroy, ControlValueAccessor {
     // Multi-model storage: filename -> ITextModel
     private multiModelMap = new Map<string, import('monaco-editor').editor.ITextModel>();
     private contentChangeDisposable: import('monaco-editor').IDisposable | null = null;
+    private disposables: import('monaco-editor').IDisposable[] = [];
 
     // ControlValueAccessor state
     private _value = '';
@@ -162,6 +165,27 @@ export class MonacoEditorComponent implements OnDestroy, ControlValueAccessor {
                     this.valueChange.emit(value);
                 });
             }
+
+            // [NEW] Listen for selection changes in the ORIGINAL editor (left pane)
+            const originalEditor = (this.editor as import('monaco-editor').editor.IStandaloneDiffEditor).getOriginalEditor();
+
+            const handleSelectionFinished = () => {
+                const selection = originalEditor.getSelection();
+                const model = originalEditor.getModel();
+                if (selection && model && !selection.isEmpty()) {
+                    const text = model.getValueInRange(selection);
+                    this.selectionChange.emit({
+                        text,
+                        startLineNumber: selection.startLineNumber,
+                        endLineNumber: selection.endLineNumber
+                    });
+                } else {
+                    this.selectionChange.emit(null);
+                }
+            };
+
+            this.disposables.push(originalEditor.onMouseUp(() => handleSelectionFinished()));
+            this.disposables.push(originalEditor.onKeyUp(() => handleSelectionFinished()));
         } else {
             this.editor = monaco.editor.create(el, {
                 ...finalOptions,
@@ -363,6 +387,9 @@ export class MonacoEditorComponent implements OnDestroy, ControlValueAccessor {
             } catch { /* ignore */ }
         });
         this.multiModelMap.clear();
+
+        this.disposables.forEach(d => d.dispose());
+        this.disposables = [];
 
         if (this.editor) {
             try {

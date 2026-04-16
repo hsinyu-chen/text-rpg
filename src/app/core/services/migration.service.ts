@@ -72,6 +72,7 @@ export class MigrationService {
             kbCacheName: localStorage.getItem('kb_cache_name'),
             kbCacheExpireTime: localStorage.getItem('kb_cache_expire') ? parseFloat(localStorage.getItem('kb_cache_expire')!) : null,
             kbCacheTokens: parseInt(localStorage.getItem('kb_cache_tokens') || '0'),
+            estimatedKbTokens: parseInt(localStorage.getItem('kb_cache_tokens') || '0'), // Initialize from legacy combined key
             kbCacheHash: localStorage.getItem('kb_cache_hash'),
             kbStorageUsageAcc: parseFloat(localStorage.getItem('kb_storage_usage_acc') || '0')
         };

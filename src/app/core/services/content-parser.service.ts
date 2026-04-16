@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { parse as parseJson } from 'best-effort-json-parser';
+import { convertLatexToSymbols } from '../utils/latex-converter';
 
 @Injectable({
     providedIn: 'root'
@@ -38,11 +39,15 @@ export class ContentParserService {
      */
     processModelField(text: string | undefined): string {
         if (!text) return '';
+        
+        let cleaned = text.trim();
+        
+        // Convert LaTeX symbols first while the backslashes are still intact
+        cleaned = convertLatexToSymbols(cleaned);
+
         // Unescape standard JSON escapes that might have been double-escaped or raw
-        return text.trim()
+        return cleaned
             .replace(/\\n/g, '\n')
-            .replace(/\\r/g, '\r')
-            .replace(/\\t/g, '\t')
             .replace(/\\"/g, '"')
             .replace(/\\\\/g, '\\');
     }

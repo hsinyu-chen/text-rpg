@@ -13,6 +13,7 @@ import { GAME_INTENTS } from '../constants/game-intents';
 import { getCoreFilenames, getSectionHeaders, getUIStrings } from '../constants/engine-protocol';
 import { LOCALES } from '../constants/locales';
 import { InjectionService } from './injection.service';
+import { convertLatexToSymbols, repairCorruptedLatex } from '../utils/latex-converter';
 
 @Injectable({
     providedIn: 'root'
@@ -127,6 +128,7 @@ export class SessionService {
                     kbCacheName: null,
                     kbCacheExpireTime: null,
                     kbCacheTokens: 0,
+                    estimatedKbTokens: 0,
                     kbCacheHash: null,
                     kbStorageUsageAcc: 0
                 }
@@ -239,6 +241,7 @@ export class SessionService {
     /**
      * Unloads the current session from active memory/storage.
      * Optionally serializes current state to a Book before clearing.
+     * @param save Whether to serialize the current session state to IndexedDB before clearing.
      */
     async unloadCurrentSession(save: boolean) {
         console.log('[SessionService] Unloading current session...', { save });
@@ -263,6 +266,7 @@ export class SessionService {
 
             this.state.tokenUsage.set({ freshInput: 0, cached: 0, output: 0, total: 0 });
             this.state.estimatedKbTokens.set(0);
+            this.state.kbCacheTokens.set(0);
             this.state.lastTurnUsage.set(null);
             this.state.lastTurnCost.set(0);
             this.state.historyStorageUsageAccumulated.set(0);
@@ -326,6 +330,7 @@ export class SessionService {
                 kbCacheName: null,
                 kbCacheExpireTime: null,
                 kbCacheTokens: 0,
+                estimatedKbTokens: 0,
                 kbCacheHash: null,
                 kbSlotId: undefined,
                 kbSlotName: undefined
@@ -370,6 +375,7 @@ export class SessionService {
         const kbCacheName = this.state.kbCacheName();
         const kbCacheExpireTime = this.state.kbCacheExpireTime();
         const kbCacheTokens = this.state.kbCacheTokens();
+        const estimatedKbTokens = this.state.estimatedKbTokens();
         // Since hash might be computed, let's grab from reactive or calc
         const kbCacheHash = localStorage.getItem('kb_cache_hash');
 
@@ -411,7 +417,14 @@ export class SessionService {
             createdAt: Date.now(), // This will be clobbered if we treat this as "create new". We need to READ first.
             lastActiveAt: Date.now(),
             preview: lastParams,
-            messages,
+            messages: messages.map(m => ({
+                ...m,
+                content: convertLatexToSymbols(m.content),
+                parts: m.parts?.map(p => ({
+                    ...p,
+                    text: p.text ? convertLatexToSymbols(p.text) : p.text
+                })) || []
+            })),
             files,
             prompts,
             stats: {
@@ -422,6 +435,7 @@ export class SessionService {
                 kbCacheName,
                 kbCacheExpireTime,
                 kbCacheTokens,
+                estimatedKbTokens,
                 kbCacheHash,
                 kbStorageUsageAcc,
                 kbSlotId,
@@ -442,13 +456,15 @@ export class SessionService {
 
     /**
      * Loads a Book into the active session.
+     * @param id The ID of the book to load.
+     * @param autoSave Whether to save the current session before unloading. Set to false when refreshing after cloud sync.
      */
-    async loadBook(id: string) {
-        console.log(`[SessionService] Loading Book ${id}...`);
+    async loadBook(id: string, autoSave = true) {
+        console.log(`[SessionService] Loading Book ${id}... (AutoSave: ${autoSave})`);
 
-        // 1. Unload current (Save it first!)
+        // 1. Unload current
         if (this.currentBookId()) {
-            await this.unloadCurrentSession(true);
+            await this.unloadCurrentSession(autoSave);
         }
 
         // 2. Fetch target Book
@@ -483,11 +499,25 @@ export class SessionService {
 
             // Restore Messages
             await this.storage.clear(); // chat_store
-            // We need to re-save messages to chat_store so `loadHistoryFromStorage` works? 
-            // Or just set signals directly. `storage.set('chat_history', ...)` is important for persistence within session.
-            await this.storage.set('chat_history', book.messages);
-            this.state.messages.set(book.messages);
-            if (book.messages.length > 0) this.isContextInjected = true;
+            // Repair corrupted LaTeX in existing messages from older sessions
+            const repairedMessages = book.messages.map(m => ({
+                ...m,
+                content: repairCorruptedLatex(m.content),
+                thought: m.thought ? repairCorruptedLatex(m.thought) : m.thought,
+                analysis: m.analysis ? repairCorruptedLatex(m.analysis) : m.analysis,
+                summary: m.summary ? convertLatexToSymbols(m.summary) : m.summary,
+                character_log: m.character_log?.map(c => convertLatexToSymbols(c)),
+                inventory_log: m.inventory_log?.map(i => convertLatexToSymbols(i)),
+                quest_log: m.quest_log?.map(q => convertLatexToSymbols(q)),
+                world_log: m.world_log?.map(w => convertLatexToSymbols(w)),
+                parts: m.parts?.map(p => ({
+                    ...p,
+                    text: p.text ? (m.role === 'model' && (p.thought || p.thoughtSignature) ? repairCorruptedLatex(p.text) : convertLatexToSymbols(p.text)) : p.text
+                })) || []
+            }));
+            await this.storage.set('chat_history', repairedMessages);
+            this.state.messages.set(repairedMessages);
+            if (repairedMessages.length > 0) this.isContextInjected = true;
 
             // Restore Stats
             this.state.tokenUsage.set(book.stats.tokenUsage);
@@ -505,12 +535,15 @@ export class SessionService {
                 this.state.kbCacheName.set(stats.kbCacheName);
                 if (stats.kbCacheExpireTime) this.state.kbCacheExpireTime.set(stats.kbCacheExpireTime);
                 this.state.kbCacheTokens.set(stats.kbCacheTokens);
+                const restoredTotal = stats.estimatedKbTokens || Array.from(tokensMap.values()).reduce((a, b) => a + b, 0);
+                this.state.estimatedKbTokens.set(restoredTotal);
 
                 // Set localStorage keys for CacheManager/Services to pick up
                 localStorage.setItem('kb_cache_name', stats.kbCacheName);
                 if (stats.kbCacheHash) localStorage.setItem('kb_cache_hash', stats.kbCacheHash);
                 if (stats.kbCacheExpireTime) localStorage.setItem('kb_cache_expire', stats.kbCacheExpireTime.toString());
                 localStorage.setItem('kb_cache_tokens', stats.kbCacheTokens.toString());
+                localStorage.setItem('kb_cache_tokens_est', restoredTotal.toString()); // Also keep est total synced
 
                 // Restart Timer
                 this.cacheManager.startStorageTimer();
@@ -634,6 +667,7 @@ export class SessionService {
                 kbCacheName: null,
                 kbCacheExpireTime: null,
                 kbCacheTokens: 0,
+                estimatedKbTokens: 0, // Reset for new book
                 kbCacheHash: null,
                 kbSlotId: oldBook.stats.kbSlotId, // Persist Slot ID
                 kbSlotName: oldBook.stats.kbSlotName
@@ -675,7 +709,14 @@ export class SessionService {
             id: '',
             name: '',
             timestamp: Date.now(),
-            messages: msgs,
+            messages: msgs.map(m => ({
+                ...m,
+                content: convertLatexToSymbols(m.content),
+                parts: m.parts?.map(p => ({
+                    ...p,
+                    text: p.text ? convertLatexToSymbols(p.text) : p.text
+                })) || []
+            })),
             tokenUsage: this.state.tokenUsage(),
             historyStorageUsage: this.state.historyStorageUsageAccumulated(),
             sunkUsageHistory: this.state.sunkUsageHistory(),
@@ -800,7 +841,7 @@ export class SessionService {
             const modelId = this.state.config()?.modelId || this.provider.getDefaultModelId();
             const totalTokenCount = await this.provider.countTokens(modelId, [{ role: 'user', parts: partsForCount }]);
             this.state.estimatedKbTokens.set(totalTokenCount);
-            localStorage.setItem('kb_cache_tokens', totalTokenCount.toString());
+            localStorage.setItem('kb_cache_tokens_est', totalTokenCount.toString());
         }
     }
 
@@ -861,17 +902,17 @@ export class SessionService {
             const partsForCount = this.kb.buildKnowledgeBaseParts(contentMap);
 
             const savedHash = localStorage.getItem('kb_cache_hash');
-            const cachedTotal = localStorage.getItem('kb_cache_tokens');
+            const cachedTotalEst = localStorage.getItem('kb_cache_tokens_est');
             const currentHashTmp = this.state.currentKbHash(); // Use reactive hash
 
             let totalTokenCount = 0;
-            if (savedHash === currentHashTmp && cachedTotal) {
-                totalTokenCount = parseInt(cachedTotal);
-                console.log('[SessionService] Reusing cached total KB tokens:', totalTokenCount);
+            if (savedHash === currentHashTmp && cachedTotalEst) {
+                totalTokenCount = parseInt(cachedTotalEst);
+                console.log('[SessionService] Reusing cached total KB tokens (Est):', totalTokenCount);
             } else {
                 totalTokenCount = await this.provider.countTokens(modelId, [{ role: 'user', parts: partsForCount }]);
-                localStorage.setItem('kb_cache_tokens', totalTokenCount.toString());
-                console.log('[SessionService] Counted new total KB tokens:', totalTokenCount);
+                localStorage.setItem('kb_cache_tokens_est', totalTokenCount.toString());
+                console.log('[SessionService] Counted new total KB tokens (Est):', totalTokenCount);
             }
 
             this.state.estimatedKbTokens.set(totalTokenCount);

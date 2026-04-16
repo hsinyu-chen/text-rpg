@@ -142,7 +142,10 @@ export class StreamProcessorService {
                     promptSpeed: chunk.usageMetadata.promptSpeed || turnUsage.promptSpeed,
                     completionSpeed: chunk.usageMetadata.completionSpeed || turnUsage.completionSpeed,
                     totalDuration: chunk.usageMetadata.totalDuration || turnUsage.totalDuration,
-                    promptProgress: chunk.usageMetadata.promptProgress !== undefined ? chunk.usageMetadata.promptProgress : turnUsage.promptProgress
+                    promptProgress: chunk.usageMetadata.promptProgress !== undefined ? chunk.usageMetadata.promptProgress : turnUsage.promptProgress,
+                    promptTotal: chunk.usageMetadata.promptTotal || turnUsage.promptTotal,
+                    promptProcessed: chunk.usageMetadata.promptProcessed || turnUsage.promptProcessed,
+                    promptCache: chunk.usageMetadata.promptCache || turnUsage.promptCache
                 };
 
                 if (chunk.usageMetadata.promptProgress !== undefined) {
@@ -150,7 +153,11 @@ export class StreamProcessorService {
                         const arr = [...prev];
                         const last = arr[arr.length - 1];
                         if (last?.role === 'model') {
-                            arr[arr.length - 1] = { ...last, progress: chunk.usageMetadata!.promptProgress };
+                            arr[arr.length - 1] = {
+                                ...last,
+                                progress: chunk.usageMetadata!.promptProgress,
+                                usage: { ...turnUsage }
+                            };
                         }
                         return arr;
                     });

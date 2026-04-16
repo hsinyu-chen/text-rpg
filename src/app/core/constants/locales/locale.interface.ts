@@ -144,5 +144,14 @@ export interface AppLocale {
         PROFILE_LOCAL: string;
         PROFILE_CLOUD_DESC: string;
         PROFILE_LOCAL_DESC: string;
+        REGEN_SUCCESS_TITLE: string;
+        REGEN_FAILED_TITLE: string;
+        REGEN_SUCCESS_LABEL: string;
+        REGEN_FILE_LABEL: string;
+        REGEN_ERROR_LABEL: string;
+        CALIBRATE_TOOLTIP: string;
+        CALIBRATE_MODE_TITLE: string;
+        CALIBRATE_CONFIRM: string;
+        CALIBRATE_CANCEL: string;
     };
 }
