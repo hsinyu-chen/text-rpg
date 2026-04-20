@@ -142,6 +142,13 @@ export interface LLMProviderCapabilities {
     isLocalProvider: boolean;
     /** Provider supports specific speed metrics like prompt/completion speed */
     supportsSpeedMetrics?: boolean;
+    /**
+     * Cache holds content server-side (e.g. Gemini CachedContent).
+     * When true, KB content is NOT re-sent with each request (referenced by cache name).
+     * When false (e.g. llama.cpp slot save/restore), KB must still be sent in the prompt
+     * because caching is done by prefix match, not content reference.
+     */
+    cacheBakesContent?: boolean;
 }
 
 // ============================================================================
@@ -231,6 +238,13 @@ export interface LLMProvider {
      * Get the currently active model ID.
      */
     getModelId(): string;
+
+    /**
+     * Get the model's context window size in tokens, if known.
+     * Local providers (e.g. llama.cpp) can report this from the server; cloud
+     * providers typically leave it unimplemented. Return null when unknown.
+     */
+    getContextSize?(): number | null;
 
     /**
      * Get a preview-friendly version of the contents.

@@ -10,7 +10,6 @@ import { MatInputModule } from '@angular/material/input';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { FormsModule } from '@angular/forms';
 import { MonacoEditorComponent } from '../../shared/components/monaco-editor/monaco-editor.component';
-import { FileSystemService } from '../../core/services/file-system.service';
 import { GameEngineService } from '../../core/services/game-engine.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
@@ -66,7 +65,6 @@ export interface MarkdownHeader {
 export class FileViewerDialogComponent implements OnDestroy {
   data = inject(MAT_DIALOG_DATA) as FileViewerDialogData;
   private dialogRef = inject(MatDialogRef<FileViewerDialogComponent>);
-  private fileSystem = inject(FileSystemService);
   private engine = inject(GameEngineService);
   private state = inject(GameStateService);
   private snackBar = inject(MatSnackBar);
@@ -661,13 +659,17 @@ export class FileViewerDialogComponent implements OnDestroy {
         throw new Error('Unable to get file content');
       }
 
-      await this.fileSystem.writeTextFile(fileName, content);
+      // Use engine.updateSingleFile — this writes to file_store, updates state.loadedFiles,
+      // refreshes token counts, and invalidates the KB cache hash. Also handles the
+      // special-case routing for system_prompt.md → prompt_store.
+      await this.engine.updateSingleFile(fileName, content);
 
       // [Added] Clear remote cache since files have changed
       await this.cacheManager.clearAllServerCaches();
 
-      // Refresh counts and memory
-      await this.engine.loadFiles(false);
+      // Persist the in-memory session state into the current Book entity.
+      // Without this, loadBook() on next reload would wipe the change from file_store.
+      await this.engine.saveCurrentSessionToBook();
 
       this.snackBar.open('File saved successfully!', 'Close', { duration: 3000 });
       // Update the local data map

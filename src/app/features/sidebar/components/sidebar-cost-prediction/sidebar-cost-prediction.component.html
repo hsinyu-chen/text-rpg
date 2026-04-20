@@ -20,6 +20,21 @@
         <span class="status-text">{{ state.status() | uppercase }}</span>
     </div>
 
+    @if (contextSize(); as ctxSize) {
+    <div class="context-usage" [class]="'level-' + contextUsageLevel()"
+        [matTooltip]="(contextUsed() | number) + ' / ' + (ctxSize | number) + ' tokens'">
+        <div class="ctx-label">
+            <mat-icon inline>memory</mat-icon>
+            <span>Context</span>
+            <span class="ctx-pct">{{ contextUsagePercent() | number:'1.0-1' }}%</span>
+        </div>
+        <div class="ctx-bar">
+            <div class="ctx-fill" [style.width.%]="contextUsagePercent()"></div>
+        </div>
+        <div class="ctx-counts">{{ contextUsed() | number }} / {{ ctxSize | number }} tk</div>
+    </div>
+    }
+
     <!-- Last Turn Breakdown -->
     <div class="turn-stats">
         @if (state.loadedFiles().size > 0 && !state.kbCacheName()) {

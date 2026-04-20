@@ -166,7 +166,10 @@ export class CacheManagerService {
 
                             this.startStorageTimer();
                             validationSuccess = true;
-                            console.log('[CacheManager] Auto-cache creation successful:', cacheRes.name);
+                            // Note: for providers that persist post-generation (e.g. llama.cpp slot save),
+                            // this only means the reference is registered — the actual .bin write happens
+                            // in the provider's generateContentStream finally block.
+                            console.log('[CacheManager] Auto-cache reference registered:', cacheRes.name);
                         }
                     } else {
                         // If not using cache, local files are sufficient.

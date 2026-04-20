@@ -67,7 +67,8 @@ export class ContextBuilderService {
             generationConfig.cachedContentName = cachedContentName;
         }
 
-        const includeKB = !cachedContentName; // Include KB in system prompt if no cache
+        const bakesContent = this.provider?.getCapabilities().cacheBakesContent ?? true;
+        const includeKB = !(cachedContentName && bakesContent); // Include KB unless cache stores content server-side
         return {
             model: modelId,
             contents: finalContent,

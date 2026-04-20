@@ -47,6 +47,7 @@ export class LlamaSettingsComponent implements LLMSettingsComponent {
     repetitionPenalty = signal<number | undefined>(undefined);
     enableThinking = signal<boolean>(false);
     reasoningEffort = signal<string>('low');
+    enableSaveSlot = signal<boolean>(false);
 
     constructor() {
         this.loadSettings();
@@ -110,6 +111,7 @@ export class LlamaSettingsComponent implements LLMSettingsComponent {
         this.enableThinking.set(savedThinking === 'true');
         const savedEffort = localStorage.getItem('llama_reasoning_effort');
         this.reasoningEffort.set(savedEffort || 'low');
+        this.enableSaveSlot.set(localStorage.getItem('llama_enable_save_slot') === 'true');
     }
 
     getSettings(): LLMProviderConfig {
@@ -126,6 +128,7 @@ export class LlamaSettingsComponent implements LLMSettingsComponent {
             repetitionPenalty: this.repetitionPenalty(),
             enableThinking: this.enableThinking(),
             reasoningEffort: this.reasoningEffort(),
+            enableCache: this.enableSaveSlot(),
             additionalSettings: {
                 topP: this.topP(),
                 topK: this.topK(),

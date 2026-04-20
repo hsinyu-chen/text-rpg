@@ -235,7 +235,10 @@ export class ConfigService {
         const fullConfig: GameEngineConfig = {
             apiKey: providerConfig.apiKey || '',
             modelId: providerConfig.modelId || activeProvider?.getDefaultModelId() || '',
-            ...genConfig
+            ...genConfig,
+            // enableCache is provider-specific and may not be in genConfig; pull from providerConfig
+            // so toggling the setting takes effect immediately instead of requiring a reload.
+            enableCache: genConfig.enableCache ?? providerConfig.enableCache ?? (localStorage.getItem('app_enable_cache') === 'true')
         };
         this.state.config.set(fullConfig);
 

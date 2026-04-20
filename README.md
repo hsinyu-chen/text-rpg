@@ -116,6 +116,36 @@ The system does not use proprietary database formats but directly reads and writ
 
 ---
 
+## LLM Provider Options
+
+TextRPG abstracts its LLM backend through a provider interface. Out of the box, two providers are available:
+
+### Gemini (Cloud, default)
+Best for fast onboarding and access to the Gemini 3 series' long context capabilities. Uses **Context Caching** (server-side content storage, TTL-based) to keep long sessions affordable.
+
+### llama.cpp (Local, self-hosted)
+For users who want to run **fully offline** against their own GGUF model via [llama.cpp server](https://github.com/ggerganov/llama.cpp). This path trades raw model quality for privacy, zero recurring cost, and predictable latency. Key benefits:
+
+*   **No API cost, no data leaving the machine** — the entire story, KB, and chat history stay on your hardware. Ideal for long adult-leaning scenarios where cloud moderation or billing is a concern.
+*   **Prefix KV cache reuse** — repeated turns reuse the already-processed tokens (via `cache_prompt`), dramatically cutting Time-to-First-Token on subsequent messages.
+*   **Slot Save/Restore (persistent prompt cache)** — the engine snapshots the llama.cpp slot state to a `.bin` file on disk **after** the real generation completes, so the persisted KV exactly matches a resumed session's token sequence. When the server restarts or you reopen the book, the engine **restores** that KV instead of re-processing the full prompt, skipping the expensive prefill. One book = one `.bin` (keyed by book ID), and it auto-overwrites when the KB/system/model changes — no orphan files.
+    *   Enable via **Settings → llama.cpp Provider → "Persist Slot to Disk"**.
+    *   Requires starting llama.cpp with `--slot-save-path <dir>`, e.g.
+        ```bash
+        ./llama-server -m <model.gguf> --slot-save-path ./kv_cache --host 0.0.0.0
+        ```
+    *   When the KB changes, the slot is erased before the next send so generation rebuilds from a clean KV; once that send finishes, the new KV is persisted, replacing the stale `.bin`.
+*   **Live speed metrics** — prompt/completion tokens-per-second and total duration are surfaced in the sidebar for each turn, making hardware tuning transparent.
+*   **Thinking/Reasoning support** — `reasoning_content` and `reasoning_budget` are honored for models that expose a thinking channel (e.g. Qwen3, GLM 4.5 variants).
+*   **Structured output** — JSON Schema enforcement works the same as Gemini, so the "Analysis → Generation" two-stage flow is preserved.
+
+> [!NOTE]
+> **Caching model differs from Gemini.** Gemini's cache holds content server-side (referenced by cache name, so KB is omitted from requests). llama.cpp caches by **prefix token match**, so the KB must still be part of the prompt — the saved `.bin` only skips re-computing the KV for that prefix. The engine handles this transparently via the `cacheBakesContent` capability flag.
+
+Configure either provider in **Settings**; switching is instant and per-book context is preserved.
+
+---
+
 ## Prompt Tuning Guide
 
 To ensure the smooth operation of the machine, you must strictly adhere to the following Standard Operating Procedures:

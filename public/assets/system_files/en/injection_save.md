@@ -19,8 +19,12 @@ Before outputting, verify you have processed:
 - [ ] **ALL** `world_log` entries → corresponding file updates
 - [ ] **ALL** state changes mentioned in `summary` logs → reflected in files
 - [ ] Story Outline updated with current ACT events
+- [ ] **Newly generated people/things/location details from `Look`/`Observe` actions** (NPC appearance/background, location descriptions, item specs, faction info, etc.) → persisted to the corresponding files
 
 **If ANY log entry lacks a corresponding `<save>` update, your output is INCOMPLETE and INVALID.**
+
+> [!IMPORTANT]
+> **[Persist Observation-Generated Settings]**: If this ACT generated any new people/things/location details via `Look`/`Observe` actions that did NOT previously exist in the setting files (and were recorded into `character_log` or `world_log`), you **MUST** persist these newly generated settings into the proper knowledge base files (characters → `{{FILE_CHARACTER_STATUS}}`; world/location/specialty/faction → `{{FILE_WORLD_FACTIONS}}`; equipment specs → `{{FILE_TECH_EQUIPMENT}}`). **FORBIDDEN** to leave these generated details only inside the logs without writing them to files — future continuity depends on it.
 
 ### Field Restrictions
 - **`analysis`** and **`summary`** fields MUST be empty strings `""`.

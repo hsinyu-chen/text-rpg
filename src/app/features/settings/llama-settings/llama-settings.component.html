@@ -66,6 +66,17 @@
         </div>
         <p class="hint-text">Thinking mode enables Chain of Thought (CoT) reasoning for supporting models.</p>
     </div>
+    <h3 class="section-title">Prompt Cache (Slot Save/Restore)</h3>
+    <div class="cache-section">
+        <mat-slide-toggle [ngModel]="enableSaveSlot()" (ngModelChange)="enableSaveSlot.set($event)" color="primary">
+            Persist Slot to Disk
+        </mat-slide-toggle>
+        <p class="hint-text">
+            Saves slot {{ 0 }} to disk after the first KB priming, so the KV cache survives server restarts.
+            Filename is derived from a hash of the Knowledge Base + model + system prompt.
+            Requires starting llama.cpp with <code>--slot-save-path &lt;dir&gt;</code>.
+        </p>
+    </div>
     <h3 class="section-title">Pricing (Optional Metrics)</h3>
     <div class="pricing-row">
         <mat-form-field appearance="outline">

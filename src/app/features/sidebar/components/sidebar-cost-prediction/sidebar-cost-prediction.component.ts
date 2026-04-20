@@ -39,6 +39,36 @@ export class SidebarCostPredictionComponent {
         return activeProvider?.providerName || 'Unknown';
     });
 
+    // Context window (tokens) reported by the provider — currently only llama.cpp.
+    contextSize = computed<number | null>(() => {
+        const activeProvider = this.providerRegistry.getActive();
+        return activeProvider?.getContextSize?.() ?? null;
+    });
+
+    // Tokens currently occupying the KV cache after the most recent turn:
+    // prompt sent for that turn + tokens generated in response.
+    contextUsed = computed<number>(() => {
+        const turn = this.computedLastTurnUsage();
+        if (!turn) return 0;
+        return turn.prompt + turn.candidates;
+    });
+
+    contextUsagePercent = computed<number>(() => {
+        const size = this.contextSize();
+        const used = this.contextUsed();
+        if (!size || size <= 0) return 0;
+        return Math.min(100, (used / size) * 100);
+    });
+
+    // Threshold buckets for color-coded safety.
+    contextUsageLevel = computed<'safe' | 'warning' | 'high' | 'critical'>(() => {
+        const pct = this.contextUsagePercent();
+        if (pct >= 95) return 'critical';
+        if (pct >= 80) return 'high';
+        if (pct >= 60) return 'warning';
+        return 'safe';
+    });
+
     // Explicit Context Caching Status
     isCacheEnabled = computed(() => {
         return !!this.state.config()?.enableCache;

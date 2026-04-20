@@ -156,6 +156,14 @@ export class GameEngineService {
     }
 
     /**
+     * Persists the current in-memory session state into the active Book entity.
+     * Required after UI-driven file edits so changes survive reload/unload.
+     */
+    async saveCurrentSessionToBook(): Promise<void> {
+        await this.session.saveCurrentSessionToBook();
+    }
+
+    /**
      * Loads files from a directory and initializes the Knowledge Base.
      * @param pickFolder Whether to prompt the user to pick a new folder.
      */
@@ -429,9 +437,11 @@ export class GameEngineService {
             const abortSignal = this.currentAbortController.signal;
 
             const hasCache = !!this.state.kbCacheName();
+            const bakesContent = this.provider.getCapabilities().cacheBakesContent ?? true;
+            const omitKB = hasCache && bakesContent;
             const stream = this.provider.generateContentStream(
                 history,
-                this.contextBuilder.getEffectiveSystemInstruction(!hasCache),
+                this.contextBuilder.getEffectiveSystemInstruction(!omitKB),
                 {
                     cachedContentName: this.state.kbCacheName() || undefined,
                     responseSchema: getResponseSchema(this.state.config()?.outputLanguage),

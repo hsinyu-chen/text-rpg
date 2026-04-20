@@ -7,9 +7,9 @@ import {
     LLMGenerateConfig,
     LLMStreamChunk,
     LLMModelDefinition,
-    LLMSettingsComponent
+    LLMSettingsComponent,
+    LLMCacheInfo
 } from './llm-provider';
-
 interface LlamaResponse {
     choices?: {
         delta?: {
@@ -67,9 +67,28 @@ export class LlamaV2Service implements LLMProvider {
     private repetitionPenalty = signal<number | undefined>(undefined);
     private enableThinking = signal<boolean>(false);
     private reasoningEffort = signal<string>('low');
+    private enableSaveSlot = signal<boolean>(false);
 
     // Dynamic props from server
     private serverChatTemplate = signal<string | null>(null);
+    private serverContextSize = signal<number | null>(null);
+
+    // Per-session cache of slot metadata (token counts, expiry stub) keyed by filename.
+    // Purely informational — the server's slot is re-restored every validation turn
+    // to guarantee KV correctness even if the server was restarted mid-session.
+    private sessionSlotInfo = new Map<string, LLMCacheInfo>();
+    private readonly slotId = 0;
+    // When createCache determines no on-disk slot exists yet, we defer the save to after
+    // the next real generation. Priming with a fake message shape was unreliable because
+    // the chat template renders [system, user:"."] and [system, ...history, user:latest]
+    // as different token sequences — prefix match on the saved slot then collapses to
+    // just the BOS header tokens, wasting the slot. Saving *after* a real request
+    // guarantees the persisted tokens exactly equal what a resumed session will send.
+    private pendingSaveFilename: string | null = null;
+    // Content hash of the state we're about to save; written alongside the .bin
+    // so a later createCache can tell whether the on-disk slot is stale vs fresh.
+    private pendingSaveHash: string | null = null;
+    private pendingSaveHashKey: string | null = null;
 
     init(config: LLMProviderConfig): void {
         const cleanStr = (val: unknown) => (typeof val === 'string' && val.trim() === '') ? undefined : val as number;
@@ -117,6 +136,9 @@ export class LlamaV2Service implements LLMProvider {
         if (config.reasoningEffort !== undefined) {
             this.reasoningEffort.set(config.reasoningEffort);
         }
+        if (config.enableCache !== undefined) {
+            this.enableSaveSlot.set(!!config.enableCache);
+        }
 
         const settings = config.additionalSettings || {};
         if (settings['topP'] !== undefined) {
@@ -161,6 +183,7 @@ export class LlamaV2Service implements LLMProvider {
         setOrRemove('llama_repetition_penalty', config.repetitionPenalty);
         setOrRemove('llama_enable_thinking', config.enableThinking);
         setOrRemove('llama_reasoning_effort', config.reasoningEffort);
+        setOrRemove('llama_enable_save_slot', config.enableCache);
 
         // Also save from additionalSettings if present
         const settings = config.additionalSettings || {};
@@ -197,6 +220,7 @@ export class LlamaV2Service implements LLMProvider {
             repetitionPenalty: getNum('llama_repetition_penalty'),
             enableThinking: localStorage.getItem('llama_enable_thinking') ? getBool('llama_enable_thinking') : undefined,
             reasoningEffort: getStr('llama_reasoning_effort'),
+            enableCache: localStorage.getItem('llama_enable_save_slot') === 'true'
         };
 
         // Populate additionalSettings as well for backward compatibility / flexibility
@@ -224,6 +248,12 @@ export class LlamaV2Service implements LLMProvider {
                     this.modelId.set(data.model_alias);
                     console.log(`[LlamaV2] Model ID updated from server: ${data.model_alias}`);
                 }
+                // Context window — modern llama.cpp nests this under default_generation_settings.
+                // Fall back to root n_ctx for older builds.
+                const nCtx = data?.default_generation_settings?.n_ctx ?? data?.n_ctx;
+                if (typeof nCtx === 'number' && nCtx > 0) {
+                    this.serverContextSize.set(nCtx);
+                }
             }
         } catch (e) {
             console.warn('[LlamaV2] Failed to fetch server props', e);
@@ -236,11 +266,14 @@ export class LlamaV2Service implements LLMProvider {
 
     getCapabilities(): LLMProviderCapabilities {
         return {
-            supportsContextCaching: true, // Supported via n_keep + cache_prompt
+            supportsContextCaching: true, // Supported via slot save/restore + n_keep + cache_prompt
             supportsThinking: true,      // Supported via OpenAI reasoning_content
             supportsStructuredOutput: true,
             isLocalProvider: true,
-            supportsSpeedMetrics: true
+            supportsSpeedMetrics: true,
+            // llama.cpp caches by prefix match (not by content reference),
+            // so KB must still be sent in the prompt on every request.
+            cacheBakesContent: false
         };
     }
 
@@ -265,6 +298,10 @@ export class LlamaV2Service implements LLMProvider {
 
     getModelId(): string {
         return this.modelId();
+    }
+
+    getContextSize(): number | null {
+        return this.serverContextSize();
     }
 
     async *generateContentStream(
@@ -410,12 +447,18 @@ export class LlamaV2Service implements LLMProvider {
                                 const timings = data.timings;
                                 const progress = data.prompt_progress;
 
+                                const cachedTokens = (timings?.cache_n ?? usage?.prompt_tokens_details?.cached_tokens ?? progress?.cache) || 0;
+                                // llama.cpp's timings.prompt_n counts only freshly-evaluated tokens; total = prompt_n + cache_n.
+                                // OpenAI's usage.prompt_tokens is already the total.
+                                const promptTotal = timings?.prompt_n != null
+                                    ? (timings.prompt_n + cachedTokens)
+                                    : (usage?.prompt_tokens ?? progress?.total ?? 0);
+
                                 yield {
                                     usageMetadata: {
-                                        // Prefer timings for more detail (cached vs active prompt)
-                                        prompt: (timings?.prompt_n ?? usage?.prompt_tokens ?? progress?.total) || 0,
+                                        prompt: promptTotal,
                                         candidates: (timings?.predicted_n ?? usage?.completion_tokens) || 0,
-                                        cached: (timings?.cache_n ?? usage?.prompt_tokens_details?.cached_tokens ?? progress?.cache) || 0,
+                                        cached: cachedTokens,
                                         promptSpeed: timings?.prompt_per_second ?? (progress?.time_ms ? (progress.processed / (progress.time_ms / 1000)) : undefined),
                                         completionSpeed: timings?.predicted_per_second,
                                         promptProgress: progress && progress.total > 0 ? (progress.processed / progress.total) : undefined,
@@ -435,6 +478,41 @@ export class LlamaV2Service implements LLMProvider {
         } catch (error) {
             console.error('LlamaV2 generation failed:', error);
             throw error;
+        } finally {
+            // If createCache queued a slot save (file didn't exist on disk yet),
+            // persist the slot now that the real request has populated it. This
+            // saves the actual chat-template-rendered token sequence, so the next
+            // session can restore it and get a real prefix match.
+            if (!this.pendingSaveFilename) {
+                console.log('[LlamaV2] Post-gen: no pending slot save (either disabled, or slot already valid for current KB/system/model).');
+            } else if (config.signal?.aborted) {
+                console.log('[LlamaV2] Post-gen: skipping slot save (request aborted).');
+                this.pendingSaveFilename = null;
+                this.pendingSaveHash = null;
+                this.pendingSaveHashKey = null;
+            } else {
+                const filename = this.pendingSaveFilename;
+                const hash = this.pendingSaveHash;
+                const hashKey = this.pendingSaveHashKey;
+                this.pendingSaveFilename = null;
+                this.pendingSaveHash = null;
+                this.pendingSaveHashKey = null;
+                try {
+                    const saveRes = await fetch(`${baseUrl}/slots/${this.slotId}?action=save`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ filename })
+                    });
+                    if (saveRes.ok) {
+                        if (hashKey && hash) localStorage.setItem(hashKey, hash);
+                        console.log(`[LlamaV2] Slot persisted after generation: ${filename}`);
+                    } else {
+                        console.warn(`[LlamaV2] Slot save failed: ${saveRes.status} ${await saveRes.text()}`);
+                    }
+                } catch (e) {
+                    console.warn('[LlamaV2] Post-gen slot save failed:', e);
+                }
+            }
         }
     }
 
@@ -491,6 +569,215 @@ export class LlamaV2Service implements LLMProvider {
 
         process(result);
         return result;
+    }
+
+    // =========================================================================
+    // Slot Save / Restore (maps onto LLMProvider cache interface)
+    // =========================================================================
+
+    /**
+     * Derive the slot filename from the active book ID. One book → one .bin file,
+     * regardless of KB/system/model changes. The slot state naturally tracks
+     * whatever the current book's content is, and a stale slot is self-correcting:
+     * on restore, the new request's tokens will prefix-match up to wherever the
+     * old content diverges, and re-PP from there. Much simpler than content hashing,
+     * and avoids orphan .bin files piling up whenever a prompt tweak changes the hash.
+     */
+    private deriveSlotFilename(): string {
+        const safe = this.activeBookKey().replace(/[^a-zA-Z0-9_-]/g, '_');
+        return `book_${safe}.bin`;
+    }
+
+    private activeBookKey(): string {
+        return localStorage.getItem('last_active_book_id') || 'default';
+    }
+
+    /**
+     * Hash of the content the slot would represent — used to detect whether the
+     * on-disk .bin is stale relative to the current KB / system / model. When this
+     * differs from the hash recorded at the last save, we queue a re-save so the
+     * file refreshes automatically on the next generation.
+     */
+    private computeContentHash(systemInstruction: string, contents: LLMContent[], modelId: string): string {
+        const kbText = contents.flatMap(c => c.parts).map(p => p.text || '').join('');
+        const raw = ((kbText || '') + (modelId || '') + (systemInstruction || ''))
+            .replace(/\r\n/g, '\n')
+            .trim();
+        let hash = 0;
+        for (let i = 0; i < raw.length; i++) {
+            hash = ((hash << 5) - hash) + raw.charCodeAt(i);
+            hash |= 0;
+        }
+        return Math.abs(hash).toString(36);
+    }
+
+    /**
+     * Ensure slot N is backed by a persisted .bin for this KB/system/model combo.
+     * Strategy depends on whether content has changed since the last save:
+     *   - Hash matches: restore the existing .bin (fast path, reuses saved KV).
+     *   - Hash differs or first time: erase the slot so generation rebuilds from
+     *     a clean KV. Restoring stale content would let the old KB's KV partially
+     *     prefix-match the new request and potentially leak into attention, which
+     *     defeats the point of updating the KB.
+     * In the differs/first-time cases we queue a post-gen save so the fresh KV
+     * gets persisted, overwriting the stale .bin.
+     */
+    async createCache(
+        modelId: string,
+        systemInstruction: string,
+        contents: LLMContent[],
+        _ttlSeconds: number
+    ): Promise<LLMCacheInfo | null> {
+        const filename = this.deriveSlotFilename();
+        const baseUrl = this.baseUrl();
+        const hashKey = `llama_slot_saved_hash_${this.activeBookKey()}`;
+        const currentHash = this.computeContentHash(systemInstruction, contents, modelId);
+        const lastSavedHash = localStorage.getItem(hashKey);
+        const hashMatches = !!lastSavedHash && currentHash === lastSavedHash;
+
+        let restoredTokens = 0;
+        if (hashMatches) {
+            // Fast path: content hasn't changed since last save, restore the .bin.
+            try {
+                const res = await fetch(`${baseUrl}/slots/${this.slotId}?action=restore`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ filename })
+                });
+                if (res.ok) {
+                    const data = await res.json().catch(() => ({}));
+                    restoredTokens = data?.n_restored ?? data?.tokens_restored ?? 0;
+                    console.log(`[LlamaV2] Slot restored from disk: ${filename} (${restoredTokens} tokens)`);
+                } else {
+                    // .bin missing despite hash match (user deleted cache dir?) — fall through to rebuild.
+                    console.warn('[LlamaV2] Hash matched but restore failed — treating as rebuild.');
+                    await this.eraseSlot();
+                    this.pendingSaveFilename = filename;
+                    this.pendingSaveHash = currentHash;
+                    this.pendingSaveHashKey = hashKey;
+                }
+            } catch (e) {
+                console.warn('[LlamaV2] Restore attempt threw — rebuilding:', e);
+                await this.eraseSlot();
+                this.pendingSaveFilename = filename;
+                this.pendingSaveHash = currentHash;
+                this.pendingSaveHashKey = hashKey;
+            }
+        } else {
+            // Rebuild path: content changed (or never saved). Erase slot so generation
+            // starts from a clean KV — no stale prefix from the old .bin.
+            await this.eraseSlot();
+            this.pendingSaveFilename = filename;
+            this.pendingSaveHash = currentHash;
+            this.pendingSaveHashKey = hashKey;
+            const reason = lastSavedHash
+                ? 'KB/system/model hash changed since last save'
+                : 'no prior save recorded';
+            console.log(`[LlamaV2] Slot erased; will persist fresh KV after next generation (${reason}).`);
+        }
+
+        const info: LLMCacheInfo = {
+            name: filename,
+            displayName: filename,
+            model: modelId,
+            createTime: Date.now(),
+            expireTime: this.farFutureExpire(),
+            usageMetadata: { totalTokenCount: restoredTokens }
+        };
+        this.sessionSlotInfo.set(filename, info);
+        return info;
+    }
+
+    private async eraseSlot(): Promise<void> {
+        try {
+            await fetch(`${this.baseUrl()}/slots/${this.slotId}?action=erase`, { method: 'POST' });
+        } catch (e) {
+            console.warn('[LlamaV2] Slot erase failed:', e);
+        }
+    }
+
+    /**
+     * Re-load the slot file into slot N on every validation. The previous per-session
+     * short-circuit was unsafe: if the server's in-memory slot ever got cleared
+     * (server restart, different model swap, another client writing to slot 0),
+     * the client would falsely report "cache valid" and generation would run against
+     * an empty KV — exactly the n_tokens=0 / memory_seq_rm[0,end) symptom observed.
+     * Restore is idempotent, so calling it each turn is safe and guarantees slot 0
+     * actually mirrors the .bin before generation starts.
+     */
+    async getCache(name: string): Promise<LLMCacheInfo | null> {
+        try {
+            const res = await fetch(`${this.baseUrl()}/slots/${this.slotId}?action=restore`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ filename: name })
+            });
+            if (!res.ok) {
+                // File missing or server rejected — treat as cache miss.
+                return null;
+            }
+            const data = await res.json();
+            const info: LLMCacheInfo = {
+                name,
+                displayName: name,
+                model: this.modelId(),
+                createTime: undefined,
+                expireTime: this.farFutureExpire(),
+                usageMetadata: { totalTokenCount: data?.n_restored ?? data?.tokens_restored ?? 0 }
+            };
+            this.sessionSlotInfo.set(name, info);
+            console.log(`[LlamaV2] Slot restored: ${name} (${info.usageMetadata?.totalTokenCount ?? 0} tokens)`);
+            return info;
+        } catch (e) {
+            console.warn('[LlamaV2] getCache restore failed:', e);
+            return null;
+        }
+    }
+
+    /**
+     * Local slot files have no TTL. Return existing info with a refreshed far-future expire
+     * so the UI countdown shows "persistent" instead of decaying to zero.
+     */
+    async updateCacheTTL(name: string, _ttlSeconds: number): Promise<LLMCacheInfo | null> {
+        const existing = this.sessionSlotInfo.get(name);
+        const info: LLMCacheInfo = existing
+            ? { ...existing, expireTime: this.farFutureExpire() }
+            : {
+                name,
+                displayName: name,
+                model: this.modelId(),
+                createTime: undefined,
+                expireTime: this.farFutureExpire(),
+                usageMetadata: undefined
+            };
+        this.sessionSlotInfo.set(name, info);
+        return info;
+    }
+
+    /** Long expiry sentinel so the UI countdown treats slot caches as persistent. */
+    private farFutureExpire(): number {
+        return Date.now() + 365 * 24 * 3600 * 1000;
+    }
+
+    /**
+     * Erase the in-memory slot. The on-disk file is not removed (no delete API);
+     * next save with the same filename will overwrite it.
+     */
+    async deleteCache(_name: string): Promise<void> {
+        try {
+            await fetch(`${this.baseUrl()}/slots/${this.slotId}?action=erase`, {
+                method: 'POST'
+            });
+        } catch (e) {
+            console.warn('[LlamaV2] deleteCache erase failed:', e);
+        }
+        this.sessionSlotInfo.clear();
+        this.pendingSaveFilename = null;
+        this.pendingSaveHash = null;
+        // Forget the saved hash for the current book so the next createCache will
+        // queue a fresh save (user-triggered cache clear = "treat disk .bin as stale").
+        localStorage.removeItem(`llama_slot_saved_hash_${this.activeBookKey()}`);
+        this.pendingSaveHashKey = null;
     }
 
     /**

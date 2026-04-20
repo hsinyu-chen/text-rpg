@@ -76,7 +76,8 @@ export class GeminiService implements LLMProvider {
             supportsContextCaching: true,
             supportsThinking: true,
             supportsStructuredOutput: true,
-            isLocalProvider: false
+            isLocalProvider: false,
+            cacheBakesContent: true
         };
     }
 

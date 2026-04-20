@@ -208,11 +208,18 @@ export class OpenAIService implements LLMProvider {
                             if (data.usage || data.timings) {
                                 const usage = data.usage;
                                 const timings = data.timings;
+                                const cachedTokens = (usage?.prompt_tokens_details?.cached_tokens ?? timings?.cache_n) || 0;
+                                // llama.cpp's timings.prompt_n counts only freshly-evaluated tokens; total = prompt_n + cache_n.
+                                // OpenAI's usage.prompt_tokens is already the total.
+                                const promptTotal = usage?.prompt_tokens != null
+                                    ? usage.prompt_tokens
+                                    : ((timings?.prompt_n ?? 0) + cachedTokens);
+
                                 yield {
                                     usageMetadata: {
-                                        prompt: (usage?.prompt_tokens ?? timings?.prompt_n) || 0,
+                                        prompt: promptTotal,
                                         candidates: (usage?.completion_tokens ?? timings?.predicted_n) || 0,
-                                        cached: (usage?.prompt_tokens_details?.cached_tokens ?? timings?.cache_n) || 0,
+                                        cached: cachedTokens,
                                         promptProgress: undefined
                                     }
                                 };
