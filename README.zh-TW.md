@@ -15,7 +15,7 @@
 ## 快速開始 (Getting Started)
 
 1. **安裝與啟動**:
-    *   下載專案原始碼。
+    *   下載專案原始碼 (請確保已拉取子模組：`git submodule update --init --recursive`)。
     *   在專案資料夾開啟終端機 (Terminal)。
     *   輸入 `npm install` 安裝所需依賴。
     *   輸入 `npm start` 啟動網頁介面。
@@ -226,6 +226,12 @@ TextRPG 透過 Provider 介面抽象化 LLM 後端。目前內建兩種選擇：
 ### 環境建置
 
 ```bash
+# 0. 複製專案與子模組
+# 本專案包含子模組。複製時請務必加上 --recursive 參數：
+# git clone --recursive <repository-url>
+# 或者如果您已經複製了專案：
+git submodule update --init --recursive
+
 # 1. 安裝依賴
 npm install
 

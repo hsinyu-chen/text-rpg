@@ -19,7 +19,7 @@ TextRPG is a **Local-First**, **Bring Your Own Key (BYOK)** desktop application 
 ## Getting Started
 
 1. **Installation & Launch**:
-    *   Download the source code.
+    *   Download the source code (ensure submodules are initialized: `git submodule update --init --recursive`).
     *   Open terminal/command prompt in the project folder.
     *   Run `npm install` to install dependencies.
     *   Run `npm start` to launch the web interface.
@@ -228,6 +228,12 @@ The File Viewer dialog includes a built-in AI agent that can read, search, and m
 ### Environment Setup
 
 ```bash
+# 0. Clone with Submodules
+# This project uses submodules. When cloning, use the --recursive flag:
+# git clone --recursive <repository-url>
+# Or if already cloned:
+git submodule update --init --recursive
+
 # 1. Install dependencies
 npm install
 
