@@ -2,6 +2,11 @@
 
 [繁體中文](README.zh-TW.md) | [English](README.md)
 
+**[Live Demo](https://hsinyu-chen.github.io/text-rpg/)**
+
+> [!NOTE]
+> The live demo runs without GCP OAuth credentials, so **Google Drive sync is disabled**. All other features (Gemini API, local file system, llama.cpp) work normally — bring your own API key.
+
 A local-first TRPG engine built on Google Gemini models, focusing on rigorous state management and storytelling using Long Context capabilities.
 
 > **Please note**: This is a highly customized personal tool tailored for a specific local infrastructure. It is provided AS-IS for educational purposes only. No support will be provided.

@@ -1,5 +1,10 @@
 # TextRPG 是一個**本地優先 (Local-First)**、**自帶金鑰 (Bring Your Own Key)** 的桌面/WEB應用程式，專為 Google Gemini 3 系列模型的長窗口能力所設計。它不同於傳統的 AI 聊天機器人，而是將 LLM 視為一個嚴謹的「地下城主 (DM)」，透過結構化的思考與邏輯判定來推進劇情。嚴謹的狀態管理與敘事。
 
+**[線上 Demo](https://hsinyu-chen.github.io/text-rpg/)**
+
+> [!NOTE]
+> 線上 Demo 未配置 GCP OAuth 憑證，**Google Drive 同步功能已停用**。其他功能（Gemini API、本地檔案系統、llama.cpp）均正常運作——請自備 API Key。
+
 > **請注意**：這是針對特定本地架構高度客製化的私人工具。僅供教學參考。不提供任何技術支援。.
 
 本專案採用 **Local-First** 架構，結合 Tauri 與 Angular，將 LLM 作為邏輯處理核心。不同於一般生成式對話應用，本引擎通過 JSON Schema 強制模型執行「判定優先」的流程，並將遊戲狀態（物品、任務、劇情摘要）持久化於本地 Markdown 文件中。

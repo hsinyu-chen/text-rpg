@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git remote *)",
+      "Bash(node -e \"const a=require\\('./angular.json'\\); const p=a.projects['text-rpg']; console.log\\(JSON.stringify\\(p.architect.build.options, null, 2\\)\\)\")",
+      "WebSearch"
+    ]
+  }
+}

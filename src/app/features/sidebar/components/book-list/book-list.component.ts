@@ -113,10 +113,12 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
                 Nuke All Caches
             </button>
 
-            <button mat-stroked-button class="sync-btn" (click)="syncAllToCloud()" [disabled]="state.isBusy()">
-                <mat-icon>cloud_sync</mat-icon>
-                Sync All to Cloud
-            </button>
+            @if (drive.isConfigured) {
+                <button mat-stroked-button class="sync-btn" (click)="syncAllToCloud()" [disabled]="state.isBusy()">
+                    <mat-icon>cloud_sync</mat-icon>
+                    Sync All to Cloud
+                </button>
+            }
       </div>
     </div>
   `,
