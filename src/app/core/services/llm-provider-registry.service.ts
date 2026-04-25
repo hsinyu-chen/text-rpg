@@ -1,104 +1,137 @@
-import { Injectable, signal, computed } from '@angular/core';
-import { LLMProvider, LLMProviderCapabilities } from './llm-provider';
+import { Injectable, inject, computed, signal, effect } from '@angular/core';
+import { LLMProvider, LLMProviderCapabilities, LLMProviderConfig, LLMModelDefinition } from '@hcs/llm-core';
+import { LLMConfigService } from './llm-config.service';
 
 /**
- * LLM Provider Registry Service
+ * LLMProviderRegistryService
  *
- * Factory pattern for managing and switching between LLM providers.
- * Maintains a registry of available providers and tracks the active one.
+ * Angular-facing wrapper over the stateless monorepo providers. The
+ * "active provider" is derived from the active profile held by
+ * LLMConfigService — this service holds zero config state of its own.
+ * Its job is just:
+ *   - keep the map of provider-name → provider-instance
+ *   - expose `activeProvider()` / `getActiveConfig()` shortcuts
+ *   - cache model lists sync-accessibly for cost displays (the monorepo's
+ *     getAvailableModels is allowed to be async).
  */
-@Injectable({
-    providedIn: 'root'
-})
+@Injectable({ providedIn: 'root' })
 export class LLMProviderRegistryService {
-    /** Map of registered providers by name */
+    private configService = inject(LLMConfigService);
     private providers = new Map<string, LLMProvider>();
-
-    /** Currently active provider */
-    private _activeProvider = signal<LLMProvider | null>(null);
-
-    /** Public readonly access to active provider */
-    readonly activeProvider = this._activeProvider.asReadonly();
-
-    /** Computed flag indicating if a provider is active */
-    readonly hasActiveProvider = computed(() => this._activeProvider() !== null);
-
     /**
-     * Register a provider with the registry.
-     * @param provider The LLM provider instance to register
+     * Bumped on every register() so signal consumers re-evaluate after
+     * providers land in the Map. Without this, `activeProvider` (a
+     * computed) only reacts to activeProviderName changes — meaning if
+     * any template reads `isConfigured` before LLMProviderInitService
+     * finishes registering, the computed caches `null` and stays null
+     * until the user manually toggles the profile dropdown. That's the
+     * "Setup Required" mask that won't go away on first load.
      */
+    private readonly _providersVersion = signal(0);
+
+    readonly activeProviderName = this.configService.activeProviderName;
+    readonly activeProvider = computed<LLMProvider | null>(() => {
+        this._providersVersion(); // tracked so newly-registered providers are visible
+        return this.providers.get(this.activeProviderName()) ?? null;
+    });
+    readonly hasActiveProvider = computed(() => this.activeProvider() !== null);
+
+    /** Cached models keyed by provider name; populated via refreshActiveModels. */
+    private modelCache = new Map<string, LLMModelDefinition[]>();
+    private readonly _modelCacheVersion = signal(0);
+
+    constructor() {
+        // Whenever the active provider (or its backing profile's config) changes,
+        // refresh the sync model cache so cost displays pick up new pricing.
+        effect(() => {
+            // Re-run whenever the profile swap changes provider name OR when
+            // the active profile's settings change (e.g. model renamed).
+            this.configService.activeProfile();
+            const name = this.activeProviderName();
+            if (!name) return;
+            void this.refreshActiveModels();
+        });
+    }
+
     register(provider: LLMProvider): void {
         if (this.providers.has(provider.providerName)) {
-            console.warn(`[LLMRegistry] Provider '${provider.providerName}' is already registered. Replacing.`);
+            console.warn(`[LLMRegistry] Provider '${provider.providerName}' already registered; replacing.`);
         }
         this.providers.set(provider.providerName, provider);
+        this._providersVersion.update(v => v + 1);
         console.log(`[LLMRegistry] Registered provider: ${provider.providerName}`);
     }
 
-    /**
-     * Set the active provider by name.
-     * @param providerName The name of the provider to activate
-     * @throws Error if provider is not registered
-     */
-    setActive(providerName: string): void {
-        const provider = this.providers.get(providerName);
-        if (!provider) {
-            const available = Array.from(this.providers.keys()).join(', ');
-            throw new Error(`[LLMRegistry] Provider '${providerName}' not found. Available: ${available}`);
-        }
-        this._activeProvider.set(provider);
-        console.log(`[LLMRegistry] Active provider set to: ${providerName}`);
+    /** Switch which profile is active (not which provider directly). */
+    setActiveProfile(profileId: string): void {
+        this.configService.setActiveProfileId(profileId);
     }
 
-    /**
-     * Get the currently active provider.
-     * @returns The active provider or null if none is set
-     */
     getActive(): LLMProvider | null {
-        return this._activeProvider();
+        return this.activeProvider();
     }
 
-    /**
-     * Get a specific provider by name (without activating it).
-     * @param providerName The name of the provider to retrieve
-     * @returns The provider or undefined if not found
-     */
+    getActiveConfig(): LLMProviderConfig {
+        return this.configService.getActiveConfig();
+    }
+
+    getActiveBundle(): { provider: LLMProvider; config: LLMProviderConfig } | null {
+        const provider = this.activeProvider();
+        if (!provider) return null;
+        return { provider, config: this.configService.getActiveConfig() };
+    }
+
     getProvider(providerName: string): LLMProvider | undefined {
         return this.providers.get(providerName);
     }
 
-    /**
-     * Get capability flags for the active provider.
-     * @returns Capabilities object or a default "no capabilities" object if no provider is active
-     */
     getCapabilities(): LLMProviderCapabilities {
-        const provider = this._activeProvider();
-        if (provider) {
-            return provider.getCapabilities();
-        }
-        // Default: no capabilities
+        const provider = this.activeProvider();
+        if (provider) return provider.getCapabilities();
         return {
             supportsContextCaching: false,
             supportsThinking: false,
             supportsStructuredOutput: false,
-            isLocalProvider: false
+            isLocalProvider: false,
+            supportsSpeedMetrics: false
         };
     }
 
-    /**
-     * List all registered provider names.
-     * @returns Array of provider names
-     */
     listProviders(): string[] {
         return Array.from(this.providers.keys());
     }
 
-    /**
-     * Check if a specific provider is registered.
-     * @param providerName The name to check
-     * @returns True if registered
-     */
     hasProvider(providerName: string): boolean {
         return this.providers.has(providerName);
+    }
+
+    /** Sync accessor — whatever's in cache for the active provider. */
+    getActiveModels(): LLMModelDefinition[] {
+        this._modelCacheVersion();
+        return this.modelCache.get(this.activeProviderName()) ?? [];
+    }
+
+    async refreshActiveModels(): Promise<LLMModelDefinition[]> {
+        const name = this.activeProviderName();
+        const provider = this.providers.get(name);
+        if (!provider) return [];
+        try {
+            const result = await provider.getAvailableModels(this.configService.getActiveConfig());
+            this.modelCache.set(name, result);
+            this._modelCacheVersion.update(v => v + 1);
+            return result;
+        } catch (e) {
+            console.warn(`[LLMRegistry] refreshActiveModels failed for ${name}:`, e);
+            return this.modelCache.get(name) ?? [];
+        }
+    }
+
+    invalidateModelCache(providerName?: string): void {
+        if (providerName) {
+            this.modelCache.delete(providerName);
+        } else {
+            this.modelCache.clear();
+        }
+        this._modelCacheVersion.update(v => v + 1);
     }
 }

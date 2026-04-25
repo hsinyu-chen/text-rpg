@@ -43,7 +43,8 @@ export class GameStateService {
     config = signal<GameEngineConfig | null>(null);
     isConfigured = computed(() => {
         const provider = this.providerRegistry.activeProvider();
-        return provider ? provider.isConfigured() : false;
+        if (!provider) return false;
+        return provider.isConfigured(this.providerRegistry.getActiveConfig());
     });
 
     // ==================== Status ====================

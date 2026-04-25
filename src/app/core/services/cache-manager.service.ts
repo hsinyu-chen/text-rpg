@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { GameStateService } from './game-state.service';
 import { LLMProviderRegistryService } from './llm-provider-registry.service';
-import { LLMProvider, LLMCacheInfo } from './llm-provider';
+import { LLMProvider, LLMProviderConfig, LLMCacheInfo } from '@hcs/llm-core';
 import { CostService } from './cost.service';
 import { KnowledgeService } from './knowledge.service';
 import { StorageService } from './storage.service';
@@ -22,11 +22,16 @@ export class CacheManagerService {
     private storage = inject(StorageService);
     private chatHistory = inject(ChatHistoryService);
 
-    /** Get the currently active LLM provider */
+    /** Get the currently active LLM provider. */
     private get provider(): LLMProvider {
         const p = this.providerRegistry.getActive();
         if (!p) throw new Error('No active LLM provider');
         return p;
+    }
+
+    /** Config for the active provider — monorepo providers require it on every call. */
+    private get providerConfig(): LLMProviderConfig {
+        return this.providerRegistry.getActiveConfig();
     }
 
     // ==================== Timer Management ====================
@@ -87,12 +92,12 @@ export class CacheManagerService {
                     await this.cleanupCache(); // Properly clean up old cache & local state
                     validationSuccess = false; // Force rebuild
                 } else {
-                    const cacheStatus = await this.provider.getCache(cacheName);
+                    const cacheStatus = await this.provider.getCache(this.providerConfig, cacheName);
                     if (cacheStatus) {
                         try {
                             let updated: LLMCacheInfo | null = null;
                             if (this.provider.updateCacheTTL) {
-                                updated = await this.provider.updateCacheTTL(cacheName, ttlSeconds);
+                                updated = await this.provider.updateCacheTTL(this.providerConfig, cacheName, ttlSeconds);
                             }
 
                             // If updated valid, or just exists (fall through)
@@ -102,6 +107,14 @@ export class CacheManagerService {
                                     : new Date(updated.expireTime).getTime();
                                 this.state.kbCacheExpireTime.set(expireMs);
                                 validationSuccess = true;
+                                
+                                // Sync tokens from restored cache so UI shows current slot occupancy
+                                const restoredTokens = cacheStatus.usageMetadata?.totalTokenCount || 0;
+                                if (restoredTokens > 0) {
+                                    this.state.kbCacheTokens.set(restoredTokens);
+                                    localStorage.setItem('kb_cache_tokens', restoredTokens.toString());
+                                }
+
                                 this.startStorageTimer();
                                 console.log('[CacheManager] Cache validated and TTL extended.');
                             } else {
@@ -139,6 +152,7 @@ export class CacheManagerService {
                         let cacheRes: LLMCacheInfo | null = null;
                         if (this.provider.createCache) {
                             cacheRes = await this.provider.createCache(
+                                this.providerConfig,
                                 config?.modelId || this.provider.getDefaultModelId(),
                                 systemInstruction,
                                 [{ role: 'user', parts: fileParts }],
@@ -202,7 +216,7 @@ export class CacheManagerService {
                 // We are in No-Cache/Implicit mode. If there's a leftover Cache, clean it up to save costs.
                 console.log('[CacheManager] Cleaning up leftover Cache while in Implicit mode.');
                 if (this.provider.deleteCache) {
-                    await this.provider.deleteCache(cacheName);
+                    await this.provider.deleteCache(this.providerConfig, cacheName);
                 }
                 this.state.kbCacheName.set(null);
                 this.state.kbCacheExpireTime.set(null);
@@ -240,7 +254,7 @@ export class CacheManagerService {
             }
 
             if (this.provider.deleteCache) {
-                await this.provider.deleteCache(this.state.kbCacheName()!);
+                await this.provider.deleteCache(this.providerConfig, this.state.kbCacheName()!);
             }
             this.state.kbCacheName.set(null);
             this.state.kbCacheExpireTime.set(null);
@@ -263,7 +277,7 @@ export class CacheManagerService {
             console.log('[CacheManager] Clearing ALL server-side caches and files...');
             let count = 0;
             if (this.provider.deleteAllCaches) {
-                count = await this.provider.deleteAllCaches();
+                count = await this.provider.deleteAllCaches(this.providerConfig);
             }
 
             // Transfer Active Usage to History (Preserving costs)
@@ -325,7 +339,7 @@ export class CacheManagerService {
                 }
 
                 if (this.provider.deleteCache) {
-                    await this.provider.deleteCache(cacheName);
+                    await this.provider.deleteCache(this.providerConfig, cacheName);
                 }
             } catch (err) {
                 console.error('[CacheManager] Failed to delete cache from server:', err);

@@ -167,6 +167,7 @@
 
 .prose-content {
     color: #e0e0e0;
+    contain: content;
 
     // Compact code blocks for save XML
     ::ng-deep pre,
@@ -286,6 +287,7 @@
     border-top: 1px solid rgba(255, 255, 255, 0.05);
     background: rgba(0, 0, 0, 0.2);
     white-space: pre-wrap;
+    contain: content;
 }
 
 .raw-content {

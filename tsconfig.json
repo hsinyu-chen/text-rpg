@@ -13,7 +13,37 @@
     "experimentalDecorators": true,
     "importHelpers": true,
     "target": "ES2022",
-    "module": "preserve"
+    "module": "preserve",
+    "baseUrl": ".",
+    "paths": {
+      "@hcs/llm-core": [
+        "lib/hcs-llm-monorepo/packages/core/src/index.ts"
+      ],
+      "@hcs/llm-provider-gemini": [
+        "lib/hcs-llm-monorepo/packages/provider-gemini/src/index.ts"
+      ],
+      "@hcs/llm-provider-llama-cpp": [
+        "lib/hcs-llm-monorepo/packages/provider-llama-cpp/src/index.ts"
+      ],
+      "@hcs/llm-provider-openai": [
+        "lib/hcs-llm-monorepo/packages/provider-openai/src/index.ts"
+      ],
+      "@hcs/llm-angular-common": [
+        "lib/hcs-llm-monorepo/packages/angular-common/src/index.ts"
+      ],
+      "@hcs/llm-angular-settings": [
+        "lib/hcs-llm-monorepo/packages/angular-settings/src/index.ts"
+      ],
+      "@hcs/llm-angular-ui-gemini": [
+        "lib/hcs-llm-monorepo/packages/angular-ui-gemini/src/index.ts"
+      ],
+      "@hcs/llm-angular-ui-llama-cpp": [
+        "lib/hcs-llm-monorepo/packages/angular-ui-llama-cpp/src/index.ts"
+      ],
+      "@hcs/llm-angular-ui-openai": [
+        "lib/hcs-llm-monorepo/packages/angular-ui-openai/src/index.ts"
+      ]
+    }
   },
   "angularCompilerOptions": {
     "enableI18nLegacyMessageIdFormat": false,
@@ -25,6 +55,33 @@
   "references": [
     {
       "path": "./tsconfig.app.json"
+    },
+    {
+      "path": "lib/hcs-llm-monorepo/packages/core/tsconfig.json"
+    },
+    {
+      "path": "lib/hcs-llm-monorepo/packages/provider-gemini/tsconfig.json"
+    },
+    {
+      "path": "lib/hcs-llm-monorepo/packages/provider-llama-cpp/tsconfig.json"
+    },
+    {
+      "path": "lib/hcs-llm-monorepo/packages/provider-openai/tsconfig.json"
+    },
+    {
+      "path": "lib/hcs-llm-monorepo/packages/angular-common/tsconfig.json"
+    },
+    {
+      "path": "lib/hcs-llm-monorepo/packages/angular-settings/tsconfig.json"
+    },
+    {
+      "path": "lib/hcs-llm-monorepo/packages/angular-ui-gemini/tsconfig.json"
+    },
+    {
+      "path": "lib/hcs-llm-monorepo/packages/angular-ui-llama-cpp/tsconfig.json"
+    },
+    {
+      "path": "lib/hcs-llm-monorepo/packages/angular-ui-openai/tsconfig.json"
     }
   ]
 }

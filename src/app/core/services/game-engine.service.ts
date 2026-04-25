@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 
 import { LLMProviderRegistryService } from './llm-provider-registry.service';
-import { LLMProvider } from './llm-provider';
+import { LLMProvider, LLMProviderConfig } from '@hcs/llm-core';
 import { CostService } from './cost.service';
 import { GameStateService } from './game-state.service';
 import { ChatHistoryService } from './chat-history.service';
@@ -47,6 +47,11 @@ export class GameEngineService {
         const p = this.providerRegistry.getActive();
         if (!p) throw new Error('No active LLM provider');
         return p;
+    }
+
+    /** Config for the active provider — monorepo providers require it per call. */
+    private get providerConfig(): LLMProviderConfig {
+        return this.providerRegistry.getActiveConfig();
     }
 
 
@@ -440,6 +445,7 @@ export class GameEngineService {
             const bakesContent = this.provider.getCapabilities().cacheBakesContent ?? true;
             const omitKB = hasCache && bakesContent;
             const stream = this.provider.generateContentStream(
+                this.providerConfig,
                 history,
                 this.contextBuilder.getEffectiveSystemInstruction(!omitKB),
                 {
@@ -561,10 +567,14 @@ export class GameEngineService {
             });
 
             // Update local state with fresh usage stats
-            const fresh = (turnUsage.prompt || 0) - (turnUsage.cached || 0);
+            // Robust calculation: prompt may be total or fresh-only depending on provider/timings.
+            const cachedTokens = turnUsage.cached || 0;
+            const rawPrompt = turnUsage.prompt || 0;
+            const fresh = rawPrompt >= cachedTokens ? rawPrompt - cachedTokens : rawPrompt;
+
             this.state.lastTurnUsage.set({
                 freshInput: fresh,
-                cached: turnUsage.cached || 0,
+                cached: cachedTokens,
                 output: turnUsage.candidates || 0
             });
 

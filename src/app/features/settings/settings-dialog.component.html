@@ -2,25 +2,31 @@
 <mat-dialog-content>
     <div class="settings-form">
 
-        <!-- Provider Selection -->
+        <!-- LLM Profile Selection — active profile picks both provider & settings. -->
         <div class="provider-selector">
-            <h3>LLM Provider</h3>
-            <mat-form-field appearance="outline" class="full-width">
-                <mat-label>Select Provider</mat-label>
-                <mat-select [ngModel]="activeProvider()" (ngModelChange)="activeProvider.set($event)">
-                    @for (p of providers; track p.id) {
-                    <mat-option [value]="p.id">
-                        <mat-icon>{{ p.icon }}</mat-icon>
-                        {{ p.name }}
-                    </mat-option>
-                    }
-                </mat-select>
-            </mat-form-field>
-        </div>
+            <h3>LLM Profile</h3>
+            @if (profiles().length === 0) {
+                <p class="hint-text">No profiles configured yet. Click below to create one.</p>
+            } @else {
+                <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>Active Profile</mat-label>
+                    <mat-select [ngModel]="selectedProfileId()"
+                                (ngModelChange)="selectedProfileId.set($event)">
+                        @for (p of profiles(); track p.id) {
+                            <mat-option [value]="p.id">
+                                {{ p.name }} <span class="profile-provider">({{ p.provider }})</span>
+                            </mat-option>
+                        }
+                    </mat-select>
+                </mat-form-field>
+            }
 
-        <!-- Dynamic Provider Settings -->
-        <div class="provider-content">
-            <ng-template [cdkPortalOutlet]="activeSettingsPortal()" (attached)="onPortalAttached($event)"></ng-template>
+            <div class="provider-configure-row">
+                <button mat-stroked-button (click)="openProfilesManager()">
+                    <mat-icon>tune</mat-icon>
+                    Manage LLM Profiles…
+                </button>
+            </div>
         </div>
 
         <!-- Game Settings -->
@@ -137,7 +143,10 @@
         <!-- Cloud Sync -->
         <div class="advanced-section">
             <h3>Cloud Sync</h3>
-            <p class="hint-text">Sync your settings to Google Drive App Data.</p>
+            <p class="hint-text">
+                Sync saved settings to Google Drive App Data. Click Save first to include pending
+                edits. Download reloads the app.
+            </p>
             <div class="button-row">
                 <button mat-stroked-button (click)="uploadSettings()" [disabled]="loading.isLoading()">
                     <mat-icon>cloud_upload</mat-icon> Upload

@@ -27,11 +27,11 @@ export class SidebarCostPredictionComponent {
     public providerRegistry = inject(LLMProviderRegistryService);
     public costService = inject(CostService);
 
-    // Current Model ID
+    // Current Model ID (derived from active provider config; falls back to provider default).
     currentModelId = computed(() => {
-        const activeProvider = this.providerRegistry.getActive();
-        if (!activeProvider) return 'Unknown';
-        return activeProvider.getModelId();
+        const cfg = this.providerRegistry.getActiveConfig();
+        if (cfg.modelId && cfg.modelId.trim()) return cfg.modelId;
+        return this.providerRegistry.getActive()?.getDefaultModelId() || 'Unknown';
     });
 
     activeProviderName = computed(() => {
@@ -39,17 +39,20 @@ export class SidebarCostPredictionComponent {
         return activeProvider?.providerName || 'Unknown';
     });
 
-    // Context window (tokens) reported by the provider — currently only llama.cpp.
+    // Context window (tokens) — static per-model preset for cloud providers,
+    // discovered from /props for llama.cpp via getAvailableModels.
     contextSize = computed<number | null>(() => {
-        const activeProvider = this.providerRegistry.getActive();
-        return activeProvider?.getContextSize?.() ?? null;
+        const modelId = this.currentModelId();
+        const models = this.providerRegistry.getActiveModels();
+        const match = models.find(m => m.id === modelId);
+        return match?.contextSize ?? null;
     });
 
     // Tokens currently occupying the KV cache after the most recent turn:
     // prompt sent for that turn + tokens generated in response.
     contextUsed = computed<number>(() => {
         const turn = this.computedLastTurnUsage();
-        if (!turn) return 0;
+        if (!turn) return this.state.kbCacheTokens();
         return turn.prompt + turn.candidates;
     });
 
@@ -130,8 +133,9 @@ export class SidebarCostPredictionComponent {
 
     // Helper to get the correct model ID for cost calculation
     private getModelIdForCost(): string {
-        const activeProvider = this.providerRegistry.getActive();
-        return activeProvider?.getModelId() || 'unknown';
+        const cfg = this.providerRegistry.getActiveConfig();
+        if (cfg.modelId && cfg.modelId.trim()) return cfg.modelId;
+        return this.providerRegistry.getActive()?.getDefaultModelId() || 'unknown';
     }
 
     lastTurnCost = computed(() => {
@@ -143,9 +147,8 @@ export class SidebarCostPredictionComponent {
     // Real-time Total Cost (Transactions + Storage) for Active Model
     // Re-calculated from history to ensure consistency with Copy/Dialog and handle Rewinds correctly
     totalSessionCost = computed(() => {
-        const activeProvider = this.providerRegistry.getActive();
         const activeModelId = this.getModelIdForCost();
-        const model = activeProvider?.getAvailableModels().find(m => m.id === activeModelId);
+        const model = this.providerRegistry.getActiveModels().find(m => m.id === activeModelId);
 
         if (!model) return 0;
 
@@ -233,7 +236,7 @@ export class SidebarCostPredictionComponent {
         const currentModelStorageCost = this.costService.calculateStorageCost(storageUsageAcc, currentModelId);
         const historyModelStorageCost = this.costService.calculateStorageCost(historyStorageUsageAcc, currentModelId);
 
-        const models = activeProvider.getAvailableModels();
+        const models = this.providerRegistry.getActiveModels();
         const turns = this.turnCount();
         const sunkHistory = this.state.sunkUsageHistory();
 

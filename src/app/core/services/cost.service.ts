@@ -1,6 +1,6 @@
 import { Injectable, signal, inject } from '@angular/core';
 import { LLMProviderRegistryService } from './llm-provider-registry.service';
-import { LLMModelDefinition } from './llm-provider';
+import { LLMModelDefinition } from '@hcs/llm-core';
 import { ChatMessage } from '../models/types';
 
 @Injectable({
@@ -38,17 +38,10 @@ export class CostService {
      * Get model definition by ID from the active provider (or search all).
      */
     private getModelDefinition(modelId: string): LLMModelDefinition {
-        // Try active provider first
-        const active = this.providerRegistry.getActive();
-        if (active) {
-            const model = active.getAvailableModels().find(m => m.id === modelId);
-            if (model) return model;
-        }
-
-        // Fallback: Use active provider's default or safe fallback
-        if (active && active.getAvailableModels().length > 0) {
-            return active.getAvailableModels()[0];
-        }
+        const models = this.providerRegistry.getActiveModels();
+        const match = models.find(m => m.id === modelId);
+        if (match) return match;
+        if (models.length > 0) return models[0];
 
         // Emergency fallback if no active provider or models
         return {

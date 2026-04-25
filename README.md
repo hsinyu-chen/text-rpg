@@ -203,6 +203,17 @@ In addition to dialogue and logs, you can directly edit the game's underlying kn
 *   **Save**: After modification, click **"Save"**. The system immediately writes to the file and updates memory without a restart.
 *   **Navigation**: The editor provides a Markdown **Outline** in the bottom-left corner for quick chapter navigation.
 
+### 5. AI Agent Edit Helper
+The File Viewer dialog includes a built-in AI agent that can read, search, and modify the loaded Markdown files on your behalf.
+*   **Access**: In the File Viewer sidebar, switch to the **AI Agent** tab (robot icon), alongside the Files and Search & Replace tabs.
+*   **Profile**: Select an agent profile from the dropdown. Each profile carries its own model, system prompt, and tool configuration.
+*   **Tool Call Mode**: Choose between **Auto**, **Native** (provider-native function calling), and **JSON** (schema-constrained text). Auto picks the appropriate mode for the active profile.
+*   **Available Tools**: The agent operates on the files currently loaded in the dialog, with a discovery-first workflow — typical tools include directory/file listing, file read, grep with context lines, and `searchReplace` for targeted edits.
+*   **Console**: The execution log shows user prompts, model replies (rendered as Markdown), thinking process, tool execution requests, and tool results. Each thought / tool-call / tool-result block can be collapsed individually.
+*   **Context Usage**: A live bar shows how many tokens of the model's context window are currently in use.
+*   **Controls**: Send a prompt with Enter or the send button; stop a running turn with the stop button; clear the conversation with the broom button.
+*   **Persistence**: Edits the agent applies go through the same write path as manual edits, so changes are reflected in the editor and marked as unsaved until you confirm with **Save Changes**.
+
 ---
 
 ## Development

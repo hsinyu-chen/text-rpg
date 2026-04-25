@@ -1,4 +1,4 @@
-import { LLMPart, LLMUsageMetadata } from '../services/llm-provider';
+import { LLMPart, LLMUsageMetadata } from '@hcs/llm-core';
 
 export type Schema = object;
 

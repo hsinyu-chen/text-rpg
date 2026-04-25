@@ -57,6 +57,16 @@ export class MonacoEditorComponent implements OnDestroy, ControlValueAccessor {
     multiModelMode = input<boolean>(false);
     files = input<Map<string, string>>(new Map());
     activeFile = input<string>('');
+    /**
+     * When set together with multiModelMode=true, the editor renders as a
+     * multi-file diff: each file's `originalFiles` snapshot on the left,
+     * the live `files` content on the right. Switching activeFile swaps
+     * both models in tandem. Default null = normal multi-model behavior.
+     * Toggling between null and a Map should be done by re-rendering the
+     * component (e.g. an @if in the host template) rather than swapping
+     * this input on a live editor.
+     */
+    originalFiles = input<Map<string, string> | null>(null);
 
     // Outputs
     initialized = output<import('monaco-editor').editor.IStandaloneCodeEditor | import('monaco-editor').editor.IStandaloneDiffEditor>();
@@ -69,10 +79,21 @@ export class MonacoEditorComponent implements OnDestroy, ControlValueAccessor {
     private resizeObserver?: ResizeObserver;
     private isInitialized = signal(false);
 
-    // Multi-model storage: filename -> ITextModel
+    // Multi-model storage: filename -> ITextModel (the "modified" / current side)
     private multiModelMap = new Map<string, import('monaco-editor').editor.ITextModel>();
+    // Snapshot models when in multi-file diff mode (the "original" side, frozen)
+    private originalModelMap = new Map<string, import('monaco-editor').editor.ITextModel>();
     private contentChangeDisposable: import('monaco-editor').IDisposable | null = null;
     private disposables: import('monaco-editor').IDisposable[] = [];
+
+    /** True when the editor was constructed as a diff editor (single-file or multi-file). */
+    private get isAnyDiff(): boolean {
+        return this.isDiff() || (this.multiModelMode() && !!this.originalFiles());
+    }
+    /** True when running in multi-file diff mode (multiModelMode + originalFiles). */
+    private get isMultiDiff(): boolean {
+        return this.multiModelMode() && !!this.originalFiles();
+    }
 
     // ControlValueAccessor state
     private _value = '';
@@ -103,23 +124,30 @@ export class MonacoEditorComponent implements OnDestroy, ControlValueAccessor {
             if (!this.isInitialized() || !this.editor) return;
             const currentLanguage = this.language();
 
-            if (!this.isDiff()) {
-                const model = (this.editor as import('monaco-editor').editor.IStandaloneCodeEditor).getModel();
-                if (model) {
-                    window.monaco.editor.setModelLanguage(model, currentLanguage);
-                }
+            // Skip in any diff mode — single-file diff manages language via
+            // updateDiffModels, multi-file diff sets per-file language at
+            // model creation time. Casting a diff editor to code-editor here
+            // would call setModelLanguage on an IDiffEditorModel object,
+            // crashing because that object has no setLanguage method.
+            if (this.isAnyDiff) return;
+            const model = (this.editor as import('monaco-editor').editor.IStandaloneCodeEditor).getModel();
+            if (model) {
+                window.monaco.editor.setModelLanguage(model, currentLanguage);
             }
         });
 
         effect(() => {
-            if (!this.isInitialized() || !this.editor || !this.isDiff()) return;
+            // Single-file diff mode only — multi-file diff drives both models
+            // through switchToFile(activeFile) instead.
+            if (!this.isInitialized() || !this.editor) return;
+            if (!this.isDiff() || this.isMultiDiff) return;
             const original = this.originalValue();
             const modified = this._value;
 
             this.updateDiffModels(original, modified);
         });
 
-        // Effect for multi-model mode: switch active file
+        // Effect for multi-model mode (normal or diff): switch active file
         effect(() => {
             if (!this.isInitialized() || !this.editor || !this.multiModelMode()) return;
             const fileName = this.activeFile();
@@ -133,12 +161,12 @@ export class MonacoEditorComponent implements OnDestroy, ControlValueAccessor {
         const el = this.container()?.nativeElement;
         if (!el) return;
 
-        const monaco = window.monaco;
+        const monaco = (window as any).monaco;
         const userOptions = (this.options() as object) || {};
 
         let commonOptions = {};
-        if (this.isDiff()) {
-            commonOptions = { ...DEFAULT_DIFF_OPTIONS, ...userOptions };
+        if (this.isAnyDiff) {
+            commonOptions = { ...DEFAULT_DIFF_OPTIONS, automaticLayout: true, ...userOptions };
         } else {
             commonOptions = { ...DEFAULT_OPTIONS, ...userOptions };
         }
@@ -148,23 +176,55 @@ export class MonacoEditorComponent implements OnDestroy, ControlValueAccessor {
             ...commonOptions,
             theme: this.theme() || (commonOptions as { theme?: string }).theme,
             language: this.language() || (commonOptions as { language?: string }).language,
-            automaticLayout: false // We use ResizeObserver so we FORCE this to false regardless of defaults
+            automaticLayout: false // Force false: we use explicit layout via ResizeObserver
         };
 
-        if (this.isDiff()) {
+        if (this.isAnyDiff) {
             this.editor = monaco.editor.createDiffEditor(el, finalOptions as import('monaco-editor').editor.IDiffEditorConstructionOptions);
-            this.updateDiffModels(this.originalValue(), this._value);
 
-            // Listen for changes in the modified model
-            const modifiedModel = this.editor.getModel()?.modified;
-            if (modifiedModel) {
-                modifiedModel.onDidChangeContent(() => {
-                    const value = modifiedModel.getValue();
-                    this._value = value;
-                    this._onChange(value);
-                    this.valueChange.emit(value);
+            if (this.isMultiDiff) {
+                // Multi-file diff: pre-create both modified and original models per file,
+                // then setModel({original, modified}) for the active one.
+                const modifiedFiles = this.files();
+                const originalSnapshot = this.originalFiles()!;
+                modifiedFiles.forEach((content, fileName) => {
+                    this.multiModelMap.set(fileName, this.createModel(fileName, content, 'modified'));
                 });
+                originalSnapshot.forEach((content, fileName) => {
+                    this.originalModelMap.set(fileName, this.createModel(fileName, content, 'original'));
+                });
+                const activeFileName = this.activeFile();
+                if (activeFileName) {
+                    this.switchToFile(activeFileName);
+                }
+                // Force a layout call after setting models
+                this.editor?.layout();
+            } else {
+                this.updateDiffModels(this.originalValue(), this._value);
             }
+
+            // Listen for changes in the modified model. Re-bind on every model
+            // swap so multi-file diff also fires valueChange after a switch.
+            const bindModifiedListener = () => {
+                const modifiedModel = (this.editor as import('monaco-editor').editor.IStandaloneDiffEditor).getModel()?.modified;
+                if (this.contentChangeDisposable) {
+                    this.contentChangeDisposable.dispose();
+                    this.contentChangeDisposable = null;
+                }
+                if (modifiedModel) {
+                    this.contentChangeDisposable = modifiedModel.onDidChangeContent(() => {
+                        const value = modifiedModel.getValue();
+                        this._value = value;
+                        this._onChange(value);
+                        this.valueChange.emit(value);
+                    });
+                }
+            };
+            bindModifiedListener();
+            this.disposables.push(
+                (this.editor as import('monaco-editor').editor.IStandaloneDiffEditor)
+                    .onDidChangeModel(() => bindModifiedListener())
+            );
 
             // [NEW] Listen for selection changes in the ORIGINAL editor (left pane)
             const originalEditor = (this.editor as import('monaco-editor').editor.IStandaloneDiffEditor).getOriginalEditor();
@@ -196,10 +256,7 @@ export class MonacoEditorComponent implements OnDestroy, ControlValueAccessor {
             if (this.multiModelMode()) {
                 const filesMap = this.files();
                 filesMap.forEach((content, fileName) => {
-                    const lang = this.getLanguageFromFilename(fileName);
-                    const uri = monaco.Uri.parse(`file:///${fileName.replace(/\\/g, '/')}`);
-                    const model = monaco.editor.createModel(content, lang, uri);
-                    this.multiModelMap.set(fileName, model);
+                    this.multiModelMap.set(fileName, this.createModel(fileName, content, 'normal'));
                 });
 
                 // Switch to active file if provided
@@ -221,16 +278,21 @@ export class MonacoEditorComponent implements OnDestroy, ControlValueAccessor {
             });
         }
 
-        // Handle Resize
-        this.resizeObserver = new ResizeObserver(() => {
-            if (this.editor) {
-                this.editor.layout();
+        // Always use our ResizeObserver with explicit dimensions to prevent DiffEditor collapse
+        this.resizeObserver = new ResizeObserver((entries) => {
+            if (this.editor && entries.length > 0) {
+                const { width, height } = entries[0].contentRect;
+                if (width > 0 && height > 0) {
+                    this.editor.layout({ width, height });
+                }
             }
         });
         this.resizeObserver.observe(el);
 
         this.isInitialized.set(true);
-        this.initialized.emit(this.editor);
+        if (this.editor) {
+            this.initialized.emit(this.editor);
+        }
     }
 
     private updateDiffModels(original: string, modified: string) {
@@ -271,7 +333,7 @@ export class MonacoEditorComponent implements OnDestroy, ControlValueAccessor {
     // Support direct model setting (for multi-model support if needed)
     setModel(model: import('monaco-editor').editor.IDiffEditorModel | import('monaco-editor').editor.ITextModel) {
         if (this.editor) {
-            if (this.isDiff()) {
+            if (this.isAnyDiff) {
                 (this.editor as import('monaco-editor').editor.IStandaloneDiffEditor).setModel(model as import('monaco-editor').editor.IDiffEditorModel);
             } else {
                 (this.editor as import('monaco-editor').editor.IStandaloneCodeEditor).setModel(model as import('monaco-editor').editor.ITextModel);
@@ -285,7 +347,27 @@ export class MonacoEditorComponent implements OnDestroy, ControlValueAccessor {
 
     /** Switch Monaco editor to display a specific file from the multiModelMap */
     switchToFile(fileName: string): void {
-        if (!this.editor || this.isDiff()) return;
+        if (!this.editor) return;
+
+        if (this.isMultiDiff) {
+            // Multi-file diff: swap both sides in tandem.
+            const original = this.originalModelMap.get(fileName);
+            const modified = this.multiModelMap.get(fileName);
+            if (!original || !modified) {
+                console.warn(`[MonacoEditor] Diff model pair not found for file: ${fileName}`);
+                return;
+            }
+            const diffEditor = this.editor as import('monaco-editor').editor.IStandaloneDiffEditor;
+            const current = diffEditor.getModel();
+            if (current?.original === original && current?.modified === modified) return;
+            diffEditor.setModel({ original, modified });
+            this._value = modified.getValue();
+
+
+            return;
+        }
+
+        if (this.isDiff()) return; // single-file diff has no per-file switching
 
         const model = this.multiModelMap.get(fileName);
         if (!model) {
@@ -300,7 +382,23 @@ export class MonacoEditorComponent implements OnDestroy, ControlValueAccessor {
         if (currentModel !== model) {
             codeEditor.setModel(model);
             this._value = model.getValue();
+
         }
+    }
+
+    /** Create a Monaco model with a side-aware URI to keep diff originals/modifieds distinct. */
+    private createModel(
+        fileName: string,
+        content: string,
+        side: 'normal' | 'modified' | 'original'
+    ): import('monaco-editor').editor.ITextModel {
+        const monaco = (window as any).monaco as typeof import('monaco-editor');
+        const lang = this.getLanguageFromFilename(fileName);
+        const safeName = fileName.replace(/\\/g, '/');
+        const uri = side === 'normal'
+            ? monaco.Uri.parse(`file:///${safeName.startsWith('/') ? safeName.substring(1) : safeName}`)
+            : monaco.Uri.parse(`file:///${side}/${safeName.startsWith('/') ? safeName.substring(1) : safeName}`);
+        return monaco.editor.createModel(content, lang, uri);
     }
 
     /** Get language ID from filename extension */
@@ -329,7 +427,28 @@ export class MonacoEditorComponent implements OnDestroy, ControlValueAccessor {
 
     /** Update content of a specific file model (for replace functionality) */
     updateFileContent(fileName: string, newContent: string): void {
-        const model = this.multiModelMap.get(fileName);
+        let model = this.multiModelMap.get(fileName);
+        if (!model && this.editor && this.multiModelMode()) {
+            // Lazy-create: agent may write to a file the user has not yet
+            // selected. In multi-diff mode, we need BOTH modified and original models.
+            model = this.createModel(fileName, newContent, this.isMultiDiff ? 'modified' : 'normal');
+            this.multiModelMap.set(fileName, model);
+
+            if (this.isMultiDiff) {
+                // For new files, original is empty string
+                const originalModel = this.createModel(fileName, '', 'original');
+                this.originalModelMap.set(fileName, originalModel);
+            }
+            return;
+        }
+        if (model) {
+            model.setValue(newContent);
+        }
+    }
+
+    /** Update content of the original (baseline) model for diff mode */
+    updateOriginalFileContent(fileName: string, newContent: string): void {
+        const model = this.originalModelMap.get(fileName);
         if (model) {
             model.setValue(newContent);
         }
@@ -348,12 +467,9 @@ export class MonacoEditorComponent implements OnDestroy, ControlValueAccessor {
     revealLine(lineNumber: number, column = 1): void {
         if (!this.editor) return;
 
-        let targetEditor: import('monaco-editor').editor.IStandaloneCodeEditor;
-        if (this.isDiff()) {
-            targetEditor = (this.editor as import('monaco-editor').editor.IStandaloneDiffEditor).getModifiedEditor();
-        } else {
-            targetEditor = this.editor as import('monaco-editor').editor.IStandaloneCodeEditor;
-        }
+        const targetEditor = this.isAnyDiff
+            ? (this.editor as import('monaco-editor').editor.IStandaloneDiffEditor).getModifiedEditor()
+            : (this.editor as import('monaco-editor').editor.IStandaloneCodeEditor);
 
         const model = targetEditor.getModel();
         if (!model) return;
@@ -370,63 +486,70 @@ export class MonacoEditorComponent implements OnDestroy, ControlValueAccessor {
     }
 
     ngOnDestroy() {
-        // Dispose content change listener
+        // Dispose listeners FIRST so no event fires mid-teardown.
         if (this.contentChangeDisposable) {
             this.contentChangeDisposable.dispose();
             this.contentChangeDisposable = null;
         }
-
         if (this.resizeObserver) {
             this.resizeObserver.disconnect();
         }
-
-        // Dispose all multi-model models
-        this.multiModelMap.forEach(model => {
-            try {
-                model.dispose();
-            } catch { /* ignore */ }
-        });
-        this.multiModelMap.clear();
-
         this.disposables.forEach(d => d.dispose());
         this.disposables = [];
 
+        // Snapshot the models we want to dispose, then dispose the editor
+        // BEFORE disposing the models. Monaco's DiffEditorWidget keeps
+        // references to its current original/modified models and throws
+        // "TextModel got disposed before DiffEditorWidget model got reset"
+        // if the models go away while the widget still holds them.
+        const pendingModelDisposes: import('monaco-editor').editor.ITextModel[] = [];
+        this.multiModelMap.forEach(m => pendingModelDisposes.push(m));
+        this.multiModelMap.clear();
+        this.originalModelMap.forEach(m => pendingModelDisposes.push(m));
+        this.originalModelMap.clear();
+
         if (this.editor) {
             try {
-                // Keep references to models for disposal after editor disposal
-                let modelsToDispose: (import('monaco-editor').editor.ITextModel | undefined)[] = [];
-                if (this.isDiff()) {
+                // Single-file diff models live on the editor itself, not in
+                // our maps — pull them out so we dispose them too.
+                if (this.isDiff() && !this.isMultiDiff) {
                     const diffEditor = this.editor as import('monaco-editor').editor.IStandaloneDiffEditor;
                     const model = diffEditor.getModel();
                     if (model) {
-                        modelsToDispose = [model.original, model.modified];
+                        pendingModelDisposes.push(model.original, model.modified);
                     }
                 }
 
-                // Dispose editor first
                 this.editor.dispose();
                 this.editor = null;
-
-                // Then dispose models
-                modelsToDispose.forEach(m => m?.dispose());
             } catch (e) {
                 // Editor may already be disposed or in an invalid state, ignore errors
                 console.warn('[MonacoEditor] Error during cleanup:', e);
                 this.editor = null;
             }
         }
+
+        // Now that the editor (and any DiffEditorWidget) is gone, the models
+        // are safe to dispose.
+        pendingModelDisposes.forEach(m => {
+            try { m.dispose(); } catch { /* ignore */ }
+        });
     }
 
     // ControlValueAccessor methods
     writeValue(value: unknown): void {
         this._value = (value as string) || '';
-        if (this.isInitialized() && this.editor && !this.isDiff()) {
-            const codeEditor = this.editor as import('monaco-editor').editor.IStandaloneCodeEditor;
-            if (codeEditor.getValue() !== this._value) {
-                codeEditor.setValue(this._value);
-            }
-        } else if (this.isInitialized() && this.editor && this.isDiff()) {
+        if (!this.isInitialized() || !this.editor) return;
+        // Multi-file diff: per-file content is driven by switchToFile/files map,
+        // not by a single editor-wide value. Ignore writeValue here.
+        if (this.isMultiDiff) return;
+        if (this.isDiff()) {
             this.updateDiffModels(this.originalValue(), this._value);
+            return;
+        }
+        const codeEditor = this.editor as import('monaco-editor').editor.IStandaloneCodeEditor;
+        if (codeEditor.getValue() !== this._value) {
+            codeEditor.setValue(this._value);
         }
     }
 

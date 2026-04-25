@@ -6,6 +6,7 @@ import { CacheManagerService } from './cache-manager.service';
 import { InjectionService } from './injection.service';
 import { CostService } from './cost.service';
 import { LLMProviderRegistryService } from './llm-provider-registry.service';
+import { LLMConfigService } from './llm-config.service';
 
 @Injectable({
     providedIn: 'root'
@@ -18,9 +19,24 @@ export class ConfigService {
     private injection = inject(InjectionService);
     private cost = inject(CostService);
     private providerRegistry = inject(LLMProviderRegistryService);
+    private llmConfig = inject(LLMConfigService);
 
     private get provider() {
         return this.providerRegistry.getActive();
+    }
+
+    /**
+     * Extract TextRPG-specific fields (enableCache, thinkingLevelStory/General)
+     * out of a provider config's additionalSettings bucket. Used to bridge the
+     * monorepo's flat LLMProviderConfig shape into the GameEngineConfig shape.
+     */
+    private readProviderSettings(config: ReturnType<LLMConfigService['getActiveConfig']>) {
+        const s = config.additionalSettings || {};
+        return {
+            enableCache: typeof s['enableCache'] === 'boolean' ? s['enableCache'] as boolean : undefined,
+            thinkingLevelStory: typeof s['thinkingLevelStory'] === 'string' ? s['thinkingLevelStory'] as string : undefined,
+            thinkingLevelGeneral: typeof s['thinkingLevelGeneral'] === 'string' ? s['thinkingLevelGeneral'] as string : undefined
+        };
     }
 
     constructor() {
@@ -86,33 +102,33 @@ export class ConfigService {
         const enableConversion = localStorage.getItem('app_enable_conversion') === 'true';
         const idleOnBlur = localStorage.getItem('app_idle_on_blur') === 'true';
 
-        // Get Provider-Specific settings from the active provider
+        // Get Provider-Specific settings from the active provider's persisted config
         const activeProvider = this.providerRegistry.getActive();
-        const providerConfig = activeProvider?.getConfigFromStorage() || {};
+        const providerConfig = this.llmConfig.getActiveConfig();
+        const providerExtras = this.readProviderSettings(providerConfig);
 
         const cfg: GameEngineConfig = {
             apiKey: providerConfig.apiKey || '',
             modelId: providerConfig.modelId || activeProvider?.getDefaultModelId() || '',
             fontSize,
             fontFamily,
-            enableCache: providerConfig.enableCache ?? (localStorage.getItem('app_enable_cache') === 'true'),
+            enableCache: providerExtras.enableCache ?? (localStorage.getItem('app_enable_cache') === 'true'),
             exchangeRate: parseFloat(localStorage.getItem('app_exchange_rate') || localStorage.getItem('gemini_exchange_rate') || '30'),
             currency,
             enableConversion,
             screensaverType,
             outputLanguage: localStorage.getItem('app_output_language') || localStorage.getItem('gemini_output_language') || 'default',
             idleOnBlur,
-            thinkingLevelStory: providerConfig.thinkingLevelStory || 'minimal',
-            thinkingLevelGeneral: providerConfig.thinkingLevelGeneral || 'high',
+            thinkingLevelStory: providerExtras.thinkingLevelStory || 'minimal',
+            thinkingLevelGeneral: providerExtras.thinkingLevelGeneral || 'high',
             smartContextTurns: parseInt(localStorage.getItem('app_smart_context_turns') || localStorage.getItem('gemini_smart_context_turns') || '10', 10)
         };
 
         this.state.config.set(cfg);
 
-        // Initialize provider instance
-        if (activeProvider) {
-            activeProvider.init(providerConfig);
-        }
+        // Monorepo providers are stateless — no provider.init() to call.
+        // Populate the sync model cache for cost displays.
+        void this.providerRegistry.refreshActiveModels();
 
         // Restore cache state
         const cacheName = localStorage.getItem('kb_cache_name');
@@ -135,7 +151,7 @@ export class ConfigService {
 
             // Fetch fresh status from API to ensure reliability
             if (activeProvider?.getCache) {
-                activeProvider.getCache(cacheName).then(cacheStatus => {
+                activeProvider.getCache(this.llmConfig.getActiveConfig(), cacheName).then(cacheStatus => {
                     if (cacheStatus && cacheStatus.expireTime) {
                         const expireMs = typeof cacheStatus.expireTime === 'number'
                             ? cacheStatus.expireTime
@@ -230,7 +246,8 @@ export class ConfigService {
 
         // Fetch current provider state for the signal
         const activeProvider = this.providerRegistry.getActive();
-        const providerConfig = activeProvider?.getConfigFromStorage() || {};
+        const providerConfig = this.llmConfig.getActiveConfig();
+        const providerExtras = this.readProviderSettings(providerConfig);
 
         const fullConfig: GameEngineConfig = {
             apiKey: providerConfig.apiKey || '',
@@ -238,7 +255,7 @@ export class ConfigService {
             ...genConfig,
             // enableCache is provider-specific and may not be in genConfig; pull from providerConfig
             // so toggling the setting takes effect immediately instead of requiring a reload.
-            enableCache: genConfig.enableCache ?? providerConfig.enableCache ?? (localStorage.getItem('app_enable_cache') === 'true')
+            enableCache: genConfig.enableCache ?? providerExtras.enableCache ?? (localStorage.getItem('app_enable_cache') === 'true')
         };
         this.state.config.set(fullConfig);
 
@@ -281,18 +298,21 @@ export class ConfigService {
         // Reuse saveConfig to handle persistence (localStorage + Signal update + Service re-init)
         this.saveConfig(genConfig);
 
-        // Also update provider if it was in the import
+        // Also update the active provider's config if supplied
         if (cfg.apiKey || cfg.modelId) {
-            const activeProvider = this.providerRegistry.getActive();
-            if (activeProvider) {
-                activeProvider.saveConfig({
-                    apiKey: cfg.apiKey,
-                    modelId: cfg.modelId,
-                    enableCache: cfg.enableCache,
-                    thinkingLevelStory: cfg.thinkingLevelStory,
-                    thinkingLevelGeneral: cfg.thinkingLevelGeneral
-                });
-            }
+            const existing = this.llmConfig.getActiveConfig();
+            const merged = {
+                ...existing,
+                apiKey: cfg.apiKey ?? existing.apiKey,
+                modelId: cfg.modelId ?? existing.modelId,
+                additionalSettings: {
+                    ...(existing.additionalSettings || {}),
+                    ...(typeof cfg.enableCache === 'boolean' ? { enableCache: cfg.enableCache } : {}),
+                    ...(cfg.thinkingLevelStory ? { thinkingLevelStory: cfg.thinkingLevelStory } : {}),
+                    ...(cfg.thinkingLevelGeneral ? { thinkingLevelGeneral: cfg.thinkingLevelGeneral } : {})
+                }
+            };
+            this.llmConfig.saveActiveConfig(merged);
         }
         console.log('[ConfigService] Configuration imported successfully.');
     }

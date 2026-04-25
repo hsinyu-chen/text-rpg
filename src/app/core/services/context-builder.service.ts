@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { GameStateService } from './game-state.service';
 import { KnowledgeService } from './knowledge.service';
 import { ChatMessage, ExtendedPart } from '../models/types';
-import { LLMContent, LLMPart, LLMGenerateConfig } from './llm-provider';
+import { LLMContent, LLMPart, LLMGenerateConfig } from '@hcs/llm-core';
 import { LLM_MARKERS, getResponseSchema } from '../constants/engine-protocol';
 import { LLMProviderRegistryService } from './llm-provider-registry.service';
 import { LanguageService } from './language.service';

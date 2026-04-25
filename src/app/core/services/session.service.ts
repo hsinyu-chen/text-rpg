@@ -3,7 +3,7 @@ import { GameStateService } from './game-state.service';
 import { StorageService } from './storage.service';
 import { FileSystemService } from './file-system.service';
 import { LLMProviderRegistryService } from './llm-provider-registry.service';
-import { LLMProvider } from './llm-provider';
+import { LLMProvider, LLMProviderConfig } from '@hcs/llm-core';
 import { CacheManagerService } from './cache-manager.service';
 import { CostService } from './cost.service';
 import { KnowledgeService } from './knowledge.service';
@@ -77,6 +77,10 @@ export class SessionService {
         const p = this.providerRegistry.getActive();
         if (!p) throw new Error('No active LLM provider');
         return p;
+    }
+
+    private get providerConfig(): LLMProviderConfig {
+        return this.providerRegistry.getActiveConfig();
     }
 
     private get systemInstructionCache() { return this.state.systemInstructionCache(); }
@@ -390,7 +394,7 @@ export class SessionService {
         // Calculate estimated cost dynamically (same as sidebar-cost-prediction)
         const activeProvider = this.providerRegistry.getActive();
         const activeModelId = this.state.config()?.modelId || activeProvider?.getDefaultModelId();
-        const model = activeProvider?.getAvailableModels().find(m => m.id === activeModelId);
+        const model = this.providerRegistry.getActiveModels().find(m => m.id === activeModelId);
         let estimatedCost = 0;
         if (model) {
             const activeTxn = this.costService.calculateSessionTransactionCost(messages, model);
@@ -684,6 +688,68 @@ export class SessionService {
         // to avoid circular dependencies between SessionService and GameEngineService.
     }
 
+    /**
+     * Creates a new Book from an arbitrary set of files (e.g. a freshly extracted Scene KB),
+     * persists it, and loads it as the active session. Preserves the current KB slot metadata
+     * and copies the active 'system_main' prompt so the new book is immediately playable.
+     * @returns The new book's id.
+     */
+    async createSceneBook(name: string, files: Map<string, string>): Promise<string> {
+        if (this.currentBookId()) {
+            await this.unloadCurrentSession(true);
+        }
+
+        const newBookId = crypto.randomUUID();
+        const filesArr: { name: string; content: string }[] = [];
+        for (const [fileName, content] of files.entries()) {
+            filesArr.push({ name: fileName, content });
+        }
+
+        const prompts: Record<string, { content: string; tokens?: number }> = {};
+        const mainPrompt = await this.storage.getPrompt('system_main');
+        if (mainPrompt) {
+            prompts['system_main'] = { content: mainPrompt.content, tokens: mainPrompt.tokens };
+        }
+
+        const kbSlotId = localStorage.getItem('kb_slot_id') || undefined;
+        const kbSlotName = localStorage.getItem('kb_slot_name') || undefined;
+
+        const newBook: Book = {
+            id: newBookId,
+            name,
+            createdAt: Date.now(),
+            lastActiveAt: Date.now(),
+            preview: 'New Scene',
+            messages: [],
+            files: filesArr,
+            prompts,
+            stats: {
+                tokenUsage: { freshInput: 0, cached: 0, output: 0, total: 0 },
+                estimatedCost: 0,
+                historyStorageUsage: 0,
+                sunkUsageHistory: [],
+                kbStorageUsageAcc: 0,
+                kbCacheName: null,
+                kbCacheExpireTime: null,
+                kbCacheTokens: 0,
+                estimatedKbTokens: 0,
+                kbCacheHash: null,
+                kbSlotId,
+                kbSlotName
+            }
+        };
+
+        await this.storage.saveBook(newBook);
+        await this.loadBook(newBookId);
+
+        // Files were saved without token counts; recount now so `Est. Cache Size`
+        // and per-file token displays are correct for the new book.
+        await this.loadFiles(false);
+        await this.saveCurrentSessionToBook();
+
+        return newBookId;
+    }
+
     async deleteBook(id: string) {
         console.log(`[SessionService] Deleting book ${id} `);
         // If it's the current book, unload strictly without saving
@@ -808,7 +874,7 @@ export class SessionService {
         } else {
             // Save regular file and compute tokens
             const modelId = this.state.config()?.modelId || this.provider.getDefaultModelId();
-            const count = await this.provider.countTokens(modelId, [{ role: 'user', parts: [{ text: content }] }]);
+            const count = await this.provider.countTokens(this.providerConfig, modelId, [{ role: 'user', parts: [{ text: content }] }]);
             await this.storage.saveFile(filePath, content, count);
 
             this.state.loadedFiles.update(map => {
@@ -839,7 +905,7 @@ export class SessionService {
             const contentMap = this.state.loadedFiles();
             const partsForCount = this.kb.buildKnowledgeBaseParts(contentMap);
             const modelId = this.state.config()?.modelId || this.provider.getDefaultModelId();
-            const totalTokenCount = await this.provider.countTokens(modelId, [{ role: 'user', parts: partsForCount }]);
+            const totalTokenCount = await this.provider.countTokens(this.providerConfig, modelId, [{ role: 'user', parts: partsForCount }]);
             this.state.estimatedKbTokens.set(totalTokenCount);
             localStorage.setItem('kb_cache_tokens_est', totalTokenCount.toString());
         }
@@ -882,7 +948,7 @@ export class SessionService {
             if (needsCount.length > 0) {
                 console.log(`[SessionService] Counting tokens for ${needsCount.length} new/updated files...`);
                 await Promise.all(needsCount.map(async (item) => {
-                    const count = await this.provider.countTokens(modelId, [{ role: 'user', parts: [{ text: item.content }] }]);
+                    const count = await this.provider.countTokens(this.providerConfig, modelId, [{ role: 'user', parts: [{ text: item.content }] }]);
                     tokenMap.set(item.name, count);
                     await this.storage.saveFile(item.name, item.content, count);
                 }));
@@ -893,7 +959,7 @@ export class SessionService {
                 if (mainPrompt.tokens) {
                     tokenMap.set('system_files/system_prompt.md', mainPrompt.tokens);
                 } else {
-                    const count = await this.provider.countTokens(modelId, [{ role: 'user', parts: [{ text: mainPrompt.content }] }]);
+                    const count = await this.provider.countTokens(this.providerConfig, modelId, [{ role: 'user', parts: [{ text: mainPrompt.content }] }]);
                     tokenMap.set('system_files/system_prompt.md', count);
                     await this.storage.savePrompt('system_main', mainPrompt.content, count);
                 }
@@ -910,7 +976,7 @@ export class SessionService {
                 totalTokenCount = parseInt(cachedTotalEst);
                 console.log('[SessionService] Reusing cached total KB tokens (Est):', totalTokenCount);
             } else {
-                totalTokenCount = await this.provider.countTokens(modelId, [{ role: 'user', parts: partsForCount }]);
+                totalTokenCount = await this.provider.countTokens(this.providerConfig, modelId, [{ role: 'user', parts: partsForCount }]);
                 localStorage.setItem('kb_cache_tokens_est', totalTokenCount.toString());
                 console.log('[SessionService] Counted new total KB tokens (Est):', totalTokenCount);
             }

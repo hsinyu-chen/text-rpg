@@ -1,0 +1,3 @@
+[submodule "lib/hcs-llm-monorepo"]
+	path = lib/hcs-llm-monorepo
+	url = https://github.com/hsinyu-chen/hcs-llm-monorepo.git

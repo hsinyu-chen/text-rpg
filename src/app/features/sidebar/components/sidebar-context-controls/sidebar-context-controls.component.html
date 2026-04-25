@@ -19,6 +19,14 @@
     Create Next
 </button>
 
+<button mat-flat-button class="full-width create-scene-btn" (click)="createScene()"
+    [disabled]="state.loadedFiles().size === 0 || state.isBusy()"
+    matTooltip="Extract a focused Scene KB from the current Knowledge Base"
+    style="margin-top: 8px; font-weight: bold; background: linear-gradient(45deg, #f093fb 0%, #f5576c 100%); color: white;">
+    <mat-icon>auto_awesome</mat-icon>
+    Create Scene
+</button>
+
 <button mat-stroked-button color="warn" (click)="clearHistory()"
     [disabled]="state.messages().length === 0 || state.isBusy()" class="full-width restart-btn">
     <mat-icon>delete_sweep</mat-icon>

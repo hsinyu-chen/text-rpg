@@ -72,20 +72,16 @@ export class AppComponent {
   sidenavMode = computed(() => (this.isMobile() ? 'over' : 'side'));
 
   constructor() {
-    // //MIGRATION CODE START
-    // Run data migrations before initializing engine
-    inject(MigrationService).runMigrations();
-    // //MIGRATION CODE END
-    // Register LLM Providers
-    this.providerInit.initialize();
-
-    // Initialize Engine (Providers must be registered first)
-    this.engine.init();
-
-    // Initialize Session (Restore active book)
-    this.session.init().then(() => {
-      this.engine.startSession();
-    });
+    const migrationService = inject(MigrationService);
+    // Migrations must finish BEFORE provider init runs, since migrateLLMProfiles
+    // writes seed profiles that LLMConfigService will read on its first pass.
+    migrationService.runMigrations()
+      .then(() => this.providerInit.initialize())
+      .then(() => {
+        this.engine.init();
+        return this.session.init();
+      })
+      .then(() => this.engine.startSession());
 
     // Initialize sidebar state based on mobile
     if (this.isMobile()) {

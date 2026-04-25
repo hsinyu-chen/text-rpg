@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { ContentParserService } from './content-parser.service';
 import { PostProcessorService, PostProcessFields } from './post-processor.service';
 import { ExtendedPart, ThoughtPart, EngineResponseNested } from '../models/types';
-import { LLMStreamChunk, LLMUsageMetadata } from './llm-provider';
+import { LLMStreamChunk, LLMUsageMetadata } from '@hcs/llm-core';
 import { ChatMessage } from '../models/types';
 import { getUIStrings } from '../constants/engine-protocol';
 

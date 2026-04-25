@@ -7,9 +7,12 @@
     "types": []
   },
   "include": [
-    "src/**/*.ts"
+    "src/**/*.ts",
+    "lib/hcs-llm-monorepo/packages/*/src/**/*.ts"
   ],
   "exclude": [
-    "src/**/*.spec.ts"
+    "src/**/*.spec.ts",
+    "lib/hcs-llm-monorepo/packages/*/src/**/*.spec.ts",
+    "lib/hcs-llm-monorepo/packages/playground/**/*"
   ]
 }

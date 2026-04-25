@@ -1,42 +1,48 @@
 import { Injectable, inject } from '@angular/core';
+import { LLMProviderRegistry } from '@hcs/llm-core';
+import { GeminiProvider } from '@hcs/llm-provider-gemini';
+import { LlamaCppProvider } from '@hcs/llm-provider-llama-cpp';
+import { OpenAIProvider } from '@hcs/llm-provider-openai';
+import { GeminiConfigComponent } from '@hcs/llm-angular-ui-gemini';
+import { LlamaConfigComponent } from '@hcs/llm-angular-ui-llama-cpp';
+import { OpenAIConfigComponent } from '@hcs/llm-angular-ui-openai';
 import { LLMProviderRegistryService } from './llm-provider-registry.service';
-import { GeminiService } from './gemini.service';
-import { LlamaService } from './llama.service';
-import { OpenAIService } from './openai.service';
-import { DEFAULT_PROVIDER_ID } from './llm-provider';
-import { GeminiSettingsComponent } from '../../features/settings/gemini-settings/gemini-settings.component';
-import { LlamaSettingsComponent } from '../../features/settings/llama-settings/llama-settings.component';
-import { OpenAISettingsComponent } from '../../features/settings/openai-settings/openai-settings.component';
-import { LlamaV2Service } from './llama-v2.service';
+import { LLMConfigService } from './llm-config.service';
 
-@Injectable({
-    providedIn: 'root'
-})
+@Injectable({ providedIn: 'root' })
 export class LLMProviderInitService {
     private registry = inject(LLMProviderRegistryService);
-    private gemini = inject(GeminiService);
-    private llama = inject(LlamaService);
-    private openai = inject(OpenAIService);
-    private llamaV2 = inject(LlamaV2Service);
-    initialize() {
-        // Wire up UIs
-        this.gemini.settingsComponent = GeminiSettingsComponent;
-        this.llamaV2.settingsComponent = LlamaSettingsComponent; // Fixed: LlamaV2 is the registered provider
-        this.openai.settingsComponent = OpenAISettingsComponent;
+    private monorepoRegistry = inject(LLMProviderRegistry);
+    private configService = inject(LLMConfigService);
 
-        this.registry.register(this.gemini);
-        this.registry.register(this.llamaV2);
-        this.registry.register(this.openai);
+    async initialize() {
+        // Register each stateless provider instance in BOTH registries:
+        //   - TextRPG's LLMProviderRegistryService powers the app's call sites
+        //   - The monorepo's LLMProviderRegistry is what LLMSettingsComponent /
+        //     LLMManager consult when resolving provider/UI pairs for the
+        //     profile editor.
+        const gemini = new GeminiProvider();
+        const llama = new LlamaCppProvider();
+        const openai = new OpenAIProvider();
 
-        // Load persisted provider choice
-        const savedProvider = localStorage.getItem('llm_provider');
-        if (savedProvider && this.registry.hasProvider(savedProvider)) {
-            this.registry.setActive(savedProvider);
-        } else {
-            // Ensure a default provider is active immediately
-            this.registry.setActive(DEFAULT_PROVIDER_ID);
+        for (const p of [gemini, llama, openai]) {
+            this.registry.register(p);
+            this.monorepoRegistry.register(p);
         }
 
-        console.log(`[LLMProviderInit] Providers registered. Active: ${this.registry.getActive()?.providerName}`);
+        // Register provider-UI components under the `settingsComponentId` each
+        // monorepo provider advertises; LLMSettingsComponent reads these to
+        // mount the right form inside its edit panel.
+        if (gemini.settingsComponentId) this.monorepoRegistry.registerUIComponent(gemini.settingsComponentId, GeminiConfigComponent);
+        if (llama.settingsComponentId) this.monorepoRegistry.registerUIComponent(llama.settingsComponentId, LlamaConfigComponent);
+        if (openai.settingsComponentId) this.monorepoRegistry.registerUIComponent(openai.settingsComponentId, OpenAIConfigComponent);
+
+        // Wait for the profile list to hydrate (including legacy migration) so
+        // downstream services that read the active profile during their own
+        // init don't get an empty state.
+        await this.configService.waitReady();
+
+        console.log(`[LLMProviderInit] Providers registered. Active profile:`,
+            this.configService.activeProfile()?.name ?? '(none)');
     }
 }

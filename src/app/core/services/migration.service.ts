@@ -1,4 +1,6 @@
 import { Injectable, inject } from '@angular/core';
+import { LLMConfig } from '@hcs/llm-core';
+import { LLM_STORAGE_TOKEN } from '@hcs/llm-angular-common';
 import { StorageService } from './storage.service';
 import { SessionService } from './session.service';
 import { Book, ChatMessage } from '../models/types';
@@ -13,17 +15,142 @@ import { FILENAME_MIGRATIONS } from '../constants/migrations';
 })
 export class MigrationService {
     private storage = inject(StorageService);
+    private llmStorage = inject(LLM_STORAGE_TOKEN);
     private session = inject(SessionService);
 
     /**
      * Execute all pending migrations.
-     * Call this once at application startup.
+     * Call this once at application startup BEFORE LLM providers initialize,
+     * so `migrateLLMProfiles` has written any seed profiles into IndexedDB
+     * before LLMConfigService does its first read.
      */
     async runMigrations(): Promise<void> {
         await this.migrateFilenames();
         await this.migrateLegacySession();
+        await this.migrateLLMProfiles();
         // Add future migrations here...
     }
+
+    /**
+     * //MIGRATION CODE START - v2.0 Monorepo LLM provider swap
+     * Seed LLM profile storage from the pre-monorepo per-key layout if and
+     * only if the user has no profiles yet AND at least one legacy key is
+     * present. Idempotent: the `storage.getAll().length > 0` guard means a
+     * user who deletes every profile via the manager will NOT be re-seeded
+     * from stale localStorage the next time the app launches.
+     */
+    private async migrateLLMProfiles(): Promise<void> {
+        const existing = await this.llmStorage.getAll();
+        if (existing.length > 0) return;
+
+        const seeds = this.buildLegacyProfileSeeds();
+        if (seeds.length === 0) {
+            console.log('[MigrationService] No legacy LLM config to migrate.');
+            return;
+        }
+
+        for (const profile of seeds) {
+            await this.llmStorage.save(profile);
+        }
+
+        // Pick an active profile: honor the legacy `llm_provider` pointer if
+        // it matches a seeded provider, otherwise fall back to the first one
+        // we produced.
+        const legacyActive = localStorage.getItem('llm_provider');
+        const chosen = seeds.find(p => p.provider === legacyActive) ?? seeds[0];
+        localStorage.setItem('llm_active_profile_id', chosen.id);
+
+        console.log(`[MigrationService] Seeded ${seeds.length} LLM profile(s) from legacy keys. Active: ${chosen.name}`);
+    }
+
+    private buildLegacyProfileSeeds(): LLMConfig[] {
+        const num = (k: string): number | undefined => {
+            const v = localStorage.getItem(k);
+            if (v === null || v === '') return undefined;
+            const n = parseFloat(v);
+            return Number.isFinite(n) ? n : undefined;
+        };
+        const str = (k: string): string | undefined => {
+            const v = localStorage.getItem(k);
+            return v === null || v === '' ? undefined : v;
+        };
+        const bool = (k: string): boolean | undefined => {
+            const v = localStorage.getItem(k);
+            return v === null ? undefined : v === 'true';
+        };
+
+        const seeds: LLMConfig[] = [];
+
+        const geminiKey = localStorage.getItem('gemini_api_key');
+        if (geminiKey) {
+            seeds.push({
+                id: crypto.randomUUID(),
+                name: 'Gemini',
+                provider: 'gemini',
+                settings: {
+                    apiKey: geminiKey,
+                    modelId: str('gemini_model_id'),
+                    additionalSettings: {
+                        enableCache: bool('gemini_enable_cache') ?? false,
+                        thinkingLevelStory: str('gemini_thinking_level_story') ?? 'minimal',
+                        thinkingLevelGeneral: str('gemini_thinking_level_general') ?? 'high'
+                    }
+                }
+            });
+        }
+
+        const llamaUrl = localStorage.getItem('llama_base_url');
+        if (llamaUrl) {
+            seeds.push({
+                id: crypto.randomUUID(),
+                name: 'llama.cpp',
+                provider: 'llama.cpp',
+                settings: {
+                    baseUrl: llamaUrl,
+                    modelId: str('llama_model_id'),
+                    temperature: num('llama_temperature'),
+                    frequency_penalty: num('llama_frequency_penalty'),
+                    presence_penalty: num('llama_presence_penalty'),
+                    inputPrice: num('llama_input_price'),
+                    outputPrice: num('llama_output_price'),
+                    cacheInputPrice: num('llama_cached_price'),
+                    additionalSettings: {
+                        topP: num('llama_top_p'),
+                        topK: num('llama_top_k'),
+                        minP: num('llama_min_p'),
+                        repetitionPenalty: num('llama_repetition_penalty'),
+                        enableThinking: bool('llama_enable_thinking') ?? false,
+                        reasoningEffort: str('llama_reasoning_effort') ?? 'low',
+                        enableCacheSlot: bool('llama_enable_save_slot') ?? false
+                    }
+                }
+            });
+        }
+
+        const openaiKey = localStorage.getItem('openai_api_key');
+        if (openaiKey) {
+            seeds.push({
+                id: crypto.randomUUID(),
+                name: 'OpenAI',
+                provider: 'openai',
+                settings: {
+                    apiKey: openaiKey,
+                    baseUrl: str('openai_base_url'),
+                    modelId: str('openai_model_id'),
+                    temperature: num('openai_temperature'),
+                    frequency_penalty: num('openai_frequency_penalty'),
+                    presence_penalty: num('openai_presence_penalty'),
+                    inputPrice: num('openai_input_price'),
+                    outputPrice: num('openai_output_price'),
+                    cacheInputPrice: num('openai_cached_price'),
+                    additionalSettings: {}
+                }
+            });
+        }
+
+        return seeds;
+    }
+    // //MIGRATION CODE END
 
     /**
      * //MIGRATION CODE START - v1.3 Multi-Session Support

@@ -18,6 +18,7 @@ import { FileViewerDialogComponent } from './file-viewer-dialog.component';
 import { SidebarFileSyncComponent } from './components/sidebar-file-sync/sidebar-file-sync.component';
 import { SidebarContextControlsComponent } from './components/sidebar-context-controls/sidebar-context-controls.component';
 import { SidebarCostPredictionComponent } from './components/sidebar-cost-prediction/sidebar-cost-prediction.component';
+import { SidebarProviderSelectorComponent } from './components/sidebar-provider-selector/sidebar-provider-selector.component';
 
 @Component({
   selector: 'app-sidebar',
@@ -33,7 +34,8 @@ import { SidebarCostPredictionComponent } from './components/sidebar-cost-predic
     MatBadgeModule,
     SidebarFileSyncComponent,
     SidebarContextControlsComponent,
-    SidebarCostPredictionComponent
+    SidebarCostPredictionComponent,
+    SidebarProviderSelectorComponent
   ],
   templateUrl: './sidebar.component.html',
   styleUrl: './sidebar.component.scss'
@@ -57,6 +59,8 @@ export class SidebarComponent {
   });
 
   displayMode = signal<'tokens' | 'chars'>('tokens');
+
+  showCostPrediction = signal(true);
 
   closeSidebar = output<void>();
   openBooks = output<void>();
@@ -98,6 +102,10 @@ export class SidebarComponent {
 
   toggleDisplayMode() {
     this.displayMode.update(m => m === 'tokens' ? 'chars' : 'tokens');
+  }
+
+  toggleCostPrediction() {
+    this.showCostPrediction.update(v => !v);
   }
 
   close() {

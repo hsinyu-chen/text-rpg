@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, viewChild, effect, resource, OnDestroy } from '@angular/core';
+import { Component, inject, signal, computed, viewChild, effect, resource, OnDestroy, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { firstValueFrom } from 'rxjs';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -15,8 +15,11 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
 import { MatDialog } from '@angular/material/dialog';
 import { GameStateService } from '../../core/services/game-state.service';
-
 import { CacheManagerService } from '../../core/services/cache-manager.service';
+import { FileAgentService } from '../../core/services/file-agent/file-agent.service';
+import { MatSelectModule } from '@angular/material/select';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MarkdownModule } from 'ngx-markdown';
 
 /** Dialog data interface for multi-file viewer */
 export interface FileViewerDialogData {
@@ -57,10 +60,14 @@ export interface MarkdownHeader {
     MatInputModule,
     MatFormFieldModule,
     FormsModule,
-    MonacoEditorComponent
+    MonacoEditorComponent,
+    MatSelectModule,
+    MatProgressSpinnerModule,
+    MarkdownModule
   ],
   templateUrl: './file-viewer-dialog.component.html',
-  styleUrl: './file-viewer-dialog.component.scss'
+  styleUrl: './file-viewer-dialog.component.scss',
+  providers: [FileAgentService]
 })
 export class FileViewerDialogComponent implements OnDestroy {
   data = inject(MAT_DIALOG_DATA) as FileViewerDialogData;
@@ -70,9 +77,19 @@ export class FileViewerDialogComponent implements OnDestroy {
   private snackBar = inject(MatSnackBar);
   private matDialog = inject(MatDialog);
   private cacheManager = inject(CacheManagerService);
+  public agentService = inject(FileAgentService);
 
   // Editor reference
   editorRef = viewChild<MonacoEditorComponent>('editorRef');
+
+  // Agent console refs (for auto-scroll). Conditional on sidebarView() === 'agent'.
+  private agentConsoleEl = viewChild<ElementRef<HTMLElement>>('agentConsole');
+  private agentConsoleContentEl = viewChild<ElementRef<HTMLElement>>('agentConsoleContent');
+  private agentResizeObserver: ResizeObserver | null = null;
+  private agentScrollListener: (() => void) | null = null;
+  private agentScrollFrameId: number | null = null;
+  private userScrolledUpAgent = false;
+  private lastAgentScrollTop = 0;
 
   // Active file selection
   activeFile = signal('');
@@ -89,8 +106,21 @@ export class FileViewerDialogComponent implements OnDestroy {
   // Active file content (updated by Monaco to keep outline reactive)
   activeFileContent = signal('');
 
-  // Sidebar view mode: 'files' or 'search'
-  sidebarView = signal<'files' | 'search'>('files');
+  // Sidebar view mode: 'files' or 'search' or 'agent'
+  sidebarView = signal<'files' | 'search' | 'agent'>('files');
+  
+  // Manual toggle for diff view (independent of sidebar mode)
+  isDiffView = signal(false);
+
+  // Agent UI state
+  agentPrompt = signal('');
+
+  /**
+   * Snapshot of the files as they exist in the database (last saved state).
+   * Used as the "original" side of the multi-file diff editor in the agent tab.
+   * Updated only when a file is successfully saved.
+   */
+  dbBaselineSnapshot = signal<Map<string, string>>(new Map(this.data.files));
 
   // Search state
   searchQuery = signal('');
@@ -147,6 +177,17 @@ export class FileViewerDialogComponent implements OnDestroy {
   // Monaco editor options - always allowing editing now
   editorOptions = computed(() => ({
     readOnly: false,
+    minimap: { enabled: false }
+  }));
+
+  // Diff-mode options used while the agent tab is open. Inline diff
+  // (renderSideBySide:false) keeps the visual the same column-width as
+  // the normal editor; modified side stays editable so the user can
+  // tweak the agent's output before saving.
+  agentDiffEditorOptions = computed(() => ({
+    readOnly: false,
+    originalEditable: false,
+    renderSideBySide: false,
     minimap: { enabled: false }
   }));
 
@@ -268,6 +309,79 @@ export class FileViewerDialogComponent implements OnDestroy {
       // Delay to ensure editor is ready after file switch
       setTimeout(() => this.highlightMatches(results, activeFileName), 150);
     });
+
+    // Auto-scroll for agent console — observe content growth and follow the
+    // bottom unless the user has scrolled up. Re-runs whenever the agent view
+    // toggles (the elements only exist while sidebarView() === 'agent').
+    effect((onCleanup) => {
+      const scrollEl = this.agentConsoleEl()?.nativeElement;
+      const contentEl = this.agentConsoleContentEl()?.nativeElement;
+      if (!scrollEl || !contentEl) return;
+
+      this.userScrolledUpAgent = false;
+      this.lastAgentScrollTop = 0;
+
+      const onScroll = () => this.checkAgentScroll(scrollEl);
+      scrollEl.addEventListener('scroll', onScroll, { passive: true });
+      this.agentScrollListener = onScroll;
+
+      const ro = new ResizeObserver(() => this.smartScrollAgent());
+      ro.observe(contentEl);
+      this.agentResizeObserver = ro;
+
+      // Snap to bottom on first show.
+      requestAnimationFrame(() => {
+        scrollEl.scrollTop = scrollEl.scrollHeight;
+      });
+
+      onCleanup(() => {
+        scrollEl.removeEventListener('scroll', onScroll);
+        ro.disconnect();
+        if (this.agentResizeObserver === ro) this.agentResizeObserver = null;
+        if (this.agentScrollListener === onScroll) this.agentScrollListener = null;
+        if (this.agentScrollFrameId) {
+          cancelAnimationFrame(this.agentScrollFrameId);
+          this.agentScrollFrameId = null;
+        }
+      });
+    });
+  }
+
+  private checkAgentScroll(el: HTMLElement): void {
+    const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    if (distFromBottom < 50) {
+      this.userScrolledUpAgent = false;
+    } else if (el.scrollTop < this.lastAgentScrollTop - 5) {
+      this.userScrolledUpAgent = true;
+    }
+    this.lastAgentScrollTop = el.scrollTop;
+  }
+
+  private smartScrollAgent(): void {
+    if (this.agentScrollFrameId) cancelAnimationFrame(this.agentScrollFrameId);
+    this.agentScrollFrameId = requestAnimationFrame(() => {
+      this.agentScrollFrameId = null;
+      const el = this.agentConsoleEl()?.nativeElement;
+      if (!el) return;
+      if (el.scrollHeight <= el.clientHeight) return;
+
+      const isRunning = this.agentService.isAgentRunning();
+      const threshold = isRunning ? 800 : 400;
+      const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
+      const shouldFollow = dist < threshold && !this.userScrolledUpAgent;
+      if (!shouldFollow) return;
+
+      const forceInstant = isRunning || dist < 100;
+      try {
+        el.scrollTo({
+          top: el.scrollHeight,
+          behavior: forceInstant ? 'auto' : 'smooth'
+        });
+      } catch {
+        el.scrollTop = el.scrollHeight;
+      }
+      if (forceInstant) this.userScrolledUpAgent = false;
+    });
   }
 
   /** Apply highlight decorations to the current file's matches */
@@ -307,6 +421,11 @@ export class FileViewerDialogComponent implements OnDestroy {
 
     // Create new decorations collection
     this.decorationsCollection = codeEditor.createDecorationsCollection(decorations);
+  }
+
+  /** Toggle global diff view mode */
+  toggleDiffView(): void {
+    this.isDiffView.update(v => !v);
   }
 
   /** Toggle regex option */
@@ -625,11 +744,17 @@ export class FileViewerDialogComponent implements OnDestroy {
   onValueChange(newValue: string): void {
     this.activeFileContent.set(newValue);
     const fileName = this.activeFile();
-    const originalContent = this.data.files.get(fileName) || '';
 
+    // Keep data.files in sync with live edits so the editor can be recreated
+    // (e.g. on diff toggle) without losing in-progress changes.
+    this.data.files.set(fileName, newValue);
+
+    // Compare against dbBaselineSnapshot (last-saved state) — not data.files —
+    // so that updating data.files above does not clear the unsaved indicator.
+    const savedContent = this.dbBaselineSnapshot().get(fileName) ?? '';
     this.unsavedFiles.update((set: Set<string>) => {
       const next = new Set(set);
-      if (newValue !== originalContent) {
+      if (newValue !== savedContent) {
         next.add(fileName);
       } else {
         next.delete(fileName);
@@ -674,6 +799,18 @@ export class FileViewerDialogComponent implements OnDestroy {
       this.snackBar.open('File saved successfully!', 'Close', { duration: 3000 });
       // Update the local data map
       this.data.files.set(fileName, content);
+      
+      // Update the baseline snapshot for the saved file so the diff resets
+      this.dbBaselineSnapshot.update(map => {
+        const next = new Map(map);
+        next.set(fileName, content);
+        return next;
+      });
+
+      // Reset the original model in Monaco so the diff shows no changes after saving.
+      // dbBaselineSnapshot signal alone does not update the live originalModelMap.
+      editor.updateOriginalFileContent(fileName, content);
+
       // Remove from unsaved files
       this.unsavedFiles.update((set: Set<string>) => {
         const next = new Set(set);
@@ -711,5 +848,29 @@ export class FileViewerDialogComponent implements OnDestroy {
   ngOnDestroy(): void {
     // Also clear here just in case it was closed via backdrop or escape key
     this.unsavedFiles.set(new Set());
+  }
+
+  // --- Agent Methods ---
+
+  async runAgent() {
+    const prompt = this.agentPrompt().trim();
+    if (!prompt) return;
+
+    this.agentPrompt.set('');
+
+    await this.agentService.runAgent(prompt, {
+      files: this.data.files,
+      onFileReplaced: (filename, content) => {
+        // Source-of-truth: keep data.files in sync so subsequent agent reads
+        // (this same Map is passed in as context.files) see the latest state
+        // instead of the original snapshot.
+        this.data.files.set(filename, content);
+        const editor = this.editorRef();
+        if (editor) {
+          editor.updateFileContent(filename, content);
+        }
+        this.unsavedFiles.update(set => new Set(set).add(filename));
+      }
+    });
   }
 }

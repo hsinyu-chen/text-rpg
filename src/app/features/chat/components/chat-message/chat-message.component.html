@@ -145,7 +145,7 @@
                         </div>
                         @if (state.isThoughtVisible()) {
                         <div class="thought-content">
-                            <markdown [data]="msg.thought | wrapSaveXml" [katex]="true"></markdown>
+                            <markdown [data]="msg.thought | wrapSaveXml" [katex]="thoughtHasKatex()" [katexOptions]="katexOptions"></markdown>
                         </div>
                         }
                     </div>
@@ -170,7 +170,7 @@
                         </div>
                         @if (state.isAnalysisVisible()) {
                         <div class="thought-content">
-                            <markdown [data]="msg.analysis | wrapSaveXml" [katex]="true"></markdown>
+                            <markdown [data]="msg.analysis | wrapSaveXml" [katex]="analysisHasKatex()" [katexOptions]="katexOptions"></markdown>
                         </div>
                         }
                     </div>
@@ -208,7 +208,7 @@
                     <!-- Rendered Mode -->
                     @if (!state.isRaw()) {
                     <div class="prose-content">
-                        <markdown [data]="msg.content | sanitize | wrapSaveXml" [katex]="true"></markdown>
+                        <markdown [data]="msg.content | sanitize | wrapSaveXml" [katex]="contentHasKatex()" [katexOptions]="katexOptions"></markdown>
                     </div>
                     }
 

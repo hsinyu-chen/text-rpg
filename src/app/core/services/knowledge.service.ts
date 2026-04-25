@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { LLMPart } from './llm-provider';
+import { LLMPart } from '@hcs/llm-core';
 import { LLM_MARKERS } from '../constants/engine-protocol';
 import { LOCALES } from '../constants/locales';
 

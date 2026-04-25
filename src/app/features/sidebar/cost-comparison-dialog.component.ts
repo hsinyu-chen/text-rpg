@@ -7,7 +7,7 @@ import { GameEngineService } from '../../core/services/game-engine.service';
 import { GameStateService } from '../../core/services/game-state.service';
 import { LLMProviderRegistryService } from '../../core/services/llm-provider-registry.service';
 import { CostService } from '../../core/services/cost.service';
-import { LLMModelDefinition } from '../../core/services/llm-provider';
+import { LLMModelDefinition } from '@hcs/llm-core';
 
 interface ModelCostInfo {
     model: LLMModelDefinition;
@@ -171,7 +171,6 @@ export class CostComparisonDialogComponent {
 
         // Active Model for Storage Scaling
         const activeModelId = this.state.config()?.modelId || 'gemini-3-flash-preview';
-        const activeProvider = this.providerRegistry.getActive();
 
         // Base Storage Costs
         const storageUsage = this.state.storageUsageAccumulated();
@@ -180,7 +179,7 @@ export class CostComparisonDialogComponent {
         // Calculate Cost dynamically for the ACTIVE model (since this is "Session Total")
         this.costService.calculateStorageCost(storageUsage + historyStorageUsage, activeModelId);
 
-        const models = activeProvider ? activeProvider.getAvailableModels() : [];
+        const models = this.providerRegistry.getActiveModels();
         const messages = this.state.messages();
 
         return models.map(model => {

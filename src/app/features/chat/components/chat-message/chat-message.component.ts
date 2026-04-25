@@ -101,6 +101,22 @@ export class ChatMessageComponent {
         return `${seconds}s`;
     });
 
+    // Conditional KaTeX: skip expensive DOM scan when no math delimiters present
+    contentHasKatex = computed(() => this.hasKatexDelimiters(this.message()?.content));
+    thoughtHasKatex = computed(() => this.hasKatexDelimiters(this.message()?.thought));
+    analysisHasKatex = computed(() => this.hasKatexDelimiters(this.message()?.analysis));
+
+    // Exclude $...$ from KaTeX delimiters — LLM output frequently contains stray
+    // dollar signs (currency, artifacts) that get misinterpreted as inline math.
+    // Only $$...$$, \(...\), and \[...\] are recognized.
+    katexOptions = {
+        delimiters: [
+            { left: '$$', right: '$$', display: true },
+            { left: '\\(', right: '\\)', display: false },
+            { left: '\\[', right: '\\]', display: true },
+        ]
+    };
+
     getIntentLabel(intent: string | undefined): string {
         if (!intent) return '';
         const labels = this.intentLabels();
@@ -115,5 +131,11 @@ export class ChatMessageComponent {
 
     onEditAndResend() {
         this.resend.emit(this.message());
+    }
+
+    private hasKatexDelimiters(text: string | undefined | null): boolean {
+        if (!text) return false;
+        // Match only the delimiters we actually enable in katexOptions
+        return text.includes('$$') || text.includes('\\(') || text.includes('\\[');
     }
 }

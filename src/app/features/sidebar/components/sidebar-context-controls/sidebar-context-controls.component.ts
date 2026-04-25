@@ -6,6 +6,7 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { NewGameDialogComponent } from '../new-game-dialog/new-game-dialog.component';
+import { CreateSceneDialogComponent } from '../create-scene-dialog/create-scene-dialog.component';
 
 import { GameEngineService } from '../../../../core/services/game-engine.service';
 import { GameStateService, GameEngineConfig } from '../../../../core/services/game-state.service';
@@ -85,6 +86,15 @@ export class SidebarContextControlsComponent {
         this.matDialog.open(NewGameDialogComponent, {
             width: '600px',
             disableClose: true
+        });
+    }
+
+    createScene() {
+        this.matDialog.open(CreateSceneDialogComponent, {
+            width: '1200px',
+            maxWidth: '95vw',
+            disableClose: true,
+            autoFocus: false
         });
     }
 
