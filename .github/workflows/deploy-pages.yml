@@ -19,7 +19,7 @@ jobs:
       - name: Checkout gh-pages-release
         uses: actions/checkout@v6
         with:
-          ref: gh-pages-release
+          ref: main
 
       - name: Setup Node
         uses: actions/setup-node@v6
