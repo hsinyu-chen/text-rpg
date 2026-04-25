@@ -18,6 +18,7 @@ import { LLMProviderRegistryService } from '../../core/services/llm-provider-reg
 import { LLMConfigService } from '../../core/services/llm-config.service';
 import { LoadingService } from '../../core/services/loading.service';
 import { SettingsSyncService } from '../../core/services/settings-sync.service';
+import { GoogleDriveService } from '../../core/services/google-drive.service';
 import { getLanguagesList } from '../../core/constants/locales';
 import { LLMProfilesDialogComponent } from './llm-profiles-dialog.component';
 
@@ -51,6 +52,7 @@ export class SettingsDialogComponent {
   private matDialog = inject(MatDialog);
   loading = inject(LoadingService);
   private settingsSync = inject(SettingsSyncService);
+  driveService = inject(GoogleDriveService);
 
   /** List of profiles, reactive to the storage layer. */
   profiles = this.llmConfig.profiles;

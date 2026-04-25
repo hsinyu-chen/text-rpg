@@ -141,6 +141,7 @@
         </div>
 
         <!-- Cloud Sync -->
+        @if (driveService.isConfigured) {
         <div class="advanced-section">
             <h3>Cloud Sync</h3>
             <p class="hint-text">
@@ -159,6 +160,7 @@
                 }
             </div>
         </div>
+        }
 
     </div>
 </mat-dialog-content>
