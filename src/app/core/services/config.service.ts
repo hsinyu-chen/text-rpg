@@ -55,27 +55,6 @@ export class ConfigService {
             }
         });
 
-        // Auto-save Usage Stats
-        effect(() => {
-            const usage = this.state.tokenUsage();
-            localStorage.setItem('usage_stats', JSON.stringify(usage));
-        });
-        effect(() => {
-            const acc = this.state.storageUsageAccumulated();
-            if (acc > 0) {
-                // Save usage (Token-Seconds)
-                localStorage.setItem('kb_storage_usage_acc', acc.toString());
-            } else {
-                localStorage.removeItem('kb_storage_usage_acc');
-            }
-
-            const hAcc = this.state.historyStorageUsageAccumulated();
-            if (hAcc > 0) {
-                localStorage.setItem('history_storage_usage_acc', hAcc.toString());
-            } else {
-                localStorage.removeItem('history_storage_usage_acc');
-            }
-        });
 
     }
 
@@ -87,9 +66,8 @@ export class ConfigService {
         // Trigger FX rate update (don't await to avoid blocking init)
         this.updateExchangeRateFromApi();
 
-        // Initialize Injection Settings & History (Bootstrapping)
+        // Initialize Injection Settings (History is loaded by session.init() → loadBook())
         await this.injection.loadDynamicInjectionSettings();
-        await this.session.loadHistoryFromStorage();
 
         // Get Global UI settings
         const sSize = localStorage.getItem('app_font_size');
@@ -130,65 +108,6 @@ export class ConfigService {
         // Populate the sync model cache for cost displays.
         void this.providerRegistry.refreshActiveModels();
 
-        // Restore cache state
-        const cacheName = localStorage.getItem('kb_cache_name');
-        console.log('[ConfigService] initConfig Read:', { name: cacheName });
-
-        if (cacheName) {
-            this.state.kbCacheName.set(cacheName);
-            const savedTokens = localStorage.getItem('kb_cache_tokens');
-            this.state.kbCacheTokens.set(savedTokens ? parseInt(savedTokens, 10) : 0);
-
-            const savedExpire = localStorage.getItem('kb_cache_expire');
-            if (savedExpire) {
-                const expireMs = parseInt(savedExpire, 10);
-                if (!isNaN(expireMs) && expireMs > Date.now()) {
-                    this.state.kbCacheExpireTime.set(expireMs);
-                    console.log('[ConfigService] Restored cache expiration from storage:', new Date(expireMs).toLocaleString());
-                    this.cacheManager.startStorageTimer();
-                }
-            }
-
-            // Fetch fresh status from API to ensure reliability
-            if (activeProvider?.getCache) {
-                activeProvider.getCache(this.llmConfig.getActiveConfig(), cacheName).then(cacheStatus => {
-                    if (cacheStatus && cacheStatus.expireTime) {
-                        const expireMs = typeof cacheStatus.expireTime === 'number'
-                            ? cacheStatus.expireTime
-                            : new Date(cacheStatus.expireTime).getTime();
-                        this.state.kbCacheExpireTime.set(expireMs);
-                        localStorage.setItem('kb_cache_expire', expireMs.toString());
-                        console.log('[ConfigService] Synced cache state from API:', cacheName, 'Expires at:', new Date(expireMs).toLocaleString());
-                        this.cacheManager.startStorageTimer();
-                    } else {
-                        console.warn('[ConfigService] Saved cache not found on server or expired:', cacheName);
-                        this.state.kbCacheName.set(null);
-                        localStorage.removeItem('kb_cache_name');
-                        localStorage.removeItem('kb_cache_hash');
-                        localStorage.removeItem('kb_cache_expire');
-                    }
-                });
-            }
-        }
-
-        // Restore Usage Stats
-        const savedUsage = localStorage.getItem('usage_stats');
-        if (savedUsage) {
-            try {
-                this.state.tokenUsage.set(JSON.parse(savedUsage));
-            } catch (err) {
-                console.warn('Failed to parse saved usage stats', err);
-            }
-        }
-        const savedStorageUsage = localStorage.getItem('kb_storage_usage_acc');
-        if (savedStorageUsage) {
-            this.state.storageUsageAccumulated.set(parseFloat(savedStorageUsage));
-        }
-
-        const savedHistoryUsage = localStorage.getItem('history_storage_usage_acc');
-        if (savedHistoryUsage) {
-            this.state.historyStorageUsageAccumulated.set(parseFloat(savedHistoryUsage));
-        }
         // Sync files from DB on startup
         this.session.loadFiles(false);
     }

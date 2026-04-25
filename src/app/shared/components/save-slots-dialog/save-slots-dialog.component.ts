@@ -12,6 +12,7 @@ import { FormsModule } from '@angular/forms';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { SessionSave } from '../../../core/models/types';
 import { GoogleDriveService } from '../../../core/services/google-drive.service';
+import { SessionService } from '../../../core/services/session.service';
 import { LoadingService } from '../../../core/services/loading.service';
 import { DialogService } from '../../../core/services/dialog.service';
 import { GameEngineService } from '../../../core/services/game-engine.service';
@@ -57,6 +58,7 @@ export class SaveSlotsDialogComponent {
     private engine = inject(GameEngineService);
     private state = inject(GameStateService);
     private driveService = inject(GoogleDriveService);
+    private session = inject(SessionService);
     private loading = inject(LoadingService);
     private dialog = inject(DialogService);
     private snackBar = inject(MatSnackBar);
@@ -69,7 +71,7 @@ export class SaveSlotsDialogComponent {
 
     // Derived context
     isLocalMode = signal(this.data.localOnly || false);
-    cloudSlotId = signal(localStorage.getItem('kb_slot_id'));
+    cloudSlotId = this.session.kbSlotId;
 
     constructor() {
         this.loadSlots();

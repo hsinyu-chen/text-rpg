@@ -30,47 +30,49 @@ export class SessionService {
     private injection = inject(InjectionService);
 
     constructor() {
+        // Only write — removal is handled explicitly in unloadCurrentSession()
         effect(() => {
             const id = this.currentBookId();
-            if (id) {
-                localStorage.setItem('last_active_book_id', id);
-            } else {
-                localStorage.removeItem('last_active_book_id');
-            }
+            if (id) localStorage.setItem('last_active_book_id', id);
         });
     }
 
     // Signals
     currentBookId = signal<string | null>(null);
+    kbSlotId = signal<string | null>(null);
+    kbSlotName = signal<string | null>(null);
+
+    setKbSlot(id: string | null, name: string | null) {
+        this.kbSlotId.set(id);
+        this.kbSlotName.set(name);
+    }
 
     /**
-     * Initializes the SessionService. 
+     * Initializes the SessionService.
      * Restores the last active book ID to ensure session continuity.
      */
     async init() {
         const lastBookId = localStorage.getItem('last_active_book_id');
         if (lastBookId) {
             try {
-                // Check if it exists first to avoid unnecessary load attempts
                 const book = await this.storage.getBook(lastBookId);
                 if (book) {
                     console.log(`[SessionService] Auto-loading last book: ${book.name} (${lastBookId})`);
                     await this.loadBook(lastBookId);
+                    return; // loadBook already restored messages
                 } else {
                     console.warn(`[SessionService] Last active book ${lastBookId} not found. Clearing.`);
                     localStorage.removeItem('last_active_book_id');
-                    this.currentBookId.set(null);
                 }
             } catch (error) {
                 console.error('[SessionService] Failed to auto-load last book', error);
-                // Ensure we don't leave the app in a broken loading state
                 this.state.status.set('idle');
-                this.currentBookId.set(null);
                 localStorage.removeItem('last_active_book_id');
             }
         }
 
-        // Auto-persist future changes
+        // Fallback: no book to load — restore raw chat history from IDB
+        await this.loadHistoryFromStorage();
     }
 
     private get provider(): LLMProvider {
@@ -277,13 +279,12 @@ export class SessionService {
             this.state.sunkUsageHistory.set([]);
             this.state.storageUsageAccumulated.set(0);
 
-            // 4. Clear active session localstorage keys
-            localStorage.removeItem('history_storage_usage_acc');
-            localStorage.removeItem('kb_storage_usage_acc');
-            localStorage.removeItem('kb_slot_id');
-            localStorage.removeItem('kb_slot_name');
-            // Cache keys are cleared by cacheManager.resetCacheState()
+            // 4. Clear active session signals
+            this.kbSlotId.set(null);
+            this.kbSlotName.set(null);
+            // Cache signals are cleared by cacheManager.resetCacheState()
 
+            localStorage.removeItem('last_active_book_id');
             this.currentBookId.set(null);
 
             console.log('[SessionService] Session unloaded successfully.');
@@ -380,16 +381,15 @@ export class SessionService {
         const kbCacheExpireTime = this.state.kbCacheExpireTime();
         const kbCacheTokens = this.state.kbCacheTokens();
         const estimatedKbTokens = this.state.estimatedKbTokens();
-        // Since hash might be computed, let's grab from reactive or calc
-        const kbCacheHash = localStorage.getItem('kb_cache_hash');
+        const kbCacheHash = this.state.kbCacheHash();
 
         // Usage Stats
         const tokenUsage = this.state.tokenUsage();
         const historyStorageUsage = this.state.historyStorageUsageAccumulated();
         const sunkUsageHistory = this.state.sunkUsageHistory();
-        const kbStorageUsageAcc = this.state.storageUsageAccumulated(); // Active accumulation
-        const kbSlotId = localStorage.getItem('kb_slot_id') || undefined;
-        const kbSlotName = localStorage.getItem('kb_slot_name') || undefined;
+        const kbStorageUsageAcc = this.state.storageUsageAccumulated();
+        const kbSlotId = this.kbSlotId() || undefined;
+        const kbSlotName = this.kbSlotName() || undefined;
 
         // Calculate estimated cost dynamically (same as sidebar-cost-prediction)
         const activeProvider = this.providerRegistry.getActive();
@@ -526,12 +526,10 @@ export class SessionService {
             // Restore Stats
             this.state.tokenUsage.set(book.stats.tokenUsage);
             this.state.historyStorageUsageAccumulated.set(book.stats.historyStorageUsage);
-            localStorage.setItem('history_storage_usage_acc', book.stats.historyStorageUsage.toString());
             this.state.sunkUsageHistory.set(book.stats.sunkUsageHistory);
 
             // Restore Cost Active Accumulation
             this.state.storageUsageAccumulated.set(book.stats.kbStorageUsageAcc);
-            localStorage.setItem('kb_storage_usage_acc', book.stats.kbStorageUsageAcc.toString());
 
             // Restore Cache Metadata
             const stats = book.stats;
@@ -539,37 +537,17 @@ export class SessionService {
                 this.state.kbCacheName.set(stats.kbCacheName);
                 if (stats.kbCacheExpireTime) this.state.kbCacheExpireTime.set(stats.kbCacheExpireTime);
                 this.state.kbCacheTokens.set(stats.kbCacheTokens);
+                if (stats.kbCacheHash) this.state.kbCacheHash.set(stats.kbCacheHash);
                 const restoredTotal = stats.estimatedKbTokens || Array.from(tokensMap.values()).reduce((a, b) => a + b, 0);
                 this.state.estimatedKbTokens.set(restoredTotal);
-
-                // Set localStorage keys for CacheManager/Services to pick up
-                localStorage.setItem('kb_cache_name', stats.kbCacheName);
-                if (stats.kbCacheHash) localStorage.setItem('kb_cache_hash', stats.kbCacheHash);
-                if (stats.kbCacheExpireTime) localStorage.setItem('kb_cache_expire', stats.kbCacheExpireTime.toString());
-                localStorage.setItem('kb_cache_tokens', stats.kbCacheTokens.toString());
-                localStorage.setItem('kb_cache_tokens_est', restoredTotal.toString()); // Also keep est total synced
-
-                // Restart Timer
                 this.cacheManager.startStorageTimer();
             } else {
-                this.cacheManager.resetCacheState(); // Ensures clean slate if book has no cache
+                this.cacheManager.resetCacheState();
             }
 
             // Restore KB Slot
-            if (stats.kbSlotId) {
-                localStorage.setItem('kb_slot_id', stats.kbSlotId);
-                // Also update driveService if needed, but SidebarFileSync handles initialization from localStorage
-                // We might need to poke DriveService if it's already instantiated
-                // inject -> driveService.currentSlotId.set(stats.kbSlotId);
-            } else {
-                localStorage.removeItem('kb_slot_id');
-            }
-
-            if (stats.kbSlotName) {
-                localStorage.setItem('kb_slot_name', stats.kbSlotName);
-            } else {
-                localStorage.removeItem('kb_slot_name');
-            }
+            this.kbSlotId.set(stats.kbSlotId || null);
+            this.kbSlotName.set(stats.kbSlotName || null);
 
             console.log(`[SessionService] Book ${id} loaded.`);
         } catch (e) {
@@ -603,7 +581,7 @@ export class SessionService {
             currentActNum = parseInt(match[1]);
         }
 
-        const kbSlotName = localStorage.getItem('kb_slot_name') || 'Default'; // Active slot
+        const kbSlotName = this.kbSlotName() || 'Default';
         // If we are "Creating Next", it implies the current session effectively IS "Act N".
         // Example: Playing "Legacy Adventure", reached Act 2. 
         // User clicks "Create Next". Old book becomes "Legacy Adventure Act.2". New Book becomes "Legacy Adventure Act.3".
@@ -711,8 +689,8 @@ export class SessionService {
             prompts['system_main'] = { content: mainPrompt.content, tokens: mainPrompt.tokens };
         }
 
-        const kbSlotId = localStorage.getItem('kb_slot_id') || undefined;
-        const kbSlotName = localStorage.getItem('kb_slot_name') || undefined;
+        const kbSlotId = this.kbSlotId() || undefined;
+        const kbSlotName = this.kbSlotName() || undefined;
 
         const newBook: Book = {
             id: newBookId,
@@ -806,7 +784,6 @@ export class SessionService {
         // Restore history usage (Token-Seconds)
         const historyUsage = save.historyStorageUsage || 0;
         this.state.historyStorageUsageAccumulated.set(historyUsage);
-        localStorage.setItem('history_storage_usage_acc', historyUsage.toString());
 
         if (save.messages.length > 0) {
             this.isContextInjected = true;
@@ -895,11 +872,10 @@ export class SessionService {
 
         // 2. Invalidate cache if KB hash changes (immediate UI feedback)
         const currentHash = this.state.currentKbHash();
-        if (localStorage.getItem('kb_cache_hash') !== currentHash) {
+        if (this.state.kbCacheHash() !== currentHash) {
             console.log('[SessionService] KB Content changed through single update. Invalidating remote state.');
             this.state.kbCacheName.set(null);
-            localStorage.removeItem('kb_cache_name');
-            localStorage.setItem('kb_cache_hash', currentHash);
+            this.state.kbCacheHash.set(currentHash);
 
             // Also re-calculate total estimated tokens
             const contentMap = this.state.loadedFiles();
@@ -907,7 +883,6 @@ export class SessionService {
             const modelId = this.state.config()?.modelId || this.provider.getDefaultModelId();
             const totalTokenCount = await this.provider.countTokens(this.providerConfig, modelId, [{ role: 'user', parts: partsForCount }]);
             this.state.estimatedKbTokens.set(totalTokenCount);
-            localStorage.setItem('kb_cache_tokens_est', totalTokenCount.toString());
         }
     }
 
@@ -967,17 +942,15 @@ export class SessionService {
             this.state.fileTokenCounts.set(tokenMap);
             const partsForCount = this.kb.buildKnowledgeBaseParts(contentMap);
 
-            const savedHash = localStorage.getItem('kb_cache_hash');
-            const cachedTotalEst = localStorage.getItem('kb_cache_tokens_est');
-            const currentHashTmp = this.state.currentKbHash(); // Use reactive hash
+            const storedHash = this.state.kbCacheHash();
+            const currentHashTmp = this.state.currentKbHash();
 
             let totalTokenCount = 0;
-            if (savedHash === currentHashTmp && cachedTotalEst) {
-                totalTokenCount = parseInt(cachedTotalEst);
+            if (storedHash === currentHashTmp && this.state.estimatedKbTokens() > 0) {
+                totalTokenCount = this.state.estimatedKbTokens();
                 console.log('[SessionService] Reusing cached total KB tokens (Est):', totalTokenCount);
             } else {
                 totalTokenCount = await this.provider.countTokens(this.providerConfig, modelId, [{ role: 'user', parts: partsForCount }]);
-                localStorage.setItem('kb_cache_tokens_est', totalTokenCount.toString());
                 console.log('[SessionService] Counted new total KB tokens (Est):', totalTokenCount);
             }
 
@@ -989,11 +962,10 @@ export class SessionService {
             const hasKbContent = Array.from(contentMap.keys()).some(path => !path.startsWith('system_files/') && path !== 'system_prompt.md');
 
             if (hasKbContent) {
-                if (localStorage.getItem('kb_cache_hash') !== currentHash) {
+                if (this.state.kbCacheHash() !== currentHash) {
                     console.log('[SessionService] KB Content changed. Invalidating remote state.');
                     this.state.kbCacheName.set(null);
-                    localStorage.removeItem('kb_cache_name');
-                    localStorage.setItem('kb_cache_hash', currentHash);
+                    this.state.kbCacheHash.set(currentHash);
                 }
 
                 this.isContextInjected = false;

@@ -150,13 +150,11 @@ export class ChatHistoryService {
         this.state.historyStorageUsageAccumulated.set(0);
         this.state.sunkUsageHistory.set([]);
 
+        // One-time cleanup of legacy keys
         localStorage.removeItem('usage_stats');
         localStorage.removeItem('storage_cost_acc');
         localStorage.removeItem('history_storage_cost_acc');
         localStorage.removeItem('sunk_usage_history');
-
-        localStorage.removeItem('kb_storage_usage_acc');
-        localStorage.removeItem('history_storage_usage_acc');
 
         await this.storage.delete('chat_history');
         await this.storage.delete('sunk_usage_history');
@@ -195,7 +193,6 @@ export class ChatHistoryService {
         if (newUsages.length > 0) {
             this.state.sunkUsageHistory.update(v => {
                 const newVal = [...v, ...newUsages];
-                localStorage.setItem('sunk_usage_history', JSON.stringify(newVal));
                 this.storage.set('sunk_usage_history', newVal).catch(e => console.error('Failed to save sunk usage history to IDB', e));
                 return newVal;
             });

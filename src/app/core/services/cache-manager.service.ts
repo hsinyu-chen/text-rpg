@@ -4,7 +4,6 @@ import { LLMProviderRegistryService } from './llm-provider-registry.service';
 import { LLMProvider, LLMProviderConfig, LLMCacheInfo } from '@hcs/llm-core';
 import { CostService } from './cost.service';
 import { KnowledgeService } from './knowledge.service';
-import { StorageService } from './storage.service';
 import { ChatHistoryService } from './chat-history.service';
 
 /**
@@ -19,7 +18,7 @@ export class CacheManagerService {
     private providerRegistry = inject(LLMProviderRegistryService);
     private cost = inject(CostService);
     private kb = inject(KnowledgeService);
-    private storage = inject(StorageService);
+
     private chatHistory = inject(ChatHistoryService);
 
     /** Get the currently active LLM provider. */
@@ -81,7 +80,7 @@ export class CacheManagerService {
             const fileParts = this.kb.buildKnowledgeBaseParts(files);
             const kbText = fileParts.map(p => p.text).join('');
             const currentHash = this.kb.calculateKbHash(kbText, config?.modelId || '', systemInstruction);
-            const storedHash = localStorage.getItem('kb_cache_hash');
+            const storedHash = this.state.kbCacheHash();
 
             if (cacheName && this.provider.getCache) {
                 console.log('[CacheManager] Validating remote cache:', cacheName);
@@ -112,7 +111,6 @@ export class CacheManagerService {
                                 const restoredTokens = cacheStatus.usageMetadata?.totalTokenCount || 0;
                                 if (restoredTokens > 0) {
                                     this.state.kbCacheTokens.set(restoredTokens);
-                                    localStorage.setItem('kb_cache_tokens', restoredTokens.toString());
                                 }
 
                                 this.startStorageTimer();
@@ -129,7 +127,6 @@ export class CacheManagerService {
                     } else {
                         // Proactive cleanup
                         this.state.kbCacheName.set(null);
-                        localStorage.removeItem('kb_cache_name');
                     }
                 }
             }
@@ -166,11 +163,8 @@ export class CacheManagerService {
                                 ? cacheRes.expireTime
                                 : Date.now() + ttlSeconds * 1000;
                             this.state.kbCacheExpireTime.set(expireTime);
-                            localStorage.setItem('kb_cache_name', cacheRes.name);
-                            localStorage.setItem('kb_cache_hash', newHash);
-                            localStorage.setItem('kb_cache_expire', expireTime.toString());
+                            this.state.kbCacheHash.set(newHash);
                             this.state.kbCacheTokens.set(cacheRes.usageMetadata?.totalTokenCount || 0);
-                            localStorage.setItem('kb_cache_tokens', this.state.kbCacheTokens().toString());
 
                             // Record cache creation as sunk usage to ensure persistent billing
                             if (this.state.kbCacheTokens() > 0) {
@@ -205,7 +199,6 @@ export class CacheManagerService {
         if (!validationSuccess) {
             console.error('[CacheManager] KB context lost and cannot be recovered.');
             this.state.kbCacheName.set(null);
-            localStorage.removeItem('kb_cache_name');
             throw new Error('SESSION_EXPIRED');
         }
 
@@ -220,12 +213,9 @@ export class CacheManagerService {
                 }
                 this.state.kbCacheName.set(null);
                 this.state.kbCacheExpireTime.set(null);
+                this.state.kbCacheHash.set(null);
                 this.state.kbCacheTokens.set(0);
                 this.stopStorageTimer();
-                localStorage.removeItem('kb_cache_name');
-                localStorage.removeItem('kb_cache_hash');
-                localStorage.removeItem('kb_cache_expire');
-                localStorage.removeItem('kb_cache_tokens');
             }
         } catch (cleanupErr) {
             console.warn('[CacheManager] Non-critical cleanup error during mode switch:', cleanupErr);
@@ -244,13 +234,8 @@ export class CacheManagerService {
             // Before clearing, add the current session's storage usage to history
             const currentAcc = this.state.storageUsageAccumulated();
             if (currentAcc > 0) {
-                this.state.historyStorageUsageAccumulated.update(v => {
-                    const newVal = v + currentAcc;
-                    localStorage.setItem('history_storage_usage_acc', newVal.toString());
-                    return newVal;
-                });
+                this.state.historyStorageUsageAccumulated.update(v => v + currentAcc);
                 this.state.storageUsageAccumulated.set(0);
-                localStorage.setItem('kb_storage_usage_acc', '0');
             }
 
             if (this.provider.deleteCache) {
@@ -258,12 +243,9 @@ export class CacheManagerService {
             }
             this.state.kbCacheName.set(null);
             this.state.kbCacheExpireTime.set(null);
-            localStorage.removeItem('kb_cache_name');
-            localStorage.removeItem('kb_cache_hash');
-            localStorage.removeItem('kb_cache_expire');
-            localStorage.removeItem('kb_cache_tokens'); // Also remove tokens
-            this.stopStorageTimer();
+            this.state.kbCacheHash.set(null);
             this.state.kbCacheTokens.set(0);
+            this.stopStorageTimer();
         }
     }
 
@@ -283,31 +265,20 @@ export class CacheManagerService {
             // Transfer Active Usage to History (Preserving costs)
             const currentAcc = this.state.storageUsageAccumulated();
             if (currentAcc > 0) {
-                this.state.historyStorageUsageAccumulated.update(v => {
-                    const newVal = v + currentAcc;
-                    localStorage.setItem('history_storage_usage_acc', newVal.toString());
-                    return newVal;
-                });
+                this.state.historyStorageUsageAccumulated.update(v => v + currentAcc);
             }
 
-            // Reset only active cache signals
+            // Reset active cache signals
             this.state.kbCacheName.set(null);
             this.state.kbCacheExpireTime.set(null);
+            this.state.kbCacheHash.set(null);
             this.state.storageUsageAccumulated.set(0);
             this.state.kbCacheTokens.set(0);
             this.stopStorageTimer();
 
-            // Clear persistence, but PRESERVE history_storage_usage_acc
-            localStorage.removeItem('kb_cache_name');
-            localStorage.removeItem('kb_cache_expire');
-            localStorage.removeItem('kb_cache_tokens');
-            localStorage.removeItem('kb_cache_hash');
-            localStorage.removeItem('kb_storage_usage_acc'); // Reset active usage
-
-            // Clean up old legacy keys if they exist
+            // One-time cleanup of legacy localStorage keys
             localStorage.removeItem('storage_cost_acc');
             localStorage.removeItem('history_storage_cost_acc');
-
             localStorage.removeItem('estimated_cost');
             localStorage.removeItem('usage_stats');
 
@@ -331,11 +302,7 @@ export class CacheManagerService {
                 // Add current to history before release
                 const currentAcc = this.state.storageUsageAccumulated();
                 if (currentAcc > 0) {
-                    this.state.historyStorageUsageAccumulated.update(v => {
-                        const newVal = v + currentAcc;
-                        localStorage.setItem('history_storage_usage_acc', newVal.toString());
-                        return newVal;
-                    });
+                    this.state.historyStorageUsageAccumulated.update(v => v + currentAcc);
                 }
 
                 if (this.provider.deleteCache) {
@@ -349,16 +316,10 @@ export class CacheManagerService {
         // Clear local state
         this.state.kbCacheName.set(null);
         this.state.kbCacheExpireTime.set(null);
+        this.state.kbCacheHash.set(null);
         this.state.storageUsageAccumulated.set(0);
         this.state.kbCacheTokens.set(0);
         this.stopStorageTimer();
-
-        localStorage.removeItem('kb_cache_name');
-        localStorage.removeItem('kb_cache_expire');
-        localStorage.removeItem('kb_cache_tokens');
-        localStorage.removeItem('kb_cache_hash');
-
-        localStorage.removeItem('kb_storage_usage_acc');
 
         console.log('[CacheManager] Cache released successfully.');
     }
@@ -370,15 +331,8 @@ export class CacheManagerService {
     resetCacheState(): void {
         this.state.kbCacheName.set(null);
         this.state.kbCacheExpireTime.set(null);
+        this.state.kbCacheHash.set(null);
         this.state.kbCacheTokens.set(0);
         this.stopStorageTimer();
-
-        localStorage.removeItem('kb_cache_name');
-        localStorage.removeItem('kb_cache_expire');
-        localStorage.removeItem('kb_cache_tokens');
-        localStorage.removeItem('kb_cache_hash');
-
-        localStorage.removeItem('kb_storage_usage_acc');
-        // history_storage_usage_acc should be handled by SessionService wipe
     }
 }

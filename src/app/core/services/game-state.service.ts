@@ -91,13 +91,7 @@ export class GameStateService {
     historyStorageUsageAccumulated = signal<number>(0);
     sunkUsageHistory = signal<{ prompt: number, cached: number, candidates: number }[]>([]);
 
-    constructor() {
-        // Restore history usage from NEW localstorage key
-        const savedHistory = localStorage.getItem('history_storage_usage_acc');
-        if (savedHistory) {
-            this.historyStorageUsageAccumulated.set(parseFloat(savedHistory));
-        }
-    }
+    constructor() { }
 
     // ==================== Dynamic Injection ====================
     enableDynamicInjection = signal<boolean>(true);
@@ -157,6 +151,7 @@ export class GameStateService {
     // ==================== Internal State (non-signal) ====================
     // These are mutable internal state used by services
     kbCacheTokens = signal<number>(0);
+    kbCacheHash = signal<string | null>(null);
     systemInstructionCache = computed(() => this.dynamicSystemMainInjection());
     isContextInjected = false;
     injectionContentHash = '';

@@ -26,12 +26,6 @@ export class CostService {
 
     constructor() {
         this.loadExchangeRate();
-
-        // Restore usage from NEW localstorage key
-        const savedUsage = localStorage.getItem('kb_storage_usage_acc');
-        if (savedUsage) {
-            this.storageUsageAccumulated.set(parseFloat(savedUsage));
-        }
     }
 
     /**
@@ -176,12 +170,7 @@ export class CostService {
 
         if (tokens > 0 && expireTime && expireTime > now) {
             // Add (Tokens * 1 second) to usage
-            this.storageUsageAccumulated.update(v => {
-                const newVal = v + tokens;
-                // Periodic save to local storage (debounce could be better but this is 1/sec)
-                localStorage.setItem('kb_storage_usage_acc', newVal.toString());
-                return newVal;
-            });
+            this.storageUsageAccumulated.update(v => v + tokens);
         }
     }
 

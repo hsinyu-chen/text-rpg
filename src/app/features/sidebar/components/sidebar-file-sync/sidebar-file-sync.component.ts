@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed } from '@angular/core';
+import { Component, inject, computed, effect } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -10,6 +10,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 
 import { GameEngineService } from '../../../../core/services/game-engine.service';
 import { GameStateService } from '../../../../core/services/game-state.service';
+import { SessionService } from '../../../../core/services/session.service';
 import { FileSystemService } from '../../../../core/services/file-system.service';
 import { GoogleDriveService } from '../../../../core/services/google-drive.service';
 import { DialogService } from '../../../../core/services/dialog.service';
@@ -31,6 +32,7 @@ import { SessionSave } from '../../../../core/models/types';
 export class SidebarFileSyncComponent {
     engine = inject(GameEngineService);
     state = inject(GameStateService);
+    session = inject(SessionService);
     fileSystem = inject(FileSystemService);
     driveService = inject(GoogleDriveService);
     matDialog = inject(MatDialog);
@@ -39,15 +41,18 @@ export class SidebarFileSyncComponent {
     snackBar = inject(MatSnackBar);
     autoSave = inject(AutoSaveService);
 
-    currentSlot = signal<{ id: string; name: string } | null>(null);
+    currentSlot = computed(() => {
+        const id = this.session.kbSlotId();
+        const name = this.session.kbSlotName();
+        return id && name ? { id, name } : null;
+    });
 
     constructor() {
-        const savedId = localStorage.getItem('kb_slot_id');
-        const savedName = localStorage.getItem('kb_slot_name');
-        if (savedId && savedName) {
-            this.currentSlot.set({ id: savedId, name: savedName });
-            this.driveService.currentSlotId.set(savedId);
-        }
+        // Keep driveService.currentSlotId in sync with the session signal
+        effect(() => {
+            const id = this.session.kbSlotId();
+            this.driveService.currentSlotId.set(id);
+        });
     }
 
     async loadFolder() {
@@ -141,10 +146,7 @@ export class SidebarFileSyncComponent {
 
         const result: KbSlot | undefined = await ref.afterClosed().toPromise();
         if (result) {
-            this.currentSlot.set({ id: result.id, name: result.name });
-            this.driveService.currentSlotId.set(result.id);
-            localStorage.setItem('kb_slot_id', result.id);
-            localStorage.setItem('kb_slot_name', result.name);
+            this.session.setKbSlot(result.id, result.name);
             return result;
         }
         return null;

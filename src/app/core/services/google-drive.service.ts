@@ -103,11 +103,6 @@ export class GoogleDriveService {
             console.log('[GoogleDrive] Restored refresh token from localStorage');
         }
 
-        const savedSlotId = localStorage.getItem('kb_slot_id');
-        if (savedSlotId) {
-            this.currentSlotId.set(savedSlotId);
-        }
-
         console.log('[GoogleDrive] Service initialized. Token expiry:', new Date(this.tokenExpiry()).toLocaleString());
         if (this.isConfigured) {
             this.loadScripts();

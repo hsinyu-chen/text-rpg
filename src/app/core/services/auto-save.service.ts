@@ -2,6 +2,7 @@ import { Injectable, inject, effect, signal } from '@angular/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { GameEngineService } from './game-engine.service';
 import { GameStateService } from './game-state.service';
+import { SessionService } from './session.service';
 import { FileSystemService } from './file-system.service';
 import { GoogleDriveService } from './google-drive.service';
 import { SessionSave } from '../models/types';
@@ -12,6 +13,7 @@ import { SessionSave } from '../models/types';
 export class AutoSaveService {
     private engine = inject(GameEngineService);
     private state = inject(GameStateService);
+    private session = inject(SessionService);
     private fileSystem = inject(FileSystemService);
     private driveService = inject(GoogleDriveService);
     private snackBar = inject(MatSnackBar);
@@ -118,7 +120,7 @@ export class AutoSaveService {
         }
 
         // 2. Cloud Auto-Save
-        const cloudSlotId = localStorage.getItem('kb_slot_id');
+        const cloudSlotId = this.session.kbSlotId();
         const isCloudAuth = this.driveService.isAuthenticated();
 
         if (cloudSlotId) {
