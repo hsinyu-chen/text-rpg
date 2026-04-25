@@ -65,8 +65,11 @@
 .message-wrapper {
     transition: background-color 1s ease;
     border-radius: 8px;
-    content-visibility: auto;
-    contain-intrinsic-size: auto 400px;
+
+    &.model-message {
+        content-visibility: auto;
+        contain-intrinsic-size: auto 400px;
+    }
 
     &.highlight-flash {
         background-color: rgba(255, 215, 64, 0.15); // Accent color flash
