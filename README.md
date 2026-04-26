@@ -135,10 +135,14 @@ A single provider that talks the **OpenAI Chat Completions API**, which lets you
 *   **Self-hosted OpenAI-compatible servers** — vLLM, TGI, Ollama, llama.cpp's own OpenAI endpoint, LM Studio, etc. Type any model id; it'll be surfaced as `Custom: <id>` and routed through the same code path.
     *   ⚠️ **For llama.cpp specifically, use the dedicated llama.cpp provider below instead.** Only the dedicated provider surfaces PP (prompt-processing) tokens/sec, generation tokens/sec, total duration, and the Slot Save/Restore persistent KV cache — none of that is exposed through the OpenAI-compatible endpoint.
 
-Per-profile capability flags in `additionalSettings` let you tune behaviour for non-OpenAI endpoints:
-*   `supportsNativeToolCalls` / `supportsParallelToolCalls` — turn off for legacy or stripped-down proxies that don't implement tool calls cleanly.
-*   `useChatTemplateKwargs` — pass extra kwargs (e.g. `enable_thinking`) through to template-aware servers like vLLM.
-*   `enableThinking` + `reasoningEffort` — surface a thinking channel for models that expose one.
+Settings panel exposes the following knobs (see [angular-ui-openai/src/index.ts](lib/hcs-llm-monorepo/packages/angular-ui-openai/src/index.ts) for the source of truth):
+*   **Base URL / API Key / Model ID** — point at any OpenAI-compatible endpoint. The Model ID can be free-form; unrecognised ids are routed as `Custom: <id>`.
+*   **Preset Pricing** dropdown — pre-fills the per-1M price triple (input / cached / output) for a curated GPT-4 / GPT-5 / o1 / o3 / o4 list. Also editable manually.
+*   **Sampling** — Temperature, Max Tokens, Frequency Penalty, Presence Penalty.
+*   **Tool Calling → Native Tool Calls** — Auto / Yes / No. Auto defaults to Yes; pin to No for legacy or stripped-down proxies that don't implement tool calls cleanly (the engine then falls back to JSON-mode tool emulation).
+*   **Extended Config (OpenRouter / O1 / O3) → Use Chat Template Kwargs** — checkbox that passes extra kwargs through to template-aware servers like vLLM / OpenRouter. When on, two more controls appear:
+    *   **Enable Thinking** — checkbox to surface a thinking channel for models that expose one.
+    *   **Reasoning Effort** — Low / Medium / High (only shown when Enable Thinking is on).
 
 Use this provider when you want **cloud quality without going through Google**, when you want to test a model on OpenRouter / Together before committing, or when your local stack already speaks the OpenAI dialect (vLLM, Ollama) and you'd rather not run the dedicated llama.cpp provider below.
 

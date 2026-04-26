@@ -175,10 +175,14 @@ TextRPG 透過 Provider 介面抽象化 LLM 後端。目前內建三種選擇：
 *   **自架的 OpenAI 相容伺服器** —— vLLM、TGI、Ollama、llama.cpp 自帶的 OpenAI endpoint、LM Studio 等。任意輸入模型 id 都會以 `Custom: <id>` 形式列入並走同一條程式碼路徑。
     *   ⚠️ **若您的後端是 llama.cpp，建議改用下方專屬的 llama.cpp Provider。** 只有專屬 Provider 才會顯示 PP（prompt processing）tokens/sec、生成 tokens/sec、總耗時等進階速度指標，以及 Slot Save/Restore 持久化 KV cache —— 這些功能透過 OpenAI 相容 endpoint 都拿不到。
 
-`additionalSettings` 中的每個 profile capability flag 可針對非 OpenAI 端點微調：
-*   `supportsNativeToolCalls` / `supportsParallelToolCalls` —— 在 tool call 實作不完整的舊版 / 精簡版 proxy 上關掉。
-*   `useChatTemplateKwargs` —— 把額外 kwargs（例如 `enable_thinking`）透傳給支援模板的伺服器（如 vLLM）。
-*   `enableThinking` + `reasoningEffort` —— 對開放思考通道的模型啟用 reasoning 顯示。
+設定面板實際提供以下控件（以 [angular-ui-openai/src/index.ts](lib/hcs-llm-monorepo/packages/angular-ui-openai/src/index.ts) 為準）：
+*   **Base URL / API Key / Model ID** —— 指向任何 OpenAI 相容 endpoint。Model ID 為自由輸入，若不在預設清單會以 `Custom: <id>` 列入。
+*   **Preset Pricing** 下拉 —— 內建 GPT-4 / GPT-5 / o1 / o3 / o4 等模型的 input / cached / output（每 1M）三欄價格 preset，選擇後自動填入，也可手動覆寫。
+*   **Sampling** —— Temperature、Max Tokens、Frequency Penalty、Presence Penalty。
+*   **Tool Calling → Native Tool Calls** —— Auto / Yes / No 三態。Auto 預設為 Yes；若您的端點 / 模型 tool call 實作不完整可釘成 No，引擎會 fallback 到 JSON-mode tool emulation。
+*   **Extended Config (OpenRouter / O1 / O3) → Use Chat Template Kwargs** —— 勾選後會把額外 kwargs 透傳給支援模板的伺服器（vLLM / OpenRouter 等）。打勾後會展開兩個子控件：
+    *   **Enable Thinking** —— 對開放思考通道的模型啟用 reasoning 顯示。
+    *   **Reasoning Effort** —— Low / Medium / High（僅在 Enable Thinking 勾選時出現）。
 
 什麼情況選這個 Provider：想用**雲端品質但不走 Google**、想在 OpenRouter / Together 測試模型再決定、或您本地的 stack 本來就會講 OpenAI 方言（vLLM、Ollama），不想另外起一支 llama.cpp 服務時。
 
