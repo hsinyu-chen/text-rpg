@@ -7,7 +7,7 @@
 > [!NOTE]
 > The live demo runs without GCP OAuth credentials, so **Google Drive sync is disabled**. All other features (Gemini API, OpenAI-compatible endpoints, local file system, llama.cpp) work normally — bring your own API key.
 
-A local-first TRPG engine focused on rigorous state management and long-context storytelling. Originally built around Gemini, it now treats Gemini, any OpenAI-compatible endpoint, and llama.cpp as first-class providers — and over time the local llama.cpp path has become the most fully-featured one (live PP/TG metrics, persistent slot KV cache, tool-call probing).
+A local-first TRPG engine focused on rigorous state management and long-context storytelling. Gemini, any OpenAI-compatible endpoint, and llama.cpp are all first-class providers; the local llama.cpp path is the most fully-featured (live PP/TG metrics, persistent slot KV cache, tool-call probing).
 
 > **Please note**: This is a highly customized personal tool tailored for a specific local infrastructure. It is provided AS-IS for educational purposes only. No support will be provided.
 

@@ -7,7 +7,7 @@
 > [!NOTE]
 > 線上 Demo 未配置 GCP OAuth 憑證，**Google Drive 同步功能已停用**。其他功能（Gemini API、OpenAI 相容 endpoint、本地檔案系統、llama.cpp）均正常運作——請自備 API Key。
 
-一個本地優先（Local-First）的 TRPG 引擎，專注於嚴謹的狀態管理與長窗口敘事。最初圍繞 Gemini 設計，目前 Gemini、任何 OpenAI 相容 endpoint 與 llama.cpp 皆為一等公民 Provider —— 隨著時間推進，本地 llama.cpp 路徑反而是功能最完整的一條（即時 PP/TG 速度指標、持久化 slot KV cache、tool-call 探測）。
+一個本地優先（Local-First）的 TRPG 引擎，專注於嚴謹的狀態管理與長窗口敘事。Gemini、任何 OpenAI 相容 endpoint、llama.cpp 皆為一等公民 Provider；本地 llama.cpp 路徑為功能最完整的一條（即時 PP/TG 速度指標、持久化 slot KV cache、tool-call 探測）。
 
 > **請注意**：這是針對特定本地架構高度客製化的私人工具。僅供教學參考。不提供任何技術支援。
 
