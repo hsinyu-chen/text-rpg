@@ -1,17 +1,17 @@
-# TextRPG Engine (Gemini-Native)
+# TextRPG Engine
 
 [繁體中文](README.zh-TW.md) | [English](README.md)
 
 **[Live Demo](https://hsinyu-chen.github.io/text-rpg/)**
 
 > [!NOTE]
-> The live demo runs without GCP OAuth credentials, so **Google Drive sync is disabled**. All other features (Gemini API, local file system, llama.cpp) work normally — bring your own API key.
+> The live demo runs without GCP OAuth credentials, so **Google Drive sync is disabled**. All other features (Gemini API, OpenAI-compatible endpoints, local file system, llama.cpp) work normally — bring your own API key.
 
-A local-first TRPG engine built on Google Gemini models, focusing on rigorous state management and storytelling using Long Context capabilities.
+A local-first TRPG engine focused on rigorous state management and long-context storytelling. Originally built around Gemini, it now treats Gemini, any OpenAI-compatible endpoint, and llama.cpp as first-class providers — and over time the local llama.cpp path has become the most fully-featured one (live PP/TG metrics, persistent slot KV cache, tool-call probing).
 
 > **Please note**: This is a highly customized personal tool tailored for a specific local infrastructure. It is provided AS-IS for educational purposes only. No support will be provided.
 
-TextRPG is a **Local-First**, **Bring Your Own Key (BYOK)** desktop application designed specifically for the long-context capabilities of Google Gemini 3 series models. Unlike traditional AI chatbots, it treats the LLM as a rigorous "Dungeon Master (DM)", advancing the plot through structured thinking and logical adjudication. First" workflow and persists game state (inventory, quests, plot summaries) in local Markdown files.
+TextRPG is a **Local-First**, **Bring Your Own Key (BYOK)** desktop application built around long-context LLMs. Unlike traditional AI chatbots, it treats the LLM as a rigorous "Dungeon Master (DM)", advancing the plot through structured thinking and logical adjudication, and persisting game state (inventory, quests, plot summaries) in local Markdown files.
 
 ## Feature Demo
 
