@@ -38,7 +38,7 @@ TextRPG is a **Local-First**, **Bring Your Own Key (BYOK)** desktop application 
 ## Recommended Usage Flow
 
 1. **First Run (Act I)**
-   *   **Start**: Go to **Session** tab -> Click **New Game**.
+   *   **Start**: Go to **Session** tab → Click **New Game**. The recommended path is the **Generate** tab — describe the kind of world and protagonist you want and let an AI agent fill in all 9 world files (see *AI World Generator* below). The **Pre-build** tab only ships a thin demo scenario for a quick first look; use it for trying the engine, not for serious play.
    *   **Play**: Engage in roleplay and plot deduction with the AI.
    *   **Finish Act**: When a narrative arc concludes, use the `<Save>` command.
    *   **Update World**: Click the **Auto Update** button (Magic Wand icon) to apply world changes to your files.

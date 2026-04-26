@@ -39,7 +39,7 @@ TextRPG 是一個**本地優先 (Local-First)**、**自帶金鑰 (Bring Your Own
 
 1. **冒險之書 (Adventure Books) (新功能!)**
    *   **概念**: 每一局遊戲現在都是一本獨立的「冒險之書」。
-   *   **開始**: 前往 **Session** 分頁 -> 點擊 **New Game** 建立新的冒險之書。
+   *   **開始**: 前往 **Session** 分頁 → 點擊 **New Game** 建立新的冒險之書。**建議走 Generate 分頁** —— 用一段描述告訴 AI 您想要的世界與主角，讓 Agent 自動填寫全部 9 個世界檔案（詳見下方〈AI 世界生成器〉）。**Pre-build** 分頁目前僅內建一個非常陽春的 demo 劇本，用來快速試玩引擎可以，認真遊玩請走 Generate。
 
 2. **遊戲循環 (Gameplay Loop)**
    *   **推演**: 與 AI 進行劇情互動與推演。

@@ -71,7 +71,7 @@ export class NewGameDialogComponent {
 
     // ─── Shared ───────────────────────────────────────────────────────────
     isLoading = signal(false);
-    activeTabIndex = signal(0);
+    activeTabIndex = signal(1);
 
     // ─── Pre-build tab ────────────────────────────────────────────────────
     ui = computed(() => {
