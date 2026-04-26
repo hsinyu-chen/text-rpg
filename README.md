@@ -123,10 +123,24 @@ The system does not use proprietary database formats but directly reads and writ
 
 ## LLM Provider Options
 
-TextRPG abstracts its LLM backend through a provider interface. Out of the box, two providers are available:
+TextRPG abstracts its LLM backend through a provider interface. Out of the box, three providers are available:
 
 ### Gemini (Cloud, default)
 Best for fast onboarding and access to the Gemini 3 series' long context capabilities. Uses **Context Caching** (server-side content storage, TTL-based) to keep long sessions affordable.
+
+### OpenAI-compatible (Cloud or self-hosted)
+A single provider that talks the **OpenAI Chat Completions API**, which lets you point TextRPG at:
+*   **api.openai.com** itself (GPT-4o, o1, o3-mini, …) — preset models with context sizes are pre-populated; pricing is left blank for you to fill in since rates change.
+*   **Aggregators** like OpenRouter or Together — same protocol, your own model id and rate card.
+*   **Self-hosted OpenAI-compatible servers** — vLLM, TGI, Ollama, llama.cpp's own OpenAI endpoint, LM Studio, etc. Type any model id; it'll be surfaced as `Custom: <id>` and routed through the same code path.
+    *   ⚠️ **For llama.cpp specifically, use the dedicated llama.cpp provider below instead.** Only the dedicated provider surfaces PP (prompt-processing) tokens/sec, generation tokens/sec, total duration, and the Slot Save/Restore persistent KV cache — none of that is exposed through the OpenAI-compatible endpoint.
+
+Per-profile capability flags in `additionalSettings` let you tune behaviour for non-OpenAI endpoints:
+*   `supportsNativeToolCalls` / `supportsParallelToolCalls` — turn off for legacy or stripped-down proxies that don't implement tool calls cleanly.
+*   `useChatTemplateKwargs` — pass extra kwargs (e.g. `enable_thinking`) through to template-aware servers like vLLM.
+*   `enableThinking` + `reasoningEffort` — surface a thinking channel for models that expose one.
+
+Use this provider when you want **cloud quality without going through Google**, when you want to test a model on OpenRouter / Together before committing, or when your local stack already speaks the OpenAI dialect (vLLM, Ollama) and you'd rather not run the dedicated llama.cpp provider below.
 
 ### llama.cpp (Local, self-hosted)
 For users who want to run **fully offline** against their own GGUF model via [llama.cpp server](https://github.com/ggerganov/llama.cpp). This path trades raw model quality for privacy, zero recurring cost, and predictable latency. Key benefits:
