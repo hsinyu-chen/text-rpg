@@ -187,6 +187,45 @@ TextRPG 透過 Provider 介面抽象化 LLM 後端。目前內建兩種選擇：
 > [!NOTE]
 > **快取機制與 Gemini 不同。** Gemini 的快取是把內容存在伺服器端（以 cache name 引用，請求時不必重送 KB）。llama.cpp 則是以 **prefix token 匹配** 來命中 KV cache，所以 KB 仍然會被放進 prompt，存下來的 `.bin` 只是避免重算那段前綴的 KV。引擎透過 `cacheBakesContent` capability flag 自動處理這個差異。
 
+#### 推薦模型與參考組態
+
+針對 TRPG 這類長上下文敘事遊玩，**dense 架構、≥30B** 在指令遵循與世界觀一致性上明顯優於同等級的 MoE —— 即使 MoE 有空間跑更高精度也是如此。實測下 `gemma-4-26b-a4b`（MoE）在 Strix Halo 128 GB 上以 **Q8** 全精度跑，效果仍落後 `gemma-4-31b-it` 在 **IQ3_M** 量化下的表現。所以 VRAM 該花在 dense 模型本身，不該花在 MoE 的更高量化。最低建議組合為：
+
+*   **模型**：`gemma-4-31b-it`（dense, instruction-tuned）。
+*   **變體**：請選用**反審查（uncensored）版本** —— Gemma 原版的安全對齊在尺度較重的劇情中過於積極，常會於場景中途拒絕或自我消音。社群合併版本如 [`mradermacher/gemma-4-31b-it-heretic-ara-i1-GGUF`](https://huggingface.co/mradermacher/gemma-4-31b-it-heretic-ara-i1-GGUF) 在保留 Gemma 敘事品質的同時移除了這類拒絕行為。
+
+##### 參考啟動指令 —— RTX 4090 24 GB
+
+下列組態以 IQ3_M 量化權重搭配 q8_0 KV cache 量化，可在 24 GB VRAM 內塞下 31B dense 模型 **+ 140 K context**：
+
+```bash
+llama-server \
+  -m gemma-4-31b-it-heretic-ara.i1-IQ3_M.gguf \
+  --flash-attn 1 \
+  --temp 1 --top-k 64 --top-p 0.95 \
+  -c 143360 \
+  -ctk q8_0 -ctv q8_0 \
+  --n-gpu-layers 99 \
+  -np 1 \
+  --slot-save-path cache
+```
+
+逐項說明：
+
+| 參數 | 用途 |
+| :--- | :--- |
+| `-m gemma-4-31b-it-heretic-ara.i1-IQ3_M.gguf` | 對 24 GB 卡跑 31B dense 而言，IQ3_M 是甜蜜點 —— 夠小可以保留長 KV 空間，又位於 3 bpw 以上避免明顯的品質懸崖。 |
+| `--flash-attn 1` | 啟用 FlashAttention；下方 q8_0 KV cache 必須搭配它才有效益。 |
+| `--temp 1 --top-k 64 --top-p 0.95` | Gemma 官方推薦的 sampling 預設值；無特殊理由不要動。 |
+| `-c 143360` | 140 K 上下文窗口，貼近 Gemma 4 的有效長窗口範圍，給 KB + 章節歷史在跨多幕戰役下保留充足空間，避免被截斷。 |
+| `-ctk q8_0 -ctv q8_0` | 將 KV cache 量化為 8-bit，相對 fp16 大致省一半 VRAM 且品質損失可忽略 —— 這正是讓 140 K context 與模型權重共存於 24 GB 的關鍵。 |
+| `--n-gpu-layers 99` | 全部層 offload 到 GPU（任何 ≥ 層數的值皆可）。 |
+| `-np 1` | 單一 slot。引擎會把每本冒險之書釘在同一個 slot 上以維持 prefix cache 穩定；單人遊玩開更多 slot 只會白白切走 VRAM。 |
+| `--slot-save-path cache` | 持久化 KV `.bin` 的存放目錄。前面提到的 **「Persist Slot to Disk」** 功能必須要有這個參數。 |
+
+> [!TIP]
+> **IQ3_M 是我們實際驗證過的最低量化等級。** IQ2 / IQ1 在 31 B dense 上未經測試 —— 此尺寸下繼續往下推量化已知會踩到品質懸崖。若 24 GB 顯得吃緊，請先降 `-c`（例如到 64 K）再考慮降量化；若仍撐不住 IQ3_M，建議改用**較小的 dense 模型**（如 12 B 跑 Q4–Q5），而非把 31 B 進一步壓縮。
+
 兩種 Provider 皆可在 **Settings** 中設定並即時切換，每本冒險之書的上下文都會被保留。
 
 ---
@@ -324,10 +363,11 @@ TextRPG 支援**動態語系切換**，無需重新啟動應用程式：
     *   `summary`、`inventory_log`、`quest_log`、`world_log` 等結構化輸出
     *   系統文件名稱（如 `2.Story_Outline.md` vs `2.劇情綱要.md`）
     *   輸入提示格式（如 `([Mood]Action)Dialogue` vs `([心境]動作)台詞`）
+    *   AI 世界生成器：Quick Preset、身份清單、空白世界模板資料夾（`blank_world_zh` / `blank_world_en`）以及世界生成 Prompt 模板（`create_world_prompt_zh.md` / `create_world_prompt_en.md`）
 
 #### 2. UI 介面語言
-*   **目前狀態**: UI 文字（按鈕、標籤、提示等）會隨 Output Language 設定動態切換
-*   **技術實現**: 使用自定義 locale 系統，支援即時切換
+*   **目前狀態**: 多數 UI 文字（意圖標籤、劇本選單、Pre-build 分頁、Settings 等）會透過自定義 locale 系統（`src/app/core/constants/locales/`）隨 Output Language 即時切換。
+*   **已知例外**: New Game 對話框中的 **Generate** 分頁，介面文字（如 *Quick Preset*、*Genre*、*Tone*、*World Setting*、*Identity / Role*、*Generate World* 等 label / placeholder）目前為硬編碼英文，不會切換。但其產生的 *內容*（preset、身份、最終生成的世界檔案）仍會跟隨 Output Language —— 只有表單外殼是英文。
 
 #### 3. 混合語言場景（不建議）
 > [!WARNING]
@@ -351,61 +391,63 @@ TextRPG 支援**動態語系切換**，無需重新啟動應用程式：
 
 ## 本地化指南 (Localization Guide)
 
-TextRPG 採用**自定義 locale 系統**，支援動態語言切換。系統已內建二種語言支援，大部分情況下**不需要手動翻譯**。
+TextRPG 採用**自定義 locale 系統**，所有可本地化的內容皆由 [src/app/core/constants/locales/locale.interface.ts](src/app/core/constants/locales/locale.interface.ts) 中的 `AppLocale` 介面所定義；系統內建兩種語言，新增語言主要是寫一支 `.ts` 檔加上翻譯劇本內容。
 
 ### 已內建支援的語言
-*   **繁體中文** (Traditional Chinese)
-*   **英文** (English)
+*   **繁體中文** (`zh-TW`) — 註冊鍵為 `'Traditional Chinese'`，同時作為 `'default'` fallback
+*   **英文** (`en-US`) — 註冊鍵為 `'English'`
 
-### 自動本地化的部分
+語言解析由 [src/app/core/constants/locales/index.ts](src/app/core/constants/locales/index.ts) 提供：
+*   `getLocale(lang)` — 回傳對應 `AppLocale`，找不到時依 `id` 比對，再不行則回傳 `'default'`。
+*   `getLangFolder(lang)` — 回傳該 locale 的 `folder` 欄位，用來解析 `public/assets/system_files/<folder>/` 下以語言分桶的素材。
+*   `getLanguagesList()` — 餵給 Settings 的 Output Language 下拉選單。
 
-以下部分已由系統自動處理，**無需手動翻譯**：
+### Locale 物件涵蓋（自動本地化）
 
-#### 1. 系統提示詞 (System Prompts)
-*   **位置**: `src/app/core/constants/locales/`
-*   **實現**: 每個語言的 Response Schema、Adult Declaration、Prompt Holes 都已定義在對應的 locale 文件中
-*   **文件**:
-    *   `zh-tw.ts` - 繁體中文
-    *   `en.ts` - 英文
+切換 Output Language 時，下列項目會直接讀取目前的 `AppLocale` 並切換：
 
-#### 2. UI 介面文字
-*   **Intent 標籤**: 行動、快轉、系統、存檔、繼續
-*   **Input Placeholders**: 各種指令的輸入提示
-*   **系統文件名稱**: 自動根據語言使用對應的文件名（如 `2.Story_Outline.md` vs `2.劇情綱要.md`）
+| 介面 | `AppLocale` 上對應欄位 |
+| :--- | :--- |
+| AI 回應 JSON Schema 的描述 | `responseSchema` |
+| 系統提示詞前綴的成人內容聲明 | `adultDeclaration` |
+| 寫入歷史紀錄的章節標題 | `actHeader` |
+| 角色檔（`BASIC_SETTINGS` → `1.Base_Settings.md` / `1.基礎設定.md` 等）對應的實際檔名 | `coreFilenames` |
+| 強制模型以目標語言輸出的語言規則注入 | `promptHoles.LANGUAGE_RULE` |
+| Markdown 區段標題（`START_SCENE`、`INPUT_FORMAT`） | `sectionHeaders` |
+| 意圖選單（Action / Fast Forward / System / Save / Continue）的標籤、XML tag、描述、輸入 placeholder | `intentLabels`、`intentTags`、`intentDescriptions`、`inputPlaceholders` |
+| 所有 UI 字串：對話框標題、按鈕、錯誤、alignment 九宮格、批次搜尋取代、過濾器、再生流程、Calibrate 模式等 | `uiStrings` |
 
-### 需要手動本地化的部分
+過大不適合放在字串內的系統提示詞素材，則放於 `public/assets/system_files/<folder>/` 下，透過 `getLangFolder()` 載入。
 
-#### 劇本內容 (Scenario Content)
-如果您想為現有劇本添加新語言版本，需要翻譯以下文件：
+### 仍需手動翻譯的部分
 
-*   **位置**: `public/assets/system_files/scenario/<SCENARIO_ID>/`
-*   **需翻譯的文件**:
-    *   `1.基礎設定.md` / `1.Base_Settings.md` - 世界觀與規則
-    *   `2.劇情綱要.md` / `2.Story_Outline.md` - 核心故事大綱
-    *   `3.人物狀態.md` / `3.Character_Status.md` - 角色狀態模板
-    *   其他 `.md` 文件 - 物品、資產、魔法等模板
+#### 1. 劇本內容 (Scenario Content)
+劇本 `.md` 檔不屬於 locale 物件 —— 每個劇本各自帶語言版本，並在 [public/assets/system_files/scenario/scenarios.json](public/assets/system_files/scenario/scenarios.json) 註冊；其中的 `lang` 欄位（`zh-TW`、`en-US`...）正是 New Game 對話框用來篩選顯示的依據。
 
-*   **文件命名規則**:
-    *   繁體中文：`1.基礎設定.md`
-    *   英文：`1.Base_Settings.md`
+要為現有劇本新增語言版本：
+1.  將劇本資料夾（如 `public/assets/system_files/scenario/fareast/`）複製到同層的新資料夾。
+2.  翻譯其中的 `.md` 檔，且檔名必須對應到某個現有 locale 的 `coreFilenames` —— 例如 `en-US` 應使用 `1.Base_Settings.md`、`2.Story_Outline.md`、`3.Character_Status.md`、`4.Assets.md`、`5.Tech_Equipment.md`、`6.Factions_and_World.md`、`7.Magic.md`、`8.Plans.md`、`9.Inventory.md`。
+3.  在 `scenarios.json` 加入一筆新項目，包含唯一的 `id`、對應的 `lang`、`baseDir`，以及把每個角色檔（`BASIC_SETTINGS`、...）映射到實際檔名的 `files` 區塊。
+4.  保留 `Character_Status.md` 內的 `<!uc_*>` placeholder tag —— New Game 對話框會解析它們以預填主角表單（見 [new-game-dialog.component.ts](src/app/features/sidebar/components/new-game-dialog/new-game-dialog.component.ts) 的 `loadDefaultValues`）。
 
-*   **註冊劇本**: 更新 `public/assets/system_files/scenario/scenarios.json`，為新語言版本添加條目
+#### 2. AI 世界生成器素材
+Generate 分頁會吃以下三種**獨立於 locale 物件**的語言分桶素材：
+*   **空白世界模板**：`public/assets/system_files/scenario/blank_world_zh/` 與 `blank_world_en/` —— 各自包含 9 個帶 `{{PROTAGONIST_*}}` 佔位符的 `.md` 起始檔。
+*   **世界生成 Prompt**：`public/assets/system_files/create_world_prompt_zh.md` 與 `create_world_prompt_en.md` —— Agent 的 system prompt，含 `{{GENRE}}`、`{{TONE}}`、`{{SETTING}}`、`{{PROTAGONIST_*}}`、`{{NPC_PREFERENCES}}`、`{{SPECIAL_REQUESTS}}` 等替換點。
+*   **Quick Preset 與 Identity 選項**：[src/app/core/constants/world-preset.ts](src/app/core/constants/world-preset.ts) 中的 `WORLD_PRESETS.zh` / `WORLD_PRESETS.en` 陣列。
 
-### 添加新語言支援
+目前生成器以 `isZhLang()` 二分（zh-TW vs 其他全部 fallback 到 `en`），新增第三語言時要稍微改一下 [new-game-dialog.component.ts](src/app/features/sidebar/components/new-game-dialog/new-game-dialog.component.ts) —— 將 `submitCreateWorld()` 內的 `isZh` 三元判斷與 `langPresets()` dispatch 改為 locale id 多分支。
 
-如果您想添加系統尚未支援的語言（如法文、德文等），需要：
+#### 3. Generate 分頁的表單 label
+如前面〈語系切換〉所提，Generate 分頁的 label 與 placeholder（`Quick Preset`、`Genre`、`Tone`、`World Setting`、`Identity / Role`、`Generate World` 等）目前在 [new-game-dialog.component.html](src/app/features/sidebar/components/new-game-dialog/new-game-dialog.component.html) 中為硬編碼英文。將其遷入 `uiStrings` 是已知待辦項 —— 若您的翻譯也需要連表單外殼一起本地化，請順手改這支模板。
 
-1. **創建 Locale 文件**: 在 `src/app/core/constants/locales/` 中創建新的語言文件（如 `fr.ts`）
-2. **定義 Locale**: 實現 `AppLocale` 接口，包括：
-   - `responseSchema` - AI 輸出的 JSON Schema 描述
-   - `adultDeclaration` - 成人內容聲明
-   - `coreFilenames` - 核心文件名稱
-   - `promptHoles` - 語言規則提示
-   - `sectionHeaders` - Markdown 區段標題
-   - `intentLabels` - 意圖標籤
-   - `inputPlaceholders` - 輸入提示文字
-3. **註冊 Locale**: 在 `src/app/core/constants/locales/index.ts` 中註冊新語言
-4. **創建劇本內容**: 為現有劇本創建對應語言版本的 Markdown 文件
+### 添加新語言（以日文為例）
+
+1.  **建立 locale 檔**：新增 `src/app/core/constants/locales/ja.ts`，匯出實作 `AppLocale` 全部欄位（見上表）的 `JA_JP_LOCALE`，挑一個穩定的 `id`（如 `ja-JP`）與 `folder`（如 `ja`）。
+2.  **註冊**：在 [src/app/core/constants/locales/index.ts](src/app/core/constants/locales/index.ts) 的 `LOCALES` map 中加入該 locale，使用一個易讀的 key（例如 `'Japanese'`）。新增後即會透過 `getLanguagesList()` 自動出現在 Settings → Output Language 下拉中。
+3.  **提供系統提示詞素材**：在 `public/assets/system_files/<folder>/` 建立對應目錄，仿照 `en/`、`zh-tw/`。
+4.  **提供劇本內容**：至少翻一個現有劇本（見上面〈劇本內容〉），或改用 AI 世界生成器 —— 若選後者請順便做下面第 5 步。
+5.  **（選用）擴充 AI 世界生成器**：在 `world-preset.ts` 加上 `WORLD_PRESETS.ja`，提供 `blank_world_ja/` 與 `create_world_prompt_ja.md`，並把 `new-game-dialog.component.ts` 中的 `isZhLang()` 二分改為以 locale id 區分的多分支。
 
 ---
 
@@ -419,6 +461,25 @@ TextRPG 採用**自定義 locale 系統**，支援動態語言切換。系統已
 4.  點擊 **"Start Game"**，引擎會自動在記憶體中生成所有所需的 Markdown 檔案。
 5.  **匯出模版**: 在左側 "Local File System" 區塊點擊 **資料夾圖示** 選擇一個空資料夾，接著點擊 **"Sync"**。
 6.  系統會將所有自動生成的設定檔寫入您的資料夾，您隨後即可使用 VS Code 進行編輯。
+
+### AI 世界生成器（Generate 分頁）
+
+New Game 對話框的 **Generate** 分頁可讓您不依賴預設劇本，透過 AI Agent 從零建構一個全新的世界：
+
+1.  點擊 **New Game** → 切換至 **Generate** 分頁。
+2.  可選擇 **Quick Preset**（如劍與魔法、武俠江湖、賽博龐克等）— 它會自動填入類型／基調／世界設定，並為主角帶入一個預設 **Identity / Role（身份）**，連同其背景、陣營、興趣、外貌、NPC 提示與特殊要求一併套用。Preset 清單、身份與預填文字會跟隨目前 Output Language 自動切換（`WORLD_PRESETS.zh` / `WORLD_PRESETS.en`）。
+3.  填寫 **Genre（類型）**、**Tone（基調）** 與 **World Setting（世界設定）**。
+4.  填寫主角資訊：
+    *   **Name（姓名）**、**Gender（性別，可留空）**、**Age（年齡，可留空）**。
+    *   **Identity / Role（身份）** — 從 preset 清單中挑選，或點選 **✏ Custom...** 自行輸入。從下拉切換身份時，會重新套用該 preset 的背景、陣營、興趣、外貌、NPC 提示與特殊要求。
+    *   **Alignment（陣營）** — 從九宮格中挑選。
+    *   **Background（背景）**、**Interests / Hobbies（興趣）**、**Appearance（外貌）**。
+5.  選填欄位：
+    *   **NPC Preferences** — 描述您希望出現的 2–3 位核心配角（如可發展戀情的夥伴、宿敵、神秘導師等）。
+    *   **Special Requests** — 額外的主題或限制（如「不要金手指」、「加入戀愛支線」等）。
+6.  選擇 **AI Profile for Generation** — 由哪個 LLM Profile（服務商／模型／System Prompt）驅動世界生成 Agent；預設為您目前的 active profile。
+7.  點擊 **Generate World** 啟動 Agent。引擎會載入空白世界模板（`assets/system_files/scenario/blank_world_zh` 或 `blank_world_en`），把主角資料代入 `3.人物狀態.md` / `3.Character_Status.md`，並在 **Create World** 模式下開啟 File Viewer，讓 Agent 補完其餘 8 個世界檔案。內建的完成度驗證器會拒絕仍含有 `（種族）`、`（起始位置）`、`(Race)`、`To be filled in by the world generator` 等佔位符的提交，並要求 Agent 重試直到所有欄位填滿。
+8.  審閱並調整生成內容後，點擊 File Viewer 底部的 **Start Game** 開始遊戲。
  
  ---
  

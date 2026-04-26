@@ -21,6 +21,7 @@ import { GAME_INTENTS } from '../../../../core/constants/game-intents';
 import { getIntentLabels } from '../../../../core/constants/engine-protocol';
 import { getLocale } from '../../../../core/constants/locales';
 import { computed } from '@angular/core';
+import { KATEX_DELIMITERS, hasKatexDelimiters } from '../../../../core/utils/latex.util';
 
 @Component({
     selector: 'app-chat-message',
@@ -102,20 +103,11 @@ export class ChatMessageComponent {
     });
 
     // Conditional KaTeX: skip expensive DOM scan when no math delimiters present
-    contentHasKatex = computed(() => this.hasKatexDelimiters(this.message()?.content));
-    thoughtHasKatex = computed(() => this.hasKatexDelimiters(this.message()?.thought));
-    analysisHasKatex = computed(() => this.hasKatexDelimiters(this.message()?.analysis));
+    contentHasKatex = computed(() => hasKatexDelimiters(this.message()?.content));
+    thoughtHasKatex = computed(() => hasKatexDelimiters(this.message()?.thought));
+    analysisHasKatex = computed(() => hasKatexDelimiters(this.message()?.analysis));
 
-    // Exclude $...$ from KaTeX delimiters — LLM output frequently contains stray
-    // dollar signs (currency, artifacts) that get misinterpreted as inline math.
-    // Only $$...$$, \(...\), and \[...\] are recognized.
-    katexOptions = {
-        delimiters: [
-            { left: '$$', right: '$$', display: true },
-            { left: '\\(', right: '\\)', display: false },
-            { left: '\\[', right: '\\]', display: true },
-        ]
-    };
+    katexOptions = { delimiters: KATEX_DELIMITERS };
 
     getIntentLabel(intent: string | undefined): string {
         if (!intent) return '';
@@ -133,9 +125,4 @@ export class ChatMessageComponent {
         this.resend.emit(this.message());
     }
 
-    private hasKatexDelimiters(text: string | undefined | null): boolean {
-        if (!text) return false;
-        // Match only the delimiters we actually enable in katexOptions
-        return text.includes('$$') || text.includes('\\(') || text.includes('\\[');
-    }
 }

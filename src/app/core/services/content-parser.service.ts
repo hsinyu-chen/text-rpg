@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { parse as parseJson } from 'best-effort-json-parser';
-import { convertLatexToSymbols } from '../utils/latex-converter';
+import { convertLatexToSymbols } from '../utils/latex.util';
 
 @Injectable({
     providedIn: 'root'

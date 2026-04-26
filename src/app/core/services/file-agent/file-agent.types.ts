@@ -34,12 +34,15 @@ export interface GrepArgs {
 
 export interface SearchReplaceArgs {
   filename: string;
-  pattern: string;
-  replacement: string;
-  isRegex?: boolean;
-  caseInsensitive?: boolean;
-  multiline?: boolean;
-  expectedReplacements?: number;
+  replacements: {
+    pattern: string;
+    replacement: string;
+    isRegex?: boolean;
+    caseInsensitive?: boolean;
+    multiline?: boolean;
+    expectedCount?: number;
+  }[];
+  expectedTotalReplacements?: number;
   dryRun?: boolean;
 }
 
@@ -48,38 +51,34 @@ export interface ReplaceFileArgs {
   content: string;
 }
 
-export interface ReplaceSectionArgs {
-  filename: string;
-  sectionPath: string;
-  content: string;
-  newTitle?: string;
-}
-
-export interface ReadMultipleSectionsArgs {
+export interface ReadSectionArgs {
   filename: string;
   sectionPaths: string[];
 }
 
-export interface ReplaceMultipleSectionsArgs {
+export interface ReplaceSectionArgs {
   filename: string;
   updates: {
     sectionPath: string;
     content: string;
     newTitle?: string;
+    force?: boolean;
   }[];
 }
 
-export interface BatchSearchReplaceArgs {
+export interface InsertSectionArgs {
   filename: string;
-  replacements: {
-    pattern: string;
-    replacement: string;
-    isRegex?: boolean;
-    caseInsensitive?: boolean;
-    multiline?: boolean;
-  }[];
-  expectedTotalReplacements?: number;
-  dryRun?: boolean;
+  heading: string;
+  content?: string;
+  anchor?: 'prepend' | 'before' | 'after' | 'append-into';
+  anchorSectionPath?: string;
+}
+
+export interface InsertIntoSectionArgs {
+  filename: string;
+  sectionPath: string;
+  content: string;
+  position: 'start' | 'end';
 }
 
 export interface ReportProgressArgs {
@@ -96,11 +95,10 @@ export type ParsedAction =
   | { action: 'searchReplace'; args: SearchReplaceArgs; callId?: string }
   | { action: 'replaceFile'; args: ReplaceFileArgs; callId?: string }
   | { action: 'getFileOutline'; args: { filename: string }; callId?: string }
-  | { action: 'readSection'; args: { filename: string; sectionPath: string }; callId?: string }
+  | { action: 'readSection'; args: ReadSectionArgs; callId?: string }
   | { action: 'replaceSection'; args: ReplaceSectionArgs; callId?: string }
-  | { action: 'readMultipleSections'; args: ReadMultipleSectionsArgs; callId?: string }
-  | { action: 'replaceMultipleSections'; args: ReplaceMultipleSectionsArgs; callId?: string }
-  | { action: 'batchSearchReplace'; args: BatchSearchReplaceArgs; callId?: string }
+  | { action: 'insertSection'; args: InsertSectionArgs; callId?: string }
+  | { action: 'insertIntoSection'; args: InsertIntoSectionArgs; callId?: string }
   | { action: 'reportProgress'; args: ReportProgressArgs; callId?: string }
   | { action: 'submitResponse'; args: SubmitResponseArgs; callId?: string };
 

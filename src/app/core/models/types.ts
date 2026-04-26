@@ -119,3 +119,23 @@ export interface Book {
         kbSlotName?: string;
     };
 }
+// ─── Create World: Presets & Identity options ───────────────────────────────
+export interface IdentityOption {
+    value: string;
+    desc: string; // shown as hint; also default for background
+    specialRequests: string;
+    alignment?: string;
+    interests?: string;
+    npcHints?: string;
+    appearance?: string;
+}
+
+export interface WorldPreset {
+    id: string;
+    label: string;
+    genre: string;
+    tone: string;
+    setting: string;
+    identities: IdentityOption[];
+}
+

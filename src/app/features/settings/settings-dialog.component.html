@@ -51,6 +51,16 @@
                     placeholder="e.g. French, Korean">
             </mat-form-field>
             }
+
+            <div class="toggle-row">
+                <mat-slide-toggle [ngModel]="enableAdultDeclaration()"
+                    (ngModelChange)="enableAdultDeclaration.set($event)" color="primary">
+                    Enable Adult Content Declaration
+                </mat-slide-toggle>
+            </div>
+            @if (!enableAdultDeclaration()) {
+            <p class="hint-text">Some models may refuse or filter mature scenes without this declaration.</p>
+            }
         </div>
 
         <div class="advanced-section">

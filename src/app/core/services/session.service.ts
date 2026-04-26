@@ -13,7 +13,7 @@ import { GAME_INTENTS } from '../constants/game-intents';
 import { getCoreFilenames, getSectionHeaders, getUIStrings } from '../constants/engine-protocol';
 import { LOCALES } from '../constants/locales';
 import { InjectionService } from './injection.service';
-import { convertLatexToSymbols, repairCorruptedLatex } from '../utils/latex-converter';
+import { convertLatexToSymbols, repairCorruptedLatex } from '../utils/latex.util';
 
 @Injectable({
     providedIn: 'root'
@@ -96,8 +96,7 @@ export class SessionService {
         faction: string,
         background: string,
         interests: string,
-        appearance: string,
-        coreValues: string
+        appearance: string
     }, scenario: Scenario) {
         this.state.status.set('generating');
         const scenarioId = scenario.id;
@@ -157,7 +156,6 @@ export class SessionService {
                 { pattern: /<!uc_background(?:\|[^>]+)?>/g, replacement: profile.background },
                 { pattern: /<!uc_interests(?:\|[^>]+)?>/g, replacement: profile.interests },
                 { pattern: /<!uc_appearance(?:\|[^>]+)?>/g, replacement: profile.appearance },
-                { pattern: /<!uc_core_values(?:\|[^>]+)?>/g, replacement: profile.coreValues },
             ];
 
             for (const key of coreKeys) {
@@ -198,7 +196,7 @@ export class SessionService {
                     const startSceneHeader = sceneHeaders.START_SCENE;
 
                     if (content.includes(startSceneHeader)) {
-                        const sceneContent = content.split(startSceneHeader)[1].split('---')[0].trim();
+                        const sceneContent = content.split(startSceneHeader)[1].split(/\n---|\n##/)[0].trim();
                         content += `\n\n# last_scene\n${sceneContent}`;
                         console.log(`[SessionService] Injected last_scene marker into ${filename} using header ${startSceneHeader}`);
                     } else {

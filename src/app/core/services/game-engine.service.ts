@@ -20,6 +20,7 @@ import {
     getAdultDeclaration,
     getIntentTags,
     getResponseSchema,
+    getSectionHeaders,
     getUIStrings
 } from '../constants/engine-protocol';
 import { LOCALES } from '../constants/locales';
@@ -221,24 +222,17 @@ export class GameEngineService {
         faction: string,
         background: string,
         interests: string,
-        appearance: string,
-        coreValues: string
+        appearance: string
     }, scenario: Scenario) {
         await this.session.startNewGame(profile, scenario);
-        // Ensure session is started properly effectively if GameEngine had specific logic,
-        // but previously startNewGame called startSession at the end.
-        // We probably need to ensure startSession is called here if SessionService doesn't do "engine start".
-        // Wait, startSession sets isBusy and does nothing else really?
-        // Let's check startSession implementation in GameEngine later.
-        // For now, assume SessionService handles the data setup and we just need to start the loop.
-        this.startSession();
+        await this.startSession();
     }
 
     /**
      * Initializes the story session by either extracting the last scene from '2.劇情綱要.md'
      * or prompting the AI to start the story.
      */
-    startSession() {
+    async startSession() {
         if (!this.state.isConfigured() || this.state.loadedFiles().size === 0) {
             console.log('[GameEngine] startSession aborted: Engine not configured or Knowledge Base is empty.');
             return;
@@ -284,7 +278,7 @@ export class GameEngineService {
                 const userMsgId = crypto.randomUUID();
                 const modelMsgId = crypto.randomUUID();
 
-                const declaration = getAdultDeclaration(langId);
+                const declaration = this.state.config()?.enableAdultDeclaration === false ? '' : getAdultDeclaration(langId);
 
                 const ui = getUIStrings(langId);
                 this.updateMessages(prev => [
@@ -304,9 +298,32 @@ export class GameEngineService {
                         analysis: ui.LOCAL_INIT_ANALYSIS
                     }
                 ]);
+                await this.session.saveCurrentSessionToBook();
+            } else if (content) {
+                // No last_scene marker — try extracting ## 開始場景 / ## Start Scene (generated world files)
+                const startSceneHeader = getSectionHeaders(langId).START_SCENE;
+                if (content.includes(startSceneHeader)) {
+                    lastScene = content.split(startSceneHeader)[1].split(/\n---|\n##/)[0].trim();
+                }
+
+                if (lastScene) {
+                    console.log('[GameEngine] Local Initialization: Extracted start scene from', fileName);
+                    const userMsgId = crypto.randomUUID();
+                    const modelMsgId = crypto.randomUUID();
+                    const declaration = this.state.config()?.enableAdultDeclaration === false ? '' : getAdultDeclaration(langId);
+                    const uiStrings = getUIStrings(langId);
+                    this.updateMessages(prev => [
+                        ...prev,
+                        { id: userMsgId, role: 'user', content: introText, parts: [{ text: introText }], isHidden: true },
+                        { id: modelMsgId, role: 'model', content: declaration + lastScene, parts: [{ text: declaration + lastScene }], analysis: uiStrings.LOCAL_INIT_ANALYSIS }
+                    ]);
+                    await this.session.saveCurrentSessionToBook();
+                } else {
+                    console.log('[GameEngine] Local Initialization Failed: No marker found or file empty. Falling back to LLM generation.');
+                    this.sendMessage(introText, { isHidden: true });
+                }
             } else {
                 console.log('[GameEngine] Local Initialization Failed: No marker found or file empty. Falling back to LLM generation.');
-                // Fallback: Let LLM generate the start scene
                 this.sendMessage(introText, { isHidden: true });
             }
         }
@@ -643,36 +660,44 @@ export class GameEngineService {
      * @category Chat History Delegates
      */
 
-    updateMessageContent(id: string, newContent: string) {
+    async updateMessageContent(id: string, newContent: string) {
         this.chatHistory.updateMessageContent(id, newContent);
+        await this.session.saveCurrentSessionToBook();
     }
 
-    updateMessageLogs(id: string, type: 'inventory' | 'quest' | 'world' | 'character', logs: string[]) {
+    async updateMessageLogs(id: string, type: 'inventory' | 'quest' | 'world' | 'character', logs: string[]) {
         this.chatHistory.updateMessageLogs(id, type, logs);
+        await this.session.saveCurrentSessionToBook();
     }
 
-    updateMessageSummary(id: string, summary: string) {
+    async updateMessageSummary(id: string, summary: string) {
         this.chatHistory.updateMessageSummary(id, summary);
+        await this.session.saveCurrentSessionToBook();
     }
 
-    deleteMessage(id: string) {
+    async deleteMessage(id: string) {
         this.chatHistory.deleteMessage(id);
+        await this.session.saveCurrentSessionToBook();
     }
 
-    deleteFrom(id: string) {
+    async deleteFrom(id: string) {
         this.chatHistory.deleteFrom(id);
+        await this.session.saveCurrentSessionToBook();
     }
 
-    rewindTo(messageId: string) {
+    async rewindTo(messageId: string) {
         this.chatHistory.rewindTo(messageId);
+        await this.session.saveCurrentSessionToBook();
     }
 
-    toggleRefOnly(id: string) {
+    async toggleRefOnly(id: string) {
         this.chatHistory.toggleRefOnly(id);
+        await this.session.saveCurrentSessionToBook();
     }
 
     async clearHistory() {
         await this.chatHistory.clearHistory();
+        await this.session.saveCurrentSessionToBook();
     }
 
     private updateMessages(updater: (prev: ChatMessage[]) => ChatMessage[]) {

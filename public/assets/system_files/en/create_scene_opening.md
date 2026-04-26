@@ -17,8 +17,11 @@ You are writing the opening scene narrative for a new text-RPG session. The play
 A rich, immersive expansion of the opening concept:
 
 - **Begin with a single header line** in this exact bracketed format, on its own line:
-  `[<in-world date/time if knowable from the base settings> / <location> / <characters present>]`
-  If the in-world date/time cannot be inferred, drop that segment and keep `[<location> / <characters>]`.
+  `[<Calendar Date HH:MM> / <location> / <characters present>]`
+  - **Date must be precise to "day"**: include year, month, and day (or the calendar's equivalent units). **No** vague seasons, eras, or month-only entries (e.g. "spring", "during the Jingde reign", "April" all fail).
+  - **Clock time must be precise to "minute" (HH:MM)**: e.g. `08:30`, `18:42`. **Never** use vague phrases like "dawn", "dusk", or zodiac-hour names.
+  - **Calendar format (flexible)**: follow whatever format the base settings define — **YYYY/MM/DD is not required**. Acceptable examples: `Cosmic Calendar Year 1000, April 02, Tuesday 18:40`, `Great Song, Jingde Year 3, 3rd Month 7th Day 07:42`, `Imperial Calendar Year 1245, 7th Month, 12th Day 09:00`.
+  - Only if the base settings genuinely cannot anchor the date/time at all may you drop that segment and keep `[<location> / <characters>]`.
 - Then **2–4 short paragraphs** of narrative prose in the tone of the source KB.
 - Establish **sensory atmosphere** (sight, sound, smell, touch, light).
 - Describe the **protagonist's current physical and emotional state** (what they feel, what they hold, what just happened).

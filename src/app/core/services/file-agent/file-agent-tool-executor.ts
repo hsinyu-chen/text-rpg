@@ -6,16 +6,29 @@ import {
   GrepArgs,
   SearchReplaceArgs,
   ReplaceFileArgs,
+  ReadSectionArgs,
   ReplaceSectionArgs,
-  ReadMultipleSectionsArgs,
-  ReplaceMultipleSectionsArgs,
-  BatchSearchReplaceArgs
+  InsertSectionArgs,
+  InsertIntoSectionArgs
 } from './file-agent.types';
 import {
   parseMarkdownOutline,
   resolveSection,
-  ambiguousSectionError
+  ambiguousSectionError,
+  getDescendantHeaders,
+  insertSectionIntoContent,
+  SectionBounds
 } from './markdown-section.util';
+import { detectLatexViolations, latexViolationError, sanitizeLatexToUnicode } from '../../utils/latex.util';
+
+/** Returns the content to write (original or auto-sanitized), or an error if LaTeX remains after sanitization. */
+function checkLatex(content: string, label: string): { content: string } | { error: string } {
+  if (!detectLatexViolations(content).length) return { content };
+  const sanitized = sanitizeLatexToUnicode(content);
+  const remaining = detectLatexViolations(sanitized);
+  if (!remaining.length) return { content: sanitized };
+  return latexViolationError(remaining, label);
+}
 
 export function executeFileTool(
   action: ParsedAction,
@@ -36,12 +49,10 @@ export function executeFileTool(
       return readSection(action.args, context);
     case 'replaceSection':
       return replaceSection(action.args, context);
-    case 'readMultipleSections':
-      return readMultipleSections(action.args, context);
-    case 'replaceMultipleSections':
-      return replaceMultipleSections(action.args, context);
-    case 'batchSearchReplace':
-      return batchSearchReplace(action.args, context);
+    case 'insertSection':
+      return insertSection(action.args, context);
+    case 'insertIntoSection':
+      return insertIntoSection(action.args, context);
     case 'reportProgress':
     case 'submitResponse':
       return { response: { status: 'acknowledged' } };
@@ -63,90 +74,123 @@ function truncate(s: string, max: number): string {
 
 function searchReplace(args: SearchReplaceArgs, context: FileAgentContext): ToolExecutionResult {
   const filename = args.filename;
-  const content = context.files.get(filename);
-  if (content === undefined) return { response: { error: 'File not found' } };
+  let currentContent = context.files.get(filename);
+  if (currentContent === undefined) return { response: { error: 'File not found' } };
 
-  const pattern = args.pattern;
-  if (typeof pattern !== 'string' || pattern.length === 0) {
-    return { response: { error: 'pattern is required and must be a non-empty string' } };
+  const replacements = args.replacements;
+  if (!Array.isArray(replacements) || replacements.length === 0) {
+    return { response: { error: 'replacements must be a non-empty array' } };
   }
-  const replacement = args.replacement;
-  if (typeof replacement !== 'string') {
-    return { response: { error: 'replacement is required and must be a string (use "" to delete matches)' } };
-  }
-  const isRegex = !!args.isRegex;
-  const caseInsensitive = !!args.caseInsensitive;
-  const multiline = !!args.multiline;
+
   const dryRun = !!args.dryRun;
-  const expectedReplacements = args.expectedReplacements;
+  const expectedTotal = args.expectedTotalReplacements;
 
-  if (!isRegex && pattern === replacement) {
-    return { response: { error: 'pattern and replacement are identical — this would be a no-op' } };
+  interface ReplacementResult {
+    pattern: string;
+    count: number;
+    samples?: { line: number; before: string; after: string }[];
+    error?: string;
+  }
+  const results: ReplacementResult[] = [];
+  let totalReplacements = 0;
+
+  for (let i = 0; i < replacements.length; i++) {
+    const r = replacements[i];
+    const pattern = r.pattern;
+    if (typeof pattern !== 'string' || pattern.length === 0) {
+      return { response: { error: `replacements[${i}].pattern is required and must be a non-empty string` } };
+    }
+    const replacement = r.replacement;
+    if (typeof replacement !== 'string') {
+      return { response: { error: `replacements[${i}].replacement is required and must be a string (use "" to delete matches)` } };
+    }
+    const isRegex = !!r.isRegex;
+    const caseInsensitive = !!r.caseInsensitive;
+    const multiline = !!r.multiline;
+
+    let cleanReplacement = replacement;
+    if (cleanReplacement && !dryRun) {
+      const latexCheck = checkLatex(cleanReplacement, `replacements[${i}].replacement`);
+      if ('error' in latexCheck) return { response: latexCheck };
+      cleanReplacement = latexCheck.content;
+    }
+
+    if (!isRegex && pattern === cleanReplacement) {
+      return { response: { error: `replacements[${i}]: pattern and replacement are identical — this would be a no-op` } };
+    }
+
+    const source = isRegex ? pattern : escapeRegex(pattern);
+    let flags = 'g';
+    if (caseInsensitive) flags += 'i';
+    if (multiline) flags += 'm';
+
+    let regex: RegExp;
+    let nonGlobal: RegExp;
+    try {
+      regex = new RegExp(source, flags);
+      nonGlobal = new RegExp(source, flags.replace('g', ''));
+    } catch (e) {
+      return { response: { error: `replacements[${i}]: invalid regex "${pattern}": ${e instanceof Error ? e.message : String(e)}` } };
+    }
+
+    const matches = Array.from(currentContent.matchAll(regex));
+    const count = matches.length;
+
+    if (r.expectedCount !== undefined && count !== r.expectedCount) {
+      return {
+        response: {
+          error: `replacements[${i}]: expectedCount mismatch for pattern "${pattern}" — expected ${r.expectedCount}, found ${count}. File unchanged.`,
+          found: count
+        }
+      };
+    }
+
+    const samples: { line: number; before: string; after: string }[] = [];
+    for (const m of matches.slice(0, 3)) {
+      const line = currentContent.slice(0, m.index ?? 0).split('\n').length;
+      const after = m[0].replace(nonGlobal, cleanReplacement);
+      samples.push({ line, before: truncate(m[0], 200), after: truncate(after, 200) });
+    }
+
+    if (count > 0 && !dryRun) {
+      currentContent = currentContent.replace(regex, cleanReplacement);
+    }
+    totalReplacements += count;
+    results.push({ pattern, count, samples: samples.length ? samples : undefined });
   }
 
-  const source = isRegex ? pattern : escapeRegex(pattern);
-  let flags = 'g';
-  if (caseInsensitive) flags += 'i';
-  if (multiline) flags += 'm';
-  let regex: RegExp;
-  let nonGlobal: RegExp;
-  try {
-    regex = new RegExp(source, flags);
-    nonGlobal = new RegExp(source, flags.replace('g', ''));
-  } catch (e) {
-    return { response: { error: `Invalid regex: ${e instanceof Error ? e.message : String(e)}` } };
-  }
-
-  const allMatches = Array.from(content.matchAll(regex));
-  const totalMatches = allMatches.length;
-
-  if (totalMatches === 0) {
-    return { response: { error: 'No matches found for pattern. File unchanged. Re-grep with the same pattern to confirm what should match.', replacements: 0 } };
-  }
-
-  if (expectedReplacements !== undefined && totalMatches !== expectedReplacements) {
+  if (expectedTotal !== undefined && totalReplacements !== expectedTotal) {
     return {
       response: {
-        error: `expectedReplacements mismatch: expected ${expectedReplacements}, found ${totalMatches}. File unchanged. Re-grep to confirm the actual count, then retry with the correct expectedReplacements (or omit it to proceed unchecked).`,
-        replacements: totalMatches
+        error: `expectedTotalReplacements mismatch: expected ${expectedTotal}, found ${totalReplacements}. File unchanged.`,
+        found: totalReplacements,
+        details: results
       }
     };
   }
 
-  const samples: { line: number, before: string, after: string }[] = [];
-  for (const m of allMatches.slice(0, 5)) {
-    const line = content.slice(0, m.index ?? 0).split('\n').length;
-    const after = m[0].replace(nonGlobal, replacement);
-    samples.push({ line, before: truncate(m[0], 200), after: truncate(after, 200) });
-  }
-
-  if (dryRun) {
+  if (!dryRun && totalReplacements === 0) {
     return {
       response: {
-        status: 'dry-run',
-        replacements: totalMatches,
-        samples,
-        totalLines: content.split('\n').length,
-        note: 'Dry run only — file unchanged. Re-call without dryRun to apply.'
+        error: 'No matches found for any pattern. File unchanged. Re-grep to confirm what should match.',
+        details: results
       }
     };
   }
 
-  const newContent = content.replace(regex, replacement);
-  const oldLines = content.split('\n').length;
-  const newLines = newContent.split('\n').length;
-  const diff = newLines - oldLines;
-  const diffStr = diff >= 0 ? `+${diff}` : `${diff}`;
-  context.onFileReplaced(filename, newContent);
+  if (!dryRun) {
+    context.onFileReplaced(filename, currentContent);
+  }
+
   return {
     response: {
-      status: 'success',
-      summary: `searchReplace in ${filename}: ${totalMatches} replacement(s). Lines: ${oldLines} -> ${newLines} (${diffStr})`,
-      replacements: totalMatches,
-      samples,
-      totalLines: newLines
+      status: dryRun ? 'dry-run' : 'success',
+      summary: `searchReplace in ${filename}: ${totalReplacements} replacement(s) across ${replacements.length} pattern(s).`,
+      totalReplacements,
+      details: results,
+      totalLines: currentContent.split('\n').length
     },
-    infoLog: `Successfully applied ${totalMatches} replacement(s) in ${filename}`
+    infoLog: dryRun ? undefined : `Successfully applied ${totalReplacements} replacement(s) in ${filename}`
   };
 }
 
@@ -232,11 +276,14 @@ function grep(args: GrepArgs, context: FileAgentContext): ToolExecutionResult {
 function replaceFile(args: ReplaceFileArgs, context: FileAgentContext): ToolExecutionResult {
   const oldContent = context.files.get(args.filename);
   if (oldContent === undefined) return { response: { error: 'File not found' } };
+  const latexCheck = checkLatex(args.content, 'content');
+  if ('error' in latexCheck) return { response: latexCheck };
+  const newFileContent = latexCheck.content;
   const oldLines = oldContent.split('\n').length;
-  const newLines = args.content.split('\n').length;
+  const newLines = newFileContent.split('\n').length;
   const diff = newLines - oldLines;
   const diffStr = diff >= 0 ? `+${diff}` : `${diff}`;
-  context.onFileReplaced(args.filename, args.content);
+  context.onFileReplaced(args.filename, newFileContent);
   return {
     response: {
       status: 'success',
@@ -258,64 +305,7 @@ function getFileOutline(args: { filename: string }, context: FileAgentContext): 
   };
 }
 
-function readSection(args: { filename: string, sectionPath: string }, context: FileAgentContext): ToolExecutionResult {
-  const content = context.files.get(args.filename);
-  if (content === undefined) return { response: { error: 'File not found' } };
-  const resolution = resolveSection(content, args.sectionPath);
-  if (resolution.kind === 'none') return { response: { error: 'Section not found' } };
-  if (resolution.kind === 'ambiguous') {
-    return { response: ambiguousSectionError('read', args.sectionPath, resolution.matches) };
-  }
-  const bounds = resolution.section;
-  const lines = content.split('\n');
-  const sectionContent = lines.slice(bounds.startLine + 1, bounds.endLine + 1).join('\n');
-  return {
-    response: {
-      header: bounds.headerText,
-      content: sectionContent,
-      startLine: bounds.startLine + 1,
-      endLine: bounds.endLine + 1,
-      totalLines: lines.length
-    }
-  };
-}
-
-function replaceSection(args: ReplaceSectionArgs, context: FileAgentContext): ToolExecutionResult {
-  const content = context.files.get(args.filename);
-  if (content === undefined) return { response: { error: 'File not found' } };
-  const resolution = resolveSection(content, args.sectionPath);
-  if (resolution.kind === 'none') return { response: { error: 'Section not found' } };
-  if (resolution.kind === 'ambiguous') {
-    return { response: ambiguousSectionError('replace', args.sectionPath, resolution.matches) };
-  }
-  const bounds = resolution.section;
-  const lines = content.split('\n');
-  const prefix = lines.slice(0, bounds.startLine);
-  const suffix = lines.slice(bounds.endLine + 1);
-  const hashes = '#'.repeat(bounds.level);
-  const newHeaderLine = args.newTitle ? `${hashes} ${args.newTitle}` : lines[bounds.startLine];
-  const newFileLines = [...prefix, newHeaderLine];
-  if (args.content) newFileLines.push(args.content);
-  newFileLines.push(...suffix);
-  const newContent = newFileLines.join('\n');
-  const oldSectionLines = (bounds.endLine - bounds.startLine);
-  const newSectionLines = args.content ? args.content.split('\n').length : 0;
-  const diff = newSectionLines - oldSectionLines;
-  const diffStr = diff >= 0 ? `+${diff}` : `${diff}`;
-  context.onFileReplaced(args.filename, newContent);
-  return {
-    response: {
-      status: 'success',
-      summary: `Section ${args.sectionPath} replaced. Lines: ${oldSectionLines} -> ${newSectionLines} (${diffStr})`,
-      startLine: bounds.startLine + 1,
-      endLine: bounds.startLine + 1 + newSectionLines,
-      totalLines: newFileLines.length
-    },
-    infoLog: `Successfully updated section ${args.sectionPath} in ${args.filename}`
-  };
-}
-
-function readMultipleSections(args: ReadMultipleSectionsArgs, context: FileAgentContext): ToolExecutionResult {
+function readSection(args: ReadSectionArgs, context: FileAgentContext): ToolExecutionResult {
   const filename = args.filename;
   const content = context.files.get(filename);
   if (content === undefined) return { response: { error: 'File not found' } };
@@ -330,6 +320,8 @@ function readMultipleSections(args: ReadMultipleSectionsArgs, context: FileAgent
     path: string;
     header?: string;
     content?: string;
+    startLine?: number;
+    endLine?: number;
     error?: string;
     truncated?: boolean;
     note?: string;
@@ -360,6 +352,8 @@ function readMultipleSections(args: ReadMultipleSectionsArgs, context: FileAgent
           path,
           header: bounds.headerText,
           content: sectionLines.slice(0, allowed).join('\n'),
+          startLine: bounds.startLine + 1,
+          endLine: bounds.endLine + 1,
           truncated: true,
           note: `Truncated: exceeded ${LINE_LIMIT} lines total limit.`
         });
@@ -372,7 +366,9 @@ function readMultipleSections(args: ReadMultipleSectionsArgs, context: FileAgent
       results.push({
         path,
         header: bounds.headerText,
-        content: sectionLines.join('\n')
+        content: sectionLines.join('\n'),
+        startLine: bounds.startLine + 1,
+        endLine: bounds.endLine + 1
       });
       totalLines += sectionLines.length;
     }
@@ -382,13 +378,14 @@ function readMultipleSections(args: ReadMultipleSectionsArgs, context: FileAgent
     response: {
       sections: results,
       totalLinesRead: totalLines,
+      totalLines: lines.length,
       truncated,
       note: truncated ? `Some results were truncated to fit the ${LINE_LIMIT} lines limit.` : undefined
     }
   };
 }
 
-function replaceMultipleSections(args: ReplaceMultipleSectionsArgs, context: FileAgentContext): ToolExecutionResult {
+function replaceSection(args: ReplaceSectionArgs, context: FileAgentContext): ToolExecutionResult {
   const filename = args.filename;
   const content = context.files.get(filename);
   if (content === undefined) return { response: { error: 'File not found' } };
@@ -398,11 +395,9 @@ function replaceMultipleSections(args: ReplaceMultipleSectionsArgs, context: Fil
     return { response: { error: 'updates must be a non-empty array' } };
   }
 
-  // To handle multiple replacements correctly, we must apply them in a way that
-  // doesn't invalidate subsequent header searches.
-  // Safest way: apply from BOTTOM to TOP.
+  // Apply from BOTTOM to TOP so earlier startLines remain valid as we mutate.
   interface ResolvedUpdate {
-    bounds: import('./markdown-section.util').SectionBounds;
+    bounds: SectionBounds;
     content: string;
     newTitle?: string;
     path: string;
@@ -410,11 +405,34 @@ function replaceMultipleSections(args: ReplaceMultipleSectionsArgs, context: Fil
   const resolvedUpdates: ResolvedUpdate[] = [];
 
   for (const u of updates) {
-    const resolution = resolveSection(content, u.sectionPath);
-    if (resolution.kind !== 'ok') {
-      return { response: { error: `Failed to resolve path "${u.sectionPath}": ${resolution.kind}` } };
+    if (typeof u.sectionPath !== 'string' || u.sectionPath.length === 0) {
+      return { response: { error: 'each update entry requires a non-empty sectionPath' } };
     }
-    resolvedUpdates.push({ bounds: resolution.section, content: u.content, newTitle: u.newTitle, path: u.sectionPath });
+    if (typeof u.content !== 'string') {
+      return { response: { error: `updates entry for "${u.sectionPath}" requires a string "content" (use "" to clear the body)` } };
+    }
+    let body = u.content;
+    if (body) {
+      const latexCheck = checkLatex(body, `content (${u.sectionPath})`);
+      if ('error' in latexCheck) return { response: latexCheck };
+      body = latexCheck.content;
+    }
+    const resolution = resolveSection(content, u.sectionPath);
+    if (resolution.kind === 'none') {
+      return { response: { error: `Section not found: "${u.sectionPath}"` } };
+    }
+    if (resolution.kind === 'ambiguous') {
+      return { response: ambiguousSectionError('replace', u.sectionPath, resolution.matches) };
+    }
+    const descendants = getDescendantHeaders(content, resolution.section);
+    if (descendants.length > 0 && !u.force) {
+      return {
+        response: {
+          error: `Section "${u.sectionPath}" contains subsections that would be permanently deleted: [${descendants.map(h => `"${h}"`).join(', ')}]. To proceed anyway, pass force: true on this update entry. Otherwise, target each child directly by path (e.g. "${u.sectionPath}>ChildName"), or use insertSection to add new subsections.`
+        }
+      };
+    }
+    resolvedUpdates.push({ bounds: resolution.section, content: body, newTitle: u.newTitle, path: u.sectionPath });
   }
 
   // Sort by startLine descending
@@ -440,70 +458,96 @@ function replaceMultipleSections(args: ReplaceMultipleSectionsArgs, context: Fil
   return {
     response: {
       status: 'success',
-      summary: `Successfully updated ${updates.length} sections in ${filename}`,
+      summary: `Successfully updated ${updates.length} section(s) in ${filename}`,
       totalLines: currentLines.length
     },
-    infoLog: `Successfully updated ${updates.length} sections in ${filename}`
+    infoLog: `Successfully updated ${updates.length} section(s) in ${filename}`
   };
 }
 
-function batchSearchReplace(args: BatchSearchReplaceArgs, context: FileAgentContext): ToolExecutionResult {
+function insertSection(args: InsertSectionArgs, context: FileAgentContext): ToolExecutionResult {
+  const content = context.files.get(args.filename);
+  if (content === undefined) return { response: { error: 'File not found' } };
+  if (!args.heading || !args.heading.match(/^#{1,6}\s+\S/)) {
+    return { response: { error: 'heading must start with 1-6 # characters followed by text, e.g. "## New Section"' } };
+  }
+  if ((args.anchor === 'before' || args.anchor === 'after' || args.anchor === 'append-into') && !args.anchorSectionPath) {
+    return { response: { error: `anchor "${args.anchor}" requires anchorSectionPath` } };
+  }
+  let insertBody = args.content;
+  if (insertBody) {
+    const latexCheck = checkLatex(insertBody, 'content');
+    if ('error' in latexCheck) return { response: latexCheck };
+    insertBody = latexCheck.content;
+  }
+  const result = insertSectionIntoContent(content, args.heading, insertBody, args.anchor, args.anchorSectionPath);
+  if ('error' in result) return { response: { error: result.error } };
+  const oldLines = content.split('\n').length;
+  context.onFileReplaced(args.filename, result.newContent);
+  return {
+    response: {
+      status: 'success',
+      summary: `Inserted "${args.heading}" at line ${result.insertedAtLine} in ${args.filename}. Lines: ${oldLines} -> ${result.newContent.split('\n').length}`,
+      insertedAtLine: result.insertedAtLine,
+      totalLines: result.newContent.split('\n').length
+    },
+    infoLog: `Inserted section "${args.heading}" in ${args.filename}`
+  };
+}
+
+function insertIntoSection(args: InsertIntoSectionArgs, context: FileAgentContext): ToolExecutionResult {
   const filename = args.filename;
-  let currentContent = context.files.get(filename);
-  if (currentContent === undefined) return { response: { error: 'File not found' } };
+  const content = context.files.get(filename);
+  if (content === undefined) return { response: { error: 'File not found' } };
 
-  const replacements = args.replacements;
-  const dryRun = !!args.dryRun;
-  const expectedTotal = args.expectedTotalReplacements;
-
-  interface ReplacementResult { pattern: string; count: number }
-  const results: ReplacementResult[] = [];
-  let totalReplacements = 0;
-
-  for (const r of replacements) {
-    const pattern = r.pattern;
-    const replacement = r.replacement;
-    const isRegex = !!r.isRegex;
-    const caseInsensitive = !!r.caseInsensitive;
-    const multiline = !!r.multiline;
-
-    const source = isRegex ? pattern : escapeRegex(pattern);
-    let flags = 'g';
-    if (caseInsensitive) flags += 'i';
-    if (multiline) flags += 'm';
-
-    try {
-      const regex = new RegExp(source, flags);
-      const matches = Array.from(currentContent.matchAll(regex));
-      if (matches.length > 0) {
-        totalReplacements += matches.length;
-        if (!dryRun) {
-          currentContent = currentContent.replace(regex, replacement);
-        }
-        results.push({ pattern, count: matches.length });
-      } else {
-        results.push({ pattern, count: 0 });
-      }
-    } catch (e) {
-      return { response: { error: `Invalid pattern "${pattern}": ${e}` } };
-    }
+  if (typeof args.sectionPath !== 'string' || args.sectionPath.length === 0) {
+    return { response: { error: 'sectionPath is required' } };
+  }
+  if (typeof args.content !== 'string' || args.content.length === 0) {
+    return { response: { error: 'content is required and must be a non-empty string' } };
+  }
+  if (args.position !== 'start' && args.position !== 'end') {
+    return { response: { error: 'position must be "start" or "end"' } };
   }
 
-  if (expectedTotal !== undefined && totalReplacements !== expectedTotal) {
-    return { response: { error: `Total replacements mismatch: expected ${expectedTotal}, found ${totalReplacements}. File unchanged.`, found: totalReplacements } };
+  const resolution = resolveSection(content, args.sectionPath);
+  if (resolution.kind === 'none') return { response: { error: `Section not found: "${args.sectionPath}"` } };
+  if (resolution.kind === 'ambiguous') {
+    return { response: ambiguousSectionError('replace', args.sectionPath, resolution.matches) };
   }
 
-  if (!dryRun) {
-    context.onFileReplaced(filename, currentContent);
+  const latexCheck = checkLatex(args.content, `content (${args.sectionPath})`);
+  if ('error' in latexCheck) return { response: latexCheck };
+  const insertBody = latexCheck.content;
+  const insertLines = insertBody.split('\n');
+
+  const bounds = resolution.section;
+  const lines = content.split('\n');
+  const oldTotalLines = lines.length;
+
+  let insertAt: number;
+  if (args.position === 'start') {
+    insertAt = bounds.startLine + 1;
+  } else {
+    insertAt = bounds.endLine + 1;
   }
+
+  const newLines = [
+    ...lines.slice(0, insertAt),
+    ...insertLines,
+    ...lines.slice(insertAt)
+  ];
+  const newContent = newLines.join('\n');
+  context.onFileReplaced(filename, newContent);
 
   return {
     response: {
-      status: dryRun ? 'dry-run' : 'success',
-      totalReplacements,
-      details: results,
-      totalLines: currentContent.split('\n').length
+      status: 'success',
+      summary: `Inserted ${insertLines.length} line(s) at ${args.position} of "${args.sectionPath}" in ${filename}. Lines: ${oldTotalLines} -> ${newLines.length}`,
+      insertedAtLine: insertAt + 1,
+      insertedLineCount: insertLines.length,
+      totalLines: newLines.length
     },
-    infoLog: dryRun ? undefined : `Successfully applied batch search-replace in ${filename} (${totalReplacements} changes)`
+    infoLog: `Inserted ${insertLines.length} line(s) into section "${args.sectionPath}" in ${filename}`
   };
 }

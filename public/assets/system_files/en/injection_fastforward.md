@@ -6,7 +6,7 @@
 `<Fast Forward>Target Time or Location`
 
 ## Processing Rules
-User wishes to skip ahead to a specific time (e.g., Monday, 3 days later) or location.
+User wishes to skip ahead to a specific point in time (e.g., Monday 09:00, 3 days later 08:30, half an hour later) or location. **The header clock time must be precise to the minute (HH:MM)**, and the time field upon arrival must also be a concrete HH:MM.
 
 **Event Check Process**:
 1. Check from current time to target time: Will any "Special Events" occur?

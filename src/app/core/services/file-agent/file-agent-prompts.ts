@@ -25,12 +25,11 @@ You must ONLY provide the arguments required for your chosen action. Omit all ot
 - action: "replaceFile" -> args: { "filename": "...", "content": "..." }
 - action: "getFileOutline" -> args: { "filename": "..." }
 - action: "grep" -> args: { "pattern": "...", "filename"?: "...", "caseInsensitive"?: false, "maxResults"?: 100, "contextLines"?: 2 }
-- action: "searchReplace" -> args: { "filename": "...", "pattern": "...", "replacement": "...", "isRegex"?: false, "caseInsensitive"?: false, "multiline"?: false, "expectedReplacements"?: 27, "dryRun"?: false }
-- action: "readSection" -> args: { "filename": "...", "sectionPath": "..." }
-- action: "replaceSection" -> args: { "filename": "...", "sectionPath": "...", "content": "...", "newTitle": "..." }
-- action: "readMultipleSections" -> args: { "filename": "...", "sectionPaths": ["path1", "path2"] }
-- action: "replaceMultipleSections" -> args: { "filename": "...", "updates": [{ "sectionPath": "...", "content": "...", "newTitle": "..." }] }
-- action: "batchSearchReplace" -> args: { "filename": "...", "replacements": [{ "pattern": "...", "replacement": "...", "isRegex": true }], "expectedTotalReplacements": 10, "dryRun": false }
+- action: "searchReplace" -> args: { "filename": "...", "replacements": [{ "pattern": "...", "replacement": "...", "isRegex"?: false, "caseInsensitive"?: false, "multiline"?: false, "expectedCount"?: 27 }], "expectedTotalReplacements"?: 10, "dryRun"?: false }
+- action: "readSection" -> args: { "filename": "...", "sectionPaths": ["path1", "path2"] }
+- action: "replaceSection" -> args: { "filename": "...", "updates": [{ "sectionPath": "...", "content": "...", "newTitle"?: "...", "force"?: false }] }
+- action: "insertSection" -> args: { "filename": "...", "heading": "## ...", "content"?: "...", "anchor"?: "append-into", "anchorSectionPath"?: "..." }
+- action: "insertIntoSection" -> args: { "filename": "...", "sectionPath": "...", "content": "...", "position": "start" | "end" }
 - action: "reportProgress" -> args: { "message": "..." }
 - action: "submitResponse" -> args: { "message": "..." }
 
@@ -56,14 +55,14 @@ NEVER readFile(whole) just to "see what's there" when grep / getFileOutline can 
 Rule 2: NO BLIND WHOLE-FILE READS.
 readFile WITHOUT startLine/lineCount is forbidden unless (a) you have already grep'd the file and confirmed matches are dense throughout it, (b) the file is small (the file list shows you which are trivial), or (c) the user explicitly asked you to display the whole file. When in doubt: grep first, readFile slice second, readFile whole as last resort.
 
-Rule 3: MECHANICAL EDITS USE searchReplace OR batchSearchReplace.
-For pattern-based edits scattered across a file (delete every "---" line, rename token A to B everywhere, fix one recurring typo), use searchReplace — NEVER readFile + replaceFile. Use batchSearchReplace when you need to apply multiple different patterns in one turn to the same file. Workflow:
+Rule 3: MECHANICAL EDITS USE searchReplace.
+For pattern-based edits (delete every "---" line, rename token A to B everywhere, fix recurring typos), use searchReplace — NEVER readFile + replaceFile. searchReplace accepts an array of replacements, so a single edit is one entry and multiple different patterns in the same file go in one call. Workflow:
   1. grep the pattern(s) with contextLines=1 or 2 → confirm both the match count AND that each surrounding context looks like a legitimate target.
   2. If patterns are non-trivial regex, run with dryRun=true to preview samples.
-  3. Run with expectedTotalReplacements set to your grep count sum as a safety net.
+  3. Run with expectedTotalReplacements set to your grep count sum (or per-entry expectedCount) as a safety net.
 
 Rule 4: PER-SECTION ITERATION USES SECTION TOOLS.
-For iterative or large-scale per-section tasks like "compress this file" or "simplify each entry", use readSection + replaceSection sequentially per section, or readMultipleSections + replaceMultipleSections to process in batches. Batching is preferred for efficiency.
+For iterative or large-scale per-section tasks like "compress this file" or "simplify each entry", use readSection + replaceSection. Both accept arrays — read 10-15 sections in one call, then replace them all in one call. Batching is much faster than one-section-at-a-time.
 
 Rule 5: SECTION TITLES ARE EXACT.
 Before any section-level mutation on a file you have not yet outlined this turn, call getFileOutline. Copy heading titles EXACTLY from the outline result into sectionPath — do not guess, abbreviate, or normalize whitespace.
@@ -79,11 +78,10 @@ The file list above shows each file's total line count. Use it to decide when fu
     grep("脈衝電磁槍", "tech.md")                            // single file, no context
     grep("damage[ _]*=[ _]*\\d+", undefined, true, 50)       // case-insensitive, capped
     grep("^---\\s*$", "5.科技裝備.md", false, 100, 2)        // ±2 lines context to verify each "---" before searchReplace
-- searchReplace(filename, pattern, replacement, isRegex?, caseInsensitive?, multiline?, expectedReplacements?, dryRun?): server-side find-and-replace.
-- batchSearchReplace(filename, replacements[], expectedTotalReplacements?, dryRun?): applies multiple replacements in sequence. "replacements" is an array of {pattern, replacement, isRegex?, caseInsensitive?, multiline?}.
+- searchReplace(filename, replacements[], expectedTotalReplacements?, dryRun?): server-side find-and-replace. "replacements" is an array of {pattern, replacement, isRegex?, caseInsensitive?, multiline?, expectedCount?}. Use a single-entry array for a single edit, multi-entry for batch reformatting in one file.
 - readFile(filename, startLine?, lineCount?): reads a contiguous slice.
-- readMultipleSections(filename, sectionPaths[]): reads multiple sections at once. Returns { sections: [{path, header, content, error?}], totalLinesRead, truncated, note? }. Output is capped at 500 lines total; check "truncated" flag.
-- For markdown files, prefer getFileOutline + readSection/readMultipleSections over readFile slicing.
+- readSection(filename, sectionPaths[]): reads one or more sections at once. Returns { sections: [{path, header, content, error?}], totalLinesRead, truncated }. Output is capped at 500 lines total; check "truncated" flag.
+- For markdown files, prefer getFileOutline + readSection over readFile slicing.
 `;
 
   const sectionGuide = `## SECTION TOOLS GUIDE (IMPORTANT)
@@ -96,28 +94,35 @@ sectionPath is built by joining heading titles with ">". Examples:
   - To target "## 基礎理論" under "# 科技裝備": sectionPath = "科技裝備>基礎理論"
   - To target "### 脈衝電磁槍" under "## 裝備清單": sectionPath = "科技裝備>裝備清單>脈衝電磁槍"
 
-readSection returns the content under that heading (excluding the heading line itself, up to the next heading of equal or higher level).
+readSection takes "sectionPaths" (array). Returns the content under each heading (excluding the heading line, up to the next heading of equal or higher level). For a single section, pass a one-element array.
 
-replaceSection replaces ONLY the content under that heading. The "content" field is the new body text (without the heading line). If you also want to rename the heading, provide "newTitle".`;
+replaceSection takes "updates" (array). Each entry replaces ONLY the body content under its sectionPath (without the heading line). If you also want to rename a heading, provide "newTitle" on that entry. **An entry fails if its section has child subsections** — pass force: true on that entry to delete them, otherwise target each child by full path.
+
+insertSection adds a NEW section (with its own heading) — sibling or nested. Use for adding new headings.
+
+insertIntoSection adds plain text lines INTO an existing section without introducing a heading. position="start" puts the lines right after the heading; position="end" puts them at the very end of the section (after all child sections). Use this to append paragraphs, list items, or table rows.`;
 
   const commonRecipes = `## COMMON WORKFLOW RECIPES
 
 1. **Inserting at the Very Top of a File**:
    - **Step 1 (Verify)**: Call \`readFile(filename, 1, 2)\` to see the current first line.
-   - **Step 2 (Insert)**: Use \`searchReplace\` to find that first line exactly and replace it with:
+   - **Step 2 (Insert)**: Use \`searchReplace\` with a single-entry replacements array — find that first line exactly and replace it with:
      # New Section
      Content...
 
      [Original First Line]
-   - Set \`expectedReplacements: 1\` to ensure you only touch the header at the very top.
+   - Set \`expectedTotalReplacements: 1\` (or per-entry expectedCount) to ensure you only touch the header at the very top.
 
 2. **Large-Scale Attribute Compression (e.g. merging 3 lines into 1 across many characters)**:
    - **Step 1**: getFileOutline to map out all target sections.
-   - **Step 2 (Batching)**: Call readMultipleSections for a batch of 10-15 characters.
-   - **Step 3 (Processing)**: In your next turn, use replaceMultipleSections to update all of them in one go.
+   - **Step 2 (Batching)**: Call readSection with sectionPaths for a batch of 10-15 characters in one call.
+   - **Step 3 (Processing)**: In your next turn, use replaceSection with an updates array containing all of them in one go.
    - **Step 4**: Repeat until finished. This is 10x faster than doing one section at a time.
 
-3. **Safe Handling of Large Files (>500 lines)**:
+3. **Appending lines to a section without adding a new heading** (e.g. add a row to a table, append a list item):
+   - Use \`insertIntoSection\` with position="end" — no need to readSection first or rebuild the body.
+
+4. **Safe Handling of Large Files (>500 lines)**:
    - If you need to see "the middle" of a long section, use readFile with startLine and lineCount based on the offsets found in grep or getFileOutline.
    - Never feel blocked by file size; just use the "Outline -> Read Specific Slice/Section" pattern.`;
 

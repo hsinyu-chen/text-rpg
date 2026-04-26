@@ -6,6 +6,8 @@ import { FileAgentContext, ToolCallMode, AgentLogEntry, ParsedAction } from './f
 import { FILE_AGENT_TOOLS, buildJsonSchema } from './file-agent-tools';
 import { buildSystemInstruction } from './file-agent-prompts';
 import { executeFileTool } from './file-agent-tool-executor';
+import { WorldCompletionValidator } from './world-completion-validator';
+import { sanitizeLatexToUnicode } from '../../utils/latex.util';
 
 export type { FileAgentContext, ToolCallMode } from './file-agent.types';
 
@@ -41,10 +43,16 @@ const TOOL_CALL_MODE_KEY_PREFIX = 'file_agent_tool_call_mode:';
 export class FileAgentService {
   private llmConfigService = inject(LLMConfigService);
   private llmProviderRegistry = inject(LLMProviderRegistryService);
+  private completionValidator: WorldCompletionValidator | null = null;
+
+  setCompletionValidator(v: WorldCompletionValidator): void {
+    this.completionValidator = v;
+  }
 
   agentProfiles = this.llmConfigService.profiles;
   selectedProfileId = signal<string | null>(this.llmConfigService.activeProfileId());
   agentLogs = signal<AgentLogEntry[]>([]);
+  lastFilesReplaced = signal<{ filename: string; content: string }[]>([]);
 
   toolCallMode = signal<ToolCallMode>(this.loadToolCallMode(this.llmConfigService.activeProfileId()));
 
@@ -393,6 +401,7 @@ export class FileAgentService {
     let accumulatedThought = '';
     let hasCollapsedThought = false;
     const nativeFunctionCalls: LLMFunctionCall[] = [];
+    const nativeFunctionCallParts: LLMPart[] = [];
 
     // Native-mode tool-call streaming heartbeat. Without this the user sees a
     // blank streaming entry while the provider assembles the functionCall
@@ -423,6 +432,8 @@ export class FileAgentService {
           // otherwise keep only the first to preserve single-tool semantics.
           if (allowParallel || nativeFunctionCalls.length === 0) {
             nativeFunctionCalls.push(chunk.functionCall);
+            // Store as LLMPart to preserve all stream metadata (e.g. thoughtSignature)
+            nativeFunctionCallParts.push({ functionCall: chunk.functionCall, thoughtSignature: chunk.thoughtSignature });
           }
           const isFirst = !firstFunctionCallSeen;
           const now = Date.now();
@@ -495,6 +506,17 @@ export class FileAgentService {
       return;
     }
 
+    if (mode === 'native' && accumulatedText) {
+      accumulatedText = sanitizeLatexToUnicode(accumulatedText);
+      this.agentLogs.update(logs => {
+        const next = [...logs];
+        if (next[currentLogIndex]) {
+          next[currentLogIndex] = { ...next[currentLogIndex], text: accumulatedText };
+        }
+        return next;
+      });
+    }
+
     let parsedActions: ParsedAction[] = [];
 
     if (mode === 'native') {
@@ -541,15 +563,8 @@ export class FileAgentService {
 
     if (mode === 'native') {
       if (accumulatedText) modelParts.push({ text: accumulatedText });
-      for (const a of parsedActions) {
-        modelParts.push({
-          functionCall: {
-            id: a.callId,
-            name: a.action,
-            args: a.args as Record<string, unknown>
-          }
-        });
-      }
+      // Use nativeFunctionCallParts directly to preserve all stream metadata (e.g. thoughtSignature)
+      modelParts.push(...nativeFunctionCallParts);
     } else {
       // JSON mode is single-tool by design. Keep the model's raw text
       // (which contains the full content) intact in history — eliding it
@@ -578,6 +593,18 @@ export class FileAgentService {
     // If submitResponse appears anywhere in the batch, treat the turn as done.
     const finishCall = parsedActions.find(a => a.action === 'submitResponse');
     if (finishCall) {
+      // Run completion validator before allowing the agent to stop.
+      if (this.completionValidator && !this.completionValidator.isCompleted) {
+        const validation = this.completionValidator.validate();
+        if (!validation.valid) {
+          this.appendToolResults([{ action: finishCall, response: { status: 'acknowledged' } }], mode);
+          this.agentHistory.update(h => [...h, { role: 'user', parts: [{ text: validation.errorMessage }] }]);
+          this.agentLogs.update(logs => [...logs, { role: 'system', text: validation.errorMessage, type: 'info' }]);
+          await this.processAgentTurn(context);
+          return;
+        }
+      }
+
       const toolMsg = (finishCall.args['message'] as string) || '';
       // Merge commentary and tool message if they are different and both exist
       const finalMsg = (accumulatedText.trim() && toolMsg.trim() && accumulatedText.trim() !== toolMsg.trim())
@@ -650,7 +677,13 @@ export class FileAgentService {
 
       const filename = ('filename' in a.args) ? a.args.filename : '';
       const toolName = `${a.action}(${filename})`;
-      const result = executeFileTool(a, context);
+      let singleReplaced: { filename: string; content: string } | null = null;
+      const singleContext: FileAgentContext = {
+        ...context,
+        onFileReplaced: (f, c) => { context.onFileReplaced(f, c); singleReplaced = { filename: f, content: c }; }
+      };
+      const result = executeFileTool(a, singleContext);
+      if (singleReplaced) this.lastFilesReplaced.set([singleReplaced]);
       if (result.infoLog) {
         this.agentLogs.update(logs => [...logs, { role: 'system', text: result.infoLog!, type: 'info' }]);
       }
@@ -664,6 +697,11 @@ export class FileAgentService {
     // (or empty) and append a fresh log entry per action so each tool call is
     // visible on its own line.
     const executed: { action: ParsedAction, response: Record<string, unknown> }[] = [];
+    const batchReplacements: { filename: string; content: string }[] = [];
+    const batchContext: FileAgentContext = {
+      ...context,
+      onFileReplaced: (f, c) => { context.onFileReplaced(f, c); batchReplacements.push({ filename: f, content: c }); }
+    };
 
     for (const a of parsedActions) {
       if (a.action === 'reportProgress') {
@@ -685,13 +723,17 @@ export class FileAgentService {
           toolName
         }
       ]);
-      const result = executeFileTool(a, context);
+      const result = executeFileTool(a, batchContext);
       if (result.infoLog) {
         this.agentLogs.update(logs => [...logs, { role: 'system', text: result.infoLog!, type: 'info' }]);
       }
       this.pushToolResultLog(result.response, toolName);
       executed.push({ action: a, response: result.response });
     }
+
+    // Signal all replacements from this batch at once — avoids Angular signal
+    // glitch-free batching from losing intermediate updates in a synchronous loop.
+    if (batchReplacements.length > 0) this.lastFilesReplaced.set(batchReplacements);
 
     this.appendToolResults(executed, mode);
     await this.processAgentTurn(context);

@@ -117,7 +117,7 @@ export const ZH_TW_LOCALE: AppLocale = {
             'Chaotic Good': '混亂善良',
             'Lawful Neutral': '守序中立',
             'True Neutral': '絕對中立',
-            'Chaotic Neutral': '混難中立',
+            'Chaotic Neutral': '混亂中立',
             'Lawful Evil': '守序邪惡',
             'Neutral Evil': '中立邪惡',
             'Chaotic Evil': '混亂邪惡'

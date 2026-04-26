@@ -84,7 +84,7 @@ export class SidebarContextControlsComponent {
 
     newGame() {
         this.matDialog.open(NewGameDialogComponent, {
-            width: '600px',
+            width: '760px',
             disableClose: true
         });
     }

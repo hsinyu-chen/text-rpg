@@ -20,6 +20,7 @@ export interface GameEngineConfig {
     screensaverType?: 'invaders' | 'code';
     outputLanguage?: string;
     idleOnBlur?: boolean;
+    enableAdultDeclaration?: boolean;
     thinkingLevelStory?: string;
     thinkingLevelGeneral?: string;
     smartContextTurns?: number;

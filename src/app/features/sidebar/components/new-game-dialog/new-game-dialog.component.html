@@ -8,98 +8,258 @@
     </div>
     }
 
-    <div class="form-container">
-        <!-- Scenario Selection -->
-        <mat-form-field appearance="outline" class="full-width">
-            <mat-label>{{ ui().SELECT_SCENARIO }}</mat-label>
-            <mat-select [(ngModel)]="selectedScenarioId" (selectionChange)="onScenarioChange()">
-                @for (s of displayScenarios(); track s.id) {
-                <mat-option [value]="s.id" [matTooltip]="s.description || ''">
-                    {{ s.name }}
-                </mat-option>
-                }
-            </mat-select>
-            <mat-icon matSuffix>map</mat-icon>
-        </mat-form-field>
+    <mat-tab-group [selectedIndex]="activeTabIndex()" (selectedIndexChange)="activeTabIndex.set($event)"
+        animationDuration="150ms">
 
-        <!-- Character Name -->
-        <mat-form-field appearance="outline" class="full-width">
-            <mat-label>{{ labels().name }}</mat-label>
-            <input matInput [(ngModel)]="profile.name" required [placeholder]="ui().ENTER_NAME">
-            <mat-icon matSuffix>person</mat-icon>
-            @if (!profile.name()) {
-            <mat-error>{{ ui().REQUIRED_FIELD }}</mat-error>
-            }
-        </mat-form-field>
+        <!-- ── Tab 1: Pre-build ─────────────────────────────────────── -->
+        <mat-tab>
+            <ng-template mat-tab-label>
+                <mat-icon style="margin-right: 6px; font-size: 18px; height: 18px; width: 18px;">map</mat-icon>
+                Pre-build
+            </ng-template>
 
-        <!-- Faction Selection (3x3 Grid) -->
-        <div class="field-group">
-            <span class="field-label">{{ labels().faction }}</span>
-            <div class="alignment-grid">
-                @for (row of alignments(); track row) {
-                @for (cell of row; track cell.id) {
-                <button mat-stroked-button type="button" class="alignment-btn"
-                    [class.active]="profile.faction() === cell.id" (click)="selectAlignment(cell.id)">
-                    {{ cell.label }}
-                </button>
-                }
-                }
+            <div class="form-container tab-content">
+                <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>{{ ui().SELECT_SCENARIO }}</mat-label>
+                    <mat-select [(ngModel)]="selectedScenarioId" (selectionChange)="onScenarioChange()">
+                        @for (s of displayScenarios(); track s.id) {
+                        <mat-option [value]="s.id" [matTooltip]="s.description || ''">{{ s.name }}</mat-option>
+                        }
+                    </mat-select>
+                    <mat-icon matSuffix>map</mat-icon>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>{{ labels().name }}</mat-label>
+                    <input matInput [(ngModel)]="profile.name" required [placeholder]="ui().ENTER_NAME">
+                    <mat-icon matSuffix>person</mat-icon>
+                    @if (!profile.name()) { <mat-error>{{ ui().REQUIRED_FIELD }}</mat-error> }
+                </mat-form-field>
+
+                <div class="field-group">
+                    <span class="field-label">{{ labels().faction }}</span>
+                    <div class="alignment-grid">
+                        @for (row of alignments(); track row) {
+                        @for (cell of row; track cell.id) {
+                        <button mat-stroked-button type="button" class="alignment-btn"
+                            [class.active]="profile.faction() === cell.id" (click)="selectAlignment(cell.id)">
+                            {{ cell.label }}
+                        </button>
+                        }
+                        }
+                    </div>
+                    @if (!profile.faction()) {
+                    <mat-error style="font-size: 0.75em;">{{ ui().SELECT_ALIGNMENT }}</mat-error>
+                    }
+                </div>
+
+                <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>{{ labels().background }}</mat-label>
+                    <textarea matInput [(ngModel)]="profile.background" required rows="2"
+                        [placeholder]="ui().CHAR_HISTORY_PLCH"></textarea>
+                    <mat-icon matSuffix>history_edu</mat-icon>
+                    @if (!profile.background()) { <mat-error>{{ ui().REQUIRED_FIELD }}</mat-error> }
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>{{ labels().interests }}</mat-label>
+                    <textarea matInput [(ngModel)]="profile.interests" required rows="2"
+                        [placeholder]="ui().INTERESTS_PLCH"></textarea>
+                    <mat-icon matSuffix>interests</mat-icon>
+                    @if (!profile.interests()) { <mat-error>{{ ui().REQUIRED_FIELD }}</mat-error> }
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>{{ labels().appearance }}</mat-label>
+                    <textarea matInput [(ngModel)]="profile.appearance" required rows="3"
+                        [placeholder]="ui().APPEARANCE_PLCH"></textarea>
+                    <mat-icon matSuffix>face</mat-icon>
+                    @if (!profile.appearance()) { <mat-error>{{ ui().REQUIRED_FIELD }}</mat-error> }
+                </mat-form-field>
+
             </div>
-            @if (!profile.faction()) {
-            <mat-error style="font-size: 0.75em;">{{ ui().SELECT_ALIGNMENT }}</mat-error>
-            }
-        </div>
+        </mat-tab>
 
-        <!-- Background -->
-        <mat-form-field appearance="outline" class="full-width">
-            <mat-label>{{ labels().background }}</mat-label>
-            <textarea matInput [(ngModel)]="profile.background" required rows="2"
-                [placeholder]="ui().CHAR_HISTORY_PLCH"></textarea>
-            <mat-icon matSuffix>history_edu</mat-icon>
-            @if (!profile.background()) {
-            <mat-error>{{ ui().REQUIRED_FIELD }}</mat-error>
-            }
-        </mat-form-field>
+        <!-- ── Tab 2: Generate (AI world builder) ──────────────────── -->
+        <mat-tab>
+            <ng-template mat-tab-label>
+                <mat-icon style="margin-right: 6px; font-size: 18px; height: 18px; width: 18px;">auto_awesome</mat-icon>
+                Generate
+            </ng-template>
 
-        <!-- Interests -->
-        <mat-form-field appearance="outline" class="full-width">
-            <mat-label>{{ labels().interests }}</mat-label>
-            <textarea matInput [(ngModel)]="profile.interests" required rows="2"
-                [placeholder]="ui().INTERESTS_PLCH"></textarea>
-            <mat-icon matSuffix>interests</mat-icon>
-            @if (!profile.interests()) {
-            <mat-error>{{ ui().REQUIRED_FIELD }}</mat-error>
-            }
-        </mat-form-field>
+            <div class="form-container tab-content">
+                <p class="generate-hint">Describe your world and protagonist — the AI will fill all 9 world files.</p>
 
-        <!-- Appearance -->
-        <mat-form-field appearance="outline" class="full-width">
-            <mat-label>{{ labels().appearance }}</mat-label>
-            <textarea matInput [(ngModel)]="profile.appearance" required rows="3"
-                [placeholder]="ui().APPEARANCE_PLCH"></textarea>
-            <mat-icon matSuffix>face</mat-icon>
-            @if (!profile.appearance()) {
-            <mat-error>{{ ui().REQUIRED_FIELD }}</mat-error>
-            }
-        </mat-form-field>
+                <!-- Preset selector — fills in the system output language automatically -->
+                <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>Quick Preset (optional)</mat-label>
+                    <mat-select [ngModel]="selectedPresetId()" (ngModelChange)="applyPreset($event)">
+                        <mat-option value="">— Start from scratch —</mat-option>
+                        @for (preset of localizedPresets(); track preset.id) {
+                        <mat-option [value]="preset.id">{{ preset.label }}</mat-option>
+                        }
+                    </mat-select>
+                    <mat-hint>Fills all fields in the current system language. Edit freely afterwards.</mat-hint>
+                </mat-form-field>
 
-        <!-- Core Values -->
-        <mat-form-field appearance="outline" class="full-width">
-            <mat-label>{{ labels().coreValues }}</mat-label>
-            <textarea matInput [(ngModel)]="profile.coreValues" required rows="4"
-                [placeholder]="ui().CORE_VALUES_PLCH"></textarea>
-            <mat-icon matSuffix>rule</mat-icon>
-            @if (!profile.coreValues()) {
-            <mat-error>{{ ui().REQUIRED_FIELD }}</mat-error>
-            }
-        </mat-form-field>
-    </div>
+                <mat-divider style="margin: 4px 0 12px;"></mat-divider>
+
+                <div class="two-col">
+                    <mat-form-field appearance="outline">
+                        <mat-label>Genre</mat-label>
+                        <input matInput [ngModel]="genre()" (ngModelChange)="genre.set($event)"
+                            placeholder="e.g. Fantasy, Sci-Fi, Cyberpunk">
+                    </mat-form-field>
+
+                    <mat-form-field appearance="outline">
+                        <mat-label>Tone</mat-label>
+                        <input matInput [ngModel]="tone()" (ngModelChange)="tone.set($event)"
+                            placeholder="e.g. Dark, Epic, Slice of Life">
+                    </mat-form-field>
+                </div>
+
+                <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>World Setting</mat-label>
+                    <textarea matInput [ngModel]="setting()" (ngModelChange)="setting.set($event)"
+                        placeholder="Describe the world: era, geography, key concepts, atmosphere..."
+                        rows="3"></textarea>
+                </mat-form-field>
+
+
+                <div style="display:flex; gap:12px; align-items:flex-start">
+                    <mat-form-field appearance="outline" style="flex:1 1 auto">
+                        <mat-label>Protagonist Name</mat-label>
+                        <input matInput [ngModel]="protagonistName()" (ngModelChange)="protagonistName.set($event)"
+                            placeholder="Character name">
+                    </mat-form-field>
+                    <mat-form-field appearance="outline" style="flex:0 0 110px">
+                        <mat-label>Gender</mat-label>
+                        <mat-select [ngModel]="protagonistGender()" (ngModelChange)="protagonistGender.set($event)">
+                            <mat-option value="">—</mat-option>
+                            @for (opt of genderOptions(); track opt.value) {
+                                <mat-option [value]="opt.value">{{ opt.label }}</mat-option>
+                            }
+                        </mat-select>
+                    </mat-form-field>
+                    <mat-form-field appearance="outline" style="flex:0 0 80px">
+                        <mat-label>Age</mat-label>
+                        <input matInput [ngModel]="protagonistAge()" (ngModelChange)="protagonistAge.set($event)"
+                            placeholder="e.g. 22" type="text">
+                    </mat-form-field>
+                </div>
+
+                <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>Identity / Role</mat-label>
+                        @if (currentIdentities().length > 0 && !isCustomIdentity()) {
+                            <mat-select [ngModel]="protagonistIdentity()" (ngModelChange)="onIdentityChange($event)">
+                                @for (opt of currentIdentities(); track opt.value) {
+                                    <mat-option [value]="opt.value">{{ opt.value }}</mat-option>
+                                }
+                                <mat-divider></mat-divider>
+                                <mat-option value="__custom__">✏ Custom...</mat-option>
+                            </mat-select>
+                        } @else {
+                            <input matInput [ngModel]="protagonistIdentity()"
+                                (ngModelChange)="protagonistIdentity.set($event)"
+                                placeholder="e.g. 貴族、穿越者、Adventurer">
+                            @if (currentIdentities().length > 0) {
+                                <button matSuffix mat-icon-button (click)="resetToPresetIdentity()"
+                                    matTooltip="Back to preset list" type="button">
+                                    <mat-icon style="font-size:18px">list</mat-icon>
+                                </button>
+                            }
+                        }
+                    </mat-form-field>
+
+                <div class="field-group">
+                    <span class="field-label">Alignment</span>
+                    <div class="alignment-grid">
+                        @for (row of alignments(); track row) {
+                        @for (cell of row; track cell.id) {
+                        <button mat-stroked-button type="button" class="alignment-btn"
+                            [class.active]="protagonistAlignment() === cell.id"
+                            (click)="protagonistAlignment.set(cell.id)">
+                            {{ cell.label }}
+                        </button>
+                        }
+                        }
+                    </div>
+                    @if (!protagonistAlignment()) {
+                    <mat-error style="font-size: 0.75em;">Select an alignment</mat-error>
+                    }
+                </div>
+
+                <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>Background</mat-label>
+                    <textarea matInput [ngModel]="protagonistBackground()"
+                        (ngModelChange)="protagonistBackground.set($event)"
+                        placeholder="Who is this person — their history and current situation..."
+                        rows="2"></textarea>
+                    <mat-icon matSuffix>history_edu</mat-icon>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>Interests / Hobbies</mat-label>
+                    <input matInput [ngModel]="protagonistInterests()"
+                        (ngModelChange)="protagonistInterests.set($event)"
+                        placeholder="e.g. Swordsmanship, herbalism, gambling">
+                    <mat-icon matSuffix>interests</mat-icon>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>Appearance</mat-label>
+                    <textarea matInput [ngModel]="protagonistAppearance()"
+                        (ngModelChange)="protagonistAppearance.set($event)"
+                        placeholder="Physical description — build, face, distinctive features..."
+                        rows="2"></textarea>
+                    <mat-icon matSuffix>face</mat-icon>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>NPC Preferences (optional)</mat-label>
+                    <textarea matInput [ngModel]="npcPreferences()"
+                        (ngModelChange)="npcPreferences.set($event)"
+                        placeholder="Suggest key NPCs — e.g. a romanceable companion, a rival, a mysterious mentor..."
+                        rows="2"></textarea>
+                    <mat-hint>The AI will use this to design the 2–3 core supporting characters.</mat-hint>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>Special Requests (optional)</mat-label>
+                    <input matInput [ngModel]="specialRequests()" (ngModelChange)="specialRequests.set($event)"
+                        placeholder="Extra themes or elements to include...">
+                </mat-form-field>
+
+                <mat-divider style="margin: 8px 0 12px;"></mat-divider>
+
+                <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>AI Profile for Generation</mat-label>
+                    <mat-select [ngModel]="generateProfileId()" (ngModelChange)="generateProfileId.set($event)">
+                        @for (profile of llmProfiles(); track profile.id) {
+                            <mat-option [value]="profile.id">{{ profile.name }}</mat-option>
+                        }
+                    </mat-select>
+                    <mat-hint>Choose which LLM profile to use for world generation.</mat-hint>
+                </mat-form-field>
+            </div>
+        </mat-tab>
+
+    </mat-tab-group>
 </mat-dialog-content>
 
 <mat-dialog-actions align="end">
     <button mat-button (click)="cancel()">{{ ui().CANCEL }}</button>
-    <button mat-flat-button color="primary" (click)="start()" [disabled]="isLoading() || !isFormValid()">
-        <mat-icon>play_circle</mat-icon>
-        {{ ui().START_GAME }}
-    </button>
+    @if (activeTabIndex() === 0) {
+        <button mat-flat-button color="primary" (click)="start()" [disabled]="isLoading() || !isFormValid()">
+            <mat-icon>play_circle</mat-icon>
+            {{ ui().START_GAME }}
+        </button>
+    } @else {
+        <button mat-flat-button color="primary" (click)="submitCreateWorld()"
+            [disabled]="isLoading() || !isCreateWorldValid()"
+            style="font-weight: bold;">
+            <mat-icon>auto_awesome</mat-icon>
+            Generate World
+        </button>
+    }
 </mat-dialog-actions>

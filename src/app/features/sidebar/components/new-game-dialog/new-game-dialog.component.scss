@@ -1,6 +1,5 @@
 .dialog-content {
-    min-width: 400px;
-    max-width: 600px;
+    width: 100%;
     padding-top: 16px;
 }
 
@@ -74,4 +73,23 @@ textarea {
 mat-hint {
     font-size: 0.8em;
     opacity: 0.8;
+}
+
+.tab-content {
+    padding-top: 16px;
+}
+
+.two-col {
+    display: flex;
+    gap: 12px;
+
+    mat-form-field {
+        flex: 1;
+    }
+}
+
+.generate-hint {
+    font-size: 0.85rem;
+    color: var(--mat-sys-on-surface-variant, rgba(255,255,255,0.6));
+    margin: 0 0 8px;
 }

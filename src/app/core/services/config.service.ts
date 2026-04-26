@@ -79,6 +79,7 @@ export class ConfigService {
         const currency = localStorage.getItem('app_currency') || 'TWD';
         const enableConversion = localStorage.getItem('app_enable_conversion') === 'true';
         const idleOnBlur = localStorage.getItem('app_idle_on_blur') === 'true';
+        const enableAdultDeclaration = localStorage.getItem('app_enable_adult_declaration') !== 'false';
 
         // Get Provider-Specific settings from the active provider's persisted config
         const activeProvider = this.providerRegistry.getActive();
@@ -97,6 +98,7 @@ export class ConfigService {
             screensaverType,
             outputLanguage: localStorage.getItem('app_output_language') || localStorage.getItem('gemini_output_language') || 'default',
             idleOnBlur,
+            enableAdultDeclaration,
             thinkingLevelStory: providerExtras.thinkingLevelStory || 'minimal',
             thinkingLevelGeneral: providerExtras.thinkingLevelGeneral || 'high',
             smartContextTurns: parseInt(localStorage.getItem('app_smart_context_turns') || localStorage.getItem('gemini_smart_context_turns') || '10', 10)
@@ -134,6 +136,7 @@ export class ConfigService {
         screensaverType?: 'invaders' | 'code',
         outputLanguage?: string,
         idleOnBlur?: boolean,
+        enableAdultDeclaration?: boolean,
         thinkingLevelStory?: string,
         thinkingLevelGeneral?: string,
         smartContextTurns?: number
@@ -147,6 +150,7 @@ export class ConfigService {
         if (genConfig.enableConversion !== undefined) localStorage.setItem('app_enable_conversion', genConfig.enableConversion.toString());
         if (genConfig.outputLanguage !== undefined) localStorage.setItem('app_output_language', genConfig.outputLanguage);
         if (genConfig.idleOnBlur !== undefined) localStorage.setItem('app_idle_on_blur', genConfig.idleOnBlur.toString());
+        if (genConfig.enableAdultDeclaration !== undefined) localStorage.setItem('app_enable_adult_declaration', genConfig.enableAdultDeclaration.toString());
 
         // Caching and Thinking levels are mostly provider specific but can be toggled in global config if common
         if (genConfig.enableCache !== undefined) localStorage.setItem('app_enable_cache', genConfig.enableCache.toString());
@@ -209,6 +213,7 @@ export class ConfigService {
             screensaverType: (cfg.screensaverType === 'invaders' || cfg.screensaverType === 'code') ? cfg.screensaverType : undefined,
             outputLanguage: typeof cfg.outputLanguage === 'string' ? cfg.outputLanguage : undefined,
             idleOnBlur: typeof cfg.idleOnBlur === 'boolean' ? cfg.idleOnBlur : undefined,
+            enableAdultDeclaration: typeof cfg.enableAdultDeclaration === 'boolean' ? cfg.enableAdultDeclaration : undefined,
             thinkingLevelStory: typeof cfg.thinkingLevelStory === 'string' ? cfg.thinkingLevelStory : undefined,
             thinkingLevelGeneral: typeof cfg.thinkingLevelGeneral === 'string' ? cfg.thinkingLevelGeneral : undefined,
             smartContextTurns: typeof cfg.smartContextTurns === 'number' ? cfg.smartContextTurns : undefined

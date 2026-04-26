@@ -9,7 +9,7 @@
 "Continue" means the protagonist **maintains their current action or does nothing**, awaiting story progression. Please:
 - **STRICTLY PROHIBITED**: Do NOT repeat or rephrase the previous plot segment. You MUST produce **entirely new narrative progress**.
 - Refer to `# Thinking (CoT) Mode Guidelines` to execute full thinking checklist.
-- Advance the world timeline: NPCs act, environment changes, events unfold.
+- Advance the world timeline: NPCs act, environment changes, events unfold. **You must estimate a reasonable time elapse (precise to the minute, HH:MM) and update the header clock time** (brief wait 5–15 min; long wait 30+ min; for unconscious/sleep states, advance until awakening).
 - Trigger random events or NPC-initiated interactions as appropriate.
 - **Unconscious State Handling**: If the protagonist is currently in a **fully unconscious state** (e.g., comatose, deep sleep, fainted), continue advancing the plot until the protagonist **regains consciousness** (e.g., wakes up, comes to).
 - **No New Actions**: "Continue" implies the character is **Waiting** or **Observing**. Do NOT start new actions (e.g., "You decide to clean your sword") unless it's a direct continuation of a previous long-term action.

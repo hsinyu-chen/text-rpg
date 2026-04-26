@@ -80,6 +80,10 @@ export function findMarkdownSections(content: string, pathStr: string): SectionB
         break;
       }
     }
+    // Exclude trailing blank lines so they stay as separators between sections
+    while (endLine > match.startLine && lines[endLine].trim() === '') {
+      endLine--;
+    }
     return { startLine: match.startLine, endLine, level: match.level, headerText: match.headerText };
   });
 }
@@ -89,6 +93,70 @@ export function resolveSection(content: string, pathStr: string): SectionResolut
   if (matches.length === 0) return { kind: 'none' };
   if (matches.length === 1) return { kind: 'ok', section: matches[0] };
   return { kind: 'ambiguous', matches };
+}
+
+export function insertSectionIntoContent(
+  content: string,
+  heading: string,
+  body: string | undefined,
+  anchor: 'prepend' | 'before' | 'after' | 'append-into' | undefined,
+  anchorSectionPath: string | undefined
+): { newContent: string; insertedAtLine: number } | { error: string } {
+  const lines = content.split('\n');
+  const insertLines = [heading, ...(body ? body.split('\n') : [])];
+
+  if (!anchor) {
+    // Append to end of file
+    const trailing = lines[lines.length - 1] === '' ? [] : [''];
+    const newLines = [...lines, ...trailing, ...insertLines];
+    return { newContent: newLines.join('\n'), insertedAtLine: lines.length + trailing.length + 1 };
+  }
+
+  if (anchor === 'prepend') {
+    const newLines = [...insertLines, '', ...lines];
+    return { newContent: newLines.join('\n'), insertedAtLine: 1 };
+  }
+
+  if (!anchorSectionPath) {
+    return { error: `anchor "${anchor}" requires anchorSectionPath` };
+  }
+
+  const resolution = resolveSection(content, anchorSectionPath);
+  if (resolution.kind === 'none') return { error: `Anchor section "${anchorSectionPath}" not found` };
+  if (resolution.kind === 'ambiguous') {
+    return { error: `Anchor section "${anchorSectionPath}" is ambiguous (${resolution.matches.length} matches). Use a more specific path.` };
+  }
+
+  const bounds = resolution.section;
+
+  if (anchor === 'before') {
+    const prefix = lines.slice(0, bounds.startLine);
+    const suffix = lines.slice(bounds.startLine);
+    const newLines = [...prefix, ...insertLines, '', ...suffix];
+    return { newContent: newLines.join('\n'), insertedAtLine: bounds.startLine + 1 };
+  }
+
+  // 'after' and 'append-into' both insert after the section's last line
+  const prefix = lines.slice(0, bounds.endLine + 1);
+  const suffix = lines.slice(bounds.endLine + 1);
+  const newLines = [...prefix, '', ...insertLines, ...suffix];
+  return { newContent: newLines.join('\n'), insertedAtLine: bounds.endLine + 3 };
+}
+
+/** Returns all descendant header lines within the section (any level deeper than section.level). */
+export function getDescendantHeaders(content: string, bounds: SectionBounds): string[] {
+  const lines = content.split('\n');
+  const headers: string[] = [];
+  for (let i = bounds.startLine + 1; i <= bounds.endLine; i++) {
+    const m = lines[i]?.match(/^(#{1,6})\s+(.+)$/);
+    if (m && m[1].length > bounds.level) headers.push(lines[i].trim());
+  }
+  return headers;
+}
+
+/** Returns true if the section contains any child headers (level > section.level). */
+export function sectionHasChildren(content: string, bounds: SectionBounds): boolean {
+  return getDescendantHeaders(content, bounds).length > 0;
 }
 
 export function ambiguousSectionError(

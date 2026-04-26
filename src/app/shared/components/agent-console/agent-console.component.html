@@ -1,0 +1,131 @@
+<div class="agent-section">
+    <!-- Profile Dropdown & Actions -->
+    <div class="agent-controls">
+        <mat-form-field appearance="outline" class="profile-select" subscriptSizing="dynamic">
+            <mat-select [value]="agentService.selectedProfileId()" (selectionChange)="agentService.selectProfile($event.value)" placeholder="Select Profile">
+                @for (profile of agentService.agentProfiles(); track profile.id) {
+                    <mat-option [value]="profile.id">{{ profile.name }}</mat-option>
+                }
+            </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="tool-mode-select" subscriptSizing="dynamic"
+            [matTooltip]="'Tool call mode for this profile. ' + agentService.effectiveToolCallReason() + '.'">
+            <mat-select [value]="agentService.toolCallMode()" (selectionChange)="agentService.setToolCallMode($event.value)" [disabled]="agentService.isAgentRunning()">
+                <mat-option value="auto">Auto</mat-option>
+                <mat-option value="native">Native</mat-option>
+                <mat-option value="json">JSON</mat-option>
+            </mat-select>
+        </mat-form-field>
+        <button mat-icon-button (click)="agentService.clearHistory()" matTooltip="Clear Conversation" [disabled]="agentService.isAgentRunning()">
+            <mat-icon>delete_sweep</mat-icon>
+        </button>
+        <button mat-icon-button (click)="copyDebugLog()" matTooltip="Copy debug log (all tool calls + file contents)" [disabled]="agentService.agentLogs().length === 0">
+            <mat-icon>content_copy</mat-icon>
+        </button>
+    </div>
+
+    @if (agentService.agentContextSize(); as ctxSize) {
+    <div class="context-usage" [class]="'level-' + agentService.agentContextLevel()"
+        [matTooltip]="(agentService.agentContextUsed() | number) + ' / ' + (ctxSize | number) + ' tokens'">
+        <div class="ctx-label">
+            <mat-icon inline="true">memory</mat-icon>
+            <span>Context Usage</span>
+            <span class="ctx-pct">{{ agentService.agentContextPercent() | number:'1.0-1' }}%</span>
+        </div>
+        <div class="ctx-bar">
+            <div class="ctx-fill" [style.width.%]="agentService.agentContextPercent()"></div>
+        </div>
+    </div>
+    }
+
+    <!-- Console Logs -->
+    <div class="agent-console" #agentConsole>
+        <div class="agent-console-content" #agentConsoleContent>
+        @for (log of agentService.agentLogs(); track $index) {
+            <div class="console-log-entry" [ngClass]="'log-type-' + log.type + ' log-role-' + log.role">
+                <span class="log-prefix">{{ log.role === 'user' ? '>' : (log.role === 'model' ? '<' : '*') }}</span>
+                <div class="log-content-wrapper">
+                    @if (log.thought) {
+                        <div class="log-thought-container" [class.collapsed]="log.isThoughtCollapsed">
+                            <div class="log-thought-header" (click)="agentService.toggleThought($index)" tabindex="0" (keydown.enter)="agentService.toggleThought($index)" (keydown.space)="$event.preventDefault(); agentService.toggleThought($index)">
+                                <mat-icon inline="true">{{ log.isThoughtCollapsed ? 'chevron_right' : 'expand_more' }}</mat-icon>
+                                <span>Thinking Process</span>
+                            </div>
+                            @if (!log.isThoughtCollapsed) {
+                                <div class="log-thought-text">{{ log.thought }}</div>
+                            }
+                        </div>
+                    }
+                    @if (log.text) {
+                        @if (log.isToolCall) {
+                            <div class="log-thought-container" [class.collapsed]="log.isToolCallCollapsed">
+                                <div class="log-thought-header" (click)="agentService.toggleToolCall($index)" tabindex="0" (keydown.enter)="agentService.toggleToolCall($index)" (keydown.space)="$event.preventDefault(); agentService.toggleToolCall($index)">
+                                    <mat-icon inline="true">{{ log.isToolCallCollapsed ? 'chevron_right' : 'expand_more' }}</mat-icon>
+                                    <span>{{ log.toolName ? 'Tool Request: ' + log.toolName : 'Tool Execution Request' }}</span>
+                                </div>
+                                @if (!log.isToolCallCollapsed) {
+                                    <div class="log-thought-text">{{ log.text }}</div>
+                                }
+                            </div>
+                        } @else if (log.isToolResult) {
+                            <div class="log-thought-container" [class.collapsed]="log.isToolResultCollapsed">
+                                <div class="log-thought-header" (click)="agentService.toggleToolResult($index)" tabindex="0" (keydown.enter)="agentService.toggleToolResult($index)" (keydown.space)="$event.preventDefault(); agentService.toggleToolResult($index)">
+                                    <mat-icon inline="true">{{ log.isToolResultCollapsed ? 'chevron_right' : 'expand_more' }}</mat-icon>
+                                    <span>{{ log.toolName ? 'Tool Result: ' + log.toolName : 'Tool Result' }}</span>
+                                </div>
+                                @if (!log.isToolResultCollapsed) {
+                                    <div class="log-thought-text">{{ log.text }}</div>
+                                }
+                            </div>
+                        } @else {
+                            @if (log.role === 'model') {
+                                <div class="log-text prose-content markdown-body" style="font-family: inherit; font-size: inherit;">
+                                    <markdown [data]="log.text"></markdown>
+                                </div>
+                            } @else {
+                                <span class="log-text">{{ log.text }}</span>
+                            }
+                        }
+                    }
+                </div>
+            </div>
+        }
+        @if (agentService.isAgentRunning()) {
+            <div class="console-log-entry log-type-model running-indicator">
+                <mat-spinner diameter="16"></mat-spinner>
+                @if (agentService.promptProgress() !== undefined && agentService.promptProgress()! < 1) {
+                    <span class="log-text">Processing prompt... {{ (agentService.promptProgress()! * 100) | number:'1.0-0' }}%</span>
+                } @else {
+                    <span class="log-text">
+                        Agent is thinking...
+                        @if (agentService.generatedTokenCount() > 0) {
+                            [{{ agentService.generatedTokenCount() }} tokens]
+                        } @else if (agentService.generatedChunkCount() > 0) {
+                            [{{ agentService.generatedChunkCount() }} chunks]
+                        }
+                    </span>
+                }
+            </div>
+        }
+        </div>
+    </div>
+
+    <!-- Prompt Input -->
+    <div class="agent-input-container">
+        <mat-form-field appearance="outline" class="agent-input" subscriptSizing="dynamic">
+            <textarea matInput placeholder="Tell agent to do something..."
+                     [ngModel]="agentPrompt()" (ngModelChange)="agentPrompt.set($event)"
+                     (keydown.enter)="$event.preventDefault(); runAgent()"
+                     rows="2"></textarea>
+        </mat-form-field>
+        @if (agentService.isAgentRunning()) {
+            <button mat-icon-button color="warn" (click)="agentService.stopAgent()" matTooltip="Stop Agent">
+                <mat-icon>stop_circle</mat-icon>
+            </button>
+        } @else {
+            <button mat-icon-button color="primary" (click)="runAgent()" [disabled]="!agentPrompt().trim()">
+                <mat-icon>send</mat-icon>
+            </button>
+        }
+    </div>
+</div>

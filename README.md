@@ -147,6 +147,45 @@ For users who want to run **fully offline** against their own GGUF model via [ll
 > [!NOTE]
 > **Caching model differs from Gemini.** Gemini's cache holds content server-side (referenced by cache name, so KB is omitted from requests). llama.cpp caches by **prefix token match**, so the KB must still be part of the prompt — the saved `.bin` only skips re-computing the KV for that prefix. The engine handles this transparently via the `cacheBakesContent` capability flag.
 
+#### Recommended Model & Reference Configuration
+
+For TRPG-style long-context play, **dense ≥30B models outperform comparable MoE builds** on instruction following and world consistency — even when the MoE has the headroom to run at much higher precision. In our testing, `gemma-4-26b-a4b` (MoE) at **Q8** on a Strix Halo 128 GB box still trailed `gemma-4-31b-it` at **IQ3_M** on the same scenarios. So spend the VRAM on a dense model, not on a higher quant of an MoE. The minimum we recommend is:
+
+*   **Model**: `gemma-4-31b-it` (dense, instruction-tuned).
+*   **Variant**: an **uncensorship-tuned** build — Gemma's stock safety alignment is too aggressive for adult-leaning narrative play and will refuse or sanitise mid-scene. A community-merged variant such as [`mradermacher/gemma-4-31b-it-heretic-ara-i1-GGUF`](https://huggingface.co/mradermacher/gemma-4-31b-it-heretic-ara-i1-GGUF) keeps Gemma's narrative quality while removing those refusals.
+
+##### Reference launch command — RTX 4090 24 GB
+
+This profile fits a 31B dense model **plus 140 K context** entirely in 24 GB VRAM by combining IQ3_M weights with q8_0 KV-cache quantization:
+
+```bash
+llama-server \
+  -m gemma-4-31b-it-heretic-ara.i1-IQ3_M.gguf \
+  --flash-attn 1 \
+  --temp 1 --top-k 64 --top-p 0.95 \
+  -c 143360 \
+  -ctk q8_0 -ctv q8_0 \
+  --n-gpu-layers 99 \
+  -np 1 \
+  --slot-save-path cache
+```
+
+Flag-by-flag:
+
+| Flag | Purpose |
+| :--- | :--- |
+| `-m gemma-4-31b-it-heretic-ara.i1-IQ3_M.gguf` | IQ3_M is the sweet spot on a 24 GB card for a 31B dense model — small enough to leave room for a long KV, large enough to avoid the steep quality cliff below 3 bpw. |
+| `--flash-attn 1` | Enables FlashAttention; required to make the q8_0 KV cache below pay off. |
+| `--temp 1 --top-k 64 --top-p 0.95` | Sampling defaults Gemma was tuned with — leave them alone unless you have a specific reason. |
+| `-c 143360` | 140 K context window. Matches Gemma 4's effective long-context range and leaves headroom for the KB + chronicle without truncation across a multi-act campaign. |
+| `-ctk q8_0 -ctv q8_0` | Quantizes the KV cache to 8-bit. Roughly halves KV VRAM versus fp16 with negligible quality loss — this is what makes 140 K context fit alongside the model weights. |
+| `--n-gpu-layers 99` | Offload everything to GPU (any value ≥ layer count works). |
+| `-np 1` | Single slot. The engine pins one book to one slot for prefix-cache stability; more slots just split VRAM for no gain in single-user play. |
+| `--slot-save-path cache` | Directory for the persistent KV `.bin` files. **Required** for the engine's "Persist Slot to Disk" feature described above. |
+
+> [!TIP]
+> **IQ3_M is the lowest quant we've actually validated for this model.** We have not tested IQ2 / IQ1 on a 31 B dense — extrapolating that low at this size is a known quality cliff. If 24 GB is too tight, lower `-c` first (e.g. to 64 K) before reaching for a smaller quant; if your card still can't hold IQ3_M, prefer a **smaller dense model** (e.g. 12 B at Q4–Q5) over aggressively quantizing the 31 B.
+
 Configure either provider in **Settings**; switching is instant and per-book context is preserved.
 
 ---
@@ -326,10 +365,11 @@ TextRPG supports **dynamic language switching** without restarting the applicati
     *   Structured outputs like `summary`, `inventory_log`, `quest_log`, `world_log`
     *   System file names (e.g., `2.Story_Outline.md` vs `2.劇情綱要.md`)
     *   Input format hints (e.g., `([Mood]Action)Dialogue` vs `([心境]動作)台詞`)
+    *   AI World Generator: Quick Presets, identities, blank world template directory (`blank_world_zh` / `blank_world_en`), and the world-generation prompt template (`create_world_prompt_zh.md` / `create_world_prompt_en.md`)
 
 #### 2. UI Interface Language
-*   **Current Status**: UI text (buttons, labels, tooltips) dynamically switches with Output Language setting
-*   **Implementation**: Uses custom locale system for instant switching
+*   **Current Status**: Most UI text (intent labels, scenario picker, Pre-build tab labels, Settings) dynamically switches with the Output Language setting via the custom locale system in `src/app/core/constants/locales/`.
+*   **Known Exception**: The **Generate** tab in the New Game dialog uses hardcoded English labels and placeholders (e.g. *Quick Preset*, *Genre*, *Tone*, *World Setting*, *Identity / Role*, *Generate World*). The *content* it produces (presets, identities, generated world files) still follows the Output Language — only the form chrome is English.
 
 #### 3. Mixed Language Scenarios (Not Recommended)
 > [!WARNING]
@@ -355,61 +395,63 @@ TextRPG supports **dynamic language switching** without restarting the applicati
 
 ## Localization (I18N) Guide
 
-TextRPG uses a **custom locale system** with dynamic language switching support. The system includes built-in support for two languages, and **most parts require no manual translation**.
+TextRPG uses a **custom locale system** centred on the `AppLocale` interface in [src/app/core/constants/locales/locale.interface.ts](src/app/core/constants/locales/locale.interface.ts), with two locales shipped out of the box. Most localizable surfaces are driven from a single locale object, so adding a language is mostly a matter of writing one `.ts` file plus translating scenario content.
 
 ### Built-in Language Support
-*   **Traditional Chinese**
-*   **English**
+*   **Traditional Chinese** (`zh-TW`) — registered as `'Traditional Chinese'` and used as the `'default'` fallback
+*   **English** (`en-US`) — registered as `'English'`
 
-### Automatically Localized Components
+Resolution is done by [src/app/core/constants/locales/index.ts](src/app/core/constants/locales/index.ts):
+*   `getLocale(lang)` — returns the `AppLocale` for the given key (e.g. `'English'`), with fallback by `id` and finally to `'default'`.
+*   `getLangFolder(lang)` — returns the `folder` field of the locale (used to resolve language-bucketed assets under `public/assets/system_files/<folder>/`).
+*   `getLanguagesList()` — drives the Output Language dropdown in Settings.
 
-The following parts are automatically handled by the system and **require no manual translation**:
+### What the locale object covers (auto-localized)
 
-#### 1. System Prompts
-*   **Location**: `src/app/core/constants/locales/`
-*   **Implementation**: Response Schema, Adult Declaration, and Prompt Holes are defined in corresponding locale files
-*   **Files**:
-    *   `zh-tw.ts` - Traditional Chinese
-    *   `en.ts` - English
+When the user changes Output Language, the following are switched automatically by reading the active `AppLocale`:
 
-#### 2. UI Interface Text
-*   **Intent Labels**: Action, Fast Forward, System, Save, Continue
-*   **Input Placeholders**: Input hints for various commands
-*   **System File Names**: Automatically uses language-appropriate filenames (e.g., `2.Story_Outline.md` vs `2.劇情綱要.md`)
+| Surface | Field on `AppLocale` |
+| :--- | :--- |
+| AI response JSON Schema descriptions | `responseSchema` |
+| Adult-content declaration prepended to system prompt | `adultDeclaration` |
+| Per-act header inserted into the chronicle | `actHeader` |
+| Mapping from semantic file roles to actual filenames (`BASIC_SETTINGS` → `1.Base_Settings.md` / `1.基礎設定.md`, etc.) | `coreFilenames` |
+| Language-rule injection (forces the model to write in the target language) | `promptHoles.LANGUAGE_RULE` |
+| Markdown section headers (`START_SCENE`, `INPUT_FORMAT`) | `sectionHeaders` |
+| Intent picker (Action / Fast Forward / System / Save / Continue) — labels, XML tags, descriptions, and input placeholders | `intentLabels`, `intentTags`, `intentDescriptions`, `inputPlaceholders` |
+| All UI strings: dialog titles, buttons, errors, alignments grid, batch search/replace, filters, regenerate flow, calibrate mode, etc. | `uiStrings` |
 
-### Manual Localization Required
+System-prompt assets that are too large for inline strings live under `public/assets/system_files/<folder>/` and are picked up via `getLangFolder()`.
 
-#### Scenario Content
-If you want to add a new language version for existing scenarios, you need to translate the following files:
+### What still requires manual translation
 
-*   **Location**: `public/assets/system_files/scenario/<SCENARIO_ID>/`
-*   **Files to Translate**:
-    *   `1.基礎設定.md` / `1.Base_Settings.md` - World rules and settings
-    *   `2.劇情綱要.md` / `2.Story_Outline.md` - Main story arc
-    *   `3.人物狀態.md` / `3.Character_Status.md` - Character status template
-    *   Other `.md` files - Item, asset, magic templates, etc.
+#### 1. Scenario content
+Scenario `.md` files are not part of the locale object — each scenario ships its own copy per language and is registered in [public/assets/system_files/scenario/scenarios.json](public/assets/system_files/scenario/scenarios.json) with a `lang` field (`zh-TW`, `en-US`, ...) that the New Game dialog filters on.
 
-*   **File Naming Convention**:
-    *   Traditional Chinese: `1.基礎設定.md`
-    *   English: `1.Base_Settings.md`
+To add a new language version of an existing scenario:
+1.  Copy the scenario directory (e.g. `public/assets/system_files/scenario/fareast/`) to a sibling directory.
+2.  Translate the `.md` files inside. The filename mapping must match an existing `coreFilenames` block — e.g. for `en-US` use `1.Base_Settings.md`, `2.Story_Outline.md`, `3.Character_Status.md`, `4.Assets.md`, `5.Tech_Equipment.md`, `6.Factions_and_World.md`, `7.Magic.md`, `8.Plans.md`, `9.Inventory.md`.
+3.  Append a new entry to `scenarios.json` with a unique `id`, the matching `lang`, `baseDir`, and a `files` map pointing each role (`BASIC_SETTINGS`, ...) to the translated filename.
+4.  Preserve the `<!uc_*>` placeholder tags inside `Character_Status.md` — the New Game dialog parses these to pre-fill the protagonist form (see `loadDefaultValues` in [new-game-dialog.component.ts](src/app/features/sidebar/components/new-game-dialog/new-game-dialog.component.ts)).
 
-*   **Register Scenario**: Update `public/assets/system_files/scenario/scenarios.json` to add entries for the new language version
+#### 2. AI World Generator assets
+The Generate tab pulls from three language-bucketed sources that live outside the locale object:
+*   **Blank world template**: `public/assets/system_files/scenario/blank_world_zh/` and `blank_world_en/` — each contains the 9 starter `.md` files with `{{PROTAGONIST_*}}` placeholders.
+*   **World-generation prompt**: `public/assets/system_files/create_world_prompt_zh.md` and `create_world_prompt_en.md` — the agent's system prompt, with `{{GENRE}}`, `{{TONE}}`, `{{SETTING}}`, `{{PROTAGONIST_*}}`, `{{NPC_PREFERENCES}}`, `{{SPECIAL_REQUESTS}}` substitutions.
+*   **Quick Presets and Identity options**: [src/app/core/constants/world-preset.ts](src/app/core/constants/world-preset.ts) — `WORLD_PRESETS.zh` and `WORLD_PRESETS.en` arrays.
 
-### Adding New Language Support
+Currently the generator only branches on `isZhLang()` (zh-TW vs everything-else falls through to `en`), so adding a third language requires a small code change in [new-game-dialog.component.ts](src/app/features/sidebar/components/new-game-dialog/new-game-dialog.component.ts) (the `isZh` ternary in `submitCreateWorld()` and the `langPresets()` dispatch).
 
-If you want to add a language not yet supported by the system (e.g., French, German), you need to:
+#### 3. Generate-tab form labels
+As noted in the Language Switching section above, the Generate tab's labels and placeholders (`Quick Preset`, `Genre`, `Tone`, `World Setting`, `Identity / Role`, `Generate World`, etc.) are currently hardcoded English in [new-game-dialog.component.html](src/app/features/sidebar/components/new-game-dialog/new-game-dialog.component.html). Migrating them into `uiStrings` is a known pending item — touch this file if your translation needs the form chrome localized too.
 
-1. **Create Locale File**: Create a new language file in `src/app/core/constants/locales/` (e.g., `fr.ts`)
-2. **Define Locale**: Implement the `AppLocale` interface, including:
-   - `responseSchema` - JSON Schema descriptions for AI output
-   - `adultDeclaration` - Adult content disclaimer
-   - `coreFilenames` - Core file names
-   - `promptHoles` - Language rule prompts
-   - `sectionHeaders` - Markdown section headers
-   - `intentLabels` - Intent labels
-   - `inputPlaceholders` - Input placeholder text
-3. **Register Locale**: Register the new language in `src/app/core/constants/locales/index.ts`
-4. **Create Scenario Content**: Create Markdown files in the corresponding language for existing scenarios
+### Adding a new language (e.g. Japanese)
+
+1.  **Create the locale file**: add `src/app/core/constants/locales/ja.ts` exporting a `JA_JP_LOCALE: AppLocale` that implements every field listed in the table above. Pick a stable `id` (e.g. `ja-JP`) and a `folder` (e.g. `ja`).
+2.  **Register it**: add the locale to the `LOCALES` map in [src/app/core/constants/locales/index.ts](src/app/core/constants/locales/index.ts) under a human-readable key (e.g. `'Japanese'`). It will automatically appear in the Settings → Output Language dropdown via `getLanguagesList()`.
+3.  **Provide system-prompt assets**: create `public/assets/system_files/<folder>/` mirroring `en/` and `zh-tw/`.
+4.  **Provide scenario content**: either translate at least one existing scenario (see *Scenario content* above), or rely on the AI World Generator — in which case also do step 5.
+5.  **(Optional) Extend the AI World Generator**: add `WORLD_PRESETS.ja` in `world-preset.ts`, ship `blank_world_ja/` and `create_world_prompt_ja.md`, and broaden the `isZhLang()` dispatch in `new-game-dialog.component.ts` from a boolean to a 3-way locale id check.
 
 ---
 
@@ -423,6 +465,25 @@ The engine includes a built-in "Scenario Template Generator", so you don't need 
 4.  Click **"Start Game"**; the engine will generate all necessary Markdown files in memory.
 5.  **Export Template**: In the "Local File System" section of the sidebar, click the **Folder Icon** to select an empty folder, then click **"Sync"**.
 6.  The system will write all auto-generated configuration files to your folder, which you can then edit with VS Code.
+
+### AI World Generator (Generate Tab)
+
+The **Generate** tab in the New Game dialog lets you create an entirely new world from scratch using an AI agent, without needing a pre-built scenario:
+
+1.  Click **New Game** → switch to the **Generate** tab.
+2.  Optionally pick a **Quick Preset** (e.g. Sword & Magic, Wuxia, Cyberpunk) — it fills in genre / tone / setting and seeds the protagonist with a default **Identity / Role** (background, alignment, interests, appearance, NPC hints, and special requests). The preset list, identities, and pre-filled text follow the current Output Language (`WORLD_PRESETS.zh` / `WORLD_PRESETS.en`).
+3.  Fill in **Genre**, **Tone**, and **World Setting**.
+4.  Fill in protagonist details:
+    *   **Name**, **Gender** (optional), **Age** (optional).
+    *   **Identity / Role** — pick one from the preset list, or choose **✏ Custom...** to type your own. Switching identity in the dropdown re-applies the preset's background, alignment, interests, appearance, NPC hints, and special requests.
+    *   **Alignment** — pick from the 9-cell grid.
+    *   **Background**, **Interests / Hobbies**, **Appearance**.
+5.  Optional fields:
+    *   **NPC Preferences** — describe the 2–3 core supporting characters you want (e.g. a romanceable companion, a rival, a mentor).
+    *   **Special Requests** — extra themes or constraints (e.g. "no system cheat", "include a romance subplot").
+6.  Pick **AI Profile for Generation** — which LLM profile (provider / model / system prompt) drives the world-building agent. Defaults to your current active profile.
+7.  Click **Generate World** to launch the agent. It loads the blank world template (`assets/system_files/scenario/blank_world_zh` or `blank_world_en`), substitutes your protagonist details into `3.人物狀態.md` / `3.Character_Status.md`, and opens the File Viewer in **Create World** mode so the agent can fill the remaining 8 world files. A built-in completion validator rejects any submission that still contains placeholders like `(Race)` / `（種族）` / `（起始位置）` / `To be filled in by the world generator` and asks the agent to retry until everything is filled.
+8.  Review and edit the generated files, then click **Start Game** in the File Viewer footer.
  
  ---
  
