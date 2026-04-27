@@ -1,7 +1,7 @@
 import { WorldPreset } from "../models/types";
 
 
-export const WORLD_PRESETS: { [lang: string]: WorldPreset[]; } = {
+export const WORLD_PRESETS: Record<string, WorldPreset[]> = {
     en: [
         {
             id: 'sword_magic',

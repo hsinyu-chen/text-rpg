@@ -8,7 +8,8 @@ import { CacheManagerService } from './cache-manager.service';
 import { CostService } from './cost.service';
 import { KnowledgeService } from './knowledge.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { SessionSave, Scenario, Book } from '../models/types';
+import { SessionSave, Scenario, Book, ROOT_COLLECTION_ID } from '../models/types';
+import { CollectionService } from './collection.service';
 import { GAME_INTENTS } from '../constants/game-intents';
 import { getCoreFilenames, getSectionHeaders, getUIStrings } from '../constants/engine-protocol';
 import { LOCALES } from '../constants/locales';
@@ -28,6 +29,7 @@ export class SessionService {
     private kb = inject(KnowledgeService);
     private snackBar = inject(MatSnackBar);
     private injection = inject(InjectionService);
+    private collections = inject(CollectionService);
 
     constructor() {
         // Only write — removal is handled explicitly in unloadCurrentSession()
@@ -39,13 +41,6 @@ export class SessionService {
 
     // Signals
     currentBookId = signal<string | null>(null);
-    kbSlotId = signal<string | null>(null);
-    kbSlotName = signal<string | null>(null);
-
-    setKbSlot(id: string | null, name: string | null) {
-        this.kbSlotId.set(id);
-        this.kbSlotName.set(name);
-    }
 
     /**
      * Initializes the SessionService.
@@ -109,7 +104,10 @@ export class SessionService {
             // Auto-save current if exists, then unload
             await this.unloadCurrentSession(true);
 
-            // Create a new Book entry
+            // Create a Collection for this new game using the rule
+            const collection = await this.collections.createForNewGame({ name: profile.name }, scenario);
+
+            // Create a new Book entry under the new Collection
             const newBookId = crypto.randomUUID();
             this.currentBookId.set(newBookId);
 
@@ -119,6 +117,7 @@ export class SessionService {
             const newBook: Book = {
                 id: newBookId,
                 name: profile.name || 'New Adventure',
+                collectionId: collection.id,
                 createdAt: Date.now(),
                 lastActiveAt: Date.now(),
                 preview: 'Beginning...',
@@ -277,9 +276,6 @@ export class SessionService {
             this.state.sunkUsageHistory.set([]);
             this.state.storageUsageAccumulated.set(0);
 
-            // 4. Clear active session signals
-            this.kbSlotId.set(null);
-            this.kbSlotName.set(null);
             // Cache signals are cleared by cacheManager.resetCacheState()
 
             localStorage.removeItem('last_active_book_id');
@@ -297,7 +293,7 @@ export class SessionService {
     /**
      * Dehydrates the currently active session into a Book object and saves it to IndexedDB.
      */
-    async startEmptySession() {
+    async startEmptySession(collectionId: string = ROOT_COLLECTION_ID) {
         // 1. Unload current session and save it
         if (this.currentBookId()) {
             await this.unloadCurrentSession(true);
@@ -318,6 +314,7 @@ export class SessionService {
         const book: Book = {
             id: bookId,
             name: 'New Session',
+            collectionId,
             createdAt: Date.now(),
             lastActiveAt: Date.now(),
             preview: 'Empty Session',
@@ -334,9 +331,7 @@ export class SessionService {
                 kbCacheExpireTime: null,
                 kbCacheTokens: 0,
                 estimatedKbTokens: 0,
-                kbCacheHash: null,
-                kbSlotId: undefined,
-                kbSlotName: undefined
+                kbCacheHash: null
             }
         };
 
@@ -386,8 +381,6 @@ export class SessionService {
         const historyStorageUsage = this.state.historyStorageUsageAccumulated();
         const sunkUsageHistory = this.state.sunkUsageHistory();
         const kbStorageUsageAcc = this.state.storageUsageAccumulated();
-        const kbSlotId = this.kbSlotId() || undefined;
-        const kbSlotName = this.kbSlotName() || undefined;
 
         // Calculate estimated cost dynamically (same as sidebar-cost-prediction)
         const activeProvider = this.providerRegistry.getActive();
@@ -410,13 +403,14 @@ export class SessionService {
 
         const lastParams = [...this.state.messages()].reverse().find(m => m.role === 'model')?.content?.substring(0, 100) || '...';
 
+        // Read existing first so we can preserve identity fields (name, createdAt, collectionId)
+        const existing = await this.storage.getBook(bookId);
+
         const book: Book = {
             id: bookId,
-            name: this.state.messages().length > 0 ? (this.extractActName() || 'Untitled Session') : 'Empty Session', // Could optimize to not overwrite name if user set it customly? Ideally we just update auto-generated names.
-            // For now, let's preserve existing name if we fetch it first?
-            // Expensive to fetch just to check name. Let's start with auto-updating.
-            // Better: `saveCurrentSessionToBook` should arguably just UPDATE the existing book in DB.
-            createdAt: Date.now(), // This will be clobbered if we treat this as "create new". We need to READ first.
+            name: this.state.messages().length > 0 ? (this.extractActName() || 'Untitled Session') : 'Empty Session',
+            collectionId: existing?.collectionId || ROOT_COLLECTION_ID,
+            createdAt: Date.now(),
             lastActiveAt: Date.now(),
             preview: lastParams,
             messages: messages.map(m => ({
@@ -439,14 +433,10 @@ export class SessionService {
                 kbCacheTokens,
                 estimatedKbTokens,
                 kbCacheHash,
-                kbStorageUsageAcc,
-                kbSlotId,
-                kbSlotName
+                kbStorageUsageAcc
             }
         };
 
-        // Attempt to merge with existing to preserve ID/Name/Created 
-        const existing = await this.storage.getBook(bookId);
         if (existing) {
             book.name = existing.name; // Keep user-defined name
             book.createdAt = existing.createdAt;
@@ -543,10 +533,6 @@ export class SessionService {
                 this.cacheManager.resetCacheState();
             }
 
-            // Restore KB Slot
-            this.kbSlotId.set(stats.kbSlotId || null);
-            this.kbSlotName.set(stats.kbSlotName || null);
-
             console.log(`[SessionService] Book ${id} loaded.`);
         } catch (e) {
             console.error(`[SessionService] Failed to load book ${id} `, e);
@@ -571,7 +557,6 @@ export class SessionService {
         if (!currentId) return;
 
         // 1. Determine Naming & State BEFORE Unloading
-        // We use the current in-memory state which is most up-to-date
         const actName = this.extractActName() || 'Act.1';
         let currentActNum = 1;
         const match = actName.match(/Act\.(\d+)/i) || actName.match(/第\s*(\d+)\s*章/);
@@ -579,13 +564,8 @@ export class SessionService {
             currentActNum = parseInt(match[1]);
         }
 
-        const kbSlotName = this.kbSlotName() || 'Default';
-        // If we are "Creating Next", it implies the current session effectively IS "Act N".
-        // Example: Playing "Legacy Adventure", reached Act 2. 
-        // User clicks "Create Next". Old book becomes "Legacy Adventure Act.2". New Book becomes "Legacy Adventure Act.3".
-
-        const newNameForOldBook = `${kbSlotName} Act.${currentActNum}`;
-        const newNameForNewBook = `${kbSlotName} Act.${currentActNum + 1}`;
+        const newNameForOldBook = `Act.${currentActNum}`;
+        const newNameForNewBook = `Act.${currentActNum + 1}`;
 
         console.log(`[SessionService] Create Next: Renaming current to "${newNameForOldBook}", creating "${newNameForNewBook}"`);
 
@@ -630,8 +610,7 @@ export class SessionService {
         const newBook: Book = {
             id: newBookId,
             name: newNameForNewBook,
-            // User didn't specify name for new book, but usually it continues.
-            // Let's name it "Act.N+1" for convenience.
+            collectionId: oldBook.collectionId, // Inherit collection from previous Act
             createdAt: Date.now(),
             lastActiveAt: Date.now(),
             preview: 'New Chapter',
@@ -648,9 +627,7 @@ export class SessionService {
                 kbCacheExpireTime: null,
                 kbCacheTokens: 0,
                 estimatedKbTokens: 0, // Reset for new book
-                kbCacheHash: null,
-                kbSlotId: oldBook.stats.kbSlotId, // Persist Slot ID
-                kbSlotName: oldBook.stats.kbSlotName
+                kbCacheHash: null
             }
         };
 
@@ -671,6 +648,11 @@ export class SessionService {
      * @returns The new book's id.
      */
     async createSceneBook(name: string, files: Map<string, string>): Promise<string> {
+        // Capture the active book's collection BEFORE unloading clears state.
+        const sourceId = this.currentBookId();
+        const sourceBook = sourceId ? await this.storage.getBook(sourceId) : null;
+        const collectionId = sourceBook?.collectionId || ROOT_COLLECTION_ID;
+
         if (this.currentBookId()) {
             await this.unloadCurrentSession(true);
         }
@@ -687,12 +669,10 @@ export class SessionService {
             prompts['system_main'] = { content: mainPrompt.content, tokens: mainPrompt.tokens };
         }
 
-        const kbSlotId = this.kbSlotId() || undefined;
-        const kbSlotName = this.kbSlotName() || undefined;
-
         const newBook: Book = {
             id: newBookId,
             name,
+            collectionId,
             createdAt: Date.now(),
             lastActiveAt: Date.now(),
             preview: 'New Scene',
@@ -709,9 +689,7 @@ export class SessionService {
                 kbCacheExpireTime: null,
                 kbCacheTokens: 0,
                 estimatedKbTokens: 0,
-                kbCacheHash: null,
-                kbSlotId,
-                kbSlotName
+                kbCacheHash: null
             }
         };
 
@@ -736,7 +714,21 @@ export class SessionService {
     }
 
     async nukeAllCaches() {
-        return this.cacheManager.clearAllServerCaches();
+        const count = await this.cacheManager.clearAllServerCaches();
+        // Wipe stale cache metadata from every stored book so the active-cache
+        // UI badge stops lying about books whose remote cache is now gone.
+        const books = await this.storage.getBooks();
+        for (const book of books) {
+            const s = book.stats;
+            if (s.kbCacheName || s.kbCacheExpireTime || s.kbCacheTokens || s.kbCacheHash) {
+                s.kbCacheName = null;
+                s.kbCacheExpireTime = null;
+                s.kbCacheTokens = 0;
+                s.kbCacheHash = null;
+                await this.storage.saveBook(book);
+            }
+        }
+        return count;
     }
 
     /**

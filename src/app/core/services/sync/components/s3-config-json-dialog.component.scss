@@ -1,0 +1,17 @@
+.hint {
+    font-size: 0.85em;
+    opacity: 0.75;
+    margin: 0 0 12px;
+    line-height: 1.4;
+}
+
+.full-width {
+    width: 100%;
+    min-width: 480px;
+
+    textarea {
+        font-family: 'Fira Code', 'Courier New', monospace;
+        font-size: 0.85em;
+        line-height: 1.4;
+    }
+}

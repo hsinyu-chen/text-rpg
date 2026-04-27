@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
-import { StorageValue, SessionSave, ChatMessage, Book } from '../models/types';
+import { StorageValue, SessionSave, ChatMessage, Book, Collection } from '../models/types';
 
 interface TextRPGDB extends DBSchema {
   chat_store: {
@@ -19,6 +19,10 @@ interface TextRPGDB extends DBSchema {
     key: string;
     value: Book;
   };
+  collections_store: {
+    key: string;
+    value: Collection;
+  };
 }
 
 @Injectable({
@@ -28,7 +32,7 @@ export class StorageService {
   private dbPromise: Promise<IDBPDatabase<TextRPGDB>>;
 
   constructor() {
-    this.dbPromise = openDB<TextRPGDB>('TextRPG_DB', 6, {
+    this.dbPromise = openDB<TextRPGDB>('TextRPG_DB', 7, {
       upgrade(db, oldVersion) {
         if (oldVersion < 1) {
           db.createObjectStore('chat_store');
@@ -51,6 +55,11 @@ export class StorageService {
         if (oldVersion < 6) {
           if (!db.objectStoreNames.contains('books_store')) {
             db.createObjectStore('books_store');
+          }
+        }
+        if (oldVersion < 7) {
+          if (!db.objectStoreNames.contains('collections_store')) {
+            db.createObjectStore('collections_store');
           }
         }
       },
@@ -187,6 +196,24 @@ export class StorageService {
 
   async deleteBook(id: string): Promise<void> {
     await (await this.dbPromise).delete('books_store', id);
+  }
+
+  // ========== Collections Store (v7+) ==========
+
+  async getCollections(): Promise<Collection[]> {
+    return (await this.dbPromise).getAll('collections_store');
+  }
+
+  async getCollection(id: string): Promise<Collection | undefined> {
+    return (await this.dbPromise).get('collections_store', id);
+  }
+
+  async saveCollection(collection: Collection): Promise<void> {
+    await (await this.dbPromise).put('collections_store', collection, collection.id);
+  }
+
+  async deleteCollection(id: string): Promise<void> {
+    await (await this.dbPromise).delete('collections_store', id);
   }
 
   // ========== Session Saves (REMOVED) ==========

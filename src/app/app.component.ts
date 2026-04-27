@@ -8,13 +8,13 @@ import { BreakpointObserver, LayoutModule } from '@angular/cdk/layout';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { SidebarComponent } from './features/sidebar/sidebar.component';
 import { ChatComponent } from './features/chat/chat.component';
-import { AutoSaveService } from './core/services/auto-save.service';
 import { GameEngineService } from './core/services/game-engine.service';
 import { GameStateService } from './core/services/game-state.service';
 import { SettingsDialogComponent } from './features/settings/settings-dialog.component';
 import { map } from 'rxjs';
 import { LoadingService } from './core/services/loading.service';
 import { LLMProviderInitService } from './core/services/llm-provider-init.service';
+import { SyncProviderInitService } from './core/services/sync/sync-provider-init.service';
 import { IdleService } from './core/services/idle.service';
 import { SpaceInvadersComponent } from './features/screensaver/space-invaders.component';
 import { CodeScreensaverComponent } from './features/screensaver/code-screensaver.component';
@@ -50,6 +50,7 @@ export class AppComponent {
   dialog = inject(MatDialog);
   private breakpointObserver = inject(BreakpointObserver);
   private providerInit = inject(LLMProviderInitService);
+  private syncProviderInit = inject(SyncProviderInitService);
   idleService = inject(IdleService);
 
   // Responsive signals
@@ -75,6 +76,7 @@ export class AppComponent {
     const migrationService = inject(MigrationService);
     // Migrations must finish BEFORE provider init runs, since migrateLLMProfiles
     // writes seed profiles that LLMConfigService will read on its first pass.
+    this.syncProviderInit.initialize();
     migrationService.runMigrations()
       .then(() => this.providerInit.initialize())
       .then(() => {
@@ -129,6 +131,4 @@ export class AppComponent {
   closeBookList() {
     this.bookListOpen.set(false);
   }
-
-  private autoSave = inject(AutoSaveService);
 }

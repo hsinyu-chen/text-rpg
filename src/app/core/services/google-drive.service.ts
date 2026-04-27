@@ -80,9 +80,6 @@ export class GoogleDriveService {
     private refreshToken = signal<string | null>(null);
     private tokenExpiry = signal<number>(0);
 
-    /** The currently selected Google Drive slot ID for this game session */
-    currentSlotId = signal<string | null>(null);
-
     // Tauri detection
     private isTauri = !!(window.__TAURI_INTERNALS__ || window.__TAURI__);
 
@@ -137,13 +134,10 @@ export class GoogleDriveService {
         });
     }
 
-    hasAuthError = signal(false);
-
     private refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
     private handleLoginSuccess(token: string, expiresInSeconds = 3599, refreshToken?: string) {
         this.accessToken.set(token);
-        this.hasAuthError.set(false); // Clear any previous error
 
         // Expiry calculation
         const now = Date.now();
@@ -202,13 +196,7 @@ export class GoogleDriveService {
             console.log('[GoogleDrive] Proactive refresh successful');
         } catch (e) {
             console.warn('[GoogleDrive] Proactive refresh failed. Will wait for manual interaction.', e);
-            // We don't reportAuthError here to avoid annoying user if they are idle.
-            // The next actual API call will fail and trigger the UI warning.
         }
-    }
-
-    reportAuthError() {
-        this.hasAuthError.set(true);
     }
 
     private async fetchAndSaveUserEmail(token: string) {
@@ -615,7 +603,7 @@ export class GoogleDriveService {
         });
     }
 
-    async createFile(parentId = 'appDataFolder', name: string, content: string): Promise<void> {
+    async createFile(parentId = 'appDataFolder', name: string, content: string): Promise<DriveFile> {
         return this.execute(async (token) => {
             const metadata = {
                 name,
@@ -627,13 +615,14 @@ export class GoogleDriveService {
             form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
             form.append('file', new Blob([content], { type: 'text/plain' }));
 
-            const url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
+            const url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,mimeType,parents,modifiedTime';
             const res = await fetch(url, {
                 method: 'POST',
                 headers: { Authorization: `Bearer ${token}` },
                 body: form
             });
             if (!res.ok) throw { status: res.status, message: res.statusText };
+            return await res.json() as DriveFile;
         });
     }
 
@@ -656,145 +645,7 @@ export class GoogleDriveService {
         return this.accessToken() !== null && Date.now() < this.tokenExpiry();
     }
 
-    // ========== Session Saves ==========
-
-    // ========== Session Saves ==========
-
-    private savesFolderCache = new Map<string, string>(); // parentId -> savesFolderId
-
-    /**
-     * Ensures the 'saves' folder exists within the specified parent folder and returns its ID.
-     */
-    private async ensureSavesFolder(parentId = 'appDataFolder'): Promise<string> {
-        const cached = this.savesFolderCache.get(parentId);
-        if (cached) return cached;
-
-        return this.execute(async (token) => {
-            const query = `name = 'saves' and mimeType = 'application/vnd.google-apps.folder' and '${parentId}' in parents and trashed = false`;
-            const searchUrl = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&spaces=appDataFolder`;
-
-            const searchRes = await fetch(searchUrl, {
-                headers: { Authorization: `Bearer ${token}` },
-                cache: 'no-store'
-            });
-            if (!searchRes.ok) throw { status: searchRes.status, message: searchRes.statusText };
-            const searchData = await searchRes.json();
-
-            if (searchData.files && searchData.files.length > 0) {
-                const id = searchData.files[0].id;
-                this.savesFolderCache.set(parentId, id);
-                return id;
-            }
-
-            // Create the folder
-            const metadata = {
-                name: 'saves',
-                mimeType: 'application/vnd.google-apps.folder',
-                parents: [parentId]
-            };
-
-            const createRes = await fetch('https://www.googleapis.com/drive/v3/files', {
-                method: 'POST',
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(metadata)
-            });
-            if (!createRes.ok) throw { status: createRes.status, message: createRes.statusText };
-            const createData = await createRes.json();
-            this.savesFolderCache.set(parentId, createData.id);
-            return createData.id;
-        });
-    }
-
-    /**
-     * Lists all session save files in the 'saves' folder of a specific parent.
-     */
-    async listSaves(parentId = 'appDataFolder'): Promise<DriveFile[]> {
-        const folderId = await this.ensureSavesFolder(parentId);
-        return this.execute(async (token) => {
-            const query = `'${folderId}' in parents and trashed = false`;
-            const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,modifiedTime)&spaces=appDataFolder`;
-
-            const res = await fetch(url, {
-                headers: { Authorization: `Bearer ${token}` },
-                cache: 'no-store'
-            });
-            if (!res.ok) throw { status: res.status, message: res.statusText };
-            const data = await res.json();
-            return data.files || [];
-        });
-    }
-
-    /**
-     * Uploads a session save to the 'saves' folder of a specific parent.
-     */
-    async uploadSave(save: { id: string }, parentId = 'appDataFolder'): Promise<void> {
-        const folderId = await this.ensureSavesFolder(parentId);
-        const fileName = `${save.id}.json`;
-        const content = JSON.stringify(save);
-
-        const existingFiles = await this.listSaves(parentId);
-        const existing = existingFiles.find(f => f.name === fileName);
-
-        if (existing) {
-            // Update
-            return this.execute(async (token) => {
-                const url = `https://www.googleapis.com/upload/drive/v3/files/${existing.id}?uploadType=media`;
-                const res = await fetch(url, {
-                    method: 'PATCH',
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: content
-                });
-                if (!res.ok) throw { status: res.status, message: res.statusText };
-            });
-        } else {
-            // Create
-            return this.execute(async (token) => {
-                const metadata = {
-                    name: fileName,
-                    parents: [folderId],
-                    mimeType: 'application/json'
-                };
-                const form = new FormData();
-                form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-                form.append('file', new Blob([content], { type: 'application/json' }));
-
-                const url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
-                const res = await fetch(url, {
-                    method: 'POST',
-                    headers: { Authorization: `Bearer ${token}` },
-                    body: form
-                });
-                if (!res.ok) throw { status: res.status, message: res.statusText };
-            });
-        }
-    }
-
-    /**
-     * Downloads a session save by file ID.
-     */
-    async downloadSave<T>(fileId: string): Promise<T> {
-        return this.execute(async (token) => {
-            const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;
-            const res = await fetch(url, {
-                headers: { Authorization: `Bearer ${token}` },
-                cache: 'no-store'
-            });
-            if (!res.ok) throw { status: res.status, message: res.statusText };
-            const text = await res.text();
-            return JSON.parse(text) as T;
-        });
-    }
-
-    /**
-     * Deletes a session save by file ID.
-     */
-    async deleteSaveFromDrive(fileId: string): Promise<void> {
+    async deleteFile(fileId: string): Promise<void> {
         return this.execute(async (token) => {
             const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
                 method: 'DELETE',

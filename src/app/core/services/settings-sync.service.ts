@@ -1,10 +1,8 @@
 import { Injectable, inject } from '@angular/core';
-import { firstValueFrom } from 'rxjs';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { GoogleDriveService } from './google-drive.service';
 import { LoadingService } from './loading.service';
+import { SyncService } from './sync/sync.service';
 
-const SETTINGS_FILE_NAME = 'settings.json';
 const SNAPSHOT_VERSION = 1;
 
 // Exact keys and prefixes that represent portable user settings.
@@ -30,7 +28,7 @@ function isSyncKey(key: string): boolean {
 
 @Injectable({ providedIn: 'root' })
 export class SettingsSyncService {
-    private drive = inject(GoogleDriveService);
+    private sync = inject(SyncService);
     private loading = inject(LoadingService);
     private snackBar = inject(MatSnackBar);
 
@@ -76,29 +74,16 @@ export class SettingsSyncService {
     }
 
     async upload(): Promise<void> {
-        this.loading.show('Uploading settings to Cloud...');
+        this.loading.show('Uploading settings...');
         try {
-            if (!this.drive.isAuthenticated()) {
-                await this.drive.login();
-            }
-
             const snapshot = this.buildSnapshot();
             const content = JSON.stringify(snapshot, null, 2);
-
-            const files = await this.drive.listFiles('appDataFolder');
-            const existing = files.find(f => f.name === SETTINGS_FILE_NAME);
-
-            if (existing) {
-                await this.drive.updateFile(existing.id, content);
-            } else {
-                await this.drive.createFile('appDataFolder', SETTINGS_FILE_NAME, content);
-            }
-
+            await this.sync.uploadSettings(content);
             const count = Object.keys(snapshot.entries).length;
             this.snackBar.open(`Settings uploaded (${count} entries).`, 'OK', { duration: 3000 });
         } catch (error) {
             console.error('[SettingsSync] Upload failed', error);
-            this.handleAuthError('Upload failed. Click to re-authenticate.');
+            this.snackBar.open('Settings upload failed: ' + ((error as { message?: string })?.message || ''), 'Close', { duration: 5000 });
             throw error;
         } finally {
             this.loading.hide();
@@ -106,47 +91,25 @@ export class SettingsSyncService {
     }
 
     async download(): Promise<boolean> {
-        this.loading.show('Downloading settings from Cloud...');
+        this.loading.show('Downloading settings...');
         try {
-            if (!this.drive.isAuthenticated()) {
-                await this.drive.login();
-            }
-
-            const files = await this.drive.listFiles('appDataFolder');
-            const settingsFile = files.find(f => f.name === SETTINGS_FILE_NAME);
-
-            if (!settingsFile) {
-                this.snackBar.open('No settings found in Cloud.', 'Close', { duration: 3000 });
+            const content = await this.sync.downloadSettings();
+            if (!content) {
+                this.snackBar.open('No settings found on the active sync provider.', 'Close', { duration: 3000 });
                 return false;
             }
-
-            const content = await this.drive.readFile(settingsFile.id);
             const snapshot = JSON.parse(content) as SettingsSnapshot;
             const applied = this.applySnapshot(snapshot);
 
             this.snackBar.open(`Imported ${applied} settings. Reloading...`, 'OK', { duration: 2500 });
-            // Reload so every service re-reads localStorage from a clean state.
             setTimeout(() => window.location.reload(), 800);
             return true;
         } catch (error) {
             console.error('[SettingsSync] Download failed', error);
-            this.handleAuthError('Download failed. Click to re-authenticate.');
+            this.snackBar.open('Settings download failed: ' + ((error as { message?: string })?.message || ''), 'Close', { duration: 5000 });
             throw error;
         } finally {
             this.loading.hide();
         }
-    }
-
-    private handleAuthError(message: string): void {
-        localStorage.removeItem('gdrive_access_token');
-        const snackRef = this.snackBar.open(message, 'Re-Auth', { duration: 10000 });
-        firstValueFrom(snackRef.onAction()).then(async () => {
-            try {
-                await this.drive.login();
-                this.snackBar.open('Re-authenticated. Please try again.', 'OK', { duration: 3000 });
-            } catch {
-                this.snackBar.open('Re-authentication failed.', 'Close', { duration: 3000 });
-            }
-        });
     }
 }

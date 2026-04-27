@@ -3,7 +3,8 @@ import { LLMConfig } from '@hcs/llm-core';
 import { LLM_STORAGE_TOKEN } from '@hcs/llm-angular-common';
 import { StorageService } from './storage.service';
 import { SessionService } from './session.service';
-import { Book, ChatMessage } from '../models/types';
+import { CollectionService } from './collection.service';
+import { Book, ChatMessage, ROOT_COLLECTION_ID } from '../models/types';
 import { FILENAME_MIGRATIONS } from '../constants/migrations';
 
 /**
@@ -17,6 +18,7 @@ export class MigrationService {
     private storage = inject(StorageService);
     private llmStorage = inject(LLM_STORAGE_TOKEN);
     private session = inject(SessionService);
+    private collections = inject(CollectionService);
 
     /**
      * Execute all pending migrations.
@@ -26,10 +28,36 @@ export class MigrationService {
      */
     async runMigrations(): Promise<void> {
         await this.migrateFilenames();
+        await this.migrateBookCollections();
         await this.migrateLegacySession();
         await this.migrateLLMProfiles();
         // Add future migrations here...
     }
+
+    /**
+     * //MIGRATION CODE START - v3.0 Collections layer
+     * Ensures the root Collection exists and assigns 'root' to any Book
+     * persisted before the Collection layer was introduced.
+     */
+    private async migrateBookCollections(): Promise<void> {
+        await this.collections.ensureRoot();
+
+        const books = await this.storage.getBooks();
+        let updated = 0;
+        for (const book of books) {
+            if (!book.collectionId) {
+                book.collectionId = ROOT_COLLECTION_ID;
+                await this.storage.saveBook(book);
+                updated++;
+            }
+        }
+        if (updated > 0) {
+            console.log(`[MigrationService] Backfilled collectionId='root' on ${updated} legacy book(s).`);
+        }
+
+        await this.collections.load();
+    }
+    // //MIGRATION CODE END
 
     /**
      * //MIGRATION CODE START - v2.0 Monorepo LLM provider swap
@@ -208,6 +236,7 @@ export class MigrationService {
         const book: Book = {
             id: bookId,
             name: actName,
+            collectionId: ROOT_COLLECTION_ID,
             createdAt: Date.now(),
             lastActiveAt: Date.now(),
             preview: lastModelMsg,
