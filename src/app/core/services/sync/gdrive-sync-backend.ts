@@ -1,17 +1,22 @@
 import { Injectable, inject } from '@angular/core';
 import { GoogleDriveService } from '../google-drive.service';
-import { SyncBackend, SyncResource, RemoteEntry, SyncBackendId } from './sync.types';
+import { SyncBackend, SyncResource, RemoteEntry, Tombstone, SyncBackendId } from './sync.types';
 
 const APPDATA_ROOT = 'appDataFolder';
 const SETTINGS_FILE_NAME = 'settings.json';
 const PROMPTS_FILE_NAME = 'prompts.json';
-// Match the S3 metadata key for consistency. Hyphen is fine in Drive's
+// Match the S3 metadata keys for consistency. Hyphen is fine in Drive's
 // appProperties (JSON keys, no header-name restriction).
 const APP_PROP_LAST_ACTIVE = 'last-active';
+const APP_PROP_DELETED_AT = 'deleted-at';
 
 const FOLDER_NAME: Record<SyncResource, string> = {
     book: 'books_v1',     // legacy folder name preserved for existing data
     collection: 'collections'
+};
+const TOMBSTONE_FOLDER_NAME: Record<SyncResource, string> = {
+    book: 'tombstones_books',
+    collection: 'tombstones_collections'
 };
 
 @Injectable({ providedIn: 'root' })
@@ -23,7 +28,9 @@ export class GDriveSyncBackend implements SyncBackend {
     private drive = inject(GoogleDriveService);
 
     private folderIdCache: Partial<Record<SyncResource, string>> = {};
+    private tombstoneFolderIdCache: Partial<Record<SyncResource, string>> = {};
     private fileIdByKey = new Map<string, string>();
+    private tombstoneFileIdByKey = new Map<string, string>();
     private settingsFileId: string | null = null;
     private promptsFileId: string | null = null;
 
@@ -56,6 +63,27 @@ export class GDriveSyncBackend implements SyncBackend {
         const id = found ? found.id : (await this.drive.createFolder(APPDATA_ROOT, name)).id;
 
         this.folderIdCache[resource] = id;
+        localStorage.setItem(lsKey, id);
+        return id;
+    }
+
+    private async ensureTombstoneFolder(resource: SyncResource): Promise<string> {
+        const cached = this.tombstoneFolderIdCache[resource];
+        if (cached) return cached;
+
+        const lsKey = `gdrive_tombstone_folder_${resource}_id`;
+        const stored = localStorage.getItem(lsKey);
+        if (stored) {
+            this.tombstoneFolderIdCache[resource] = stored;
+            return stored;
+        }
+
+        const folders = await this.drive.listFolders(APPDATA_ROOT);
+        const name = TOMBSTONE_FOLDER_NAME[resource];
+        const found = folders.find(f => f.name === name);
+        const id = found ? found.id : (await this.drive.createFolder(APPDATA_ROOT, name)).id;
+
+        this.tombstoneFolderIdCache[resource] = id;
         localStorage.setItem(lsKey, id);
         return id;
     }
@@ -119,6 +147,43 @@ export class GDriveSyncBackend implements SyncBackend {
         if (!fileId) return;
         await this.drive.deleteFile(fileId);
         this.fileIdByKey.delete(key);
+    }
+
+    async listTombstones(resource: SyncResource): Promise<Tombstone[]> {
+        const folderId = await this.ensureTombstoneFolder(resource);
+        const files = await this.drive.listFiles(folderId);
+        const tombstones: Tombstone[] = [];
+        for (const f of files) {
+            const id = f.name;
+            this.tombstoneFileIdByKey.set(this.cacheKey(resource, id), f.id);
+            const modifiedAt = f.modifiedTime ? new Date(f.modifiedTime).getTime() : 0;
+            const metaValue = f.appProperties?.[APP_PROP_DELETED_AT];
+            const deletedAt = metaValue ? Number(metaValue) || modifiedAt : modifiedAt;
+            tombstones.push({ id, deletedAt });
+        }
+        return tombstones;
+    }
+
+    async writeTombstone(resource: SyncResource, id: string, deletedAt: number): Promise<void> {
+        const folderId = await this.ensureTombstoneFolder(resource);
+        const key = this.cacheKey(resource, id);
+        const props = { [APP_PROP_DELETED_AT]: String(deletedAt) };
+        const existing = this.tombstoneFileIdByKey.get(key);
+        if (existing) {
+            await this.drive.updateFile(existing, '', props);
+            return;
+        }
+        const created = await this.drive.createFile(folderId, id, '', props);
+        this.tombstoneFileIdByKey.set(key, created.id);
+    }
+
+    async clearTombstones(resource: SyncResource): Promise<void> {
+        const folderId = await this.ensureTombstoneFolder(resource);
+        const files = await this.drive.listFiles(folderId);
+        for (const f of files) {
+            await this.drive.deleteFile(f.id);
+            this.tombstoneFileIdByKey.delete(this.cacheKey(resource, f.name));
+        }
     }
 
     private async findSettingsFileId(): Promise<string | null> {

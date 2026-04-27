@@ -400,32 +400,73 @@ export class SyncService {
     ): Promise<SyncReport> {
         const report: SyncReport = { uploaded: 0, downloaded: 0, deleted: 0, errors: [] };
 
-        const localList: (Book | Collection)[] = resource === 'book'
+        let localList: (Book | Collection)[] = resource === 'book'
             ? await this.storage.getBooks()
             : await this.storage.getCollections();
         const remoteList = await backend.list(resource);
         const remoteById = new Map(remoteList.map(r => [r.id, r]));
-        const localById = new Map(localList.map(l => [l.id, l]));
+        let localById = new Map(localList.map(l => [l.id, l]));
 
-        // Pending deletions: only drop from tracking when remote is confirmed gone.
+        // Pending deletions: write a tombstone (or update the existing one)
+        // so other devices see the deletion, then drop the live object. Only
+        // remove from the local tracking list once both succeed.
         const deletionKey = PENDING_DELETIONS_KEY[resource];
         const pending = this.readPendingList(deletionKey);
         const remaining: string[] = [];
         const justDeletedIds = new Set<string>();
         for (const id of pending) {
-            if (!remoteById.has(id)) continue;
             try {
-                await backend.remove(resource, id);
-                remoteById.delete(id);
+                await backend.writeTombstone(resource, id, Date.now());
+                if (remoteById.has(id)) {
+                    await backend.remove(resource, id);
+                    remoteById.delete(id);
+                    report.deleted++;
+                }
                 justDeletedIds.add(id);
-                report.deleted++;
             } catch (e) {
-                console.error(`[SyncService] Failed to delete remote ${resource} ${id}, will retry`, e);
+                console.error(`[SyncService] Failed to propagate ${resource} delete ${id}, will retry`, e);
                 remaining.push(id);
                 report.errors.push({ resource, id, op: 'delete', message: errMsg(e) });
             }
         }
         localStorage.setItem(deletionKey, JSON.stringify(remaining));
+
+        // Apply remote tombstones: for each tombstone, if local has the
+        // entity and was last edited *before* the deletion, delete locally.
+        // If local edit is *after* the tombstone (post-delete edit on
+        // another device), the live entity wins via the regular newer-wins
+        // path and `writeTombstone` from a future delete would re-establish.
+        try {
+            const tombstones = await backend.listTombstones(resource);
+            for (const tomb of tombstones) {
+                if (justDeletedIds.has(tomb.id)) continue;
+                const local = localById.get(tomb.id);
+                if (!local) continue;
+                const localTime = this.localTimestamp(local, resource);
+                if (localTime > tomb.deletedAt) continue;
+                try {
+                    if (resource === 'book') {
+                        await this.storage.deleteBook(tomb.id);
+                    } else {
+                        await this.storage.deleteCollection(tomb.id);
+                    }
+                    localById.delete(tomb.id);
+                    if (remoteById.has(tomb.id)) remoteById.delete(tomb.id);
+                    justDeletedIds.add(tomb.id);
+                    report.deleted++;
+                    console.log(`[Sync ${resource} ${tomb.id.slice(0, 8)}] tombstone newer → local delete (local=${localTime}, deletedAt=${tomb.deletedAt})`);
+                } catch (e) {
+                    console.error(`[SyncService] Failed to apply tombstone for ${resource} ${tomb.id}`, e);
+                    report.errors.push({ resource, id: tomb.id, op: 'delete', message: errMsg(e) });
+                }
+            }
+        } catch (e) {
+            console.error(`[SyncService] Failed to list tombstones for ${resource}`, e);
+            report.errors.push({ resource, id: '', op: 'list', message: errMsg(e) });
+        }
+
+        // Refresh localList in case tombstones removed entries.
+        localList = Array.from(localById.values());
 
         // Single newer-wins loop over the union of local + remote ids.
         const allIds = new Set<string>([
@@ -436,7 +477,8 @@ export class SyncService {
         for (const id of allIds) {
             // SeaweedFS GET-after-DELETE consistency guard: don't try to read
             // an object we just removed within the same sync run, even if
-            // it's still in the cached remoteList array.
+            // it's still in the cached remoteList array. Also skips entities
+            // we just locally-deleted via tombstone application.
             if (justDeletedIds.has(id)) continue;
 
             const local = localById.get(id);
@@ -561,11 +603,27 @@ export class SyncService {
                 : await this.storage.getCollections();
             const localIds = new Set(localList.map(l => l.id));
             const remoteList = await backend.list(resource);
+            const now = Date.now();
+
+            // Wipe pre-existing tombstones first — local is the source of
+            // truth, so any "this was deleted" record from another device
+            // shouldn't keep haunting our entities. Then write fresh
+            // tombstones below for entities we're deleting from the cloud
+            // so other devices receive the message.
+            try {
+                await backend.clearTombstones(resource);
+            } catch (e) {
+                console.error(`[SyncService] forcePush: failed to clear tombstones for ${resource}`, e);
+                report.errors.push({ resource, id: '', op: 'delete', message: errMsg(e) });
+            }
 
             for (const remote of remoteList) {
                 if (localIds.has(remote.id)) continue;
                 try {
                     await backend.remove(resource, remote.id);
+                    // Tombstone so other devices learn this id was removed
+                    // and don't resurrect it via local-only upload.
+                    await backend.writeTombstone(resource, remote.id, now);
                     report.deletedRemote++;
                 } catch (e) {
                     console.error(`[SyncService] forcePush: failed to delete remote ${resource} ${remote.id}`, e);

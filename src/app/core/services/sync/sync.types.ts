@@ -2,6 +2,18 @@ export type SyncBackendId = 'gdrive' | 's3';
 
 export type SyncResource = 'book' | 'collection';
 
+export interface Tombstone {
+    id: string;
+    /**
+     * Device-clock timestamp at which the entity was deleted (set by the
+     * device that performed the delete). Compared against `local.lastActiveAt`
+     * on every sync to decide whether the local entity should be deleted
+     * (tombstone newer) or whether it represents a post-delete edit on
+     * another device that should propagate as upload (local newer).
+     */
+    deletedAt: number;
+}
+
 export interface RemoteEntry {
     id: string;
     /**
@@ -41,6 +53,22 @@ export interface SyncBackend {
      */
     write(resource: SyncResource, id: string, json: string, lastActiveAt: number): Promise<void>;
     remove(resource: SyncResource, id: string): Promise<void>;
+
+    /**
+     * Tombstone API for cross-device delete propagation. A tombstone is a
+     * separate cloud object stamped with `deletedAt`. On sync, listTombstones()
+     * lets each device discover entities deleted elsewhere and apply the
+     * delete locally. Tombstones are never auto-removed (cheap to keep) so
+     * that a long-offline device still gets the message when it comes back.
+     */
+    listTombstones(resource: SyncResource): Promise<Tombstone[]>;
+    writeTombstone(resource: SyncResource, id: string, deletedAt: number): Promise<void>;
+    /**
+     * Wipes all tombstones for a resource. Only used by Force Push (local
+     * is the source of truth; we don't want stale tombstones to come back
+     * and delete the entities we just re-uploaded).
+     */
+    clearTombstones(resource: SyncResource): Promise<void>;
 
     readSettings(): Promise<string | null>;
     writeSettings(content: string): Promise<void>;
