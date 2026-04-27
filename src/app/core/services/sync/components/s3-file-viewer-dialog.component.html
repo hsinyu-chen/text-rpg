@@ -1,14 +1,15 @@
 <h2 mat-dialog-title>Cloud Files (S3)</h2>
 <mat-dialog-content class="viewer-content">
-    <mat-tab-group [selectedIndex]="activeTab() === 'book' ? 0 : activeTab() === 'collection' ? 1 : 2"
+    <mat-tab-group [selectedIndex]="activeTab() === 'book' ? 0 : activeTab() === 'collection' ? 1 : activeTab() === 'settings' ? 2 : 3"
         (selectedIndexChange)="onTabChange($event)" animationDuration="0ms">
         <mat-tab label="Books"></mat-tab>
         <mat-tab label="Collections"></mat-tab>
         <mat-tab label="settings.json"></mat-tab>
+        <mat-tab label="prompts.json"></mat-tab>
     </mat-tab-group>
 
     <div class="toolbar">
-        @if (activeTab() !== 'settings') {
+        @if (!isSingleFileTab()) {
             <mat-form-field appearance="outline" class="filter">
                 <mat-label>Filter</mat-label>
                 <input matInput [ngModel]="filter()" (ngModelChange)="filter.set($event)"
@@ -21,17 +22,17 @@
         </button>
     </div>
 
-    @if (activeTab() === 'settings') {
+    @if (isSingleFileTab()) {
         <div class="settings-pane">
             @if (detailLoading()) {
                 <div class="placeholder"><mat-progress-spinner mode="indeterminate" diameter="32"></mat-progress-spinner></div>
             } @else if (detailError()) {
                 <div class="placeholder error">Read failed: {{ detailError() }}</div>
-            } @else if (settingsContent() === null) {
-                <div class="placeholder">No settings.json on cloud.</div>
+            } @else if (singleFileContent() === null) {
+                <div class="placeholder">No {{ activeTab() === 'settings' ? 'settings.json' : 'prompts.json' }} on cloud.</div>
             } @else {
-                <div class="meta">size: {{ formatBytes(settingsContent()!.length) }}</div>
-                <pre class="json">{{ settingsContent() }}</pre>
+                <div class="meta">size: {{ formatBytes(singleFileContent()!.length) }}</div>
+                <pre class="json">{{ singleFileContent() }}</pre>
             }
         </div>
     } @else {
@@ -48,14 +49,16 @@
                         <span class="col-mod">Modified</span>
                         <span class="col-size">Size</span>
                     </div>
-                    @for (e of currentEntries(); track e.id) {
-                        <div class="row" [class.selected]="selectedId() === e.id" (click)="loadDetail(e)">
+                    <cdk-virtual-scroll-viewport itemSize="32" class="vscroll"
+                        (scrolledIndexChange)="onScrolledIndexChange($event)">
+                        <div *cdkVirtualFor="let e of currentEntries(); trackBy: trackById"
+                            class="row" [class.selected]="selectedId() === e.id" (click)="loadDetail(e)">
                             <span class="col-name">{{ e.name ?? '—' }}</span>
                             <span class="col-id" [title]="e.id">{{ shortId(e.id) }}</span>
                             <span class="col-mod">{{ formatDate(e.modifiedAt) }}</span>
                             <span class="col-size">{{ formatBytes(e.size) }}</span>
                         </div>
-                    }
+                    </cdk-virtual-scroll-viewport>
                 }
             </div>
             <div class="detail-pane">
@@ -74,7 +77,7 @@
 </mat-dialog-content>
 <mat-dialog-actions align="end">
     <button mat-button (click)="copyDetail()"
-        [disabled]="(activeTab() === 'settings' ? !settingsContent() : !detailRaw())">
+        [disabled]="(isSingleFileTab() ? !singleFileContent() : !detailRaw())">
         <mat-icon>content_copy</mat-icon> Copy JSON
     </button>
     <button mat-button (click)="close()">Close</button>

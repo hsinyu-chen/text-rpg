@@ -42,8 +42,15 @@
 .list-pane {
     border: 1px solid rgba(127, 127, 127, 0.2);
     border-radius: 4px;
-    overflow: auto;
+    overflow: hidden;
     min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.vscroll {
+    flex: 1 1 auto;
+    width: 100%;
 }
 
 .detail-pane,
@@ -60,12 +67,15 @@
     display: grid;
     grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) 64px;
     gap: 8px;
-    padding: 6px 10px;
+    padding: 0 10px;
+    height: 32px; // matches cdk-virtual-scroll-viewport itemSize
+    align-items: center;
     font-size: 0.82em;
     line-height: 1.3;
     border-bottom: 1px solid rgba(127, 127, 127, 0.1);
     cursor: pointer;
     user-select: none;
+    box-sizing: border-box;
 
     &.header {
         cursor: default;
