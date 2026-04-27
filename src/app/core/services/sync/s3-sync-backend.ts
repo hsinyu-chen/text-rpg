@@ -202,7 +202,7 @@ export class S3SyncBackend implements SyncBackend {
             continuationToken = res.IsTruncated ? res.NextContinuationToken : undefined;
         } while (continuationToken);
 
-        // Parallel HEAD to pull `last-active` user metadata for each entry.
+        // HEAD per entry to pull `last-active` user metadata.
         //
         // Browser CORS gotcha: `x-amz-meta-*` response headers are stripped
         // by the browser unless the server explicitly lists them in
@@ -212,49 +212,62 @@ export class S3SyncBackend implements SyncBackend {
         // extra full-body fetch per object on every sync until the user
         // fixes their server CORS config, but it produces correct sync
         // decisions either way.
-        const entries = await Promise.all(partial.map(async p => {
-            try {
-                const head = await this.client.send(new HeadObjectCommand({
-                    Bucket: this.bucket,
-                    Key: p.key
-                }));
-                const metaValue = head.Metadata?.[META_LAST_ACTIVE];
-                if (metaValue) {
-                    return {
-                        id: p.id,
-                        lastActiveAt: Number(metaValue) || p.modifiedAt,
-                        modifiedAt: p.modifiedAt,
-                        etag: p.etag,
-                        size: p.size
-                    } as RemoteEntry;
+        //
+        // Concurrency capped: a List page can return up to 1000 keys, and
+        // firing that many HEADs at once exhausts browser connection pools
+        // and trips 429s on smaller S3 backends.
+        const HYDRATE_CONCURRENCY = 8;
+        const entries: RemoteEntry[] = new Array(partial.length);
+        let cursor = 0;
+        const workers = Array.from(
+            { length: Math.min(HYDRATE_CONCURRENCY, partial.length) },
+            async () => {
+                while (cursor < partial.length) {
+                    const i = cursor++;
+                    entries[i] = await this.hydrateRemoteEntry(partial[i]);
                 }
-                // Metadata missing (CORS strip or never written) — read body.
-                const get = await this.client.send(new GetObjectCommand({
-                    Bucket: this.bucket,
-                    Key: p.key
-                }));
-                const text = await get.Body!.transformToString();
-                const body = JSON.parse(text) as { lastActiveAt?: number; updatedAt?: number };
-                const bodyTime = Number(body.lastActiveAt ?? body.updatedAt) || p.modifiedAt;
-                return {
-                    id: p.id,
-                    lastActiveAt: bodyTime,
-                    modifiedAt: p.modifiedAt,
-                    etag: p.etag,
-                    size: p.size
-                } as RemoteEntry;
-            } catch {
-                return {
-                    id: p.id,
-                    lastActiveAt: p.modifiedAt,
-                    modifiedAt: p.modifiedAt,
-                    etag: p.etag,
-                    size: p.size
-                } as RemoteEntry;
             }
-        }));
+        );
+        await Promise.all(workers);
 
         return entries;
+    }
+
+    private async hydrateRemoteEntry(p: {
+        id: string; modifiedAt: number; etag?: string; size?: number; key: string;
+    }): Promise<RemoteEntry> {
+        const fallback: RemoteEntry = {
+            id: p.id,
+            lastActiveAt: p.modifiedAt,
+            modifiedAt: p.modifiedAt,
+            etag: p.etag,
+            size: p.size
+        };
+        try {
+            const head = await this.client.send(new HeadObjectCommand({
+                Bucket: this.bucket,
+                Key: p.key
+            }));
+            const metaValue = head.Metadata?.[META_LAST_ACTIVE];
+            if (metaValue) {
+                return {
+                    ...fallback,
+                    lastActiveAt: Number(metaValue) || p.modifiedAt
+                };
+            }
+            // Metadata missing (CORS strip or never written) — read body.
+            const get = await this.client.send(new GetObjectCommand({
+                Bucket: this.bucket,
+                Key: p.key
+            }));
+            if (!get.Body) return fallback;
+            const text = await get.Body.transformToString();
+            const body = JSON.parse(text) as { lastActiveAt?: number; updatedAt?: number };
+            const bodyTime = Number(body.lastActiveAt ?? body.updatedAt) || p.modifiedAt;
+            return { ...fallback, lastActiveAt: bodyTime };
+        } catch {
+            return fallback;
+        }
     }
 
     async read(resource: SyncResource, id: string): Promise<string> {

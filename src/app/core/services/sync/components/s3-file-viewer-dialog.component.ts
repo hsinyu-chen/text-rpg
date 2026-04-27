@@ -122,14 +122,18 @@ export class S3FileViewerDialogComponent implements OnInit {
                     const json = await backend.read(resource, e.id);
                     const parsed = JSON.parse(json) as { name?: string };
                     if (parsed?.name) {
-                        const list = resource === 'book' ? this.bookEntries() : this.collectionEntries();
-                        const idx = list.findIndex(x => x.id === e.id);
-                        if (idx !== -1) {
-                            const next = [...list];
-                            next[idx] = { ...next[idx], name: parsed.name };
-                            if (resource === 'book') this.bookEntries.set(next);
-                            else this.collectionEntries.set(next);
-                        }
+                        // Atomic update: workers run in parallel, so a
+                        // read-then-set pattern would race and lose updates.
+                        // signal.update receives the latest value each call.
+                        const target = resource === 'book' ? this.bookEntries : this.collectionEntries;
+                        const name = parsed.name;
+                        target.update(list => {
+                            const idx = list.findIndex(x => x.id === e.id);
+                            if (idx === -1) return list;
+                            const next = list.slice();
+                            next[idx] = { ...next[idx], name };
+                            return next;
+                        });
                     }
                 } catch {
                     // ignore per-entry name fetch failures; the row is still selectable

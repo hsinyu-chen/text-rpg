@@ -107,7 +107,7 @@ export class SyncService {
     private s3InstanceFingerprint = '';
 
     private debounceTimer: ReturnType<typeof setTimeout> | null = null;
-    private inFlight: Promise<unknown> | null = null;
+    private inFlight: { kind: 'sync' | 'forcePush' | 'forcePull'; promise: Promise<unknown> } | null = null;
     private lastSyncAt = 0;
     private failureCount = 0;
     private isInitialSync = false;
@@ -330,10 +330,29 @@ export class SyncService {
      * then books. Concurrency guard: if a sync is already in flight, return its promise.
      */
     syncAll(): Promise<SyncReport> {
-        if (this.inFlight) return this.inFlight as Promise<SyncReport>;
-        const p = this.doSyncAll().finally(() => { this.inFlight = null; });
-        this.inFlight = p;
-        return p;
+        // Coalesce concurrent syncAll() callers onto the same promise. If a
+        // force operation is in flight instead, queue behind it rather than
+        // returning its promise — the report types differ and casting would
+        // corrupt the caller's view.
+        const cur = this.inFlight;
+        if (cur?.kind === 'sync') return cur.promise as Promise<SyncReport>;
+        return this.runExclusive('sync', () => this.doSyncAll());
+    }
+
+    private async runExclusive<T>(
+        kind: 'sync' | 'forcePush' | 'forcePull',
+        fn: () => Promise<T>
+    ): Promise<T> {
+        while (this.inFlight) {
+            try { await this.inFlight.promise; } catch { /* prior op's caller handles */ }
+        }
+        const promise = fn();
+        const slot = { kind, promise };
+        this.inFlight = slot;
+        promise.finally(() => {
+            if (this.inFlight === slot) this.inFlight = null;
+        });
+        return promise;
     }
 
     private async doSyncAll(): Promise<SyncReport> {
@@ -528,10 +547,7 @@ export class SyncService {
      * Bypasses the newer-wins decision tree.
      */
     async forcePushAll(): Promise<ForcePushReport> {
-        if (this.inFlight) await this.inFlight;
-        const p = this.doForcePushAll().finally(() => { this.inFlight = null; });
-        this.inFlight = p;
-        return p;
+        return this.runExclusive('forcePush', () => this.doForcePushAll());
     }
 
     private async doForcePushAll(): Promise<ForcePushReport> {
@@ -588,10 +604,7 @@ export class SyncService {
      * or was overwritten.
      */
     async forcePullAll(): Promise<ForcePullReport> {
-        if (this.inFlight) await this.inFlight;
-        const p = this.doForcePullAll().finally(() => { this.inFlight = null; });
-        this.inFlight = p;
-        return p;
+        return this.runExclusive('forcePull', () => this.doForcePullAll());
     }
 
     private async doForcePullAll(): Promise<ForcePullReport> {
