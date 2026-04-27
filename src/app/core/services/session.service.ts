@@ -43,6 +43,13 @@ export class SessionService {
     currentBookId = signal<string | null>(null);
 
     /**
+     * Bumped after every successful saveCurrentSessionToBook(). External services
+     * (SyncService) listen to this to schedule debounced auto-sync without forming
+     * a circular DI dependency back into SessionService.
+     */
+    lastSavedAt = signal<number>(0);
+
+    /**
      * Initializes the SessionService.
      * Restores the last active book ID to ensure session continuity.
      */
@@ -443,6 +450,7 @@ export class SessionService {
         }
 
         await this.storage.saveBook(book);
+        this.lastSavedAt.set(Date.now());
         console.log(`[SessionService] Book ${bookId} saved.`);
     }
 

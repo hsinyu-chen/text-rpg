@@ -14,6 +14,7 @@ const FOLDER_NAME: Record<SyncResource, string> = {
 export class GDriveSyncBackend implements SyncBackend {
     readonly id: SyncBackendId = 'gdrive';
     readonly label = 'Google Drive';
+    readonly supportsBackgroundSync = false;
 
     private drive = inject(GoogleDriveService);
 

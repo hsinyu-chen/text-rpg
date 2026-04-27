@@ -19,6 +19,7 @@ export class S3SyncBackend implements SyncBackend {
     readonly id: SyncBackendId = 's3';
     readonly label = 'S3-compatible';
     readonly isConfigured = true;
+    readonly supportsBackgroundSync = true;
 
     private client: S3Client;
     private bucket: string;
