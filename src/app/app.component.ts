@@ -5,6 +5,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatSnackBar, MatSnackBarRef, TextOnlySnackBar } from '@angular/material/snack-bar';
+import { SyncConflict } from './core/services/sync/sync.types';
 import { BreakpointObserver, LayoutModule } from '@angular/cdk/layout';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { SidebarComponent } from './features/sidebar/sidebar.component';
@@ -52,6 +53,8 @@ export class AppComponent {
   dialog = inject(MatDialog);
   private snackBar = inject(MatSnackBar);
   private remoteUpdateSnackRef: MatSnackBarRef<TextOnlySnackBar> | null = null;
+  private conflictQueue: SyncConflict[] = [];
+  private conflictInFlight = false;
   private breakpointObserver = inject(BreakpointObserver);
   private providerInit = inject(LLMProviderInitService);
   private syncProviderInit = inject(SyncProviderInitService);
@@ -120,17 +123,32 @@ export class AppComponent {
       this.handleRemoteUpdate(update.bookId);
     });
 
-    // Sync — conflicts (both sides edited since last sync). Drain the signal
-    // after handling so reruns don't double-toast.
+    // Sync — conflicts (both sides edited since last sync). Append into our
+    // local queue and surface them one snackbar at a time, since MatSnackBar
+    // only displays a single toast and a tight loop would clobber all but the
+    // last. The signal write is deferred to escape the effect tick (NG0600).
     effect(() => {
       const list = this.sync.conflicts();
       if (list.length === 0) return;
-      const snapshot = [...list];
-      this.sync.conflicts.set([]);
-      for (const c of snapshot) {
-        if (c.resource === 'book') this.handleBookConflict(c.id, c.name);
-      }
+      const items = list.filter(c => c.resource === 'book');
+      setTimeout(() => this.sync.conflicts.set([]));
+      if (items.length === 0) return;
+      this.conflictQueue.push(...items);
+      this.flushConflictQueue();
     });
+  }
+
+  private async flushConflictQueue(): Promise<void> {
+    if (this.conflictInFlight) return;
+    this.conflictInFlight = true;
+    try {
+      while (this.conflictQueue.length > 0) {
+        const next = this.conflictQueue.shift()!;
+        await this.handleBookConflict(next.id, next.name);
+      }
+    } finally {
+      this.conflictInFlight = false;
+    }
   }
 
   private handleRemoteUpdate(bookId: string): void {
@@ -154,26 +172,50 @@ export class AppComponent {
     });
   }
 
-  private handleBookConflict(bookId: string, name?: string): void {
-    const label = name ? `'${name}'` : 'a book';
-    const ref = this.snackBar.open(
-      `Conflict on ${label}: cloud changed and you have unsaved local edits. Local copy preserved.`,
-      'Save cloud copy',
-      { duration: 0 }
-    );
-    ref.onAction().subscribe(async () => {
-      try {
-        const newId = await this.sync.forkRemoteBook(bookId);
-        this.snackBar.open('Cloud version saved as a separate book.', 'OK', { duration: 4000 });
-        // Switch to the fork so the user can compare.
-        if (this.state.status() !== 'generating') {
-          await this.session.loadBook(newId, false);
+  /**
+   * Resolves only after the conflict has been fully handled — including any
+   * follow-up snackbar from a fork action. The queue then advances to the next
+   * conflict, so toasts never overlap or clobber each other.
+   */
+  private handleBookConflict(bookId: string, name?: string): Promise<void> {
+    return new Promise<void>(resolve => {
+      const label = name ? `'${name}'` : 'a book';
+      const ref = this.snackBar.open(
+        `Conflict on ${label}: cloud changed and you have unsaved local edits. Local copy preserved.`,
+        'Save cloud copy',
+        { duration: 0 }
+      );
+      let actionPromise: Promise<void> | null = null;
+      ref.onAction().subscribe(() => {
+        actionPromise = this.runForkForBook(bookId);
+      });
+      ref.afterDismissed().subscribe(async () => {
+        if (actionPromise) {
+          try { await actionPromise; } catch { /* already logged in runForkForBook */ }
         }
-      } catch (e) {
-        console.error('[AppComponent] forkRemoteBook failed', e);
-        this.snackBar.open('Failed to download cloud copy: ' + ((e as { message?: string })?.message || 'Unknown error'), 'Close', { duration: 5000 });
-      }
+        resolve();
+      });
     });
+  }
+
+  private async runForkForBook(bookId: string): Promise<void> {
+    try {
+      const newId = await this.sync.forkRemoteBook(bookId);
+      // Switching to the fork is itself the success cue — no extra toast,
+      // which also means we never compete with a queued conflict snackbar.
+      if (this.state.status() !== 'generating') {
+        await this.session.loadBook(newId, false);
+      }
+    } catch (e) {
+      console.error('[AppComponent] forkRemoteBook failed', e);
+      const r = this.snackBar.open(
+        'Failed to download cloud copy: ' + ((e as { message?: string })?.message || 'Unknown error'),
+        'Close',
+        { duration: 5000 }
+      );
+      // Wait for the failure toast to dismiss before letting the queue advance.
+      await new Promise<void>(done => r.afterDismissed().subscribe(() => done()));
+    }
   }
 
 
