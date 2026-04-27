@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, effect, viewChild } from '@angular/core';
+import { Component, inject, signal, computed, effect, untracked, viewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatIconModule } from '@angular/material/icon';
@@ -126,12 +126,13 @@ export class AppComponent {
     // Sync — conflicts (both sides edited since last sync). Append into our
     // local queue and surface them one snackbar at a time, since MatSnackBar
     // only displays a single toast and a tight loop would clobber all but the
-    // last. The signal write is deferred to escape the effect tick (NG0600).
+    // last. The clear runs inside untracked() so it doesn't trip NG0600
+    // (writing a signal that the same effect reads).
     effect(() => {
       const list = this.sync.conflicts();
       if (list.length === 0) return;
       const items = list.filter(c => c.resource === 'book');
-      setTimeout(() => this.sync.conflicts.set([]));
+      untracked(() => this.sync.conflicts.set([]));
       if (items.length === 0) return;
       this.conflictQueue.push(...items);
       this.flushConflictQueue();
