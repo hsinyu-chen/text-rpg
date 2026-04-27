@@ -23,7 +23,7 @@ export function cleanBookForSync(input: unknown): Book {
         messages: Array.isArray(b.messages) ? b.messages : [],
         files: Array.isArray(b.files) ? b.files : [],
         stats: {
-            tokenUsage: stats.tokenUsage ?? { freshInput: 0, cached: 0, output: 0, total: 0 },
+            tokenUsage: { freshInput: 0, cached: 0, output: 0, total: 0, ...stats.tokenUsage },
             estimatedCost: Number(stats.estimatedCost) || 0,
             historyStorageUsage: Number(stats.historyStorageUsage) || 0,
             sunkUsageHistory: Array.isArray(stats.sunkUsageHistory) ? stats.sunkUsageHistory : [],

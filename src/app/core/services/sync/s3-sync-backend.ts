@@ -8,7 +8,8 @@ import {
     HeadBucketCommand,
     GetBucketCorsCommand,
     PutBucketCorsCommand,
-    S3ServiceException
+    S3ServiceException,
+    type GetBucketCorsCommandOutput
 } from '@aws-sdk/client-s3';
 import { SyncBackend, SyncResource, RemoteEntry, SyncBackendId, S3Config } from './sync.types';
 
@@ -79,35 +80,40 @@ export class S3SyncBackend implements SyncBackend {
     }
 
     /**
-     * Idempotent best-effort: GET current bucket CORS, return true if it
-     * already exposes `x-amz-meta-last-active`. Otherwise PUT a rule that
-     * does. Cached per backend-instance lifetime — once we've decided yes
-     * or no, we don't retry until the backend is rebuilt (config change).
+     * Idempotent best-effort: GET current bucket CORS, augment in place to
+     * expose `x-amz-meta-last-active` on every existing rule (or write a
+     * permissive default if none exist). Cached per backend-instance
+     * lifetime — once we've decided yes or no, we don't retry until the
+     * backend is rebuilt (config change).
+     *
+     * Non-destructive: existing rules' AllowedOrigins/Methods/Headers are
+     * preserved; we only ADD our header to each rule's ExposeHeaders if
+     * missing. Bucket may be shared with other apps — clobbering their
+     * rules would break their integrations. Appending a new rule wouldn't
+     * help either, since S3 CORS uses first-match: an existing rule that
+     * matches the browser request but lacks our header would still win
+     * and the header would stay stripped.
      *
      * Returns true if the bucket is in a usable state at the end of this
      * call (already-correct, or we successfully wrote it). Returns false
-     * if the bucket is unconfigured AND we couldn't write — in that case
-     * the GET-body fallback in `list()` keeps sync correct, just slower.
+     * if we couldn't read AND couldn't write — in that case the GET-body
+     * fallback in `list()` keeps sync correct, just slower.
      */
     private async ensureCorsApplied(): Promise<boolean> {
         if (this.corsAttempted) return this.corsOk;
         this.corsAttempted = true;
 
-        // Step 1: read current config and check whether our needed expose
-        // header is already there. Many backends 404 on GET when no CORS
-        // is configured — treat that as "needs PUT".
+        const targetHeader = 'x-amz-meta-' + META_LAST_ACTIVE;
+        const targetLower = targetHeader.toLowerCase();
+
+        // Step 1: read current config. Many backends 404 on GET when no CORS
+        // is configured — treat that as "needs default rule".
+        let existingRules: NonNullable<GetBucketCorsCommandOutput['CORSRules']> = [];
         try {
             const got = await this.client.send(new GetBucketCorsCommand({
                 Bucket: this.bucket
             }));
-            const targetHeader = ('x-amz-meta-' + META_LAST_ACTIVE).toLowerCase();
-            const exposed = (got.CORSRules ?? []).some(r =>
-                (r.ExposeHeaders ?? []).some(h => h.toLowerCase() === targetHeader)
-            );
-            if (exposed) {
-                this.corsOk = true;
-                return true;
-            }
+            existingRules = got.CORSRules ?? [];
         } catch (e) {
             if (!this.isNotFound(e)) {
                 // Surfaceable error other than NoSuchCORSConfiguration.
@@ -115,28 +121,47 @@ export class S3SyncBackend implements SyncBackend {
             }
         }
 
-        // Step 2: PUT a comprehensive rule. SeaweedFS persists this in bucket
-        // metadata; AWS S3 likewise. Failure (often 403) means the user's key
-        // can't write bucket-level config — we surface that via testConnection.
+        // If every existing rule already exposes our header, nothing to do.
+        // Note this is conservative — even one rule missing it triggers a
+        // merge, since CORS picks first-match and we can't know which rule
+        // any given browser request will land on.
+        const allCovered = existingRules.length > 0 && existingRules.every(r =>
+            (r.ExposeHeaders ?? []).some(h => h.toLowerCase() === targetLower)
+        );
+        if (allCovered) {
+            this.corsOk = true;
+            return true;
+        }
+
+        // Step 2: build merged rules. Existing rules: append our header to
+        // ExposeHeaders if missing, preserve everything else. No existing
+        // rules: write a permissive default.
+        const mergedRules = existingRules.length > 0
+            ? existingRules.map(r => ({
+                ...r,
+                ExposeHeaders: (r.ExposeHeaders ?? []).some(h => h.toLowerCase() === targetLower)
+                    ? r.ExposeHeaders
+                    : [...(r.ExposeHeaders ?? []), targetHeader]
+            }))
+            : [{
+                AllowedOrigins: ['*'],
+                AllowedMethods: ['GET', 'PUT', 'POST', 'HEAD', 'DELETE'],
+                AllowedHeaders: ['*'],
+                ExposeHeaders: [
+                    'ETag',
+                    'Content-Length',
+                    'Content-Type',
+                    'Last-Modified',
+                    targetHeader,
+                    'x-amz-request-id'
+                ],
+                MaxAgeSeconds: 3600
+            }];
+
         try {
             await this.client.send(new PutBucketCorsCommand({
                 Bucket: this.bucket,
-                CORSConfiguration: {
-                    CORSRules: [{
-                        AllowedOrigins: ['*'],
-                        AllowedMethods: ['GET', 'PUT', 'POST', 'HEAD', 'DELETE'],
-                        AllowedHeaders: ['*'],
-                        ExposeHeaders: [
-                            'ETag',
-                            'Content-Length',
-                            'Content-Type',
-                            'Last-Modified',
-                            'x-amz-meta-' + META_LAST_ACTIVE,
-                            'x-amz-request-id'
-                        ],
-                        MaxAgeSeconds: 3600
-                    }]
-                }
+                CORSConfiguration: { CORSRules: mergedRules }
             }));
             this.corsOk = true;
             return true;
