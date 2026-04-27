@@ -50,6 +50,9 @@ export class S3ConfigComponent {
     forcePathStyle = signal(true);
     testing = signal(false);
 
+    autoSync = computed(() => this.sync.autoSyncEnabled().s3);
+    s3Configured = computed(() => this.sync.isS3Configured());
+
     isValid = computed(() => !!(
         this.endpoint().trim() &&
         this.bucket().trim() &&
@@ -132,6 +135,31 @@ export class S3ConfigComponent {
         } else {
             this.snackBar.open('Imported. Some required fields are empty — fill them and click Save.', 'Close', { duration: 4000 });
         }
+    }
+
+    async toggleAutoSync(on: boolean): Promise<void> {
+        if (on) {
+            // Don't let users enable auto-sync until creds are confirmed working —
+            // otherwise we'd silently rack up failures and disable it again.
+            if (!this.s3Configured()) {
+                this.snackBar.open('Save and test your S3 connection first.', 'Close', { duration: 3000 });
+                return;
+            }
+            this.testing.set(true);
+            try {
+                await this.sync.testS3Connection(this.buildConfig());
+            } catch (e) {
+                this.snackBar.open(
+                    'Cannot enable auto-sync: ' + ((e as { message?: string })?.message || 'connection failed'),
+                    'Close',
+                    { duration: 5000 }
+                );
+                return;
+            } finally {
+                this.testing.set(false);
+            }
+        }
+        this.sync.setAutoSyncEnabled('s3', on);
     }
 
     async testConnection(): Promise<void> {

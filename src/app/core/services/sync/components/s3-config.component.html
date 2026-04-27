@@ -38,6 +38,14 @@
     <mat-slide-toggle [ngModel]="forcePathStyle()" (ngModelChange)="forcePathStyle.set($event)">
         Force path-style URLs (required for SeaweedFS / MinIO)
     </mat-slide-toggle>
+
+    <mat-slide-toggle
+        [ngModel]="autoSync()"
+        (ngModelChange)="toggleAutoSync($event)"
+        [disabled]="!s3Configured() || testing()"
+        matTooltip="Sync ~60s after each save, plus on tab hide / focus.">
+        Auto-sync in background
+    </mat-slide-toggle>
 </div>
 
 <div class="actions">
