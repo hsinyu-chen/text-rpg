@@ -62,6 +62,7 @@ export class AgentConsoleComponent implements OnDestroy {
   private agentScrollFrameId: number | null = null;
   private userScrolledUpAgent = false;
   private lastAgentScrollTop = 0;
+  private initialPromptTimeoutId: number | null = null;
 
   constructor() {
     // Auto-scroll: observe content growth and follow the bottom unless the user
@@ -103,12 +104,21 @@ export class AgentConsoleComponent implements OnDestroy {
       const prompt = this.initialPrompt();
       if (prompt && this.agentService.agentHistory().length === 0 && !this.agentService.isAgentRunning()) {
         this.agentPrompt.set(prompt);
-        setTimeout(() => this.runAgent(), 200);
+        // Small delay lets the input render before runAgent clears it.
+        // Tracked so a fast close doesn't fire an orphan request.
+        this.initialPromptTimeoutId = window.setTimeout(() => {
+          this.initialPromptTimeoutId = null;
+          this.runAgent();
+        }, 200);
       }
     });
   }
 
   ngOnDestroy(): void {
+    if (this.initialPromptTimeoutId !== null) {
+      clearTimeout(this.initialPromptTimeoutId);
+      this.initialPromptTimeoutId = null;
+    }
     this.teardownAgentConsoleScroll();
   }
 
