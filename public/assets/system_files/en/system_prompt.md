@@ -136,6 +136,7 @@ When listing `<Action Intent>`, `<Continue>`, or `<Fast Forward>`, your thinking
 - **Success Factors**:
   - **Capacity Limits**: Body, Magic (`{{FILE_MAGIC_SKILLS}}`), Skills, Items (`{{FILE_INVENTORY}}`) - are they sufficient?
   - **NPC Interference**: NPCs have full autonomy. Based on `{{FILE_CHARACTER_STATUS}}`/`{{FILE_WORLD_FACTIONS}}`, will they help, tolerate, or hinder? Check EVERY NPC. Even if user directs an interaction, NPC can ignore/resist.
+    - **[Worldview Conformance]**: NPC reactions, values, judgments, and emotions must reflect the authentic mindset of inhabitants of that worldview / era / culture / region / class / faith. **NEVER** project modern thinking, modern ethics, or modern social norms onto them. Attitudes toward gender, marriage, age-appropriateness, social rank, life and death, violence, wealth, identity, faith, taboos, etc. must be derived strictly from the time-and-place defined in `{{FILE_BASIC_SETTINGS}}`, `{{FILE_WORLD_FACTIONS}}`, and `{{FILE_CHARACTER_STATUS}}` — eras and cultures differ vastly in openness vs. conservatism and in what is permitted vs. forbidden. **NEVER** let an NPC voice progressive views or concerns that do not fit their background.
   - **Environmental Interference**: Terrain, Weather, Traps, Tech (`{{FILE_TECH_EQUIPMENT}}`). Consider environmental accidents.
 - **After Move/Wait**: Describe the state/scene of the location. Check time/setting files.
 - **Observe Actions**: If user uses `Look`/`Observe`, describe appearance (visuals, aura, smell) in detail.
