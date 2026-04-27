@@ -210,18 +210,32 @@ export class SyncService {
     trackDeletion(resource: SyncResource, id: string): void {
         const key = PENDING_DELETIONS_KEY[resource];
         const list = this.readPendingList(key);
-        if (!list.includes(id)) {
-            list.push(id);
-            localStorage.setItem(key, JSON.stringify(list));
-        }
+        // Capture deletedAt at delete-time, not at sync-time. If sync fails
+        // and retries, the timestamp must NOT advance — otherwise a retry
+        // could later clobber a legitimate post-delete edit on another
+        // device. Same id deleted twice (re-add then delete) updates the
+        // timestamp; that's the correct latest-delete semantics.
+        const idx = list.findIndex(e => e.id === id);
+        const entry = { id, deletedAt: Date.now() };
+        if (idx === -1) list.push(entry);
+        else list[idx] = entry;
+        localStorage.setItem(key, JSON.stringify(list));
     }
 
-    private readPendingList(key: string): string[] {
+    private readPendingList(key: string): { id: string; deletedAt: number }[] {
         const raw = localStorage.getItem(key);
         if (!raw) return [];
         try {
             const parsed = JSON.parse(raw);
-            return Array.isArray(parsed) ? parsed.filter(x => typeof x === 'string') : [];
+            if (!Array.isArray(parsed)) return [];
+            const now = Date.now();
+            return parsed.flatMap(x => {
+                if (typeof x === 'string') return [{ id: x, deletedAt: now }];
+                if (x && typeof x === 'object' && typeof x.id === 'string') {
+                    return [{ id: x.id, deletedAt: Number(x.deletedAt) || now }];
+                }
+                return [];
+            });
         } catch {
             console.warn(`[SyncService] Corrupted pending list at ${key}, resetting.`);
             localStorage.removeItem(key);
@@ -410,51 +424,59 @@ export class SyncService {
         // Pending deletions: write a tombstone (or update the existing one)
         // so other devices see the deletion, then drop the live object. Only
         // remove from the local tracking list once both succeed.
+        // Use the deletedAt captured at delete-time — NOT Date.now() — so a
+        // retry doesn't advance the timestamp and clobber a legitimate
+        // post-delete edit on another device.
         const deletionKey = PENDING_DELETIONS_KEY[resource];
         const pending = this.readPendingList(deletionKey);
-        const remaining: string[] = [];
+        const remaining: { id: string; deletedAt: number }[] = [];
         const justDeletedIds = new Set<string>();
-        for (const id of pending) {
+        for (const entry of pending) {
             try {
-                await backend.writeTombstone(resource, id, Date.now());
-                if (remoteById.has(id)) {
-                    await backend.remove(resource, id);
-                    remoteById.delete(id);
+                await backend.writeTombstone(resource, entry.id, entry.deletedAt);
+                if (remoteById.has(entry.id)) {
+                    await backend.remove(resource, entry.id);
+                    remoteById.delete(entry.id);
                     report.deleted++;
                 }
-                justDeletedIds.add(id);
+                justDeletedIds.add(entry.id);
             } catch (e) {
-                console.error(`[SyncService] Failed to propagate ${resource} delete ${id}, will retry`, e);
-                remaining.push(id);
-                report.errors.push({ resource, id, op: 'delete', message: errMsg(e) });
+                console.error(`[SyncService] Failed to propagate ${resource} delete ${entry.id}, will retry`, e);
+                remaining.push(entry);
+                report.errors.push({ resource, id: entry.id, op: 'delete', message: errMsg(e) });
             }
         }
         localStorage.setItem(deletionKey, JSON.stringify(remaining));
 
-        // Apply remote tombstones: for each tombstone, if local has the
-        // entity and was last edited *before* the deletion, delete locally.
-        // If local edit is *after* the tombstone (post-delete edit on
-        // another device), the live entity wins via the regular newer-wins
-        // path and `writeTombstone` from a future delete would re-establish.
+        // Apply remote tombstones. For each tombstone, compute the newest
+        // surviving timestamp on either side — if NEITHER side beat the
+        // tombstone, both sides are pre-delete and need to go (deleting only
+        // local would leave the cloud copy to resurrect on the next sync).
+        // If either side is newer, that's a post-delete restore/edit — keep
+        // it, let the regular newer-wins loop pick the winner.
         try {
             const tombstones = await backend.listTombstones(resource);
             for (const tomb of tombstones) {
                 if (justDeletedIds.has(tomb.id)) continue;
                 const local = localById.get(tomb.id);
-                if (!local) continue;
-                const localTime = this.localTimestamp(local, resource);
-                if (localTime > tomb.deletedAt) continue;
+                const remote = remoteById.get(tomb.id);
+                if (!local && !remote) continue;
+                const localTime = local ? this.localTimestamp(local, resource) : -Infinity;
+                const remoteTime = remote ? remote.lastActiveAt : -Infinity;
+                if (localTime > tomb.deletedAt || remoteTime > tomb.deletedAt) continue;
                 try {
-                    if (resource === 'book') {
-                        await this.storage.deleteBook(tomb.id);
-                    } else {
-                        await this.storage.deleteCollection(tomb.id);
+                    if (local) {
+                        if (resource === 'book') await this.storage.deleteBook(tomb.id);
+                        else await this.storage.deleteCollection(tomb.id);
+                        localById.delete(tomb.id);
                     }
-                    localById.delete(tomb.id);
-                    if (remoteById.has(tomb.id)) remoteById.delete(tomb.id);
+                    if (remote) {
+                        await backend.remove(resource, tomb.id);
+                        remoteById.delete(tomb.id);
+                        report.deleted++;
+                    }
                     justDeletedIds.add(tomb.id);
-                    report.deleted++;
-                    console.log(`[Sync ${resource} ${tomb.id.slice(0, 8)}] tombstone newer → local delete (local=${localTime}, deletedAt=${tomb.deletedAt})`);
+                    console.log(`[Sync ${resource} ${tomb.id.slice(0, 8)}] tombstone wins → delete (local=${localTime}, remote=${remoteTime}, deletedAt=${tomb.deletedAt})`);
                 } catch (e) {
                     console.error(`[SyncService] Failed to apply tombstone for ${resource} ${tomb.id}`, e);
                     report.errors.push({ resource, id: tomb.id, op: 'delete', message: errMsg(e) });
@@ -727,6 +749,12 @@ export class SyncService {
             if (remaining.length > 0) {
                 const sorted = [...remaining].sort((a, b) => b.lastActiveAt - a.lastActiveAt);
                 await this.session.loadBook(sorted[0].id, false);
+            } else {
+                // No books left — must clear the in-memory session signals
+                // (messages, files, stats) or the UI keeps showing data for
+                // the book IDB no longer has. `false` skips the auto-save
+                // that would otherwise re-create the deleted book.
+                await this.session.unloadCurrentSession(false);
             }
         } else if (activeBookOverwritten && activeBookId) {
             await this.session.loadBook(activeBookId, false);
