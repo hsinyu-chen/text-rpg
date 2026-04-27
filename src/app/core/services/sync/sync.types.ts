@@ -4,8 +4,18 @@ export type SyncResource = 'book' | 'collection';
 
 export interface RemoteEntry {
     id: string;
-    modifiedAt: number; // unix ms
+    /**
+     * Device-clock `lastActiveAt` recovered from the cloud object's user
+     * metadata. **This is the only timestamp the sync decision logic reads.**
+     * If the backend has no metadata for this object yet (legacy upload from
+     * before this scheme), fall back to `modifiedAt`.
+     */
+    lastActiveAt: number;
+    /** Server-assigned wall-clock time. UI / file-viewer only; never used for sync decisions. */
+    modifiedAt: number;
     etag?: string;
+    /** Optional byte size of the remote object, when the backend can report it cheaply. */
+    size?: number;
 }
 
 export interface SyncBackend {
@@ -23,20 +33,19 @@ export interface SyncBackend {
 
     list(resource: SyncResource): Promise<RemoteEntry[]>;
     read(resource: SyncResource, id: string): Promise<string>;
-    write(resource: SyncResource, id: string, json: string): Promise<void>;
+    /**
+     * Persists `json` and stamps `lastActiveAt` into user metadata
+     * (`Metadata` on S3, `appProperties` on Drive). The caller passes the
+     * device-clock `lastActiveAt` of the body it's uploading; backends just
+     * round-trip it.
+     */
+    write(resource: SyncResource, id: string, json: string, lastActiveAt: number): Promise<void>;
     remove(resource: SyncResource, id: string): Promise<void>;
 
     readSettings(): Promise<string | null>;
     writeSettings(content: string): Promise<void>;
-}
-
-export interface SyncConflict {
-    resource: SyncResource;
-    id: string;
-    localTime: number;
-    remoteTime: number;
-    /** Human-readable name from the local copy, for UI prompts. */
-    name?: string;
+    readPrompts(): Promise<string | null>;
+    writePrompts(content: string): Promise<void>;
 }
 
 export interface S3Config {

@@ -1,0 +1,81 @@
+<h2 mat-dialog-title>Cloud Files (S3)</h2>
+<mat-dialog-content class="viewer-content">
+    <mat-tab-group [selectedIndex]="activeTab() === 'book' ? 0 : activeTab() === 'collection' ? 1 : 2"
+        (selectedIndexChange)="onTabChange($event)" animationDuration="0ms">
+        <mat-tab label="Books"></mat-tab>
+        <mat-tab label="Collections"></mat-tab>
+        <mat-tab label="settings.json"></mat-tab>
+    </mat-tab-group>
+
+    <div class="toolbar">
+        @if (activeTab() !== 'settings') {
+            <mat-form-field appearance="outline" class="filter">
+                <mat-label>Filter</mat-label>
+                <input matInput [ngModel]="filter()" (ngModelChange)="filter.set($event)"
+                    placeholder="name or id substring">
+            </mat-form-field>
+        }
+        <span class="spacer"></span>
+        <button mat-stroked-button (click)="refresh()" [disabled]="listLoading() || detailLoading()">
+            <mat-icon>refresh</mat-icon> Refresh
+        </button>
+    </div>
+
+    @if (activeTab() === 'settings') {
+        <div class="settings-pane">
+            @if (detailLoading()) {
+                <div class="placeholder"><mat-progress-spinner mode="indeterminate" diameter="32"></mat-progress-spinner></div>
+            } @else if (detailError()) {
+                <div class="placeholder error">Read failed: {{ detailError() }}</div>
+            } @else if (settingsContent() === null) {
+                <div class="placeholder">No settings.json on cloud.</div>
+            } @else {
+                <div class="meta">size: {{ formatBytes(settingsContent()!.length) }}</div>
+                <pre class="json">{{ settingsContent() }}</pre>
+            }
+        </div>
+    } @else {
+        <div class="split">
+            <div class="list-pane">
+                @if (listLoading()) {
+                    <div class="placeholder"><mat-progress-spinner mode="indeterminate" diameter="32"></mat-progress-spinner></div>
+                } @else if (currentEntries().length === 0) {
+                    <div class="placeholder">No entries.</div>
+                } @else {
+                    <div class="row header">
+                        <span class="col-name">Name</span>
+                        <span class="col-id">ID</span>
+                        <span class="col-mod">Modified</span>
+                        <span class="col-size">Size</span>
+                    </div>
+                    @for (e of currentEntries(); track e.id) {
+                        <div class="row" [class.selected]="selectedId() === e.id" (click)="loadDetail(e)">
+                            <span class="col-name">{{ e.name ?? '—' }}</span>
+                            <span class="col-id" [title]="e.id">{{ shortId(e.id) }}</span>
+                            <span class="col-mod">{{ formatDate(e.modifiedAt) }}</span>
+                            <span class="col-size">{{ formatBytes(e.size) }}</span>
+                        </div>
+                    }
+                }
+            </div>
+            <div class="detail-pane">
+                @if (detailLoading()) {
+                    <div class="placeholder"><mat-progress-spinner mode="indeterminate" diameter="32"></mat-progress-spinner></div>
+                } @else if (detailError()) {
+                    <div class="placeholder error">Read failed: {{ detailError() }}</div>
+                } @else if (!selectedId()) {
+                    <div class="placeholder">Select an entry to view its JSON.</div>
+                } @else {
+                    <pre class="json">{{ detailPretty() }}</pre>
+                }
+            </div>
+        </div>
+    }
+</mat-dialog-content>
+<mat-dialog-actions align="end">
+    <button mat-button (click)="copyDetail()"
+        [disabled]="(activeTab() === 'settings' ? !settingsContent() : !detailRaw())">
+        <mat-icon>content_copy</mat-icon> Copy JSON
+    </button>
+    <button mat-button (click)="close()">Close</button>
+</mat-dialog-actions>

@@ -4,6 +4,10 @@ import { SyncBackend, SyncResource, RemoteEntry, SyncBackendId } from './sync.ty
 
 const APPDATA_ROOT = 'appDataFolder';
 const SETTINGS_FILE_NAME = 'settings.json';
+const PROMPTS_FILE_NAME = 'prompts.json';
+// Match the S3 metadata key for consistency. Hyphen is fine in Drive's
+// appProperties (JSON keys, no header-name restriction).
+const APP_PROP_LAST_ACTIVE = 'last-active';
 
 const FOLDER_NAME: Record<SyncResource, string> = {
     book: 'books_v1',     // legacy folder name preserved for existing data
@@ -21,6 +25,7 @@ export class GDriveSyncBackend implements SyncBackend {
     private folderIdCache: Partial<Record<SyncResource, string>> = {};
     private fileIdByKey = new Map<string, string>();
     private settingsFileId: string | null = null;
+    private promptsFileId: string | null = null;
 
     get isConfigured(): boolean {
         return this.drive.isConfigured;
@@ -67,9 +72,15 @@ export class GDriveSyncBackend implements SyncBackend {
             if (!f.name.endsWith('.json')) continue;
             const id = f.name.slice(0, -5);
             this.fileIdByKey.set(this.cacheKey(resource, id), f.id);
+            const modifiedAt = f.modifiedTime ? new Date(f.modifiedTime).getTime() : 0;
+            const metaValue = f.appProperties?.[APP_PROP_LAST_ACTIVE];
+            const lastActiveAt = metaValue ? Number(metaValue) || modifiedAt : modifiedAt;
             entries.push({
                 id,
-                modifiedAt: f.modifiedTime ? new Date(f.modifiedTime).getTime() : 0
+                lastActiveAt,
+                modifiedAt,
+                size: f.size ? Number(f.size) : undefined,
+                etag: f.md5Checksum
             });
         }
         return entries;
@@ -85,16 +96,17 @@ export class GDriveSyncBackend implements SyncBackend {
         return this.drive.readFile(fileId);
     }
 
-    async write(resource: SyncResource, id: string, json: string): Promise<void> {
+    async write(resource: SyncResource, id: string, json: string, lastActiveAt: number): Promise<void> {
         const folderId = await this.ensureFolder(resource);
         const key = this.cacheKey(resource, id);
         const existing = this.fileIdByKey.get(key);
+        const props = { [APP_PROP_LAST_ACTIVE]: String(lastActiveAt) };
         if (existing) {
-            await this.drive.updateFile(existing, json);
-            return;
+            await this.drive.updateFile(existing, json, props);
+        } else {
+            const created = await this.drive.createFile(folderId, `${id}.json`, json, props);
+            this.fileIdByKey.set(key, created.id);
         }
-        const created = await this.drive.createFile(folderId, `${id}.json`, json);
-        this.fileIdByKey.set(key, created.id);
     }
 
     async remove(resource: SyncResource, id: string): Promise<void> {
@@ -131,5 +143,29 @@ export class GDriveSyncBackend implements SyncBackend {
         }
         const created = await this.drive.createFile(APPDATA_ROOT, SETTINGS_FILE_NAME, content);
         this.settingsFileId = created.id;
+    }
+
+    private async findPromptsFileId(): Promise<string | null> {
+        if (this.promptsFileId) return this.promptsFileId;
+        const files = await this.drive.listFiles(APPDATA_ROOT);
+        const file = files.find(f => f.name === PROMPTS_FILE_NAME);
+        this.promptsFileId = file?.id ?? null;
+        return this.promptsFileId;
+    }
+
+    async readPrompts(): Promise<string | null> {
+        const id = await this.findPromptsFileId();
+        if (!id) return null;
+        return this.drive.readFile(id);
+    }
+
+    async writePrompts(content: string): Promise<void> {
+        const id = await this.findPromptsFileId();
+        if (id) {
+            await this.drive.updateFile(id, content);
+            return;
+        }
+        const created = await this.drive.createFile(APPDATA_ROOT, PROMPTS_FILE_NAME, content);
+        this.promptsFileId = created.id;
     }
 }

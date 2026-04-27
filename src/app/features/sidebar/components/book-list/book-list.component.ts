@@ -176,6 +176,24 @@ interface BookGroup {
                 <mat-icon>cloud_sync</mat-icon>
                 Sync All ({{ syncService.activeBackendId() === 's3' ? 'S3' : 'Drive' }})
             </button>
+
+            <details class="danger-zone">
+                <summary>
+                    <mat-icon>warning_amber</mat-icon> Force sync (danger zone)
+                </summary>
+                <p class="hint">
+                    Force operations bypass the newer-wins logic. Read the dialog before
+                    confirming — these are destructive.
+                </p>
+                <button mat-stroked-button color="warn" class="force-btn" (click)="forcePush()" [disabled]="state.isBusy()">
+                    <mat-icon>cloud_upload</mat-icon>
+                    Force Push (this device → cloud)
+                </button>
+                <button mat-stroked-button color="warn" class="force-btn" (click)="forcePull()" [disabled]="state.isBusy()">
+                    <mat-icon>cloud_download</mat-icon>
+                    Force Pull (cloud → this device)
+                </button>
+            </details>
       </div>
     </div>
   `,
@@ -334,6 +352,35 @@ interface BookGroup {
         color: #4285f4;
         border-color: rgba(66, 133, 244, 0.5);
         &:hover { background: rgba(66, 133, 244, 0.05); }
+    }
+    .danger-zone {
+        margin-top: 4px;
+        padding: 8px;
+        border: 1px solid rgba(244, 67, 54, 0.4);
+        border-radius: 4px;
+        background: rgba(244, 67, 54, 0.04);
+        > summary {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            font-size: 0.85em;
+            color: #f44336;
+            user-select: none;
+            list-style: none;
+            mat-icon { font-size: 18px; height: 18px; width: 18px; }
+        }
+        > summary::-webkit-details-marker { display: none; }
+        .hint {
+            font-size: 0.78em;
+            opacity: 0.75;
+            margin: 8px 0;
+            line-height: 1.4;
+        }
+        .force-btn {
+            width: 100%;
+            margin-top: 6px;
+        }
     }
     .empty-state {
         display: flex;
@@ -644,6 +691,86 @@ export class BookListComponent {
         }
     }
 
+    async forcePush() {
+        const backendId = this.syncService.activeBackendId();
+        if (backendId === 's3' && !this.syncService.isS3Configured()) {
+            await this.dialog.alert('S3 sync is selected but not configured. Open Settings to configure it.');
+            return;
+        }
+        const confirmed = await this.dialog.confirm(
+            'FORCE PUSH will make the cloud bucket an exact mirror of this device:\n\n' +
+            '  • every cloud book / collection NOT on this device will be DELETED on cloud\n' +
+            '  • every local book / collection will be UPLOADED, overwriting the cloud version\n\n' +
+            'Other devices will lose their version on the next sync. Continue?',
+            'Force Push',
+            'FORCE PUSH'
+        );
+        if (!confirmed) return;
+        this.loading.show('Force pushing to cloud...');
+        try {
+            const report = await this.syncService.forcePushAll();
+            await this.loadBooks();
+            const summary = `Uploaded: ${report.uploaded}, Removed remote: ${report.deletedRemote}.`;
+            if (report.errors.length > 0) {
+                console.error('[BookList] forcePush finished with errors:', report.errors);
+                const sample = report.errors[0];
+                this.snackBar.open(
+                    `Force Push had ${report.errors.length} error${report.errors.length === 1 ? '' : 's'} — see console. ` +
+                    `e.g. ${sample.op} ${sample.resource} ${sample.id.slice(0, 8)}: ${sample.message}. ${summary}`,
+                    'Close',
+                    { panelClass: ['snackbar-error'] }
+                );
+            } else {
+                this.snackBar.open(`Force Push done. ${summary}`, 'OK', { duration: 4000 });
+            }
+        } catch (e) {
+            console.error('[BookList] forcePush failed', e);
+            this.snackBar.open('Force Push failed: ' + ((e as { message?: string })?.message || 'Unknown error'), 'Close');
+        } finally {
+            this.loading.hide();
+        }
+    }
+
+    async forcePull() {
+        const backendId = this.syncService.activeBackendId();
+        if (backendId === 's3' && !this.syncService.isS3Configured()) {
+            await this.dialog.alert('S3 sync is selected but not configured. Open Settings to configure it.');
+            return;
+        }
+        const confirmed = await this.dialog.confirm(
+            'FORCE PULL will make this device an exact mirror of the cloud bucket:\n\n' +
+            '  • every local book / collection NOT on cloud will be DELETED locally\n' +
+            '  • every cloud book / collection will be DOWNLOADED, overwriting the local version\n\n' +
+            'Unsynced local edits will be lost. Continue?',
+            'Force Pull',
+            'FORCE PULL'
+        );
+        if (!confirmed) return;
+        this.loading.show('Force pulling from cloud...');
+        try {
+            const report = await this.syncService.forcePullAll();
+            await this.loadBooks();
+            const summary = `Downloaded: ${report.downloaded}, Removed local: ${report.deletedLocal}.`;
+            if (report.errors.length > 0) {
+                console.error('[BookList] forcePull finished with errors:', report.errors);
+                const sample = report.errors[0];
+                this.snackBar.open(
+                    `Force Pull had ${report.errors.length} error${report.errors.length === 1 ? '' : 's'} — see console. ` +
+                    `e.g. ${sample.op} ${sample.resource} ${sample.id.slice(0, 8)}: ${sample.message}. ${summary}`,
+                    'Close',
+                    { panelClass: ['snackbar-error'] }
+                );
+            } else {
+                this.snackBar.open(`Force Pull done. ${summary}`, 'OK', { duration: 4000 });
+            }
+        } catch (e) {
+            console.error('[BookList] forcePull failed', e);
+            this.snackBar.open('Force Pull failed: ' + ((e as { message?: string })?.message || 'Unknown error'), 'Close');
+        } finally {
+            this.loading.hide();
+        }
+    }
+
     async syncAllToCloud() {
         const backendId = this.syncService.activeBackendId();
         if (backendId === 's3' && !this.syncService.isS3Configured()) {
@@ -655,11 +782,19 @@ export class BookListComponent {
         try {
             const report = await this.syncService.syncAll();
             await this.loadBooks();
-            this.snackBar.open(
-                `Sync Complete! Uploaded: ${report.uploaded}, Downloaded: ${report.downloaded}, Deleted: ${report.deleted}`,
-                'OK',
-                { duration: 3000 }
-            );
+            const summary = `Uploaded: ${report.uploaded}, Downloaded: ${report.downloaded}, Deleted: ${report.deleted}`;
+            if (report.errors.length > 0) {
+                console.error('[BookList] Sync finished with errors:', report.errors);
+                const sample = report.errors[0];
+                this.snackBar.open(
+                    `Sync had ${report.errors.length} error${report.errors.length === 1 ? '' : 's'} — see console. ` +
+                    `e.g. ${sample.op} ${sample.resource} ${sample.id.slice(0, 8)}: ${sample.message}. ${summary}`,
+                    'Close',
+                    { panelClass: ['snackbar-error'] }
+                );
+            } else {
+                this.snackBar.open(`Sync Complete! ${summary}`, 'OK', { duration: 3000 });
+            }
         } catch (e) {
             console.error('[BookList] Sync failed', e);
             this.snackBar.open('Sync failed: ' + ((e as { message?: string })?.message || 'Unknown error'), 'Close');

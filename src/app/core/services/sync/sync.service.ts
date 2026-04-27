@@ -7,19 +7,30 @@ import { GameStateService } from '../game-state.service';
 import { Book, Collection, ROOT_COLLECTION_ID } from '../../models/types';
 import { GDriveSyncBackend } from './gdrive-sync-backend';
 import type { S3SyncBackend } from './s3-sync-backend';
-import { SyncBackend, SyncBackendId, SyncResource, S3Config, SyncConflict } from './sync.types';
+import { SyncBackend, SyncBackendId, SyncResource, S3Config } from './sync.types';
+import { cleanBookForSync, cleanCollectionForSync } from './clean.util';
+import { BUILT_IN_PROFILES } from '../../constants/prompt-profiles';
+import type { PromptType } from '../injection.service';
+
+const PROMPT_TYPES: readonly PromptType[] = [
+    'action', 'continue', 'fastforward', 'system', 'save', 'postprocess', 'system_main'
+];
 
 async function loadS3Module() {
     return import('./s3-sync-backend');
 }
 
+function errMsg(e: unknown): string {
+    if (e instanceof Error) return e.message;
+    if (typeof e === 'string') return e;
+    if (e && typeof e === 'object' && 'message' in e && typeof (e as { message: unknown }).message === 'string') {
+        return (e as { message: string }).message;
+    }
+    return String(e);
+}
+
 const LS_BACKEND = 'sync_backend';
 const LS_AUTO_PREFIX = 'sync_auto_';
-// Two baselines per resource id: local-clock and cloud-clock. Both must compare
-// against same-domain values, so we never mix `Date.now()` (device) with
-// `LastModified` (server) in a single inequality.
-const LS_LOCAL_BASE_PREFIX = 'sync_lb_';
-const LS_REMOTE_BASE_PREFIX = 'sync_rb_';
 const LS_DIRTY = 'sync_dirty';
 const LS_S3 = {
     endpoint: 'sync_s3_endpoint',
@@ -39,14 +50,23 @@ const PENDING_DELETIONS_KEY: Record<SyncResource, string> = {
 const DEBOUNCE_MS = 60_000;
 const VISIBILITY_COOLDOWN_MS = 30_000;
 const MAX_FAILURES = 3;
-const TS_SLACK_MS = 5_000;
+
+export interface SyncError {
+    resource: SyncResource;
+    id: string;
+    op: 'upload' | 'download' | 'delete' | 'list';
+    message: string;
+}
 
 export interface SyncReport {
     uploaded: number;
     downloaded: number;
     deleted: number;
-    conflicts?: SyncConflict[];
+    errors: SyncError[];
 }
+
+export interface ForcePushReport { uploaded: number; deletedRemote: number; errors: SyncError[]; }
+export interface ForcePullReport { downloaded: number; deletedLocal: number; errors: SyncError[]; }
 
 export interface RemoteUpdateAvailable {
     bookId: string;
@@ -77,22 +97,17 @@ export class SyncService {
     autoSyncEnabled = signal<Record<SyncBackendId, boolean>>(this.loadAutoFlags());
 
     /**
-     * Set when a sync downloaded a newer version of the currently active book
-     * AND the local copy had no unsynced edits. UI should toast a "load new version" prompt.
+     * Set when a non-boot sync downloaded a newer version of the active book.
+     * The toast prompts the user to load it; we don't silently swap because
+     * the user might be mid-typing.
      */
     remoteUpdateAvailable = signal<RemoteUpdateAvailable | null>(null);
-
-    /**
-     * Conflicts detected during sync (both sides edited since last sync).
-     * UI should drain this signal — show toast per item, then reset to [].
-     */
-    conflicts = signal<SyncConflict[]>([]);
 
     private s3Instance: S3SyncBackend | null = null;
     private s3InstanceFingerprint = '';
 
     private debounceTimer: ReturnType<typeof setTimeout> | null = null;
-    private inFlight: Promise<SyncReport> | null = null;
+    private inFlight: Promise<unknown> | null = null;
     private lastSyncAt = 0;
     private failureCount = 0;
     private isInitialSync = false;
@@ -104,7 +119,6 @@ export class SyncService {
             if (ts > 0) this.scheduleAutoSync();
         });
 
-        // visibilitychange: hidden → flush; visible → schedule with cooldown
         if (typeof document !== 'undefined') {
             document.addEventListener('visibilitychange', () => {
                 if (document.visibilityState === 'hidden') {
@@ -116,7 +130,6 @@ export class SyncService {
                 }
             });
         }
-        // pagehide: if a debounce was pending, mark dirty so next boot picks it up
         if (typeof window !== 'undefined') {
             window.addEventListener('pagehide', () => {
                 if (this.debounceTimer) {
@@ -160,10 +173,6 @@ export class SyncService {
         this.failureCount = 0;
     }
 
-    /**
-     * Returns the active backend instance. Throws if S3 is selected but unconfigured.
-     * Async because the S3 backend is lazy-loaded to keep AWS SDK out of the initial bundle.
-     */
     async getActiveBackend(): Promise<SyncBackend> {
         if (this.activeBackendId() === 's3') {
             return this.getS3Backend();
@@ -189,10 +198,6 @@ export class SyncService {
         return this.s3Instance;
     }
 
-    /**
-     * Builds an ephemeral S3 backend from the given config and runs HeadBucket.
-     * Used by the settings UI to validate creds without persisting them.
-     */
     async testS3Connection(config: S3Config): Promise<void> {
         const { S3SyncBackend } = await loadS3Module();
         const backend = new S3SyncBackend(config);
@@ -209,8 +214,6 @@ export class SyncService {
             list.push(id);
             localStorage.setItem(key, JSON.stringify(list));
         }
-        // Local copy is gone — drop its baselines so the entry doesn't linger.
-        this.clearBaselines(resource, id);
     }
 
     private readPendingList(key: string): string[] {
@@ -226,25 +229,15 @@ export class SyncService {
         }
     }
 
-    /**
-     * Whether auto-sync is *effectively* enabled right now: backend supports it,
-     * user toggled it on, and (for S3) it's configured. Drive is permanently false
-     * because Background Sync requires interactive auth.
-     */
     isAutoSyncActive(): boolean {
         const id = this.activeBackendId();
         const flag = this.autoSyncEnabled()[id];
         if (!flag) return false;
-        if (id === 'gdrive') return false; // capability gate
+        if (id === 'gdrive') return false;
         if (id === 's3') return this.isS3Configured();
         return false;
     }
 
-    /**
-     * Schedules a debounced background sync. No-op if auto-sync isn't active,
-     * or if currently generating (avoid uploading mid-stream).
-     * @param immediate If true, runs without debounce delay (still queued via setTimeout 0).
-     */
     scheduleAutoSync(immediate = false): void {
         if (!this.isAutoSyncActive()) return;
         if (this.failureCount >= MAX_FAILURES) return;
@@ -253,10 +246,6 @@ export class SyncService {
         this.debounceTimer = setTimeout(() => this.runAutoSync(), delay);
     }
 
-    /**
-     * Cancels any pending debounce and runs a sync immediately, but only if one
-     * was actually scheduled. Used by visibilitychange=hidden to flush before tab close.
-     */
     async flushAutoSync(): Promise<void> {
         if (!this.debounceTimer) return;
         clearTimeout(this.debounceTimer);
@@ -274,10 +263,7 @@ export class SyncService {
     private async runAutoSync(): Promise<void> {
         this.debounceTimer = null;
         if (!this.isAutoSyncActive()) return;
-        if (this.state.status() === 'generating') {
-            // Re-queue; we'll try again after the turn completes (next saveBook).
-            return;
-        }
+        if (this.state.status() === 'generating') return;
         try {
             await this.syncAll();
             this.failureCount = 0;
@@ -297,33 +283,32 @@ export class SyncService {
     }
 
     /**
-     * One-shot cleanup of the v1 single-baseline keys (sync_at_*) that the
-     * earlier broken iteration of this code wrote. Those values cross device
-     * and cloud clock domains; leaving them in place would keep firing false
-     * conflicts. Safe to remove unconditionally — the v2 baselines repopulate
-     * after the next successful sync.
+     * One-shot cleanup of the legacy baseline keys (sync_at_*, sync_lb_*,
+     * sync_rb_*) that the time-baseline iteration of this code wrote. The
+     * newer-wins design doesn't need any of them; leaving them in place is
+     * harmless but they'd accumulate forever.
      */
     private dropLegacyBaselines(): void {
         const drop: string[] = [];
         for (let i = 0; i < localStorage.length; i++) {
             const k = localStorage.key(i);
-            if (k && k.startsWith('sync_at_')) drop.push(k);
+            if (!k) continue;
+            if (k.startsWith('sync_at_') || k.startsWith('sync_lb_') || k.startsWith('sync_rb_')) {
+                drop.push(k);
+            }
         }
         for (const k of drop) localStorage.removeItem(k);
-        if (drop.length) console.log(`[SyncService] Dropped ${drop.length} legacy single-baseline keys`);
+        if (drop.length) console.log(`[SyncService] Dropped ${drop.length} legacy baseline keys`);
     }
 
     /**
-     * Boot-time sync. Runs syncAll with the "initial" flag so newer remote versions
-     * are silently reloaded into the active session (no toast — there's nothing to interrupt).
-     * Also drains the dirty flag from a previous tab close.
+     * Boot-time sync. Runs syncAll with the "initial" flag so newer remote
+     * versions are silently reloaded into the active session. Also drains the
+     * dirty flag from a previous tab close.
      */
     async bootSync(): Promise<void> {
         this.dropLegacyBaselines();
         if (!this.isAutoSyncActive()) {
-            // Even if auto-sync is off, honour an explicit dirty flag (set on pagehide
-            // when a debounce was pending). We don't know which backend to use though,
-            // so just clear the flag — manual sync still works.
             localStorage.removeItem(LS_DIRTY);
             return;
         }
@@ -345,16 +330,17 @@ export class SyncService {
      * then books. Concurrency guard: if a sync is already in flight, return its promise.
      */
     syncAll(): Promise<SyncReport> {
-        if (this.inFlight) return this.inFlight;
-        this.inFlight = this.doSyncAll().finally(() => { this.inFlight = null; });
-        return this.inFlight;
+        if (this.inFlight) return this.inFlight as Promise<SyncReport>;
+        const p = this.doSyncAll().finally(() => { this.inFlight = null; });
+        this.inFlight = p;
+        return p;
     }
 
     private async doSyncAll(): Promise<SyncReport> {
         const backend = await this.getActiveBackend();
         await backend.authenticate();
 
-        const totals: SyncReport = { uploaded: 0, downloaded: 0, deleted: 0, conflicts: [] };
+        const totals: SyncReport = { uploaded: 0, downloaded: 0, deleted: 0, errors: [] };
         const downloadedBookIds = new Set<string>();
 
         for (const resource of ['collection', 'book'] as const) {
@@ -362,14 +348,14 @@ export class SyncService {
             totals.uploaded += r.uploaded;
             totals.downloaded += r.downloaded;
             totals.deleted += r.deleted;
-            if (r.conflicts?.length) totals.conflicts!.push(...r.conflicts);
+            totals.errors.push(...r.errors);
         }
 
-        // Refresh in-memory caches
         await this.collections.load();
 
-        // Decide reload behaviour for the active book. Boot is silent (nothing to
-        // interrupt); all other syncs surface a toast so the user controls reload.
+        // If the active book was downloaded, decide whether to silent-reload
+        // (boot — nothing to interrupt) or surface a toast (runtime — don't
+        // wipe the user's open session).
         const currentId = this.session.currentBookId();
         if (currentId && downloadedBookIds.has(currentId)) {
             if (this.isInitialSync) {
@@ -384,10 +370,6 @@ export class SyncService {
             }
         }
 
-        if (totals.conflicts && totals.conflicts.length > 0) {
-            this.conflicts.update(prev => [...prev, ...totals.conflicts!]);
-        }
-
         this.lastSyncAt = Date.now();
         return totals;
     }
@@ -397,7 +379,7 @@ export class SyncService {
         resource: SyncResource,
         downloadedBookIds: Set<string>
     ): Promise<SyncReport> {
-        const report: SyncReport = { uploaded: 0, downloaded: 0, deleted: 0, conflicts: [] };
+        const report: SyncReport = { uploaded: 0, downloaded: 0, deleted: 0, errors: [] };
 
         const localList: (Book | Collection)[] = resource === 'book'
             ? await this.storage.getBooks()
@@ -407,98 +389,120 @@ export class SyncService {
         const localById = new Map(localList.map(l => [l.id, l]));
 
         // Pending deletions: only drop from tracking when remote is confirmed gone.
-        // A failed remove() stays in the list so the next sync retries.
         const deletionKey = PENDING_DELETIONS_KEY[resource];
         const pending = this.readPendingList(deletionKey);
         const remaining: string[] = [];
+        const justDeletedIds = new Set<string>();
         for (const id of pending) {
-            if (!remoteById.has(id)) {
-                // Already absent on remote — nothing to do, drop from tracking.
-                continue;
-            }
+            if (!remoteById.has(id)) continue;
             try {
                 await backend.remove(resource, id);
                 remoteById.delete(id);
+                justDeletedIds.add(id);
                 report.deleted++;
             } catch (e) {
-                console.warn(`[SyncService] Failed to delete remote ${resource} ${id}, will retry`, e);
+                console.error(`[SyncService] Failed to delete remote ${resource} ${id}, will retry`, e);
                 remaining.push(id);
+                report.errors.push({ resource, id, op: 'delete', message: errMsg(e) });
             }
         }
         localStorage.setItem(deletionKey, JSON.stringify(remaining));
 
-        // Upload local → remote (per-item try/catch so one bad write doesn't kill the batch).
-        // Note: the inequality below mixes device clock and cloud clock — that's a
-        // pre-existing limitation of the simple "newer wins" rule. We don't try to
-        // fix it here; we only ensure conflict detection (below) doesn't compound it.
-        for (const local of localList) {
-            const remote = remoteById.get(local.id);
-            const localTime = this.localTimestamp(local, resource);
-            const needsUpload = !remote || localTime > remote.modifiedAt + TS_SLACK_MS;
-            if (!needsUpload) continue;
-            try {
-                await backend.write(resource, local.id, JSON.stringify(local));
-                // After upload, local is in sync from the device's perspective.
-                // We DON'T touch remoteBaseline here because we don't know cloud's
-                // new modifiedAt without an extra HEAD request — the next sync
-                // will refresh it. Worst case: one redundant download of our own
-                // upload, which costs a single GET. Acceptable.
-                this.setLocalBaseline(resource, local.id, localTime);
-                report.uploaded++;
-            } catch (e) {
-                console.warn(`[SyncService] Failed to upload ${resource} ${local.id}`, e);
+        // Single newer-wins loop over the union of local + remote ids.
+        const allIds = new Set<string>([
+            ...localList.map(l => l.id),
+            ...remoteById.keys()
+        ]);
+
+        for (const id of allIds) {
+            // SeaweedFS GET-after-DELETE consistency guard: don't try to read
+            // an object we just removed within the same sync run, even if
+            // it's still in the cached remoteList array.
+            if (justDeletedIds.has(id)) continue;
+
+            const local = localById.get(id);
+            const remote = remoteById.get(id);
+
+            if (local && !remote) {
+                console.log(`[Sync ${resource} ${id.slice(0, 8)}] local-only → upload (local=${this.localTimestamp(local, resource)})`);
+                await this.uploadEntity(backend, resource, local, report);
+                continue;
             }
-        }
-
-        // Download remote → local (per-item try/catch).
-        for (const remote of remoteList) {
-            const local = localById.get(remote.id);
-            const localTime = local ? this.localTimestamp(local, resource) : 0;
-            if (local && remote.modifiedAt <= localTime + TS_SLACK_MS) continue;
-
-            // Conflict detection — only meaningful when BOTH baselines exist
-            // (i.e., this device has previously completed a successful sync of
-            // this entity). On first encounter we fall through to the simple
-            // "remote newer → download" path; nothing to conflict against.
-            const localBase = this.getLocalBaseline(resource, remote.id);
-            const remoteBase = this.getRemoteBaseline(resource, remote.id);
-            if (local && localBase > 0 && remoteBase > 0) {
-                const localDirty = localTime > localBase + TS_SLACK_MS;
-                const remoteDirty = remote.modifiedAt > remoteBase + TS_SLACK_MS;
-                if (localDirty && remoteDirty) {
-                    console.warn(`[SyncService] Conflict on ${resource} ${remote.id} — local edits preserved`);
-                    report.conflicts!.push({
-                        resource,
-                        id: remote.id,
-                        localTime,
-                        remoteTime: remote.modifiedAt,
-                        name: this.entityName(local, resource)
-                    });
-                    continue;
+            if (!local && remote) {
+                console.log(`[Sync ${resource} ${id.slice(0, 8)}] remote-only → download (remote=${remote.lastActiveAt})`);
+                await this.downloadEntity(backend, resource, remote.id, remote.lastActiveAt, report, downloadedBookIds);
+                continue;
+            }
+            if (local && remote) {
+                const localTime = this.localTimestamp(local, resource);
+                const remoteTime = remote.lastActiveAt;
+                if (localTime > remoteTime) {
+                    console.log(`[Sync ${resource} ${id.slice(0, 8)}] local newer → upload (local=${localTime}, remote=${remoteTime}, Δ=${localTime - remoteTime}ms)`);
+                    await this.uploadEntity(backend, resource, local, report);
+                } else if (remoteTime > localTime) {
+                    console.log(`[Sync ${resource} ${id.slice(0, 8)}] remote newer → download (local=${localTime}, remote=${remoteTime}, Δ=${remoteTime - localTime}ms)`);
+                    await this.downloadEntity(backend, resource, remote.id, remoteTime, report, downloadedBookIds);
+                } else {
+                    // equal → synced, no log to keep console clean
                 }
-            }
-
-            try {
-                const json = await backend.read(resource, remote.id);
-                await this.applyRemote(resource, json);
-                // After a clean download both sides are aligned; we know the
-                // exact local-domain timestamp from the downloaded payload and
-                // the cloud-domain timestamp from the listing. Set both.
-                const downloaded = JSON.parse(json) as Book | Collection;
-                this.setBaselines(
-                    resource,
-                    remote.id,
-                    this.localTimestamp(downloaded, resource),
-                    remote.modifiedAt
-                );
-                report.downloaded++;
-                if (resource === 'book') downloadedBookIds.add(remote.id);
-            } catch (e) {
-                console.warn(`[SyncService] Failed to download ${resource} ${remote.id}`, e);
             }
         }
 
         return report;
+    }
+
+    private async uploadEntity(
+        backend: SyncBackend,
+        resource: SyncResource,
+        local: Book | Collection,
+        report: SyncReport
+    ): Promise<void> {
+        try {
+            const cleaned = resource === 'book'
+                ? cleanBookForSync(local)
+                : cleanCollectionForSync(local);
+            const lastActiveAt = this.localTimestamp(cleaned, resource);
+            await backend.write(resource, local.id, JSON.stringify(cleaned), lastActiveAt);
+            report.uploaded++;
+        } catch (e) {
+            console.error(`[SyncService] Failed to upload ${resource} ${local.id}`, e);
+            report.errors.push({ resource, id: local.id, op: 'upload', message: errMsg(e) });
+        }
+    }
+
+    private async downloadEntity(
+        backend: SyncBackend,
+        resource: SyncResource,
+        id: string,
+        expectedRemoteLastActive: number,
+        report: SyncReport,
+        downloadedBookIds: Set<string>
+    ): Promise<void> {
+        try {
+            const json = await backend.read(resource, id);
+            await this.applyRemote(resource, json);
+            report.downloaded++;
+            if (resource === 'book') downloadedBookIds.add(id);
+
+            // Self-heal: if the body's lastActiveAt differs from what list()
+            // reported via metadata, the cloud's `last_active` metadata is
+            // missing or stale (e.g., legacy upload from before the metadata
+            // scheme). Re-upload with correct metadata so future syncs see a
+            // matching remote/local time and stop looping in download.
+            const stored = resource === 'book'
+                ? await this.storage.getBook(id)
+                : await this.storage.getCollection(id);
+            if (stored) {
+                const bodyTime = this.localTimestamp(stored, resource);
+                if (bodyTime !== expectedRemoteLastActive) {
+                    console.warn(`[Sync ${resource} ${id.slice(0, 8)}] self-heal: body=${bodyTime} ≠ expected=${expectedRemoteLastActive} (Δ=${bodyTime - expectedRemoteLastActive}ms) → re-upload`);
+                    await this.uploadEntity(backend, resource, stored, report);
+                }
+            }
+        } catch (e) {
+            console.error(`[SyncService] Failed to download ${resource} ${id}`, e);
+            report.errors.push({ resource, id, op: 'download', message: errMsg(e) });
+        }
     }
 
     private localTimestamp(item: Book | Collection, resource: SyncResource): number {
@@ -507,51 +511,158 @@ export class SyncService {
             : (item as Collection).updatedAt;
     }
 
-    private entityName(item: Book | Collection, resource: SyncResource): string {
-        return resource === 'book' ? (item as Book).name : (item as Collection).name;
-    }
-
     private async applyRemote(resource: SyncResource, json: string): Promise<void> {
         if (resource === 'book') {
-            const book = JSON.parse(json) as Book;
-            // Backfill in case the remote was written by an older client.
+            const book = cleanBookForSync(JSON.parse(json));
             if (!book.collectionId) book.collectionId = ROOT_COLLECTION_ID;
             await this.storage.saveBook(book);
         } else {
-            const collection = JSON.parse(json) as Collection;
+            const collection = cleanCollectionForSync(JSON.parse(json));
             await this.storage.saveCollection(collection);
         }
     }
 
     /**
-     * Downloads the remote version of a book and stores it as a NEW local book
-     * with a fresh ID and a "(cloud)" suffix. Used to escape conflicts without
-     * data loss: the local original keeps its ID and edits, the cloud version
-     * arrives as a sibling for manual comparison.
-     * @returns the new local book ID.
+     * Force push: this device is the source of truth. List cloud, delete
+     * anything not local, then unconditionally upload every local entity.
+     * Bypasses the newer-wins decision tree.
      */
-    async forkRemoteBook(bookId: string): Promise<string> {
+    async forcePushAll(): Promise<ForcePushReport> {
+        if (this.inFlight) await this.inFlight;
+        const p = this.doForcePushAll().finally(() => { this.inFlight = null; });
+        this.inFlight = p;
+        return p;
+    }
+
+    private async doForcePushAll(): Promise<ForcePushReport> {
         const backend = await this.getActiveBackend();
         await backend.authenticate();
-        const json = await backend.read('book', bookId);
-        const remoteBook = JSON.parse(json) as Book;
+        const report: ForcePushReport = { uploaded: 0, deletedRemote: 0, errors: [] };
 
-        const newId = crypto.randomUUID();
-        const forked: Book = {
-            ...remoteBook,
-            id: newId,
-            name: `${remoteBook.name || 'Untitled'} (cloud)`,
-            collectionId: remoteBook.collectionId || ROOT_COLLECTION_ID,
-            createdAt: Date.now(),
-            lastActiveAt: Date.now()
-        };
-        await this.storage.saveBook(forked);
+        for (const resource of ['collection', 'book'] as const) {
+            const localList: (Book | Collection)[] = resource === 'book'
+                ? await this.storage.getBooks()
+                : await this.storage.getCollections();
+            const localIds = new Set(localList.map(l => l.id));
+            const remoteList = await backend.list(resource);
 
-        // No baselines: the fork has a brand-new ID with no prior cloud history,
-        // so it'll be treated as a first-encounter local-only book on next sync
-        // (i.e., uploaded fresh).
-        this.clearBaselines('book', newId);
-        return newId;
+            for (const remote of remoteList) {
+                if (localIds.has(remote.id)) continue;
+                try {
+                    await backend.remove(resource, remote.id);
+                    report.deletedRemote++;
+                } catch (e) {
+                    console.error(`[SyncService] forcePush: failed to delete remote ${resource} ${remote.id}`, e);
+                    report.errors.push({ resource, id: remote.id, op: 'delete', message: errMsg(e) });
+                }
+            }
+
+            for (const local of localList) {
+                try {
+                    const cleaned = resource === 'book'
+                        ? cleanBookForSync(local)
+                        : cleanCollectionForSync(local);
+                    const lastActiveAt = this.localTimestamp(cleaned, resource);
+                    await backend.write(resource, local.id, JSON.stringify(cleaned), lastActiveAt);
+                    report.uploaded++;
+                } catch (e) {
+                    console.error(`[SyncService] forcePush: failed to upload ${resource} ${local.id}`, e);
+                    report.errors.push({ resource, id: local.id, op: 'upload', message: errMsg(e) });
+                }
+            }
+        }
+
+        // Pending deletions are now redundant — anything we wanted gone is gone.
+        for (const r of ['collection', 'book'] as const) {
+            localStorage.setItem(PENDING_DELETIONS_KEY[r], JSON.stringify([]));
+        }
+
+        this.lastSyncAt = Date.now();
+        return report;
+    }
+
+    /**
+     * Force pull: cloud is the source of truth. List cloud, delete every
+     * local entity not on cloud, then unconditionally download every cloud
+     * entity. Reloads the active session if its book id either disappeared
+     * or was overwritten.
+     */
+    async forcePullAll(): Promise<ForcePullReport> {
+        if (this.inFlight) await this.inFlight;
+        const p = this.doForcePullAll().finally(() => { this.inFlight = null; });
+        this.inFlight = p;
+        return p;
+    }
+
+    private async doForcePullAll(): Promise<ForcePullReport> {
+        const backend = await this.getActiveBackend();
+        await backend.authenticate();
+        const report: ForcePullReport = { downloaded: 0, deletedLocal: 0, errors: [] };
+
+        const activeBookId = this.session.currentBookId();
+        let activeBookGone = false;
+        let activeBookOverwritten = false;
+
+        for (const resource of ['collection', 'book'] as const) {
+            const remoteList = await backend.list(resource);
+            const remoteIds = new Set(remoteList.map(r => r.id));
+            const localList: (Book | Collection)[] = resource === 'book'
+                ? await this.storage.getBooks()
+                : await this.storage.getCollections();
+
+            // Wipe local entries not on cloud (root collection is special — keep
+            // it; it's rebuilt by ensureRoot if missing on cloud).
+            for (const local of localList) {
+                if (remoteIds.has(local.id)) continue;
+                if (resource === 'collection' && local.id === ROOT_COLLECTION_ID) continue;
+                try {
+                    if (resource === 'book') {
+                        if (local.id === activeBookId) activeBookGone = true;
+                        await this.storage.deleteBook(local.id);
+                    } else {
+                        await this.storage.deleteCollection(local.id);
+                    }
+                    report.deletedLocal++;
+                } catch (e) {
+                    console.error(`[SyncService] forcePull: failed to delete local ${resource} ${local.id}`, e);
+                    report.errors.push({ resource, id: local.id, op: 'delete', message: errMsg(e) });
+                }
+            }
+
+            // Overwrite local with cloud body for everything cloud has.
+            for (const remote of remoteList) {
+                try {
+                    const json = await backend.read(resource, remote.id);
+                    await this.applyRemote(resource, json);
+                    if (resource === 'book' && remote.id === activeBookId) activeBookOverwritten = true;
+                    report.downloaded++;
+                } catch (e) {
+                    console.error(`[SyncService] forcePull: failed to download ${resource} ${remote.id}`, e);
+                    report.errors.push({ resource, id: remote.id, op: 'download', message: errMsg(e) });
+                }
+            }
+        }
+
+        // Pending deletions are obsolete after a force pull.
+        for (const r of ['collection', 'book'] as const) {
+            localStorage.setItem(PENDING_DELETIONS_KEY[r], JSON.stringify([]));
+        }
+
+        await this.collections.load();
+
+        // Reload active session if needed.
+        if (activeBookGone) {
+            const remaining = await this.storage.getBooks();
+            if (remaining.length > 0) {
+                const sorted = [...remaining].sort((a, b) => b.lastActiveAt - a.lastActiveAt);
+                await this.session.loadBook(sorted[0].id, false);
+            }
+        } else if (activeBookOverwritten && activeBookId) {
+            await this.session.loadBook(activeBookId, false);
+        }
+
+        this.lastSyncAt = Date.now();
+        return report;
     }
 
     /**
@@ -572,28 +683,64 @@ export class SyncService {
         return backend.readSettings();
     }
 
-    private getLocalBaseline(resource: SyncResource, id: string): number {
-        const raw = localStorage.getItem(LS_LOCAL_BASE_PREFIX + resource + '_' + id);
-        return raw ? Number(raw) || 0 : 0;
+    /**
+     * Snapshot all user-modified prompts (across profiles) and PUT to cloud.
+     * Defaults stay out — see plan §3.
+     */
+    async uploadPrompts(): Promise<{ exported: number }> {
+        const backend = await this.getActiveBackend();
+        await backend.authenticate();
+        const out: Record<string, { content: string; tokens?: number }> = {};
+        let exported = 0;
+
+        for (const profile of BUILT_IN_PROFILES) {
+            for (const type of PROMPT_TYPES) {
+                const flagKey = `prompt_user_modified_${type}`;
+                const scopedFlagKey = profile.id === 'cloud' ? flagKey : `${profile.id}:${flagKey}`;
+                if (localStorage.getItem(scopedFlagKey) !== 'true') continue;
+                const rec = await this.storage.getProfilePrompt(type, profile.id);
+                if (!rec) continue;
+                out[`${profile.id}:${type}`] = {
+                    content: rec.content,
+                    tokens: rec.tokens
+                };
+                exported++;
+            }
+        }
+
+        await backend.writePrompts(JSON.stringify(out));
+        return { exported };
     }
 
-    private getRemoteBaseline(resource: SyncResource, id: string): number {
-        const raw = localStorage.getItem(LS_REMOTE_BASE_PREFIX + resource + '_' + id);
-        return raw ? Number(raw) || 0 : 0;
-    }
+    /**
+     * Pulls prompts.json and overwrites local prompt_store + modified flags.
+     * Returns the number of entries imported.
+     */
+    async downloadPrompts(): Promise<{ imported: number }> {
+        const backend = await this.getActiveBackend();
+        await backend.authenticate();
+        const json = await backend.readPrompts();
+        if (!json) return { imported: 0 };
 
-    private setLocalBaseline(resource: SyncResource, id: string, ts: number): void {
-        if (ts > 0) localStorage.setItem(LS_LOCAL_BASE_PREFIX + resource + '_' + id, String(ts));
-    }
+        const parsed = JSON.parse(json) as Record<string, { content: string; tokens?: number }>;
+        let imported = 0;
 
-    private setBaselines(resource: SyncResource, id: string, localTs: number, remoteTs: number): void {
-        if (localTs > 0) localStorage.setItem(LS_LOCAL_BASE_PREFIX + resource + '_' + id, String(localTs));
-        if (remoteTs > 0) localStorage.setItem(LS_REMOTE_BASE_PREFIX + resource + '_' + id, String(remoteTs));
-    }
+        for (const [key, value] of Object.entries(parsed)) {
+            if (!value || typeof value.content !== 'string') continue;
+            const colon = key.indexOf(':');
+            if (colon <= 0) continue;
+            const profileId = key.slice(0, colon);
+            const type = key.slice(colon + 1);
+            if (!BUILT_IN_PROFILES.some(p => p.id === profileId)) continue;
+            if (!PROMPT_TYPES.includes(type as PromptType)) continue;
+            await this.storage.saveProfilePrompt(type, profileId, value.content, value.tokens);
+            const flagKey = `prompt_user_modified_${type}`;
+            const scopedFlagKey = profileId === 'cloud' ? flagKey : `${profileId}:${flagKey}`;
+            localStorage.setItem(scopedFlagKey, 'true');
+            imported++;
+        }
 
-    private clearBaselines(resource: SyncResource, id: string): void {
-        localStorage.removeItem(LS_LOCAL_BASE_PREFIX + resource + '_' + id);
-        localStorage.removeItem(LS_REMOTE_BASE_PREFIX + resource + '_' + id);
+        return { imported };
     }
 
     private loadBackendId(): SyncBackendId {

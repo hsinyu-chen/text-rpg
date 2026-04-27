@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
 import { StorageValue, SessionSave, ChatMessage, Book, Collection } from '../models/types';
+import { cleanBookForSync, cleanCollectionForSync } from './sync/clean.util';
 
 interface TextRPGDB extends DBSchema {
   chat_store: {
@@ -191,7 +192,10 @@ export class StorageService {
   }
 
   async saveBook(book: Book): Promise<void> {
-    await (await this.dbPromise).put('books_store', book, book.id);
+    // Run every write through the cleaner so legacy / forward-compat fields
+    // (e.g. removed `book.prompts`) never persist past this layer.
+    const clean = cleanBookForSync(book);
+    await (await this.dbPromise).put('books_store', clean, clean.id);
   }
 
   async deleteBook(id: string): Promise<void> {
@@ -209,7 +213,8 @@ export class StorageService {
   }
 
   async saveCollection(collection: Collection): Promise<void> {
-    await (await this.dbPromise).put('collections_store', collection, collection.id);
+    const clean = cleanCollectionForSync(collection);
+    await (await this.dbPromise).put('collections_store', clean, clean.id);
   }
 
   async deleteCollection(id: string): Promise<void> {

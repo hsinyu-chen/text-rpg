@@ -50,6 +50,9 @@ export interface DriveFile {
     mimeType: string;
     parents?: string[];
     modifiedTime?: string;
+    size?: string;
+    md5Checksum?: string;
+    appProperties?: Record<string, string>;
 }
 
 // Minimal PKCE Helpers
@@ -532,7 +535,7 @@ export class GoogleDriveService {
     async listFiles(folderId = 'appDataFolder'): Promise<DriveFile[]> {
         return this.execute(async (token) => {
             const query = `'${folderId}' in parents and trashed = false`;
-            const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,parents,modifiedTime)&spaces=appDataFolder`;
+            const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,parents,modifiedTime,size,md5Checksum,appProperties)&spaces=appDataFolder`;
 
             const res = await fetch(url, {
                 headers: { Authorization: `Bearer ${token}` },
@@ -603,19 +606,25 @@ export class GoogleDriveService {
         });
     }
 
-    async createFile(parentId = 'appDataFolder', name: string, content: string): Promise<DriveFile> {
+    async createFile(
+        parentId = 'appDataFolder',
+        name: string,
+        content: string,
+        appProperties?: Record<string, string>
+    ): Promise<DriveFile> {
         return this.execute(async (token) => {
-            const metadata = {
+            const metadata: Record<string, unknown> = {
                 name,
                 parents: [parentId],
                 mimeType: 'text/markdown'
             };
+            if (appProperties) metadata['appProperties'] = appProperties;
 
             const form = new FormData();
             form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
             form.append('file', new Blob([content], { type: 'text/plain' }));
 
-            const url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,mimeType,parents,modifiedTime';
+            const url = 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,mimeType,parents,modifiedTime,size,md5Checksum,appProperties';
             const res = await fetch(url, {
                 method: 'POST',
                 headers: { Authorization: `Bearer ${token}` },
@@ -626,9 +635,34 @@ export class GoogleDriveService {
         });
     }
 
-    async updateFile(fileId: string, content: string): Promise<void> {
+    /**
+     * Updates the body of an existing file. To set or change the file's
+     * `appProperties` (e.g. `last_active`), pass the full desired object —
+     * Drive merges keys, so existing keys not mentioned are preserved, but
+     * passing a key with `null` clears it.
+     */
+    async updateFile(
+        fileId: string,
+        content: string,
+        appProperties?: Record<string, string>
+    ): Promise<DriveFile> {
         return this.execute(async (token) => {
-            const url = `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`;
+            // Body must be uploaded via uploadType=media OR multipart with metadata.
+            // To attach metadata in the same call, use multipart.
+            if (appProperties) {
+                const form = new FormData();
+                form.append('metadata', new Blob([JSON.stringify({ appProperties })], { type: 'application/json' }));
+                form.append('file', new Blob([content], { type: 'text/plain' }));
+                const url = `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart&fields=id,name,mimeType,parents,modifiedTime,size,md5Checksum,appProperties`;
+                const res = await fetch(url, {
+                    method: 'PATCH',
+                    headers: { Authorization: `Bearer ${token}` },
+                    body: form
+                });
+                if (!res.ok) throw { status: res.status, message: res.statusText };
+                return await res.json() as DriveFile;
+            }
+            const url = `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media&fields=id,name,mimeType,parents,modifiedTime,size,md5Checksum,appProperties`;
             const res = await fetch(url, {
                 method: 'PATCH',
                 headers: {
@@ -638,6 +672,7 @@ export class GoogleDriveService {
                 body: content
             });
             if (!res.ok) throw { status: res.status, message: res.statusText };
+            return await res.json() as DriveFile;
         });
     }
 
