@@ -160,7 +160,9 @@ export class FileAgentService {
         if (this.selectedProfileId() === profileId) {
           this.probeResults.update(r => ({ ...r, [profileId]: result }));
         }
-      } catch {}
+      } catch {
+        // Probe failures are non-fatal; fall back to defaults
+      }
     }
 
     const parallelExplicit = profile.settings.additionalSettings?.['supportsParallelToolCalls'];
@@ -170,7 +172,9 @@ export class FileAgentService {
         if (this.selectedProfileId() === profileId) {
           this.parallelProbeResults.update(r => ({ ...r, [profileId]: result }));
         }
-      } catch {}
+      } catch {
+        // Probe failures are non-fatal; fall back to defaults
+      }
     }
   }
 
@@ -423,8 +427,11 @@ export class FileAgentService {
         }
         if (chunk.usageMetadata?.candidates !== undefined) {
           this.generatedTokenCount.set(chunk.usageMetadata.candidates);
-        } else if ((chunk.usageMetadata as any)?.candidatesTokenCount !== undefined) {
-          this.generatedTokenCount.set((chunk.usageMetadata as any).candidatesTokenCount);
+        } else {
+          const legacyMetadata = chunk.usageMetadata as { candidatesTokenCount?: number } | undefined;
+          if (legacyMetadata?.candidatesTokenCount !== undefined) {
+            this.generatedTokenCount.set(legacyMetadata.candidatesTokenCount);
+          }
         }
         if (chunk.functionCall) {
           this.promptProgress.set(undefined);

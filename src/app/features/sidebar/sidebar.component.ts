@@ -11,6 +11,7 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { GameEngineService } from '../../core/services/game-engine.service';
 import { GameStateService } from '../../core/services/game-state.service';
 import { SettingsDialogComponent } from '../settings/settings-dialog.component';
+import { SyncProviderDialogComponent } from '../settings/sync-provider-dialog.component';
 import { FileViewerDialogComponent } from './file-viewer-dialog.component';
 
 import { SidebarFileSyncComponent } from './components/sidebar-file-sync/sidebar-file-sync.component';
@@ -81,6 +82,10 @@ export class SidebarComponent {
 
   openSettings() {
     this.matDialog.open(SettingsDialogComponent, { width: '550px' });
+  }
+
+  openSyncProvider() {
+    this.matDialog.open(SyncProviderDialogComponent, { width: '560px' });
   }
 
   viewFile(initialFile: string) {

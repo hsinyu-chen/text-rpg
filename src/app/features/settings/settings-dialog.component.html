@@ -150,22 +150,13 @@
             }
         </div>
 
-        <!-- Sync Provider -->
-        <div class="advanced-section">
-            <h3>Sync Provider</h3>
-            <p class="hint-text">
-                Choose where Books, Collections, and Settings sync to. The sync provider configuration
-                itself is not synced (chicken-and-egg).
-            </p>
-            <app-sync-provider-config></app-sync-provider-config>
-        </div>
-
-        <!-- Settings Cloud Sync -->
+        <!-- Settings Sync -->
         <div class="advanced-section">
             <h3>Settings Sync</h3>
             <p class="hint-text">
                 Push or pull the app settings snapshot via the active sync provider. Click Save first
-                to include pending edits. Download reloads the app.
+                to include pending edits. Configure the provider (Drive / S3) from the Sync Provider
+                button on the sidebar. Download reloads the app.
             </p>
             <div class="button-row">
                 <button mat-stroked-button (click)="uploadSettings()" [disabled]="loading.isLoading()">

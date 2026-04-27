@@ -6,8 +6,8 @@ import {
   input,
   viewChild,
   ElementRef,
-  OnInit,
   OnDestroy,
+  afterNextRender,
   effect
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -41,7 +41,7 @@ import { FileAgentService } from '../../../core/services/file-agent/file-agent.s
   styleUrl: './agent-console.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class AgentConsoleComponent implements OnInit, OnDestroy {
+export class AgentConsoleComponent implements OnDestroy {
   // Inputs
   files = input.required<Map<string, string>>();
   initialPrompt = input<string>('');
@@ -98,14 +98,14 @@ export class AgentConsoleComponent implements OnInit, OnDestroy {
         }
       });
     });
-  }
 
-  ngOnInit(): void {
-    const prompt = this.initialPrompt();
-    if (prompt && this.agentService.agentHistory().length === 0 && !this.agentService.isAgentRunning()) {
-      this.agentPrompt.set(prompt);
-      setTimeout(() => this.runAgent(), 200);
-    }
+    afterNextRender(() => {
+      const prompt = this.initialPrompt();
+      if (prompt && this.agentService.agentHistory().length === 0 && !this.agentService.isAgentRunning()) {
+        this.agentPrompt.set(prompt);
+        setTimeout(() => this.runAgent(), 200);
+      }
+    });
   }
 
   ngOnDestroy(): void {

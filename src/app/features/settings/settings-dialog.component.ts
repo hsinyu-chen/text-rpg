@@ -18,7 +18,6 @@ import { LLMProviderRegistryService } from '../../core/services/llm-provider-reg
 import { LLMConfigService } from '../../core/services/llm-config.service';
 import { LoadingService } from '../../core/services/loading.service';
 import { SettingsSyncService } from '../../core/services/settings-sync.service';
-import { SyncProviderConfigComponent } from '../../core/services/sync/components/sync-provider-config.component';
 import { getLanguagesList } from '../../core/constants/locales';
 import { LLMProfilesDialogComponent } from './llm-profiles-dialog.component';
 
@@ -38,8 +37,7 @@ import { LLMProfilesDialogComponent } from './llm-profiles-dialog.component';
     MatTabsModule,
     MatExpansionModule,
     MatSliderModule,
-    MatProgressSpinnerModule,
-    SyncProviderConfigComponent
+    MatProgressSpinnerModule
   ],
   templateUrl: './settings-dialog.component.html',
   styleUrl: './settings-dialog.component.scss'
@@ -178,7 +176,7 @@ export class SettingsDialogComponent {
     try {
       await this.settingsSync.upload();
     } catch {
-      // Service already surfaces the error via snackbar.
+      // Service surfaces error via snackbar.
     }
   }
 
@@ -187,7 +185,7 @@ export class SettingsDialogComponent {
       const applied = await this.settingsSync.download();
       if (applied) this.dialogRef.close();
     } catch {
-      // Service already surfaces the error via snackbar.
+      // Service surfaces error via snackbar.
     }
   }
 }

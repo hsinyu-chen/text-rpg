@@ -125,7 +125,13 @@ export class S3ConfigComponent {
         if (typeof parsed.secretAccessKey === 'string') this.secretAccessKey.set(parsed.secretAccessKey);
         if (typeof parsed.prefix === 'string') this.prefix.set(parsed.prefix);
         if (typeof parsed.forcePathStyle === 'boolean') this.forcePathStyle.set(parsed.forcePathStyle);
-        this.snackBar.open('Imported. Click Save to persist.', 'OK', { duration: 3000 });
+        // Auto-persist: the import dialog's Save means "apply", not "fill the form for me to save again".
+        if (this.isValid()) {
+            this.sync.saveS3Config(this.buildConfig());
+            this.snackBar.open('Imported and saved.', 'OK', { duration: 2500 });
+        } else {
+            this.snackBar.open('Imported. Some required fields are empty — fill them and click Save.', 'Close', { duration: 4000 });
+        }
     }
 
     async testConnection(): Promise<void> {

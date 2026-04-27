@@ -161,7 +161,7 @@ export class MonacoEditorComponent implements OnDestroy, ControlValueAccessor {
         const el = this.container()?.nativeElement;
         if (!el) return;
 
-        const monaco = (window as any).monaco;
+        const monaco = (window as unknown as { monaco: typeof import('monaco-editor') }).monaco;
         const userOptions = (this.options() as object) || {};
 
         let commonOptions = {};
@@ -392,7 +392,7 @@ export class MonacoEditorComponent implements OnDestroy, ControlValueAccessor {
         content: string,
         side: 'normal' | 'modified' | 'original'
     ): import('monaco-editor').editor.ITextModel {
-        const monaco = (window as any).monaco as typeof import('monaco-editor');
+        const monaco = (window as unknown as { monaco: typeof import('monaco-editor') }).monaco;
         const lang = this.getLanguageFromFilename(fileName);
         const safeName = fileName.replace(/\\/g, '/');
         const uri = side === 'normal'

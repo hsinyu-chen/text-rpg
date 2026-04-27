@@ -11,6 +11,10 @@
             <button mat-icon-button (click)="openBooks.emit()" [disabled]="state.isBusy()" matTooltip="Adventure Books">
                 <mat-icon>auto_stories</mat-icon>
             </button>
+            <button mat-icon-button (click)="openSyncProvider()" [disabled]="state.isBusy()"
+                matTooltip="Sync Provider (Drive / S3 configuration)">
+                <mat-icon>cloud_sync</mat-icon>
+            </button>
             <button mat-icon-button (click)="openSettings()" [disabled]="state.isBusy()" matTooltip="Settings">
                 <mat-icon>settings</mat-icon>
             </button>
