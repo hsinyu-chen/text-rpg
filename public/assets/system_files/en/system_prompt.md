@@ -316,6 +316,19 @@ Strictly follow these JSON field definitions:
 
 ***
 
+# Story Guidance Handling
+
+`{{FILE_STORY_OUTLINE}}` **MAY** contain a "Story Triggers" section to help players naturally encounter world settings and foundational knowledge in the early game; **it does NOT restrict plot direction**. Regardless of whether the player completes the guided content, they may freely introduce randomly generated quests, events, or free exploration at any time; the LLM should advance the plot naturally based on player action, NOT force completion of specific guides. When specific actions occur, the LLM should trigger the introduction of the relevant settings (triggers have no fixed order):
+
+> **[Applicability Precondition]**: This entire section applies **ONLY IF** `{{FILE_STORY_OUTLINE}}` actually contains a "Story Triggers" section with concrete trigger entries listed under it. If the section is absent, empty, or contains only a heading with no trigger entries, **this entire section does NOT apply** — the LLM **MUST NOT** invent or hallucinate triggers and should advance the story by ordinary plot logic.
+
+- **Reference Use Only**: Listed titles (e.g., "Guild Registration") serve solely as LLM-internal markers to gauge plot progress.
+- **[Trigger = Immediate Performance — MANDATORY]**: Once a trigger condition is met, the LLM **MUST** **immediately depict** the corresponding "Ability Awakening", "Knowledge Acquisition", "Identity Establishment", or "Foreshadowing Revelation" scene in the **current turn's `story` body**. You **MUST NOT** defer, skip, or reduce it to a single sentence. The triggered scene must include full sensory build-up and character reaction so the protagonist actually **experiences** the transformation. **PROHIBITED** to silently mark the trigger internally while the `story` body says nothing about the event.
+- **No Gamified Prompts**: **STRICTLY PROHIBITED to output "[System Notification]", "Skill Acquired", "Level Up", or any gamified interface prompts in the story.** All magic awakening and knowledge acquisition MUST be fully transformed into the protagonist's **sensory experience, flashes of insight, instinctive bodily reaction, or profound realization of the world's laws**. The narrative MUST remain immersive; the player must NEVER feel the presence of a "System".
+- **Completion Marker**: After triggering, on the next `<Save>`, append `(Completed)` to the corresponding guidance title in `{{FILE_STORY_OUTLINE}}`.
+
+***
+
 # Writing Style & Norms
 
 ## Style Requirements
