@@ -59,21 +59,22 @@ export class S3SyncBackend implements SyncBackend {
     }
 
     /**
-     * Reachability check used by the settings UI's Test button. Also runs
-     * `ensureCorsApplied` so that an explicit user-initiated Test surfaces
-     * any CORS configuration problem (we throw with a descriptive message
-     * if PUT fails — the calling component shows it as a snackbar).
+     * Reachability check used by the settings UI's Test button. The actual
+     * gating signal is whether `HeadBucket` succeeds — that proves SigV4
+     * creds + bucket existence + network path. CORS auto-apply is a
+     * best-effort optimisation; if it fails (no `s3:PutBucketCors`
+     * permission, server rejects, etc.) sync still works via the slower
+     * GET-body fallback in `list()`, so we don't fail the test on it —
+     * just log so the user can investigate if curious.
      */
     async testConnection(): Promise<void> {
         await this.client.send(new HeadBucketCommand({ Bucket: this.bucket }));
         const ok = await this.ensureCorsApplied();
         if (!ok) {
-            throw new Error(
-                'Bucket reachable, but the CORS rule needed to expose ' +
-                '`x-amz-meta-last-active` to the browser is missing AND we ' +
-                "couldn't update it (likely insufficient permission or server " +
-                "doesn't accept PutBucketCors). Sync will still work via a " +
-                'slower full-body fetch path. To fix, manually add ' +
+            console.warn(
+                '[S3] Bucket reachable, but CORS auto-apply failed. Sync ' +
+                'will use the slower GET-body fallback for last-active ' +
+                'recovery. To enable the fast path, manually add ' +
                 '`x-amz-meta-last-active` to the bucket\'s CORS ExposeHeaders.'
             );
         }
@@ -99,6 +100,12 @@ export class S3SyncBackend implements SyncBackend {
      * if we couldn't read AND couldn't write — in that case the GET-body
      * fallback in `list()` keeps sync correct, just slower.
      */
+    private browserOrigin(): string {
+        return typeof window !== 'undefined' && window.location?.origin
+            ? window.location.origin
+            : '*';
+    }
+
     private async ensureCorsApplied(): Promise<boolean> {
         if (this.corsAttempted) return this.corsOk;
         this.corsAttempted = true;
@@ -144,7 +151,11 @@ export class S3SyncBackend implements SyncBackend {
                     : [...(r.ExposeHeaders ?? []), targetHeader]
             }))
             : [{
-                AllowedOrigins: ['*'],
+                // Narrow to this app's origin — broad `*` would expose the
+                // bucket's CORS surface to any site the user visits. The
+                // actual security barrier is still SigV4 signing, but
+                // there's no reason to be looser than necessary.
+                AllowedOrigins: [this.browserOrigin()],
                 AllowedMethods: ['GET', 'PUT', 'POST', 'HEAD', 'DELETE'],
                 AllowedHeaders: ['*'],
                 ExposeHeaders: [

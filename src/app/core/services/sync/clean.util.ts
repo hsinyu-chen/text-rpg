@@ -11,8 +11,8 @@ import { Book, Collection } from '../../models/types';
  * typed Book back.
  */
 export function cleanBookForSync(input: unknown): Book {
-    const b = input as Partial<Book> & Record<string, unknown>;
-    const stats = (b.stats ?? {}) as Partial<Book['stats']>;
+    const b = (input && typeof input === 'object' ? input : {}) as Partial<Book> & Record<string, unknown>;
+    const stats = (b.stats && typeof b.stats === 'object' ? b.stats : {}) as Partial<Book['stats']>;
     return {
         id: String(b.id ?? ''),
         name: String(b.name ?? ''),
@@ -38,7 +38,7 @@ export function cleanBookForSync(input: unknown): Book {
 }
 
 export function cleanCollectionForSync(input: unknown): Collection {
-    const c = input as Partial<Collection> & Record<string, unknown>;
+    const c = (input && typeof input === 'object' ? input : {}) as Partial<Collection> & Record<string, unknown>;
     return {
         id: String(c.id ?? ''),
         name: String(c.name ?? ''),
