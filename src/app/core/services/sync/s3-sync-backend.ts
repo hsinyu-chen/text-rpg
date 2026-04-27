@@ -27,7 +27,6 @@ const PROMPTS_KEY = 'prompts.json';
 // header names, and SeaweedFS rejects the SigV4 of `x-amz-meta-last_active`
 // outright. AWS S3 itself tolerates underscores; hyphen works on both.
 const META_LAST_ACTIVE = 'last-active';
-const META_DELETED_AT = 'deleted-at';
 
 export class S3SyncBackend implements SyncBackend {
     readonly id: SyncBackendId = 's3';
@@ -338,20 +337,27 @@ export class S3SyncBackend implements SyncBackend {
         }));
     }
 
-    private tombstoneKey(resource: SyncResource, id: string): string {
-        return `${this.prefix}${TOMBSTONE_DIR[resource]}/${id}`;
+    private tombstoneKey(resource: SyncResource, id: string, deletedAt: number): string {
+        return `${this.prefix}${TOMBSTONE_DIR[resource]}/${id}/${deletedAt}`;
     }
 
     /**
-     * Lists tombstone objects under the resource's tombstone prefix and
-     * recovers `deletedAt` from each one's user metadata. Same CORS/HEAD
-     * concurrency strategy as `list()`. If metadata is unavailable (CORS
-     * stripping it AND no GET-body fallback because tombstones are empty),
-     * we fall back to LastModified.
+     * Lists tombstones via a single ListObjectsV2 page-walk — no per-object
+     * HEAD. The `deletedAt` timestamp is encoded directly into the key
+     * (`tombstones/<resource>/<id>/<deletedAt>`), so ListObjectsV2 returns
+     * everything we need.
+     *
+     * If the same id was deleted multiple times (delete → restore →
+     * re-delete on different devices), there will be multiple keys for it
+     * — we keep the maximum `deletedAt` per id, which is the only one that
+     * matters for the newer-wins comparison.
+     *
+     * Tombstones are never auto-removed (cheap, ~50 bytes each) so a long-
+     * offline device still receives the message when it comes back.
      */
     async listTombstones(resource: SyncResource): Promise<Tombstone[]> {
         const dirPrefix = `${this.prefix}${TOMBSTONE_DIR[resource]}/`;
-        const partial: { id: string; modifiedAt: number; key: string }[] = [];
+        const latest = new Map<string, number>();
         let continuationToken: string | undefined;
 
         do {
@@ -363,52 +369,27 @@ export class S3SyncBackend implements SyncBackend {
 
             for (const obj of res.Contents ?? []) {
                 if (!obj.Key) continue;
-                const id = obj.Key.slice(dirPrefix.length);
-                if (!id) continue;
-                partial.push({
-                    id,
-                    modifiedAt: obj.LastModified ? obj.LastModified.getTime() : 0,
-                    key: obj.Key
-                });
+                const rel = obj.Key.slice(dirPrefix.length);
+                const slashIdx = rel.lastIndexOf('/');
+                if (slashIdx <= 0) continue; // malformed; skip
+                const id = rel.slice(0, slashIdx);
+                const deletedAt = Number(rel.slice(slashIdx + 1));
+                if (!id || !Number.isFinite(deletedAt)) continue;
+                const prev = latest.get(id);
+                if (prev === undefined || deletedAt > prev) latest.set(id, deletedAt);
             }
             continuationToken = res.IsTruncated ? res.NextContinuationToken : undefined;
         } while (continuationToken);
 
-        const HYDRATE_CONCURRENCY = 8;
-        const result: Tombstone[] = new Array(partial.length);
-        let cursor = 0;
-        const workers = Array.from(
-            { length: Math.min(HYDRATE_CONCURRENCY, partial.length) },
-            async () => {
-                while (cursor < partial.length) {
-                    const i = cursor++;
-                    const p = partial[i];
-                    let deletedAt = p.modifiedAt;
-                    try {
-                        const head = await this.client.send(new HeadObjectCommand({
-                            Bucket: this.bucket,
-                            Key: p.key
-                        }));
-                        const metaValue = head.Metadata?.[META_DELETED_AT];
-                        if (metaValue) deletedAt = Number(metaValue) || p.modifiedAt;
-                    } catch {
-                        // fall back to modifiedAt
-                    }
-                    result[i] = { id: p.id, deletedAt };
-                }
-            }
-        );
-        await Promise.all(workers);
-        return result;
+        return Array.from(latest, ([id, deletedAt]) => ({ id, deletedAt }));
     }
 
     async writeTombstone(resource: SyncResource, id: string, deletedAt: number): Promise<void> {
         await this.client.send(new PutObjectCommand({
             Bucket: this.bucket,
-            Key: this.tombstoneKey(resource, id),
+            Key: this.tombstoneKey(resource, id, deletedAt),
             Body: '',
-            ContentType: 'application/octet-stream',
-            Metadata: { [META_DELETED_AT]: String(deletedAt) }
+            ContentType: 'application/octet-stream'
         }));
     }
 
