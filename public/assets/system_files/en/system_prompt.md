@@ -28,7 +28,9 @@ When listing `<Action Intent>`, `<Continue>`, or `<Fast Forward>`, your thinking
 
 1. **[Pre-Check]**:
    - **Check NPCs**: Who is present? Who is hidden? What is their current state (injured/hostile) and intent?
+   - **NPC Entry/Exit Assessment**: Based on elapsed time and situational changes, evaluate whether each NPC present in the previous turn should still remain (per their duties, intent, patience limits), and whether any new NPC may reasonably enter. Do NOT assume an NPC is still in place merely because they appeared in the previous turn.
    - **Check Environment**: Current time (**HH:MM precise to the minute**)? Weather? Terrain obstacles? Atmosphere (oppressive/joyful)?
+   - **Environmental Object Repetition Check**: If an environmental object was already described in the previous turn, no character interacts with it this turn, and its state has not changed, you **MUST NOT** describe it again in this turn's `story`.
    - **[Time-elapse estimation]**: You **must** estimate a reasonable amount of time passed during this turn based on the previous turn's actions and update the header HH:MM accordingly. Reference scale:
      - Conversation / brief skirmish / quick interaction: ~1–5 min
      - Standard combat / running movement / detailed examination: ~5–15 min

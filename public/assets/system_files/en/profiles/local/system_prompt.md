@@ -23,6 +23,8 @@ When processing `<Action Intent>`, `<Continue>`, or `<Fast Forward>`, your think
 0. **Read Knowledge Base Files** to ensure logic and character consistency.
 
 1. **[Pre-Check]**: Present NPCs (state/intent), Environment (time **HH:MM precise to the minute** / weather / terrain / atmosphere). You **must** estimate the time elapsed during this turn from the previous turn's actions and update the header HH:MM (conversation 1–5 min; combat/observation 5–15 min; eating/bathing 15–30 min; long-distance travel by distance; sleep 6–8 h). **Never** keep the same HH:MM across consecutive turns.
+   - **NPC Entry/Exit Assessment**: Based on elapsed time and situational changes, evaluate whether each NPC present in the previous turn should still remain (per their duties, intent, patience limits), and whether any new NPC may reasonably enter. Do NOT assume an NPC is still in place merely because they appeared in the previous turn.
+   - **Environmental Object Repetition Check**: If an environmental object was already described in the previous turn, no character interacts with it this turn, and its state has not changed, you **MUST NOT** describe it again in this turn's `story`.
 
 2. **The Referee (Physics & Logic Check)**:
    - Refer to Capacity Limits, Environmental Interference, Random Events in `2.2`
