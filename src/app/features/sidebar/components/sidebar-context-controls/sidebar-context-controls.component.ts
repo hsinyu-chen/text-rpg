@@ -1,4 +1,4 @@
-import { Component, inject, computed } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -13,7 +13,6 @@ import { GameStateService, GameEngineConfig } from '../../../../core/services/ga
 import { DialogService } from '../../../../core/services/dialog.service';
 import { SessionService } from '../../../../core/services/session.service';
 import { FileSystemService } from '../../../../core/services/file-system.service';
-import { GoogleDriveService } from '../../../../core/services/google-drive.service';
 import { CacheManagerService } from '../../../../core/services/cache-manager.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { SaveNameDialogComponent } from '../../../../shared/components/save-name-dialog/save-name-dialog.component';
@@ -33,17 +32,10 @@ export class SidebarContextControlsComponent {
     dialog = inject(DialogService);
     session = inject(SessionService);
     fileSystem = inject(FileSystemService);
-    driveService = inject(GoogleDriveService);
     snackBar = inject(MatSnackBar);
     configService = inject(ConfigService);
     cacheManager = inject(CacheManagerService);
     private matDialog = inject(MatDialog);
-
-    hasStorageTarget = computed(() => {
-        const localReady = this.fileSystem.hasHandle();
-        const googleReady = this.driveService.isAuthenticated() && !!this.driveService.currentSlotId();
-        return localReady || googleReady;
-    });
 
     startSession() {
         this.engine.startSession();

@@ -17,6 +17,14 @@
     --border-color: rgba(255, 255, 255, 0.1);
     --border-color-strong: rgba(255, 255, 255, 0.2);
     --text-main: #e0e0e0;
+
+    /* Theme palette tokens (pink-bluegrey prebuilt theme).
+       The Material prebuilt CSS doesn't expose --mat-sys-* / --mat-primary-rgb,
+       so we mirror them ourselves for use in component styles. */
+    --app-primary: #c2185b;
+    --app-primary-rgb: 194, 24, 91;
+    --app-accent: #607d8b;
+    --app-accent-rgb: 96, 125, 139;
 }
 
 html,

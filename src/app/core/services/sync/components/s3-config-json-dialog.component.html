@@ -1,0 +1,28 @@
+<h2 mat-dialog-title>{{ isExport ? 'Export S3 Config' : 'Import S3 Config' }}</h2>
+<mat-dialog-content>
+    <p class="hint">
+        @if (isExport) {
+            Copy this JSON to share or back up the current S3 settings. Includes secret access key.
+        } @else {
+            Paste a JSON config exported from another device. Click Save to fill the form, then Save the form to persist.
+        }
+    </p>
+    <mat-form-field appearance="outline" class="full-width">
+        <mat-label>JSON</mat-label>
+        <textarea matInput rows="10" spellcheck="false"
+            [readonly]="isExport"
+            [ngModel]="text()" (ngModelChange)="text.set($event)"
+            placeholder='{ "endpoint": "https://...", "bucket": "...", "accessKeyId": "...", "secretAccessKey": "...", "forcePathStyle": true }'></textarea>
+    </mat-form-field>
+</mat-dialog-content>
+<mat-dialog-actions align="end">
+    @if (isExport) {
+        <button mat-button (click)="cancel()">Close</button>
+        <button mat-flat-button color="primary" (click)="copy()">
+            <mat-icon>content_copy</mat-icon> Copy
+        </button>
+    } @else {
+        <button mat-button (click)="cancel()">Cancel</button>
+        <button mat-flat-button color="primary" [disabled]="!text().trim()" (click)="save()">Save</button>
+    }
+</mat-dialog-actions>

@@ -1,0 +1,63 @@
+<div class="fields">
+    <mat-form-field appearance="outline">
+        <mat-label>Endpoint</mat-label>
+        <input matInput [ngModel]="endpoint()" (ngModelChange)="endpoint.set($event)"
+            placeholder="https://s3.example.com">
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+        <mat-label>Region</mat-label>
+        <input matInput [ngModel]="region()" (ngModelChange)="region.set($event)"
+            placeholder="us-east-1">
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+        <mat-label>Bucket</mat-label>
+        <input matInput [ngModel]="bucket()" (ngModelChange)="bucket.set($event)">
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+        <mat-label>Access Key ID</mat-label>
+        <input matInput [ngModel]="accessKeyId()" (ngModelChange)="accessKeyId.set($event)"
+            autocomplete="off">
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+        <mat-label>Secret Access Key</mat-label>
+        <input matInput type="password"
+            [ngModel]="secretAccessKey()" (ngModelChange)="secretAccessKey.set($event)"
+            autocomplete="off">
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+        <mat-label>Path prefix (optional)</mat-label>
+        <input matInput [ngModel]="prefix()" (ngModelChange)="prefix.set($event)"
+            placeholder="textrpg/">
+    </mat-form-field>
+
+    <mat-slide-toggle [ngModel]="forcePathStyle()" (ngModelChange)="forcePathStyle.set($event)">
+        Force path-style URLs (required for SeaweedFS / MinIO)
+    </mat-slide-toggle>
+</div>
+
+<div class="actions">
+    <div class="action-group">
+        <button mat-stroked-button (click)="save()">
+            <mat-icon>save</mat-icon> Save
+        </button>
+        <button mat-stroked-button (click)="testConnection()" [disabled]="testing() || !isValid()">
+            <mat-icon>network_check</mat-icon> Test
+        </button>
+        @if (testing()) {
+            <mat-progress-spinner mode="indeterminate" diameter="24"></mat-progress-spinner>
+        }
+    </div>
+    <div class="action-group">
+        <button mat-stroked-button (click)="openExportDialog()" matTooltip="Show current fields as JSON for copying">
+            <mat-icon>download</mat-icon> Export
+        </button>
+        <button mat-stroked-button (click)="openImportDialog()" matTooltip="Paste a JSON config to fill the fields">
+            <mat-icon>upload</mat-icon> Import
+        </button>
+    </div>
+</div>

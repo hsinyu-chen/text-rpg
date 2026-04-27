@@ -1,0 +1,33 @@
+:host {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9em;
+
+    mat-icon {
+        font-size: 20px;
+        width: 20px;
+        height: 20px;
+    }
+
+    &.ok {
+        color: #4caf50;
+    }
+
+    &.warn {
+        color: #ff9800;
+    }
+
+    code {
+        background: rgba(255, 255, 255, 0.08);
+        padding: 0 4px;
+        border-radius: 3px;
+        font-size: 0.9em;
+    }
+}

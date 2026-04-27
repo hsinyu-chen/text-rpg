@@ -150,13 +150,22 @@
             }
         </div>
 
-        <!-- Cloud Sync -->
-        @if (driveService.isConfigured) {
+        <!-- Sync Provider -->
         <div class="advanced-section">
-            <h3>Cloud Sync</h3>
+            <h3>Sync Provider</h3>
             <p class="hint-text">
-                Sync saved settings to Google Drive App Data. Click Save first to include pending
-                edits. Download reloads the app.
+                Choose where Books, Collections, and Settings sync to. The sync provider configuration
+                itself is not synced (chicken-and-egg).
+            </p>
+            <app-sync-provider-config></app-sync-provider-config>
+        </div>
+
+        <!-- Settings Cloud Sync -->
+        <div class="advanced-section">
+            <h3>Settings Sync</h3>
+            <p class="hint-text">
+                Push or pull the app settings snapshot via the active sync provider. Click Save first
+                to include pending edits. Download reloads the app.
             </p>
             <div class="button-row">
                 <button mat-stroked-button (click)="uploadSettings()" [disabled]="loading.isLoading()">
@@ -170,7 +179,6 @@
                 }
             </div>
         </div>
-        }
 
     </div>
 </mat-dialog-content>

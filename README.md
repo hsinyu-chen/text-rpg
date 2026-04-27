@@ -44,11 +44,14 @@ TextRPG is a **Local-First**, **Bring Your Own Key (BYOK)** desktop application 
    *   **Update World**: Click the **Auto Update** button (Magic Wand icon) to apply world changes to your files.
 
 2. **Backup (Crucial)**
-   *   **Cloud Sync**: Go to **Session** (Book List) -> Click **"Sync All to Cloud"** to backup all Adventure Books to Google Drive (`books_v1`).
+   *   **Cloud Sync**: Go to **Session** (Book List) -> click **"Sync All"** to two-way sync all Books and Collections with the active sync provider. Choose the provider under **Settings → Sync Provider**:
+       *   **Google Drive** (default) — App Data folder; requires a GCP OAuth Client ID.
+       *   **S3-compatible** — paste endpoint / bucket / access key / secret key. Tested against SeaweedFS; should work with any S3-compatible service (MinIO, R2, AWS) that accepts standard SigV4 with path-style URLs.
+       *   The S3 form has Import / Export buttons that round-trip the config as JSON, so you can share the same setup across devices without re-typing each field.
    *   **Local Export**: You can also use the **Folder Icon** to export the current book to a local folder for safekeeping.
 
 3. **Next Session (Act II+)**
-   *   **Create Next Act**: When an Act concludes, clicking **"Create Next"** in the sidebar will automatically generate a new Adventure Book (e.g., "Act 2") inheriting all memory and stats.
+   *   **Create Next Act**: When an Act concludes, clicking **"Create Next"** in the sidebar will automatically generate a new Adventure Book (e.g., "Act 2") inheriting all memory and stats. The new book lands in the same Collection as the source.
    *   **Continue**: Open **Session** (Book List) -> Select the latest Book to resume play.
    *   **Loop**: Play -> `<Save>` -> **Auto Update** -> **Create Next**.
 
@@ -111,7 +114,8 @@ The system does not use proprietary database formats but directly reads and writ
 
 | Feature Module | Technical Implementation Details |
 | :--- | :--- |
-| **Adventure Book** | Supports "Adventure Books" (Campaigns), enabling players to manage multiple parallel stories with isolated context and history. |
+| **Adventure Books & Collections** | Books are grouped into **Collections** for organization. `New Game` opens a Collection named `${player} · ${scenario}`; `Create Next` and `Create Scene` inherit the source book's Collection. Books can be moved between Collections via dialog; the active book's Collection is highlighted. A reserved `root` Collection holds anything unsorted (or migrated from before the layer existed). |
+| **Sync Backends** | Pluggable provider registry — Books, Collections, and Settings all flow through a `SyncBackend` interface. Two backends ship: **Google Drive** (App Data folder) and **S3-compatible** (`@aws-sdk/client-s3`, lazy-loaded so the SDK is excluded from the initial bundle when Drive is active). Two-way sync uses last-write-wins on `lastActiveAt` / `updatedAt` plus pending-deletion tracking. |
 | **State Tracking** | Uses Gemini's JSON Mode to output structured data, automatically parsing and updating frontend state (Signals). |
 | **World Log** | New `world_log` tracking field for recording world events, faction moves, and tech/magic progression, enabling automated world-building evolution. |
 | **Currency** | Built-in real-time exchange rate conversion (TWD, USD, JPY, KRW...) with customizable display currency to precisely monitor token costs. |

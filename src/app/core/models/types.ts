@@ -89,9 +89,19 @@ export interface Scenario {
     files: Record<string, string>;
 }
 
+export interface Collection {
+    id: string; // UUID, or 'root' for the default system collection
+    name: string;
+    createdAt: number;
+    updatedAt: number;
+}
+
+export const ROOT_COLLECTION_ID = 'root';
+
 export interface Book {
     id: string; // UUID
     name: string; // User-friendly name
+    collectionId: string; // FK to Collection.id; 'root' for unsorted/legacy
     createdAt: number;
     lastActiveAt: number;
     preview: string; // Short preview text
@@ -115,8 +125,6 @@ export interface Book {
         estimatedKbTokens: number; // Added: Total KB tokens for UI display
         kbCacheHash: string | null;
         kbStorageUsageAcc: number; // Active accumulated storage usage (Token-Seconds)
-        kbSlotId?: string;
-        kbSlotName?: string;
     };
 }
 // ─── Create World: Presets & Identity options ───────────────────────────────

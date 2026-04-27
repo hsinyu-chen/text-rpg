@@ -1,0 +1,23 @@
+<mat-radio-group class="backend-radio"
+    [ngModel]="selectedId()"
+    (ngModelChange)="onBackendChange($event)">
+    @for (entry of backends(); track entry.id) {
+        <mat-radio-button [value]="entry.id" [disabled]="!isAvailable(entry)">
+            <div class="radio-label">
+                <span class="label">{{ entry.label }}</span>
+                @if (entry.description) {
+                    <span class="hint">{{ entry.description }}</span>
+                }
+                @if (!isAvailable(entry)) {
+                    <span class="hint warn">Unavailable</span>
+                }
+            </div>
+        </mat-radio-button>
+    }
+</mat-radio-group>
+
+<div class="active-config">
+    @if (activeConfigComponent(); as cmp) {
+        <ng-container *ngComponentOutlet="cmp"></ng-container>
+    }
+</div>
