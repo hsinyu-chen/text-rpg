@@ -6,8 +6,8 @@ import {
   input,
   viewChild,
   ElementRef,
-  OnInit,
   OnDestroy,
+  afterNextRender,
   effect
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -41,7 +41,7 @@ import { FileAgentService } from '../../../core/services/file-agent/file-agent.s
   styleUrl: './agent-console.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class AgentConsoleComponent implements OnInit, OnDestroy {
+export class AgentConsoleComponent implements OnDestroy {
   // Inputs
   files = input.required<Map<string, string>>();
   initialPrompt = input<string>('');
@@ -62,6 +62,7 @@ export class AgentConsoleComponent implements OnInit, OnDestroy {
   private agentScrollFrameId: number | null = null;
   private userScrolledUpAgent = false;
   private lastAgentScrollTop = 0;
+  private initialPromptTimeoutId: number | null = null;
 
   constructor() {
     // Auto-scroll: observe content growth and follow the bottom unless the user
@@ -98,17 +99,26 @@ export class AgentConsoleComponent implements OnInit, OnDestroy {
         }
       });
     });
-  }
 
-  ngOnInit(): void {
-    const prompt = this.initialPrompt();
-    if (prompt && this.agentService.agentHistory().length === 0 && !this.agentService.isAgentRunning()) {
-      this.agentPrompt.set(prompt);
-      setTimeout(() => this.runAgent(), 200);
-    }
+    afterNextRender(() => {
+      const prompt = this.initialPrompt();
+      if (prompt && this.agentService.agentHistory().length === 0 && !this.agentService.isAgentRunning()) {
+        this.agentPrompt.set(prompt);
+        // Small delay lets the input render before runAgent clears it.
+        // Tracked so a fast close doesn't fire an orphan request.
+        this.initialPromptTimeoutId = window.setTimeout(() => {
+          this.initialPromptTimeoutId = null;
+          this.runAgent();
+        }, 200);
+      }
+    });
   }
 
   ngOnDestroy(): void {
+    if (this.initialPromptTimeoutId !== null) {
+      clearTimeout(this.initialPromptTimeoutId);
+      this.initialPromptTimeoutId = null;
+    }
     this.teardownAgentConsoleScroll();
   }
 

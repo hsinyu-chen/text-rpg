@@ -59,7 +59,9 @@ export function executeFileTool(
     default: {
       // Exhaustive check
       const exhaustiveCheck: never = action;
-      return { response: { error: `Unknown function: ${(exhaustiveCheck as any).action}` } };
+      return {
+        response: { error: `Unknown function: ${(exhaustiveCheck as { action: string }).action}` },
+      };
     }
   }
 }

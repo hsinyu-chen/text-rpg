@@ -52,6 +52,7 @@ export class LLMConfigService {
 
   constructor() {
     this.ready = this.initialize();
+    // eslint-disable-next-line no-restricted-syntax -- LLMStorage exposes a callback subscribe(), not RxJS
     const unsubscribe = this.storage.subscribe(list => this._profiles.set(list));
     this.destroyRef.onDestroy(() => unsubscribe());
   }

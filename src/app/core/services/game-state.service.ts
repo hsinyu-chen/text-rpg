@@ -92,8 +92,6 @@ export class GameStateService {
     historyStorageUsageAccumulated = signal<number>(0);
     sunkUsageHistory = signal<{ prompt: number, cached: number, candidates: number }[]>([]);
 
-    constructor() { }
-
     // ==================== Dynamic Injection ====================
     enableDynamicInjection = signal<boolean>(true);
     dynamicActionInjection = signal<string>('');
