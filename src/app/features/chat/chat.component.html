@@ -13,9 +13,11 @@
             <div class="thread-area" #scrollContainer>
 
                 <div class="thread-content" #contentWrapper>
+                    @let totalMessages = state.messages().length;
                     @for (msg of state.messages(); track msg.id; let i = $index) {
-                    <!-- Add ID for scrolling -->
-                    <div [id]="'message-' + msg.id" class="message-wrapper" [class.model-message]="msg.role === 'model'">
+                    <!-- Add ID for scrolling. Skip content-visibility on the last 2 messages so scrollHeight stays accurate for auto-scroll. -->
+                    <div [id]="'message-' + msg.id" class="message-wrapper"
+                        [class.model-message]="msg.role === 'model' && i < totalMessages - 2">
                         <app-chat-message [message]="msg" [index]="i" [isBusy]="state.isBusy()"
                             [isLastUser]="isLastUserMessage(msg.id)" (resend)="onEditAndResend($event)" />
                     </div>

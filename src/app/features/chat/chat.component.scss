@@ -34,7 +34,9 @@
     overflow-y: auto;
     overflow-x: hidden;
     padding: 1rem; // Keep padding for scrollbar offset visual
-    scroll-behavior: smooth; // Native smooth scroll
+    // No scroll-behavior here. CSS smooth scroll affects ALL programmatic scrolls
+    // (including direct scrollTop assignment), which made our force-scroll animate
+    // and got mis-detected as user scroll mid-animation. Smooth is opted-in per-call now.
 
     // Scrollbar styling
     &::-webkit-scrollbar {
@@ -68,7 +70,11 @@
 
     &.model-message {
         content-visibility: auto;
-        contain-intrinsic-size: auto 400px;
+        contain-intrinsic-size: auto 1200px;
+
+        @media (max-width: 900px) {
+            contain-intrinsic-size: auto 1800px;
+        }
     }
 
     &.highlight-flash {

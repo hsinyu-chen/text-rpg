@@ -59,8 +59,25 @@ export class ChatComponent {
     private userScrolledUp = false;
     private lastScrollTop = 0;
     private scrollFrameId: number | null = null;
+    private hasInitialScrolled = false;
 
     constructor() {
+        // Initial load: force scroll to bottom the first time messages appear,
+        // bypassing the smartScroll threshold that would otherwise treat scrollTop=0 as "user scrolled up".
+        effect(() => {
+            const count = this.state.messages().length;
+            if (count > 0 && !this.hasInitialScrolled && this.scrollContainer()) {
+                this.hasInitialScrolled = true;
+                // Wait two frames so content-visibility elements have a chance to be laid out
+                // before we measure scrollHeight; scheduleScrollCorrection handles the rest.
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        this.scrollToBottom(true);
+                    });
+                });
+            }
+        });
+
         // Init/Loading Jump Effect
         effect(() => {
             const status = this.state.status();
@@ -166,19 +183,43 @@ export class ChatComponent {
         const scrollRef = this.scrollContainer();
         if (!scrollRef) return;
 
-        // This is a UI update
         const el = scrollRef.nativeElement;
         try {
-            el.scrollTo({
-                top: el.scrollHeight,
-                behavior: force ? 'auto' : 'smooth'
-            });
-
-            // Allow auto-scroll to resume if we forced it down
             if (force) {
+                // Direct assignment relies on CSS scroll-behavior NOT being smooth (we removed it),
+                // otherwise this animates and gets misdetected as user scroll mid-flight.
+                el.scrollTop = el.scrollHeight;
                 this.userScrolledUp = false;
+            } else {
+                el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
             }
+
+            // content-visibility elements get revealed during the scroll, growing scrollHeight.
+            // Keep re-pinning to the bottom until distance settles (or we hit the safety cap).
+            this.scheduleScrollCorrection(el, force);
         } catch { /* ignore */ }
+    }
+
+    private scheduleScrollCorrection(el: HTMLElement, force: boolean, attempt = 0, lastHeight = -1): void {
+        if (attempt >= 30) return;
+        requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+                if (this.userScrolledUp) return;
+                const currHeight = el.scrollHeight;
+                const dist = currHeight - el.scrollTop - el.clientHeight;
+                if (dist <= 1) return;
+
+                // Layout has stabilised but we're still short — further retries won't help.
+                if (currHeight === lastHeight) return;
+
+                if (force) {
+                    el.scrollTop = currHeight;
+                } else {
+                    el.scrollTo({ top: currHeight, behavior: 'auto' });
+                }
+                this.scheduleScrollCorrection(el, force, attempt + 1, currHeight);
+            });
+        });
     }
 
     onEditAndResend(msg: ChatMessage) {
