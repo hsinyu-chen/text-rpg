@@ -108,6 +108,16 @@ export class SyncService {
 
     private debounceTimer: ReturnType<typeof setTimeout> | null = null;
     private inFlight: { kind: 'sync' | 'forcePush' | 'forcePull'; promise: Promise<unknown> } | null = null;
+    /**
+     * Per-process cap on self-heal re-uploads. If a backend mutates the
+     * `last-active` metadata it round-trips (truncation, precision change,
+     * proxy rewrite, etc.) we'd otherwise loop forever: download → mismatch
+     * → re-upload → next sync's list() reports the mutated value again →
+     * mismatch → re-upload. Once we've self-healed an id this session, we
+     * trust it; any *real* drift that re-emerges later will flow through
+     * the regular newer-wins path on the next process restart.
+     */
+    private selfHealedIds = new Set<string>();
     private lastSyncAt = 0;
     private failureCount = 0;
     private isInitialSync = false;
@@ -578,8 +588,14 @@ export class SyncService {
             if (stored) {
                 const bodyTime = this.localTimestamp(stored, resource);
                 if (bodyTime !== expectedRemoteLastActive) {
-                    console.warn(`[Sync ${resource} ${id.slice(0, 8)}] self-heal: body=${bodyTime} ≠ expected=${expectedRemoteLastActive} (Δ=${bodyTime - expectedRemoteLastActive}ms) → re-upload`);
-                    await this.uploadEntity(backend, resource, stored, report);
+                    const healKey = `${resource}:${id}`;
+                    if (this.selfHealedIds.has(healKey)) {
+                        console.warn(`[Sync ${resource} ${id.slice(0, 8)}] self-heal already attempted this session, skipping (body=${bodyTime}, expected=${expectedRemoteLastActive}); backend may be mutating metadata`);
+                    } else {
+                        this.selfHealedIds.add(healKey);
+                        console.warn(`[Sync ${resource} ${id.slice(0, 8)}] self-heal: body=${bodyTime} ≠ expected=${expectedRemoteLastActive} (Δ=${bodyTime - expectedRemoteLastActive}ms) → re-upload`);
+                        await this.uploadEntity(backend, resource, stored, report);
+                    }
                 }
             }
         } catch (e) {
