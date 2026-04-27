@@ -118,10 +118,23 @@ export class SyncService {
      */
     trackDeletion(resource: SyncResource, id: string): void {
         const key = PENDING_DELETIONS_KEY[resource];
-        const list: string[] = JSON.parse(localStorage.getItem(key) || '[]');
+        const list = this.readPendingList(key);
         if (!list.includes(id)) {
             list.push(id);
             localStorage.setItem(key, JSON.stringify(list));
+        }
+    }
+
+    private readPendingList(key: string): string[] {
+        const raw = localStorage.getItem(key);
+        if (!raw) return [];
+        try {
+            const parsed = JSON.parse(raw);
+            return Array.isArray(parsed) ? parsed.filter(x => typeof x === 'string') : [];
+        } catch {
+            console.warn(`[SyncService] Corrupted pending list at ${key}, resetting.`);
+            localStorage.removeItem(key);
+            return [];
         }
     }
 
@@ -134,9 +147,10 @@ export class SyncService {
         await backend.authenticate();
 
         const totals: SyncReport = { uploaded: 0, downloaded: 0, deleted: 0 };
+        const downloadedBookIds = new Set<string>();
 
         for (const resource of ['collection', 'book'] as const) {
-            const r = await this.syncResource(backend, resource);
+            const r = await this.syncResource(backend, resource, downloadedBookIds);
             totals.uploaded += r.uploaded;
             totals.downloaded += r.downloaded;
             totals.deleted += r.deleted;
@@ -145,9 +159,9 @@ export class SyncService {
         // Refresh in-memory caches
         await this.collections.load();
 
-        // Reload active session if anything moved
+        // Reload active session only if the active book itself was pulled from remote.
         const currentId = this.session.currentBookId();
-        if (currentId && (totals.uploaded + totals.downloaded > 0)) {
+        if (currentId && downloadedBookIds.has(currentId)) {
             console.log(`[SyncService] Post-sync: reloading active book ${currentId}`);
             await this.session.loadBook(currentId, false);
         }
@@ -155,7 +169,11 @@ export class SyncService {
         return totals;
     }
 
-    private async syncResource(backend: SyncBackend, resource: SyncResource): Promise<SyncReport> {
+    private async syncResource(
+        backend: SyncBackend,
+        resource: SyncResource,
+        downloadedBookIds: Set<string>
+    ): Promise<SyncReport> {
         const report: SyncReport = { uploaded: 0, downloaded: 0, deleted: 0 };
 
         const localList: (Book | Collection)[] = resource === 'book'
@@ -165,46 +183,53 @@ export class SyncService {
         const remoteById = new Map(remoteList.map(r => [r.id, r]));
         const localById = new Map(localList.map(l => [l.id, l]));
 
-        // Pending deletions: remove on remote, drop from local tracking
+        // Pending deletions: only drop from tracking when remote is confirmed gone.
+        // A failed remove() stays in the list so the next sync retries.
         const deletionKey = PENDING_DELETIONS_KEY[resource];
-        const pending: string[] = JSON.parse(localStorage.getItem(deletionKey) || '[]');
-        const remaining: string[] = [...pending];
+        const pending = this.readPendingList(deletionKey);
+        const remaining: string[] = [];
         for (const id of pending) {
-            if (remoteById.has(id)) {
-                try {
-                    await backend.remove(resource, id);
-                    remoteById.delete(id);
-                    report.deleted++;
-                } catch (e) {
-                    console.warn(`[SyncService] Failed to delete remote ${resource} ${id}`, e);
-                }
+            if (!remoteById.has(id)) {
+                // Already absent on remote — nothing to do, drop from tracking.
+                continue;
             }
-            const idx = remaining.indexOf(id);
-            if (idx > -1) remaining.splice(idx, 1);
+            try {
+                await backend.remove(resource, id);
+                remoteById.delete(id);
+                report.deleted++;
+            } catch (e) {
+                console.warn(`[SyncService] Failed to delete remote ${resource} ${id}, will retry`, e);
+                remaining.push(id);
+            }
         }
         localStorage.setItem(deletionKey, JSON.stringify(remaining));
 
-        // Upload local → remote
+        // Upload local → remote (per-item try/catch so one bad write doesn't kill the batch).
         for (const local of localList) {
             const remote = remoteById.get(local.id);
             const localTime = this.localTimestamp(local, resource);
-            if (!remote) {
+            const needsUpload = !remote || localTime > remote.modifiedAt + 5000;
+            if (!needsUpload) continue;
+            try {
                 await backend.write(resource, local.id, JSON.stringify(local));
                 report.uploaded++;
-            } else if (localTime > remote.modifiedAt + 5000) {
-                await backend.write(resource, local.id, JSON.stringify(local));
-                report.uploaded++;
+            } catch (e) {
+                console.warn(`[SyncService] Failed to upload ${resource} ${local.id}`, e);
             }
         }
 
-        // Download remote → local
+        // Download remote → local (per-item try/catch).
         for (const remote of remoteList) {
             const local = localById.get(remote.id);
             const localTime = local ? this.localTimestamp(local, resource) : 0;
-            if (!local || remote.modifiedAt > localTime + 5000) {
+            if (local && remote.modifiedAt <= localTime + 5000) continue;
+            try {
                 const json = await backend.read(resource, remote.id);
                 await this.applyRemote(resource, json);
                 report.downloaded++;
+                if (resource === 'book') downloadedBookIds.add(remote.id);
+            } catch (e) {
+                console.warn(`[SyncService] Failed to download ${resource} ${remote.id}`, e);
             }
         }
 
