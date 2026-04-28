@@ -1206,13 +1206,17 @@ export class SyncService {
 
     private loadBackendId(): SyncBackendId {
         const v = localStorage.getItem(LS_BACKEND);
-        return v === 's3' ? 's3' : 'gdrive';
+        if (v === 's3') return 's3';
+        if (v === 'file') return 'file';
+        return 'gdrive';
     }
 
     private loadAutoFlags(): Record<SyncBackendId, boolean> {
         return {
             gdrive: localStorage.getItem(LS_AUTO_PREFIX + 'gdrive') === '1',
-            s3: localStorage.getItem(LS_AUTO_PREFIX + 's3') === '1'
+            s3: localStorage.getItem(LS_AUTO_PREFIX + 's3') === '1',
+            // file backend deliberately does not support auto-sync — see plan/file-sync-backend.md §四
+            file: false
         };
     }
 
