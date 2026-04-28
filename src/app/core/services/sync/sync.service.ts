@@ -442,7 +442,7 @@ export class SyncService {
             : await this.storage.getCollections();
         const remoteList = await backend.list(resource);
         const remoteById = new Map(remoteList.map(r => [r.id, r]));
-        let localById = new Map(localList.map(l => [l.id, l]));
+        const localById = new Map(localList.map(l => [l.id, l]));
 
         // Pending deletions: write a tombstone (or update the existing one)
         // so other devices see the deletion, then drop the live object. Only

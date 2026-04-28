@@ -52,7 +52,9 @@
                     <cdk-virtual-scroll-viewport itemSize="32" class="vscroll"
                         (scrolledIndexChange)="onScrolledIndexChange($event)">
                         <div *cdkVirtualFor="let e of currentEntries(); trackBy: trackById"
-                            class="row" [class.selected]="selectedId() === e.id" (click)="loadDetail(e)">
+                            class="row" [class.selected]="selectedId() === e.id"
+                            role="button" tabindex="0"
+                            (click)="loadDetail(e)" (keydown.enter)="loadDetail(e)" (keydown.space)="loadDetail(e); $event.preventDefault()">
                             <span class="col-name">{{ e.name ?? '—' }}</span>
                             <span class="col-id" [title]="e.id">{{ shortId(e.id) }}</span>
                             <span class="col-mod">{{ formatDate(e.modifiedAt) }}</span>

@@ -362,7 +362,8 @@ export class GDriveSyncBackend implements SyncBackend {
         await this.parallelPool(folders, async (folder, i) => {
             try {
                 const manifest = await this.readSnapshotManifestFromFolder(folder.id, folder.name);
-                const { entries: _entries, ...meta } = manifest;
+                // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                const { entries, ...meta } = manifest;
                 metas[i] = meta;
             } catch (e) {
                 console.warn(`[GDrive] Failed to read snapshot manifest for ${folder.name}; skipping.`, e);

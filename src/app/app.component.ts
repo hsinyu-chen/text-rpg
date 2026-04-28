@@ -12,7 +12,7 @@ import { ChatComponent } from './features/chat/chat.component';
 import { GameEngineService } from './core/services/game-engine.service';
 import { GameStateService } from './core/services/game-state.service';
 import { SettingsDialogComponent } from './features/settings/settings-dialog.component';
-import { map } from 'rxjs';
+import { firstValueFrom, map } from 'rxjs';
 import { LoadingService } from './core/services/loading.service';
 import { LLMProviderInitService } from './core/services/llm-provider-init.service';
 import { SyncProviderInitService } from './core/services/sync/sync-provider-init.service';
@@ -125,7 +125,7 @@ export class AppComponent {
     this.remoteUpdateSnackRef?.dismiss();
     const ref = this.snackBar.open('Cloud has a newer version of this book.', 'Load', { duration: 0 });
     this.remoteUpdateSnackRef = ref;
-    ref.onAction().subscribe(async () => {
+    firstValueFrom(ref.onAction()).then(async () => {
       if (this.state.status() === 'generating') {
         this.snackBar.open('Wait for the current turn to finish, then try again.', 'OK', { duration: 3000 });
         return;
@@ -135,8 +135,8 @@ export class AppComponent {
       } finally {
         this.sync.remoteUpdateAvailable.set(null);
       }
-    });
-    ref.afterDismissed().subscribe(() => {
+    }).catch(() => { /* dismissed without action */ });
+    firstValueFrom(ref.afterDismissed()).then(() => {
       if (this.remoteUpdateSnackRef === ref) this.remoteUpdateSnackRef = null;
       this.sync.remoteUpdateAvailable.set(null);
     });
