@@ -51,6 +51,7 @@ TextRPG 是一個**本地優先 (Local-First)**、**自帶金鑰 (Bring Your Own
        *   **S3-compatible** *（強烈建議）* — 貼上 endpoint / bucket / access key / secret key 即可。已用 SeaweedFS 實測；任何相容 SigV4 + path-style URL 的 S3 服務（MinIO、R2、AWS）理論上都能用。自架的話一個 `docker-compose up` 就跑起來，日常使用速度也比 Drive 快。
        *   S3 表單提供 Import / Export 按鈕，可將設定以 JSON 來回複製，跨裝置部署不必重打欄位。
        *   **Google Drive** — App Data 資料夾；需要 GCP OAuth Client ID。*只有在你真的完全不想自架任何儲存服務時才推薦這條路* — Drive App Data API 明顯比自架 S3 慢，OAuth 設定也繁瑣。詳見下方 [GCP 配置 (OAuth)](#gcp-配置-oauth) 章節。
+       *   **Local Folder**（本地資料夾）— 透過 File System Access API 選一個本機資料夾。**僅 Chromium 系**（Chrome / Edge / WebView2；Firefox / Safari 上 radio 灰反白）。**刻意不支援 auto-sync** — 資料夾存取依賴 FSA 權限,而 Chrome 是否跨 reload 持久化權限取決於使用者有沒有勾「永久允許」這個 checkbox。把所有 sync 動作都鎖定為使用者點擊觸發,可以避免「勾了的人」跟「沒勾的人」之間出現 auto-sync 靜默失敗的不一致行為。*零基建跨裝置同步選項*:把選定的資料夾指到桌面端 cloud client（Dropbox / Google Drive 桌面版 / iCloud Drive / Syncthing）同步的位置。注意 — 這等於串了兩層 sync(本 App → 資料夾 → cloud client),擴散速度慢,且兩台裝置同時編輯時容易產生衝突檔（`Foo (1).json`、`.sync-conflict-*.json`)。`list()` 會自動過濾掉這類檔案,但底層 cloud client 若不會自動處理就得手動解決。
    *   **本地備份**: 也可以使用 **資料夾圖示** 將當前書籍匯出至本機目錄保存。
 
 4. **下一章節 (Next Session / Act II+)**
@@ -161,7 +162,7 @@ Books、Collections、Settings 都存在每台裝置的 IndexedDB 中；雲端 b
 | 特性模組 | 技術實作細節 |
 | :--- | :--- |
 | **冒險之書 & Collection** | Books 透過 **Collection** 分組管理。`New Game` 會以 `${玩家名} · ${場景名}` 規則自動建立 Collection;`Create Next` 與 `Create Scene` 繼承來源書的 Collection。Books 可透過 dialog 在 Collection 之間搬移,active book 所在的 Collection 會 highlight。保留一個 `root` Collection 收容未分類或舊版資料(在 Collection 概念引入前已存在的書會自動遷移到此)。 |
-| **同步後端 (Sync Backends)** | 可插拔 Provider 註冊機制 — Books、Collections、Settings 全部走同一個 `SyncBackend` 介面。內建兩個 Backend:**Google Drive**(App Data folder)與 **S3-compatible**(`@aws-sdk/client-s3`,lazy-loaded,使用 Drive 時 SDK 不進 initial bundle)。雙向同步以 `lastActiveAt` / `updatedAt` 做 newer-wins,搭配跨裝置 tombstones 傳遞刪除。 |
+| **同步後端 (Sync Backends)** | 可插拔 Provider 註冊機制 — Books、Collections、Settings 全部走同一個 `SyncBackend` 介面。內建三個 Backend:**Google Drive**(App Data folder)、**S3-compatible**(`@aws-sdk/client-s3`,lazy-loaded,使用 Drive 時 SDK 不進 initial bundle),以及 **Local Folder**(File System Access API,僅 Chromium 系 — `isAvailable` capability gate 在沒有 `showDirectoryPicker` 的瀏覽器上自動把 radio 灰反白)。雙向同步以 `lastActiveAt` / `updatedAt` 做 newer-wins,搭配跨裝置 tombstones 傳遞刪除。 |
 | **快照與還原 (Snapshots & Restore)** | `Force Push` / `Force Pull` / Restore 在執行前會自動建立時間點備份(push 拍雲端、pull 拍本機、preRestore 拍雲端),使用者也可手動建快照。*Advanced Sync Tools* dialog 列出所有快照並提供 restore / delete / 編輯 note 等操作;auto-trigger 的快照會自動 retention,手動快照永久保留。Restore 期間本機會 quiesce auto-sync,並提示使用者其他裝置先暫停同步。 |
 | **狀態追蹤** | 利用 Gemini 的 JSON Mode 輸出結構化資料，自動解析並更新前端狀態 (Signals)。 |
 | **World Log** | 新增 `world_log` 追蹤欄位，專門記錄世界事件、勢力動向與科技魔法發展，實現自動化的世界觀演進。 |
