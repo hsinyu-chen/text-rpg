@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
 import { ConfirmDialogComponent, ConfirmDialogData } from '../../shared/components/confirm-dialog/confirm-dialog.component';
+import { PromptDialogComponent, PromptDialogData } from '../../shared/components/prompt-dialog/prompt-dialog.component';
 
 @Injectable({
     providedIn: 'root'
@@ -30,6 +31,26 @@ export class DialogService {
         });
 
         return (await firstValueFrom(dialogRef.afterClosed())) ?? false;
+    }
+
+    /**
+     * Opens a text-input prompt dialog.
+     * @returns The trimmed input value, or null if cancelled / left empty.
+     */
+    async prompt(message: string, opts: { title?: string; defaultValue?: string; placeholder?: string; okText?: string; cancelText?: string } = {}): Promise<string | null> {
+        const dialogRef = this.dialog.open(PromptDialogComponent, {
+            data: {
+                title: opts.title,
+                message,
+                defaultValue: opts.defaultValue,
+                placeholder: opts.placeholder,
+                okText: opts.okText,
+                cancelText: opts.cancelText
+            } as PromptDialogData,
+            maxWidth: '500px'
+        });
+
+        return (await firstValueFrom(dialogRef.afterClosed())) ?? null;
     }
 
     /**

@@ -287,8 +287,8 @@ export class ChatConfigDialogComponent {
         if (newProfileId === this.activeProfileId()) return;
 
         if (this.hasAnyDirty()) {
-            const confirmMsg = this.ui().PROFILE_SWITCH_DISCARD_CONFIRM;
-            if (!this.win.confirm(confirmMsg)) return;
+            const ok = await this.dialogService.confirm(this.ui().PROFILE_SWITCH_DISCARD_CONFIRM);
+            if (!ok) return;
         }
 
         this.isSwitchingProfile.set(true);
@@ -310,14 +310,20 @@ export class ChatConfigDialogComponent {
         if (!active) return;
 
         const defaultName = `${this.getProfileLabel(active)} (copy)`;
-        const name = this.win.prompt(this.ui().PROFILE_CLONE_PROMPT, defaultName);
-        if (!name || !name.trim()) return;
+        const name = await this.dialogService.prompt(this.ui().PROFILE_CLONE_PROMPT, {
+            defaultValue: defaultName,
+            title: this.ui().PROFILE_CLONE
+        });
+        if (!name) return;
 
-        if (this.hasAnyDirty() && !this.win.confirm(this.ui().PROFILE_SWITCH_DISCARD_CONFIRM)) return;
+        if (this.hasAnyDirty()) {
+            const ok = await this.dialogService.confirm(this.ui().PROFILE_SWITCH_DISCARD_CONFIRM);
+            if (!ok) return;
+        }
 
         this.isSwitchingProfile.set(true);
         try {
-            const newId = await this.injection.cloneProfile(active.id, name.trim());
+            const newId = await this.injection.cloneProfile(active.id, name);
             await this.injection.switchProfile(newId);
             this.refreshAllEditorContent();
             this.dirtyState.set(new Map());
@@ -336,11 +342,14 @@ export class ChatConfigDialogComponent {
         if (!active || active.isBuiltIn) return;
 
         const current = active.displayName || '';
-        const name = this.win.prompt(this.ui().PROFILE_RENAME_PROMPT, current);
-        if (!name || !name.trim() || name.trim() === current) return;
+        const name = await this.dialogService.prompt(this.ui().PROFILE_RENAME_PROMPT, {
+            defaultValue: current,
+            title: this.ui().PROFILE_RENAME
+        });
+        if (!name || name === current) return;
 
         try {
-            await this.injection.renameProfile(active.id, name.trim());
+            await this.injection.renameProfile(active.id, name);
             this.snackBar.open(this.ui().PROFILE_RENAMED, this.ui().CLOSE, { duration: 2000 });
         } catch (err) {
             console.error('[ChatConfig] renameActive failed', err);
@@ -357,7 +366,8 @@ export class ChatConfigDialogComponent {
         if (!active || active.isBuiltIn) return;
 
         const confirmMsg = this.ui().PROFILE_DELETE_CONFIRM.replace('{name}', this.getProfileLabel(active));
-        if (!this.win.confirm(confirmMsg)) return;
+        const ok = await this.dialogService.confirm(confirmMsg, this.ui().PROFILE_DELETE);
+        if (!ok) return;
 
         this.isSwitchingProfile.set(true);
         try {
@@ -482,13 +492,14 @@ export class ChatConfigDialogComponent {
         this.isSidebarCollapsed.update(v => !v);
     }
 
-    close(): void {
+    async close(): Promise<void> {
         const dirtyTypes = Array.from(this.dirtyState().entries())
             .filter((entry) => entry[1])
             .map((entry) => entry[0]);
 
         if (dirtyTypes.length > 0) {
-            if (!this.win.confirm(this.ui().UNSAVED_CHANGES_CONFIRM)) return;
+            const ok = await this.dialogService.confirm(this.ui().UNSAVED_CHANGES_CONFIRM);
+            if (!ok) return;
         }
 
         const editor = this.editorRef();
@@ -497,7 +508,8 @@ export class ChatConfigDialogComponent {
 
         if (!validation.valid) {
             const confirmMsg = this.ui().POST_PROCESS_INVALID_CONFIRM.replace('{error}', validation.error ?? '');
-            if (!this.win.confirm(confirmMsg)) {
+            const ok = await this.dialogService.confirm(confirmMsg);
+            if (!ok) {
                 if (this.activeType() !== 'postprocess') this.selectType('postprocess');
                 return;
             }
