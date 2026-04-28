@@ -1,16 +1,15 @@
 import { Component, inject, signal, computed } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
+import { MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTableModule } from '@angular/material/table';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { firstValueFrom } from 'rxjs';
 
 import { SyncService, SnapshotPreOpError } from '../../../core/services/sync/sync.service';
 import { SnapshotMeta } from '../../../core/services/sync/sync.types';
@@ -18,8 +17,6 @@ import { DialogService } from '../../../core/services/dialog.service';
 import { LoadingService } from '../../../core/services/loading.service';
 import { GameStateService } from '../../../core/services/game-state.service';
 import { SaveNameDialogComponent, SaveNameDialogData } from '../save-name-dialog/save-name-dialog.component';
-import { firstValueFrom } from 'rxjs';
-import { MatDialog } from '@angular/material/dialog';
 
 @Component({
     selector: 'app-advanced-sync-tools-dialog',
@@ -34,9 +31,7 @@ import { MatDialog } from '@angular/material/dialog';
         MatIconModule,
         MatTableModule,
         MatProgressSpinnerModule,
-        MatTooltipModule,
-        MatFormFieldModule,
-        MatInputModule
+        MatTooltipModule
     ],
     template: `
     <h2 mat-dialog-title>
@@ -436,19 +431,22 @@ export class AdvancedSyncToolsDialogComponent {
         if (!confirmed) return;
 
         this.busy.set(true);
-        this.loading.show('Force pushing to cloud…');
         try {
             await this.runForcePushCore(false);
             await this.refreshSnapshots();
         } finally {
-            this.loading.hide();
             this.busy.set(false);
         }
     }
 
     private async runForcePushCore(skipSnapshot: boolean) {
+        // loading.show is scoped to the actual sync call so a
+        // SnapshotPreOpError → confirm dialog isn't blocked by a stale
+        // overlay. Re-shown on the recursive retry-without-snapshot path.
+        this.loading.show('Force pushing to cloud…');
         try {
             const report = await this.syncService.forcePushAll({ skipSnapshot });
+            this.loading.hide();
             const summary = `Uploaded: ${report.uploaded}, Removed remote: ${report.deletedRemote}.`;
             if (report.errors.length > 0) {
                 console.error('[AdvancedSyncTools] forcePush errors:', report.errors);
@@ -461,6 +459,7 @@ export class AdvancedSyncToolsDialogComponent {
                 this.snackBar.open(`Force Push done. ${summary}`, 'OK', { duration: 4000 });
             }
         } catch (e) {
+            this.loading.hide();
             if (e instanceof SnapshotPreOpError) {
                 const continueAnyway = await this.dialog.confirm(
                     `The pre-push safety snapshot failed:\n\n${e.message}\n\n` +
@@ -468,9 +467,7 @@ export class AdvancedSyncToolsDialogComponent {
                     'Snapshot failed',
                     'Continue without snapshot'
                 );
-                if (continueAnyway) {
-                    await this.runForcePushCore(true);
-                }
+                if (continueAnyway) await this.runForcePushCore(true);
                 return;
             }
             console.error('[AdvancedSyncTools] forcePush failed', e);
@@ -493,19 +490,19 @@ export class AdvancedSyncToolsDialogComponent {
         if (!confirmed) return;
 
         this.busy.set(true);
-        this.loading.show('Force pulling from cloud…');
         try {
             await this.runForcePullCore(false);
             await this.refreshSnapshots();
         } finally {
-            this.loading.hide();
             this.busy.set(false);
         }
     }
 
     private async runForcePullCore(skipSnapshot: boolean) {
+        this.loading.show('Force pulling from cloud…');
         try {
             const report = await this.syncService.forcePullAll({ skipSnapshot });
+            this.loading.hide();
             const summary = `Downloaded: ${report.downloaded}, Removed local: ${report.deletedLocal}.`;
             if (report.errors.length > 0) {
                 console.error('[AdvancedSyncTools] forcePull errors:', report.errors);
@@ -518,6 +515,7 @@ export class AdvancedSyncToolsDialogComponent {
                 this.snackBar.open(`Force Pull done. ${summary}`, 'OK', { duration: 4000 });
             }
         } catch (e) {
+            this.loading.hide();
             if (e instanceof SnapshotPreOpError) {
                 const continueAnyway = await this.dialog.confirm(
                     `The pre-pull safety snapshot failed:\n\n${e.message}\n\n` +
@@ -525,9 +523,7 @@ export class AdvancedSyncToolsDialogComponent {
                     'Snapshot failed',
                     'Continue without snapshot'
                 );
-                if (continueAnyway) {
-                    await this.runForcePullCore(true);
-                }
+                if (continueAnyway) await this.runForcePullCore(true);
                 return;
             }
             console.error('[AdvancedSyncTools] forcePull failed', e);
@@ -553,25 +549,26 @@ export class AdvancedSyncToolsDialogComponent {
         if (!confirmed) return;
 
         this.busy.set(true);
-        this.loading.show('Restoring snapshot…');
         try {
             await this.runRestoreCore(s, false);
             await this.refreshSnapshots();
         } finally {
-            this.loading.hide();
             this.busy.set(false);
         }
     }
 
     private async runRestoreCore(s: SnapshotMeta, skipPreRestoreSnapshot: boolean) {
+        this.loading.show('Restoring snapshot…');
         try {
             await this.syncService.restoreSnapshot(s.id, { skipPreRestoreSnapshot });
+            this.loading.hide();
             this.snackBar.open(
                 'Snapshot restored. Other devices: please trigger Sync All or restart the app to pick up the change.',
                 'OK',
                 { duration: 8000 }
             );
         } catch (e) {
+            this.loading.hide();
             if (e instanceof SnapshotPreOpError) {
                 const continueAnyway = await this.dialog.confirm(
                     `The pre-restore safety snapshot failed:\n\n${e.message}\n\n` +
@@ -579,9 +576,7 @@ export class AdvancedSyncToolsDialogComponent {
                     'Snapshot failed',
                     'Continue without snapshot'
                 );
-                if (continueAnyway) {
-                    await this.runRestoreCore(s, true);
-                }
+                if (continueAnyway) await this.runRestoreCore(s, true);
                 return;
             }
             console.error('[AdvancedSyncTools] restoreSnapshot failed', e);

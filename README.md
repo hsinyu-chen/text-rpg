@@ -104,18 +104,20 @@ Optimized for the long context window of Gemini 3, the engine implements multipl
 *   **Smart Context**: Dynamically assembles "Plot Outline (Markdown)" + "Full Chat History".
 *   **Context Caching Integration**: Integrates with Gemini API's Context Caching. When the token count exceeds a threshold (e.g., 32k), it automatically creates a server-side cache for repeated System Prompts and history, significantly reducing Time-to-First-Token (TTFT) and API costs.
 
-### 3. File System Access API
-The system does not use proprietary database formats but directly reads and writes to the user's local file system:
-*   **Source of Truth**: User's local Markdown files (`1.Base_Settings.md`, `3.Character_Status.md`, etc.).
-*   **Sync Mechanism**: Directly mounts local directories via the browser's File System Access API, enabling two-way synchronization with external editors (VS Code/Obsidian).
-*   **State Persistence**: Application state and chat logs are stored in IndexedDB and local JSON files.
+### 3. Local-first Storage with Cloud Sync
+Books, collections, and settings live in IndexedDB on each device; cloud backends synchronize state across devices, but the local store remains authoritative — the app stays usable offline.
+*   **Source of Truth**: IndexedDB. Reads go local; writes update local first, then propagate through the sync layer.
+*   **Sync Decision**: Newer-wins on device-clock `lastActiveAt` (books) / `updatedAt` (collections), recorded in cloud-object metadata. Cross-device deletes propagate via per-id tombstones with their own `deletedAt`, so a long-offline device still picks up the deletion when it comes back online.
+*   **Snapshots & Restore**: `Force Push` / `Force Pull` automatically take a point-in-time snapshot before overwriting (push captures the cloud side, pull captures the local side). Manual snapshots and a `preRestore` checkpoint are also available. Snapshots can be listed, restored, deleted, or annotated from the *Advanced Sync Tools* dialog; auto snapshots are retention-capped while manual ones are kept indefinitely.
+*   **File System Access**: Optional disk import/export via the browser's File System Access API — a side channel for editing or backing up content in VS Code / Obsidian, not the storage backbone.
 
 ## Feature Specifications
 
 | Feature Module | Technical Implementation Details |
 | :--- | :--- |
 | **Adventure Books & Collections** | Books are grouped into **Collections** for organization. `New Game` opens a Collection named `${player} · ${scenario}`; `Create Next` and `Create Scene` inherit the source book's Collection. Books can be moved between Collections via dialog; the active book's Collection is highlighted. A reserved `root` Collection holds anything unsorted (or migrated from before the layer existed). |
-| **Sync Backends** | Pluggable provider registry — Books, Collections, and Settings all flow through a `SyncBackend` interface. Two backends ship: **Google Drive** (App Data folder) and **S3-compatible** (`@aws-sdk/client-s3`, lazy-loaded so the SDK is excluded from the initial bundle when Drive is active). Two-way sync uses last-write-wins on `lastActiveAt` / `updatedAt` plus pending-deletion tracking. |
+| **Sync Backends** | Pluggable provider registry — Books, Collections, and Settings all flow through a `SyncBackend` interface. Two backends ship: **Google Drive** (App Data folder) and **S3-compatible** (`@aws-sdk/client-s3`, lazy-loaded so the SDK is excluded from the initial bundle when Drive is active). Two-way sync uses newer-wins on `lastActiveAt` / `updatedAt` plus cross-device tombstones. |
+| **Snapshots & Restore** | `Force Push` / `Force Pull` / restore are each preceded by an automatic point-in-time backup of the side about to be overwritten (cloud for push, local for pull, cloud for preRestore). Manual snapshots are also supported. The *Advanced Sync Tools* dialog lists all snapshots and exposes restore / delete / inline note editing; auto snapshots are retention-capped (manual ones are kept indefinitely). Restore quiesces auto-sync locally and warns the user to pause sync on other devices. |
 | **State Tracking** | Uses Gemini's JSON Mode to output structured data, automatically parsing and updating frontend state (Signals). |
 | **World Log** | New `world_log` tracking field for recording world events, faction moves, and tech/magic progression, enabling automated world-building evolution. |
 | **Currency** | Built-in real-time exchange rate conversion (TWD, USD, JPY, KRW...) with customizable display currency to precisely monitor token costs. |

@@ -1070,6 +1070,14 @@ export class SyncService {
      * Manual snapshot: captures cloud (the shared state). If local has
      * unsynced changes the caller should sync first — surfaced in the UI
      * confirm dialog, not enforced here.
+     *
+     * Deliberately does NOT run inside `runExclusive`: a queued auto-sync
+     * could otherwise wait minutes behind a slow CopyObject sweep and time
+     * out the user. The cost is that an in-flight upload can race the
+     * server-side copy, producing a snapshot whose objects are a mix of
+     * pre- and post-upload state. Acceptable here because manual is a
+     * convenience capture, not the rescue point for a destructive op
+     * (those go through createPreOpSnapshotOrThrow under the relevant lock).
      */
     async manualSnapshot(note?: string): Promise<SnapshotManifest> {
         const backend = await this.getActiveBackend();
@@ -1122,7 +1130,6 @@ export class SyncService {
 
                 const backend = await this.getActiveBackend();
                 await backend.authenticate();
-                const activeBookId = this.session.currentBookId();
 
                 await backend.restoreSnapshot(snapshotId);
 
@@ -1144,7 +1151,6 @@ export class SyncService {
                 if (report.errors.length > 0) {
                     console.warn('[SyncService] restoreSnapshot: forcePull surfaced errors', report.errors);
                 }
-                void activeBookId; // captured for future use; reload already handled
             } finally {
                 this.restoreInProgress = false;
                 this.failureCount = 0;
