@@ -24,6 +24,12 @@ interface TextRPGDB extends DBSchema {
     key: string;
     value: Collection;
   };
+  // FileSystemDirectoryHandle persists across reloads via structured clone in IDB.
+  // Permission state does NOT persist — see FileBackendPermissionService.
+  sync_handles: {
+    key: string;
+    value: FileSystemDirectoryHandle;
+  };
 }
 
 @Injectable({
@@ -33,7 +39,7 @@ export class StorageService {
   private dbPromise: Promise<IDBPDatabase<TextRPGDB>>;
 
   constructor() {
-    this.dbPromise = openDB<TextRPGDB>('TextRPG_DB', 7, {
+    this.dbPromise = openDB<TextRPGDB>('TextRPG_DB', 8, {
       upgrade(db, oldVersion) {
         if (oldVersion < 1) {
           db.createObjectStore('chat_store');
@@ -61,6 +67,11 @@ export class StorageService {
         if (oldVersion < 7) {
           if (!db.objectStoreNames.contains('collections_store')) {
             db.createObjectStore('collections_store');
+          }
+        }
+        if (oldVersion < 8) {
+          if (!db.objectStoreNames.contains('sync_handles')) {
+            db.createObjectStore('sync_handles');
           }
         }
       },
@@ -219,6 +230,20 @@ export class StorageService {
 
   async deleteCollection(id: string): Promise<void> {
     await (await this.dbPromise).delete('collections_store', id);
+  }
+
+  // ========== Sync Handles (v8+) ==========
+
+  async getDirHandle(key: string): Promise<FileSystemDirectoryHandle | undefined> {
+    return (await this.dbPromise).get('sync_handles', key);
+  }
+
+  async setDirHandle(key: string, handle: FileSystemDirectoryHandle): Promise<void> {
+    await (await this.dbPromise).put('sync_handles', handle, key);
+  }
+
+  async clearDirHandle(key: string): Promise<void> {
+    await (await this.dbPromise).delete('sync_handles', key);
   }
 
   // ========== Session Saves (REMOVED) ==========

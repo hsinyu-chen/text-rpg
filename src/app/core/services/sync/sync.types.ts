@@ -1,4 +1,4 @@
-export type SyncBackendId = 'gdrive' | 's3';
+export type SyncBackendId = 'gdrive' | 's3' | 'file';
 
 export type SyncResource = 'book' | 'collection';
 

@@ -3,11 +3,14 @@ import { SyncBackendRegistry } from './sync-backend-registry.service';
 import { GoogleDriveService } from '../google-drive.service';
 import { GDriveConfigComponent } from './components/gdrive-config.component';
 import { S3ConfigComponent } from './components/s3-config.component';
+import { FileBackendConfigComponent } from './components/file-backend-config.component';
+import { WINDOW } from '../../tokens/window.token';
 
 @Injectable({ providedIn: 'root' })
 export class SyncProviderInitService {
     private registry = inject(SyncBackendRegistry);
     private drive = inject(GoogleDriveService);
+    private win = inject(WINDOW);
 
     initialize(): void {
         this.registry.register('gdrive', {
@@ -24,6 +27,16 @@ export class SyncProviderInitService {
             label: 'S3-compatible',
             description: 'SeaweedFS / MinIO / Cloudflare R2 / AWS S3.',
             configComponent: S3ConfigComponent
+        });
+
+        this.registry.register('file', {
+            label: 'Local Folder',
+            description: 'Sync to a folder on this device. Pair with Dropbox / Syncthing for multi-device.',
+            configComponent: FileBackendConfigComponent,
+            // File System Access API is Chromium-only as of 2026. Firefox
+            // and Safari hide this radio entirely; Chromium / Edge / WebView2
+            // show it.
+            isAvailable: () => typeof this.win.showDirectoryPicker === 'function'
         });
     }
 }

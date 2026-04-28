@@ -1,0 +1,67 @@
+:host {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.9em;
+
+    mat-icon {
+        font-size: 22px;
+        width: 22px;
+        height: 22px;
+        flex-shrink: 0;
+    }
+
+    &.ok { color: #4caf50; }
+    &.warn { color: #ff9800; }
+}
+
+.folder {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+
+    .name {
+        font-weight: 500;
+        word-break: break-all;
+    }
+
+    .perm {
+        font-size: 0.78em;
+        opacity: 0.8;
+        text-transform: capitalize;
+
+        &[data-state='granted'] { color: #4caf50; }
+        &[data-state='denied']  { color: #f44336; }
+        &[data-state='prompt']  { color: #ff9800; }
+    }
+}
+
+.hint {
+    margin: 0;
+    font-size: 0.85em;
+    opacity: 0.8;
+    line-height: 1.5;
+
+    strong { font-weight: 600; }
+}
+
+.actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+
+    button {
+        mat-icon {
+            font-size: 18px;
+            width: 18px;
+            height: 18px;
+            margin-right: 4px;
+        }
+    }
+}
