@@ -2,16 +2,14 @@
 
 [繁體中文](README.zh-TW.md) | [English](README.md)
 
-**[線上 Demo](https://hsinyu-chen.github.io/text-rpg/)**
+**[直接在 GitHub Pages 上使用](https://hsinyu-chen.github.io/text-rpg/)**
 
 > [!NOTE]
-> 線上 Demo 未配置 GCP OAuth 憑證，**Google Drive 同步功能已停用**。其他功能（Gemini API、OpenAI 相容 endpoint、本地檔案系統、llama.cpp）均正常運作——請自備 API Key。
+> 此 GitHub Pages build 未配置 GCP OAuth 憑證，**Google Drive 同步功能已停用**。其他功能（Gemini API、OpenAI 相容 endpoint、本地檔案系統、llama.cpp）均正常運作——請自備 API Key。若需要 Drive 同步，請自架並填入自己的 OAuth client（見 [GCP 配置](#gcp-配置-oauth)），或改用 S3 / Local Folder 後端。
 
 一個本地優先（Local-First）的 TRPG 引擎，專注於嚴謹的狀態管理與長窗口敘事。Gemini、任何 OpenAI 相容 endpoint、llama.cpp 皆為一等公民 Provider；本地 llama.cpp 路徑為功能最完整的一條（即時 PP/TG 速度指標、持久化 slot KV cache、tool-call 探測）。
 
-> **請注意**：這是針對特定本地架構高度客製化的私人工具。僅供教學參考。不提供任何技術支援。
-
-TextRPG 是一個**本地優先 (Local-First)**、**自帶金鑰 (Bring Your Own Key)** 的桌面/WEB 應用程式，圍繞長窗口 LLM 而設計。它不同於傳統的 AI 聊天機器人，而是將 LLM 視為一個嚴謹的「地下城主 (DM)」，透過結構化思考與邏輯判定推進劇情，並把遊戲狀態（物品、任務、劇情摘要）持久化於本地 Markdown 檔案中。本專案採用 **Local-First** 架構，結合 Tauri 與 Angular，將 LLM 作為邏輯處理核心 —— 通過 JSON Schema 強制模型執行「判定優先」的流程。
+TextRPG 是一個**本地優先 (Local-First)**、**自帶金鑰 (Bring Your Own Key)** 的 Web 應用程式，圍繞長窗口 LLM 而設計（也支援打包為 Tauri 桌面版，見 [部署指南](#部署指南-deployment)）。它不同於傳統的 AI 聊天機器人，而是將 LLM 視為一個嚴謹的「地下城主 (DM)」，透過結構化思考與邏輯判定推進劇情，並把遊戲狀態（物品、任務、劇情摘要）持久化於本地 Markdown 檔案中。透過 JSON Schema 強制模型執行「判定優先」的流程。
 
 ## 功能展示 (Feature Demo)
 
@@ -58,48 +56,6 @@ TextRPG 是一個**本地優先 (Local-First)**、**自帶金鑰 (Bring Your Own
    *   **建立下一章**: 當章節結束時，點擊側邊欄的 **"Create Next"** (建立下一章) 按鈕，系統會自動繼承所有記憶與數值，建立一本新的冒險之書（例如 "Act 2"）。新書會落在與來源書相同的 Collection 內。
    *   **繼續遊玩**: 開啟 **Session** 列表 -> 選擇最新的冒險之書繼續。
    *   **循環**: 遊玩 -> `<存檔>` -> **Auto Update** -> **Create Next**。
-
----
-
-## 編輯與自動化 (Editing & Automation)
-
-引擎提供多種介入手段，讓您能完全掌控劇情走向：
-
-### 1. 修正重發 (Edit & Resend)
-如果 AI 的回應不滿意，您不需要重新輸入。只需點擊**訊息上方工具列**的 **"Edit & Resend"** (筆記圖示) 按鈕，即可修改您上一輪的指令或對話，讓 AI 重新生成。
-
-### 2. 日誌與摘要編輯 (Log & Summary Editing)
-AI 產生的 **Inventory (物品欄)**、**Quest Log (任務)**、**World (世界/技術)** 與 **Summary (摘要)** 皆可手動修改。
-*   點擊對話氣泡中的鉛筆圖示，即可增刪道具或修改任務狀態。
-*   這些修改會即時寫入記憶體，影響 AI 下一回合的判斷。
-
-### 3. 自動世界更新 (Automatic World Update)
-當您使用 `<存檔>` (Save) 指令時，AI 不僅會儲存進度，還會嘗試**更新世界設定檔**：
-*   **觸發方式**: 
-    1. 在輸入框左側的選單選擇 `<存檔>`。
-    2. 或直接點擊輸入框上方的 **Save** (磁碟片圖示) 按鈕。
-    3. 發送訊息後，若有劇情變動，點擊訊息上方工具列的 **"Auto Update"** (魔術棒圖示) 按鈕。
-*   **運作機制**: 模型會分析本章節的劇情變動，並輸出 XML 格式的差分更新 (Diff)。
-*   **審核介面**: 點擊後系統會彈出 **"Auto-Update"** 視窗，顯示 AI 建議修改的檔案（如 `2.劇情綱要.md` 或 `6.勢力與世界.md`）。您可以逐條審核並套用，確保世界觀隨著劇情自動演進。
-
-### 4. 知識庫檔案編輯 (KB File Editing)
-除了對話與日誌外，您也可以直接編輯遊戲的底層知識庫 (Markdown 檔案)：
-*   **進入方式**: 點擊側邊欄的 **"View Files"** (資料夾圖示) 按鈕。
-*   **功能**: 開啟 **File Viewer** 視窗，左側列出所有載入的 Markdown 檔案。
-*   **編輯**: 選擇檔案後，點擊右上角的 **"Edit"** 按鈕即可進入編輯模式 (Monaco Editor)。
-*   **儲存**: 修改完成後點擊 **"Save"**，系統會即時寫入檔案並更新記憶體，無需重啟遊戲。
-*   **大綱導航**: 編輯器左下角提供 Markdown 大綱 (Outline)，方便快速跳轉章節。
-
-### 5. AI Agent 編輯協作 (AI Agent Edit Helper)
-File Viewer 視窗內建一個 AI Agent，可代為讀取、搜尋並修改目前載入的 Markdown 檔案。
-*   **進入方式**: 在 File Viewer 側邊欄切換至 **AI Agent** 分頁（機器人圖示），與 Files、Search & Replace 並列。
-*   **Profile 選擇**: 從下拉選單選擇 Agent Profile，每個 Profile 帶有自己的模型、System Prompt 與工具設定。
-*   **Tool Call Mode**: 提供 **Auto**、**Native**（服務商原生 function calling）、**JSON**（以 Schema 約束文字輸出）三種模式；Auto 會依當前 Profile 自動選用合適的模式。
-*   **可用工具**: Agent 操作對象為當前載入於對話框中的檔案，採用 discovery-first 工作流程，常見工具包含目錄/檔案列出、檔案讀取、附帶 context lines 的 grep，以及用於定點編輯的 `searchReplace`。
-*   **執行紀錄**: Console 區塊會顯示使用者輸入、模型回覆（以 Markdown 渲染）、思考過程、Tool 呼叫請求以及 Tool 執行結果。每一段思考、工具呼叫、工具結果區塊皆可獨立摺疊。
-*   **Context Usage**: 即時顯示目前用量佔模型 Context Window 的比例。
-*   **操作控制**: 以 Enter 或送出按鈕送出 Prompt；運行中可按停止按鈕中斷；清空按鈕可重置對話。
-*   **變更持久化**: Agent 進行的編輯會走與手動編輯相同的寫入路徑，因此變更會反映在編輯器上並標記為未儲存，直到您按下 **Save Changes** 確認。
 
 ---
 
@@ -296,14 +252,56 @@ llama-server \
 
 ---
 
+## 編輯與自動化 (Editing & Automation)
+
+引擎提供多種介入手段，讓您能完全掌控劇情走向：
+
+### 1. 修正重發 (Edit & Resend)
+如果 AI 的回應不滿意，您不需要重新輸入。只需點擊**訊息上方工具列**的 **"Edit & Resend"** (筆記圖示) 按鈕，即可修改您上一輪的指令或對話，讓 AI 重新生成。
+
+### 2. 日誌與摘要編輯 (Log & Summary Editing)
+AI 產生的 **Inventory (物品欄)**、**Quest Log (任務)**、**World (世界/技術)** 與 **Summary (摘要)** 皆可手動修改。
+*   點擊對話氣泡中的鉛筆圖示，即可增刪道具或修改任務狀態。
+*   這些修改會即時寫入記憶體，影響 AI 下一回合的判斷。
+
+### 3. 自動世界更新 (Automatic World Update)
+當您使用 `<存檔>` (Save) 指令時，AI 不僅會儲存進度，還會嘗試**更新世界設定檔**：
+*   **觸發方式**: 
+    1. 在輸入框左側的選單選擇 `<存檔>`。
+    2. 或直接點擊輸入框上方的 **Save** (磁碟片圖示) 按鈕。
+    3. 發送訊息後，若有劇情變動，點擊訊息上方工具列的 **"Auto Update"** (魔術棒圖示) 按鈕。
+*   **運作機制**: 模型會分析本章節的劇情變動，並輸出 XML 格式的差分更新 (Diff)。
+*   **審核介面**: 點擊後系統會彈出 **"Auto-Update"** 視窗，顯示 AI 建議修改的檔案（如 `2.劇情綱要.md` 或 `6.勢力與世界.md`）。您可以逐條審核並套用，確保世界觀隨著劇情自動演進。
+
+### 4. 知識庫檔案編輯 (KB File Editing)
+除了對話與日誌外，您也可以直接編輯遊戲的底層知識庫 (Markdown 檔案)：
+*   **進入方式**: 點擊側邊欄的 **"View Files"** (資料夾圖示) 按鈕。
+*   **功能**: 開啟 **File Viewer** 視窗，左側列出所有載入的 Markdown 檔案。
+*   **編輯**: 選擇檔案後，點擊右上角的 **"Edit"** 按鈕即可進入編輯模式 (Monaco Editor)。
+*   **儲存**: 修改完成後點擊 **"Save"**，系統會即時寫入檔案並更新記憶體，無需重啟遊戲。
+*   **大綱導航**: 編輯器左下角提供 Markdown 大綱 (Outline)，方便快速跳轉章節。
+
+### 5. AI Agent 編輯協作 (AI Agent Edit Helper)
+File Viewer 視窗內建一個 AI Agent，可代為讀取、搜尋並修改目前載入的 Markdown 檔案。
+*   **進入方式**: 在 File Viewer 側邊欄切換至 **AI Agent** 分頁（機器人圖示），與 Files、Search & Replace 並列。
+*   **Profile 選擇**: 從下拉選單選擇 Agent Profile，每個 Profile 帶有自己的模型、System Prompt 與工具設定。
+*   **Tool Call Mode**: 提供 **Auto**、**Native**（服務商原生 function calling）、**JSON**（以 Schema 約束文字輸出）三種模式；Auto 會依當前 Profile 自動選用合適的模式。
+*   **可用工具**: Agent 操作對象為當前載入於對話框中的檔案，採用 discovery-first 工作流程，常見工具包含目錄/檔案列出、檔案讀取、附帶 context lines 的 grep，以及用於定點編輯的 `searchReplace`。
+*   **執行紀錄**: Console 區塊會顯示使用者輸入、模型回覆（以 Markdown 渲染）、思考過程、Tool 呼叫請求以及 Tool 執行結果。每一段思考、工具呼叫、工具結果區塊皆可獨立摺疊。
+*   **Context Usage**: 即時顯示目前用量佔模型 Context Window 的比例。
+*   **操作控制**: 以 Enter 或送出按鈕送出 Prompt；運行中可按停止按鈕中斷；清空按鈕可重置對話。
+*   **變更持久化**: Agent 進行的編輯會走與手動編輯相同的寫入路徑，因此變更會反映在編輯器上並標記為未儲存，直到您按下 **Save Changes** 確認。
+
+---
+
 ## 開發 (Development)
 
 ### 技術堆疊
 *   **Frontend**: Angular 21 (Standalone, Signals)
-*   **Backend/Shell**: Tauri 2 (Rust)
 *   **Styling**: SCSS, Angular Material 3
 *   **State**: RxJS, Angular Signals
 *   **SDK**: Google GenAI SDK (`@google/genai`)
+*   **可選桌面外殼**: Tauri 2 (Rust) — 僅在打包成桌面 native binary 時用到
 
 ### 環境建置
 
@@ -365,11 +363,11 @@ docker run -d -p 8080:80 --name text-rpg-instance text-rpg
 ```
 *   內建 Nginx 設定已優化 Angular 路由支援。
 
-### 3.本機應用程式部屬 (Tauri Desktop)
-適用於 Windows, macOS, Linux 本地執行，擁有最佳效能與檔案存取權限。
+### 3. Tauri 桌面打包（可選）
+同一份 Web app 也可以透過 Tauri 打包成 Windows / macOS / Linux 的 native binary，適合偏好獨立桌面執行檔、不想開瀏覽器分頁的使用者。
 
 ```bash
-# 建置原有安裝檔
+# 建置安裝檔
 npm run build:desktop
 ```
 *   **Windows**: `src-tauri/target/release/bundle/msi/`

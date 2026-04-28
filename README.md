@@ -2,16 +2,14 @@
 
 [繁體中文](README.zh-TW.md) | [English](README.md)
 
-**[Live Demo](https://hsinyu-chen.github.io/text-rpg/)**
+**[Use it directly on GitHub Pages](https://hsinyu-chen.github.io/text-rpg/)**
 
 > [!NOTE]
-> The live demo runs without GCP OAuth credentials, so **Google Drive sync is disabled**. All other features (Gemini API, OpenAI-compatible endpoints, local file system, llama.cpp) work normally — bring your own API key.
+> The hosted GitHub Pages build runs without GCP OAuth credentials, so **Google Drive sync is disabled** there. All other features (Gemini API, OpenAI-compatible endpoints, local file system, llama.cpp) work normally — bring your own API key. If you want Drive sync, self-host with your own OAuth client (see [GCP Configuration](#gcp-configuration-oauth)) or pick the S3 / Local Folder backends instead.
 
 A local-first TRPG engine focused on rigorous state management and long-context storytelling. Gemini, any OpenAI-compatible endpoint, and llama.cpp are all first-class providers; the local llama.cpp path is the most fully-featured (live PP/TG metrics, persistent slot KV cache, tool-call probing).
 
-> **Please note**: This is a highly customized personal tool tailored for a specific local infrastructure. It is provided AS-IS for educational purposes only. No support will be provided.
-
-TextRPG is a **Local-First**, **Bring Your Own Key (BYOK)** desktop application built around long-context LLMs. Unlike traditional AI chatbots, it treats the LLM as a rigorous "Dungeon Master (DM)", advancing the plot through structured thinking and logical adjudication, and persisting game state (inventory, quests, plot summaries) in local Markdown files.
+TextRPG is a **Local-First**, **Bring Your Own Key (BYOK)** web app built around long-context LLMs. (A Tauri desktop build is also supported — see [Deployment Guide](#deployment-guide).) Unlike traditional AI chatbots, it treats the LLM as a rigorous "Dungeon Master (DM)", advancing the plot through structured thinking and logical adjudication, and persisting game state (inventory, quests, plot summaries) in local Markdown files.
 
 ## Feature Demo
 
@@ -298,10 +296,10 @@ The File Viewer dialog includes a built-in AI agent that can read, search, and m
 
 ### Tech Stack
 *   **Frontend**: Angular 21 (Standalone, Signals)
-*   **Backend/Shell**: Tauri 2 (Rust)
 *   **Styling**: SCSS, Angular Material 3
 *   **State**: RxJS, Angular Signals
 *   **SDK**: Google GenAI SDK (`@google/genai`)
+*   **Optional desktop shell**: Tauri 2 (Rust) — only used when packaging the app as a native desktop build
 
 ### Environment Setup
 
@@ -363,8 +361,8 @@ docker run -d -p 8080:80 --name text-rpg-instance text-rpg
 ```
 *   Includes Nginx configuration optimized for Angular routing.
 
-### 3. Native Desktop Application (Tauri)
-Suitable for Windows, macOS, and Linux local execution with best performance and file access.
+### 3. Tauri Desktop Build (optional)
+The same web app can also be packaged as a native binary via Tauri if you'd rather run it as a standalone desktop application than in a browser tab.
 
 ```bash
 # Build Installer
