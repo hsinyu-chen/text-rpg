@@ -44,3 +44,6 @@ Thumbs.db
 
 # Local planning notes (not part of source)
 /plan/
+
+# Claude Code local-only settings (personal permissions, etc.)
+.claude/settings.local.json
