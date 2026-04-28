@@ -1,0 +1,42 @@
+@if (folderName(); as name) {
+    <div class="status ok">
+        <mat-icon>folder</mat-icon>
+        <div class="folder">
+            <span class="name">{{ name }}</span>
+            <span class="perm" [attr.data-state]="permissionLabel()">
+                permission: {{ permissionLabel() }}
+            </span>
+        </div>
+    </div>
+} @else {
+    <div class="status warn">
+        <mat-icon>folder_off</mat-icon>
+        <span>No folder bound. Pick a folder below to enable File sync.</span>
+    </div>
+}
+
+<p class="hint">
+    Books, Collections, and Snapshots will live in your chosen folder. Pair
+    it with a folder synced by Dropbox / Syncthing / iCloud Drive to share
+    state across devices. <strong>Auto-sync is disabled for this backend</strong>
+    — folder access has to be re-granted after each page reload, so every
+    sync is triggered from a click.
+</p>
+
+<div class="actions">
+    <button mat-stroked-button color="primary" (click)="pickFolder()">
+        <mat-icon>folder_open</mat-icon>
+        {{ folderName() ? 'Change folder' : 'Pick folder' }}
+    </button>
+
+    @if (folderName()) {
+        <button mat-stroked-button (click)="testAccess()">
+            <mat-icon>verified</mat-icon>
+            Test access
+        </button>
+        <button mat-stroked-button color="warn" (click)="unbind()">
+            <mat-icon>link_off</mat-icon>
+            Unbind
+        </button>
+    }
+</div>

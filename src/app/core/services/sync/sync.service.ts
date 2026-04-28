@@ -9,6 +9,7 @@ import { GameStateService } from '../game-state.service';
 import { Book, Collection, ROOT_COLLECTION_ID } from '../../models/types';
 import { GDriveSyncBackend } from './gdrive-sync-backend';
 import type { S3SyncBackend } from './s3-sync-backend';
+import { FileSyncBackend } from './file-sync-backend';
 import {
     SyncBackend, SyncBackendId, SyncResource, S3Config,
     SnapshotMeta, SnapshotManifest, SnapshotMetaInput, SnapshotLocalPayload,
@@ -110,6 +111,7 @@ export class SyncService {
     private session = inject(SessionService);
     private collections = inject(CollectionService);
     private gdrive = inject(GDriveSyncBackend);
+    private file = inject(FileSyncBackend);
     private state = inject(GameStateService);
     private snackBar = inject(MatSnackBar);
     private readonly doc = inject(DOCUMENT);
@@ -231,10 +233,18 @@ export class SyncService {
     }
 
     async getActiveBackend(): Promise<SyncBackend> {
-        if (this.activeBackendId() === 's3') {
-            return this.getS3Backend();
-        }
+        const id = this.activeBackendId();
+        if (id === 's3') return this.getS3Backend();
+        if (id === 'file') return this.file;
         return this.gdrive;
+    }
+
+    getFileBackend(): FileSyncBackend {
+        return this.file;
+    }
+
+    isFileBackendBound(): boolean {
+        return this.file.permission.handle() !== null;
     }
 
     getGDriveBackend(): SyncBackend {
