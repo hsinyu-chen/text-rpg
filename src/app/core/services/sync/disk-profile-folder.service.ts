@@ -9,5 +9,7 @@ import { FolderHandleBaseService } from './folder-handle-base.service';
  */
 @Injectable({ providedIn: 'root' })
 export class DiskProfileFolderService extends FolderHandleBaseService {
-    protected readonly handleKey = 'disk_profile_sync';
+    constructor() {
+        super('disk_profile_sync');
+    }
 }

@@ -54,5 +54,7 @@ export class FileBackendPermissionDeniedError extends FolderHandlePermissionDeni
  */
 @Injectable({ providedIn: 'root' })
 export class FileBackendPermissionService extends FolderHandleBaseService {
-    protected readonly handleKey = 'file_root';
+    constructor() {
+        super('file_root');
+    }
 }

@@ -20,26 +20,32 @@ export class FolderHandlePermissionDeniedError extends Error {
 
 /**
  * Base for any service that owns a single FileSystemDirectoryHandle persisted
- * in IDB under a fixed key. Subclasses set `handleKey` and may rename / wrap
- * methods. Persistence model and the user-gesture requirement are identical
- * to the original FileBackendPermissionService — see that subclass for the
- * full explanation.
+ * in IDB under a fixed key. Subclasses pass the key via `super(...)`.
+ *
+ * Persistence model and the user-gesture requirement are documented on
+ * `FileBackendPermissionService` — both subclasses inherit the same flow.
+ *
+ * Restore is eager: triggered from the constructor body so `handle()` /
+ * `permissionState()` signals reflect the persisted IDB state by the time
+ * the next microtask runs. This is what `FileBackendPermissionService` had
+ * before the base-class extraction; PR #12 review caught the regression
+ * where lazy restore left the signals null until first public-method call,
+ * so a fresh tab showed "no folder bound" even though IDB had one.
  */
 export abstract class FolderHandleBaseService {
     protected readonly storage = inject(StorageService);
     protected readonly win = inject(WINDOW);
-
-    protected abstract readonly handleKey: string;
+    protected readonly handleKey: string;
 
     readonly handle = signal<FileSystemDirectoryHandle | null>(null);
     readonly permissionState = signal<FolderHandlePermissionState>('unknown');
 
-    /** Single-flight restore — awaited by every public method. */
-    private restoredOnce: Promise<void> | null = null;
+    /** Single-flight restore promise; awaited by every public method. */
+    private readonly restoredOnce: Promise<void>;
 
-    private restorePromise(): Promise<void> {
-        if (!this.restoredOnce) this.restoredOnce = this.restore();
-        return this.restoredOnce;
+    constructor(handleKey: string) {
+        this.handleKey = handleKey;
+        this.restoredOnce = this.restore();
     }
 
     private async restore(): Promise<void> {
@@ -62,7 +68,7 @@ export abstract class FolderHandleBaseService {
 
     /** Opens the directory picker. Must be invoked from a user-gesture handler. */
     async pickFolder(): Promise<FileSystemDirectoryHandle> {
-        await this.restorePromise();
+        await this.restoredOnce;
         if (typeof this.win.showDirectoryPicker !== 'function') {
             throw new FolderHandlePermissionDeniedError(
                 'File System Access API is not available in this browser.'
@@ -77,7 +83,7 @@ export abstract class FolderHandleBaseService {
 
     /** Asserts the bound folder is reachable and writable; prompts if needed. */
     async ensurePermission(): Promise<FileSystemDirectoryHandle> {
-        await this.restorePromise();
+        await this.restoredOnce;
         const h = this.handle();
         if (!h) throw new FolderHandleNoHandleError();
 
@@ -98,7 +104,7 @@ export abstract class FolderHandleBaseService {
 
     /** Forgets the bound folder. */
     async clear(): Promise<void> {
-        await this.restorePromise();
+        await this.restoredOnce;
         await this.storage.clearDirHandle(this.handleKey);
         this.handle.set(null);
         this.permissionState.set('unknown');
