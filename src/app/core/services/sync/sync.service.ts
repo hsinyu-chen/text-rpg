@@ -1049,10 +1049,19 @@ export class SyncService {
                 continue;
             }
 
+            // Defensive defaults: a partially-malformed export (or a hand-edited
+            // payload) shouldn't be allowed to write `undefined` into IDB-required
+            // fields. The collision check below also reads displayName /
+            // baseProfileId, so we normalize before that comparison.
+            const incomingName = incoming.displayName || incoming.id;
+            const incomingBase = incoming.baseProfileId || 'cloud';
+            const incomingCreatedAt = incoming.createdAt || Date.now();
+            const incomingUpdatedAt = incoming.updatedAt || incomingCreatedAt;
+
             const existing = this.profileRegistry.get(incoming.id);
             const collidesWithBuiltIn = existing?.isBuiltIn === true;
             const collidesDifferent = existing && !existing.isBuiltIn &&
-                (existing.displayName !== incoming.displayName || existing.baseProfileId !== incoming.baseProfileId);
+                (existing.displayName !== incomingName || existing.baseProfileId !== incomingBase);
 
             const targetId = (collidesWithBuiltIn || collidesDifferent)
                 ? `${incoming.id}_imported_${importSuffix()}`
@@ -1061,24 +1070,24 @@ export class SyncService {
 
             const meta = {
                 id: targetId,
-                displayName: incoming.displayName,
-                baseProfileId: incoming.baseProfileId,
-                createdAt: incoming.createdAt,
-                updatedAt: incoming.updatedAt
+                displayName: incomingName,
+                baseProfileId: incomingBase,
+                createdAt: incomingCreatedAt,
+                updatedAt: incomingUpdatedAt
             };
             await this.storage.putProfileMeta(meta);
             const existingTarget = this.profileRegistry.get(targetId);
             if (existingTarget) {
-                this.profileRegistry.update(targetId, { displayName: incoming.displayName, baseProfileId: incoming.baseProfileId, updatedAt: incoming.updatedAt });
+                this.profileRegistry.update(targetId, { displayName: incomingName, baseProfileId: incomingBase, updatedAt: incomingUpdatedAt });
             } else {
                 this.profileRegistry.add({
                     id: targetId,
                     isBuiltIn: false,
                     subDir: null,
-                    displayName: incoming.displayName,
-                    baseProfileId: incoming.baseProfileId,
-                    createdAt: incoming.createdAt,
-                    updatedAt: incoming.updatedAt
+                    displayName: incomingName,
+                    baseProfileId: incomingBase,
+                    createdAt: incomingCreatedAt,
+                    updatedAt: incomingUpdatedAt
                 });
             }
         }
