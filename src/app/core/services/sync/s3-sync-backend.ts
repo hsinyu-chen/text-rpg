@@ -375,6 +375,11 @@ export class S3SyncBackend implements SyncBackend {
 
             for (const obj of res.Contents ?? []) {
                 if (!obj.Key) continue;
+                // Key shape: <prefix>tombstones/<resource>/<id>/<deletedAt>
+                // Assumes ids are slash-free, which holds for all current
+                // id sources (UUIDs / nanoid / Date.now-based). If a future
+                // id scheme introduces slashes, switch the separator (e.g.
+                // null byte or unicode delimiter) here AND in tombstoneKey.
                 const rel = obj.Key.slice(dirPrefix.length);
                 const slashIdx = rel.lastIndexOf('/');
                 if (slashIdx <= 0) continue; // malformed; skip

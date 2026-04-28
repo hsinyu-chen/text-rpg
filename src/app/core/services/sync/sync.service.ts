@@ -625,7 +625,14 @@ export class SyncService {
                 : await this.storage.getCollection(id);
             if (stored) {
                 const bodyTime = this.localTimestamp(stored, resource);
-                if (bodyTime !== expectedRemoteLastActive) {
+                // 1000ms slack so a backend that truncates metadata to
+                // second precision (or rounds in any sub-second way) doesn't
+                // trigger a redundant re-upload every session. Legacy uploads
+                // missing metadata fall back to either body extraction (where
+                // bodyTime matches) or modifiedAt (where the gap is typically
+                // minutes), both well outside this window.
+                const drift = Math.abs(bodyTime - expectedRemoteLastActive);
+                if (drift > 1000) {
                     const healKey = `${resource}:${id}`;
                     if (this.selfHealedIds.has(healKey)) {
                         console.warn(`[Sync ${resource} ${id.slice(0, 8)}] self-heal already attempted this session, skipping (body=${bodyTime}, expected=${expectedRemoteLastActive}); backend may be mutating metadata`);
