@@ -17,8 +17,12 @@ export function cleanBookForSync(input: unknown): Book {
         id: String(b.id ?? ''),
         name: String(b.name ?? ''),
         collectionId: String(b.collectionId ?? 'root'),
-        createdAt: Number(b.createdAt) || Date.now(),
-        lastActiveAt: Number(b.lastActiveAt) || Date.now(),
+        // 0 fallback (not Date.now()) — legacy rows lacking the field
+        // shouldn't masquerade as "freshly edited now" and clobber a
+        // newer cloud copy under newer-wins. Code paths that genuinely
+        // create new entities stamp the real timestamp themselves.
+        createdAt: Number(b.createdAt) || 0,
+        lastActiveAt: Number(b.lastActiveAt) || 0,
         preview: String(b.preview ?? ''),
         messages: Array.isArray(b.messages) ? b.messages : [],
         files: Array.isArray(b.files) ? b.files : [],
@@ -42,7 +46,8 @@ export function cleanCollectionForSync(input: unknown): Collection {
     return {
         id: String(c.id ?? ''),
         name: String(c.name ?? ''),
-        createdAt: Number(c.createdAt) || Date.now(),
-        updatedAt: Number(c.updatedAt) || Date.now()
+        // 0 fallback for the same reason as cleanBookForSync — see comment there.
+        createdAt: Number(c.createdAt) || 0,
+        updatedAt: Number(c.updatedAt) || 0
     };
 }

@@ -605,9 +605,14 @@ export class SyncService {
     }
 
     private localTimestamp(item: Book | Collection, resource: SyncResource): number {
-        return resource === 'book'
+        // Fallback to 0 for legacy IDB rows missing the timestamp field —
+        // `undefined > N` returns false in both directions, so without this
+        // a legacy entry would stall forever (never recognized as older or
+        // newer than its remote counterpart).
+        const ts = resource === 'book'
             ? (item as Book).lastActiveAt
             : (item as Collection).updatedAt;
+        return ts || 0;
     }
 
     private async applyRemote(resource: SyncResource, json: string): Promise<void> {
