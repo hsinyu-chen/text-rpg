@@ -39,7 +39,7 @@
     <!-- Content Tabs -->
     <mat-tab-group class="sidebar-tabs" growVertical="true" [(selectedIndex)]="selectedTabIndex">
         <!-- Files Tab -->
-        <mat-tab [disabled]="!hasFiles()">
+        <mat-tab>
             <ng-template mat-tab-label>
                 <mat-icon>folder_open</mat-icon>
                 <span class="tab-label">Files</span>
@@ -80,17 +80,12 @@
                     </div>
                     }
                 </mat-list>
-            </div>
-        </mat-tab>
 
-        <!-- Storage Tab -->
-        <mat-tab>
-            <ng-template mat-tab-label>
-                <mat-icon aria-hidden="false" aria-label="Storage status">cloud_sync</mat-icon>
-                <span class="tab-label">Storage</span>
-            </ng-template>
-            <div class="tab-content padded">
-                <app-sidebar-file-sync></app-sidebar-file-sync>
+                <mat-divider></mat-divider>
+
+                <div class="file-sync-section">
+                    <app-sidebar-file-sync></app-sidebar-file-sync>
+                </div>
             </div>
         </mat-tab>
 

@@ -1,4 +1,4 @@
-import { Component, inject, computed, signal, linkedSignal, output } from '@angular/core';
+import { Component, inject, computed, signal, output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatListModule } from '@angular/material/list';
@@ -43,15 +43,7 @@ export class SidebarComponent {
   state = inject(GameStateService);
   matDialog = inject(MatDialog);
 
-  hasFiles = computed(() => this.state.loadedFiles().size > 0);
-
-  selectedTabIndex = linkedSignal({
-    source: this.hasFiles,
-    computation: (hasFiles, previous) => {
-      if (!hasFiles) return 2; // Session tab
-      return previous?.value ?? 2;
-    }
-  });
+  selectedTabIndex = signal(0);
 
   displayMode = signal<'tokens' | 'chars'>('tokens');
 
