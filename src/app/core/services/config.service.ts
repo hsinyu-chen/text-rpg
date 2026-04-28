@@ -6,6 +6,7 @@ import { SessionService } from './session.service';
 import { CacheManagerService } from './cache-manager.service';
 import { InjectionService } from './injection.service';
 import { PromptProfileRegistryService } from './prompt-profile-registry.service';
+import { DEFAULT_PROFILE_ID } from '../constants/prompt-profiles';
 import { CostService } from './cost.service';
 import { LLMProviderRegistryService } from './llm-provider-registry.service';
 import { LLMConfigService } from './llm-config.service';
@@ -73,6 +74,16 @@ export class ConfigService {
         // Profile registry must finish before injection load: user profiles
         // come out of IDB and the active id may resolve to one of them.
         await this.profileRegistry.init();
+
+        // Rescue an orphan active profile id (e.g. another tab deleted it).
+        // We can't fall back to the (possibly missing) baseProfileId because
+        // we don't have its meta any more — go straight to the default.
+        const activeId = this.state.activePromptProfile();
+        if (!this.profileRegistry.get(activeId)) {
+            console.warn(`[ConfigService] Active prompt profile '${activeId}' no longer exists — falling back to default.`);
+            this.state.activePromptProfile.set(DEFAULT_PROFILE_ID);
+            localStorage.setItem('app_active_prompt_profile', DEFAULT_PROFILE_ID);
+        }
 
         // Initialize Injection Settings (History is loaded by session.init() → loadBook())
         await this.injection.loadDynamicInjectionSettings();
