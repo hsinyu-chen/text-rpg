@@ -1,5 +1,5 @@
-/* eslint-disable no-restricted-globals -- TODO(dom-cleanup): migrate navigator.clipboard to CDK Clipboard */
 import { ChangeDetectionStrategy, Component, afterNextRender, computed, inject, signal } from '@angular/core';
+import { Clipboard } from '@angular/cdk/clipboard';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -43,6 +43,7 @@ interface DisplayEntry extends RemoteEntry {
 export class S3FileViewerDialogComponent {
     private sync = inject(SyncService);
     private snackBar = inject(MatSnackBar);
+    private clipboard = inject(Clipboard);
     dialogRef = inject(MatDialogRef<S3FileViewerDialogComponent>);
 
     constructor() {
@@ -271,9 +272,11 @@ export class S3FileViewerDialogComponent {
     copyDetail(): void {
         const text = this.isSingleFileTab() ? (this.singleFileContent() ?? '') : (this.detailPretty() ?? '');
         if (!text) return;
-        navigator.clipboard?.writeText(text)
-            .then(() => this.snackBar.open('Copied.', 'OK', { duration: 1500 }))
-            .catch(() => this.snackBar.open('Copy failed.', 'Close', { duration: 3000 }));
+        if (this.clipboard.copy(text)) {
+            this.snackBar.open('Copied.', 'OK', { duration: 1500 });
+        } else {
+            this.snackBar.open('Copy failed.', 'Close', { duration: 3000 });
+        }
     }
 
     formatBytes(n: number | undefined): string {

@@ -1,5 +1,6 @@
-/* eslint-disable no-restricted-globals -- TODO(dom-cleanup): replace querySelector with viewChild and clipboard with CDK */
+/* eslint-disable no-restricted-globals -- TODO(dom-cleanup): replace document.querySelector with viewChild */
 import { Injectable, inject, signal, linkedSignal, computed } from '@angular/core';
+import { Clipboard } from '@angular/cdk/clipboard';
 import { firstValueFrom } from 'rxjs';
 import { GameEngineService } from '../../../../core/services/game-engine.service';
 import { GameStateService } from '../../../../core/services/game-state.service';
@@ -20,6 +21,7 @@ export class MessageStateService {
     private matDialog = inject(MatDialog);
     private snackBar = inject(MatSnackBar);
     private updateService = inject(FileUpdateService);
+    private clipboard = inject(Clipboard);
 
     // Reactive sources initialized by the component
     message = signal<ChatMessage>(null!);
@@ -165,7 +167,7 @@ export class MessageStateService {
             }
         };
 
-        navigator.clipboard.writeText(JSON.stringify(pair, null, 2));
+        this.clipboard.copy(JSON.stringify(pair, null, 2));
         this.snackBar.open('Pair JSON copied to clipboard', 'OK', { duration: 2000 });
     }
 

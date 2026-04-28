@@ -1,4 +1,4 @@
-/* eslint-disable no-restricted-globals, no-restricted-syntax -- TODO(dom-cleanup): migrate clipboard + window.setTimeout + textarea fallback */
+/* eslint-disable no-restricted-syntax -- TODO(dom-cleanup): migrate window.setTimeout to inject(WINDOW) or bare global */
 import {
   Component,
   ChangeDetectionStrategy,
@@ -12,6 +12,7 @@ import {
   effect
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Clipboard } from '@angular/cdk/clipboard';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -49,6 +50,7 @@ export class AgentConsoleComponent implements OnDestroy {
 
   // Injected services
   agentService = inject(FileAgentService);
+  private clipboard = inject(Clipboard);
 
   // Internal state
   agentPrompt = signal('');
@@ -146,15 +148,7 @@ export class AgentConsoleComponent implements OnDestroy {
       lines.push(content, '');
     });
 
-    navigator.clipboard.writeText(lines.join('\n')).catch(() => {
-      // fallback: create a temporary textarea
-      const ta = document.createElement('textarea');
-      ta.value = lines.join('\n');
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-    });
+    this.clipboard.copy(lines.join('\n'));
   }
 
   async runAgent(): Promise<void> {
