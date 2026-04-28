@@ -1,5 +1,5 @@
-/* eslint-disable no-restricted-syntax -- TODO(dom-cleanup): migrate window.innerWidth to inject(WINDOW) */
 import { Component, inject, signal, computed, viewChild, effect, resource, OnDestroy } from '@angular/core';
+import { WINDOW } from '../../core/tokens/window.token';
 import { CommonModule } from '@angular/common';
 import { firstValueFrom } from 'rxjs';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -88,6 +88,7 @@ export class FileViewerDialogComponent implements OnDestroy {
   private matDialog = inject(MatDialog);
   private cacheManager = inject(CacheManagerService);
   private fileAgentService = inject(FileAgentService);
+  private readonly win = inject(WINDOW);
 
   isStartingGame = signal(false);
 
@@ -687,7 +688,7 @@ export class FileViewerDialogComponent implements OnDestroy {
     }
 
     // Collapse sidebar on mobile after selection
-    if (window.innerWidth < 768) {
+    if (this.win.innerWidth < 768) {
       this.isSidebarCollapsed.set(true);
     }
   }

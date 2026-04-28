@@ -1,8 +1,8 @@
-/* eslint-disable no-restricted-syntax -- TODO(dom-cleanup): migrate window.innerWidth/innerHeight + resize listener to inject(WINDOW) */
 import { Component, ElementRef, inject, afterNextRender, DestroyRef, viewChild } from '@angular/core';
 import Phaser from 'phaser';
 import { InvadersScene } from './invaders-scene';
 import { IdleService } from '../../core/services/idle.service';
+import { WINDOW } from '../../core/tokens/window.token';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 
@@ -63,6 +63,7 @@ export class SpaceInvadersComponent {
     private game!: Phaser.Game;
     private idleService = inject(IdleService);
     private destroyRef = inject(DestroyRef);
+    private readonly win = inject(WINDOW);
 
     constructor() {
         afterNextRender(() => {
@@ -70,7 +71,7 @@ export class SpaceInvadersComponent {
         });
 
         this.destroyRef.onDestroy(() => {
-            window.removeEventListener('resize', this.onResize);
+            this.win.removeEventListener('resize', this.onResize);
             if (this.game) {
                 this.game.destroy(true);
             }
@@ -81,8 +82,8 @@ export class SpaceInvadersComponent {
         const config: Phaser.Types.Core.GameConfig = {
             type: Phaser.AUTO,
             parent: this.gameContainer().nativeElement,
-            width: window.innerWidth,
-            height: window.innerHeight,
+            width: this.win.innerWidth,
+            height: this.win.innerHeight,
             physics: {
                 default: 'arcade',
                 arcade: {
@@ -102,12 +103,12 @@ export class SpaceInvadersComponent {
         this.game = new Phaser.Game(config);
 
         // Handle resize
-        window.addEventListener('resize', this.onResize);
+        this.win.addEventListener('resize', this.onResize);
     }
 
     private onResize = () => {
         if (this.game) {
-            this.game.scale.resize(window.innerWidth, window.innerHeight);
+            this.game.scale.resize(this.win.innerWidth, this.win.innerHeight);
         }
     };
 

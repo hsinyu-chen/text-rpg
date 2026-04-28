@@ -1,7 +1,7 @@
-/* eslint-disable no-restricted-syntax -- TODO(dom-cleanup): migrate pagehide listener to inject(WINDOW) */
 import { Injectable, inject, signal, computed, effect } from '@angular/core';
 import { DOCUMENT } from '@angular/common';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { WINDOW } from '../../tokens/window.token';
 import { StorageService } from '../storage.service';
 import { SessionService } from '../session.service';
 import { CollectionService } from '../collection.service';
@@ -113,6 +113,7 @@ export class SyncService {
     private state = inject(GameStateService);
     private snackBar = inject(MatSnackBar);
     private readonly doc = inject(DOCUMENT);
+    private readonly win = inject(WINDOW);
 
     activeBackendId = signal<SyncBackendId>(this.loadBackendId());
     s3Config = signal<S3Config | null>(this.loadS3Config());
@@ -178,13 +179,11 @@ export class SyncService {
                 }
             }
         });
-        if (typeof window !== 'undefined') {
-            window.addEventListener('pagehide', () => {
-                if (this.debounceTimer) {
-                    localStorage.setItem(LS_DIRTY, '1');
-                }
-            });
-        }
+        this.win.addEventListener('pagehide', () => {
+            if (this.debounceTimer) {
+                localStorage.setItem(LS_DIRTY, '1');
+            }
+        });
     }
 
     setActiveBackend(id: SyncBackendId): void {
@@ -240,7 +239,7 @@ export class SyncService {
         const fp = JSON.stringify(cfg);
         if (!this.s3Instance || this.s3InstanceFingerprint !== fp) {
             const { S3SyncBackend } = await loadS3Module();
-            this.s3Instance = new S3SyncBackend(cfg);
+            this.s3Instance = new S3SyncBackend(cfg, this.win.location.origin);
             this.s3InstanceFingerprint = fp;
         }
         return this.s3Instance;
@@ -248,7 +247,7 @@ export class SyncService {
 
     async testS3Connection(config: S3Config): Promise<void> {
         const { S3SyncBackend } = await loadS3Module();
-        const backend = new S3SyncBackend(config);
+        const backend = new S3SyncBackend(config, this.win.location.origin);
         await backend.testConnection();
     }
 

@@ -1,4 +1,3 @@
-/* eslint-disable no-restricted-syntax -- TODO(dom-cleanup): migrate window.setTimeout to inject(WINDOW) or bare global */
 import {
   Component,
   ChangeDetectionStrategy,
@@ -109,7 +108,7 @@ export class AgentConsoleComponent implements OnDestroy {
         this.agentPrompt.set(prompt);
         // Small delay lets the input render before runAgent clears it.
         // Tracked so a fast close doesn't fire an orphan request.
-        this.initialPromptTimeoutId = window.setTimeout(() => {
+        this.initialPromptTimeoutId = setTimeout(() => {
           this.initialPromptTimeoutId = null;
           this.runAgent();
         }, 200);

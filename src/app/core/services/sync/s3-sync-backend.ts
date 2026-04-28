@@ -1,4 +1,3 @@
-/* eslint-disable no-restricted-syntax -- TODO(dom-cleanup): migrate window.location.origin to inject(WINDOW) */
 import {
     S3Client,
     ListObjectsV2Command,
@@ -48,8 +47,10 @@ export class S3SyncBackend implements SyncBackend {
     private prefix: string;
     private corsAttempted = false;
     private corsOk = false;
+    private readonly origin: string;
 
-    constructor(config: S3Config) {
+    constructor(config: S3Config, origin = '*') {
+        this.origin = origin;
         this.bucket = config.bucket;
         this.prefix = config.prefix ? config.prefix.replace(/^\/+|\/+$/g, '') + '/' : '';
         this.client = new S3Client({
@@ -114,9 +115,7 @@ export class S3SyncBackend implements SyncBackend {
      * fallback in `list()` keeps sync correct, just slower.
      */
     private browserOrigin(): string {
-        return typeof window !== 'undefined' && window.location?.origin
-            ? window.location.origin
-            : '*';
+        return this.origin;
     }
 
     private async ensureCorsApplied(): Promise<boolean> {

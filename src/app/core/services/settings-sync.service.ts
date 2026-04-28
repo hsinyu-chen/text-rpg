@@ -1,8 +1,8 @@
-/* eslint-disable no-restricted-syntax -- TODO(dom-cleanup): migrate window.location.reload to inject(WINDOW) */
 import { Injectable, inject } from '@angular/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { LoadingService } from './loading.service';
 import { SyncService } from './sync/sync.service';
+import { WINDOW } from '../tokens/window.token';
 
 const SNAPSHOT_VERSION = 1;
 
@@ -32,6 +32,7 @@ export class SettingsSyncService {
     private sync = inject(SyncService);
     private loading = inject(LoadingService);
     private snackBar = inject(MatSnackBar);
+    private readonly win = inject(WINDOW);
 
     buildSnapshot(): SettingsSnapshot {
         const entries: Record<string, string> = {};
@@ -103,7 +104,7 @@ export class SettingsSyncService {
             const applied = this.applySnapshot(snapshot);
 
             this.snackBar.open(`Imported ${applied} settings. Reloading...`, 'OK', { duration: 2500 });
-            setTimeout(() => window.location.reload(), 800);
+            setTimeout(() => this.win.location.reload(), 800);
             return true;
         } catch (error) {
             console.error('[SettingsSync] Download failed', error);
