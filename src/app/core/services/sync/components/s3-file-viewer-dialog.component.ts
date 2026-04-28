@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, afterNextRender, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -45,7 +45,7 @@ export class S3FileViewerDialogComponent {
     dialogRef = inject(MatDialogRef<S3FileViewerDialogComponent>);
 
     constructor() {
-        void this.loadList('book');
+        afterNextRender(() => { void this.loadList('book'); });
     }
 
     activeTab = signal<ViewerTab>('book');
