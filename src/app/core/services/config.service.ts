@@ -187,9 +187,11 @@ export class ConfigService {
         // Persist to IndexedDB for other services (e.g. Google Drive) to access
         this.storage.set('settings', fullConfig);
 
-        // If language changed, we need to re-process system files for the UI
+        // If language changed, we need to re-process system files for the UI.
+        // Pass bumpTimestamp=false: language is a UI concern, not a KB content
+        // change, so sync should not treat it as a reason to re-upload the book.
         if (genConfig.outputLanguage) {
-            this.session.loadFiles(false);
+            this.session.loadFiles(false, false);
             this.injection.loadDynamicInjectionSettings();
         }
     }

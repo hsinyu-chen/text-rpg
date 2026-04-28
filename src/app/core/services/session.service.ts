@@ -878,7 +878,7 @@ export class SessionService {
     /**
      * Loads files from a directory and initializes the Knowledge Base.
      */
-    async loadFiles(pickFolder = true) {
+    async loadFiles(pickFolder = true, bumpTimestamp = true) {
         try {
             if (pickFolder) {
                 await this.fileSystem.selectDirectory();
@@ -952,8 +952,10 @@ export class SessionService {
 
             // Persist into the active Book so cloud sync sees the load.
             // Guarded for the startNewGame path where currentBookId may not be set yet.
+            // Callers that re-read files without a real content change (e.g. language
+            // toggle) pass bumpTimestamp=false so sync isn't woken up for nothing.
             if (this.currentBookId()) {
-                await this.saveCurrentSessionToBook();
+                await this.saveCurrentSessionToBook({ bumpTimestamp });
             }
 
             this.state.status.set('idle');
