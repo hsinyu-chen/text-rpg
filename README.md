@@ -375,16 +375,16 @@ npm run build:desktop
 
 ### GCP Configuration (OAuth)
 
-To enable Google Cloud features (like Knowledge Base / Context Caching) in the Desktop (Tauri) version, you must provide your own GCP OAuth credentials:
+To enable Google Drive sync, you must provide your own GCP OAuth credentials:
 
 1.  **Create a GCP Project**: Go to the [Google Cloud Console](https://console.cloud.google.com/).
 2.  **Configure OAuth Consent Screen**: Set up an internal or external consent screen.
 3.  **Create OAuth 2.0 Client IDs**:
-    *   Create a "Web application" client ID (for web dev).
+    *   Create a "Web application" client ID (for web dev). Add your deployed origin (e.g. `http://localhost:4200`) to *Authorized redirect URIs*.
     *   Create a **"Desktop app"** client ID (for Tauri/Desktop).
-4.  **Update Environment Files**:
-    *   Open `src/environments/environment.ts` and `src/environments/environment.development.ts`.
-    *   Fill in `gcpOauthAppId`, `gcpOauthAppId_Tauri`, and `gcpOauthClientSecret_Tauri`.
+4.  **Provide the credentials** — pick one:
+    *   **Bake into the build** (for self-hosting an officially-branded build): edit `src/environments/environment.ts` and `src/environments/environment.development.ts` and fill in `gcpOauthAppId`, `gcpOauthAppId_Tauri`, and `gcpOauthClientSecret_Tauri`.
+    *   **Paste at runtime** (no rebuild required): leave the environment fields empty and enter your Client ID(s) in **Settings → Sync → Google Drive**. The fields only appear when the environment values are empty. If you don't know how to create the Client ID, ask your AI assistant for *"how to create a Google OAuth client id for a SPA / desktop app with the `drive.appdata` scope"*.
 
 ### Language Switching
 

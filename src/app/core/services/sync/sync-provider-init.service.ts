@@ -14,7 +14,10 @@ export class SyncProviderInitService {
             label: 'Google Drive',
             description: 'Stores in Drive App Data folder.',
             configComponent: GDriveConfigComponent,
-            isAvailable: () => this.drive.isConfigured
+            // Show the entry whenever the user can either use existing creds
+            // or paste their own — otherwise BYO-OAuth builds would hide the
+            // radio before the user has a chance to enter a Client ID.
+            isAvailable: () => this.drive.isConfigured || this.drive.isUserConfigurable
         });
 
         this.registry.register('s3', {

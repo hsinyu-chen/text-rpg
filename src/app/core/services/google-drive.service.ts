@@ -74,6 +74,16 @@ async function generateCodeChallenge(verifier: string) {
         .replace(/=+$/, '');
 }
 
+const LS_OAUTH_CLIENT_ID = 'gdrive_oauth_client_id';
+const LS_OAUTH_CLIENT_ID_TAURI = 'gdrive_oauth_client_id_tauri';
+const LS_OAUTH_CLIENT_SECRET_TAURI = 'gdrive_oauth_client_secret_tauri';
+
+interface OAuthCreds {
+    clientId: string;
+    clientIdTauri: string;
+    clientSecretTauri: string;
+}
+
 @Injectable({
     providedIn: 'root'
 })
@@ -85,6 +95,11 @@ export class GoogleDriveService {
 
     // Tauri detection
     private isTauri = !!(window.__TAURI_INTERNALS__ || window.__TAURI__);
+
+    // Tracks whether the GIS script has been requested so we don't append a
+    // second <script> when reinitClient() runs (e.g. user pasted creds after
+    // boot in a build whose environment was empty).
+    private gisScriptLoading = false;
 
     constructor() {
         // Restore token from localStorage if available
@@ -109,11 +124,62 @@ export class GoogleDriveService {
         }
     }
 
+    /**
+     * Resolves OAuth credentials with environment-first, localStorage-fallback
+     * precedence: each field reads `environment.*` first; only when that is an
+     * empty string does it fall back to the user-supplied value in
+     * localStorage. This keeps officially-built apps (env baked in) on the
+     * exact same path as before, while letting self-hosters paste their own
+     * client id in Settings.
+     */
+    private resolveOAuthCreds(): OAuthCreds {
+        return {
+            clientId: environment.gcpOauthAppId || localStorage.getItem(LS_OAUTH_CLIENT_ID) || '',
+            clientIdTauri: environment.gcpOauthAppId_Tauri || localStorage.getItem(LS_OAUTH_CLIENT_ID_TAURI) || '',
+            clientSecretTauri: environment.gcpOauthClientSecret_Tauri || localStorage.getItem(LS_OAUTH_CLIENT_SECRET_TAURI) || ''
+        };
+    }
+
     get isConfigured(): boolean {
-        return !!environment.gcpOauthAppId && environment.gcpOauthAppId.length > 0;
+        return this.resolveOAuthCreds().clientId.length > 0;
+    }
+
+    /**
+     * In Tauri the desktop OAuth flow needs the Tauri-specific client id
+     * (and usually secret). This is checked separately so the UI can flag
+     * "you have a web client id but the Tauri build still needs the Desktop
+     * app credentials" without hiding the whole Drive option.
+     */
+    get isTauriConfigured(): boolean {
+        if (!this.isTauri) return true;
+        return this.resolveOAuthCreds().clientIdTauri.length > 0;
+    }
+
+    /** Whether the running build has empty environment slots and therefore
+     *  exposes the BYO OAuth input fields in Settings. */
+    get isUserConfigurable(): boolean {
+        return !environment.gcpOauthAppId
+            && !environment.gcpOauthAppId_Tauri
+            && !environment.gcpOauthClientSecret_Tauri;
+    }
+
+    /** Exposed for the config UI so it knows whether to render Tauri-specific fields. */
+    get isTauriRuntime(): boolean {
+        return this.isTauri;
+    }
+
+    /** Snapshot of the currently-effective creds — used by the config UI to prefill inputs. */
+    getOAuthCredsSnapshot(): OAuthCreds {
+        return this.resolveOAuthCreds();
     }
 
     private loadScripts() {
+        if (this.gisScriptLoading) {
+            // Script already requested; if it's done loading, just (re)init.
+            if (typeof google !== 'undefined') this.initClient();
+            return;
+        }
+        this.gisScriptLoading = true;
         // Load Google Identity Services (GIS)
         const script = document.createElement('script');
         script.src = 'https://accounts.google.com/gsi/client';
@@ -124,10 +190,13 @@ export class GoogleDriveService {
     }
 
     private initClient() {
-        if (!google) return;
+        if (typeof google === 'undefined') return;
+
+        const { clientId } = this.resolveOAuthCreds();
+        if (!clientId) return;
 
         this.tokenClient = google.accounts.oauth2.initTokenClient({
-            client_id: environment.gcpOauthAppId,
+            client_id: clientId,
             scope: 'https://www.googleapis.com/auth/drive.appdata email',
             callback: (tokenResponse: TokenResponse) => {
                 if (tokenResponse && tokenResponse.access_token) {
@@ -135,6 +204,50 @@ export class GoogleDriveService {
                 }
             },
         });
+    }
+
+    /**
+     * Persists user-supplied OAuth credentials and rebuilds the token client.
+     * Old tokens are cleared because they were issued by the previous client
+     * id and refreshing them would fail silently — better to force a fresh
+     * interactive login on the next sync.
+     *
+     * Only writes to localStorage; environment-baked builds short-circuit
+     * before reaching this path (the UI hides the inputs when
+     * `isUserConfigurable` is false).
+     */
+    saveOAuthCreds(creds: Partial<OAuthCreds>): void {
+        if (creds.clientId !== undefined) {
+            this.writeOrClear(LS_OAUTH_CLIENT_ID, creds.clientId);
+        }
+        if (creds.clientIdTauri !== undefined) {
+            this.writeOrClear(LS_OAUTH_CLIENT_ID_TAURI, creds.clientIdTauri);
+        }
+        if (creds.clientSecretTauri !== undefined) {
+            this.writeOrClear(LS_OAUTH_CLIENT_SECRET_TAURI, creds.clientSecretTauri);
+        }
+        this.clearTokens();
+        this.reinitClient();
+    }
+
+    private writeOrClear(key: string, value: string): void {
+        const trimmed = value.trim();
+        if (trimmed) localStorage.setItem(key, trimmed);
+        else localStorage.removeItem(key);
+    }
+
+    /**
+     * Public hook to (re)build the GIS token client after creds change. Safe
+     * to call repeatedly: `initTokenClient` overwrites the previous instance
+     * and the script loader is idempotent.
+     */
+    reinitClient(): void {
+        if (!this.isConfigured) return;
+        if (typeof google === 'undefined') {
+            this.loadScripts();
+            return;
+        }
+        this.initClient();
     }
 
     private refreshTimer: ReturnType<typeof setTimeout> | null = null;
@@ -263,10 +376,11 @@ export class GoogleDriveService {
         const refreshToken = this.refreshToken();
         if (!refreshToken) throw new Error('No refresh token available');
 
-        const clientId = this.isTauri ? environment.gcpOauthAppId_Tauri : environment.gcpOauthAppId;
+        const creds = this.resolveOAuthCreds();
+        const clientId = this.isTauri ? creds.clientIdTauri : creds.clientId;
         // Note: For Web, we usually need a client secret for refresh flow unless it's a specific client type
         // For Tauri, we might have a secret.
-        const clientSecret = this.isTauri ? environment.gcpOauthClientSecret_Tauri : '';
+        const clientSecret = this.isTauri ? creds.clientSecretTauri : '';
 
         const body = new URLSearchParams({
             client_id: clientId,
@@ -315,7 +429,7 @@ export class GoogleDriveService {
             const challenge = await generateCodeChallenge(verifier);
 
             // 3. Build URL
-            const clientId = environment.gcpOauthAppId_Tauri;
+            const clientId = this.resolveOAuthCreds().clientIdTauri;
             const scope = 'https://www.googleapis.com/auth/drive.appdata email';
             // Add access_type=offline to get a refresh token
             // prompt=consent ensures we get a refresh token even if the user has authorized before
@@ -394,9 +508,9 @@ export class GoogleDriveService {
     }
 
     private async exchangeCodeForToken(code: string, verifier: string, redirectUri: string): Promise<{ token: string, expires_in: number, refresh_token?: string }> {
-        const clientId = environment.gcpOauthAppId_Tauri;
+        const creds = this.resolveOAuthCreds();
         const body = new URLSearchParams({
-            client_id: clientId,
+            client_id: creds.clientIdTauri,
             grant_type: 'authorization_code',
             code: code,
             redirect_uri: redirectUri,
@@ -404,8 +518,8 @@ export class GoogleDriveService {
         });
 
         // Some Google Client IDs (like Web Applications) require a secret even with PKCE
-        if (environment.gcpOauthClientSecret_Tauri) {
-            body.append('client_secret', environment.gcpOauthClientSecret_Tauri);
+        if (creds.clientSecretTauri) {
+            body.append('client_secret', creds.clientSecretTauri);
         }
 
         const res = await fetch('https://oauth2.googleapis.com/token', {

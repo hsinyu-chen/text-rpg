@@ -1,8 +1,21 @@
 @switch (status()) {
     @case ('unconfigured') {
+        @if (showInputs()) {
+            <div class="status warn">
+                <mat-icon>error_outline</mat-icon>
+                <span>Google Drive is not configured. Paste your own OAuth Client ID below.</span>
+            </div>
+        } @else {
+            <div class="status warn">
+                <mat-icon>error_outline</mat-icon>
+                <span>Google Drive is not configured. Set <code>gcpOauthAppId</code> in environment to enable.</span>
+            </div>
+        }
+    }
+    @case ('tauri-incomplete') {
         <div class="status warn">
             <mat-icon>error_outline</mat-icon>
-            <span>Google Drive is not configured. Set <code>gcpOauthAppId</code> in environment to enable.</span>
+            <span>Tauri build needs an additional Desktop-app Client ID (and Secret).</span>
         </div>
     }
     @case ('unauthenticated') {
@@ -20,4 +33,48 @@
             <span>Signed in. Books, Collections, and Settings sync to Drive App Data.</span>
         </div>
     }
+}
+
+@if (showInputs()) {
+    <div class="byo-oauth">
+        <p class="hint">
+            Need a Client ID? Ask your AI assistant: <em>"How do I create a Google OAuth client id for a SPA / desktop app with the
+            <code>drive.appdata</code> scope?"</em>
+        </p>
+
+        <div class="redirect-uri">
+            <span class="label">Add this to your GCP Console "Authorized redirect URIs":</span>
+            <div class="redirect-uri-row">
+                <code>{{ redirectUri }}</code>
+                <button mat-icon-button (click)="copyRedirectUri()" aria-label="Copy redirect URI">
+                    <mat-icon>content_copy</mat-icon>
+                </button>
+            </div>
+        </div>
+
+        <mat-form-field appearance="outline">
+            <mat-label>Web Client ID</mat-label>
+            <input matInput [ngModel]="clientId()" (ngModelChange)="clientId.set($event)"
+                   placeholder="xxxxx.apps.googleusercontent.com" autocomplete="off" />
+        </mat-form-field>
+
+        @if (isTauri) {
+            <mat-form-field appearance="outline">
+                <mat-label>Tauri Desktop Client ID</mat-label>
+                <input matInput [ngModel]="clientIdTauri()" (ngModelChange)="clientIdTauri.set($event)"
+                       placeholder="xxxxx.apps.googleusercontent.com" autocomplete="off" />
+            </mat-form-field>
+
+            <mat-form-field appearance="outline">
+                <mat-label>Tauri Desktop Client Secret</mat-label>
+                <input matInput type="password" [ngModel]="clientSecretTauri()"
+                       (ngModelChange)="clientSecretTauri.set($event)"
+                       autocomplete="off" />
+            </mat-form-field>
+        }
+
+        <button mat-flat-button color="primary" [disabled]="!canSave()" (click)="save()">
+            <mat-icon>save</mat-icon> Save
+        </button>
+    </div>
 }

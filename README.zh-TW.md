@@ -377,16 +377,16 @@ npm run build:desktop
 
 ### GCP 配置 (OAuth)
 
-若要在桌面版 (Tauri) 中啟用 Google Cloud 相關功能（如知識庫/內容快取），您需要配置自己的 GCP OAuth 憑證：
+若要啟用 Google Drive 同步，您需要配置自己的 GCP OAuth 憑證：
 
 1.  **建立 GCP 專案**：前往 [Google Cloud Console](https://console.cloud.google.com/)。
 2.  **配置 OAuth 同意畫面**：設定 OAuth 同意畫面。
 3.  **建立 OAuth 2.0 用戶端 ID**：
-    *   建立一個「網頁應用程式」類型用於 Web 開發。
+    *   建立一個「網頁應用程式」類型用於 Web 開發；將您部署的 origin（例如 `http://localhost:4200`）加入 *Authorized redirect URIs*。
     *   建立一個 **「桌面應用程式」** (Desktop app) 類型用於 Tauri 桌面端。
-4.  **更新環境設定檔**：
-    *   開啟 `src/environments/environment.ts` 與 `src/environments/environment.development.ts`。
-    *   填入對應的 `gcpOauthAppId`、`gcpOauthAppId_Tauri` 與 `gcpOauthClientSecret_Tauri`。
+4.  **提供憑證**——擇一即可：
+    *   **烘進 build**（適合自架官方品牌版本）：編輯 `src/environments/environment.ts` 與 `src/environments/environment.development.ts`，填入 `gcpOauthAppId`、`gcpOauthAppId_Tauri`、`gcpOauthClientSecret_Tauri`。
+    *   **執行時貼入**（不需重新 build）：environment 欄位留空，到 **Settings → Sync → Google Drive** 直接貼上 Client ID。只有在 environment 留空時才會出現輸入欄位。不會建立可以問你的 AI 朋友：「how to create a Google OAuth client id for a SPA / desktop app with the `drive.appdata` scope」。
 
 ### 語系切換 (Language Switching)
 
