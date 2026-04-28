@@ -97,19 +97,17 @@
                             <span>{{ ui().PROFILE_IMPORT }}</span>
                         </button>
                         <mat-divider></mat-divider>
-                        <button mat-menu-item (click)="pushActiveProfileToDisk()" [disabled]="isActiveBuiltIn()"
-                            [matTooltip]="diskFolderName() ? ui().DISK_SYNC_TARGET_TOOLTIP.replace('{name}', diskFolderName() || '') : ui().DISK_SYNC_TARGET_NONE_TOOLTIP">
+                        <button mat-menu-item (click)="pushActiveProfileToDisk()" [disabled]="isActiveBuiltIn()">
                             <mat-icon>folder_shared</mat-icon>
                             <span>{{ ui().DISK_SYNC_PUSH }}</span>
                         </button>
-                        <button mat-menu-item (click)="pullActiveProfileFromDisk()" [disabled]="isActiveBuiltIn()"
-                            [matTooltip]="diskFolderName() ? ui().DISK_SYNC_TARGET_TOOLTIP.replace('{name}', diskFolderName() || '') : ui().DISK_SYNC_TARGET_NONE_TOOLTIP">
+                        <button mat-menu-item (click)="pullActiveProfileFromDisk()" [disabled]="isActiveBuiltIn()">
                             <mat-icon>folder_open</mat-icon>
                             <span>{{ ui().DISK_SYNC_PULL }}</span>
                         </button>
                         <button mat-menu-item (click)="changeDiskFolder()">
                             <mat-icon>drive_folder_upload</mat-icon>
-                            <span>{{ ui().DISK_SYNC_CHANGE_FOLDER }}</span>
+                            <span>{{ diskFolderName() || ui().DISK_SYNC_FOLDER_NOT_BOUND }}</span>
                         </button>
                     </mat-menu>
                 </div>

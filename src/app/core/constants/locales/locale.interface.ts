@@ -169,7 +169,6 @@ export interface AppLocale {
         PROMPT_SYNC_DOWNLOAD_CONFIRM: string;
         DISK_SYNC_PUSH: string;
         DISK_SYNC_PULL: string;
-        DISK_SYNC_CHANGE_FOLDER: string;
         DISK_SYNC_PUSHING: string;
         DISK_SYNC_PULLING: string;
         DISK_SYNC_PUSHED: string;
@@ -178,8 +177,7 @@ export interface AppLocale {
         DISK_SYNC_PULL_DISCARD_CONFIRM: string;
         DISK_SYNC_FAILED: string;
         DISK_SYNC_FOLDER_BOUND: string;
-        DISK_SYNC_TARGET_TOOLTIP: string;
-        DISK_SYNC_TARGET_NONE_TOOLTIP: string;
+        DISK_SYNC_FOLDER_NOT_BOUND: string;
         PROFILE_READONLY_BANNER: string;
         PROFILE_SWITCH_DISCARD_CONFIRM: string;
         UNSAVED_CHANGES_CONFIRM: string;
