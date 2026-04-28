@@ -17,6 +17,9 @@ import { getUIStrings, getIntentLabels } from '../../../core/constants/engine-pr
 import { PostProcessorService } from '../../../core/services/post-processor.service';
 import { InjectionService, PromptType } from '../../../core/services/injection.service';
 import { PromptProfileRegistryService } from '../../../core/services/prompt-profile-registry.service';
+import { SyncService } from '../../../core/services/sync/sync.service';
+import { LoadingService } from '../../../core/services/loading.service';
+import { DialogService } from '../../../core/services/dialog.service';
 import { PromptDiffDialogComponent } from '../prompt-diff-dialog/prompt-diff-dialog.component';
 import { MatBadgeModule } from '@angular/material/badge';
 import { PromptProfile } from '../../../core/constants/prompt-profiles';
@@ -62,6 +65,9 @@ export class ChatConfigDialogComponent {
     private postProcessor = inject(PostProcessorService);
     private injection = inject(InjectionService);
     private registry = inject(PromptProfileRegistryService);
+    private sync = inject(SyncService);
+    loading = inject(LoadingService);
+    private dialogService = inject(DialogService);
     private readonly win = inject(WINDOW);
     state = inject(GameStateService);
 
@@ -369,6 +375,99 @@ export class ChatConfigDialogComponent {
         } finally {
             this.isSwitchingProfile.set(false);
         }
+    }
+
+    /** Push every profile (built-in modifications + user profiles) to the active sync backend. */
+    async pushPromptsToCloud(): Promise<void> {
+        this.loading.show(this.ui().PROMPT_SYNC_UPLOADING);
+        try {
+            const { exported } = await this.sync.uploadPrompts();
+            this.snackBar.open(this.ui().PROMPT_SYNC_UPLOADED.replace('{count}', String(exported)), this.ui().CLOSE, { duration: 3000 });
+        } catch (err) {
+            console.error('[ChatConfig] uploadPrompts failed', err);
+            this.snackBar.open(this.ui().PROMPT_SYNC_FAILED, this.ui().CLOSE, { duration: 4000 });
+        } finally {
+            this.loading.hide();
+        }
+    }
+
+    /** Pull prompts.json from cloud, merging user profiles and overriding built-in customizations. */
+    async pullPromptsFromCloud(): Promise<void> {
+        const confirmed = await this.dialogService.confirm(
+            this.ui().PROMPT_SYNC_DOWNLOAD_CONFIRM,
+            this.ui().PROMPT_SYNC_DOWNLOAD_TITLE
+        );
+        if (!confirmed) return;
+
+        this.loading.show(this.ui().PROMPT_SYNC_DOWNLOADING);
+        try {
+            const { imported } = await this.sync.downloadPrompts();
+            await this.injection.switchProfile(this.activeProfileId());
+            this.refreshAllEditorContent();
+            this.dirtyState.set(new Map());
+            const msg = imported === 0
+                ? this.ui().PROMPT_SYNC_NONE_FOUND
+                : this.ui().PROMPT_SYNC_DOWNLOADED.replace('{count}', String(imported));
+            this.snackBar.open(msg, this.ui().CLOSE, { duration: 3000 });
+        } catch (err) {
+            console.error('[ChatConfig] downloadPrompts failed', err);
+            this.snackBar.open(this.ui().PROMPT_SYNC_FAILED, this.ui().CLOSE, { duration: 4000 });
+        } finally {
+            this.loading.hide();
+        }
+    }
+
+    /** Export the active profile to a .json download. */
+    async exportActiveProfile(): Promise<void> {
+        const active = this.activeProfile();
+        if (!active) return;
+        try {
+            const json = await this.sync.exportSingleProfile(active.id);
+            const safeName = (this.getProfileLabel(active) || active.id).replace(/[^\w-]+/g, '_');
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = this.win.document.createElement('a');
+            a.href = url;
+            a.download = `prompt-profile-${safeName}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error('[ChatConfig] exportActiveProfile failed', err);
+            this.snackBar.open(this.ui().PROFILE_OP_FAILED, this.ui().CLOSE, { duration: 3000 });
+        }
+    }
+
+    /** Import a single-profile JSON via file picker; switches to the imported profile. */
+    importProfileFromFile(): void {
+        const input = this.win.document.createElement('input');
+        input.type = 'file';
+        input.accept = 'application/json,.json';
+        input.onchange = async () => {
+            const file = input.files?.[0];
+            if (!file) return;
+            try {
+                const text = await file.text();
+                const before = new Set(this.registry.userProfiles().map(p => p.id));
+                const { imported } = await this.sync.importSingleProfile(text);
+                if (imported === 0) {
+                    this.snackBar.open(this.ui().PROFILE_IMPORT_EMPTY, this.ui().CLOSE, { duration: 3000 });
+                    return;
+                }
+                // Switch to whichever new user profile appeared (rename-on-conflict handled in service).
+                const after = this.registry.userProfiles();
+                const fresh = after.find(p => !before.has(p.id));
+                if (fresh) {
+                    await this.injection.switchProfile(fresh.id);
+                    this.refreshAllEditorContent();
+                    this.dirtyState.set(new Map());
+                }
+                this.snackBar.open(this.ui().PROFILE_IMPORTED, this.ui().CLOSE, { duration: 3000 });
+            } catch (err) {
+                console.error('[ChatConfig] importProfileFromFile failed', err);
+                this.snackBar.open(this.ui().PROFILE_IMPORT_INVALID, this.ui().CLOSE, { duration: 4000 });
+            }
+        };
+        input.click();
     }
 
     private refreshAllEditorContent(): void {

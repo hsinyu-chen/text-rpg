@@ -24,6 +24,18 @@
                 <mat-icon>save_as</mat-icon> {{ ui().SAVE_ALL }}
             </button>
 
+            <div class="header-divider"></div>
+
+            <!-- Cloud Sync -->
+            <button mat-icon-button (click)="pushPromptsToCloud()" [matTooltip]="ui().PROMPT_SYNC_PUSH"
+                [disabled]="loading.isLoading()">
+                <mat-icon>cloud_upload</mat-icon>
+            </button>
+            <button mat-icon-button (click)="pullPromptsFromCloud()" [matTooltip]="ui().PROMPT_SYNC_PULL"
+                [disabled]="loading.isLoading()">
+                <mat-icon>cloud_download</mat-icon>
+            </button>
+
             <button mat-icon-button (click)="close()" [matTooltip]="ui().CLOSE">
                 <mat-icon>close</mat-icon>
             </button>
@@ -74,6 +86,15 @@
                         <button mat-menu-item (click)="deleteActive()" [disabled]="isActiveBuiltIn()">
                             <mat-icon>delete</mat-icon>
                             <span>{{ ui().PROFILE_DELETE }}</span>
+                        </button>
+                        <mat-divider></mat-divider>
+                        <button mat-menu-item (click)="exportActiveProfile()">
+                            <mat-icon>file_download</mat-icon>
+                            <span>{{ ui().PROFILE_EXPORT }}</span>
+                        </button>
+                        <button mat-menu-item (click)="importProfileFromFile()">
+                            <mat-icon>file_upload</mat-icon>
+                            <span>{{ ui().PROFILE_IMPORT }}</span>
                         </button>
                     </mat-menu>
                 </div>
