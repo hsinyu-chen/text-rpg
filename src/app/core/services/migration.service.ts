@@ -242,7 +242,6 @@ export class MigrationService {
             preview: lastModelMsg,
             messages: messages || [],
             files: files.map(f => ({ name: f.name, content: f.content, tokens: f.tokens })),
-            prompts: {}, // We don't migrate prompts explicitly as they regenerate/load
             stats: stats
         };
 

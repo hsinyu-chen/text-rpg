@@ -109,7 +109,6 @@ export interface Book {
     // Serialized State
     messages: ChatMessage[];
     files: { name: string, content: string, tokens?: number }[];
-    prompts: Record<string, { content: string, tokens?: number }>; // e.g. system prompts
 
     // Stats & Metadata
     stats: {

@@ -7,8 +7,7 @@
 
     <mat-form-field appearance="outline">
         <mat-label>Region</mat-label>
-        <input matInput [ngModel]="region()" (ngModelChange)="region.set($event)"
-            placeholder="us-east-1">
+        <input matInput [ngModel]="region()" (ngModelChange)="region.set($event)" placeholder="us-east-1">
     </mat-form-field>
 
     <mat-form-field appearance="outline">
@@ -18,32 +17,26 @@
 
     <mat-form-field appearance="outline">
         <mat-label>Access Key ID</mat-label>
-        <input matInput [ngModel]="accessKeyId()" (ngModelChange)="accessKeyId.set($event)"
-            autocomplete="off">
+        <input matInput [ngModel]="accessKeyId()" (ngModelChange)="accessKeyId.set($event)" autocomplete="off">
     </mat-form-field>
 
     <mat-form-field appearance="outline">
         <mat-label>Secret Access Key</mat-label>
-        <input matInput type="password"
-            [ngModel]="secretAccessKey()" (ngModelChange)="secretAccessKey.set($event)"
+        <input matInput type="password" [ngModel]="secretAccessKey()" (ngModelChange)="secretAccessKey.set($event)"
             autocomplete="off">
     </mat-form-field>
 
     <mat-form-field appearance="outline">
         <mat-label>Path prefix (optional)</mat-label>
-        <input matInput [ngModel]="prefix()" (ngModelChange)="prefix.set($event)"
-            placeholder="textrpg/">
+        <input matInput [ngModel]="prefix()" (ngModelChange)="prefix.set($event)" placeholder="textrpg/">
     </mat-form-field>
 
     <mat-slide-toggle [ngModel]="forcePathStyle()" (ngModelChange)="forcePathStyle.set($event)">
         Force path-style URLs (required for SeaweedFS / MinIO)
     </mat-slide-toggle>
 
-    <mat-slide-toggle
-        [ngModel]="autoSync()"
-        (ngModelChange)="toggleAutoSync($event)"
-        [disabled]="!s3Configured() || testing()"
-        matTooltip="Sync ~60s after each save, plus on tab hide / focus.">
+    <mat-slide-toggle [ngModel]="autoSync()" (ngModelChange)="toggleAutoSync($event)"
+        [disabled]="!s3Configured() || testing()" matTooltip="Sync ~60s after each save, plus on tab hide / focus.">
         Auto-sync in background
     </mat-slide-toggle>
 </div>
@@ -57,10 +50,12 @@
             <mat-icon>network_check</mat-icon> Test
         </button>
         @if (testing()) {
-            <mat-progress-spinner mode="indeterminate" diameter="24"></mat-progress-spinner>
+        <mat-progress-spinner mode="indeterminate" diameter="24"></mat-progress-spinner>
         }
-    </div>
-    <div class="action-group">
+        <button mat-stroked-button (click)="openFileViewer()" [disabled]="!s3Configured()"
+            matTooltip="Browse the cloud bucket — read-only">
+            <mat-icon>folder_open</mat-icon> Browse
+        </button>
         <button mat-stroked-button (click)="openExportDialog()" matTooltip="Show current fields as JSON for copying">
             <mat-icon>download</mat-icon> Export
         </button>

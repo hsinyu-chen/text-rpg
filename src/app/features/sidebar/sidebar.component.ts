@@ -81,11 +81,11 @@ export class SidebarComponent {
   }
 
   openSettings() {
-    this.matDialog.open(SettingsDialogComponent, { width: '550px' });
+    this.matDialog.open(SettingsDialogComponent, { width: '600px' });
   }
 
   openSyncProvider() {
-    this.matDialog.open(SyncProviderDialogComponent, { width: '560px' });
+    this.matDialog.open(SyncProviderDialogComponent, { width: '600px' });
   }
 
   viewFile(initialFile: string) {

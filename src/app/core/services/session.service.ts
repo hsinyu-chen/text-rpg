@@ -130,7 +130,6 @@ export class SessionService {
                 preview: 'Beginning...',
                 messages: [],
                 files: [],
-                prompts: {},
                 stats: {
                     tokenUsage: { freshInput: 0, cached: 0, output: 0, total: 0 },
                     estimatedCost: 0,
@@ -258,13 +257,19 @@ export class SessionService {
         this.state.status.set('loading');
         try {
             if (save) {
-                await this.saveCurrentSessionToBook();
+                // Don't bump lastActiveAt here. The unload path runs whenever a
+                // user just opens another book — not because content changed —
+                // so a bump would mark the book "newer than baseline" and trip
+                // sync into uploading + flagging conflicts on otherwise-stable
+                // books. Real edits flow through other saveBook callers that do
+                // bump the timestamp.
+                await this.saveCurrentSessionToBook({ bumpTimestamp: false });
             }
 
-            // 1. Clear all IndexedDB stores used for ACTIVE session
+            // 1. Clear active-session IDB stores. prompt_store is intentionally
+            // NOT cleared — prompts are app-global across book switches.
             await this.storage.clear(); // chat_store
             await this.storage.clearFiles(); // file_store
-            await this.storage.clearPrompts(); // prompt_store (assuming prompts are per-session)
 
             // 2. Reset all signals and local state
             this.state.messages.set([]);
@@ -327,7 +332,6 @@ export class SessionService {
             preview: 'Empty Session',
             messages: [],
             files: [],
-            prompts: {},
             stats: {
                 tokenUsage: this.state.tokenUsage(),
                 estimatedCost: 0,
@@ -345,7 +349,8 @@ export class SessionService {
         await this.storage.saveBook(book);
         console.log('[SessionService] Started empty session:', bookId);
     }
-    async saveCurrentSessionToBook() {
+    async saveCurrentSessionToBook(opts?: { bumpTimestamp?: boolean }) {
+        const bumpTimestamp = opts?.bumpTimestamp ?? true;
         const bookId = this.currentBookId();
         if (!bookId) {
             console.warn('[SessionService] No current book ID to save to.');
@@ -363,18 +368,6 @@ export class SessionService {
         for (const [name, content] of filesMap.entries()) {
             files.push({ name, content, tokens: fileTokens.get(name) });
         }
-
-        // Get system prompts via storage service (async)
-        // Or we could just assume system_files/system_prompt.md is in filesMap if loaded?
-        // Actually, prompts in 'prompt_store' are separate if using InjectionService logic.
-        // For simplicity, let's grab what we can from storage or re-construction.
-        // Assuming prompt_store is per-session, we blindly grab all.
-        // TODO: Access prompt_store directly? 
-        // For now, let's assume system_prompt.md is often in loadedFiles or we don't strictly need to persist prompts separate from files if we rely on file loading.
-        // BUT, user code edits system_prompt via InjectionService which saves to prompt_store.
-        const prompts: Record<string, { content: string, tokens?: number }> = {};
-        const mainPrompt = await this.storage.getPrompt('system_main');
-        if (mainPrompt) prompts['system_main'] = { content: mainPrompt.content, tokens: mainPrompt.tokens };
 
         // Cache Metadata
         const kbCacheName = this.state.kbCacheName();
@@ -418,7 +411,7 @@ export class SessionService {
             name: this.state.messages().length > 0 ? (this.extractActName() || 'Untitled Session') : 'Empty Session',
             collectionId: existing?.collectionId || ROOT_COLLECTION_ID,
             createdAt: Date.now(),
-            lastActiveAt: Date.now(),
+            lastActiveAt: bumpTimestamp ? Date.now() : (existing?.lastActiveAt ?? Date.now()),
             preview: lastParams,
             messages: messages.map(m => ({
                 ...m,
@@ -429,7 +422,6 @@ export class SessionService {
                 })) || []
             })),
             files,
-            prompts,
             stats: {
                 tokenUsage,
                 estimatedCost,
@@ -491,11 +483,8 @@ export class SessionService {
             this.state.loadedFiles.set(filesMap);
             this.state.fileTokenCounts.set(tokensMap);
 
-            // Restore Prompts
-            await this.storage.clearPrompts();
-            for (const [key, p] of Object.entries(book.prompts)) {
-                await this.storage.savePrompt(key, p.content, p.tokens);
-            }
+            // Prompts are app-global — they live in prompt_store across all
+            // book switches and are no longer carried in the Book payload.
 
             // Restore Messages
             await this.storage.clear(); // chat_store
@@ -556,6 +545,11 @@ export class SessionService {
         const book = await this.storage.getBook(id);
         if (book) {
             book.name = newName.trim();
+            // Bump lastActiveAt so cloud sync detects this as a newer record.
+            // Without this the rename only persists locally and never reaches
+            // the upload phase (localTime stays equal to the previously synced
+            // baseline, so the cross-clock newer-than check stays false).
+            book.lastActiveAt = Date.now();
             await this.storage.saveBook(book);
         }
     }
@@ -612,8 +606,7 @@ export class SessionService {
         // logic reused from loadBook but applied to current 'loadedFiles' which are cleared.
         // We need to reload them from the Old Book data since we unloaded.
         const files = oldBook.files; // These are safe to copy
-        // Prompts? 
-        const prompts = oldBook.prompts;
+        // Prompts are app-global (stored in prompt_store) — not copied per-book.
 
         const newBook: Book = {
             id: newBookId,
@@ -624,7 +617,6 @@ export class SessionService {
             preview: 'New Chapter',
             messages: [],
             files: files, // COPIED KB
-            prompts: prompts,
             stats: {
                 tokenUsage: { freshInput: 0, cached: 0, output: 0, total: 0 },
                 estimatedCost: 0,
@@ -671,11 +663,7 @@ export class SessionService {
             filesArr.push({ name: fileName, content });
         }
 
-        const prompts: Record<string, { content: string; tokens?: number }> = {};
-        const mainPrompt = await this.storage.getPrompt('system_main');
-        if (mainPrompt) {
-            prompts['system_main'] = { content: mainPrompt.content, tokens: mainPrompt.tokens };
-        }
+        // Prompts are app-global; nothing to copy into the new book.
 
         const newBook: Book = {
             id: newBookId,
@@ -686,7 +674,6 @@ export class SessionService {
             preview: 'New Scene',
             messages: [],
             files: filesArr,
-            prompts,
             stats: {
                 tokenUsage: { freshInput: 0, cached: 0, output: 0, total: 0 },
                 estimatedCost: 0,

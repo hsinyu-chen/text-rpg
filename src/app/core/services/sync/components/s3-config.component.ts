@@ -17,6 +17,7 @@ import {
     S3ConfigJsonDialogComponent,
     S3ConfigJsonDialogData
 } from './s3-config-json-dialog.component';
+import { S3FileViewerDialogComponent } from './s3-file-viewer-dialog.component';
 
 @Component({
     selector: 'app-s3-config',
@@ -160,6 +161,17 @@ export class S3ConfigComponent {
             }
         }
         this.sync.setAutoSyncEnabled('s3', on);
+    }
+
+    openFileViewer(): void {
+        if (!this.s3Configured()) {
+            this.snackBar.open('Save and test your S3 connection first.', 'Close', { duration: 3000 });
+            return;
+        }
+        this.matDialog.open(S3FileViewerDialogComponent, {
+            maxWidth: '95vw',
+            maxHeight: '95vh'
+        });
     }
 
     async testConnection(): Promise<void> {
