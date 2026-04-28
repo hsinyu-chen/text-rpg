@@ -1,4 +1,4 @@
-import { Injectable, inject, signal, computed, effect } from '@angular/core';
+import { Injectable, DestroyRef, inject, signal, computed, effect } from '@angular/core';
 import { DOCUMENT } from '@angular/common';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { WINDOW } from '../../tokens/window.token';
@@ -114,6 +114,7 @@ export class SyncService {
     private snackBar = inject(MatSnackBar);
     private readonly doc = inject(DOCUMENT);
     private readonly win = inject(WINDOW);
+    private readonly destroyRef = inject(DestroyRef);
 
     activeBackendId = signal<SyncBackendId>(this.loadBackendId());
     s3Config = signal<S3Config | null>(this.loadS3Config());
@@ -170,7 +171,10 @@ export class SyncService {
             if (ts > 0) this.scheduleAutoSync();
         });
 
-        this.doc.addEventListener('visibilitychange', () => {
+        // Listeners are kept alive for the entire app lifetime in production
+        // (the service is providedIn: 'root'), but tests recreate the service
+        // and would otherwise leak listeners onto the shared document/window.
+        const onVisibilityChange = () => {
             if (this.doc.visibilityState === 'hidden') {
                 void this.flushAutoSync();
             } else if (this.doc.visibilityState === 'visible') {
@@ -178,11 +182,17 @@ export class SyncService {
                     this.scheduleAutoSync(true);
                 }
             }
-        });
-        this.win.addEventListener('pagehide', () => {
+        };
+        const onPageHide = () => {
             if (this.debounceTimer) {
                 localStorage.setItem(LS_DIRTY, '1');
             }
+        };
+        this.doc.addEventListener('visibilitychange', onVisibilityChange);
+        this.win.addEventListener('pagehide', onPageHide);
+        this.destroyRef.onDestroy(() => {
+            this.doc.removeEventListener('visibilitychange', onVisibilityChange);
+            this.win.removeEventListener('pagehide', onPageHide);
         });
     }
 
