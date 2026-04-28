@@ -532,20 +532,49 @@ export class GoogleDriveService {
 
     // --- AppData Folder Logic ---
 
+    /**
+     * Drive's `files.list` defaults to a page size of 100 and returns
+     * `nextPageToken` when the result is truncated. Without explicit
+     * pagination, callers silently miss everything past the first 100 —
+     * which is correct enough for a small library but breaks restore
+     * paths that resolve manifest entries against the listed result. We
+     * page through with the maximum (1000) until the server stops
+     * returning a `nextPageToken`.
+     */
+    private async listAllPaginated(
+        query: string,
+        fieldsForFile: string,
+        token: string
+    ): Promise<DriveFile[]> {
+        const out: DriveFile[] = [];
+        let pageToken: string | undefined;
+        do {
+            const params = new URLSearchParams({
+                q: query,
+                fields: `nextPageToken, files(${fieldsForFile})`,
+                spaces: 'appDataFolder',
+                pageSize: '1000'
+            });
+            if (pageToken) params.set('pageToken', pageToken);
+            const res = await fetch(
+                `https://www.googleapis.com/drive/v3/files?${params.toString()}`,
+                { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' }
+            );
+            if (!res.ok) throw { status: res.status, message: res.statusText };
+            const data = await res.json() as { files?: DriveFile[]; nextPageToken?: string };
+            if (data.files) out.push(...data.files);
+            pageToken = data.nextPageToken;
+        } while (pageToken);
+        return out;
+    }
+
     async listFiles(folderId = 'appDataFolder'): Promise<DriveFile[]> {
         return this.execute(async (token) => {
-            const query = `'${folderId}' in parents and trashed = false`;
-            const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,parents,modifiedTime,size,md5Checksum,appProperties)&spaces=appDataFolder`;
-
-            const res = await fetch(url, {
-                headers: { Authorization: `Bearer ${token}` },
-                cache: 'no-store'
-            });
-
-            if (!res.ok) throw { status: res.status, message: res.statusText };
-
-            const data = await res.json();
-            return data.files || [];
+            return this.listAllPaginated(
+                `'${folderId}' in parents and trashed = false`,
+                'id,name,mimeType,parents,modifiedTime,size,md5Checksum,appProperties',
+                token
+            );
         });
     }
 
@@ -554,18 +583,11 @@ export class GoogleDriveService {
      */
     async listFolders(parentId = 'appDataFolder'): Promise<DriveFile[]> {
         return this.execute(async (token) => {
-            const query = `'${parentId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`;
-            const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name,mimeType,parents,modifiedTime)&spaces=appDataFolder`;
-
-            const res = await fetch(url, {
-                headers: { Authorization: `Bearer ${token}` },
-                cache: 'no-store'
-            });
-
-            if (!res.ok) throw { status: res.status, message: res.statusText };
-
-            const data = await res.json();
-            return data.files || [];
+            return this.listAllPaginated(
+                `'${parentId}' in parents and mimeType = 'application/vnd.google-apps.folder' and trashed = false`,
+                'id,name,mimeType,parents,modifiedTime',
+                token
+            );
         });
     }
 
@@ -688,5 +710,56 @@ export class GoogleDriveService {
             });
             if (!res.ok) throw { status: res.status, message: res.statusText };
         });
+    }
+
+    /**
+     * Server-side copy of a file into another folder. The `appProperties`
+     * are copied implicitly by Drive — that's how snapshot objects keep
+     * their original `last-active` / `deleted-at` markers without us
+     * having to read+rewrite them.
+     */
+    async copyFile(fileId: string, newParentId: string, newName?: string): Promise<DriveFile> {
+        return this.execute(async (token) => {
+            const body: Record<string, unknown> = { parents: [newParentId] };
+            if (newName !== undefined) body['name'] = newName;
+            const url = `https://www.googleapis.com/drive/v3/files/${fileId}/copy?fields=id,name,mimeType,parents,modifiedTime,size,md5Checksum,appProperties`;
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(body)
+            });
+            if (!res.ok) throw { status: res.status, message: res.statusText };
+            return await res.json() as DriveFile;
+        });
+    }
+
+    /**
+     * Deletes a folder and everything under it. Drive's DELETE on a folder
+     * trashes the folder and its descendants in one call when permission
+     * allows — but appDataFolder semantics don't reliably clean children,
+     * so we walk explicitly.
+     *
+     * Children are deleted first (post-order) so an interrupted call
+     * leaves the folder existing-but-emptier rather than a dangling
+     * reference. Single-threaded for simplicity; snapshot delete is rare
+     * and the tree is shallow (folder → 4 subfolders → leaf files).
+     */
+    async deleteFolderRecursive(folderId: string): Promise<void> {
+        const subfolders = await this.listFolders(folderId);
+        for (const sub of subfolders) {
+            await this.deleteFolderRecursive(sub.id);
+        }
+        const files = await this.listFiles(folderId);
+        for (const f of files) {
+            // listFiles returns files AND folders; skip folders since we
+            // already recursed into them above (and listFolders would have
+            // included them).
+            if (f.mimeType === 'application/vnd.google-apps.folder') continue;
+            await this.deleteFile(f.id);
+        }
+        await this.deleteFile(folderId);
     }
 }
