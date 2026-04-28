@@ -642,7 +642,7 @@ function restampBodyLastActive(text: string, now: number): string {
     try {
         const parsed = JSON.parse(text);
         if (parsed && typeof parsed === 'object') {
-            (parsed as Record<string, unknown>).lastActiveAt = now;
+            (parsed as Record<string, unknown>)['lastActiveAt'] = now;
             return JSON.stringify(parsed);
         }
     } catch {
