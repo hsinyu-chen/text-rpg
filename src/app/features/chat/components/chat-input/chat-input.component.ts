@@ -23,6 +23,8 @@ import { ChatReplaceDialogComponent } from '../chat-replace-dialog/chat-replace-
 import { ConfirmDialogComponent, ConfirmDialogData } from '../../../../shared/components/confirm-dialog/confirm-dialog.component';
 import { TauriWindow } from '../../../../core/models/types';
 import { LanguageService } from '../../../../core/services/language.service';
+import { PromptProfileRegistryService } from '../../../../core/services/prompt-profile-registry.service';
+import { getUIStrings } from '../../../../core/constants/engine-protocol';
 
 @Component({
     selector: 'app-chat-input',
@@ -50,8 +52,20 @@ export class ChatInputComponent {
     state = inject(GameStateService);
     session = inject(SessionService);
     lang = inject(LanguageService);
+    private profileRegistry = inject(PromptProfileRegistryService);
     private matDialog = inject(MatDialog);
     private readonly doc = inject(DOCUMENT);
+
+    /** Display name for the active prompt profile — built-ins via i18n, user via displayName. */
+    activeProfileName = computed(() => {
+        const id = this.state.activePromptProfile();
+        const profile = this.profileRegistry.get(id);
+        if (!profile) return id;
+        if (profile.displayName) return profile.displayName;
+        if (!profile.nameKey) return profile.id;
+        const ui = getUIStrings(this.state.config()?.outputLanguage) as unknown as Record<string, string>;
+        return ui[profile.nameKey] ?? profile.nameKey;
+    });
 
     // Computed: Whether there's an active session (book) to work with
     hasActiveSession = computed(() => !!this.session.currentBookId());

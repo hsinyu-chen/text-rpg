@@ -6,18 +6,20 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatListModule } from '@angular/material/list';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { MatButtonToggleModule } from '@angular/material/button-toggle';
+import { MatSelectModule } from '@angular/material/select';
+import { MatMenuModule } from '@angular/material/menu';
+import { MatDividerModule } from '@angular/material/divider';
 import { FormsModule } from '@angular/forms';
 import { MonacoEditorComponent } from '../monaco-editor/monaco-editor.component';
-import { GameEngineService } from '../../../core/services/game-engine.service';
 import { GameStateService } from '../../../core/services/game-state.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { getUIStrings, getIntentLabels } from '../../../core/constants/engine-protocol';
 import { PostProcessorService } from '../../../core/services/post-processor.service';
 import { InjectionService, PromptType } from '../../../core/services/injection.service';
+import { PromptProfileRegistryService } from '../../../core/services/prompt-profile-registry.service';
 import { PromptDiffDialogComponent } from '../prompt-diff-dialog/prompt-diff-dialog.component';
 import { MatBadgeModule } from '@angular/material/badge';
-import { BUILT_IN_PROFILES } from '../../../core/constants/prompt-profiles';
+import { PromptProfile } from '../../../core/constants/prompt-profiles';
 
 /** Injection type definition */
 interface InjectionType {
@@ -43,7 +45,9 @@ interface PromptCategory {
         MatIconModule,
         MatListModule,
         MatTooltipModule,
-        MatButtonToggleModule,
+        MatSelectModule,
+        MatMenuModule,
+        MatDividerModule,
         MatBadgeModule,
         FormsModule,
         MonacoEditorComponent
@@ -57,8 +61,8 @@ export class ChatConfigDialogComponent {
     private snackBar = inject(MatSnackBar);
     private postProcessor = inject(PostProcessorService);
     private injection = inject(InjectionService);
+    private registry = inject(PromptProfileRegistryService);
     private readonly win = inject(WINDOW);
-    engine = inject(GameEngineService);
     state = inject(GameStateService);
 
     // Editor reference
@@ -84,11 +88,9 @@ export class ChatConfigDialogComponent {
         ];
     });
 
-    // Grouped types for template rendering
     readonly groupedTypes = computed((): PromptCategory[] => {
         const types = this.injectionTypes();
         const ui = this.ui();
-
         return [
             { id: 'main', label: ui.CATEGORY_MAIN, items: types.filter(t => t.category === 'main') },
             { id: 'injection', label: ui.CATEGORY_INJECTION, items: types.filter(t => t.category === 'injection') },
@@ -99,31 +101,33 @@ export class ChatConfigDialogComponent {
     // Active injection type
     activeType = signal<InjectionType['id']>('system_main');
 
-    // Profile system
-    readonly profiles = BUILT_IN_PROFILES;
+    // Profile system — split lists for the dropdown so built-ins and user
+    // entries can render under a separator.
+    builtInProfiles = computed(() => this.registry.builtInProfiles());
+    userProfiles = computed(() => this.registry.userProfiles());
     activeProfileId = computed(() => this.state.activePromptProfile());
+    activeProfile = computed(() => this.registry.get(this.activeProfileId()));
+    isActiveBuiltIn = computed(() => this.activeProfile()?.isBuiltIn ?? false);
     isSwitchingProfile = signal(false);
 
-    /** Resolve a profile's display name from its nameKey */
-    getProfileLabel(nameKey: string): string {
-        return (this.ui() as unknown as Record<string, string>)[nameKey] ?? nameKey;
+    /** Resolve a profile's display name (built-in via i18n, user via displayName). */
+    getProfileLabel(profile: PromptProfile): string {
+        if (profile.displayName) return profile.displayName;
+        const ui = this.ui() as unknown as Record<string, string>;
+        return profile.nameKey ? (ui[profile.nameKey] ?? profile.nameKey) : profile.id;
     }
 
-    /** Resolve a profile's description from its descriptionKey */
-    getProfileDescription(descKey: string): string {
-        return (this.ui() as unknown as Record<string, string>)[descKey] ?? descKey;
+    /** Resolve a profile's description. User profiles have none. */
+    getProfileDescription(profile: PromptProfile): string {
+        if (!profile.descriptionKey) return '';
+        const ui = this.ui() as unknown as Record<string, string>;
+        return ui[profile.descriptionKey] ?? profile.descriptionKey;
     }
 
-    // Sidebar collapsed state (mobile)
     isSidebarCollapsed = signal(false);
-
-    // Track dirty state (unsaved changes) per type
     dirtyState = signal<Map<string, boolean>>(new Map());
-
-    // Validation result for postprocess script
     validationResult = signal<{ valid: boolean, error?: string }>({ valid: true });
 
-    // Build files map for Monaco multi-model mode
     injectionFiles = computed(() => {
         const files = new Map<string, string>();
         files.set('action', this.state.dynamicActionInjection());
@@ -136,9 +140,8 @@ export class ChatConfigDialogComponent {
         return files;
     });
 
-    // Monaco editor options - language changes based on active type
     editorOptions = computed(() => ({
-        readOnly: false,
+        readOnly: this.isActiveBuiltIn(),
         minimap: { enabled: false },
         wordWrap: 'on' as const,
         lineNumbers: 'on' as const,
@@ -150,16 +153,13 @@ export class ChatConfigDialogComponent {
         return type?.label || '';
     });
 
-    /** Check if a type has unsaved changes */
     getIsDirty(type: string): boolean {
         return !!this.dirtyState().get(type);
     }
 
-    /** Select an injection type */
     selectType(type: InjectionType['id']): void {
         this.activeType.set(type);
 
-        // Reset validation when switching
         if (type === 'postprocess') {
             const content = this.getContentForType('postprocess');
             this.validationResult.set(this.postProcessor.validate(content));
@@ -167,18 +167,15 @@ export class ChatConfigDialogComponent {
             this.validationResult.set({ valid: true });
         }
 
-        // Collapse sidebar on mobile
         if (this.win.innerWidth < 768) {
             this.isSidebarCollapsed.set(true);
         }
     }
 
-    /** Check if any file has unsaved changes */
     hasAnyDirty = computed(() => {
         return Array.from(this.dirtyState().values()).some(isDirty => isDirty);
     });
 
-    /** Save only the current active file */
     async saveCurrent(): Promise<void> {
         const editor = this.editorRef();
         if (!editor) return;
@@ -189,7 +186,6 @@ export class ChatConfigDialogComponent {
 
         await this.injection.saveToService(type as PromptType, content);
 
-        // Clear dirty flag for this specific type
         this.dirtyState.update(map => {
             const newMap = new Map(map);
             newMap.set(type, false);
@@ -199,7 +195,6 @@ export class ChatConfigDialogComponent {
         this.snackBar.open(this.ui().SAVE_SUCCESS, this.ui().CLOSE, { duration: 2000 });
     }
 
-    /** Save all modified content to engine signals and storage */
     async saveAll(): Promise<void> {
         const editor = this.editorRef();
         if (!editor) return;
@@ -207,7 +202,6 @@ export class ChatConfigDialogComponent {
         const dirtyMap = this.dirtyState();
         let savedCount = 0;
 
-        // Iterate through all tracked files and save those that are dirty
         for (const [type, isDirty] of dirtyMap.entries()) {
             if (!isDirty) continue;
 
@@ -219,18 +213,14 @@ export class ChatConfigDialogComponent {
         }
 
         if (savedCount > 0) {
-            // Reset all dirty flags since we saved everything
             this.dirtyState.set(new Map());
             this.snackBar.open(this.ui().SAVE_SUCCESS, this.ui().CLOSE, { duration: 2000 });
         }
     }
 
-    /** Handle value change from Monaco */
     onValueChange(content: string): void {
         const type = this.activeType();
         const originalContent = this.getContentForType(type);
-
-        // Simple dirty check: if content is different from original in GameStateService
         const isDirty = content !== originalContent;
 
         if (this.dirtyState().get(type) !== isDirty) {
@@ -241,14 +231,12 @@ export class ChatConfigDialogComponent {
             });
         }
 
-        // Real-time validation for postprocess
         if (type === 'postprocess') {
             const validation = this.postProcessor.validate(content);
             this.validationResult.set(validation);
         }
     }
 
-    /** Open the prompt update diff dialog */
     async openPromptUpdateDialog(type: InjectionType['id']): Promise<void> {
         const status = this.state.promptUpdateStatus().get(type);
         if (!status) return;
@@ -274,7 +262,6 @@ export class ChatConfigDialogComponent {
         if (result === 'update') {
             await this.injection.acknowledgeUpdate(type, true);
 
-            // Refresh editor content
             const editor = this.editorRef();
             if (editor) {
                 const content = this.getContentForType(type);
@@ -285,123 +272,134 @@ export class ChatConfigDialogComponent {
         }
     }
 
-    /** Reset current injection type to default */
-    async resetCurrent(): Promise<void> {
-        const type = this.activeType();
-        await this.engine.resetInjectionDefaults(type);
-
-        // Refresh editor content
-        const editor = this.editorRef();
-        if (editor) {
-            const content = this.getContentForType(type);
-            editor.updateFileContent(type, content);
-        }
-
-
-        const lang = this.state.config()?.outputLanguage || 'default';
-        const ui = getUIStrings(lang);
-        this.snackBar.open(ui.PROMPT_RESET_SUCCESS.replace('{type}', this.activeTypeLabel()), ui.CLOSE, { duration: 2000 });
-    }
-
-    /** Reset all injection types to defaults */
-    async resetAll(): Promise<void> {
-        await this.engine.resetInjectionDefaults('all');
-
-        // Refresh all editor models
-        const editor = this.editorRef();
-        if (editor) {
-            for (const type of this.injectionTypes()) {
-                const content = this.getContentForType(type.id);
-                editor.updateFileContent(type.id, content);
-            }
-        }
-
-        const lang = this.state.config()?.outputLanguage || 'default';
-        const ui = getUIStrings(lang);
-        this.snackBar.open(ui.ALL_PROMPTS_RESET_SUCCESS, ui.CLOSE, { duration: 2000 });
-    }
-
-    /** Get content for a specific type */
     private getContentForType(type: InjectionType['id']): string {
         return this.injection.getContentForType(type as PromptType);
     }
 
-    /** Switch to a different prompt profile */
+    /** Switch to a different prompt profile. */
     async switchProfile(newProfileId: string): Promise<void> {
         if (newProfileId === this.activeProfileId()) return;
 
-        // Check for unsaved changes
         if (this.hasAnyDirty()) {
-            const lang = this.state.config()?.outputLanguage || 'default';
-            const confirmMsg = lang === 'zh-TW'
-                ? '切換方案將丟棄未儲存的變更，確定要繼續嗎？'
-                : 'Switching profile will discard unsaved changes. Continue?';
-            if (!confirm(confirmMsg)) return;
+            const confirmMsg = this.ui().PROFILE_SWITCH_DISCARD_CONFIRM;
+            if (!this.win.confirm(confirmMsg)) return;
         }
 
         this.isSwitchingProfile.set(true);
         try {
             await this.injection.switchProfile(newProfileId);
-
-            // Refresh all editor models
-            const editor = this.editorRef();
-            if (editor) {
-                for (const type of this.injectionTypes()) {
-                    const content = this.getContentForType(type.id);
-                    editor.updateFileContent(type.id, content);
-                }
-            }
-
-            // Clear dirty state
+            this.refreshAllEditorContent();
             this.dirtyState.set(new Map());
         } finally {
             this.isSwitchingProfile.set(false);
         }
     }
 
-    /** Toggle sidebar visibility */
+    /**
+     * Clone the active profile into a new user profile, prompt for a name,
+     * then switch to it.
+     */
+    async cloneActive(): Promise<void> {
+        const active = this.activeProfile();
+        if (!active) return;
+
+        const defaultName = `${this.getProfileLabel(active)} (copy)`;
+        const name = this.win.prompt(this.ui().PROFILE_CLONE_PROMPT, defaultName);
+        if (!name || !name.trim()) return;
+
+        if (this.hasAnyDirty() && !this.win.confirm(this.ui().PROFILE_SWITCH_DISCARD_CONFIRM)) return;
+
+        this.isSwitchingProfile.set(true);
+        try {
+            const newId = await this.injection.cloneProfile(active.id, name.trim());
+            await this.injection.switchProfile(newId);
+            this.refreshAllEditorContent();
+            this.dirtyState.set(new Map());
+            this.snackBar.open(this.ui().PROFILE_CLONED, this.ui().CLOSE, { duration: 2000 });
+        } catch (err) {
+            console.error('[ChatConfig] cloneActive failed', err);
+            this.snackBar.open(this.ui().PROFILE_OP_FAILED, this.ui().CLOSE, { duration: 3000 });
+        } finally {
+            this.isSwitchingProfile.set(false);
+        }
+    }
+
+    /** Rename the active profile (user profiles only). */
+    async renameActive(): Promise<void> {
+        const active = this.activeProfile();
+        if (!active || active.isBuiltIn) return;
+
+        const current = active.displayName || '';
+        const name = this.win.prompt(this.ui().PROFILE_RENAME_PROMPT, current);
+        if (!name || !name.trim() || name.trim() === current) return;
+
+        try {
+            await this.injection.renameProfile(active.id, name.trim());
+            this.snackBar.open(this.ui().PROFILE_RENAMED, this.ui().CLOSE, { duration: 2000 });
+        } catch (err) {
+            console.error('[ChatConfig] renameActive failed', err);
+            this.snackBar.open(this.ui().PROFILE_OP_FAILED, this.ui().CLOSE, { duration: 3000 });
+        }
+    }
+
+    /**
+     * Delete the active profile (user profiles only). Switches to the default
+     * profile first so we never leave the app pointing at a deleted id.
+     */
+    async deleteActive(): Promise<void> {
+        const active = this.activeProfile();
+        if (!active || active.isBuiltIn) return;
+
+        const confirmMsg = this.ui().PROFILE_DELETE_CONFIRM.replace('{name}', this.getProfileLabel(active));
+        if (!this.win.confirm(confirmMsg)) return;
+
+        this.isSwitchingProfile.set(true);
+        try {
+            const fallbackId = active.baseProfileId && this.registry.get(active.baseProfileId)
+                ? active.baseProfileId
+                : 'cloud';
+            await this.injection.switchProfile(fallbackId);
+            await this.injection.deleteProfile(active.id);
+            this.refreshAllEditorContent();
+            this.dirtyState.set(new Map());
+            this.snackBar.open(this.ui().PROFILE_DELETED, this.ui().CLOSE, { duration: 2000 });
+        } catch (err) {
+            console.error('[ChatConfig] deleteActive failed', err);
+            this.snackBar.open(this.ui().PROFILE_OP_FAILED, this.ui().CLOSE, { duration: 3000 });
+        } finally {
+            this.isSwitchingProfile.set(false);
+        }
+    }
+
+    private refreshAllEditorContent(): void {
+        const editor = this.editorRef();
+        if (!editor) return;
+        for (const type of this.injectionTypes()) {
+            editor.updateFileContent(type.id, this.getContentForType(type.id));
+        }
+    }
+
     toggleSidebar(): void {
         this.isSidebarCollapsed.update(v => !v);
     }
 
-    /** Close the dialog */
     close(): void {
-        // Check for unsaved changes across all types
         const dirtyTypes = Array.from(this.dirtyState().entries())
-            .filter((entry) => entry[1]) // entry[1] is isDirty
-            .map((entry) => entry[0]);   // entry[0] is type
+            .filter((entry) => entry[1])
+            .map((entry) => entry[0]);
 
         if (dirtyTypes.length > 0) {
-            const lang = this.state.config()?.outputLanguage || 'default';
-            const confirmMsg = lang === 'zh-TW'
-                ? '尚有未儲存的變更，確定要關閉嗎？'
-                : 'There are unsaved changes. Are you sure you want to close?';
-
-            if (!confirm(confirmMsg)) {
-                return;
-            }
+            if (!this.win.confirm(this.ui().UNSAVED_CHANGES_CONFIRM)) return;
         }
 
-        // Validate postprocess script before closing
-        // We check the editor content if it exists, otherwise the saved state
         const editor = this.editorRef();
         const currentScript = editor?.getFileContent('postprocess') ?? this.state.postProcessScript();
         const validation = this.postProcessor.validate(currentScript);
 
         if (!validation.valid) {
-            const lang = this.state.config()?.outputLanguage || 'default';
-
-            // If the user is currently looking at the postprocess tab, they already see the error.
-            // We just need a simple confirmation.
-            const confirmMsg = lang === 'zh-TW'
-                ? `後處理腳本仍有錯誤（${validation.error}），確定要關閉嗎？`
-                : `Post-process script still has errors (${validation.error}). Close anyway?`;
-
-            if (!confirm(confirmMsg)) {
-                // Focus postprocess tab if not already there
-                if (this.activeType() !== 'postprocess') {
-                    this.selectType('postprocess');
-                }
+            const confirmMsg = this.ui().POST_PROCESS_INVALID_CONFIRM.replace('{error}', validation.error ?? '');
+            if (!this.win.confirm(confirmMsg)) {
+                if (this.activeType() !== 'postprocess') this.selectType('postprocess');
                 return;
             }
         }

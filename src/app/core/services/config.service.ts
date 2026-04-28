@@ -5,6 +5,7 @@ import { StorageService } from './storage.service';
 import { SessionService } from './session.service';
 import { CacheManagerService } from './cache-manager.service';
 import { InjectionService } from './injection.service';
+import { PromptProfileRegistryService } from './prompt-profile-registry.service';
 import { CostService } from './cost.service';
 import { LLMProviderRegistryService } from './llm-provider-registry.service';
 import { LLMConfigService } from './llm-config.service';
@@ -18,6 +19,7 @@ export class ConfigService {
     private session = inject(SessionService);
     private cacheManager = inject(CacheManagerService);
     private injection = inject(InjectionService);
+    private profileRegistry = inject(PromptProfileRegistryService);
     private cost = inject(CostService);
     private providerRegistry = inject(LLMProviderRegistryService);
     private llmConfig = inject(LLMConfigService);
@@ -67,6 +69,10 @@ export class ConfigService {
     public async init() {
         // Trigger FX rate update (don't await to avoid blocking init)
         this.updateExchangeRateFromApi();
+
+        // Profile registry must finish before injection load: user profiles
+        // come out of IDB and the active id may resolve to one of them.
+        await this.profileRegistry.init();
 
         // Initialize Injection Settings (History is loaded by session.init() → loadBook())
         await this.injection.loadDynamicInjectionSettings();

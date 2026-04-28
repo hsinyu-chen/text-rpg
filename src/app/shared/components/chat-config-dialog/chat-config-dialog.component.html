@@ -13,24 +13,17 @@
         </div>
         <div class="header-actions">
             <!-- Save Current -->
-            <button mat-raised-button color="primary" (click)="saveCurrent()" [disabled]="!getIsDirty(activeType())"
-                [matTooltip]="ui().SAVE">
+            <button mat-raised-button color="primary" (click)="saveCurrent()"
+                [disabled]="!getIsDirty(activeType()) || isActiveBuiltIn()" [matTooltip]="ui().SAVE">
                 <mat-icon>save</mat-icon> {{ ui().SAVE }}
             </button>
 
             <!-- Save All -->
-            <button mat-stroked-button color="primary" (click)="saveAll()" [disabled]="!hasAnyDirty()"
-                [matTooltip]="ui().SAVE_ALL">
+            <button mat-stroked-button color="primary" (click)="saveAll()"
+                [disabled]="!hasAnyDirty() || isActiveBuiltIn()" [matTooltip]="ui().SAVE_ALL">
                 <mat-icon>save_as</mat-icon> {{ ui().SAVE_ALL }}
             </button>
 
-            <div class="header-divider"></div>
-            <button mat-icon-button (click)="resetCurrent()" [matTooltip]="ui().RESET_CURRENT" color="warn">
-                <mat-icon>restart_alt</mat-icon>
-            </button>
-            <button mat-stroked-button color="warn" (click)="resetAll()" [matTooltip]="ui().RESET_ALL">
-                <mat-icon>refresh</mat-icon> {{ ui().RESET_ALL }}
-            </button>
             <button mat-icon-button (click)="close()" [matTooltip]="ui().CLOSE">
                 <mat-icon>close</mat-icon>
             </button>
@@ -45,15 +38,45 @@
             <!-- Profile Selector -->
             <div class="profile-selector">
                 <div class="profile-label">{{ ui().PROMPT_PROFILE_LABEL }}</div>
-                <mat-button-toggle-group [value]="activeProfileId()" (change)="switchProfile($event.value)"
-                    [disabled]="isSwitchingProfile()" class="profile-toggle-group" hideSingleSelectionIndicator>
-                    @for (profile of profiles; track profile.id) {
-                    <mat-button-toggle [value]="profile.id"
-                        [matTooltip]="getProfileDescription(profile.descriptionKey)">
-                        {{ getProfileLabel(profile.nameKey) }}
-                    </mat-button-toggle>
-                    }
-                </mat-button-toggle-group>
+                <div class="profile-row">
+                    <mat-form-field appearance="outline" class="profile-select-field" subscriptSizing="dynamic">
+                        <mat-select [value]="activeProfileId()" (selectionChange)="switchProfile($event.value)"
+                            [disabled]="isSwitchingProfile()">
+                            @for (profile of builtInProfiles(); track profile.id) {
+                            <mat-option [value]="profile.id"
+                                [matTooltip]="getProfileDescription(profile)">
+                                {{ getProfileLabel(profile) }}
+                            </mat-option>
+                            }
+                            @if (userProfiles().length > 0) {
+                            <mat-divider></mat-divider>
+                            @for (profile of userProfiles(); track profile.id) {
+                            <mat-option [value]="profile.id">
+                                {{ getProfileLabel(profile) }}
+                            </mat-option>
+                            }
+                            }
+                        </mat-select>
+                    </mat-form-field>
+                    <button mat-icon-button [matMenuTriggerFor]="profileMenu"
+                        [matTooltip]="ui().PROFILE_MANAGE_MENU" [disabled]="isSwitchingProfile()">
+                        <mat-icon>more_vert</mat-icon>
+                    </button>
+                    <mat-menu #profileMenu="matMenu">
+                        <button mat-menu-item (click)="cloneActive()">
+                            <mat-icon>content_copy</mat-icon>
+                            <span>{{ ui().PROFILE_CLONE }}</span>
+                        </button>
+                        <button mat-menu-item (click)="renameActive()" [disabled]="isActiveBuiltIn()">
+                            <mat-icon>edit</mat-icon>
+                            <span>{{ ui().PROFILE_RENAME }}</span>
+                        </button>
+                        <button mat-menu-item (click)="deleteActive()" [disabled]="isActiveBuiltIn()">
+                            <mat-icon>delete</mat-icon>
+                            <span>{{ ui().PROFILE_DELETE }}</span>
+                        </button>
+                    </mat-menu>
+                </div>
             </div>
 
             <div class="sidebar-list-container">
@@ -91,8 +114,20 @@
             </div>
         </div>
 
-        <!-- Monaco Editor -->
+        <!-- Editor Container -->
         <div class="editor-container">
+            <!-- Built-in read-only banner -->
+            @if (isActiveBuiltIn()) {
+            <div class="readonly-banner">
+                <mat-icon>lock</mat-icon>
+                <span class="banner-text">{{ ui().PROFILE_READONLY_BANNER }}</span>
+                <button mat-flat-button color="primary" (click)="cloneActive()">
+                    <mat-icon>content_copy</mat-icon>
+                    {{ ui().PROFILE_CLONE_TO_EDIT }}
+                </button>
+            </div>
+            }
+
             <app-monaco-editor #editorRef [multiModelMode]="true" [files]="injectionFiles()" [activeFile]="activeType()"
                 [options]="editorOptions()" (valueChange)="onValueChange($event)">
             </app-monaco-editor>
