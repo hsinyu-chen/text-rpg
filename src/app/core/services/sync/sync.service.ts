@@ -385,9 +385,10 @@ export class SyncService {
 
         const totals: SyncReport = { uploaded: 0, downloaded: 0, deleted: 0, errors: [] };
         const downloadedBookIds = new Set<string>();
+        const deletedBookIds = new Set<string>();
 
         for (const resource of ['collection', 'book'] as const) {
-            const r = await this.syncResource(backend, resource, downloadedBookIds);
+            const r = await this.syncResource(backend, resource, downloadedBookIds, deletedBookIds);
             totals.uploaded += r.uploaded;
             totals.downloaded += r.downloaded;
             totals.deleted += r.deleted;
@@ -396,11 +397,22 @@ export class SyncService {
 
         await this.collections.load();
 
-        // If the active book was downloaded, decide whether to silent-reload
-        // (boot — nothing to interrupt) or surface a toast (runtime — don't
-        // wipe the user's open session).
         const currentId = this.session.currentBookId();
-        if (currentId && downloadedBookIds.has(currentId)) {
+        if (currentId && deletedBookIds.has(currentId)) {
+            // The active book was wiped by a tombstone from another device.
+            // Switch to the most-recently-active remaining book, or clear
+            // the session if nothing's left.
+            const remaining = await this.storage.getBooks();
+            if (remaining.length > 0) {
+                const sorted = [...remaining].sort((a, b) => b.lastActiveAt - a.lastActiveAt);
+                await this.session.loadBook(sorted[0].id, false);
+            } else {
+                await this.session.unloadCurrentSession(false);
+            }
+        } else if (currentId && downloadedBookIds.has(currentId)) {
+            // Active book was downloaded (but not deleted). On boot we silently
+            // reload; at runtime we surface a toast so we don't wipe the
+            // user's open session.
             if (this.isInitialSync) {
                 console.log(`[SyncService] Post-sync: silent reload of active book ${currentId}`);
                 await this.session.loadBook(currentId, false);
@@ -420,7 +432,8 @@ export class SyncService {
     private async syncResource(
         backend: SyncBackend,
         resource: SyncResource,
-        downloadedBookIds: Set<string>
+        downloadedBookIds: Set<string>,
+        deletedBookIds: Set<string>
     ): Promise<SyncReport> {
         const report: SyncReport = { uploaded: 0, downloaded: 0, deleted: 0, errors: [] };
 
@@ -496,9 +509,14 @@ export class SyncService {
                 if (localTime > tomb.deletedAt || remoteTime > tomb.deletedAt) continue;
                 try {
                     if (local) {
-                        if (resource === 'book') await this.storage.deleteBook(tomb.id);
-                        else await this.storage.deleteCollection(tomb.id);
+                        if (resource === 'book') {
+                            await this.storage.deleteBook(tomb.id);
+                            deletedBookIds.add(tomb.id);
+                        } else {
+                            await this.storage.deleteCollection(tomb.id);
+                        }
                         localById.delete(tomb.id);
+                        report.deleted++;
                     }
                     if (remote) {
                         await backend.remove(resource, tomb.id);
