@@ -48,7 +48,9 @@ function importSuffix(): string {
 }
 
 function isValidUserProfileId(id: unknown): id is string {
-    return typeof id === 'string' && /^[A-Za-z0-9_-]{3,}$/.test(id.trim());
+    // Untrimmed: leading / trailing whitespace must fail outright since the
+    // raw id ends up as an IDB key + registry entry verbatim.
+    return typeof id === 'string' && /^[A-Za-z0-9_-]{3,}$/.test(id);
 }
 
 async function loadS3Module() {
