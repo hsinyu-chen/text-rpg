@@ -500,7 +500,7 @@ The engine includes a built-in "Scenario Template Generator", so you don't need 
 2.  Click the **"New Game"** button.
 3.  Select a Scenario and fill in the protagonist's profile (or use defaults).
 4.  Click **"Start Game"**; the engine will generate all necessary Markdown files in memory.
-5.  **Export Template**: In the "Local File System" section of the sidebar, click the **Folder Icon** to select an empty folder, then click **"Sync"**.
+5.  **Export Template**: With the new book loaded, switch to the sidebar **Files** tab — below the loaded file list you'll find the **Local File System** section. Click the **Folder Icon** to select an empty folder, then click **"Sync"**.
 6.  The system will write all auto-generated configuration files to your folder, which you can then edit with VS Code.
 
 ### AI World Generator (Generate Tab)
