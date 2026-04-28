@@ -589,7 +589,8 @@ export class S3SyncBackend implements SyncBackend {
             try {
                 const manifest = await this.readSnapshotManifest(id);
                 // Strip `entries` to keep the list-level payload light.
-                const { entries: _entries, ...meta } = manifest;
+                // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                const { entries, ...meta } = manifest;
                 metas[i] = meta;
             } catch (e) {
                 // Skip unreadable snapshots (corrupt manifest, partial create

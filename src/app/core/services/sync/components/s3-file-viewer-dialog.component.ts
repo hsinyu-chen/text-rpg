@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, afterNextRender, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -39,10 +39,14 @@ interface DisplayEntry extends RemoteEntry {
     styleUrl: './s3-file-viewer-dialog.component.scss',
     changeDetection: ChangeDetectionStrategy.OnPush
 })
-export class S3FileViewerDialogComponent implements OnInit {
+export class S3FileViewerDialogComponent {
     private sync = inject(SyncService);
     private snackBar = inject(MatSnackBar);
     dialogRef = inject(MatDialogRef<S3FileViewerDialogComponent>);
+
+    constructor() {
+        afterNextRender(() => { void this.loadList('book'); });
+    }
 
     activeTab = signal<ViewerTab>('book');
     bookEntries = signal<DisplayEntry[]>([]);
@@ -82,10 +86,6 @@ export class S3FileViewerDialogComponent implements OnInit {
             return raw; // not JSON for some reason; show as-is
         }
     });
-
-    async ngOnInit(): Promise<void> {
-        await this.loadList('book');
-    }
 
     async onTabChange(index: number): Promise<void> {
         const tab: ViewerTab = index === 0 ? 'book'
