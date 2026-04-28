@@ -1,4 +1,3 @@
-/* eslint-disable no-restricted-globals -- TODO(dom-cleanup): replace getElementById('message-' + id) with viewChild query */
 import { Component, inject, ElementRef, effect, viewChild, signal, computed, afterNextRender, DestroyRef, ChangeDetectionStrategy } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -40,7 +39,7 @@ export class ChatComponent {
     private destroyRef = inject(DestroyRef);
 
     private scrollContainer = viewChild<ElementRef>('scrollContainer');
-    private contentWrapper = viewChild<ElementRef>('contentWrapper');
+    private contentWrapper = viewChild<ElementRef<HTMLElement>>('contentWrapper');
     private chatInput = viewChild<ChatInputComponent>('chatInput');
 
     userInput = signal('');
@@ -248,7 +247,8 @@ export class ChatComponent {
 
     onJumpToMessage(id: string) {
         setTimeout(() => {
-            const el = document.getElementById('message-' + id);
+            const root = this.contentWrapper()?.nativeElement;
+            const el = root?.querySelector<HTMLElement>(`#message-${CSS.escape(id)}`);
             if (el) {
                 el.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 el.classList.add('highlight-flash');

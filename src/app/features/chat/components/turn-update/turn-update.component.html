@@ -23,7 +23,7 @@
         <mat-icon class="sub-icon">short_text</mat-icon>
         @if (state.isEditingSummary()) {
         <div class="summary-editor">
-            <input type="text" [ngModel]="state.editSummaryContent()"
+            <input appAutofocusSelect type="text" [ngModel]="state.editSummaryContent()"
                 (ngModelChange)="state.editSummaryContent.set($event)" (keydown.enter)="state.saveSummaryEdit()"
                 (keydown.escape)="state.cancelSummaryEdit()">
             <button mat-icon-button class="tiny-btn" (click)="state.saveSummaryEdit()">
@@ -61,7 +61,7 @@
                 @if (state.editingLogKey() === message().id + '|inv|' + idx) {
                 <!-- Inline Editor -->
                 <div class="log-editor">
-                    <input id="log-edit-input" type="text" [ngModel]="state.editingLogContent()"
+                    <input appAutofocusSelect type="text" [ngModel]="state.editingLogContent()"
                         (ngModelChange)="state.editingLogContent.set($event)"
                         (keydown.enter)="state.saveLogEdit('inv', idx)" (keydown.escape)="state.cancelLogEdit()">
                     <button mat-icon-button class="tiny-btn" (click)="state.saveLogEdit('inv', idx)">
@@ -113,7 +113,7 @@
                 @if (state.editingLogKey() === message().id + '|quest|' + idx) {
                 <!-- Inline Editor -->
                 <div class="log-editor">
-                    <input id="log-edit-input" type="text" [ngModel]="state.editingLogContent()"
+                    <input appAutofocusSelect type="text" [ngModel]="state.editingLogContent()"
                         (ngModelChange)="state.editingLogContent.set($event)"
                         (keydown.enter)="state.saveLogEdit('quest', idx)" (keydown.escape)="state.cancelLogEdit()">
                     <button mat-icon-button class="tiny-btn" (click)="state.saveLogEdit('quest', idx)">
@@ -164,7 +164,7 @@
                 @if (state.editingLogKey() === message().id + '|world|' + idx) {
                 <!-- Inline Editor -->
                 <div class="log-editor">
-                    <input id="log-edit-input" type="text" [ngModel]="state.editingLogContent()"
+                    <input appAutofocusSelect type="text" [ngModel]="state.editingLogContent()"
                         (ngModelChange)="state.editingLogContent.set($event)"
                         (keydown.enter)="state.saveLogEdit('world', idx)" (keydown.escape)="state.cancelLogEdit()">
                     <button mat-icon-button class="tiny-btn" (click)="state.saveLogEdit('world', idx)">
@@ -216,7 +216,7 @@
                 @if (state.editingLogKey() === message().id + '|char|' + idx) {
                 <!-- Inline Editor -->
                 <div class="log-editor">
-                    <input id="log-edit-input" type="text" [ngModel]="state.editingLogContent()"
+                    <input appAutofocusSelect type="text" [ngModel]="state.editingLogContent()"
                         (ngModelChange)="state.editingLogContent.set($event)"
                         (keydown.enter)="state.saveLogEdit('char', idx)" (keydown.escape)="state.cancelLogEdit()">
                     <button mat-icon-button class="tiny-btn" (click)="state.saveLogEdit('char', idx)">

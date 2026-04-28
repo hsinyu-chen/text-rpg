@@ -1,4 +1,3 @@
-/* eslint-disable no-restricted-globals -- TODO(dom-cleanup): replace textarea querySelector with viewChild */
 import { Component, model, ChangeDetectionStrategy, inject, output, viewChild, ElementRef, computed } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { CommonModule, DOCUMENT } from '@angular/common';
@@ -313,8 +312,7 @@ export class ChatInputComponent {
     }
 
     private focusInput() {
-        const inputEl = document.querySelector('textarea, input[matInput]') as HTMLElement;
-        inputEl?.focus();
+        this.messageInput()?.nativeElement.focus();
     }
 
     // External API for parent to trigger edit mode

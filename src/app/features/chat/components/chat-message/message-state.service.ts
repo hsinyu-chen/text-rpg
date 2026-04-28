@@ -1,4 +1,3 @@
-/* eslint-disable no-restricted-globals -- TODO(dom-cleanup): replace document.querySelector with viewChild */
 import { Injectable, inject, signal, linkedSignal, computed } from '@angular/core';
 import { Clipboard } from '@angular/cdk/clipboard';
 import { firstValueFrom } from 'rxjs';
@@ -190,11 +189,8 @@ export class MessageStateService {
         this.isAddingNew = isAdding;
         this.editingLogKey.set(`${this.message().id}|${type}|${index}`);
         this.editingLogContent.set(content);
-        setTimeout(() => {
-            const inputEl = document.querySelector('.log-editor input') as HTMLInputElement;
-            inputEl?.focus();
-            inputEl?.select();
-        }, 10);
+        // Input focus + select is handled by the appAutofocusSelect directive on
+        // the rendered input element.
     }
 
     async saveLogEdit(type: 'inv' | 'quest' | 'world' | 'char', index: number) {
@@ -239,11 +235,8 @@ export class MessageStateService {
     startSummaryEdit(content: string) {
         this.editSummaryContent.set(content);
         this.isEditingSummary.set(true);
-        setTimeout(() => {
-            const inputEl = document.querySelector('.summary-editor input') as HTMLInputElement;
-            inputEl?.focus();
-            inputEl?.select();
-        }, 10);
+        // Input focus + select is handled by the appAutofocusSelect directive on
+        // the rendered input element.
     }
 
     async saveSummaryEdit() {
