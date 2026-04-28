@@ -442,18 +442,38 @@ export class SyncService {
         const remaining: { id: string; deletedAt: number }[] = [];
         const justDeletedIds = new Set<string>();
         for (const entry of pending) {
+            let tombstoneWritten = false;
             try {
                 await backend.writeTombstone(resource, entry.id, entry.deletedAt);
-                if (remoteById.has(entry.id)) {
+                tombstoneWritten = true;
+                // Add to justDeletedIds *immediately* after the tombstone is
+                // up. If `remove` fails below (transient network blip etc.),
+                // the live object is still on cloud — but the tombstone is
+                // the authoritative "this is deleted" signal, so this
+                // device's main loop must NOT re-download. Other devices
+                // will pick up the tombstone on their next sync; the next
+                // retry on this device cleans up the live object.
+                justDeletedIds.add(entry.id);
+            } catch (e) {
+                console.error(`[SyncService] Failed to write tombstone for ${resource} ${entry.id}, will retry`, e);
+                report.errors.push({ resource, id: entry.id, op: 'delete', message: errMsg(e) });
+            }
+
+            let removeOk = true;
+            if (tombstoneWritten && remoteById.has(entry.id)) {
+                try {
                     await backend.remove(resource, entry.id);
                     remoteById.delete(entry.id);
                     report.deleted++;
+                } catch (e) {
+                    console.error(`[SyncService] Failed to remove remote ${resource} ${entry.id}, will retry`, e);
+                    report.errors.push({ resource, id: entry.id, op: 'delete', message: errMsg(e) });
+                    removeOk = false;
                 }
-                justDeletedIds.add(entry.id);
-            } catch (e) {
-                console.error(`[SyncService] Failed to propagate ${resource} delete ${entry.id}, will retry`, e);
+            }
+
+            if (!tombstoneWritten || !removeOk) {
                 remaining.push(entry);
-                report.errors.push({ resource, id: entry.id, op: 'delete', message: errMsg(e) });
             }
         }
         localStorage.setItem(deletionKey, JSON.stringify(remaining));

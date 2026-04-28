@@ -283,19 +283,25 @@ export class S3SyncBackend implements SyncBackend {
             etag: p.etag,
             size: p.size
         };
+
+        // HEAD in its own try so a HEAD failure (permission delta, network
+        // blip, CORS edge case) doesn't skip the GET-body fallback below.
+        let metaValue: string | undefined;
         try {
             const head = await this.client.send(new HeadObjectCommand({
                 Bucket: this.bucket,
                 Key: p.key
             }));
-            const metaValue = head.Metadata?.[META_LAST_ACTIVE];
-            if (metaValue) {
-                return {
-                    ...fallback,
-                    lastActiveAt: Number(metaValue) || p.modifiedAt
-                };
-            }
-            // Metadata missing (CORS strip or never written) — read body.
+            metaValue = head.Metadata?.[META_LAST_ACTIVE];
+        } catch {
+            // Fall through to GET-body — that path also recovers lastActiveAt.
+        }
+        if (metaValue) {
+            return { ...fallback, lastActiveAt: Number(metaValue) || p.modifiedAt };
+        }
+
+        // Metadata missing (CORS strip or never written) — read body.
+        try {
             const get = await this.client.send(new GetObjectCommand({
                 Bucket: this.bucket,
                 Key: p.key
