@@ -851,6 +851,11 @@ export class SessionService {
                 newMap.set(filePath, count);
                 return newMap;
             });
+
+            // Persist KB change into the active Book so cloud sync sees it.
+            // Without this, sync compares book.lastActiveAt and never picks up
+            // edits that happened outside a turn loop.
+            await this.saveCurrentSessionToBook();
         }
 
         console.log('[SessionService] Updated file:', filePath);
@@ -955,6 +960,13 @@ export class SessionService {
 
                 this.isContextInjected = false;
             }
+
+            // Persist into the active Book so cloud sync sees the load.
+            // Guarded for the startNewGame path where currentBookId may not be set yet.
+            if (this.currentBookId()) {
+                await this.saveCurrentSessionToBook();
+            }
+
             this.state.status.set('idle');
         } catch (e) {
             console.error(e);
