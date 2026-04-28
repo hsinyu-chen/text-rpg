@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-globals, no-restricted-syntax -- TODO(dom-cleanup): migrate window.location.origin + navigator.clipboard */
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';

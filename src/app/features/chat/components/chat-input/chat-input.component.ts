@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-globals, no-restricted-syntax -- TODO(dom-cleanup): migrate download <a> creation + textarea querySelector */
 import { Component, model, ChangeDetectionStrategy, inject, output, viewChild, ElementRef, computed } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { CommonModule } from '@angular/common';

@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-globals -- TODO(dom-cleanup): replace querySelector with viewChild and clipboard with CDK */
 import { Injectable, inject, signal, linkedSignal, computed } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { GameEngineService } from '../../../../core/services/game-engine.service';

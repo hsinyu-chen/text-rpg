@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-syntax -- TODO(dom-cleanup): migrate window.innerWidth to inject(WINDOW) */
 import { Component, inject, signal, computed, viewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatDialogModule, MatDialogRef, MatDialog } from '@angular/material/dialog';

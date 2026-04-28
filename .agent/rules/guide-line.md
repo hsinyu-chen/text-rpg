@@ -29,6 +29,14 @@ description: Project Coding Standards and Rules
 5. **NO Classic Decorators**: BANNED `@Input`, `@Output`, `@ViewChild`, `@HostListener`.
 6. **NO Modules**: Standalone Components ONLY.
 7. **NO Computed Side-Effects**: Do not use `computed()` for writable state. Use `linkedSignal`.
+8. **NO Direct DOM/Platform Globals**: BANNED bare `document`, `navigator`, and `window.{location,innerWidth,addEventListener,setTimeout,...}`.
+   - `document` → `inject(DOCUMENT)` from `@angular/common`.
+   - `navigator.clipboard` → `inject(Clipboard)` from `@angular/cdk/clipboard`.
+   - `window.location` / `window.innerWidth` / resize listener / etc. → `inject(WINDOW)` from `app/core/tokens/window.token.ts`.
+   - DOM mutation (style, class, attribute, listen) inside services → `inject(RendererFactory2).createRenderer(null, null)`.
+   - DOM queries (`querySelector`, `getElementById`) → `viewChild()` / signal-based queries.
+   - Bare globals like `setTimeout` and `URL` are fine — only `window.setTimeout` / `window.URL` are banned to keep the cue consistent.
+   - Allowed exceptions: platform detection (`window.__TAURI__`), 3rd-party global SDKs (`window.monaco`, `MonacoEnvironment`), and `globalThis.crypto`.
 
 ## ✅ REQUIRED PATTERNS (DO THIS)
 

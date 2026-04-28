@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-syntax -- TODO(dom-cleanup): migrate window.location.origin to inject(WINDOW) */
 import {
     S3Client,
     ListObjectsV2Command,

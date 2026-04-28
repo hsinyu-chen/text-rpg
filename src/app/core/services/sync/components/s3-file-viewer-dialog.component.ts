@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-globals -- TODO(dom-cleanup): migrate navigator.clipboard to CDK Clipboard */
 import { ChangeDetectionStrategy, Component, afterNextRender, computed, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';

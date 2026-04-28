@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-globals -- TODO(dom-cleanup): migrate document.body.style to RendererFactory2 / DOCUMENT */
 import { Injectable, effect, inject } from '@angular/core';
 import { GameStateService, GameEngineConfig } from './game-state.service';
 import { StorageService } from './storage.service';

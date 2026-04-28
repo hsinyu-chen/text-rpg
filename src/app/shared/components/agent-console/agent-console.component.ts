@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-globals, no-restricted-syntax -- TODO(dom-cleanup): migrate clipboard + window.setTimeout + textarea fallback */
 import {
   Component,
   ChangeDetectionStrategy,

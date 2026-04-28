@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-globals -- TODO(dom-cleanup): migrate navigator.clipboard to CDK Clipboard */
 import { Component, inject, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';

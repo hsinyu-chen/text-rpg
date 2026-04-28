@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-globals -- TODO(dom-cleanup): migrate Monaco CSS injection to inject(DOCUMENT) */
 import { Injectable, signal } from '@angular/core';
 @Injectable({
     providedIn: 'root'

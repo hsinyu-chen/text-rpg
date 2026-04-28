@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-syntax -- TODO(dom-cleanup): migrate window.location.reload to inject(WINDOW) */
 import { Injectable, inject } from '@angular/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { LoadingService } from './loading.service';

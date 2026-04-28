@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-syntax -- TODO(dom-cleanup): migrate window.innerWidth/innerHeight + resize listener to inject(WINDOW) */
 import { Component, ElementRef, inject, afterNextRender, DestroyRef, viewChild } from '@angular/core';
 import Phaser from 'phaser';
 import { InvadersScene } from './invaders-scene';

@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-globals, no-restricted-syntax -- TODO(dom-cleanup): migrate visibilitychange + pagehide listeners to inject(DOCUMENT)/inject(WINDOW) */
 import { Injectable, inject, signal, computed, effect } from '@angular/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { StorageService } from '../storage.service';
