@@ -1,9 +1,10 @@
-/* eslint-disable no-restricted-globals -- TODO(dom-cleanup): migrate Monaco CSS injection to inject(DOCUMENT) */
-import { Injectable, signal } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
+import { DOCUMENT } from '@angular/common';
 @Injectable({
     providedIn: 'root'
 })
 export class MonacoLoaderService {
+    private readonly doc = inject(DOCUMENT);
     private isLoaded = signal(false);
     private loadingPromise: Promise<typeof import('monaco-editor')> | null = null;
     private monacoInstance: typeof import('monaco-editor') | null = null;
@@ -47,14 +48,14 @@ export class MonacoLoaderService {
     /** Dynamically inject Monaco editor CSS to avoid Vite build warning */
     private injectMonacoCss(): void {
         const cssId = 'monaco-editor-css';
-        if (document.getElementById(cssId)) return; // Already injected
+        if (this.doc.getElementById(cssId)) return; // Already injected
 
-        const link = document.createElement('link');
+        const link = this.doc.createElement('link');
         link.id = cssId;
         link.rel = 'stylesheet';
         link.setAttribute('data-name', 'vs/editor/editor.main');
         link.href = 'assets/monaco/min/vs/editor/editor.main.css';
-        document.head.appendChild(link);
+        this.doc.head.appendChild(link);
     }
 
     getLoadedSignal() {

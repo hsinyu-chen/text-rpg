@@ -1,5 +1,5 @@
-/* eslint-disable no-restricted-globals -- TODO(dom-cleanup): migrate GIS script injection to inject(DOCUMENT) */
-import { Injectable, signal } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
+import { DOCUMENT } from '@angular/common';
 import { environment } from '../../../environments/environment';
 
 // Google Identity Services Types
@@ -92,6 +92,7 @@ interface OAuthCreds {
     providedIn: 'root'
 })
 export class GoogleDriveService {
+    private readonly doc = inject(DOCUMENT);
     private tokenClient: TokenClient | null = null;
     private accessToken = signal<string | null>(null);
     private refreshToken = signal<string | null>(null);
@@ -171,7 +172,7 @@ export class GoogleDriveService {
         }
         this.gisScriptLoading = true;
         // Load Google Identity Services (GIS)
-        const script = document.createElement('script');
+        const script = this.doc.createElement('script');
         script.src = 'https://accounts.google.com/gsi/client';
         script.async = true;
         script.defer = true;
@@ -187,7 +188,7 @@ export class GoogleDriveService {
             if (this.gisScript === script) this.gisScript = null;
         };
         this.gisScript = script;
-        document.body.appendChild(script);
+        this.doc.body.appendChild(script);
     }
 
     private initClient() {

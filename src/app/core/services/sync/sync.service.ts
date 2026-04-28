@@ -1,5 +1,6 @@
-/* eslint-disable no-restricted-globals, no-restricted-syntax -- TODO(dom-cleanup): migrate visibilitychange + pagehide listeners to inject(DOCUMENT)/inject(WINDOW) */
+/* eslint-disable no-restricted-syntax -- TODO(dom-cleanup): migrate pagehide listener to inject(WINDOW) */
 import { Injectable, inject, signal, computed, effect } from '@angular/core';
+import { DOCUMENT } from '@angular/common';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { StorageService } from '../storage.service';
 import { SessionService } from '../session.service';
@@ -111,6 +112,7 @@ export class SyncService {
     private gdrive = inject(GDriveSyncBackend);
     private state = inject(GameStateService);
     private snackBar = inject(MatSnackBar);
+    private readonly doc = inject(DOCUMENT);
 
     activeBackendId = signal<SyncBackendId>(this.loadBackendId());
     s3Config = signal<S3Config | null>(this.loadS3Config());
@@ -167,17 +169,15 @@ export class SyncService {
             if (ts > 0) this.scheduleAutoSync();
         });
 
-        if (typeof document !== 'undefined') {
-            document.addEventListener('visibilitychange', () => {
-                if (document.visibilityState === 'hidden') {
-                    void this.flushAutoSync();
-                } else if (document.visibilityState === 'visible') {
-                    if (Date.now() - this.lastSyncAt > VISIBILITY_COOLDOWN_MS) {
-                        this.scheduleAutoSync(true);
-                    }
+        this.doc.addEventListener('visibilitychange', () => {
+            if (this.doc.visibilityState === 'hidden') {
+                void this.flushAutoSync();
+            } else if (this.doc.visibilityState === 'visible') {
+                if (Date.now() - this.lastSyncAt > VISIBILITY_COOLDOWN_MS) {
+                    this.scheduleAutoSync(true);
                 }
-            });
-        }
+            }
+        });
         if (typeof window !== 'undefined') {
             window.addEventListener('pagehide', () => {
                 if (this.debounceTimer) {

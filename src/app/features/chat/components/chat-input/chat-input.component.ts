@@ -1,7 +1,7 @@
-/* eslint-disable no-restricted-globals, no-restricted-syntax -- TODO(dom-cleanup): migrate download <a> creation + textarea querySelector */
+/* eslint-disable no-restricted-globals -- TODO(dom-cleanup): replace textarea querySelector with viewChild */
 import { Component, model, ChangeDetectionStrategy, inject, output, viewChild, ElementRef, computed } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { CommonModule } from '@angular/common';
+import { CommonModule, DOCUMENT } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -52,6 +52,7 @@ export class ChatInputComponent {
     session = inject(SessionService);
     lang = inject(LanguageService);
     private matDialog = inject(MatDialog);
+    private readonly doc = inject(DOCUMENT);
 
     // Computed: Whether there's an active session (book) to work with
     hasActiveSession = computed(() => !!this.session.currentBookId());
@@ -287,17 +288,17 @@ export class ChatInputComponent {
         }
 
         const blob = new Blob([content], { type: 'application/octet-stream' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+        const a = this.doc.createElement('a');
         a.style.display = 'none';
         a.href = url;
         a.download = filename;
-        document.body.appendChild(a);
+        this.doc.body.appendChild(a);
         a.click();
 
         setTimeout(() => {
-            window.URL.revokeObjectURL(url);
-            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            this.doc.body.removeChild(a);
         }, 150);
     }
 
