@@ -18,6 +18,7 @@ import { PostProcessorService } from '../../../core/services/post-processor.serv
 import { InjectionService, PromptType } from '../../../core/services/injection.service';
 import { PromptProfileRegistryService } from '../../../core/services/prompt-profile-registry.service';
 import { SyncService } from '../../../core/services/sync/sync.service';
+import { DiskProfileSyncService } from '../../../core/services/sync/disk-profile-sync.service';
 import { LoadingService } from '../../../core/services/loading.service';
 import { DialogService } from '../../../core/services/dialog.service';
 import { PromptDiffDialogComponent } from '../prompt-diff-dialog/prompt-diff-dialog.component';
@@ -66,6 +67,7 @@ export class ChatConfigDialogComponent {
     private injection = inject(InjectionService);
     private registry = inject(PromptProfileRegistryService);
     private sync = inject(SyncService);
+    private diskSync = inject(DiskProfileSyncService);
     loading = inject(LoadingService);
     private dialogService = inject(DialogService);
     private readonly win = inject(WINDOW);
@@ -478,6 +480,100 @@ export class ChatConfigDialogComponent {
             }
         };
         input.click();
+    }
+
+    /**
+     * Computed-ish (called from template tooltip / disabled binding) — the
+     * underlying signal lives on DiskProfileFolderService so the value is
+     * reactive to pickFolder / clear.
+     */
+    diskFolderName(): string | null {
+        return this.diskSync.boundFolderName();
+    }
+
+    /** Push active user profile to disk. Auto-prompts for a folder on first use. */
+    async pushActiveProfileToDisk(): Promise<void> {
+        const active = this.activeProfile();
+        if (!active || active.isBuiltIn) return;
+
+        if (!this.diskFolderName()) {
+            try {
+                await this.diskSync.pickFolder();
+            } catch (err) {
+                if ((err as Error)?.name === 'AbortError') return;
+                console.error('[ChatConfig] disk pickFolder failed', err);
+                this.snackBar.open(this.ui().DISK_SYNC_FAILED, this.ui().CLOSE, { duration: 3000 });
+                return;
+            }
+        }
+
+        this.loading.show(this.ui().DISK_SYNC_PUSHING);
+        try {
+            await this.diskSync.pushActiveToDisk();
+            this.snackBar.open(this.ui().DISK_SYNC_PUSHED, this.ui().CLOSE, { duration: 3000 });
+        } catch (err) {
+            console.error('[ChatConfig] pushActiveProfileToDisk failed', err);
+            this.snackBar.open(this.ui().DISK_SYNC_FAILED, this.ui().CLOSE, { duration: 4000 });
+        } finally {
+            this.loading.hide();
+        }
+    }
+
+    /** Pull active user profile from disk into IDB and reload signals. */
+    async pullActiveProfileFromDisk(): Promise<void> {
+        const active = this.activeProfile();
+        if (!active || active.isBuiltIn) return;
+
+        if (!this.diskFolderName()) {
+            try {
+                await this.diskSync.pickFolder();
+            } catch (err) {
+                if ((err as Error)?.name === 'AbortError') return;
+                console.error('[ChatConfig] disk pickFolder failed', err);
+                this.snackBar.open(this.ui().DISK_SYNC_FAILED, this.ui().CLOSE, { duration: 3000 });
+                return;
+            }
+        }
+
+        if (this.hasAnyDirty()) {
+            const ok = await this.dialogService.confirm(this.ui().DISK_SYNC_PULL_DISCARD_CONFIRM);
+            if (!ok) return;
+        }
+
+        this.loading.show(this.ui().DISK_SYNC_PULLING);
+        try {
+            const { updatedTypes } = await this.diskSync.pullActiveFromDisk();
+            this.refreshAllEditorContent();
+            this.dirtyState.set(new Map());
+            const msg = updatedTypes === 0
+                ? this.ui().DISK_SYNC_PULL_EMPTY
+                : this.ui().DISK_SYNC_PULLED.replace('{count}', String(updatedTypes));
+            this.snackBar.open(msg, this.ui().CLOSE, { duration: 3000 });
+        } catch (err) {
+            console.error('[ChatConfig] pullActiveProfileFromDisk failed', err);
+            this.snackBar.open(this.ui().DISK_SYNC_FAILED, this.ui().CLOSE, { duration: 4000 });
+        } finally {
+            this.loading.hide();
+        }
+    }
+
+    /** Re-run the directory picker so the user can re-bind to a different folder. */
+    async changeDiskFolder(): Promise<void> {
+        try {
+            await this.diskSync.pickFolder();
+            const name = this.diskFolderName();
+            if (name) {
+                this.snackBar.open(
+                    this.ui().DISK_SYNC_FOLDER_BOUND.replace('{name}', name),
+                    this.ui().CLOSE,
+                    { duration: 3000 }
+                );
+            }
+        } catch (err) {
+            if ((err as Error)?.name === 'AbortError') return;
+            console.error('[ChatConfig] changeDiskFolder failed', err);
+            this.snackBar.open(this.ui().DISK_SYNC_FAILED, this.ui().CLOSE, { duration: 3000 });
+        }
     }
 
     private refreshAllEditorContent(): void {
