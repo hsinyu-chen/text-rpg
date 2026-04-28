@@ -829,11 +829,11 @@ export class SessionService {
      */
     async updateSingleFile(filePath: string, content: string): Promise<void> {
         // Prompts live in prompt_store, not file_store. No production caller
-        // routes system_prompt.md through here anymore; refuse rather than
-        // letting a stale path leak into loadedFiles + the sidebar list.
+        // routes system_prompt.md through here anymore; refuse loudly so a
+        // stray legacy caller can't leave the UI showing "saved" while the
+        // write was silently dropped.
         if (filePath === 'system_files/system_prompt.md' || filePath === 'system_prompt.md') {
-            console.warn('[SessionService] Refused to write system_prompt.md as a file — prompts live in prompt_store now.');
-            return;
+            throw new Error('Refused to write system_prompt.md as a file — prompts live in prompt_store now.');
         }
 
         const modelId = this.state.config()?.modelId || this.provider.getDefaultModelId();
@@ -852,11 +852,6 @@ export class SessionService {
             return newMap;
         });
 
-        // Persist KB change into the active Book so cloud sync sees it.
-        // Without this, sync compares book.lastActiveAt and never picks up
-        // edits that happened outside a turn loop.
-        await this.saveCurrentSessionToBook();
-
         console.log('[SessionService] Updated file:', filePath);
 
         // Invalidate cache if KB hash changes (immediate UI feedback)
@@ -869,10 +864,15 @@ export class SessionService {
             // Also re-calculate total estimated tokens
             const contentMap = this.state.loadedFiles();
             const partsForCount = this.kb.buildKnowledgeBaseParts(contentMap);
-            const modelId = this.state.config()?.modelId || this.provider.getDefaultModelId();
             const totalTokenCount = await this.provider.countTokens(this.providerConfig, modelId, [{ role: 'user', parts: partsForCount }]);
             this.state.estimatedKbTokens.set(totalTokenCount);
         }
+
+        // Persist KB change into the active Book so cloud sync sees it.
+        // Done last so the saved book carries fresh kbCacheHash + nulled
+        // kbCacheName + recomputed estimatedKbTokens — otherwise the cloud
+        // copy would advertise a cache that was keyed to the previous content.
+        await this.saveCurrentSessionToBook();
     }
 
     /**
