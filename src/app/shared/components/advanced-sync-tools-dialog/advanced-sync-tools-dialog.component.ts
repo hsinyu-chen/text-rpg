@@ -167,7 +167,7 @@ import { SaveNameDialogComponent, SaveNameDialogData } from '../save-name-dialog
                       placeholder="(none)"
                       [disabled]="busy()"
                       (blur)="commitNote(s, $event)"
-                      (keydown.enter)="commitNote(s, $event)" />
+                      (keydown.enter)="$any($event.target).blur()" />
                 </td>
               </ng-container>
 
@@ -350,6 +350,13 @@ export class AdvancedSyncToolsDialogComponent {
     loadingList = signal(false);
     busy = signal(false);
     deviceId = computed(() => this.syncService.getDeviceId());
+    /**
+     * Per-snapshot guard: which ids currently have a note PUT in flight.
+     * Prevents the rare keystroke pattern (Enter → blur → re-focus → blur)
+     * from firing concurrent updateSnapshotNote requests for the same id
+     * while the body of `commitNote` is still awaiting the network round-trip.
+     */
+    private notesInFlight = new Set<string>();
 
     readonly cols = ['time', 'trigger', 'counts', 'size', 'device', 'note', 'actions'];
 
@@ -615,6 +622,8 @@ export class AdvancedSyncToolsDialogComponent {
         const next = input.value.trim();
         const prev = (s.note ?? '').trim();
         if (next === prev) return;
+        if (this.notesInFlight.has(s.id)) return;
+        this.notesInFlight.add(s.id);
         try {
             await this.syncService.updateSnapshotNote(s.id, next);
             // Update in-place; avoid full refresh to preserve scroll position.
@@ -628,6 +637,8 @@ export class AdvancedSyncToolsDialogComponent {
             });
             // Revert input value to last-known.
             input.value = prev;
+        } finally {
+            this.notesInFlight.delete(s.id);
         }
     }
 
