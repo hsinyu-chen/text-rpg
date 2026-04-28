@@ -8,6 +8,11 @@ import { PromptProfileRegistryService } from './prompt-profile-registry.service'
 
 export type PromptType = 'action' | 'continue' | 'fastforward' | 'system' | 'save' | 'postprocess' | 'system_main';
 
+/** Canonical list of all managed prompt types. Single source of truth for iteration. */
+export const ALL_PROMPT_TYPES: readonly PromptType[] = [
+    'action', 'continue', 'fastforward', 'system', 'save', 'system_main', 'postprocess'
+] as const;
+
 /**
  * Service responsible for managing dynamic prompt injection settings.
  * Handles loading, saving, and resetting injection prompts.
@@ -22,10 +27,7 @@ export class InjectionService {
     private registry = inject(PromptProfileRegistryService);
     private isSettingsLoading = false;
 
-    /** All prompt types managed by this service. */
-    private readonly ALL_TYPES: readonly PromptType[] = [
-        'action', 'continue', 'fastforward', 'system', 'save', 'system_main', 'postprocess'
-    ] as const;
+    private readonly ALL_TYPES = ALL_PROMPT_TYPES;
 
     /** Current active profile ID (convenience accessor) */
     private get profileId(): string {
@@ -378,6 +380,11 @@ export class InjectionService {
      * Clone an existing profile (built-in or user) into a new user profile.
      * Copies all 7 prompt rows + scoped LS keys (modified flags + server hashes).
      * Returns the new profile id.
+     *
+     * Built-in IDB rows are only seeded by `loadBuiltInProfile` for the *active*
+     * profile, so cloning a non-active built-in could otherwise produce an
+     * empty clone. We fall back to the shipped assets (and seed the source's
+     * IDB rows en passant) whenever a source row is missing.
      */
     async cloneProfile(sourceId: string, displayName: string): Promise<string> {
         const source = this.registry.get(sourceId);
@@ -386,9 +393,27 @@ export class InjectionService {
         const newId = PromptProfileRegistryService.generateId();
         const now = Date.now();
 
-        // Copy IDB rows
+        const lang = this.state.config()?.outputLanguage || localStorage.getItem('app_output_language') || localStorage.getItem('gemini_output_language') || 'default';
+        const langFolder = getLangFolder(lang);
+
         for (const type of this.ALL_TYPES) {
-            const row = await this.storage.getProfilePrompt(type, sourceId);
+            let row = await this.storage.getProfilePrompt(type, sourceId);
+
+            if (!row && source.isBuiltIn) {
+                // Source built-in hasn't been loaded yet. Fetch the shipped
+                // asset, apply placeholders the same way loadBuiltInProfile
+                // does, seed the source's IDB row, then copy to the clone.
+                try {
+                    const filename = INJECTION_FILE_PATHS[type];
+                    const raw = await this.loadBuiltInAsset(langFolder, filename, sourceId);
+                    const processed = type === 'postprocess' ? raw : this.applyPromptPlaceholders(raw, lang);
+                    await this.storage.saveProfilePrompt(type, sourceId, processed);
+                    row = { content: processed, lastModified: Date.now() };
+                } catch (err) {
+                    console.warn(`[InjectionService] cloneProfile: failed to seed ${type} for built-in source '${sourceId}'`, err);
+                }
+            }
+
             if (row) {
                 await this.storage.saveProfilePrompt(type, newId, row.content, row.tokens);
             }
@@ -417,8 +442,6 @@ export class InjectionService {
         await this.storage.putProfileMeta(meta);
         this.registry.add({
             id: newId,
-            nameKey: '',
-            descriptionKey: '',
             isBuiltIn: false,
             subDir: null,
             displayName,

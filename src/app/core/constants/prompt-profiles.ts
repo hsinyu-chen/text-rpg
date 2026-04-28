@@ -11,9 +11,9 @@ export interface PromptProfile {
     /** Unique identifier. Built-in: 'cloud', 'local'. User: `user_<shortUuid>`. */
     id: string;
     /** i18n key for display name (built-in only; user profile uses `displayName`). */
-    nameKey: string;
+    nameKey?: string;
     /** i18n key for description (built-in only). */
-    descriptionKey: string;
+    descriptionKey?: string;
     /** Whether this profile ships with the app. */
     isBuiltIn: boolean;
     /**

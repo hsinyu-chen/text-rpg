@@ -75,8 +75,6 @@ export class PromptProfileRegistryService {
 function metaToProfile(meta: StoredProfileMeta): PromptProfile {
     return {
         id: meta.id,
-        nameKey: '',
-        descriptionKey: '',
         isBuiltIn: false,
         subDir: null,
         displayName: meta.displayName,

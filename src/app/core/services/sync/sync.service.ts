@@ -18,11 +18,9 @@ import {
 import { cleanBookForSync, cleanCollectionForSync } from './clean.util';
 import { BUILT_IN_PROFILES } from '../../constants/prompt-profiles';
 import { PromptProfileRegistryService } from '../prompt-profile-registry.service';
-import type { PromptType } from '../injection.service';
+import { ALL_PROMPT_TYPES, type PromptType } from '../injection.service';
 
-const PROMPT_TYPES: readonly PromptType[] = [
-    'action', 'continue', 'fastforward', 'system', 'save', 'postprocess', 'system_main'
-];
+const PROMPT_TYPES = ALL_PROMPT_TYPES;
 
 interface PromptsV2 {
     version: 2;
@@ -42,13 +40,15 @@ function isPromptsV2(x: unknown): x is PromptsV2 {
     return v === 2;
 }
 
-function shortHash(s: string): string {
-    let h = 0;
-    for (let i = 0; i < s.length; i++) {
-        h = ((h << 5) - h) + s.charCodeAt(i);
-        h |= 0;
+function importSuffix(): string {
+    if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+        return crypto.randomUUID().replace(/-/g, '').slice(0, 8);
     }
-    return Math.abs(h).toString(36).slice(0, 6);
+    return Math.random().toString(36).slice(2, 10);
+}
+
+function isValidUserProfileId(id: unknown): id is string {
+    return typeof id === 'string' && /^[A-Za-z0-9_-]{3,}$/.test(id.trim());
 }
 
 async function loadS3Module() {
@@ -1040,13 +1040,20 @@ export class SyncService {
         // is also remapped (treat as a name collision with a reserved id).
         const idRemap = new Map<string, string>();
         for (const incoming of payload.profiles ?? []) {
+            // Skip rows with garbage ids — empty / whitespace / illegal chars
+            // would otherwise become valid IDB keys and registry entries.
+            if (!isValidUserProfileId(incoming.id)) {
+                console.warn('[SyncService] applyPromptsV2: dropping profile with invalid id', incoming);
+                continue;
+            }
+
             const existing = this.profileRegistry.get(incoming.id);
             const collidesWithBuiltIn = existing?.isBuiltIn === true;
             const collidesDifferent = existing && !existing.isBuiltIn &&
                 (existing.displayName !== incoming.displayName || existing.baseProfileId !== incoming.baseProfileId);
 
             const targetId = (collidesWithBuiltIn || collidesDifferent)
-                ? `${incoming.id}_imported_${shortHash(incoming.id + incoming.displayName + Date.now())}`
+                ? `${incoming.id}_imported_${importSuffix()}`
                 : incoming.id;
             if (targetId !== incoming.id) idRemap.set(incoming.id, targetId);
 
@@ -1064,8 +1071,6 @@ export class SyncService {
             } else {
                 this.profileRegistry.add({
                     id: targetId,
-                    nameKey: '',
-                    descriptionKey: '',
                     isBuiltIn: false,
                     subDir: null,
                     displayName: incoming.displayName,
