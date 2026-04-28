@@ -13,7 +13,6 @@ import { CollectionService } from './collection.service';
 import { GAME_INTENTS } from '../constants/game-intents';
 import { getCoreFilenames, getSectionHeaders, getUIStrings } from '../constants/engine-protocol';
 import { LOCALES } from '../constants/locales';
-import { InjectionService } from './injection.service';
 import { convertLatexToSymbols, repairCorruptedLatex } from '../utils/latex.util';
 
 @Injectable({
@@ -28,7 +27,6 @@ export class SessionService {
     private costService = inject(CostService);
     private kb = inject(KnowledgeService);
     private snackBar = inject(MatSnackBar);
-    private injection = inject(InjectionService);
     private collections = inject(CollectionService);
 
     constructor() {
@@ -830,37 +828,38 @@ export class SessionService {
      * Updates a single file in storage and refreshes the loadedFiles signal.
      */
     async updateSingleFile(filePath: string, content: string): Promise<void> {
-        // 1. Handle special files (system prompts)
+        // Prompts live in prompt_store, not file_store. No production caller
+        // routes system_prompt.md through here anymore; refuse rather than
+        // letting a stale path leak into loadedFiles + the sidebar list.
         if (filePath === 'system_files/system_prompt.md' || filePath === 'system_prompt.md') {
-            await this.injection.saveToService('system_main', content);
-        } else {
-            // Save regular file and compute tokens
-            const modelId = this.state.config()?.modelId || this.provider.getDefaultModelId();
-            const count = await this.provider.countTokens(this.providerConfig, modelId, [{ role: 'user', parts: [{ text: content }] }]);
-            await this.storage.saveFile(filePath, content, count);
-
-            this.state.loadedFiles.update(map => {
-                const newMap = new Map(map);
-                newMap.set(filePath, content);
-                return newMap;
-            });
-
-            // Update individual token count in state
-            this.state.fileTokenCounts.update(map => {
-                const newMap = new Map(map);
-                newMap.set(filePath, count);
-                return newMap;
-            });
-
-            // Persist KB change into the active Book so cloud sync sees it.
-            // Without this, sync compares book.lastActiveAt and never picks up
-            // edits that happened outside a turn loop.
-            await this.saveCurrentSessionToBook();
+            console.warn('[SessionService] Refused to write system_prompt.md as a file — prompts live in prompt_store now.');
+            return;
         }
+
+        const modelId = this.state.config()?.modelId || this.provider.getDefaultModelId();
+        const count = await this.provider.countTokens(this.providerConfig, modelId, [{ role: 'user', parts: [{ text: content }] }]);
+        await this.storage.saveFile(filePath, content, count);
+
+        this.state.loadedFiles.update(map => {
+            const newMap = new Map(map);
+            newMap.set(filePath, content);
+            return newMap;
+        });
+
+        this.state.fileTokenCounts.update(map => {
+            const newMap = new Map(map);
+            newMap.set(filePath, count);
+            return newMap;
+        });
+
+        // Persist KB change into the active Book so cloud sync sees it.
+        // Without this, sync compares book.lastActiveAt and never picks up
+        // edits that happened outside a turn loop.
+        await this.saveCurrentSessionToBook();
 
         console.log('[SessionService] Updated file:', filePath);
 
-        // 2. Invalidate cache if KB hash changes (immediate UI feedback)
+        // Invalidate cache if KB hash changes (immediate UI feedback)
         const currentHash = this.state.currentKbHash();
         if (this.state.kbCacheHash() !== currentHash) {
             console.log('[SessionService] KB Content changed through single update. Invalidating remote state.');
@@ -919,16 +918,6 @@ export class SessionService {
                 }));
             }
 
-            const mainPrompt = await this.storage.getPrompt('system_main');
-            if (mainPrompt) {
-                if (mainPrompt.tokens) {
-                    tokenMap.set('system_files/system_prompt.md', mainPrompt.tokens);
-                } else {
-                    const count = await this.provider.countTokens(this.providerConfig, modelId, [{ role: 'user', parts: [{ text: mainPrompt.content }] }]);
-                    tokenMap.set('system_files/system_prompt.md', count);
-                    await this.storage.savePrompt('system_main', mainPrompt.content, count);
-                }
-            }
             this.state.fileTokenCounts.set(tokenMap);
             const partsForCount = this.kb.buildKnowledgeBaseParts(contentMap);
 

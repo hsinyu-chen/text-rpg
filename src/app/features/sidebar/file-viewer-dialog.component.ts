@@ -738,8 +738,7 @@ export class FileViewerDialogComponent implements OnDestroy {
       }
 
       // Use engine.updateSingleFile — this writes to file_store, updates state.loadedFiles,
-      // refreshes token counts, and invalidates the KB cache hash. Also handles the
-      // special-case routing for system_prompt.md → prompt_store.
+      // refreshes token counts, and invalidates the KB cache hash.
       await this.engine.updateSingleFile(fileName, content);
 
       // [Added] Clear remote cache since files have changed
