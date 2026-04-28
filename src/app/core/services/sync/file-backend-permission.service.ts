@@ -1,18 +1,20 @@
-import { Injectable, inject, signal } from '@angular/core';
-import { WINDOW } from '../../tokens/window.token';
-import { StorageService } from '../storage.service';
+import { Injectable } from '@angular/core';
+import {
+    FolderHandleBaseService,
+    FolderHandleNoHandleError,
+    FolderHandlePermissionDeniedError,
+    FolderHandlePermissionState
+} from './folder-handle-base.service';
 
-const HANDLE_KEY = 'file_root';
-
-export type FileBackendPermissionState = 'unknown' | 'granted' | 'prompt' | 'denied';
+export type FileBackendPermissionState = FolderHandlePermissionState;
 
 /**
  * Thrown by `ensurePermission` when no folder has been picked yet. The UI
  * should route the user to the Settings page to bind a folder.
  */
-export class FileBackendNoHandleError extends Error {
+export class FileBackendNoHandleError extends FolderHandleNoHandleError {
     constructor() {
-        super('File sync backend has no folder bound. Pick a folder in Settings first.');
+        super();
         this.name = 'FileBackendNoHandleError';
     }
 }
@@ -22,7 +24,7 @@ export class FileBackendNoHandleError extends Error {
  * the bound folder (user cancelled the prompt, or the folder no longer
  * exists / has been moved).
  */
-export class FileBackendPermissionDeniedError extends Error {
+export class FileBackendPermissionDeniedError extends FolderHandlePermissionDeniedError {
     constructor(message: string) {
         super(message);
         this.name = 'FileBackendPermissionDeniedError';
@@ -45,87 +47,12 @@ export class FileBackendPermissionDeniedError extends Error {
  * user click (Sync All / Force Push / Snapshot). `ensurePermission` runs
  * inside that click's transient activation window, so the prompt fires
  * naturally on the first action of each tab session.
+ *
+ * Implementation lives in `FolderHandleBaseService`; this subclass just pins
+ * the IDB key and re-exports the legacy error class names so existing
+ * imports keep compiling.
  */
 @Injectable({ providedIn: 'root' })
-export class FileBackendPermissionService {
-    private readonly storage = inject(StorageService);
-    private readonly win = inject(WINDOW);
-
-    readonly handle = signal<FileSystemDirectoryHandle | null>(null);
-    readonly permissionState = signal<FileBackendPermissionState>('unknown');
-
-    /** Single-flight restore promise; awaited by every public method so the
-     *  IDB hydration and signal initialization happens once. */
-    private readonly restoredOnce: Promise<void> = this.restore();
-
-    private async restore(): Promise<void> {
-        try {
-            const stored = await this.storage.getDirHandle(HANDLE_KEY);
-            if (!stored) {
-                this.handle.set(null);
-                this.permissionState.set('unknown');
-                return;
-            }
-            this.handle.set(stored);
-            const state = await stored.queryPermission({ mode: 'readwrite' });
-            this.permissionState.set(state);
-        } catch (e) {
-            // Hydration failure shouldn't crash the app; user can re-pick.
-            console.warn('[FileBackendPermission] restore() failed', e);
-            this.handle.set(null);
-            this.permissionState.set('unknown');
-        }
-    }
-
-    /**
-     * Opens the directory picker. Must be invoked from a user-gesture handler.
-     * Persists the resulting handle to IDB and marks state 'granted'.
-     */
-    async pickFolder(): Promise<FileSystemDirectoryHandle> {
-        await this.restoredOnce;
-        if (typeof this.win.showDirectoryPicker !== 'function') {
-            throw new FileBackendPermissionDeniedError(
-                'File System Access API is not available in this browser.'
-            );
-        }
-        const picked = await this.win.showDirectoryPicker({ mode: 'readwrite' });
-        await this.storage.setDirHandle(HANDLE_KEY, picked);
-        this.handle.set(picked);
-        this.permissionState.set('granted');
-        return picked;
-    }
-
-    /**
-     * Asserts the bound folder is reachable and writable. Call from any
-     * sync entry point that runs under a user-gesture call stack — if the
-     * permission state is 'prompt', this fires `requestPermission` which
-     * needs that activation to surface the browser prompt.
-     */
-    async ensurePermission(): Promise<FileSystemDirectoryHandle> {
-        await this.restoredOnce;
-        const h = this.handle();
-        if (!h) throw new FileBackendNoHandleError();
-
-        let state = await h.queryPermission({ mode: 'readwrite' });
-        if (state !== 'granted') {
-            state = await h.requestPermission({ mode: 'readwrite' });
-        }
-        this.permissionState.set(state);
-        if (state !== 'granted') {
-            throw new FileBackendPermissionDeniedError(
-                state === 'denied'
-                    ? 'Folder access was denied. Re-pick the folder in Settings.'
-                    : 'Folder access could not be granted. Try again from a sync action.'
-            );
-        }
-        return h;
-    }
-
-    /** Forgets the bound folder. Used by Settings "Unbind" / repick flows. */
-    async clear(): Promise<void> {
-        await this.restoredOnce;
-        await this.storage.clearDirHandle(HANDLE_KEY);
-        this.handle.set(null);
-        this.permissionState.set('unknown');
-    }
+export class FileBackendPermissionService extends FolderHandleBaseService {
+    protected readonly handleKey = 'file_root';
 }

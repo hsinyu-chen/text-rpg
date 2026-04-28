@@ -5,6 +5,7 @@ import {
     SnapshotTombstoneRef, SnapshotSkipped, SnapshotLocalPayload, assertSnapshotId
 } from './sync.types';
 import { FileBackendPermissionService } from './file-backend-permission.service';
+import { ensureDir, getDirIfExists, isNotFound, readFileText, splitDir, writeFileText } from './fsa-utils';
 
 const RESOURCE_DIR: Record<SyncResource, string> = {
     book: 'books',
@@ -545,88 +546,6 @@ export class FileSyncBackend implements SyncBackend {
 }
 
 // ===== Module-private helpers ============================================
-
-function splitDir(path: string): string[] {
-    return path.split('/').filter(p => p.length > 0);
-}
-
-/**
- * Walk `parts` from `root`, creating missing intermediates. Always returns
- * a handle on success; throws on FS error. Use this when the directory
- * MUST exist after the call (writes, snapshot creation).
- */
-async function ensureDir(
-    root: FileSystemDirectoryHandle,
-    parts: string[]
-): Promise<FileSystemDirectoryHandle> {
-    let cur: FileSystemDirectoryHandle = root;
-    for (const part of parts) {
-        cur = await cur.getDirectoryHandle(part, { create: true });
-    }
-    return cur;
-}
-
-/**
- * Like `ensureDir` but read-only: returns `null` if any segment is missing.
- * Use this for list/read paths where "directory doesn't exist yet" maps to
- * "no entries" rather than an error.
- */
-async function getDirIfExists(
-    root: FileSystemDirectoryHandle,
-    parts: string[]
-): Promise<FileSystemDirectoryHandle | null> {
-    let cur: FileSystemDirectoryHandle = root;
-    for (const part of parts) {
-        try {
-            cur = await cur.getDirectoryHandle(part, { create: false });
-        } catch (e) {
-            if (isNotFound(e)) return null;
-            throw e;
-        }
-    }
-    return cur;
-}
-
-async function readFileText(
-    dir: FileSystemDirectoryHandle,
-    name: string
-): Promise<string | null> {
-    let fh: FileSystemFileHandle;
-    try {
-        fh = await dir.getFileHandle(name, { create: false });
-    } catch (e) {
-        if (isNotFound(e)) return null;
-        throw e;
-    }
-    const file = await fh.getFile();
-    return file.text();
-}
-
-/**
- * Atomic-replace write: `createWritable` opens a hidden temp file under the
- * platform's atomic-rename semantics and `close()` swaps it into place.
- * Readers either see the old or the new bytes, never a torn intermediate.
- */
-async function writeFileText(
-    dir: FileSystemDirectoryHandle,
-    name: string,
-    content: string
-): Promise<void> {
-    const fh = await dir.getFileHandle(name, { create: true });
-    const writable = await fh.createWritable({ keepExistingData: false });
-    try {
-        await writable.write(content);
-    } finally {
-        await writable.close();
-    }
-}
-
-function isNotFound(e: unknown): boolean {
-    if (e instanceof DOMException) {
-        return e.name === 'NotFoundError';
-    }
-    return false;
-}
 
 async function parallelPool<T>(
     items: T[],
