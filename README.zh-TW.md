@@ -48,9 +48,9 @@ TextRPG 是一個**本地優先 (Local-First)**、**自帶金鑰 (Bring Your Own
 
 3. **備份與同步 (Backup & Sync)**
    *   **雲端同步**: 在 **Session** (冒險之書列表) 點擊 **"Sync All"**，將所有 Book 與 Collection 與目前選定的 Sync Provider 雙向同步。在 **Settings → Sync Provider** 切換 Provider:
-       *   **Google Drive** (預設) — App Data 資料夾;需要 GCP OAuth Client ID。
-       *   **S3-compatible** — 貼上 endpoint / bucket / access key / secret key 即可。已用 SeaweedFS 實測;任何相容 SigV4 + path-style URL 的 S3 服務（MinIO、R2、AWS）理論上都能用。
-       *   S3 表單提供 Import / Export 按鈕,可將設定以 JSON 來回複製,跨裝置部署不必重打欄位。
+       *   **S3-compatible** *（強烈建議）* — 貼上 endpoint / bucket / access key / secret key 即可。已用 SeaweedFS 實測；任何相容 SigV4 + path-style URL 的 S3 服務（MinIO、R2、AWS）理論上都能用。自架的話一個 `docker-compose up` 就跑起來，日常使用速度也比 Drive 快。
+       *   S3 表單提供 Import / Export 按鈕，可將設定以 JSON 來回複製，跨裝置部署不必重打欄位。
+       *   **Google Drive** — App Data 資料夾；需要 GCP OAuth Client ID。*只有在你真的完全不想自架任何儲存服務時才推薦這條路* — Drive App Data API 明顯比自架 S3 慢，OAuth 設定也繁瑣。詳見下方 [GCP 配置 (OAuth)](#gcp-配置-oauth) 章節。
    *   **本地備份**: 也可以使用 **資料夾圖示** 將當前書籍匯出至本機目錄保存。
 
 4. **下一章節 (Next Session / Act II+)**

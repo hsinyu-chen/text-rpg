@@ -45,9 +45,9 @@ TextRPG is a **Local-First**, **Bring Your Own Key (BYOK)** desktop application 
 
 2. **Backup (Crucial)**
    *   **Cloud Sync**: Go to **Session** (Book List) -> click **"Sync All"** to two-way sync all Books and Collections with the active sync provider. Choose the provider under **Settings → Sync Provider**:
-       *   **Google Drive** (default) — App Data folder; requires a GCP OAuth Client ID.
-       *   **S3-compatible** — paste endpoint / bucket / access key / secret key. Tested against SeaweedFS; should work with any S3-compatible service (MinIO, R2, AWS) that accepts standard SigV4 with path-style URLs.
+       *   **S3-compatible** *(strongly recommended)* — paste endpoint / bucket / access key / secret key. Tested against SeaweedFS; should work with any S3-compatible service (MinIO, R2, AWS) that accepts standard SigV4 with path-style URLs. One `docker-compose up` away if you self-host, and faster than Drive in everyday use.
        *   The S3 form has Import / Export buttons that round-trip the config as JSON, so you can share the same setup across devices without re-typing each field.
+       *   **Google Drive** — App Data folder; requires a GCP OAuth Client ID. *Only worth it if you really don't want to host any storage service yourself* — the Drive App Data API is noticeably slower than self-hosted S3, and OAuth setup is fiddly. See [GCP Configuration (OAuth)](#gcp-configuration-oauth) below.
    *   **Local Export**: You can also use the **Folder Icon** to export the current book to a local folder for safekeeping.
 
 3. **Next Session (Act II+)**
