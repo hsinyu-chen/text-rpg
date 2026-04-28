@@ -8,10 +8,15 @@ import {
     HeadBucketCommand,
     GetBucketCorsCommand,
     PutBucketCorsCommand,
+    CopyObjectCommand,
     S3ServiceException,
     type GetBucketCorsCommandOutput
 } from '@aws-sdk/client-s3';
-import { SyncBackend, SyncResource, RemoteEntry, Tombstone, SyncBackendId, S3Config } from './sync.types';
+import {
+    SyncBackend, SyncResource, RemoteEntry, Tombstone, SyncBackendId, S3Config,
+    SnapshotMeta, SnapshotManifest, SnapshotMetaInput, SnapshotEntryRef,
+    SnapshotTombstoneRef, SnapshotSkipped, assertSnapshotId
+} from './sync.types';
 
 const RESOURCE_DIR: Record<SyncResource, string> = {
     book: 'books',
@@ -23,6 +28,9 @@ const TOMBSTONE_DIR: Record<SyncResource, string> = {
 };
 const SETTINGS_KEY = 'settings.json';
 const PROMPTS_KEY = 'prompts.json';
+const SNAPSHOTS_DIR = 'snapshots';
+const SNAPSHOT_MANIFEST_NAME = 'manifest.json';
+const SNAPSHOT_CONCURRENCY = 8;
 // Hyphen rather than underscore — RFC 7230 disallows underscore in HTTP
 // header names, and SeaweedFS rejects the SigV4 of `x-amz-meta-last_active`
 // outright. AWS S3 itself tolerates underscores; hyphen works on both.
@@ -479,4 +487,415 @@ export class S3SyncBackend implements SyncBackend {
         }
         return false;
     }
+
+    // ===== Snapshots =====================================================
+    //
+    // Layout (mirrors the live tree, scoped to a snapshot id):
+    //   <prefix>snapshots/<snapshotId>/manifest.json
+    //   <prefix>snapshots/<snapshotId>/books/<id>.json
+    //   <prefix>snapshots/<snapshotId>/collections/<id>.json
+    //   <prefix>snapshots/<snapshotId>/tombstones/books/<id>/<deletedAt>
+    //   <prefix>snapshots/<snapshotId>/tombstones/collections/<id>/<deletedAt>
+    //
+    // Snapshot objects retain the original `last-active` user metadata
+    // (CopyObject MetadataDirective: 'COPY'), so the snapshot is a true
+    // historical artefact. Restore reads the snapshot body, re-stamps
+    // `lastActiveAt` to Date.now() in BOTH body and metadata, and writes
+    // back to live — that's what defeats newer-wins on other devices and
+    // self-heal trying to revert the body.
+
+    private snapshotPrefix(snapshotId: string): string {
+        return `${this.prefix}${SNAPSHOTS_DIR}/${snapshotId}/`;
+    }
+
+    private snapshotManifestKey(snapshotId: string): string {
+        return `${this.snapshotPrefix(snapshotId)}${SNAPSHOT_MANIFEST_NAME}`;
+    }
+
+    private snapshotBookKey(snapshotId: string, id: string): string {
+        return `${this.snapshotPrefix(snapshotId)}${RESOURCE_DIR.book}/${id}.json`;
+    }
+
+    private snapshotCollectionKey(snapshotId: string, id: string): string {
+        return `${this.snapshotPrefix(snapshotId)}${RESOURCE_DIR.collection}/${id}.json`;
+    }
+
+    private snapshotTombstoneKey(
+        snapshotId: string, resource: SyncResource, id: string, deletedAt: number
+    ): string {
+        return `${this.snapshotPrefix(snapshotId)}${TOMBSTONE_DIR[resource]}/${id}/${deletedAt}`;
+    }
+
+    /**
+     * Builds the `CopySource` value for CopyObjectCommand.
+     *
+     * Format is `bucket-name/key-name`, where the key has each path segment
+     * URI-encoded but the slashes preserved. encodeURIComponent on the whole
+     * key would encode `/` to `%2F` and break the path; encoding nothing
+     * would break on keys with spaces or special chars.
+     */
+    private encodeCopySource(key: string): string {
+        const encodedKey = key.split('/').map(encodeURIComponent).join('/');
+        return `${this.bucket}/${encodedKey}`;
+    }
+
+    /**
+     * Cursor-based parallel pool, matching the pattern already used in
+     * `list()`. Each worker pulls the next index until exhausted; bounded
+     * concurrency avoids exhausting browser connection pools and tripping
+     * rate limits on smaller S3-compatible servers.
+     */
+    private async parallelPool<T>(
+        items: T[],
+        worker: (item: T, idx: number) => Promise<void>,
+        concurrency = SNAPSHOT_CONCURRENCY
+    ): Promise<void> {
+        if (items.length === 0) return;
+        let cursor = 0;
+        const runners = Array.from(
+            { length: Math.min(concurrency, items.length) },
+            async () => {
+                while (cursor < items.length) {
+                    const i = cursor++;
+                    await worker(items[i], i);
+                }
+            }
+        );
+        await Promise.all(runners);
+    }
+
+    async listSnapshots(): Promise<SnapshotMeta[]> {
+        const dirPrefix = `${this.prefix}${SNAPSHOTS_DIR}/`;
+        const snapshotIds: string[] = [];
+        let continuationToken: string | undefined;
+        do {
+            const res = await this.client.send(new ListObjectsV2Command({
+                Bucket: this.bucket,
+                Prefix: dirPrefix,
+                Delimiter: '/',
+                ContinuationToken: continuationToken
+            }));
+            for (const cp of res.CommonPrefixes ?? []) {
+                if (!cp.Prefix) continue;
+                // CommonPrefix is `<prefix>snapshots/<id>/`. Strip both ends.
+                const id = cp.Prefix.slice(dirPrefix.length, -1);
+                if (id) snapshotIds.push(id);
+            }
+            continuationToken = res.IsTruncated ? res.NextContinuationToken : undefined;
+        } while (continuationToken);
+
+        const metas: (SnapshotMeta | null)[] = new Array(snapshotIds.length);
+        await this.parallelPool(snapshotIds, async (id, i) => {
+            try {
+                const manifest = await this.readSnapshotManifest(id);
+                // Strip `entries` to keep the list-level payload light.
+                const { entries: _entries, ...meta } = manifest;
+                metas[i] = meta;
+            } catch (e) {
+                // Skip unreadable snapshots (corrupt manifest, partial create
+                // that never wrote manifest, etc.) rather than failing the
+                // whole list — UI can still show the rest.
+                console.warn(`[S3] Failed to read snapshot manifest for ${id}; skipping.`, e);
+                metas[i] = null;
+            }
+        });
+        return metas.filter((m): m is SnapshotMeta => m !== null);
+    }
+
+    async readSnapshotManifest(snapshotId: string): Promise<SnapshotManifest> {
+        assertSnapshotId(snapshotId);
+        const res = await this.client.send(new GetObjectCommand({
+            Bucket: this.bucket,
+            Key: this.snapshotManifestKey(snapshotId)
+        }));
+        if (!res.Body) throw new Error(`S3: empty manifest for snapshot ${snapshotId}`);
+        const text = await res.Body.transformToString();
+        return JSON.parse(text) as SnapshotManifest;
+    }
+
+    async createSnapshot(
+        snapshotId: string,
+        meta: SnapshotMetaInput
+    ): Promise<SnapshotManifest> {
+        assertSnapshotId(snapshotId);
+
+        // 1. Snapshot the live state (parallel; each call is independently paginated).
+        const [books, collections, bookTombs, collTombs] = await Promise.all([
+            this.list('book'),
+            this.list('collection'),
+            this.listTombstones('book'),
+            this.listTombstones('collection')
+        ]);
+
+        // 2. Book-wins dedupe: if an id is both a live entry and a tombstone,
+        //    drop the tombstone from the manifest (and skip its copy below).
+        const bookIds = new Set(books.map(b => b.id));
+        const collIds = new Set(collections.map(c => c.id));
+        const filteredBookTombs = bookTombs.filter(t => !bookIds.has(t.id));
+        const filteredCollTombs = collTombs.filter(t => !collIds.has(t.id));
+
+        const skipped: SnapshotSkipped[] = [];
+
+        // 3. Copy books / collections (server-side; preserves last-active metadata).
+        const bookEntries: SnapshotEntryRef[] = [];
+        await this.parallelPool(books, async (b) => {
+            const src = this.keyFor('book', b.id);
+            const dst = this.snapshotBookKey(snapshotId, b.id);
+            try {
+                await this.client.send(new CopyObjectCommand({
+                    Bucket: this.bucket,
+                    CopySource: this.encodeCopySource(src),
+                    Key: dst,
+                    MetadataDirective: 'COPY'
+                }));
+                bookEntries.push({ id: b.id, lastActiveAt: b.lastActiveAt, etag: b.etag, size: b.size });
+            } catch (e) {
+                if (this.isNotFound(e)) {
+                    skipped.push({ resource: 'book', id: b.id, reason: 'source 404 mid-snapshot' });
+                    return;
+                }
+                throw e;
+            }
+        });
+
+        const collectionEntries: SnapshotEntryRef[] = [];
+        await this.parallelPool(collections, async (c) => {
+            const src = this.keyFor('collection', c.id);
+            const dst = this.snapshotCollectionKey(snapshotId, c.id);
+            try {
+                await this.client.send(new CopyObjectCommand({
+                    Bucket: this.bucket,
+                    CopySource: this.encodeCopySource(src),
+                    Key: dst,
+                    MetadataDirective: 'COPY'
+                }));
+                collectionEntries.push({ id: c.id, lastActiveAt: c.lastActiveAt, etag: c.etag, size: c.size });
+            } catch (e) {
+                if (this.isNotFound(e)) {
+                    skipped.push({ resource: 'collection', id: c.id, reason: 'source 404 mid-snapshot' });
+                    return;
+                }
+                throw e;
+            }
+        });
+
+        // 4. Copy tombstones. The deletedAt is encoded in the live key; the
+        //    snapshot keeps the same encoding so listTombstones() over the
+        //    snapshot tree (if ever needed) would behave identically.
+        const tombstoneEntries: SnapshotTombstoneRef[] = [];
+        const allTombs: { resource: SyncResource; t: Tombstone }[] = [
+            ...filteredBookTombs.map(t => ({ resource: 'book' as const, t })),
+            ...filteredCollTombs.map(t => ({ resource: 'collection' as const, t }))
+        ];
+        await this.parallelPool(allTombs, async ({ resource, t }) => {
+            const src = this.tombstoneKey(resource, t.id, t.deletedAt);
+            const dst = this.snapshotTombstoneKey(snapshotId, resource, t.id, t.deletedAt);
+            try {
+                await this.client.send(new CopyObjectCommand({
+                    Bucket: this.bucket,
+                    CopySource: this.encodeCopySource(src),
+                    Key: dst,
+                    MetadataDirective: 'COPY'
+                }));
+                tombstoneEntries.push({ resource, id: t.id, deletedAt: t.deletedAt });
+            } catch (e) {
+                if (this.isNotFound(e)) {
+                    skipped.push({ resource, id: t.id, reason: 'tombstone source 404 mid-snapshot' });
+                    return;
+                }
+                throw e;
+            }
+        });
+
+        // 5. Build manifest from the actual copied entries (counts and
+        //    sizeBytes are derived here; SnapshotMetaInput's `Pick` excludes
+        //    them at the type level so the caller can't supply them).
+        const sizeBytes = sumSizes(bookEntries) + sumSizes(collectionEntries);
+        const manifest: SnapshotManifest = {
+            id: snapshotId,
+            createdAt: meta.createdAt,
+            trigger: meta.trigger,
+            note: meta.note,
+            deviceId: meta.deviceId,
+            bookCount: bookEntries.length,
+            collectionCount: collectionEntries.length,
+            tombstoneCount: tombstoneEntries.length,
+            sizeBytes: sizeBytes > 0 ? sizeBytes : undefined,
+            skippedIds: skipped.length > 0 ? skipped : undefined,
+            version: 1,
+            entries: {
+                book: bookEntries,
+                collection: collectionEntries,
+                tombstone: tombstoneEntries
+            }
+        };
+
+        await this.client.send(new PutObjectCommand({
+            Bucket: this.bucket,
+            Key: this.snapshotManifestKey(snapshotId),
+            Body: JSON.stringify(manifest),
+            ContentType: 'application/json'
+        }));
+
+        return manifest;
+    }
+
+    async restoreSnapshot(snapshotId: string): Promise<void> {
+        assertSnapshotId(snapshotId);
+
+        // 1. Read manifest first. If this fails, abort without touching live.
+        const manifest = await this.readSnapshotManifest(snapshotId);
+
+        // 2. Snapshot live state (for diff-delete). Take this BEFORE any
+        //    writes so the diff can't accidentally include things we just
+        //    wrote ourselves.
+        const [liveBooks, liveCollections, liveBookTombs, liveCollTombs] = await Promise.all([
+            this.list('book'),
+            this.list('collection'),
+            this.listTombstoneKeys('book'),
+            this.listTombstoneKeys('collection')
+        ]);
+
+        const now = Date.now();
+
+        // 3. Write entries from manifest. GET snapshot body, re-stamp body's
+        //    lastActiveAt to now, PUT to live with metadata last-active=now.
+        //    Both body and metadata get the new timestamp — body alone would
+        //    let self-heal revert via metadata, metadata alone would let
+        //    other devices see a stale body and propagate it.
+        const bookRestoreSrc = manifest.entries.book.map(e => ({
+            id: e.id,
+            srcKey: this.snapshotBookKey(snapshotId, e.id),
+            dstResource: 'book' as const
+        }));
+        const collRestoreSrc = manifest.entries.collection.map(e => ({
+            id: e.id,
+            srcKey: this.snapshotCollectionKey(snapshotId, e.id),
+            dstResource: 'collection' as const
+        }));
+        await this.parallelPool([...bookRestoreSrc, ...collRestoreSrc], async (item) => {
+            const get = await this.client.send(new GetObjectCommand({
+                Bucket: this.bucket,
+                Key: item.srcKey
+            }));
+            if (!get.Body) {
+                throw new Error(`S3: empty body for snapshot entry ${item.dstResource}/${item.id}`);
+            }
+            const text = await get.Body.transformToString();
+            const restamped = restampBodyLastActive(text, now);
+            await this.write(item.dstResource, item.id, restamped, now);
+        });
+
+        // 4. Write tombstones from manifest at NEW deletedAt. The new
+        //    deletedAt path is `<prefix>tombstones/<resource>/<id>/<now>`,
+        //    distinct from any older `<id>/<oldDeletedAt>` keys — those
+        //    older keys are wiped in the diff-delete phase.
+        await this.parallelPool(manifest.entries.tombstone, async (t) => {
+            await this.writeTombstone(t.resource, t.id, now);
+        });
+
+        // 5. Diff-delete. live = manifest after this step.
+        const manifestBookIds = new Set(manifest.entries.book.map(e => e.id));
+        const manifestCollIds = new Set(manifest.entries.collection.map(e => e.id));
+
+        const booksToDelete = liveBooks.filter(b => !manifestBookIds.has(b.id));
+        const collsToDelete = liveCollections.filter(c => !manifestCollIds.has(c.id));
+
+        await this.parallelPool(booksToDelete, async (b) => this.remove('book', b.id));
+        await this.parallelPool(collsToDelete, async (c) => this.remove('collection', c.id));
+
+        // For tombstones: delete ALL pre-existing live tombstone keys we
+        // captured at step 2. They are obsolete in both possible cases —
+        // either (a) the id appeared in the manifest and we just wrote a
+        // fresh `<id>/<now>` key, or (b) the id wasn't in the manifest and
+        // shouldn't have a tombstone in restored state at all. Note we use
+        // the full key (including the old deletedAt path segment), so the
+        // newly-written `<now>` keys are not in this list.
+        const allOldTombKeys = [...liveBookTombs, ...liveCollTombs];
+        await this.parallelPool(allOldTombKeys, async (key) => {
+            await this.client.send(new DeleteObjectCommand({
+                Bucket: this.bucket,
+                Key: key
+            }));
+        });
+    }
+
+    async deleteSnapshot(snapshotId: string): Promise<void> {
+        assertSnapshotId(snapshotId);
+        const dirPrefix = this.snapshotPrefix(snapshotId);
+        const keys: string[] = [];
+        let continuationToken: string | undefined;
+        do {
+            const res = await this.client.send(new ListObjectsV2Command({
+                Bucket: this.bucket,
+                Prefix: dirPrefix,
+                ContinuationToken: continuationToken
+            }));
+            for (const obj of res.Contents ?? []) {
+                if (obj.Key) keys.push(obj.Key);
+            }
+            continuationToken = res.IsTruncated ? res.NextContinuationToken : undefined;
+        } while (continuationToken);
+
+        await this.parallelPool(keys, async (key) => {
+            await this.client.send(new DeleteObjectCommand({
+                Bucket: this.bucket,
+                Key: key
+            }));
+        });
+    }
+
+    /**
+     * Like `listTombstones()` but returns the full S3 keys (one per object,
+     * NOT deduped per id). Restore needs every old key so it can wipe them
+     * in the diff-delete phase; the per-id dedupe that listTombstones() does
+     * would lose tombstones with the same id but different deletedAt.
+     */
+    private async listTombstoneKeys(resource: SyncResource): Promise<string[]> {
+        const dirPrefix = `${this.prefix}${TOMBSTONE_DIR[resource]}/`;
+        const keys: string[] = [];
+        let continuationToken: string | undefined;
+        do {
+            const res = await this.client.send(new ListObjectsV2Command({
+                Bucket: this.bucket,
+                Prefix: dirPrefix,
+                ContinuationToken: continuationToken
+            }));
+            for (const obj of res.Contents ?? []) {
+                if (obj.Key) keys.push(obj.Key);
+            }
+            continuationToken = res.IsTruncated ? res.NextContinuationToken : undefined;
+        } while (continuationToken);
+        return keys;
+    }
+}
+
+function sumSizes(entries: SnapshotEntryRef[]): number {
+    let total = 0;
+    for (const e of entries) {
+        if (e.size !== undefined) total += e.size;
+    }
+    return total;
+}
+
+/**
+ * Replaces the body's `lastActiveAt` field with the restore timestamp.
+ *
+ * If the JSON parse fails (corrupt snapshot body) or the field isn't there
+ * (unlikely — write() always stamps it), the body is returned unchanged so
+ * restore at least preserves the snapshot's data. Sync-decision logic still
+ * has the metadata `last-active=now` to work from, so newer-wins remains
+ * correct even on a body without the field.
+ */
+function restampBodyLastActive(text: string, now: number): string {
+    try {
+        const parsed = JSON.parse(text);
+        if (parsed && typeof parsed === 'object') {
+            (parsed as Record<string, unknown>).lastActiveAt = now;
+            return JSON.stringify(parsed);
+        }
+    } catch {
+        // fall through
+    }
+    return text;
 }

@@ -74,6 +74,98 @@ export interface SyncBackend {
     writeSettings(content: string): Promise<void>;
     readPrompts(): Promise<string | null>;
     writePrompts(content: string): Promise<void>;
+
+    // Snapshot primitives — point-in-time backups of books + collections +
+    // tombstones (settings/prompts intentionally excluded). See
+    // SnapshotManifest for the on-cloud layout. Caller (service layer)
+    // generates the snapshotId; backends only consume it. Backends must
+    // validate id shape via `assertSnapshotId` before any I/O.
+    listSnapshots(): Promise<SnapshotMeta[]>;
+    readSnapshotManifest(snapshotId: string): Promise<SnapshotManifest>;
+    createSnapshot(snapshotId: string, meta: SnapshotMetaInput): Promise<SnapshotManifest>;
+    /**
+     * Restores live state to match the snapshot's manifest:
+     *   - books / collections in manifest are written to live with body
+     *     `lastActiveAt` and metadata `last-active` both stamped to
+     *     `Date.now()` (defeats newer-wins on other devices and self-heal).
+     *   - tombstones in manifest are written with `deletedAt = Date.now()`.
+     *   - Live entries not in the manifest are deleted (write-then-diff order).
+     *
+     * **Cross-device atomicity is NOT guaranteed.** The service layer must
+     * quiesce auto-sync before/after restore; otherwise another device
+     * pushing in mid-restore can leak its state into the restored result.
+     */
+    restoreSnapshot(snapshotId: string): Promise<void>;
+    deleteSnapshot(snapshotId: string): Promise<void>;
+}
+
+export type SnapshotTrigger = 'forcePush' | 'forcePull' | 'manual' | 'preRestore';
+
+export interface SnapshotSkipped {
+    resource: SyncResource;
+    id: string;
+    reason: string;
+}
+
+export interface SnapshotMeta {
+    id: string;
+    /** Device-clock time when caller initiated createSnapshot. */
+    createdAt: number;
+    trigger: SnapshotTrigger;
+    note?: string;
+    deviceId?: string;
+    // Backend-filled (caller-supplied values are ignored on createSnapshot):
+    bookCount: number;
+    collectionCount: number;
+    tombstoneCount: number;
+    sizeBytes?: number;
+    /** Entries the backend tried to copy but couldn't (e.g. 404 mid-snapshot). */
+    skippedIds?: SnapshotSkipped[];
+}
+
+/** What the caller is responsible for filling in createSnapshot. */
+export type SnapshotMetaInput = Pick<SnapshotMeta, 'createdAt' | 'trigger' | 'note' | 'deviceId'>;
+
+export interface SnapshotEntryRef {
+    id: string;
+    /** Original device-clock lastActiveAt at snapshot time. NOT createdAt. */
+    lastActiveAt: number;
+    etag?: string;
+    size?: number;
+}
+
+export interface SnapshotTombstoneRef {
+    resource: SyncResource;
+    id: string;
+    /** Original deletedAt at snapshot time. */
+    deletedAt: number;
+}
+
+export interface SnapshotManifest extends SnapshotMeta {
+    version: 1;
+    entries: {
+        book: SnapshotEntryRef[];
+        collection: SnapshotEntryRef[];
+        /**
+         * Already deduped at createSnapshot time: if the same id appears in
+         * `book[]` (or `collection[]`), its tombstone is omitted here. The
+         * "book wins" rule lives in createSnapshot, not in restoreSnapshot.
+         */
+        tombstone: SnapshotTombstoneRef[];
+    };
+}
+
+const SNAPSHOT_ID_RE = /^[A-Za-z0-9_-]+$/;
+
+/**
+ * Backends MUST call this on every public snapshot method before touching
+ * the cloud. Caller-supplied ids that contain `/` or `..` would otherwise
+ * escape the snapshot subtree and corrupt live data.
+ */
+export function assertSnapshotId(snapshotId: string): void {
+    if (!snapshotId || !SNAPSHOT_ID_RE.test(snapshotId)) {
+        throw new Error(`Invalid snapshotId: ${JSON.stringify(snapshotId)}. Must match ${SNAPSHOT_ID_RE}.`);
+    }
 }
 
 export interface S3Config {
