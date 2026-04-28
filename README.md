@@ -375,16 +375,20 @@ npm run build:desktop
 
 ### GCP Configuration (OAuth)
 
-To enable Google Cloud features (like Knowledge Base / Context Caching) in the Desktop (Tauri) version, you must provide your own GCP OAuth credentials:
+> **Not recommended unless you really don't want to self-host S3.** The Google OAuth setup is fiddly (GCP project, OAuth consent screen, publishing review, etc.) and the Drive App Data API is **noticeably slower** than a self-hosted S3 endpoint — every list/read/write goes through Google's auth + quota stack, so syncs feel sluggish compared to pointing at a LAN MinIO. An S3-compatible backend (SeaweedFS / MinIO / R2) is usually one `docker-compose up` away, far less maintenance, and much faster. Only walk this path if you don't want to host any storage service at all.
+
+To enable Google Drive sync, you must provide your own GCP OAuth credentials:
 
 1.  **Create a GCP Project**: Go to the [Google Cloud Console](https://console.cloud.google.com/).
 2.  **Configure OAuth Consent Screen**: Set up an internal or external consent screen.
-3.  **Create OAuth 2.0 Client IDs**:
-    *   Create a "Web application" client ID (for web dev).
-    *   Create a **"Desktop app"** client ID (for Tauri/Desktop).
-4.  **Update Environment Files**:
-    *   Open `src/environments/environment.ts` and `src/environments/environment.development.ts`.
-    *   Fill in `gcpOauthAppId`, `gcpOauthAppId_Tauri`, and `gcpOauthClientSecret_Tauri`.
+3.  **Create OAuth 2.0 Client ID(s)** — depends on which build you're using:
+    *   **Web build**: Create a **"Web application"** client ID. Add your deployed origin (e.g. `http://localhost:4200`) to *Authorized JavaScript origins* — the in-app GIS popup flow validates by origin, not redirect URI, so leaving "Authorized redirect URIs" empty is fine.
+    *   **Tauri/Desktop build**: Create a **"Desktop app"** client ID. The Tauri PKCE flow does *not* work with a Web-application client id — Desktop type plus its client secret is required.
+4.  **Provide the credentials**:
+    *   **Web** — pick one:
+        *   *Bake into the build* (self-hosters who don't want a runtime UI): fill `gcpOauthAppId` in `src/environments/environment.ts` and `environment.development.ts`.
+        *   *Paste at runtime* (no rebuild): leave `gcpOauthAppId` empty and enter your Client ID in **Settings → Sync → Google Drive**. The input only appears when the environment value is empty. Ask your AI assistant for *"how to create a Google OAuth Web-application client id with the `drive.appdata` scope"* if you're stuck.
+    *   **Tauri** — env-only (rebuild required). There is no official desktop release; users always self-build, so creds are baked in: fill `gcpOauthAppId_Tauri` and `gcpOauthClientSecret_Tauri` in the environment files before running `npm run build:desktop`.
 
 ### Language Switching
 

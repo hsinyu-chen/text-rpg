@@ -377,16 +377,20 @@ npm run build:desktop
 
 ### GCP 配置 (OAuth)
 
-若要在桌面版 (Tauri) 中啟用 Google Cloud 相關功能（如知識庫/內容快取），您需要配置自己的 GCP OAuth 憑證：
+> **不建議使用此選項，除非你真的不想架 S3。** Google OAuth 的設定流程繁瑣（需要 GCP 專案、OAuth consent screen、發布審核等），而且 Drive App Data API **明顯比自架 S3 endpoint 慢** —— 每次 list/read/write 都要走 Google 的 auth + quota stack，相較於指到 LAN 上的 MinIO 同步起來會頓頓的。S3-compatible backend（SeaweedFS / MinIO / R2）通常一個 docker-compose 就能跑起來，維護成本低、速度也快得多。建議只有在完全不想自架任何儲存服務時才走這條路。
+
+若要啟用 Google Drive 同步，您需要配置自己的 GCP OAuth 憑證：
 
 1.  **建立 GCP 專案**：前往 [Google Cloud Console](https://console.cloud.google.com/)。
 2.  **配置 OAuth 同意畫面**：設定 OAuth 同意畫面。
-3.  **建立 OAuth 2.0 用戶端 ID**：
-    *   建立一個「網頁應用程式」類型用於 Web 開發。
-    *   建立一個 **「桌面應用程式」** (Desktop app) 類型用於 Tauri 桌面端。
-4.  **更新環境設定檔**：
-    *   開啟 `src/environments/environment.ts` 與 `src/environments/environment.development.ts`。
-    *   填入對應的 `gcpOauthAppId`、`gcpOauthAppId_Tauri` 與 `gcpOauthClientSecret_Tauri`。
+3.  **建立 OAuth 2.0 用戶端 ID** — 視你跑的版本：
+    *   **Web 版**：建立 **「網頁應用程式」** 類型 client ID，並把你部署的 origin（例如 `http://localhost:4200`）加入 *Authorized JavaScript origins*（App 內走的是 GIS popup flow，認 origin 不認 redirect URI，所以「Authorized redirect URIs」可以留空）。
+    *   **Tauri 桌面版**：建立 **「桌面應用程式」** (Desktop app) 類型 client ID。**Tauri PKCE flow 不能用網頁應用程式類型** — 必須用 Desktop 類型搭配 client secret 才能 token exchange。
+4.  **提供憑證**：
+    *   **Web** — 擇一即可：
+        *   *烘進 build*（不想用 runtime UI 的自架者）：在 `src/environments/environment.ts` 與 `environment.development.ts` 填入 `gcpOauthAppId`。
+        *   *執行時貼入*（不需重新 build）：`gcpOauthAppId` 留空，到 **Settings → Sync → Google Drive** 貼 Client ID。只有 environment 留空時才出現輸入欄位。不會建立的話可以問你的 AI 朋友：「how to create a Google OAuth Web-application client id with the `drive.appdata` scope」。
+    *   **Tauri** — env-only（必須 rebuild）：本專案沒有提供官方桌面版 release，使用者一律從 source build，因此憑證必須在 build 前烘進去 — 在 environment 檔填好 `gcpOauthAppId_Tauri` 與 `gcpOauthClientSecret_Tauri` 後再執行 `npm run build:desktop`。
 
 ### 語系切換 (Language Switching)
 

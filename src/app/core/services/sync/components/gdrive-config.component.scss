@@ -31,3 +31,53 @@
         font-size: 0.9em;
     }
 }
+
+.byo-oauth {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+
+    .hint {
+        font-size: 0.85em;
+        opacity: 0.8;
+        margin: 0;
+
+        code {
+            background: rgba(255, 255, 255, 0.08);
+            padding: 0 4px;
+            border-radius: 3px;
+        }
+    }
+
+    .redirect-uri {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+
+        .label {
+            font-size: 0.85em;
+            opacity: 0.8;
+        }
+
+        .redirect-uri-row {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+
+            code {
+                flex: 1;
+                background: rgba(255, 255, 255, 0.08);
+                padding: 4px 8px;
+                border-radius: 3px;
+                font-size: 0.85em;
+                word-break: break-all;
+            }
+        }
+    }
+
+    button[mat-flat-button] {
+        align-self: flex-start;
+    }
+}
