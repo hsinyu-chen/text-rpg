@@ -59,7 +59,7 @@ export interface DriveFile {
 // Minimal PKCE Helpers
 async function generateCodeVerifier() {
     const array = new Uint8Array(32);
-    window.crypto.getRandomValues(array);
+    globalThis.crypto.getRandomValues(array);
     return Array.from(array, dec2hex).join('');
 }
 function dec2hex(dec: number) {
@@ -68,7 +68,7 @@ function dec2hex(dec: number) {
 async function generateCodeChallenge(verifier: string) {
     const encoder = new TextEncoder();
     const data = encoder.encode(verifier);
-    const digest = await window.crypto.subtle.digest('SHA-256', data);
+    const digest = await globalThis.crypto.subtle.digest('SHA-256', data);
     return btoa(String.fromCharCode(...new Uint8Array(digest)))
         .replace(/\+/g, '-')
         .replace(/\//g, '_')
