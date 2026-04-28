@@ -52,7 +52,7 @@ TextRPG 是一個**本地優先 (Local-First)**、**自帶金鑰 (Bring Your Own
        *   S3 表單提供 Import / Export 按鈕，可將設定以 JSON 來回複製，跨裝置部署不必重打欄位。
        *   **Google Drive** — App Data 資料夾；需要 GCP OAuth Client ID。*只有在你真的完全不想自架任何儲存服務時才推薦這條路* — Drive App Data API 明顯比自架 S3 慢，OAuth 設定也繁瑣。詳見下方 [GCP 配置 (OAuth)](#gcp-配置-oauth) 章節。
        *   **Local Folder**（本地資料夾）— 透過 File System Access API 選一個本機資料夾。**僅 Chromium 系**（Chrome / Edge / WebView2；Firefox / Safari 上 radio 灰反白）。**刻意不支援 auto-sync** — 資料夾存取依賴 FSA 權限,而 Chrome 是否跨 reload 持久化權限取決於使用者有沒有勾「永久允許」這個 checkbox。把所有 sync 動作都鎖定為使用者點擊觸發,可以避免「勾了的人」跟「沒勾的人」之間出現 auto-sync 靜默失敗的不一致行為。*零基建跨裝置同步選項*:把選定的資料夾指到桌面端 cloud client（Dropbox / Google Drive 桌面版 / iCloud Drive / Syncthing）同步的位置。注意 — 這等於串了兩層 sync(本 App → 資料夾 → cloud client),擴散速度慢,且兩台裝置同時編輯時容易產生衝突檔（`Foo (1).json`、`.sync-conflict-*.json`)。`list()` 會自動過濾掉這類檔案,但底層 cloud client 若不會自動處理就得手動解決。
-   *   **本地備份**: 也可以使用 **資料夾圖示** 將當前書籍匯出至本機目錄保存。
+   *   **Local KB Files**(本地 KB 檔案):側邊欄 **Files** tab 內的 **Local File System** 區塊 — 選一個資料夾後可用 **Load**(disk → IndexedDB)或 **Sync**(IndexedDB ↔ disk diff)在當前 book 的 KB 檔(world / system / lore 之類 markdown)與本機之間來回搬。適合用外部編輯器改 KB 或做版本控管。這只處理「當前 book 的 KB *檔案*」,**不是完整 book 備份** — 跨裝置 book 同步請用上面的 provider。
 
 4. **下一章節 (Next Session / Act II+)**
    *   **建立下一章**: 當章節結束時，點擊側邊欄的 **"Create Next"** (建立下一章) 按鈕，系統會自動繼承所有記憶與數值，建立一本新的冒險之書（例如 "Act 2"）。新書會落在與來源書相同的 Collection 內。
