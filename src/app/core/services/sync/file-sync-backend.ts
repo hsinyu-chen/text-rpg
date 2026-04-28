@@ -28,13 +28,30 @@ const SNAPSHOT_CONCURRENCY = 8;
 const TOMBSTONE_RE = /^(.+)__(\d+)\.json$/;
 
 /**
- * Resource entry filename: `<id>.json`. We accept any id that doesn't
- * embed `(` or space (those are the tell-tales of Dropbox conflict
- * filenames like `Foo (1).json`); body-parse failures further down are
- * skipped with a warn so any other crud — including Syncthing
- * `.sync-conflict-*` — never crashes a sync.
+ * Resource entry filename: `<id>.json`. We must reject conflict-marker
+ * filenames that cloud-mirror tools drop next to the originals — they
+ * contain a copy of valid JSON, so a body-parse safety net wouldn't
+ * catch them; they'd be ingested as books with junk ids and propagate
+ * cross-device. The blocklist (`isConflictName`) handles the two we
+ * know about; the regex then enforces the basic `<id>.json` shape and
+ * rejects anything containing `(`, `)`, or whitespace, which covers
+ * additional Dropbox patterns like `Foo (1).json`.
  */
 const ENTRY_RE = /^([^()\s]+)\.json$/;
+
+/**
+ * Returns true when a filename matches a known cloud-mirror conflict
+ * pattern that should be skipped on `list()`.
+ *  - Dropbox: `Foo (1).json`, `Foo (2).json`, …
+ *  - Syncthing: `Foo.sync-conflict-20250101-120000-DEVICEID.json`
+ *  - iCloud: `Foo (Conflicted copy).json` (also handled by paren rule)
+ */
+function isConflictName(name: string): boolean {
+    if (name.includes('.sync-conflict')) return true;
+    if (/\(\d+\)/.test(name)) return true;
+    if (name.toLowerCase().includes('conflicted copy')) return true;
+    return false;
+}
 
 @Injectable({ providedIn: 'root' })
 export class FileSyncBackend implements SyncBackend {
@@ -84,8 +101,9 @@ export class FileSyncBackend implements SyncBackend {
         if (!dir) return [];
 
         const candidates: { id: string; handle: FileSystemFileHandle }[] = [];
-        for await (const [name, handle] of entries(dir)) {
+        for await (const [name, handle] of dir.entries()) {
             if (handle.kind !== 'file') continue;
+            if (isConflictName(name)) continue;
             const m = ENTRY_RE.exec(name);
             if (!m) continue;
             candidates.push({ id: m[1], handle: handle as FileSystemFileHandle });
@@ -114,9 +132,7 @@ export class FileSyncBackend implements SyncBackend {
                 out[i] = fallback;
             }
         });
-        // Drop any skipped slots (none currently — parse failures fall back
-        // to mtime — but keep the filter to mirror `list()` output shape).
-        return out.filter((e): e is RemoteEntry => !!e);
+        return out;
     }
 
     async read(resource: SyncResource, id: string): Promise<string> {
@@ -159,7 +175,7 @@ export class FileSyncBackend implements SyncBackend {
         if (!dir) return [];
 
         const latest = new Map<string, number>();
-        for await (const [name, handle] of entries(dir)) {
+        for await (const [name, handle] of dir.entries()) {
             if (handle.kind !== 'file') continue;
             const m = TOMBSTONE_RE.exec(name);
             if (!m) continue;
@@ -179,7 +195,7 @@ export class FileSyncBackend implements SyncBackend {
         // Sweep older tombstones for the same id so the directory doesn't
         // grow each delete-restore-redelete cycle. listTombstones only ever
         // returns the max deletedAt per id, so older keys are dead weight.
-        for await (const [name, handle] of entries(dir)) {
+        for await (const [name, handle] of dir.entries()) {
             if (handle.kind !== 'file') continue;
             const m = TOMBSTONE_RE.exec(name);
             if (!m || m[1] !== id) continue;
@@ -249,7 +265,7 @@ export class FileSyncBackend implements SyncBackend {
         if (!dir) return [];
 
         const ids: string[] = [];
-        for await (const [name, handle] of entries(dir)) {
+        for await (const [name, handle] of dir.entries()) {
             if (handle.kind === 'directory') ids.push(name);
         }
 
@@ -602,14 +618,6 @@ async function writeFileText(
         await writable.write(content);
     } finally {
         await writable.close();
-    }
-}
-
-async function* entries(
-    dir: FileSystemDirectoryHandle
-): AsyncIterable<[string, FileSystemHandle]> {
-    for await (const entry of dir.entries()) {
-        yield entry;
     }
 }
 
