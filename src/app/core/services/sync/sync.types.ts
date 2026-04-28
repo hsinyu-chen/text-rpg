@@ -82,7 +82,26 @@ export interface SyncBackend {
     // validate id shape via `assertSnapshotId` before any I/O.
     listSnapshots(): Promise<SnapshotMeta[]>;
     readSnapshotManifest(snapshotId: string): Promise<SnapshotManifest>;
-    createSnapshot(snapshotId: string, meta: SnapshotMetaInput): Promise<SnapshotManifest>;
+    /**
+     * Snapshots the current cloud (live) tree into `snapshots/<id>/` via
+     * server-side copy — no body bytes traverse the client. Used for
+     * `forcePush` (rescue cloud before overwrite), `manual` (capture the
+     * shared cloud state), and `preRestore` (rescue cloud before restore
+     * rewrites it).
+     */
+    createSnapshotFromCloud(snapshotId: string, meta: SnapshotMetaInput): Promise<SnapshotManifest>;
+    /**
+     * Snapshots a caller-supplied (local IDB) payload into `snapshots/<id>/`
+     * by uploading each object directly. Used for `forcePull` — the cloud
+     * is about to overwrite local, so the rescue point must mirror local,
+     * not cloud. Caller is responsible for cleaning bodies (cleanBookForSync /
+     * cleanCollectionForSync) and supplying `lastActiveAt` per entry.
+     */
+    createSnapshotFromLocal(
+        snapshotId: string,
+        meta: SnapshotMetaInput,
+        payload: SnapshotLocalPayload
+    ): Promise<SnapshotManifest>;
     /**
      * Restores live state to match the snapshot's manifest:
      *   - books / collections in manifest are written to live with body
@@ -97,6 +116,13 @@ export interface SyncBackend {
      */
     restoreSnapshot(snapshotId: string): Promise<void>;
     deleteSnapshot(snapshotId: string): Promise<void>;
+    /**
+     * Overwrites the `note` field on an existing snapshot's manifest.json.
+     * `note` is metadata only (not part of the historical record), so an
+     * in-place rewrite is acceptable here even though manifest entries are
+     * otherwise immutable.
+     */
+    updateSnapshotNote(snapshotId: string, note: string): Promise<void>;
 }
 
 export type SnapshotTrigger = 'forcePush' | 'forcePull' | 'manual' | 'preRestore';
@@ -125,6 +151,31 @@ export interface SnapshotMeta {
 
 /** What the caller is responsible for filling in createSnapshot. */
 export type SnapshotMetaInput = Pick<SnapshotMeta, 'createdAt' | 'trigger' | 'note' | 'deviceId'>;
+
+/**
+ * Payload for `createSnapshotFromLocal`. Caller (service layer) reads local
+ * IDB, applies the same body cleaning used for upload, and hands over the
+ * full set of objects to capture. Backends MUST NOT mutate this payload.
+ */
+export interface SnapshotLocalEntry {
+    id: string;
+    /** Device-clock lastActiveAt to stamp on the snapshot object's metadata. */
+    lastActiveAt: number;
+    /** Already-cleaned JSON body to upload verbatim. */
+    json: string;
+}
+
+export interface SnapshotLocalTombstone {
+    resource: SyncResource;
+    id: string;
+    deletedAt: number;
+}
+
+export interface SnapshotLocalPayload {
+    books: SnapshotLocalEntry[];
+    collections: SnapshotLocalEntry[];
+    tombstones: SnapshotLocalTombstone[];
+}
 
 export interface SnapshotEntryRef {
     id: string;

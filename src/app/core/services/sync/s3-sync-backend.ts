@@ -15,7 +15,7 @@ import {
 import {
     SyncBackend, SyncResource, RemoteEntry, Tombstone, SyncBackendId, S3Config,
     SnapshotMeta, SnapshotManifest, SnapshotMetaInput, SnapshotEntryRef,
-    SnapshotTombstoneRef, SnapshotSkipped, assertSnapshotId
+    SnapshotTombstoneRef, SnapshotSkipped, SnapshotLocalPayload, assertSnapshotId
 } from './sync.types';
 
 const RESOURCE_DIR: Record<SyncResource, string> = {
@@ -614,7 +614,7 @@ export class S3SyncBackend implements SyncBackend {
         return JSON.parse(text) as SnapshotManifest;
     }
 
-    async createSnapshot(
+    async createSnapshotFromCloud(
         snapshotId: string,
         meta: SnapshotMetaInput
     ): Promise<SnapshotManifest> {
@@ -739,6 +739,125 @@ export class S3SyncBackend implements SyncBackend {
         }));
 
         return manifest;
+    }
+
+    async createSnapshotFromLocal(
+        snapshotId: string,
+        meta: SnapshotMetaInput,
+        payload: SnapshotLocalPayload
+    ): Promise<SnapshotManifest> {
+        assertSnapshotId(snapshotId);
+
+        // Book-wins dedupe: caller may pass a tombstone for an id that's
+        // also a live entry (e.g. concurrent re-add). Drop the tombstone
+        // so restore behaviour matches the from-cloud path.
+        const bookIds = new Set(payload.books.map(b => b.id));
+        const collIds = new Set(payload.collections.map(c => c.id));
+        const filteredTombs = payload.tombstones.filter(t => {
+            if (t.resource === 'book') return !bookIds.has(t.id);
+            return !collIds.has(t.id);
+        });
+
+        const skipped: SnapshotSkipped[] = [];
+
+        const bookEntries: SnapshotEntryRef[] = [];
+        await this.parallelPool(payload.books, async (b) => {
+            const dst = this.snapshotBookKey(snapshotId, b.id);
+            try {
+                await this.client.send(new PutObjectCommand({
+                    Bucket: this.bucket,
+                    Key: dst,
+                    Body: b.json,
+                    ContentType: 'application/json',
+                    Metadata: { [META_LAST_ACTIVE]: String(b.lastActiveAt) }
+                }));
+                bookEntries.push({
+                    id: b.id,
+                    lastActiveAt: b.lastActiveAt,
+                    size: byteLength(b.json)
+                });
+            } catch (e) {
+                throw new Error(`S3: failed to upload local snapshot book ${b.id}: ${(e as Error).message}`);
+            }
+        });
+
+        const collectionEntries: SnapshotEntryRef[] = [];
+        await this.parallelPool(payload.collections, async (c) => {
+            const dst = this.snapshotCollectionKey(snapshotId, c.id);
+            try {
+                await this.client.send(new PutObjectCommand({
+                    Bucket: this.bucket,
+                    Key: dst,
+                    Body: c.json,
+                    ContentType: 'application/json',
+                    Metadata: { [META_LAST_ACTIVE]: String(c.lastActiveAt) }
+                }));
+                collectionEntries.push({
+                    id: c.id,
+                    lastActiveAt: c.lastActiveAt,
+                    size: byteLength(c.json)
+                });
+            } catch (e) {
+                throw new Error(`S3: failed to upload local snapshot collection ${c.id}: ${(e as Error).message}`);
+            }
+        });
+
+        const tombstoneEntries: SnapshotTombstoneRef[] = [];
+        await this.parallelPool(filteredTombs, async (t) => {
+            const dst = this.snapshotTombstoneKey(snapshotId, t.resource, t.id, t.deletedAt);
+            try {
+                await this.client.send(new PutObjectCommand({
+                    Bucket: this.bucket,
+                    Key: dst,
+                    Body: '',
+                    ContentType: 'application/octet-stream'
+                }));
+                tombstoneEntries.push({ resource: t.resource, id: t.id, deletedAt: t.deletedAt });
+            } catch (e) {
+                throw new Error(`S3: failed to upload local snapshot tombstone ${t.resource}/${t.id}: ${(e as Error).message}`);
+            }
+        });
+
+        const sizeBytes = sumSizes(bookEntries) + sumSizes(collectionEntries);
+        const manifest: SnapshotManifest = {
+            id: snapshotId,
+            createdAt: meta.createdAt,
+            trigger: meta.trigger,
+            note: meta.note,
+            deviceId: meta.deviceId,
+            bookCount: bookEntries.length,
+            collectionCount: collectionEntries.length,
+            tombstoneCount: tombstoneEntries.length,
+            sizeBytes: sizeBytes > 0 ? sizeBytes : undefined,
+            skippedIds: skipped.length > 0 ? skipped : undefined,
+            version: 1,
+            entries: {
+                book: bookEntries,
+                collection: collectionEntries,
+                tombstone: tombstoneEntries
+            }
+        };
+
+        await this.client.send(new PutObjectCommand({
+            Bucket: this.bucket,
+            Key: this.snapshotManifestKey(snapshotId),
+            Body: JSON.stringify(manifest),
+            ContentType: 'application/json'
+        }));
+
+        return manifest;
+    }
+
+    async updateSnapshotNote(snapshotId: string, note: string): Promise<void> {
+        assertSnapshotId(snapshotId);
+        const manifest = await this.readSnapshotManifest(snapshotId);
+        manifest.note = note;
+        await this.client.send(new PutObjectCommand({
+            Bucket: this.bucket,
+            Key: this.snapshotManifestKey(snapshotId),
+            Body: JSON.stringify(manifest),
+            ContentType: 'application/json'
+        }));
     }
 
     async restoreSnapshot(snapshotId: string): Promise<void> {
@@ -869,6 +988,12 @@ export class S3SyncBackend implements SyncBackend {
         } while (continuationToken);
         return keys;
     }
+}
+
+function byteLength(s: string): number {
+    if (typeof TextEncoder !== 'undefined') return new TextEncoder().encode(s).length;
+    // SSR / non-DOM fallback: char count is close enough for sizeBytes display.
+    return s.length;
 }
 
 function sumSizes(entries: SnapshotEntryRef[]): number {

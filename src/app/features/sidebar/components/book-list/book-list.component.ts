@@ -67,6 +67,17 @@ interface BookGroup {
         </div>
       </div>
 
+      <div class="top-actions">
+        <button mat-stroked-button color="primary" class="top-btn" (click)="startNewSession()">
+            <mat-icon>add_circle</mat-icon>
+            New Session
+        </button>
+        <button mat-stroked-button class="top-btn" (click)="createCollection()">
+            <mat-icon>create_new_folder</mat-icon>
+            New Collection
+        </button>
+      </div>
+
       <div class="book-scroll">
         @for (group of bookGroups(); track group.collection.id) {
             <div class="collection-group">
@@ -157,43 +168,20 @@ interface BookGroup {
       </div>
 
       <div class="footer-actions">
-           <button mat-flat-button color="primary" class="new-game-btn" (click)="startNewSession()">
-                <mat-icon>add_circle</mat-icon>
-                New Session
-           </button>
-
-           <button mat-stroked-button class="new-collection-btn" (click)="createCollection()">
-                <mat-icon>create_new_folder</mat-icon>
-                New Collection
-           </button>
+            <button mat-stroked-button class="sync-btn" (click)="syncAllToCloud()" [disabled]="state.isBusy()">
+                <mat-icon>cloud_sync</mat-icon>
+                Sync All ({{ syncService.activeBackendId() === 's3' ? 'S3' : 'Drive' }})
+            </button>
 
             <button mat-stroked-button color="warn" class="nuke-btn" (click)="nukeCaches()">
                 <mat-icon>delete_forever</mat-icon>
                 Nuke All Caches
             </button>
 
-            <button mat-stroked-button class="sync-btn" (click)="syncAllToCloud()" [disabled]="state.isBusy()">
-                <mat-icon>cloud_sync</mat-icon>
-                Sync All ({{ syncService.activeBackendId() === 's3' ? 'S3' : 'Drive' }})
+            <button mat-stroked-button class="advanced-btn" (click)="openAdvancedSyncTools()" [disabled]="state.isBusy()">
+                <mat-icon>build</mat-icon>
+                Advanced Sync Tools
             </button>
-
-            <details class="danger-zone">
-                <summary>
-                    <mat-icon>warning_amber</mat-icon> Force sync (danger zone)
-                </summary>
-                <p class="hint">
-                    Force operations bypass the newer-wins logic. Read the dialog before
-                    confirming — these are destructive.
-                </p>
-                <button mat-stroked-button color="warn" class="force-btn" (click)="forcePush()" [disabled]="state.isBusy()">
-                    <mat-icon>cloud_upload</mat-icon>
-                    Force Push (this device → cloud)
-                </button>
-                <button mat-stroked-button color="warn" class="force-btn" (click)="forcePull()" [disabled]="state.isBusy()">
-                    <mat-icon>cloud_download</mat-icon>
-                    Force Pull (cloud → this device)
-                </button>
-            </details>
       </div>
     </div>
   `,
@@ -238,6 +226,26 @@ interface BookGroup {
             border-top: 1px dashed rgba(255,255,255,0.2);
             font-size: 0.95em;
             .val { color: #4caf50; font-weight: 600; }
+        }
+    }
+    .top-actions {
+        display: flex;
+        gap: 8px;
+        padding: 8px 16px;
+        border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .top-actions .top-btn {
+        flex: 1;
+        height: 36px;
+        line-height: 34px;
+        font-size: 0.85em;
+        padding: 0 8px;
+        min-width: 0;
+        mat-icon {
+            font-size: 16px;
+            width: 16px;
+            height: 16px;
+            margin-right: 4px;
         }
     }
     .book-scroll { flex: 1; overflow-y: auto; }
@@ -345,42 +353,12 @@ interface BookGroup {
         gap: 8px;
         border-top: 1px solid rgba(255,255,255,0.1);
     }
-    .new-game-btn { width: 100%; height: 48px; }
-    .new-collection-btn, .nuke-btn { width: 100%; }
+    .nuke-btn, .advanced-btn { width: 100%; }
     .sync-btn {
         width: 100%;
         color: #4285f4;
         border-color: rgba(66, 133, 244, 0.5);
         &:hover { background: rgba(66, 133, 244, 0.05); }
-    }
-    .danger-zone {
-        margin-top: 4px;
-        padding: 8px;
-        border: 1px solid rgba(244, 67, 54, 0.4);
-        border-radius: 4px;
-        background: rgba(244, 67, 54, 0.04);
-        > summary {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            cursor: pointer;
-            font-size: 0.85em;
-            color: #f44336;
-            user-select: none;
-            list-style: none;
-            mat-icon { font-size: 18px; height: 18px; width: 18px; }
-        }
-        > summary::-webkit-details-marker { display: none; }
-        .hint {
-            font-size: 0.78em;
-            opacity: 0.75;
-            margin: 8px 0;
-            line-height: 1.4;
-        }
-        .force-btn {
-            width: 100%;
-            margin-top: 6px;
-        }
     }
     .empty-state {
         display: flex;
@@ -691,84 +669,24 @@ export class BookListComponent {
         }
     }
 
-    async forcePush() {
+    async openAdvancedSyncTools() {
         const backendId = this.syncService.activeBackendId();
         if (backendId === 's3' && !this.syncService.isS3Configured()) {
             await this.dialog.alert('S3 sync is selected but not configured. Open Settings to configure it.');
             return;
         }
-        const confirmed = await this.dialog.confirm(
-            'FORCE PUSH will make the cloud bucket an exact mirror of this device:\n\n' +
-            '  • every cloud book / collection NOT on this device will be DELETED on cloud\n' +
-            '  • every local book / collection will be UPLOADED, overwriting the cloud version\n\n' +
-            'Other devices will lose their version on the next sync. Continue?',
-            'Force Push',
-            'FORCE PUSH'
+        const { AdvancedSyncToolsDialogComponent } = await import(
+            '../../../../shared/components/advanced-sync-tools-dialog/advanced-sync-tools-dialog.component'
         );
-        if (!confirmed) return;
-        this.loading.show('Force pushing to cloud...');
-        try {
-            const report = await this.syncService.forcePushAll();
-            await this.loadBooks();
-            const summary = `Uploaded: ${report.uploaded}, Removed remote: ${report.deletedRemote}.`;
-            if (report.errors.length > 0) {
-                console.error('[BookList] forcePush finished with errors:', report.errors);
-                const sample = report.errors[0];
-                this.snackBar.open(
-                    `Force Push had ${report.errors.length} error${report.errors.length === 1 ? '' : 's'} — see console. ` +
-                    `e.g. ${sample.op} ${sample.resource} ${sample.id.slice(0, 8)}: ${sample.message}. ${summary}`,
-                    'Close',
-                    { panelClass: ['snackbar-error'] }
-                );
-            } else {
-                this.snackBar.open(`Force Push done. ${summary}`, 'OK', { duration: 4000 });
-            }
-        } catch (e) {
-            console.error('[BookList] forcePush failed', e);
-            this.snackBar.open('Force Push failed: ' + ((e as { message?: string })?.message || 'Unknown error'), 'Close');
-        } finally {
-            this.loading.hide();
-        }
-    }
-
-    async forcePull() {
-        const backendId = this.syncService.activeBackendId();
-        if (backendId === 's3' && !this.syncService.isS3Configured()) {
-            await this.dialog.alert('S3 sync is selected but not configured. Open Settings to configure it.');
-            return;
-        }
-        const confirmed = await this.dialog.confirm(
-            'FORCE PULL will make this device an exact mirror of the cloud bucket:\n\n' +
-            '  • every local book / collection NOT on cloud will be DELETED locally\n' +
-            '  • every cloud book / collection will be DOWNLOADED, overwriting the local version\n\n' +
-            'Unsynced local edits will be lost. Continue?',
-            'Force Pull',
-            'FORCE PULL'
-        );
-        if (!confirmed) return;
-        this.loading.show('Force pulling from cloud...');
-        try {
-            const report = await this.syncService.forcePullAll();
-            await this.loadBooks();
-            const summary = `Downloaded: ${report.downloaded}, Removed local: ${report.deletedLocal}.`;
-            if (report.errors.length > 0) {
-                console.error('[BookList] forcePull finished with errors:', report.errors);
-                const sample = report.errors[0];
-                this.snackBar.open(
-                    `Force Pull had ${report.errors.length} error${report.errors.length === 1 ? '' : 's'} — see console. ` +
-                    `e.g. ${sample.op} ${sample.resource} ${sample.id.slice(0, 8)}: ${sample.message}. ${summary}`,
-                    'Close',
-                    { panelClass: ['snackbar-error'] }
-                );
-            } else {
-                this.snackBar.open(`Force Pull done. ${summary}`, 'OK', { duration: 4000 });
-            }
-        } catch (e) {
-            console.error('[BookList] forcePull failed', e);
-            this.snackBar.open('Force Pull failed: ' + ((e as { message?: string })?.message || 'Unknown error'), 'Close');
-        } finally {
-            this.loading.hide();
-        }
+        const ref = this.matDialog.open(AdvancedSyncToolsDialogComponent, {
+            width: '720px',
+            maxWidth: '95vw',
+            maxHeight: '90vh',
+            autoFocus: false
+        });
+        await firstValueFrom(ref.afterClosed());
+        // Reload book list in case the dialog applied a force-pull or restore.
+        await this.loadBooks();
     }
 
     async syncAllToCloud() {
