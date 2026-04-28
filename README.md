@@ -382,7 +382,7 @@ To enable Google Drive sync, you must provide your own GCP OAuth credentials:
 1.  **Create a GCP Project**: Go to the [Google Cloud Console](https://console.cloud.google.com/).
 2.  **Configure OAuth Consent Screen**: Set up an internal or external consent screen.
 3.  **Create OAuth 2.0 Client ID(s)** — depends on which build you're using:
-    *   **Web build**: Create a **"Web application"** client ID. Add your deployed origin (e.g. `http://localhost:4200`) to *Authorized redirect URIs*.
+    *   **Web build**: Create a **"Web application"** client ID. Add your deployed origin (e.g. `http://localhost:4200`) to *Authorized JavaScript origins* — the in-app GIS popup flow validates by origin, not redirect URI, so leaving "Authorized redirect URIs" empty is fine.
     *   **Tauri/Desktop build**: Create a **"Desktop app"** client ID. The Tauri PKCE flow does *not* work with a Web-application client id — Desktop type plus its client secret is required.
 4.  **Provide the credentials**:
     *   **Web** — pick one:

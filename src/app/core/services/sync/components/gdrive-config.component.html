@@ -37,10 +37,10 @@
         </p>
 
         <div class="redirect-uri">
-            <span class="label">Add this to your GCP Console "Authorized redirect URIs":</span>
+            <span class="label">Add this to your GCP Console "Authorized JavaScript origins" (the GIS popup flow validates by origin, not redirect URI):</span>
             <div class="redirect-uri-row">
                 <code>{{ redirectUri }}</code>
-                <button mat-icon-button (click)="copyRedirectUri()" aria-label="Copy redirect URI">
+                <button mat-icon-button (click)="copyRedirectUri()" aria-label="Copy origin">
                     <mat-icon>content_copy</mat-icon>
                 </button>
             </div>

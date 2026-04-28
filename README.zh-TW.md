@@ -384,7 +384,7 @@ npm run build:desktop
 1.  **建立 GCP 專案**：前往 [Google Cloud Console](https://console.cloud.google.com/)。
 2.  **配置 OAuth 同意畫面**：設定 OAuth 同意畫面。
 3.  **建立 OAuth 2.0 用戶端 ID** — 視你跑的版本：
-    *   **Web 版**：建立 **「網頁應用程式」** 類型 client ID，並把你部署的 origin（例如 `http://localhost:4200`）加入 *Authorized redirect URIs*。
+    *   **Web 版**：建立 **「網頁應用程式」** 類型 client ID，並把你部署的 origin（例如 `http://localhost:4200`）加入 *Authorized JavaScript origins*（App 內走的是 GIS popup flow，認 origin 不認 redirect URI，所以「Authorized redirect URIs」可以留空）。
     *   **Tauri 桌面版**：建立 **「桌面應用程式」** (Desktop app) 類型 client ID。**Tauri PKCE flow 不能用網頁應用程式類型** — 必須用 Desktop 類型搭配 client secret 才能 token exchange。
 4.  **提供憑證**：
     *   **Web** — 擇一即可：

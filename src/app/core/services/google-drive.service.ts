@@ -160,6 +160,8 @@ export class GoogleDriveService {
         return this.resolveOAuthCreds().clientId;
     }
 
+    private gisScript: HTMLScriptElement | null = null;
+
     private loadScripts() {
         if (this.gisScriptLoading) {
             // Script already requested; if it's done loading, just (re)init.
@@ -174,12 +176,16 @@ export class GoogleDriveService {
         script.defer = true;
         script.onload = () => this.initClient();
         // If the script fails to load (ad blocker, offline, corp network
-        // blocking accounts.google.com), reset the flag so a later
-        // reinitClient() will try again instead of silently no-oping.
+        // blocking accounts.google.com), reset the flag and detach the
+        // failed tag so a later reinitClient() can append a fresh one
+        // instead of silently no-oping or stacking dead <script> nodes.
         script.onerror = () => {
             console.warn('[GoogleDrive] Failed to load GIS script (network blocked?)');
             this.gisScriptLoading = false;
+            script.remove();
+            if (this.gisScript === script) this.gisScript = null;
         };
+        this.gisScript = script;
         document.body.appendChild(script);
     }
 
@@ -205,12 +211,20 @@ export class GoogleDriveService {
      * client. Old tokens are cleared because they were issued by the
      * previous client id and refreshing them would fail — better to force
      * a fresh interactive login on the next sync.
+     *
+     * Clearing creds (empty input) drops the existing tokenClient so
+     * subsequent calls don't accidentally reach Google with the previous
+     * client id.
      */
     saveOAuthClientId(clientId: string): void {
         const trimmed = clientId.trim();
         if (trimmed) localStorage.setItem(LS_OAUTH_CLIENT_ID, trimmed);
         else localStorage.removeItem(LS_OAUTH_CLIENT_ID);
         this.clearTokens();
+        if (!this.isConfigured) {
+            this.tokenClient = null;
+            return;
+        }
         this.reinitClient();
     }
 
@@ -356,8 +370,10 @@ export class GoogleDriveService {
 
         const creds = this.resolveOAuthCreds();
         const clientId = this.isTauri ? creds.clientIdTauri : creds.clientId;
-        // Note: For Web, we usually need a client secret for refresh flow unless it's a specific client type
-        // For Tauri, we might have a secret.
+        // Tauri (Desktop-app client) requires the client secret on the refresh
+        // call. Web GIS doesn't issue a refresh token in the popup token
+        // model, so this branch only runs on Tauri in practice — but keep
+        // the secret-empty guard for symmetry with exchangeCodeForToken.
         const clientSecret = this.isTauri ? creds.clientSecretTauri : '';
 
         const body = new URLSearchParams({
