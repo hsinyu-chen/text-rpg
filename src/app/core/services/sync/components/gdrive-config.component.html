@@ -12,12 +12,6 @@
             </div>
         }
     }
-    @case ('tauri-incomplete') {
-        <div class="status warn">
-            <mat-icon>error_outline</mat-icon>
-            <span>Tauri build needs an additional Desktop-app Client ID (and Secret).</span>
-        </div>
-    }
     @case ('unauthenticated') {
         <div class="status">
             <mat-icon>cloud_off</mat-icon>
@@ -38,7 +32,7 @@
 @if (showInputs()) {
     <div class="byo-oauth">
         <p class="hint">
-            Need a Client ID? Ask your AI assistant: <em>"How do I create a Google OAuth client id for a SPA / desktop app with the
+            Need a Client ID? Ask your AI assistant: <em>"How do I create a Google OAuth Web-application client id with the
             <code>drive.appdata</code> scope?"</em>
         </p>
 
@@ -57,21 +51,6 @@
             <input matInput [ngModel]="clientId()" (ngModelChange)="clientId.set($event)"
                    placeholder="xxxxx.apps.googleusercontent.com" autocomplete="off" />
         </mat-form-field>
-
-        @if (isTauri) {
-            <mat-form-field appearance="outline">
-                <mat-label>Tauri Desktop Client ID</mat-label>
-                <input matInput [ngModel]="clientIdTauri()" (ngModelChange)="clientIdTauri.set($event)"
-                       placeholder="xxxxx.apps.googleusercontent.com" autocomplete="off" />
-            </mat-form-field>
-
-            <mat-form-field appearance="outline">
-                <mat-label>Tauri Desktop Client Secret</mat-label>
-                <input matInput type="password" [ngModel]="clientSecretTauri()"
-                       (ngModelChange)="clientSecretTauri.set($event)"
-                       autocomplete="off" />
-            </mat-form-field>
-        }
 
         <button mat-flat-button color="primary" [disabled]="!canSave()" (click)="save()">
             <mat-icon>save</mat-icon> Save

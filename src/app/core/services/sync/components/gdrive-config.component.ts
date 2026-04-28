@@ -27,31 +27,17 @@ export class GDriveConfigComponent {
     drive = inject(GoogleDriveService);
     private snackBar = inject(MatSnackBar);
 
-    private snapshot = this.drive.getOAuthCredsSnapshot();
-
-    clientId = signal<string>(this.snapshot.clientId);
-    clientIdTauri = signal<string>(this.snapshot.clientIdTauri);
-    clientSecretTauri = signal<string>(this.snapshot.clientSecretTauri);
-
-    redirectUri = typeof window !== 'undefined' ? window.location.origin : '';
+    clientId = signal<string>(this.drive.getOAuthClientIdSnapshot());
+    redirectUri = window.location.origin;
 
     showInputs = computed(() => this.drive.isUserConfigurable);
-    isTauri = this.drive.isTauriRuntime;
 
     status = computed(() => {
         if (!this.drive.isConfigured) return 'unconfigured';
-        if (this.isTauri && !this.drive.isTauriConfigured) return 'tauri-incomplete';
         return this.drive.isAuthenticated() ? 'authenticated' : 'unauthenticated';
     });
 
-    canSave = computed(() => {
-        const id = this.clientId().trim();
-        if (!id) return false;
-        if (this.isTauri) {
-            return this.clientIdTauri().trim().length > 0;
-        }
-        return true;
-    });
+    canSave = computed(() => this.clientId().trim().length > 0);
 
     async signIn(): Promise<void> {
         try {
@@ -62,12 +48,8 @@ export class GDriveConfigComponent {
     }
 
     save(): void {
-        this.drive.saveOAuthCreds({
-            clientId: this.clientId(),
-            clientIdTauri: this.clientIdTauri(),
-            clientSecretTauri: this.clientSecretTauri()
-        });
-        this.snackBar.open('OAuth credentials saved. Sign in again to apply.', 'OK', { duration: 3000 });
+        this.drive.saveOAuthClientId(this.clientId());
+        this.snackBar.open('OAuth Client ID saved. Sign in again to apply.', 'OK', { duration: 3000 });
     }
 
     async copyRedirectUri(): Promise<void> {

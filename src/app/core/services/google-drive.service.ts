@@ -74,9 +74,12 @@ async function generateCodeChallenge(verifier: string) {
         .replace(/=+$/, '');
 }
 
+// BYO OAuth is web-only: there is no official Tauri distribution, so Tauri
+// users always rebuild from source with credentials baked into environment.ts
+// (Tauri PKCE additionally requires GCP "Desktop app" type + secret, which
+// is awkward to enter through a runtime UI). Only the web client id has an
+// LS fallback.
 const LS_OAUTH_CLIENT_ID = 'gdrive_oauth_client_id';
-const LS_OAUTH_CLIENT_ID_TAURI = 'gdrive_oauth_client_id_tauri';
-const LS_OAUTH_CLIENT_SECRET_TAURI = 'gdrive_oauth_client_secret_tauri';
 
 interface OAuthCreds {
     clientId: string;
@@ -125,18 +128,18 @@ export class GoogleDriveService {
     }
 
     /**
-     * Resolves OAuth credentials with environment-first, localStorage-fallback
-     * precedence: each field reads `environment.*` first; only when that is an
-     * empty string does it fall back to the user-supplied value in
-     * localStorage. This keeps officially-built apps (env baked in) on the
-     * exact same path as before, while letting self-hosters paste their own
-     * client id in Settings.
+     * Resolves OAuth credentials. The Web client id falls back to a
+     * user-supplied value in localStorage when `environment.gcpOauthAppId`
+     * is empty (BYO OAuth in web builds). Tauri-specific creds are read
+     * from environment only — see project memory: there is no official
+     * Tauri build, so Tauri users always rebuild with env baked in, and
+     * the runtime UI deliberately doesn't ask for them.
      */
     private resolveOAuthCreds(): OAuthCreds {
         return {
             clientId: environment.gcpOauthAppId || localStorage.getItem(LS_OAUTH_CLIENT_ID) || '',
-            clientIdTauri: environment.gcpOauthAppId_Tauri || localStorage.getItem(LS_OAUTH_CLIENT_ID_TAURI) || '',
-            clientSecretTauri: environment.gcpOauthClientSecret_Tauri || localStorage.getItem(LS_OAUTH_CLIENT_SECRET_TAURI) || ''
+            clientIdTauri: environment.gcpOauthAppId_Tauri,
+            clientSecretTauri: environment.gcpOauthClientSecret_Tauri
         };
     }
 
@@ -144,33 +147,17 @@ export class GoogleDriveService {
         return this.resolveOAuthCreds().clientId.length > 0;
     }
 
-    /**
-     * In Tauri the desktop OAuth flow needs the Tauri-specific client id
-     * (and usually secret). This is checked separately so the UI can flag
-     * "you have a web client id but the Tauri build still needs the Desktop
-     * app credentials" without hiding the whole Drive option.
-     */
-    get isTauriConfigured(): boolean {
-        if (!this.isTauri) return true;
-        return this.resolveOAuthCreds().clientIdTauri.length > 0;
-    }
-
-    /** Whether the running build has empty environment slots and therefore
-     *  exposes the BYO OAuth input fields in Settings. */
+    /** Whether the running build has the web client id slot empty and
+     *  therefore exposes the BYO OAuth input field in Settings. Web-only:
+     *  Tauri users always rebuild from source. */
     get isUserConfigurable(): boolean {
-        return !environment.gcpOauthAppId
-            && !environment.gcpOauthAppId_Tauri
-            && !environment.gcpOauthClientSecret_Tauri;
+        return !environment.gcpOauthAppId && !this.isTauri;
     }
 
-    /** Exposed for the config UI so it knows whether to render Tauri-specific fields. */
-    get isTauriRuntime(): boolean {
-        return this.isTauri;
-    }
-
-    /** Snapshot of the currently-effective creds — used by the config UI to prefill inputs. */
-    getOAuthCredsSnapshot(): OAuthCreds {
-        return this.resolveOAuthCreds();
+    /** Snapshot of the currently-effective web client id — used by the
+     *  config UI to prefill the input. */
+    getOAuthClientIdSnapshot(): string {
+        return this.resolveOAuthCreds().clientId;
     }
 
     private loadScripts() {
@@ -186,6 +173,13 @@ export class GoogleDriveService {
         script.async = true;
         script.defer = true;
         script.onload = () => this.initClient();
+        // If the script fails to load (ad blocker, offline, corp network
+        // blocking accounts.google.com), reset the flag so a later
+        // reinitClient() will try again instead of silently no-oping.
+        script.onerror = () => {
+            console.warn('[GoogleDrive] Failed to load GIS script (network blocked?)');
+            this.gisScriptLoading = false;
+        };
         document.body.appendChild(script);
     }
 
@@ -207,33 +201,17 @@ export class GoogleDriveService {
     }
 
     /**
-     * Persists user-supplied OAuth credentials and rebuilds the token client.
-     * Old tokens are cleared because they were issued by the previous client
-     * id and refreshing them would fail silently — better to force a fresh
-     * interactive login on the next sync.
-     *
-     * Only writes to localStorage; environment-baked builds short-circuit
-     * before reaching this path (the UI hides the inputs when
-     * `isUserConfigurable` is false).
+     * Persists the user-supplied web Client ID and rebuilds the token
+     * client. Old tokens are cleared because they were issued by the
+     * previous client id and refreshing them would fail — better to force
+     * a fresh interactive login on the next sync.
      */
-    saveOAuthCreds(creds: Partial<OAuthCreds>): void {
-        if (creds.clientId !== undefined) {
-            this.writeOrClear(LS_OAUTH_CLIENT_ID, creds.clientId);
-        }
-        if (creds.clientIdTauri !== undefined) {
-            this.writeOrClear(LS_OAUTH_CLIENT_ID_TAURI, creds.clientIdTauri);
-        }
-        if (creds.clientSecretTauri !== undefined) {
-            this.writeOrClear(LS_OAUTH_CLIENT_SECRET_TAURI, creds.clientSecretTauri);
-        }
+    saveOAuthClientId(clientId: string): void {
+        const trimmed = clientId.trim();
+        if (trimmed) localStorage.setItem(LS_OAUTH_CLIENT_ID, trimmed);
+        else localStorage.removeItem(LS_OAUTH_CLIENT_ID);
         this.clearTokens();
         this.reinitClient();
-    }
-
-    private writeOrClear(key: string, value: string): void {
-        const trimmed = value.trim();
-        if (trimmed) localStorage.setItem(key, trimmed);
-        else localStorage.removeItem(key);
     }
 
     /**
@@ -517,7 +495,8 @@ export class GoogleDriveService {
             code_verifier: verifier,
         });
 
-        // Some Google Client IDs (like Web Applications) require a secret even with PKCE
+        // Tauri PKCE flow with Google requires a "Desktop app" type client id
+        // AND its client secret — Web-type client ids do not work here at all.
         if (creds.clientSecretTauri) {
             body.append('client_secret', creds.clientSecretTauri);
         }
