@@ -55,8 +55,7 @@
                         <mat-select [value]="activeProfileId()" (selectionChange)="switchProfile($event.value)"
                             [disabled]="isSwitchingProfile()">
                             @for (profile of builtInProfiles(); track profile.id) {
-                            <mat-option [value]="profile.id"
-                                [matTooltip]="getProfileDescription(profile)">
+                            <mat-option [value]="profile.id">
                                 {{ getProfileLabel(profile) }}
                             </mat-option>
                             }

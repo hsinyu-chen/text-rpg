@@ -125,13 +125,6 @@ export class ChatConfigDialogComponent {
         return profile.nameKey ? (ui[profile.nameKey] ?? profile.nameKey) : profile.id;
     }
 
-    /** Resolve a profile's description. User profiles have none. */
-    getProfileDescription(profile: PromptProfile): string {
-        if (!profile.descriptionKey) return '';
-        const ui = this.ui() as unknown as Record<string, string>;
-        return ui[profile.descriptionKey] ?? profile.descriptionKey;
-    }
-
     isSidebarCollapsed = signal(false);
     dirtyState = signal<Map<string, boolean>>(new Map());
     validationResult = signal<{ valid: boolean, error?: string }>({ valid: true });
