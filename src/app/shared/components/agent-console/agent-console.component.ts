@@ -11,6 +11,7 @@ import {
   effect
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Clipboard } from '@angular/cdk/clipboard';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -48,6 +49,7 @@ export class AgentConsoleComponent implements OnDestroy {
 
   // Injected services
   agentService = inject(FileAgentService);
+  private clipboard = inject(Clipboard);
 
   // Internal state
   agentPrompt = signal('');
@@ -106,7 +108,7 @@ export class AgentConsoleComponent implements OnDestroy {
         this.agentPrompt.set(prompt);
         // Small delay lets the input render before runAgent clears it.
         // Tracked so a fast close doesn't fire an orphan request.
-        this.initialPromptTimeoutId = window.setTimeout(() => {
+        this.initialPromptTimeoutId = setTimeout(() => {
           this.initialPromptTimeoutId = null;
           this.runAgent();
         }, 200);
@@ -145,15 +147,7 @@ export class AgentConsoleComponent implements OnDestroy {
       lines.push(content, '');
     });
 
-    navigator.clipboard.writeText(lines.join('\n')).catch(() => {
-      // fallback: create a temporary textarea
-      const ta = document.createElement('textarea');
-      ta.value = lines.join('\n');
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-    });
+    this.clipboard.copy(lines.join('\n'));
   }
 
   async runAgent(): Promise<void> {

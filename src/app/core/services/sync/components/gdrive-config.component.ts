@@ -1,4 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { Clipboard } from '@angular/cdk/clipboard';
+import { WINDOW } from '../../../tokens/window.token';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -26,9 +28,11 @@ import { GoogleDriveService } from '../../google-drive.service';
 export class GDriveConfigComponent {
     drive = inject(GoogleDriveService);
     private snackBar = inject(MatSnackBar);
+    private clipboard = inject(Clipboard);
+    private readonly win = inject(WINDOW);
 
     clientId = signal<string>(this.drive.getOAuthClientIdSnapshot());
-    redirectUri = window.location.origin;
+    redirectUri = this.win.location.origin;
 
     showInputs = computed(() => this.drive.isUserConfigurable);
 
@@ -52,12 +56,9 @@ export class GDriveConfigComponent {
         this.snackBar.open('OAuth Client ID saved. Sign in again to apply.', 'OK', { duration: 3000 });
     }
 
-    async copyRedirectUri(): Promise<void> {
-        try {
-            await navigator.clipboard.writeText(this.redirectUri);
+    copyRedirectUri(): void {
+        if (this.clipboard.copy(this.redirectUri)) {
             this.snackBar.open('Redirect URI copied.', 'OK', { duration: 1500 });
-        } catch {
-            // clipboard unavailable — silently ignore; the value is visible in the UI
         }
     }
 }

@@ -1,5 +1,6 @@
 import { Component, inject, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Clipboard } from '@angular/cdk/clipboard';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -24,6 +25,7 @@ export class SidebarCostPredictionComponent {
     public state = inject(GameStateService);
     public matDialog = inject(MatDialog);
     public snackBar = inject(MatSnackBar);
+    private clipboard = inject(Clipboard);
     public providerRegistry = inject(LLMProviderRegistryService);
     public costService = inject(CostService);
 
@@ -306,8 +308,8 @@ export class SidebarCostPredictionComponent {
             markdown += `| ${model.name} | ${currency} ${costFormatted} | ${status} |\n`;
         });
 
-        navigator.clipboard.writeText(markdown).then(() => {
+        if (this.clipboard.copy(markdown)) {
             this.snackBar.open('Stats copied to clipboard!', 'OK', { duration: 2000 });
-        });
+        }
     }
 }

@@ -47,8 +47,10 @@ export class S3SyncBackend implements SyncBackend {
     private prefix: string;
     private corsAttempted = false;
     private corsOk = false;
+    private readonly origin: string;
 
-    constructor(config: S3Config) {
+    constructor(config: S3Config, origin = '*') {
+        this.origin = origin;
         this.bucket = config.bucket;
         this.prefix = config.prefix ? config.prefix.replace(/^\/+|\/+$/g, '') + '/' : '';
         this.client = new S3Client({
@@ -112,12 +114,6 @@ export class S3SyncBackend implements SyncBackend {
      * if we couldn't read AND couldn't write — in that case the GET-body
      * fallback in `list()` keeps sync correct, just slower.
      */
-    private browserOrigin(): string {
-        return typeof window !== 'undefined' && window.location?.origin
-            ? window.location.origin
-            : '*';
-    }
-
     private async ensureCorsApplied(): Promise<boolean> {
         if (this.corsAttempted) return this.corsOk;
         this.corsAttempted = true;
@@ -167,7 +163,7 @@ export class S3SyncBackend implements SyncBackend {
                 // bucket's CORS surface to any site the user visits. The
                 // actual security barrier is still SigV4 signing, but
                 // there's no reason to be looser than necessary.
-                AllowedOrigins: [this.browserOrigin()],
+                AllowedOrigins: [this.origin],
                 AllowedMethods: ['GET', 'PUT', 'POST', 'HEAD', 'DELETE'],
                 AllowedHeaders: ['*'],
                 ExposeHeaders: [

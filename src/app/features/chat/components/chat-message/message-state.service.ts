@@ -1,4 +1,5 @@
 import { Injectable, inject, signal, linkedSignal, computed } from '@angular/core';
+import { Clipboard } from '@angular/cdk/clipboard';
 import { firstValueFrom } from 'rxjs';
 import { GameEngineService } from '../../../../core/services/game-engine.service';
 import { GameStateService } from '../../../../core/services/game-state.service';
@@ -19,6 +20,7 @@ export class MessageStateService {
     private matDialog = inject(MatDialog);
     private snackBar = inject(MatSnackBar);
     private updateService = inject(FileUpdateService);
+    private clipboard = inject(Clipboard);
 
     // Reactive sources initialized by the component
     message = signal<ChatMessage>(null!);
@@ -164,7 +166,7 @@ export class MessageStateService {
             }
         };
 
-        navigator.clipboard.writeText(JSON.stringify(pair, null, 2));
+        this.clipboard.copy(JSON.stringify(pair, null, 2));
         this.snackBar.open('Pair JSON copied to clipboard', 'OK', { duration: 2000 });
     }
 
@@ -187,11 +189,8 @@ export class MessageStateService {
         this.isAddingNew = isAdding;
         this.editingLogKey.set(`${this.message().id}|${type}|${index}`);
         this.editingLogContent.set(content);
-        setTimeout(() => {
-            const inputEl = document.querySelector('.log-editor input') as HTMLInputElement;
-            inputEl?.focus();
-            inputEl?.select();
-        }, 10);
+        // Input focus + select is handled by the appAutofocusSelect directive on
+        // the rendered input element.
     }
 
     async saveLogEdit(type: 'inv' | 'quest' | 'world' | 'char', index: number) {
@@ -236,11 +235,8 @@ export class MessageStateService {
     startSummaryEdit(content: string) {
         this.editSummaryContent.set(content);
         this.isEditingSummary.set(true);
-        setTimeout(() => {
-            const inputEl = document.querySelector('.summary-editor input') as HTMLInputElement;
-            inputEl?.focus();
-            inputEl?.select();
-        }, 10);
+        // Input focus + select is handled by the appAutofocusSelect directive on
+        // the rendered input element.
     }
 
     async saveSummaryEdit() {

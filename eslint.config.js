@@ -52,6 +52,17 @@ module.exports = defineConfig([
           ]
         }
       ],
+      "no-restricted-globals": [
+        "error",
+        {
+          "name": "document",
+          "message": "Inject DOCUMENT from @angular/common instead of using the document global."
+        },
+        {
+          "name": "navigator",
+          "message": "Use Clipboard from @angular/cdk/clipboard, or inject WINDOW and read .navigator, instead of the navigator global."
+        }
+      ],
       "no-restricted-syntax": [
         "error",
         {
@@ -65,6 +76,10 @@ module.exports = defineConfig([
         {
           "selector": "ClassDeclaration:has(Decorator[expression.callee.name=/^(Component|Directive|Injectable)$/]) MethodDefinition[key.name='constructor'][value.params.length>0]",
           "message": "Constructor injection is banned. Use inject() instead."
+        },
+        {
+          "selector": "MemberExpression[object.name='window'][property.name=/^(location|innerWidth|innerHeight|outerWidth|outerHeight|addEventListener|removeEventListener|setTimeout|clearTimeout|setInterval|clearInterval|URL)$/]",
+          "message": "Use the injected WINDOW token (from app/core/tokens/window.token.ts) instead of bare window.* — or use the bare global (setTimeout, URL) directly."
         }
       ],
     },

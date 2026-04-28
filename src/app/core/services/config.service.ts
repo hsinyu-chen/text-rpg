@@ -1,4 +1,5 @@
-import { Injectable, effect, inject } from '@angular/core';
+import { Injectable, RendererFactory2, RendererStyleFlags2, effect, inject } from '@angular/core';
+import { DOCUMENT } from '@angular/common';
 import { GameStateService, GameEngineConfig } from './game-state.service';
 import { StorageService } from './storage.service';
 import { SessionService } from './session.service';
@@ -20,6 +21,8 @@ export class ConfigService {
     private cost = inject(CostService);
     private providerRegistry = inject(LLMProviderRegistryService);
     private llmConfig = inject(LLMConfigService);
+    private readonly doc = inject(DOCUMENT);
+    private readonly renderer = inject(RendererFactory2).createRenderer(null, null);
 
     private get provider() {
         return this.providerRegistry.getActive();
@@ -45,13 +48,12 @@ export class ConfigService {
         // Sync CSS Variables with Config
         effect(() => {
             const cfg = this.state.config();
-            if (cfg) {
-                if (cfg.fontSize) {
-                    document.body.style.setProperty('--app-font-size', `${cfg.fontSize}px`);
-                }
-                if (cfg.fontFamily) {
-                    document.body.style.setProperty('--app-font-family', cfg.fontFamily);
-                }
+            if (!cfg) return;
+            if (cfg.fontSize) {
+                this.renderer.setStyle(this.doc.body, '--app-font-size', `${cfg.fontSize}px`, RendererStyleFlags2.DashCase);
+            }
+            if (cfg.fontFamily) {
+                this.renderer.setStyle(this.doc.body, '--app-font-family', cfg.fontFamily, RendererStyleFlags2.DashCase);
             }
         });
 

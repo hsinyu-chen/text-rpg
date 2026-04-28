@@ -1,4 +1,5 @@
 import { Component, inject, signal, computed, viewChild } from '@angular/core';
+import { WINDOW } from '../../../core/tokens/window.token';
 import { CommonModule } from '@angular/common';
 import { MatDialogModule, MatDialogRef, MatDialog } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -56,6 +57,7 @@ export class ChatConfigDialogComponent {
     private snackBar = inject(MatSnackBar);
     private postProcessor = inject(PostProcessorService);
     private injection = inject(InjectionService);
+    private readonly win = inject(WINDOW);
     engine = inject(GameEngineService);
     state = inject(GameStateService);
 
@@ -166,7 +168,7 @@ export class ChatConfigDialogComponent {
         }
 
         // Collapse sidebar on mobile
-        if (window.innerWidth < 768) {
+        if (this.win.innerWidth < 768) {
             this.isSidebarCollapsed.set(true);
         }
     }

@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Clipboard } from '@angular/cdk/clipboard';
 import { FormsModule } from '@angular/forms';
 import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -36,6 +37,7 @@ export class S3ConfigJsonDialogComponent {
     dialogRef = inject(MatDialogRef<S3ConfigJsonDialogComponent, string | undefined>);
     data = inject<S3ConfigJsonDialogData>(MAT_DIALOG_DATA);
     private snackBar = inject(MatSnackBar);
+    private clipboard = inject(Clipboard);
 
     text = signal(this.data.initial ?? '');
 
@@ -52,9 +54,11 @@ export class S3ConfigJsonDialogComponent {
     }
 
     copy(): void {
-        const value = this.text();
-        navigator.clipboard?.writeText(value)
-            .then(() => this.snackBar.open('Copied to clipboard.', 'OK', { duration: 2000 }))
-            .catch(() => this.snackBar.open('Copy failed; select text manually.', 'Close', { duration: 3000 }));
+        const ok = this.clipboard.copy(this.text());
+        if (ok) {
+            this.snackBar.open('Copied to clipboard.', 'OK', { duration: 2000 });
+        } else {
+            this.snackBar.open('Copy failed; select text manually.', 'Close', { duration: 3000 });
+        }
     }
 }
