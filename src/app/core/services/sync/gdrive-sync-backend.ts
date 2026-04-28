@@ -3,7 +3,7 @@ import { GoogleDriveService, DriveFile } from '../google-drive.service';
 import {
     SyncBackend, SyncResource, RemoteEntry, Tombstone, SyncBackendId,
     SnapshotMeta, SnapshotManifest, SnapshotMetaInput, SnapshotEntryRef,
-    SnapshotTombstoneRef, SnapshotSkipped, assertSnapshotId
+    SnapshotTombstoneRef, SnapshotSkipped, SnapshotLocalPayload, assertSnapshotId
 } from './sync.types';
 
 const APPDATA_ROOT = 'appDataFolder';
@@ -394,7 +394,7 @@ export class GDriveSyncBackend implements SyncBackend {
         return JSON.parse(text) as SnapshotManifest;
     }
 
-    async createSnapshot(
+    async createSnapshotFromCloud(
         snapshotId: string,
         meta: SnapshotMetaInput
     ): Promise<SnapshotManifest> {
@@ -530,6 +530,102 @@ export class GDriveSyncBackend implements SyncBackend {
         return manifest;
     }
 
+    async createSnapshotFromLocal(
+        snapshotId: string,
+        meta: SnapshotMetaInput,
+        payload: SnapshotLocalPayload
+    ): Promise<SnapshotManifest> {
+        assertSnapshotId(snapshotId);
+
+        const root = await this.ensureSnapshotsRoot();
+        const snapshotFolder = await this.drive.createFolder(root, snapshotId);
+        const [bookFolder, collFolder, bookTombFolder, collTombFolder] = await Promise.all([
+            this.drive.createFolder(snapshotFolder.id, SNAPSHOT_RESOURCE_FOLDER.book),
+            this.drive.createFolder(snapshotFolder.id, SNAPSHOT_RESOURCE_FOLDER.collection),
+            this.drive.createFolder(snapshotFolder.id, TOMBSTONE_FOLDER_NAME.book),
+            this.drive.createFolder(snapshotFolder.id, TOMBSTONE_FOLDER_NAME.collection)
+        ]);
+
+        const bookIds = new Set(payload.books.map(b => b.id));
+        const collIds = new Set(payload.collections.map(c => c.id));
+        const filteredTombs = payload.tombstones.filter(t => {
+            if (t.resource === 'book') return !bookIds.has(t.id);
+            return !collIds.has(t.id);
+        });
+
+        const skipped: SnapshotSkipped[] = [];
+
+        const bookEntries: SnapshotEntryRef[] = [];
+        await this.parallelPool(payload.books, async (b) => {
+            const props = { [APP_PROP_LAST_ACTIVE]: String(b.lastActiveAt) };
+            await this.drive.createFile(bookFolder.id, `${b.id}.json`, b.json, props);
+            bookEntries.push({
+                id: b.id,
+                lastActiveAt: b.lastActiveAt,
+                size: byteLength(b.json)
+            });
+        });
+
+        const collectionEntries: SnapshotEntryRef[] = [];
+        await this.parallelPool(payload.collections, async (c) => {
+            const props = { [APP_PROP_LAST_ACTIVE]: String(c.lastActiveAt) };
+            await this.drive.createFile(collFolder.id, `${c.id}.json`, c.json, props);
+            collectionEntries.push({
+                id: c.id,
+                lastActiveAt: c.lastActiveAt,
+                size: byteLength(c.json)
+            });
+        });
+
+        const tombstoneEntries: SnapshotTombstoneRef[] = [];
+        await this.parallelPool(filteredTombs, async (t) => {
+            const props = { [APP_PROP_DELETED_AT]: String(t.deletedAt) };
+            const targetFolder = t.resource === 'book' ? bookTombFolder.id : collTombFolder.id;
+            await this.drive.createFile(targetFolder, t.id, '', props);
+            tombstoneEntries.push({ resource: t.resource, id: t.id, deletedAt: t.deletedAt });
+        });
+
+        const sizeBytes = sumSizes(bookEntries) + sumSizes(collectionEntries);
+        const manifest: SnapshotManifest = {
+            id: snapshotId,
+            createdAt: meta.createdAt,
+            trigger: meta.trigger,
+            note: meta.note,
+            deviceId: meta.deviceId,
+            bookCount: bookEntries.length,
+            collectionCount: collectionEntries.length,
+            tombstoneCount: tombstoneEntries.length,
+            sizeBytes: sizeBytes > 0 ? sizeBytes : undefined,
+            skippedIds: skipped.length > 0 ? skipped : undefined,
+            version: 1,
+            entries: {
+                book: bookEntries,
+                collection: collectionEntries,
+                tombstone: tombstoneEntries
+            }
+        };
+
+        await this.drive.createFile(snapshotFolder.id, SNAPSHOT_MANIFEST_NAME, JSON.stringify(manifest));
+        return manifest;
+    }
+
+    async updateSnapshotNote(snapshotId: string, note: string): Promise<void> {
+        assertSnapshotId(snapshotId);
+        const folder = await this.findSnapshotFolder(snapshotId);
+        if (!folder) throw new Error(`GDrive: snapshot ${snapshotId} not found`);
+        const files = await this.drive.listFiles(folder.id);
+        const manifestFile = files.find(
+            f => f.name === SNAPSHOT_MANIFEST_NAME && f.mimeType !== DRIVE_FOLDER_MIME
+        );
+        if (!manifestFile) {
+            throw new Error(`GDrive: manifest.json missing for snapshot ${snapshotId}`);
+        }
+        const text = await this.drive.readFile(manifestFile.id);
+        const manifest = JSON.parse(text) as SnapshotManifest;
+        manifest.note = note;
+        await this.drive.updateFile(manifestFile.id, JSON.stringify(manifest));
+    }
+
     async restoreSnapshot(snapshotId: string): Promise<void> {
         assertSnapshotId(snapshotId);
 
@@ -629,6 +725,11 @@ export class GDriveSyncBackend implements SyncBackend {
         await this.drive.deleteFile(fileId);
         this.tombstoneFileIdByKey.delete(key);
     }
+}
+
+function byteLength(s: string): number {
+    if (typeof TextEncoder !== 'undefined') return new TextEncoder().encode(s).length;
+    return s.length;
 }
 
 function sumSizes(entries: SnapshotEntryRef[]): number {
