@@ -213,7 +213,7 @@ export function buildJsonSchema(isLocal: boolean): object {
       action: { type: 'string', enum: ACTION_ENUM, description: 'The tool to use.' },
       args: {
         type: 'object',
-        description: 'Arguments for the tool. Required fields depend on the action. All file-editing actions also require a "reason" string.',
+        description: 'Arguments for the tool. Required fields depend on the action. All file-operation actions also require a "reason" string.',
         properties: {
           reason: { type: 'string', description: REASON_DESC },
           filename: { type: 'string' },
