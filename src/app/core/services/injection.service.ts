@@ -141,20 +141,13 @@ export class InjectionService {
             // Reached a built-in with no IDB row for this type — likely an
             // app update introduced a new PromptType that pre-existing user
             // profiles never copied. Pull from the built-in's shipped asset
-            // and seed both rows so subsequent loads are O(1). Without this,
-            // the loop would skip past the correct base (e.g. 'local') and
-            // serve cloud's content, which is the wrong default for users
-            // cloned from a non-default built-in.
+            // and seed the row so subsequent loads short-circuit. Without
+            // this, the loop would skip past the correct base (e.g. 'local')
+            // and serve cloud's content, which is the wrong default for
+            // users cloned from a non-default built-in.
             if (current.isBuiltIn) {
-                try {
-                    const filename = INJECTION_FILE_PATHS[type];
-                    const raw = await this.loadBuiltInAsset(langFolder, filename, current.id);
-                    const processed = type === 'postprocess' ? raw : this.applyPromptPlaceholders(raw, lang);
-                    await this.storage.saveProfilePrompt(type, current.id, processed);
-                    return processed;
-                } catch (err) {
-                    console.warn(`[InjectionService] loadUserProfilePrompt: asset fetch failed for built-in '${current.id}', falling through`, err);
-                }
+                const seeded = await this.seedBuiltInAssetToIdb(type, langFolder, lang, current.id);
+                if (seeded !== null) return seeded;
             }
 
             if (!current.baseProfileId) break;
@@ -163,6 +156,27 @@ export class InjectionService {
         // Last-resort: cloud row (always seeded by loadDynamicInjectionSettings).
         const cloudRow = await this.storage.getProfilePrompt(type, DEFAULT_PROFILE_ID);
         return cloudRow?.content ?? '';
+    }
+
+    /**
+     * Fetch a built-in profile's shipped asset, apply placeholders for
+     * non-postprocess types, persist the result into the built-in's IDB
+     * row, and return the processed content.
+     *
+     * Returns null when the asset fetch fails (network blip, missing file)
+     * — callers fall through to their next strategy (cloud row, etc.).
+     */
+    private async seedBuiltInAssetToIdb(type: PromptType, langFolder: string, lang: string, profileId: string): Promise<string | null> {
+        try {
+            const filename = INJECTION_FILE_PATHS[type];
+            const raw = await this.loadBuiltInAsset(langFolder, filename, profileId);
+            const processed = type === 'postprocess' ? raw : this.applyPromptPlaceholders(raw, lang);
+            await this.storage.saveProfilePrompt(type, profileId, processed);
+            return processed;
+        } catch (err) {
+            console.warn(`[InjectionService] seedBuiltInAssetToIdb: failed for ${type} on '${profileId}'`, err);
+            return null;
+        }
     }
 
     /**
@@ -439,18 +453,11 @@ export class InjectionService {
             let row = await this.storage.getProfilePrompt(type, sourceId);
 
             if (!row && source.isBuiltIn) {
-                // Source built-in hasn't been loaded yet. Fetch the shipped
-                // asset, apply placeholders the same way loadBuiltInProfile
-                // does, seed the source's IDB row, then copy to the clone.
-                try {
-                    const filename = INJECTION_FILE_PATHS[type];
-                    const raw = await this.loadBuiltInAsset(langFolder, filename, sourceId);
-                    const processed = type === 'postprocess' ? raw : this.applyPromptPlaceholders(raw, lang);
-                    await this.storage.saveProfilePrompt(type, sourceId, processed);
-                    row = { content: processed, lastModified: Date.now() };
-                } catch (err) {
-                    console.warn(`[InjectionService] cloneProfile: failed to seed ${type} for built-in source '${sourceId}'`, err);
-                }
+                // Source built-in's row hasn't been seeded (it isn't the
+                // active profile, so loadBuiltInProfile never ran for it).
+                // Pull the shipped asset, seed source's IDB row, and copy.
+                const seeded = await this.seedBuiltInAssetToIdb(type, langFolder, lang, sourceId);
+                if (seeded !== null) row = { content: seeded, lastModified: Date.now() };
             }
 
             if (row) {

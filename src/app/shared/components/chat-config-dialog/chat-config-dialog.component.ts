@@ -364,6 +364,14 @@ export class ChatConfigDialogComponent {
         const ok = await this.dialogService.confirm(confirmMsg, this.ui().PROFILE_DELETE);
         if (!ok) return;
 
+        // Match the cloneActive / switchProfile pattern: explicit second
+        // confirm if there are unsaved Monaco edits, since switching to the
+        // fallback profile silently abandons them.
+        if (this.hasAnyDirty()) {
+            const discardOk = await this.dialogService.confirm(this.ui().PROFILE_SWITCH_DISCARD_CONFIRM);
+            if (!discardOk) return;
+        }
+
         this.isSwitchingProfile.set(true);
         try {
             const fallbackId = active.baseProfileId && this.registry.get(active.baseProfileId)
