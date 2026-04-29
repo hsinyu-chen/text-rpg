@@ -18,6 +18,41 @@ export interface FileUpdate {
 }
 
 /**
+ * Mark every line that lies inside (or is the delimiter of) a fenced code
+ * block (``` / ~~~) so heading-style scans can skip them. Without this, a
+ * `# foo` line inside a code fence is mis-treated as an ATX heading,
+ * which corrupts breadcrumb inference and context verification.
+ *
+ * Fence rules per CommonMark: opening up to 3 spaces indent + 3+ same fence
+ * chars; closing must use the same char and >= the opening length, with
+ * trailing whitespace only (no info string).
+ */
+function computeFencedLineMask(lines: string[]): boolean[] {
+    const mask = new Array<boolean>(lines.length).fill(false);
+    let fenceChar = '';
+    let fenceLen = 0;
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (fenceChar) {
+            mask[i] = true;
+            const close = line.match(/^(\s{0,3})([`~]{3,})\s*$/);
+            if (close && close[2][0] === fenceChar && close[2].length >= fenceLen) {
+                fenceChar = '';
+                fenceLen = 0;
+            }
+            continue;
+        }
+        const open = line.match(/^(\s{0,3})([`~]{3,})/);
+        if (open) {
+            mask[i] = true;
+            fenceChar = open[2][0];
+            fenceLen = open[2].length;
+        }
+    }
+    return mask;
+}
+
+/**
  * Pure logic parser for file updates.
  * Independent of Angular ID to allow easy testing.
  */
@@ -315,11 +350,12 @@ export class FileUpdateService {
 
             if (context) {
                 const lines = content.split(/\r?\n/);
+                const fencedMask = computeFencedLineMask(lines);
                 const lineIndex = this.getLineIndexFromCharIndex(content, start);
 
                 // verifyContext returns a score (number of matched breadcrumbs)
                 // 0 means it failed verification
-                const score = this.verifyContext(lines, lineIndex, context);
+                const score = this.verifyContext(lines, fencedMask, lineIndex, context);
                 if (score > 0) {
                     candidates.push({ ...this.expandRange(content, target, start, end), score });
                 }
@@ -345,6 +381,7 @@ export class FileUpdateService {
      */
     public inferContextFromLine(content: string, lineIndex: number): string {
         const lines = content.split(/\r?\n/);
+        const fencedMask = computeFencedLineMask(lines);
         const crumbs: string[] = [];
         let currentLevel = Infinity;
 
@@ -352,6 +389,7 @@ export class FileUpdateService {
         const start = Math.min(lineIndex, lines.length - 1);
 
         for (let i = start; i >= 0; i--) {
+            if (fencedMask[i]) continue;
             const line = lines[i].trim();
             const match = line.match(/^(#+)\s*(.*)/);
             if (match) {
@@ -640,6 +678,7 @@ export class FileUpdateService {
     public findContextLine(content: string, context: string): number | null {
         if (!context) return null;
         const lines = content.split(/\r?\n/);
+        const fencedMask = computeFencedLineMask(lines);
         const crumbs = context.split('>').map(c => c.trim());
         let currentLine = 0;
         let lastFoundLine: number | null = null;
@@ -653,7 +692,7 @@ export class FileUpdateService {
             let found = -1;
             for (let i = currentLine; i < lines.length; i++) {
                 const line = lines[i].trim();
-                const lineHeaderMatch = line.match(/^(#+)\s*(.*)/);
+                const lineHeaderMatch = !fencedMask[i] ? line.match(/^(#+)\s*(.*)/) : null;
                 const isLineHeader = !!lineHeaderMatch;
                 const lineText = isLineHeader ? lineHeaderMatch![2] : line;
                 const normalizedLine = this.normalizeForComparison(lineText);
@@ -675,7 +714,7 @@ export class FileUpdateService {
         return lastFoundLine;
     }
 
-    private verifyContext(lines: string[], matchIndex: number, context: string): number {
+    private verifyContext(lines: string[], fencedMask: boolean[], matchIndex: number, context: string): number {
         const crumbs = context.split('>').map(c => c.trim()).reverse();
         let currentIdx = matchIndex;
         let matchedCount = 0;
@@ -690,7 +729,7 @@ export class FileUpdateService {
 
             for (let i = currentIdx - 1; i >= 0; i--) {
                 const line = lines[i].trim();
-                const lineHeaderMatch = line.match(/^(#+)\s*(.*)/);
+                const lineHeaderMatch = !fencedMask[i] ? line.match(/^(#+)\s*(.*)/) : null;
                 const isLineHeader = !!lineHeaderMatch;
                 const lineText = isLineHeader ? lineHeaderMatch![2] : line;
                 const normalizedLine = this.normalizeForComparison(lineText);
