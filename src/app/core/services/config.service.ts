@@ -68,16 +68,12 @@ export class ConfigService {
      * Call this AFTER registering LLM Providers.
      */
     public async init() {
-        // Trigger FX rate update (don't await to avoid blocking init)
         this.updateExchangeRateFromApi();
 
-        // Profile registry must finish before injection load: user profiles
-        // come out of IDB and the active id may resolve to one of them.
+        // Registry must finish before injection load — the active id may resolve to a user profile from IDB.
         await this.profileRegistry.init();
 
-        // Rescue an orphan active profile id (e.g. another tab deleted it).
-        // We can't fall back to the (possibly missing) baseProfileId because
-        // we don't have its meta any more — go straight to the default.
+        // Cross-tab deletion can leave the active id pointing at a profile we no longer know about.
         const activeId = this.state.activePromptProfile();
         if (!this.profileRegistry.get(activeId)) {
             console.warn(`[ConfigService] Active prompt profile '${activeId}' no longer exists — falling back to default.`);

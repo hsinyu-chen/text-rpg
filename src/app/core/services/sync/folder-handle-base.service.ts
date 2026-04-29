@@ -19,18 +19,10 @@ export class FolderHandlePermissionDeniedError extends Error {
 }
 
 /**
- * Base for any service that owns a single FileSystemDirectoryHandle persisted
- * in IDB under a fixed key. Subclasses pass the key via `super(...)`.
- *
- * Persistence model and the user-gesture requirement are documented on
- * `FileBackendPermissionService` — both subclasses inherit the same flow.
- *
- * Restore is eager: triggered from the constructor body so `handle()` /
- * `permissionState()` signals reflect the persisted IDB state by the time
- * the next microtask runs. This is what `FileBackendPermissionService` had
- * before the base-class extraction; PR #12 review caught the regression
- * where lazy restore left the signals null until first public-method call,
- * so a fresh tab showed "no folder bound" even though IDB had one.
+ * Owns one FSA handle persisted in IDB under `handleKey`. The browser permission
+ * grant does NOT persist across reloads — only the handle itself does. Every
+ * public method must therefore run inside a user-gesture call stack so
+ * `requestPermission` can surface the prompt.
  */
 export abstract class FolderHandleBaseService {
     protected readonly storage = inject(StorageService);
@@ -40,7 +32,6 @@ export abstract class FolderHandleBaseService {
     readonly handle = signal<FileSystemDirectoryHandle | null>(null);
     readonly permissionState = signal<FolderHandlePermissionState>('unknown');
 
-    /** Single-flight restore promise; awaited by every public method. */
     private readonly restoredOnce: Promise<void>;
 
     constructor(handleKey: string) {
@@ -66,7 +57,6 @@ export abstract class FolderHandleBaseService {
         }
     }
 
-    /** Opens the directory picker. Must be invoked from a user-gesture handler. */
     async pickFolder(): Promise<FileSystemDirectoryHandle> {
         await this.restoredOnce;
         if (typeof this.win.showDirectoryPicker !== 'function') {
@@ -81,7 +71,6 @@ export abstract class FolderHandleBaseService {
         return picked;
     }
 
-    /** Asserts the bound folder is reachable and writable; prompts if needed. */
     async ensurePermission(): Promise<FileSystemDirectoryHandle> {
         await this.restoredOnce;
         const h = this.handle();
@@ -102,7 +91,6 @@ export abstract class FolderHandleBaseService {
         return h;
     }
 
-    /** Forgets the bound folder. */
     async clear(): Promise<void> {
         await this.restoredOnce;
         await this.storage.clearDirHandle(this.handleKey);

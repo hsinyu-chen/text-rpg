@@ -25,7 +25,6 @@ import { PromptDiffDialogComponent } from '../prompt-diff-dialog/prompt-diff-dia
 import { MatBadgeModule } from '@angular/material/badge';
 import { DEFAULT_PROFILE_ID, PromptProfile, getProfileDisplayName } from '../../../core/constants/prompt-profiles';
 
-/** Injection type definition */
 interface InjectionType {
     id: 'action' | 'continue' | 'fastforward' | 'system' | 'save' | 'postprocess' | 'system_main';
     label: string;
@@ -73,7 +72,6 @@ export class ChatConfigDialogComponent {
     private readonly win = inject(WINDOW);
     state = inject(GameStateService);
 
-    // Editor reference
     editorRef = viewChild<MonacoEditorComponent>('editorRef');
 
     ui = computed(() => {
@@ -81,7 +79,6 @@ export class ChatConfigDialogComponent {
         return getUIStrings(lang);
     });
 
-    // Injection types for sidebar
     readonly injectionTypes = computed((): InjectionType[] => {
         const labels = getIntentLabels(this.state.config()?.outputLanguage);
         const ui = this.ui();
@@ -106,11 +103,8 @@ export class ChatConfigDialogComponent {
         ];
     });
 
-    // Active injection type
     activeType = signal<InjectionType['id']>('system_main');
 
-    // Profile system — split lists for the dropdown so built-ins and user
-    // entries can render under a separator.
     builtInProfiles = computed(() => this.registry.builtInProfiles());
     userProfiles = computed(() => this.registry.userProfiles());
     activeProfileId = computed(() => this.state.activePromptProfile());
@@ -118,7 +112,6 @@ export class ChatConfigDialogComponent {
     isActiveBuiltIn = computed(() => this.activeProfile()?.isBuiltIn ?? false);
     isSwitchingProfile = signal(false);
 
-    /** Resolve a profile's display name (built-in via i18n, user via displayName). */
     getProfileLabel(profile: PromptProfile): string {
         return getProfileDisplayName(profile, this.ui() as unknown as Record<string, string>);
     }
@@ -275,7 +268,6 @@ export class ChatConfigDialogComponent {
         return this.injection.getContentForType(type as PromptType);
     }
 
-    /** Switch to a different prompt profile. */
     async switchProfile(newProfileId: string): Promise<void> {
         if (newProfileId === this.activeProfileId()) return;
 
@@ -294,10 +286,6 @@ export class ChatConfigDialogComponent {
         }
     }
 
-    /**
-     * Clone the active profile into a new user profile, prompt for a name,
-     * then switch to it.
-     */
     async cloneActive(): Promise<void> {
         const active = this.activeProfile();
         if (!active) return;
@@ -329,7 +317,6 @@ export class ChatConfigDialogComponent {
         }
     }
 
-    /** Rename the active profile (user profiles only). */
     async renameActive(): Promise<void> {
         const active = this.activeProfile();
         if (!active || active.isBuiltIn) return;
@@ -350,10 +337,7 @@ export class ChatConfigDialogComponent {
         }
     }
 
-    /**
-     * Delete the active profile (user profiles only). Switches to the default
-     * profile first so we never leave the app pointing at a deleted id.
-     */
+    /** Switches to a fallback profile first so the app never points at a deleted id. */
     async deleteActive(): Promise<void> {
         const active = this.activeProfile();
         if (!active || active.isBuiltIn) return;
@@ -362,9 +346,6 @@ export class ChatConfigDialogComponent {
         const ok = await this.dialogService.confirm(confirmMsg, this.ui().PROFILE_DELETE);
         if (!ok) return;
 
-        // Match the cloneActive / switchProfile pattern: explicit second
-        // confirm if there are unsaved Monaco edits, since switching to the
-        // fallback profile silently abandons them.
         if (this.hasAnyDirty()) {
             const discardOk = await this.dialogService.confirm(this.ui().PROFILE_SWITCH_DISCARD_CONFIRM);
             if (!discardOk) return;
@@ -388,7 +369,6 @@ export class ChatConfigDialogComponent {
         }
     }
 
-    /** Push every profile (built-in modifications + user profiles) to the active sync backend. */
     async pushPromptsToCloud(): Promise<void> {
         this.loading.show(this.ui().PROMPT_SYNC_UPLOADING);
         try {
@@ -402,7 +382,6 @@ export class ChatConfigDialogComponent {
         }
     }
 
-    /** Pull prompts.json from cloud, merging user profiles and overriding built-in customizations. */
     async pullPromptsFromCloud(): Promise<void> {
         const confirmed = await this.dialogService.confirm(
             this.ui().PROMPT_SYNC_DOWNLOAD_CONFIRM,
@@ -413,8 +392,7 @@ export class ChatConfigDialogComponent {
         this.loading.show(this.ui().PROMPT_SYNC_DOWNLOADING);
         try {
             const { imported } = await this.sync.downloadPrompts();
-            // forceReload, not switchProfile — `switchProfile(sameId)` early-
-            // returns and the editor would read stale pre-pull signals.
+            // forceReload — switchProfile(sameId) would early-return and skip the re-read.
             await this.injection.forceReload();
             this.refreshAllEditorContent();
             this.dirtyState.set(new Map());
@@ -430,7 +408,6 @@ export class ChatConfigDialogComponent {
         }
     }
 
-    /** Export the active profile to a .json download. */
     async exportActiveProfile(): Promise<void> {
         const active = this.activeProfile();
         if (!active) return;
@@ -450,7 +427,6 @@ export class ChatConfigDialogComponent {
         }
     }
 
-    /** Import a single-profile JSON via file picker; switches to the imported profile. */
     importProfileFromFile(): void {
         const input = this.win.document.createElement('input');
         input.type = 'file';
@@ -466,27 +442,17 @@ export class ChatConfigDialogComponent {
                     this.snackBar.open(this.ui().PROFILE_IMPORT_EMPTY, this.ui().CLOSE, { duration: 3000 });
                     return;
                 }
-                // Two import outcomes need UI side-effects:
-                //   (a) A new user profile appeared (most common — rename-on-
-                //       conflict path also lands here). Switch the active id
-                //       to it so the user immediately sees what they imported.
-                //   (b) No fresh id, but `imported > 0`. The payload contained
-                //       a profile that exact-matches a local entry (same id +
-                //       displayName + baseProfileId), so prompts were
-                //       overwritten in place. If that entry happens to be the
-                //       active profile, the editor's signals are now stale —
-                //       force a reload to refresh the Monaco models.
+                // A fresh id means a new user profile appeared (incl. rename-on-conflict);
+                // no fresh id means the import overwrote an existing one in place.
                 const after = this.registry.userProfiles();
                 const fresh = after.find(p => !before.has(p.id));
                 if (fresh) {
                     await this.injection.switchProfile(fresh.id);
-                    this.refreshAllEditorContent();
-                    this.dirtyState.set(new Map());
                 } else {
                     await this.injection.forceReload();
-                    this.refreshAllEditorContent();
-                    this.dirtyState.set(new Map());
                 }
+                this.refreshAllEditorContent();
+                this.dirtyState.set(new Map());
                 this.snackBar.open(this.ui().PROFILE_IMPORTED, this.ui().CLOSE, { duration: 3000 });
             } catch (err) {
                 console.error('[ChatConfig] importProfileFromFile failed', err);
@@ -496,16 +462,10 @@ export class ChatConfigDialogComponent {
         input.click();
     }
 
-    /**
-     * Computed-ish (called from template tooltip / disabled binding) — the
-     * underlying signal lives on DiskProfileFolderService so the value is
-     * reactive to pickFolder / clear.
-     */
     diskFolderName(): string | null {
         return this.diskSync.boundFolderName();
     }
 
-    /** Push active user profile to disk. Auto-prompts for a folder on first use. */
     async pushActiveProfileToDisk(): Promise<void> {
         const active = this.activeProfile();
         if (!active || active.isBuiltIn) return;
@@ -533,7 +493,6 @@ export class ChatConfigDialogComponent {
         }
     }
 
-    /** Pull active user profile from disk into IDB and reload signals. */
     async pullActiveProfileFromDisk(): Promise<void> {
         const active = this.activeProfile();
         if (!active || active.isBuiltIn) return;
@@ -571,7 +530,6 @@ export class ChatConfigDialogComponent {
         }
     }
 
-    /** Re-run the directory picker so the user can re-bind to a different folder. */
     async changeDiskFolder(): Promise<void> {
         try {
             await this.diskSync.pickFolder();

@@ -48,14 +48,7 @@ function importSuffix(): string {
 }
 
 function isValidUserProfileId(id: unknown): id is string {
-    // Untrimmed: leading / trailing whitespace must fail outright since the
-    // raw id ends up as an IDB key + registry entry verbatim. Prefix check
-    // enforces the user-profile naming convention so an export claiming
-    // `id: 'cloud'` or `id: 'local'` (whether by malice or accident) is
-    // dropped before it can collide with a built-in slot — the collision-
-    // remap path below would still rename it, but rejecting at validation
-    // is cleaner and keeps the registry's "ids starting with user_ are
-    // always user profiles" invariant intact.
+    // Untrimmed regex — id is used as an IDB key verbatim, whitespace must fail outright.
     return typeof id === 'string'
         && id.startsWith(USER_PROFILE_ID_PREFIX)
         && /^[A-Za-z0-9_-]{3,}$/.test(id);
@@ -970,13 +963,8 @@ export class SyncService {
     }
 
     /**
-     * Snapshot all user-modified built-in prompts + every user profile, and
-     * PUT to cloud as the v2 schema:
-     *   { version: 2, profiles: [...], prompts: { "<id>:<type>": { content, tokens? } } }
-     *
-     * Built-in defaults still stay out (only user-customized rows ship). User
-     * profiles ship in full, including unmodified rows, since the receiving
-     * device has no shipped asset to fall back on.
+     * Built-ins ship only their user-modified rows. User profiles ship in
+     * full — receiving device has no shipped asset to fall back on.
      */
     async uploadPrompts(): Promise<{ exported: number }> {
         const backend = await this.getActiveBackend();
@@ -1018,16 +1006,7 @@ export class SyncService {
         return { exported };
     }
 
-    /**
-     * Pulls prompts.json. Recognizes:
-     *  - v2: { version: 2, profiles, prompts } — upserts profile meta then
-     *    writes prompt rows. If an incoming user profile id collides with an
-     *    existing local one whose displayName differs, the import is renamed
-     *    to `${id}_imported_${shortHash}` so neither side loses data.
-     *  - v1 (no `version`): legacy flat map. Only built-in rows are imported;
-     *    any user-prefixed entry is silently skipped (treated as orphan since
-     *    v1 had no metadata).
-     */
+    /** v1 payloads have no profile metadata, so user-prefixed entries in v1 are dropped as orphans. */
     async downloadPrompts(): Promise<{ imported: number }> {
         const backend = await this.getActiveBackend();
         await backend.authenticate();
@@ -1042,43 +1021,24 @@ export class SyncService {
     }
 
     private async applyPromptsV2(payload: PromptsV2): Promise<{ imported: number }> {
-        // First pass: upsert user profiles from `profiles[]`. Any id collision
-        // against a different local profile is resolved by remapping the
-        // incoming id throughout this import. Built-in ids are reserved and
-        // never appear in `profiles[]`; an incoming id that matches a built-in
-        // is also remapped (treat as a name collision with a reserved id).
         const idRemap = new Map<string, string>();
         for (const incoming of payload.profiles ?? []) {
-            // Skip rows with garbage ids — empty / whitespace / illegal chars
-            // would otherwise become valid IDB keys and registry entries.
             if (!isValidUserProfileId(incoming.id)) {
                 console.warn('[SyncService] applyPromptsV2: dropping profile with invalid id', incoming);
                 continue;
             }
 
-            // Defensive defaults: a partially-malformed export (or a hand-edited
-            // payload) shouldn't be allowed to write `undefined` into IDB-required
-            // fields. The collision check below also reads displayName /
-            // baseProfileId, so we normalize before that comparison.
+            // Hand-edited / partial exports can carry undefined fields; meta store requires them populated.
             const incomingName = incoming.displayName || incoming.id;
             const incomingBase = incoming.baseProfileId || 'cloud';
             const incomingCreatedAt = incoming.createdAt || Date.now();
             const incomingUpdatedAt = incoming.updatedAt || incomingCreatedAt;
 
-            // Built-in collision can't happen here: the validator above rejects
-            // any id without the `user_` prefix, and built-in ids never have
-            // it. Only same-prefix user-profile collisions remain.
             const existing = this.profileRegistry.get(incoming.id);
             const collidesDifferent = existing && !existing.isBuiltIn &&
                 (existing.displayName !== incomingName || existing.baseProfileId !== incomingBase);
 
-            // Defense in depth: if rename is needed, keep generating suffixes
-            // until the target id is genuinely unused. 8 hex chars makes a
-            // first-collision astronomically unlikely (~4 billion space) and
-            // a second collision essentially impossible — but the cost of the
-            // check is one map lookup, and it stops a future caller that
-            // weakens importSuffix() from silently corrupting an existing
-            // imported entry.
+            // Loop the suffix lottery until unused — guards against a future weakening of importSuffix().
             let targetId = incoming.id;
             if (collidesDifferent) {
                 do {
@@ -1111,7 +1071,6 @@ export class SyncService {
             }
         }
 
-        // Second pass: prompt rows.
         let imported = 0;
         for (const [key, value] of Object.entries(payload.prompts ?? {})) {
             if (!value || typeof value.content !== 'string') continue;
@@ -1123,12 +1082,11 @@ export class SyncService {
 
             const profileId = idRemap.get(incomingId) ?? incomingId;
             const profile = this.profileRegistry.get(profileId);
-            const isBuiltIn = profile?.isBuiltIn ?? false;
-            // Reject orphan user-id rows without a matching profile entry.
+            // Drop rows whose profile entry never made it into the registry (orphan).
             if (!profile) continue;
 
             await this.storage.saveProfilePrompt(type, profileId, value.content, value.tokens);
-            if (isBuiltIn) {
+            if (profile.isBuiltIn) {
                 localStorage.setItem(getProfileScopedKey(`prompt_user_modified_${type}`, profileId), 'true');
             }
             imported++;
@@ -1136,11 +1094,6 @@ export class SyncService {
         return { imported };
     }
 
-    /**
-     * Legacy flat-map import. Pre-v2 payloads only ever held built-in rows
-     * (the user-profile feature didn't exist), so user-prefixed entries are
-     * dropped on import. Built-in rows are written exactly like v2.
-     */
     private async applyPromptsV1Legacy(parsed: Record<string, { content: string; tokens?: number }>): Promise<{ imported: number }> {
         let imported = 0;
         for (const [key, value] of Object.entries(parsed)) {
@@ -1158,11 +1111,6 @@ export class SyncService {
         return { imported };
     }
 
-    /**
-     * Export a single profile (built-in or user) into a portable JSON blob
-     * shaped like the v2 schema with one entry. The receiving end can pass
-     * it back through `importSingleProfile` (or `applyPromptsV2`).
-     */
     async exportSingleProfile(profileId: string): Promise<string> {
         const profile = this.profileRegistry.get(profileId);
         if (!profile) throw new Error(`Unknown profile: ${profileId}`);
@@ -1186,10 +1134,6 @@ export class SyncService {
         return JSON.stringify(payload, null, 2);
     }
 
-    /**
-     * Import a single-profile JSON blob produced by `exportSingleProfile`.
-     * Same conflict-rename behaviour as `applyPromptsV2`.
-     */
     async importSingleProfile(json: string): Promise<{ imported: number }> {
         const parsed = JSON.parse(json) as unknown;
         if (!isPromptsV2(parsed)) throw new Error('Not a v2 prompt profile export');

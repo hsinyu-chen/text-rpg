@@ -57,7 +57,6 @@ export class ChatInputComponent {
     private matDialog = inject(MatDialog);
     private readonly doc = inject(DOCUMENT);
 
-    /** Display name for the active prompt profile — built-ins via i18n, user via displayName. */
     activeProfileName = computed(() => {
         const id = this.state.activePromptProfile();
         const profile = this.profileRegistry.get(id);
@@ -66,7 +65,7 @@ export class ChatInputComponent {
         return getProfileDisplayName(profile, ui);
     });
 
-    // Computed: Whether there's an active session (book) to work with
+
     hasActiveSession = computed(() => !!this.session.currentBookId());
 
     // Queries

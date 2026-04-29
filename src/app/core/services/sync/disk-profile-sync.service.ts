@@ -6,10 +6,6 @@ import { PromptProfileRegistryService } from '../prompt-profile-registry.service
 import { DiskProfileFolderService } from './disk-profile-folder.service';
 import { ensureDir, getDirIfExists, readFileText, writeFileText } from './fsa-utils';
 
-/**
- * On-disk profile envelope. `version` is bumped if the file layout ever
- * changes (e.g. additional fields per type, or split into per-type sidecars).
- */
 interface DiskProfileEnvelope {
     version: 2;
     profile: {
@@ -33,17 +29,8 @@ const TYPE_FILENAME: Record<PromptType, string> = {
 };
 
 /**
- * Mirrors a single user profile to a directory on disk so it can be edited
- * with an external editor (Claude Code, VS Code, …) and pulled back into
- * IDB. Built-in profiles are not supported (they're always read-only and
- * shipped as assets).
- *
- * Layout under the bound root:
- *   <root>/<profileId>/profile.json     ← envelope (v2)
- *   <root>/<profileId>/<type>.md / .js  ← one file per PromptType
- *
- * Single-direction operations only — Push overwrites disk, Pull overwrites
- * IDB. No watch, no merge. Conflicts are resolved by which button you press.
+ * Single-direction sync. Push overwrites disk, Pull overwrites IDB. Built-in
+ * profiles are rejected — they're shipped as assets and have no IDB row to mirror.
  */
 @Injectable({ providedIn: 'root' })
 export class DiskProfileSyncService {
@@ -53,23 +40,15 @@ export class DiskProfileSyncService {
     private registry = inject(PromptProfileRegistryService);
     private folder = inject(DiskProfileFolderService);
 
-    /** Replace user-visible folder; subsequent push/pull use the new handle. */
     async pickFolder(): Promise<void> {
         await this.folder.pickFolder();
     }
 
-    /**
-     * Currently bound folder name (or null if unbound). For tooltips / UI
-     * labels — not the full path, FSA hides those.
-     */
+    /** FSA hides full paths — only the folder name is exposed. */
     boundFolderName(): string | null {
         return this.folder.handle()?.name ?? null;
     }
 
-    /**
-     * Push the currently active user profile to disk. Throws if the active
-     * profile is built-in or unknown, or the folder isn't bound / accessible.
-     */
     async pushActiveToDisk(): Promise<void> {
         const profile = this.assertActiveUserProfile();
         const root = await this.folder.ensurePermission();
@@ -94,13 +73,7 @@ export class DiskProfileSyncService {
         }
     }
 
-    /**
-     * Pull the active user profile's content from disk into IDB and reload
-     * the live signals. Files that don't exist on disk leave their IDB row
-     * untouched (so a partial edit set works without zeroing the rest). The
-     * envelope's metadata is also synced into IDB if present, so renames
-     * round-trip.
-     */
+    /** Files absent on disk leave their IDB row untouched — partial edit sets don't zero the rest. */
     async pullActiveFromDisk(): Promise<{ updatedTypes: number; metaUpdated: boolean }> {
         const profile = this.assertActiveUserProfile();
         const root = await this.folder.ensurePermission();
@@ -143,9 +116,6 @@ export class DiskProfileSyncService {
             updatedTypes++;
         }
 
-        // Force a fresh load so live signals + dirty checks pick up the new
-        // content. forceReload resets both guards so a previous in-flight or
-        // marked-done load doesn't short-circuit the re-read.
         await this.injection.forceReload();
         return { updatedTypes, metaUpdated };
     }

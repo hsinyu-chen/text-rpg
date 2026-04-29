@@ -8,16 +8,10 @@ import { PromptProfileRegistryService } from './prompt-profile-registry.service'
 
 export type PromptType = 'action' | 'continue' | 'fastforward' | 'system' | 'save' | 'postprocess' | 'system_main';
 
-/** Canonical list of all managed prompt types. Single source of truth for iteration. */
 export const ALL_PROMPT_TYPES: readonly PromptType[] = [
     'action', 'continue', 'fastforward', 'system', 'save', 'system_main', 'postprocess'
 ] as const;
 
-/**
- * Service responsible for managing dynamic prompt injection settings.
- * Handles loading, saving, and resetting injection prompts.
- * Supports multiple Prompt Profiles (e.g. 'cloud' vs 'local').
- */
 @Injectable({
     providedIn: 'root'
 })
@@ -29,21 +23,14 @@ export class InjectionService {
 
     private readonly ALL_TYPES = ALL_PROMPT_TYPES;
 
-    /** Current active profile ID (convenience accessor) */
     private get profileId(): string {
         return this.state.activePromptProfile();
     }
 
-    /**
-     * Normalizes line endings to LF for consistent hashing across platforms.
-     */
     private normalizeLineEndings(str: string): string {
         return str.replace(/\r\n/g, '\n');
     }
 
-    /**
-     * Generates a 32-bit integer string hash for a given string.
-     */
     private hashString(str: string): string {
         let hash = 0;
         if (str.length === 0) return hash.toString();
@@ -55,16 +42,10 @@ export class InjectionService {
         return hash.toString();
     }
 
-    /**
-     * Gets a profile-scoped localStorage key.
-     */
     private lsKey(baseKey: string, overrideProfileId?: string): string {
         return getProfileScopedKey(baseKey, overrideProfileId ?? this.profileId);
     }
 
-    /**
-     * Replaces placeholders in a prompt string with localized values.
-     */
     applyPromptPlaceholders(template: string, lang = 'default'): string {
         const locale = getLocale(lang);
         const filenames = locale.coreFilenames;
@@ -82,9 +63,6 @@ export class InjectionService {
             .replace(/\{\{LANGUAGE_RULE\}\}/g, locale.promptHoles.LANGUAGE_RULE);
     }
 
-    /**
-     * Loads a single injection file from assets.
-     */
     private async loadInjectionFile(path: string): Promise<string> {
         try {
             const response = await fetch(path, { cache: 'no-store' });
@@ -96,15 +74,7 @@ export class InjectionService {
         }
     }
 
-    /**
-     * Loads a built-in profile's shipped asset for the given filename, with
-     * a fallback to the default (cloud) profile's directory if the file is
-     * absent in the requested sub-dir.
-     *
-     * Caller must only invoke this for built-in profiles. User profiles have
-     * no shipped assets — `loadDynamicInjectionSettings` handles them by
-     * reading IDB directly (with recursion to `baseProfileId`).
-     */
+    /** Built-in only — user profiles are IDB-only and have no shipped assets. */
     private async loadBuiltInAsset(langFolder: string, filename: string, targetProfileId: string): Promise<string> {
         const profileBase = getProfileBasePath(langFolder, targetProfileId);
         const profilePath = `${profileBase}/${filename}`;
@@ -112,7 +82,6 @@ export class InjectionService {
         try {
             return await this.loadInjectionFile(profilePath);
         } catch {
-            // Fallback to root (cloud) directory
             if (targetProfileId !== DEFAULT_PROFILE_ID) {
                 const fallbackBase = getProfileBasePath(langFolder, DEFAULT_PROFILE_ID);
                 const fallbackPath = `${fallbackBase}/${filename}`;
@@ -123,12 +92,6 @@ export class InjectionService {
         }
     }
 
-    /**
-     * Resolves a user profile's prompt content from IDB. If the user profile
-     * is missing the row (e.g. a new prompt type was added after clone), the
-     * lookup recurses through `baseProfileId` until it lands on a built-in,
-     * which is then served from its own IDB row.
-     */
     private async loadUserProfilePrompt(type: PromptType, profileId: string, langFolder: string, lang: string): Promise<string> {
         const visited = new Set<string>();
         let current: PromptProfile | undefined = this.registry.get(profileId);
@@ -138,13 +101,8 @@ export class InjectionService {
             const row = await this.storage.getProfilePrompt(type, current.id);
             if (row?.content !== undefined) return row.content;
 
-            // Reached a built-in with no IDB row for this type — likely an
-            // app update introduced a new PromptType that pre-existing user
-            // profiles never copied. Pull from the built-in's shipped asset
-            // and seed the row so subsequent loads short-circuit. Without
-            // this, the loop would skip past the correct base (e.g. 'local')
-            // and serve cloud's content, which is the wrong default for
-            // users cloned from a non-default built-in.
+            // Built-in IDB rows are only seeded for the active profile,
+            // so a non-active base needs its shipped asset fetched on demand.
             if (current.isBuiltIn) {
                 const seeded = await this.seedBuiltInAssetToIdb(type, langFolder, lang, current.id);
                 if (seeded !== null) return seeded;
@@ -153,19 +111,11 @@ export class InjectionService {
             if (!current.baseProfileId) break;
             current = this.registry.get(current.baseProfileId);
         }
-        // Last-resort: cloud row (always seeded by loadDynamicInjectionSettings).
         const cloudRow = await this.storage.getProfilePrompt(type, DEFAULT_PROFILE_ID);
         return cloudRow?.content ?? '';
     }
 
-    /**
-     * Fetch a built-in profile's shipped asset, apply placeholders for
-     * non-postprocess types, persist the result into the built-in's IDB
-     * row, and return the processed content.
-     *
-     * Returns null when the asset fetch fails (network blip, missing file)
-     * — callers fall through to their next strategy (cloud row, etc.).
-     */
+    /** Returns null on fetch failure so callers can fall through to their next strategy. */
     private async seedBuiltInAssetToIdb(type: PromptType, langFolder: string, lang: string, profileId: string): Promise<string | null> {
         try {
             const filename = INJECTION_FILE_PATHS[type];
@@ -179,17 +129,11 @@ export class InjectionService {
         }
     }
 
-    /**
-     * Marks a specific injection type as modified by the user (profile-scoped).
-     */
     markAsModified(type: PromptType): void {
         localStorage.setItem(this.lsKey(`prompt_user_modified_${type}`), 'true');
     }
 
-    /**
-     * Saves the current content of a prompt to storage (profile-scoped).
-     * Refuses to write to built-in profiles — UI must clone first.
-     */
+    /** Throws on built-in profiles — UI must clone first. */
     async saveToService(type: PromptType, content: string): Promise<void> {
         const profile = this.registry.get(this.profileId);
         if (profile?.isBuiltIn) {
@@ -198,15 +142,10 @@ export class InjectionService {
         await this.storage.saveProfilePrompt(type, this.profileId, content);
         this.markAsModified(type);
 
-        // Update the signal immediately
         this.setSignalContent(type, content);
     }
 
-    /**
-     * Acknowledges an update for a specific type, updating the last seen hash.
-     * Optionally overwrites the user's content. No-op on user profiles (they
-     * never have a server-hash to compare against).
-     */
+    /** No-op for user profiles — they never have a server hash to compare against. */
     async acknowledgeUpdate(type: PromptType, applyUpdate: boolean): Promise<void> {
         const profile = this.registry.get(this.profileId);
         if (profile && !profile.isBuiltIn) return;
@@ -230,17 +169,6 @@ export class InjectionService {
         });
     }
 
-    /**
-     * Loads dynamic injection settings from StorageService (IndexedDB) or MD files.
-     * Includes migration from legacy localStorage.
-     *
-     * Built-in profiles: load shipped asset, hash-compare for ship-update badge,
-     * seed IDB on first load, prefer user customization if `prompt_user_modified_*`.
-     *
-     * User profiles: read directly from IDB (no fetch, no hash compare, no badge).
-     * Missing rows recurse through `baseProfileId`. The `promptUpdateStatus` map
-     * is populated with the resolved content but `hasUpdate` is always false.
-     */
     async loadDynamicInjectionSettings() {
         if (this.isSettingsLoading) return;
         this.isSettingsLoading = true;
@@ -332,10 +260,9 @@ export class InjectionService {
 
             updateStatusMap.set(type.id, { hasUpdate, serverContent: processedServerContent });
 
-            // Try to load from IndexedDB (profile-scoped)
             let dbRecord = await this.storage.getProfilePrompt(type.id, currentProfile);
 
-            // DATA MIGRATION: Check localStorage if not in DB (only for default/cloud profile)
+            // Pre-IDB customizations were stored in localStorage; migrate on read.
             if (!dbRecord && type.legacyKey && currentProfile === DEFAULT_PROFILE_ID) {
                 const legacyContent = localStorage.getItem(type.legacyKey);
                 if (legacyContent) {
@@ -346,17 +273,14 @@ export class InjectionService {
                 }
             }
 
-            // `content !== undefined` (not truthiness) — user may have intentionally
-            // saved an empty string to blank out a prompt. The trim()-based check
-            // this replaced silently reset such customizations to the server
-            // default on every reload.
+            // `content !== undefined`, not truthiness — empty string is a valid customization.
             if (isModified && dbRecord?.content !== undefined) {
                 this.setSignalContent(type.id as PromptType, dbRecord.content);
             } else {
                 this.setSignalContent(type.id as PromptType, processedServerContent);
                 localStorage.setItem(modifiedKey, 'false');
 
-                // Seed default into IDB so "clone" can copy it later.
+                // Seed default into IDB so a future clone has something to copy.
                 if (!dbRecord) {
                     await this.storage.saveProfilePrompt(type.id, currentProfile, processedServerContent);
                 }
@@ -371,9 +295,7 @@ export class InjectionService {
         for (const type of this.ALL_TYPES) {
             const content = await this.loadUserProfilePrompt(type, currentProfile, langFolder, lang);
             this.setSignalContent(type, content);
-            // User profiles never participate in ship-update badging — `serverContent`
-            // is filled with the resolved content for any UI that reads the map,
-            // and `hasUpdate` is always false.
+            // serverContent gets the resolved IDB content; user profiles never raise the badge.
             updateStatusMap.set(type, { hasUpdate: false, serverContent: content });
         }
         this.state.promptUpdateStatus.set(updateStatusMap);
@@ -391,10 +313,6 @@ export class InjectionService {
         }
     }
 
-    /**
-     * Switches the active prompt profile.
-     * Saves current profile's state, then loads the new profile's prompts.
-     */
     async switchProfile(newProfileId: string): Promise<void> {
         const profile = this.registry.get(newProfileId);
         if (!profile) {
@@ -413,32 +331,14 @@ export class InjectionService {
         await this.forceReload();
     }
 
-    /**
-     * Re-run the loader for the currently-active profile, resetting both
-     * guards (`isSettingsLoading`, `injectionSettingsLoaded`) so the IDB
-     * is re-read even if a previous load is mid-flight or marked done.
-     *
-     * Use this whenever IDB rows for the active profile change underneath
-     * the live signals — sync download, disk pull, single-profile import
-     * that overwrites the active id, etc. `switchProfile` also funnels
-     * through here.
-     */
+    /** Resets both load guards so the loader re-reads IDB even if a previous load is mid-flight or marked done. */
     async forceReload(): Promise<void> {
         this.isSettingsLoading = false;
         this.state.injectionSettingsLoaded.set(false);
         await this.loadDynamicInjectionSettings();
     }
 
-    /**
-     * Clone an existing profile (built-in or user) into a new user profile.
-     * Copies all 7 prompt rows + scoped LS keys (modified flags + server hashes).
-     * Returns the new profile id.
-     *
-     * Built-in IDB rows are only seeded by `loadBuiltInProfile` for the *active*
-     * profile, so cloning a non-active built-in could otherwise produce an
-     * empty clone. We fall back to the shipped assets (and seed the source's
-     * IDB rows en passant) whenever a source row is missing.
-     */
+    /** Returns the new user profile id. */
     async cloneProfile(sourceId: string, displayName: string): Promise<string> {
         const source = this.registry.get(sourceId);
         if (!source) throw new Error(`Unknown profile: ${sourceId}`);
@@ -452,10 +352,8 @@ export class InjectionService {
         for (const type of this.ALL_TYPES) {
             let row = await this.storage.getProfilePrompt(type, sourceId);
 
+            // Non-active built-ins haven't been seeded to IDB; pull the asset on demand.
             if (!row && source.isBuiltIn) {
-                // Source built-in's row hasn't been seeded (it isn't the
-                // active profile, so loadBuiltInProfile never ran for it).
-                // Pull the shipped asset, seed source's IDB row, and copy.
                 const seeded = await this.seedBuiltInAssetToIdb(type, langFolder, lang, sourceId);
                 if (seeded !== null) row = { content: seeded, lastModified: Date.now() };
             }
@@ -465,10 +363,7 @@ export class InjectionService {
             }
         }
 
-        // Copy scoped LS keys (modified flags + server hashes), so the clone
-        // inherits the source's customization-vs-default state. For built-in
-        // sources, this means the badge state is preserved at the moment of
-        // cloning; thereafter the new profile is on its own.
+        // Inherit the source's modified-vs-default state at clone time; the new profile diverges from there.
         for (const type of this.ALL_TYPES) {
             for (const baseKey of [`prompt_user_modified_${type}`, `prompt_last_server_hash_${type}`]) {
                 const sourceLsKey = getProfileScopedKey(baseKey, sourceId);
@@ -499,7 +394,6 @@ export class InjectionService {
         return newId;
     }
 
-    /** Rename a user profile (built-ins reject). */
     async renameProfile(id: string, displayName: string): Promise<void> {
         const profile = this.registry.get(id);
         if (!profile) throw new Error(`Unknown profile: ${id}`);
@@ -512,11 +406,7 @@ export class InjectionService {
         this.registry.update(id, { displayName, updatedAt: updated.updatedAt });
     }
 
-    /**
-     * Delete a user profile: purge IDB rows + scoped LS keys + meta.
-     * If it's the active profile, caller is responsible for switching first
-     * (this method does not touch `activePromptProfile`).
-     */
+    /** Caller must switch off the active profile before calling this if `id` is currently active. */
     async deleteProfile(id: string): Promise<void> {
         const profile = this.registry.get(id);
         if (!profile) return;
@@ -532,9 +422,6 @@ export class InjectionService {
         this.registry.remove(id);
     }
 
-    /**
-     * Helper to get current signal content by type
-     */
     getContentForType(type: PromptType): string {
         switch (type) {
             case 'action': return this.state.dynamicActionInjection();

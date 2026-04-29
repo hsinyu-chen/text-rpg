@@ -2,17 +2,7 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { BUILT_IN_PROFILES, PromptProfile, USER_PROFILE_ID_PREFIX } from '../constants/prompt-profiles';
 import { StorageService, StoredProfileMeta } from './storage.service';
 
-/**
- * Registry of all known prompt profiles — built-in + user-defined.
- *
- * Built-ins come from `BUILT_IN_PROFILES` (read-only). User profiles are
- * persisted in IDB store `prompt_profile_meta` and merged in on `init()`,
- * which must complete before `InjectionService.loadDynamicInjectionSettings`
- * so the active profile id can resolve.
- *
- * `GameStateService` still owns `activePromptProfile` (which one is current);
- * this service owns "what profiles exist".
- */
+/** init() must complete before any consumer that resolves a profile by id. */
 @Injectable({ providedIn: 'root' })
 export class PromptProfileRegistryService {
     private storage = inject(StorageService);
@@ -24,7 +14,6 @@ export class PromptProfileRegistryService {
 
     private initialized = false;
 
-    /** Loads user profile metadata from IDB. Idempotent. */
     async init(): Promise<void> {
         if (this.initialized) return;
         try {
@@ -46,7 +35,7 @@ export class PromptProfileRegistryService {
         return this._profiles();
     }
 
-    /** Add a user profile (must already be persisted via storage). */
+    /** Caller must persist meta to storage before / alongside this call. */
     add(profile: PromptProfile): void {
         if (profile.isBuiltIn) {
             throw new Error('[PromptProfileRegistry] cannot add a built-in profile at runtime');
@@ -54,7 +43,7 @@ export class PromptProfileRegistryService {
         this._profiles.update(list => [...list, profile]);
     }
 
-    /** Patch a user profile in-memory. Caller is responsible for persisting meta. */
+    /** Caller must persist meta to storage before / alongside this call. */
     update(id: string, patch: Partial<PromptProfile>): void {
         this._profiles.update(list => list.map(p => p.id === id ? { ...p, ...patch } : p));
     }
@@ -63,7 +52,6 @@ export class PromptProfileRegistryService {
         this._profiles.update(list => list.filter(p => p.id !== id));
     }
 
-    /** Generate a fresh user profile id. */
     static generateId(): string {
         const rand = (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
             ? crypto.randomUUID().replace(/-/g, '').slice(0, 12)

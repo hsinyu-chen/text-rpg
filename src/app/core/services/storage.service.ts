@@ -205,19 +205,12 @@ export class StorageService {
     await (await this.dbPromise).put('prompt_store', { content, tokens, lastModified: Date.now() }, key);
   }
 
-  /**
-   * Deletes every prompt row scoped to the given profile (`profileId:*`).
-   * No-op for the default profile to avoid wiping the unprefixed cloud rows.
-   *
-   * Uses an `IDBKeyRange.bound` from `prefix` to `prefix￿` so the cursor
-   * only walks the matching key range instead of every row in the store.
-   */
+  /** No-op for the default profile — its rows are unprefixed and would all be wiped. */
   async deleteAllProfilePrompts(profileId: string): Promise<void> {
     if (profileId === DEFAULT_PROFILE_ID) return;
     const db = await this.dbPromise;
     const tx = db.transaction('prompt_store', 'readwrite');
     const prefix = `${profileId}:`;
-    // Bulk delete by key range — single IDB op, no per-row cursor traversal.
     await tx.store.delete(IDBKeyRange.bound(prefix, prefix + '￿'));
     await tx.done;
   }
