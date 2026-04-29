@@ -13,6 +13,7 @@
     "build:desktop": "tauri build",
     "build:desktop:bin": "tauri build --no-bundle",
     "lint": "ng lint --fix",
+    "test": "ng test",
     "gen:icons": "node tools/gen-icons.cjs"
   },
   "prettier": {
@@ -68,8 +69,10 @@
     "@types/katex": "^0.16.8",
     "angular-eslint": "21.1.0",
     "eslint": "^9.39.1",
+    "happy-dom": "^20.9.0",
     "sharp": "^0.34.5",
     "typescript": "~5.9.2",
-    "typescript-eslint": "8.47.0"
+    "typescript-eslint": "8.47.0",
+    "vitest": "^4.1.5"
   }
 }
