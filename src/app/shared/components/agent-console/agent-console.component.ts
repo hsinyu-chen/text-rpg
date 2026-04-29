@@ -21,6 +21,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatMenuModule } from '@angular/material/menu';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { MarkdownModule } from 'ngx-markdown';
 import { FileAgentService } from '../../../core/services/file-agent/file-agent.service';
 import { BuiltInPromptsService } from '../../../core/services/file-agent/built-in-prompts.service';
@@ -54,6 +55,7 @@ export class AgentConsoleComponent implements OnDestroy {
   agentService = inject(FileAgentService);
   builtInPromptsService = inject(BuiltInPromptsService);
   private clipboard = inject(Clipboard);
+  private snackBar = inject(MatSnackBar);
 
   // Internal state
   agentPrompt = signal('');
@@ -177,6 +179,14 @@ export class AgentConsoleComponent implements OnDestroy {
       }
     } catch (err) {
       console.error('Failed to load built-in prompt', id, err);
+      // Surface the failure — silent fallback would mask a missing translation file
+      // and the user would only see an empty input. Each prompt MUST have a body
+      // file for every supported language; a missing one is a maintenance error.
+      this.snackBar.open(
+        `Failed to load prompt "${id}" for the current language.`,
+        'Close',
+        { duration: 5000 }
+      );
     }
   }
 
