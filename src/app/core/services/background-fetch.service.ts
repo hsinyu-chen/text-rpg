@@ -90,13 +90,25 @@ export class BackgroundFetchService {
         return false;
     }
 
-    private async bgFetch(controller: ServiceWorker, url: string, init: RequestInit | undefined): Promise<Response> {
+    private bgFetch(controller: ServiceWorker, url: string, init: RequestInit | undefined): Promise<Response> {
+        const signal = init?.signal;
+        if (signal?.aborted) {
+            return Promise.reject(new DOMException('The operation was aborted.', 'AbortError'));
+        }
+
         const id = `bg-${Date.now()}-${this.nextId++}`;
         const channel = new MessageChannel();
 
         let opened = false;
         let bodyClosed = false;
         let bodyController!: ReadableStreamDefaultController<Uint8Array>;
+        const sendAbort = () => {
+            try { controller.postMessage({ type: 'bgfetch:abort', id }); } catch { /* noop */ }
+        };
+        const closePort = () => {
+            try { channel.port1.close(); } catch { /* noop */ }
+        };
+
         const body = new ReadableStream<Uint8Array>({
             start: (c) => { bodyController = c; },
             cancel: () => {
@@ -104,8 +116,8 @@ export class BackgroundFetchService {
                 // into the page queue still reach onmessage — flag bodyClosed so those
                 // late chunks no-op instead of throwing on a cancelled stream.
                 bodyClosed = true;
-                try { controller.postMessage({ type: 'bgfetch:abort', id }); } catch { /* noop */ }
-                try { channel.port1.close(); } catch { /* noop */ }
+                sendAbort();
+                closePort();
             }
         });
 
@@ -115,7 +127,42 @@ export class BackgroundFetchService {
             respResolve = res;
             respReject = rej;
         });
+
+        // Time-to-first-message guard. MessagePort has no cross-realm close event,
+        // so a SW that crashed after receiving bgfetch:start would otherwise leave
+        // respPromise hanging forever. 60s covers slow Gemini TTFB; cleared on the
+        // first reply because once we hear from the SW it's alive and the existing
+        // chunk/done/error path handles further failures.
+        let ttfmTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+            ttfmTimer = null;
+            if (opened) return;
+            sendAbort();
+            closePort();
+            respReject(new Error('bg-fetch: no response from service worker within 60s'));
+        }, 60_000);
+        const clearTtfm = () => {
+            if (ttfmTimer !== null) {
+                clearTimeout(ttfmTimer);
+                ttfmTimer = null;
+            }
+        };
+
+        const onAbort = () => {
+            clearTtfm();
+            sendAbort();
+            const err = new DOMException('The operation was aborted.', 'AbortError');
+            if (!opened) {
+                respReject(err);
+            } else if (!bodyClosed) {
+                bodyController.error(err);
+                bodyClosed = true;
+            }
+            closePort();
+        };
+        signal?.addEventListener('abort', onAbort, { once: true });
+
         channel.port1.onmessage = (e: MessageEvent<BgFetchMessage>) => {
+            clearTtfm();
             const msg = e.data;
             if (!msg) return;
             switch (msg.type) {
