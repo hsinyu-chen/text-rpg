@@ -175,69 +175,59 @@ describe('resolveSection', () => {
 describe('insertSectionIntoContent', () => {
   it('appends to end-of-file when no anchor is given', () => {
     const r = insertSectionIntoContent('# A\nbody', '## New', 'new body', undefined, undefined);
-    expect('error' in r).toBe(false);
-    if (!('error' in r)) {
-      expect(r.newContent).toBe('# A\nbody\n\n## New\nnew body');
-      expect(r.insertedAtLine).toBe(4);
-    }
+    expect(r).toMatchObject({ newContent: '# A\nbody\n\n## New\nnew body', insertedAtLine: 4 });
   });
 
   it('does not double-blank when content already ends with a blank line', () => {
     const r = insertSectionIntoContent('# A\nbody\n', '## New', undefined, undefined, undefined);
-    if (!('error' in r)) expect(r.newContent).toBe('# A\nbody\n\n## New');
+    expect(r).toMatchObject({ newContent: '# A\nbody\n\n## New' });
   });
 
   it('prepends with a separator blank line', () => {
     const r = insertSectionIntoContent('# A', '# Z', 'z body', 'prepend', undefined);
-    if (!('error' in r)) {
-      expect(r.newContent).toBe('# Z\nz body\n\n# A');
-      expect(r.insertedAtLine).toBe(1);
-    }
+    expect(r).toMatchObject({ newContent: '# Z\nz body\n\n# A', insertedAtLine: 1 });
   });
 
   it('errors when before/after is requested without anchorSectionPath', () => {
     const r = insertSectionIntoContent('# A', '## X', undefined, 'before', undefined);
-    expect('error' in r && r.error).toMatch(/requires anchorSectionPath/);
+    expect(r).toMatchObject({ error: expect.stringMatching(/requires anchorSectionPath/) });
   });
 
   it('errors when anchor section is not found', () => {
     const r = insertSectionIntoContent('# A', '## X', undefined, 'after', 'Missing');
-    expect('error' in r && r.error).toMatch(/not found/);
+    expect(r).toMatchObject({ error: expect.stringMatching(/not found/) });
   });
 
   it('errors when anchor section is ambiguous', () => {
     const md = ['# A', '## Same', '# B', '## Same'].join('\n');
     const r = insertSectionIntoContent(md, '## X', undefined, 'after', 'Same');
-    expect('error' in r && r.error).toMatch(/ambiguous/);
+    expect(r).toMatchObject({ error: expect.stringMatching(/ambiguous/) });
   });
 
   it('inserts before the anchor section', () => {
     const md = ['# A', 'a-body', '# B'].join('\n');
     const r = insertSectionIntoContent(md, '# Mid', 'm', 'before', 'B');
-    if (!('error' in r)) {
-      expect(r.newContent).toBe(['# A', 'a-body', '# Mid', 'm', '', '# B'].join('\n'));
-      expect(r.insertedAtLine).toBe(3);
-    }
+    expect(r).toMatchObject({
+      newContent: ['# A', 'a-body', '# Mid', 'm', '', '# B'].join('\n'),
+      insertedAtLine: 3,
+    });
   });
 
   it('inserts after the anchor section (and append-into uses same insertion point)', () => {
     const md = ['# A', 'a-body', '# B'].join('\n');
-    const after = insertSectionIntoContent(md, '## A1', 'aa', 'after', 'A');
-    const into = insertSectionIntoContent(md, '## A1', 'aa', 'append-into', 'A');
-    if (!('error' in after) && !('error' in into)) {
-      expect(after.newContent).toBe(into.newContent);
-      expect(after.newContent).toBe(['# A', 'a-body', '', '## A1', 'aa', '# B'].join('\n'));
-    }
+    const expected = ['# A', 'a-body', '', '## A1', 'aa', '# B'].join('\n');
+    expect(insertSectionIntoContent(md, '## A1', 'aa', 'after', 'A')).toMatchObject({ newContent: expected });
+    expect(insertSectionIntoContent(md, '## A1', 'aa', 'append-into', 'A')).toMatchObject({ newContent: expected });
   });
 
   it('emits just the heading line when body is undefined', () => {
-    const r = insertSectionIntoContent('', '# A', undefined, undefined, undefined);
-    if (!('error' in r)) expect(r.newContent).toBe('\n# A');
+    expect(insertSectionIntoContent('', '# A', undefined, undefined, undefined))
+      .toMatchObject({ newContent: '\n# A' });
   });
 
   it('splits multi-line body across lines', () => {
-    const r = insertSectionIntoContent('', '# A', 'line1\nline2', undefined, undefined);
-    if (!('error' in r)) expect(r.newContent).toBe('\n# A\nline1\nline2');
+    expect(insertSectionIntoContent('', '# A', 'line1\nline2', undefined, undefined))
+      .toMatchObject({ newContent: '\n# A\nline1\nline2' });
   });
 });
 

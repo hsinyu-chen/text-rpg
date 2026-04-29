@@ -73,8 +73,8 @@ describe('grep', () => {
 
   it('returns before/after context when contextLines > 0', () => {
     const { context } = makeContext({ 'a.md': 'A\nB\nMATCH\nC\nD' });
-    const r = run({ action: 'grep', args: { pattern: 'MATCH', contextLines: 1 } }, context) as { response: { matches: { before: string[]; after: string[] }[] } };
-    expect(r.response.matches[0]).toMatchObject({ line: 3, before: ['B'], after: ['C'] });
+    const r = run({ action: 'grep', args: { pattern: 'MATCH', contextLines: 1 } }, context);
+    expect(r.response).toMatchObject({ matches: [{ line: 3, before: ['B'], after: ['C'] }] });
   });
 });
 
@@ -124,8 +124,7 @@ describe('replaceFile', () => {
   it('writes new content and reports line delta', () => {
     const { context, onFileReplaced } = makeContext({ 'a.md': 'one\ntwo' });
     const r = run({ action: 'replaceFile', args: { filename: 'a.md', content: 'one\ntwo\nthree' } }, context);
-    expect(r.response).toMatchObject({ status: 'success', totalLines: 3 });
-    expect(r.response).toHaveProperty('summary', expect.stringMatching(/2 -> 3/) as unknown);
+    expect(r.response).toMatchObject({ status: 'success', totalLines: 3, summary: expect.stringMatching(/2 -> 3/) });
     expect(onFileReplaced).toHaveBeenCalledWith('a.md', 'one\ntwo\nthree');
   });
 });
