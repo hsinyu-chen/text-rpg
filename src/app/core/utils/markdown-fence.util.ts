@@ -17,17 +17,22 @@ export function computeFencedLineMask(lines: string[]): boolean[] {
     const line = lines[i];
     if (fenceChar) {
       mask[i] = true;
-      const close = line.match(/^(\s{0,3})([`~]{3,})\s*$/);
-      if (close && close[2][0] === fenceChar && close[2].length >= fenceLen) {
+      const close = line.match(/^(\s{0,3})(([`~])\3{2,})\s*$/);
+      if (close && close[3] === fenceChar && close[2].length >= fenceLen) {
         fenceChar = '';
         fenceLen = 0;
       }
       continue;
     }
-    const open = line.match(/^(\s{0,3})([`~]{3,})/);
+    const open = line.match(/^(\s{0,3})(([`~])\3{2,})/);
     if (open) {
+      const char = open[3];
+      // Backtick fence info strings cannot contain backticks per CommonMark — if they do,
+      // the line isn't a valid fence opener and we must not enter fence state (otherwise
+      // every subsequent heading would be incorrectly masked through end-of-document).
+      if (char === '`' && line.slice(open[0].length).includes('`')) continue;
       mask[i] = true;
-      fenceChar = open[2][0];
+      fenceChar = char;
       fenceLen = open[2].length;
     }
   }
