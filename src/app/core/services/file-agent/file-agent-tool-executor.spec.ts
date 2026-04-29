@@ -225,31 +225,35 @@ describe('replaceSection', () => {
   it('replaces a leaf section body in place', () => {
     const md = ['# A', 'old', '# B', 'b'].join('\n');
     const { context, onFileReplaced } = makeContext({ 'a.md': md });
-    run({ action: 'replaceSection', args: { filename: 'a.md', updates: [{ sectionPath: 'A', content: 'new' }] } }, context);
+    const r = run({ action: 'replaceSection', args: { filename: 'a.md', updates: [{ sectionPath: 'A', content: 'new' }] } }, context);
+    expect(r.response).toMatchObject({ status: 'success' });
     expect(onFileReplaced).toHaveBeenCalledWith('a.md', '# A\nnew\n# B\nb');
   });
 
   it('renames the heading when newTitle is provided', () => {
     const md = ['## Old', 'body'].join('\n');
     const { context, onFileReplaced } = makeContext({ 'a.md': md });
-    run({ action: 'replaceSection', args: { filename: 'a.md', updates: [{ sectionPath: 'Old', content: 'body', newTitle: 'New' }] } }, context);
+    const r = run({ action: 'replaceSection', args: { filename: 'a.md', updates: [{ sectionPath: 'Old', content: 'body', newTitle: 'New' }] } }, context);
+    expect(r.response).toMatchObject({ status: 'success' });
     expect(onFileReplaced).toHaveBeenCalledWith('a.md', '## New\nbody');
   });
 
   it('clears body when content is empty string', () => {
     const md = ['# A', 'old', '# B'].join('\n');
     const { context, onFileReplaced } = makeContext({ 'a.md': md });
-    run({ action: 'replaceSection', args: { filename: 'a.md', updates: [{ sectionPath: 'A', content: '' }] } }, context);
+    const r = run({ action: 'replaceSection', args: { filename: 'a.md', updates: [{ sectionPath: 'A', content: '' }] } }, context);
+    expect(r.response).toMatchObject({ status: 'success' });
     expect(onFileReplaced).toHaveBeenCalledWith('a.md', '# A\n# B');
   });
 
   it('applies multiple updates bottom-up so earlier indices stay valid', () => {
     const md = ['# A', 'a', '# B', 'b', '# C', 'c'].join('\n');
     const { context, onFileReplaced } = makeContext({ 'a.md': md });
-    run({ action: 'replaceSection', args: { filename: 'a.md', updates: [
+    const r = run({ action: 'replaceSection', args: { filename: 'a.md', updates: [
       { sectionPath: 'A', content: 'A-new line one\nA-new line two' },
       { sectionPath: 'C', content: 'C-new' },
     ] } }, context);
+    expect(r.response).toMatchObject({ status: 'success' });
     expect(onFileReplaced).toHaveBeenCalledWith('a.md', '# A\nA-new line one\nA-new line two\n# B\nb\n# C\nC-new');
   });
 
@@ -267,7 +271,8 @@ describe('replaceSection', () => {
   it('with force=true, deletes child subsections', () => {
     const md = ['# A', '## A1', 'aa', '## A2', '# B'].join('\n');
     const { context, onFileReplaced } = makeContext({ 'a.md': md });
-    run({ action: 'replaceSection', args: { filename: 'a.md', updates: [{ sectionPath: 'A', content: 'flattened', force: true }] } }, context);
+    const r = run({ action: 'replaceSection', args: { filename: 'a.md', updates: [{ sectionPath: 'A', content: 'flattened', force: true }] } }, context);
+    expect(r.response).toMatchObject({ status: 'success' });
     expect(onFileReplaced).toHaveBeenCalledWith('a.md', '# A\nflattened\n# B');
   });
 });
@@ -295,7 +300,8 @@ describe('insertSection', () => {
   it('inserts before an anchor section', () => {
     const md = ['# A', 'a', '# B'].join('\n');
     const { context, onFileReplaced } = makeContext({ 'a.md': md });
-    run({ action: 'insertSection', args: { filename: 'a.md', heading: '# Mid', content: 'm', anchor: 'before', anchorSectionPath: 'B' } }, context);
+    const r = run({ action: 'insertSection', args: { filename: 'a.md', heading: '# Mid', content: 'm', anchor: 'before', anchorSectionPath: 'B' } }, context);
+    expect(r.response).toMatchObject({ status: 'success' });
     expect(onFileReplaced).toHaveBeenCalledWith('a.md', '# A\na\n# Mid\nm\n\n# B');
   });
 });
@@ -316,14 +322,16 @@ describe('insertIntoSection', () => {
   it('inserts right after the heading line when position=start', () => {
     const md = ['# A', 'existing', '# B'].join('\n');
     const { context, onFileReplaced } = makeContext({ 'a.md': md });
-    run({ action: 'insertIntoSection', args: { filename: 'a.md', sectionPath: 'A', content: 'new-first', position: 'start' } }, context);
+    const r = run({ action: 'insertIntoSection', args: { filename: 'a.md', sectionPath: 'A', content: 'new-first', position: 'start' } }, context);
+    expect(r.response).toMatchObject({ status: 'success' });
     expect(onFileReplaced).toHaveBeenCalledWith('a.md', '# A\nnew-first\nexisting\n# B');
   });
 
   it('inserts after all body and child sections when position=end', () => {
     const md = ['# A', '## A1', 'aa-body', '# B'].join('\n');
     const { context, onFileReplaced } = makeContext({ 'a.md': md });
-    run({ action: 'insertIntoSection', args: { filename: 'a.md', sectionPath: 'A', content: 'tail', position: 'end' } }, context);
+    const r = run({ action: 'insertIntoSection', args: { filename: 'a.md', sectionPath: 'A', content: 'tail', position: 'end' } }, context);
+    expect(r.response).toMatchObject({ status: 'success' });
     expect(onFileReplaced).toHaveBeenCalledWith('a.md', '# A\n## A1\naa-body\ntail\n# B');
   });
 
