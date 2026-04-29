@@ -94,10 +94,16 @@ export class BackgroundFetchService {
         const id = `bg-${Date.now()}-${this.nextId++}`;
         const channel = new MessageChannel();
 
+        let opened = false;
+        let bodyClosed = false;
         let bodyController!: ReadableStreamDefaultController<Uint8Array>;
         const body = new ReadableStream<Uint8Array>({
             start: (c) => { bodyController = c; },
             cancel: () => {
+                // port1.close() blocks future deliveries but messages already dispatched
+                // into the page queue still reach onmessage — flag bodyClosed so those
+                // late chunks no-op instead of throwing on a cancelled stream.
+                bodyClosed = true;
                 try { controller.postMessage({ type: 'bgfetch:abort', id }); } catch { /* noop */ }
                 try { channel.port1.close(); } catch { /* noop */ }
             }
@@ -109,9 +115,6 @@ export class BackgroundFetchService {
             respResolve = res;
             respReject = rej;
         });
-
-        let opened = false;
-        let bodyClosed = false;
         channel.port1.onmessage = (e: MessageEvent<BgFetchMessage>) => {
             const msg = e.data;
             if (!msg) return;
