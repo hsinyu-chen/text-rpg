@@ -399,14 +399,27 @@ export class BookListComponent {
         return book?.collectionId ?? null;
     });
 
-    // Source: collection id that should be auto-expanded (active book's collection,
-    // falling back to root when no active book / books haven't hydrated). When the
-    // source changes, expanded state resets to a single-entry set — closing every
-    // other collection. User toggles override via `set()` until the source changes
-    // again (e.g. switching books).
-    private expandedIds = linkedSignal<string, Set<string>>({
-        source: () => this.activeCollectionId() ?? ROOT_COLLECTION_ID,
-        computation: (cid) => new Set<string>([cid])
+    // Source must include bookId, not just collectionId — switching between two
+    // books in the same collection has to reset the expanded set too, otherwise a
+    // prior manual collapse would persist across the switch and the active
+    // collection wouldn't re-expand. linkedSignal recomputes on every source-dep
+    // change (no source-level equality hook — `equal` only compares produced
+    // values), so we gate reset inside the computation: when the source content
+    // is unchanged (e.g. books() reloaded after autosave), return prev.value so
+    // defaultEquals preserves the user's manual expansion.
+    private expandedIds = linkedSignal<{ bookId: string | null; collectionId: string | null }, Set<string>>({
+        source: () => ({
+            bookId: this.session.currentBookId(),
+            collectionId: this.activeCollectionId()
+        }),
+        computation: (s, prev) => {
+            if (prev
+                && prev.source.bookId === s.bookId
+                && prev.source.collectionId === s.collectionId) {
+                return prev.value;
+            }
+            return new Set<string>([s.collectionId ?? ROOT_COLLECTION_ID]);
+        }
     });
 
     bookGroups = computed<BookGroup[]>(() => {
