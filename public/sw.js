@@ -44,7 +44,12 @@ async function handleFetch(id, url, init, port) {
         while (true) {
             const { value, done } = await reader.read();
             if (done) break;
-            if (!safePost(port, { type: 'chunk', value })) break;
+            if (!safePost(port, { type: 'chunk', value })) {
+                // Port closed (page navigated away or got discarded) — abort the
+                // upstream so we don't keep pulling bytes nobody can read.
+                ctrl.abort();
+                break;
+            }
         }
         safePost(port, { type: 'done' });
     } catch (err) {

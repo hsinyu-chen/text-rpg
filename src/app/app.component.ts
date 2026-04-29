@@ -155,11 +155,15 @@ export class AppComponent {
 
   private handleAppUpdate(): void {
     this.appUpdateSnackRef?.dismiss();
-    const ref = this.snackBar.open('新版本已下載，重新載入以套用。', '重新載入', { duration: 0 });
+    // English to match the existing remote-update snackbar (handleRemoteUpdate).
+    const ref = this.snackBar.open('A new app version is ready.', 'Reload', { duration: 0 });
     this.appUpdateSnackRef = ref;
     firstValueFrom(ref.onAction()).then(async () => {
       if (this.state.status() === 'generating') {
-        this.snackBar.open('等本回合結束再重新載入。', 'OK', { duration: 3000 });
+        // VERSION_READY only fires once — re-prompt after the wait snackbar
+        // closes so the user can still apply the update once the turn finishes.
+        const wait = this.snackBar.open('Wait for the current turn to finish, then try again.', 'OK', { duration: 3000 });
+        firstValueFrom(wait.afterDismissed()).then(() => this.handleAppUpdate());
         return;
       }
       try {

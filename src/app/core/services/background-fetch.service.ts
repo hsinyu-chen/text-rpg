@@ -96,7 +96,10 @@ export class BackgroundFetchService {
             return Promise.reject(new DOMException('The operation was aborted.', 'AbortError'));
         }
 
-        const id = `bg-${Date.now()}-${this.nextId++}`;
+        // Random suffix guards against id collision when multiple tabs share a
+        // single SW and happen to call bgFetch in the same millisecond — each
+        // tab's nextId starts at 0 so timestamp+counter alone isn't unique.
+        const id = `bg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}-${this.nextId++}`;
         const channel = new MessageChannel();
 
         let opened = false;

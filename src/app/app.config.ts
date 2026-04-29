@@ -36,7 +36,7 @@ export const appConfig: ApplicationConfig = {
     provideServiceWorker('sw.js', {
       // Tauri webview ships its own background lifecycle; SW gives no benefit there
       // and can confuse the custom protocol — only register on real browsers.
-      enabled: !isDevMode() && !('__TAURI_INTERNALS__' in window) && !('__TAURI__' in window),
+      enabled: !isDevMode() && typeof window !== 'undefined' && !('__TAURI_INTERNALS__' in window) && !('__TAURI__' in window),
       registrationStrategy: 'registerWhenStable:30000'
     })
   ]
