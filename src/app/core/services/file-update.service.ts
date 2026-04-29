@@ -284,6 +284,9 @@ export class FileUpdateService {
         let searchStart = 0;
         const candidates: { start: number; end: number; score: number }[] = [];
 
+        const lines = context ? content.split(/\r?\n/) : null;
+        const fencedMask = lines ? computeFencedLineMask(lines) : null;
+
         while (true) {
             // Find in normalized content
             const normalizedIndex = normalizedContent.indexOf(normalizedTarget, searchStart);
@@ -296,7 +299,7 @@ export class FileUpdateService {
             const lastCharIndex = this.mapNormalizedIndexToOriginal(content, normalizedIndex + normalizedTarget.length - 1);
             let end = lastCharIndex + 1;
 
-            // EXPAND RANGE: If target content has leading/trailing horizontal whitespace, 
+            // EXPAND RANGE: If target content has leading/trailing horizontal whitespace,
             // including those in the match range makes replacement more predictable.
             const leadingSpaceMatch = target.match(/^([ \t]+)/);
             if (leadingSpaceMatch) {
@@ -314,9 +317,7 @@ export class FileUpdateService {
                 }
             }
 
-            if (context) {
-                const lines = content.split(/\r?\n/);
-                const fencedMask = computeFencedLineMask(lines);
+            if (context && lines && fencedMask) {
                 const lineIndex = this.getLineIndexFromCharIndex(content, start);
 
                 // verifyContext returns a score (number of matched breadcrumbs)
