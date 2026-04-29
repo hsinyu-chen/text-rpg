@@ -815,7 +815,7 @@ export class SessionService {
                     await this.storage.saveFile(name, content);
                 }
             }
-            await this.loadFiles(false);
+            await this.loadFiles(false, true);
         } catch (err) {
             console.error('[SessionService] Import failed', err);
             throw err;
@@ -878,7 +878,7 @@ export class SessionService {
     /**
      * Loads files from a directory and initializes the Knowledge Base.
      */
-    async loadFiles(pickFolder = true, bumpTimestamp = true) {
+    async loadFiles(pickFolder = true, bumpTimestamp = false) {
         try {
             if (pickFolder) {
                 await this.fileSystem.selectDirectory();
