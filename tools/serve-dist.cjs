@@ -59,9 +59,13 @@ const server = https.createServer({
     }
     if (urlPath.endsWith('/')) urlPath += 'index.html';
 
-    // Disallow path traversal
-    const resolved = path.normalize(path.join(root, urlPath));
-    if (!resolved.startsWith(root)) {
+    // Disallow path traversal. Use path.relative rather than startsWith so a
+    // request for "/browser2/x" can't escape a root ending in "/browser" by
+    // prefix match — and so Windows separator/casing differences don't bypass
+    // the check either.
+    const resolved = path.resolve(root, urlPath.replace(/^[/\\]+/, ''));
+    const rel = path.relative(root, resolved);
+    if (rel === '..' || rel.startsWith('..' + path.sep) || path.isAbsolute(rel)) {
         res.writeHead(403).end('Forbidden');
         return;
     }

@@ -69,6 +69,7 @@ export class AppComponent {
   private swUpdate = inject(SwUpdate);
   private win = inject(WINDOW);
   private appUpdateSnackRef: MatSnackBarRef<TextOnlySnackBar> | null = null;
+  private pendingAppUpdateRetry = signal(false);
 
   // Responsive signals
 
@@ -144,6 +145,16 @@ export class AppComponent {
     effect(() => {
       if (this.versionReady()) this.handleAppUpdate();
     });
+
+    // If the user clicked Reload during a turn we deferred — re-prompt the
+    // moment the turn finishes (status leaves 'generating'), instead of using
+    // an arbitrary timer.
+    effect(() => {
+      if (!this.pendingAppUpdateRetry()) return;
+      if (this.state.status() === 'generating') return;
+      this.pendingAppUpdateRetry.set(false);
+      this.handleAppUpdate();
+    });
   }
 
   private versionReady = toSignal(
@@ -160,10 +171,12 @@ export class AppComponent {
     this.appUpdateSnackRef = ref;
     firstValueFrom(ref.onAction()).then(async () => {
       if (this.state.status() === 'generating') {
-        // VERSION_READY only fires once — re-prompt after the wait snackbar
-        // closes so the user can still apply the update once the turn finishes.
-        const wait = this.snackBar.open('Wait for the current turn to finish, then try again.', 'OK', { duration: 3000 });
-        firstValueFrom(wait.afterDismissed()).then(() => this.handleAppUpdate());
+        // VERSION_READY only fires once. Set a flag and let the constructor's
+        // effect re-call handleAppUpdate when status actually leaves
+        // 'generating'. A timer-based retry would either re-pester the user
+        // mid-turn or miss the moment entirely if the turn ran long.
+        this.snackBar.open('Wait for the current turn to finish — we\'ll prompt again.', 'OK', { duration: 3000 });
+        this.pendingAppUpdateRetry.set(true);
         return;
       }
       try {
