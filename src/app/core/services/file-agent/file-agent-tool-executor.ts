@@ -346,6 +346,9 @@ function readSection(args: ReadSectionArgs, context: FileAgentContext): ToolExec
 
     const bounds = resolution.section;
     const sectionLines = lines.slice(bounds.startLine + 1, bounds.endLine + 1);
+    // Report the line range of the returned body (heading excluded), so an LLM
+    // mapping content back to the file doesn't need to subtract the heading offset.
+    const bodyStart = bounds.startLine + 2;
 
     if (totalLines + sectionLines.length > LINE_LIMIT) {
       const allowed = LINE_LIMIT - totalLines;
@@ -354,8 +357,8 @@ function readSection(args: ReadSectionArgs, context: FileAgentContext): ToolExec
           path,
           header: bounds.headerText,
           content: sectionLines.slice(0, allowed).join('\n'),
-          startLine: bounds.startLine + 1,
-          endLine: bounds.endLine + 1,
+          startLine: bodyStart,
+          endLine: bodyStart + allowed - 1,
           truncated: true,
           note: `Truncated: exceeded ${LINE_LIMIT} lines total limit.`
         });
@@ -364,12 +367,20 @@ function readSection(args: ReadSectionArgs, context: FileAgentContext): ToolExec
         results.push({ path, header: bounds.headerText, error: 'Skipped: already at total lines limit' });
       }
       truncated = true;
+    } else if (sectionLines.length === 0) {
+      // Heading with no body — omit the range entirely; reporting bodyStart..bodyStart-1
+      // would be misleading, and there is no content to map back to.
+      results.push({
+        path,
+        header: bounds.headerText,
+        content: ''
+      });
     } else {
       results.push({
         path,
         header: bounds.headerText,
         content: sectionLines.join('\n'),
-        startLine: bounds.startLine + 1,
+        startLine: bodyStart,
         endLine: bounds.endLine + 1
       });
       totalLines += sectionLines.length;

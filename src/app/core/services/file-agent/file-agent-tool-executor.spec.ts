@@ -203,13 +203,51 @@ describe('readSection', () => {
     });
   });
 
-  it('returns body without the heading line and uses 1-indexed line numbers', () => {
+  it('returns body without the heading line and uses 1-indexed line numbers that match the body', () => {
     const md = ['# A', 'a-body-1', 'a-body-2', '# B'].join('\n');
     const { context } = makeContext({ 'a.md': md });
     const r = run({ action: 'readSection', args: { filename: 'a.md', sectionPaths: ['A'] } }, context);
     expect(r.response).toMatchObject({
-      sections: [{ content: 'a-body-1\na-body-2', startLine: 1, endLine: 3 }],
+      sections: [{ content: 'a-body-1\na-body-2', startLine: 2, endLine: 3 }],
     });
+  });
+
+  it('omits startLine/endLine when the section has no body', () => {
+    const md = ['# A', '# B'].join('\n');
+    const { context } = makeContext({ 'a.md': md });
+    const r = run({ action: 'readSection', args: { filename: 'a.md', sectionPaths: ['A'] } }, context);
+    const sections = (r.response as { sections: Record<string, unknown>[] }).sections;
+    expect(sections[0]).toMatchObject({ path: 'A', content: '' });
+    expect(sections[0]['startLine']).toBeUndefined();
+    expect(sections[0]['endLine']).toBeUndefined();
+  });
+
+  // Regression for `# 格式定義` in blank_world_zh/3.人物狀態.md: a top-level section
+  // wrapping a format-spec doc inside a fence. The fenced ### lines must be
+  // returned verbatim as part of the body, and endLine must extend past them.
+  it('returns the whole fenced block as body without splitting on fake headings inside', () => {
+    const md = [
+      '# 格式定義',
+      '',
+      '```',
+      '### fake-1',
+      '- entry',
+      '### fake-2',
+      '```',
+      '',
+      '---',
+      '',
+      '# Next Real',
+    ].join('\n');
+    const { context } = makeContext({ 'a.md': md });
+    const r = run({ action: 'readSection', args: { filename: 'a.md', sectionPaths: ['格式定義'] } }, context);
+    const sections = (r.response as { sections: { content: string; startLine: number; endLine: number }[] }).sections;
+    expect(sections).toHaveLength(1);
+    expect(sections[0].startLine).toBe(2);
+    expect(sections[0].endLine).toBe(9);
+    expect(sections[0].content).toContain('### fake-1');
+    expect(sections[0].content).toContain('### fake-2');
+    expect(sections[0].content.endsWith('---')).toBe(true);
   });
 });
 
@@ -275,6 +313,27 @@ describe('replaceSection', () => {
     expect(r.response).toMatchObject({ status: 'success' });
     expect(onFileReplaced).toHaveBeenCalledWith('a.md', '# A\nflattened\n# B');
   });
+
+  // Regression: a section whose body is entirely a fenced code/spec block must
+  // not trip the "contains subsections" guard, because the ### inside the fence
+  // are not real children.
+  it('replaces a section whose body is a fenced spec block without requiring force', () => {
+    const md = [
+      '# 格式定義',
+      '```',
+      '### fake-1',
+      '### fake-2',
+      '```',
+      '# Next',
+    ].join('\n');
+    const { context, onFileReplaced } = makeContext({ 'a.md': md });
+    const r = run({
+      action: 'replaceSection',
+      args: { filename: 'a.md', updates: [{ sectionPath: '格式定義', content: 'new spec' }] },
+    }, context);
+    expect(r.response).toMatchObject({ status: 'success' });
+    expect(onFileReplaced).toHaveBeenCalledWith('a.md', '# 格式定義\nnew spec\n# Next');
+  });
 });
 
 describe('insertSection', () => {
@@ -303,6 +362,19 @@ describe('insertSection', () => {
     const r = run({ action: 'insertSection', args: { filename: 'a.md', heading: '# Mid', content: 'm', anchor: 'before', anchorSectionPath: 'B' } }, context);
     expect(r.response).toMatchObject({ status: 'success' });
     expect(onFileReplaced).toHaveBeenCalledWith('a.md', '# A\na\n# Mid\nm\n\n# B');
+  });
+
+  // Regression: an anchorSectionPath that only matches a heading INSIDE a
+  // fenced block must not be treated as a real anchor.
+  it('errors when anchorSectionPath only appears inside a fenced block', () => {
+    const md = ['# Real', '```', '## OnlyInFence', '```'].join('\n');
+    const { context, onFileReplaced } = makeContext({ 'a.md': md });
+    const r = run({
+      action: 'insertSection',
+      args: { filename: 'a.md', heading: '## X', content: 'x', anchor: 'after', anchorSectionPath: 'OnlyInFence' },
+    }, context);
+    expect(r.response).toMatchObject({ error: expect.stringMatching(/not found/) });
+    expect(onFileReplaced).not.toHaveBeenCalled();
   });
 });
 
