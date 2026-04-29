@@ -400,26 +400,16 @@ export class BookListComponent {
     });
 
     // Source must include bookId, not just collectionId — switching between two
-    // books in the same collection has to reset the expanded set too, otherwise a
-    // prior manual collapse would persist across the switch and the active
-    // collection wouldn't re-expand. linkedSignal recomputes on every source-dep
-    // change (no source-level equality hook — `equal` only compares produced
-    // values), so we gate reset inside the computation: when the source content
-    // is unchanged (e.g. books() reloaded after autosave), return prev.value so
-    // defaultEquals preserves the user's manual expansion.
+    // books in the same collection has to reset too, otherwise a prior manual
+    // collapse would persist across the switch. Both upstream signals do
+    // Object.is dedup, so unrelated books() churn (autosave) never reaches this
+    // computation; whenever it runs, something we care about actually changed.
     private expandedIds = linkedSignal<{ bookId: string | null; collectionId: string | null }, Set<string>>({
         source: () => ({
             bookId: this.session.currentBookId(),
             collectionId: this.activeCollectionId()
         }),
-        computation: (s, prev) => {
-            if (prev
-                && prev.source.bookId === s.bookId
-                && prev.source.collectionId === s.collectionId) {
-                return prev.value;
-            }
-            return new Set<string>([s.collectionId ?? ROOT_COLLECTION_ID]);
-        }
+        computation: (s) => new Set<string>([s.collectionId ?? ROOT_COLLECTION_ID])
     });
 
     bookGroups = computed<BookGroup[]>(() => {
