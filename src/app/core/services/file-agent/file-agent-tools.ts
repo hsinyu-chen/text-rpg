@@ -215,7 +215,7 @@ export function buildJsonSchema(isLocal: boolean): object {
         type: 'object',
         description: 'Arguments for the tool. Required fields depend on the action. All file-editing actions also require a "reason" string.',
         properties: {
-          reason: { type: 'string', description: 'One sentence explaining WHY you are calling this tool. Required for every action except reportProgress / submitResponse.' },
+          reason: { type: 'string', description: REASON_DESC },
           filename: { type: 'string' },
           content: { type: 'string' },
           sectionPath: { type: 'string' },
