@@ -24,6 +24,7 @@ import { ConfirmDialogComponent, ConfirmDialogData } from '../../../../shared/co
 import { TauriWindow } from '../../../../core/models/types';
 import { LanguageService } from '../../../../core/services/language.service';
 import { PromptProfileRegistryService } from '../../../../core/services/prompt-profile-registry.service';
+import { SystemStatusService } from '../../../../core/services/system-status.service';
 import { getUIStrings } from '../../../../core/constants/engine-protocol';
 import { getProfileDisplayName } from '../../../../core/constants/prompt-profiles';
 
@@ -53,6 +54,7 @@ export class ChatInputComponent {
     state = inject(GameStateService);
     session = inject(SessionService);
     lang = inject(LanguageService);
+    sys = inject(SystemStatusService);
     private profileRegistry = inject(PromptProfileRegistryService);
     private matDialog = inject(MatDialog);
     private readonly doc = inject(DOCUMENT);

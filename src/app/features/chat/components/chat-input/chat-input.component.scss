@@ -12,7 +12,8 @@
     margin-bottom: 6px;
     min-height: 22px;
 
-    .profile-pill {
+    .profile-pill,
+    .status-pill {
         display: inline-flex;
         align-items: center;
         gap: 4px;
@@ -24,13 +25,6 @@
         color: #d0d0d0;
         font-size: 0.72rem;
         line-height: 1;
-        cursor: pointer;
-        transition: background-color 0.15s ease, border-color 0.15s ease;
-
-        &:hover {
-            background: rgba(255, 255, 255, 0.08);
-            border-color: #666;
-        }
 
         mat-icon {
             font-size: 14px;
@@ -43,6 +37,28 @@
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+        }
+    }
+
+    .profile-pill {
+        cursor: pointer;
+        transition: background-color 0.15s ease, border-color 0.15s ease;
+
+        &:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: #666;
+        }
+    }
+
+    .status-pill {
+        // Time and battery surface system info while fullscreen hides the OS
+        // status bar; not interactive, push to the right so the profile pill
+        // stays the primary actionable element.
+        margin-left: auto;
+        cursor: default;
+
+        &.battery-pill {
+            margin-left: 0;
         }
     }
 }

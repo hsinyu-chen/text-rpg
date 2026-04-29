@@ -44,3 +44,6 @@ Thumbs.db
 
 # Claude Code local-only settings (personal permissions, etc.)
 .claude/settings.local.json
+
+# Locally-generated dev TLS certs (created by tools/dev-cert.cjs)
+.certs/
