@@ -2,6 +2,7 @@
   "name": "text-rpg",
   "short_name": "text-rpg",
   "display": "standalone",
+  "display_override": ["fullscreen", "standalone"],
   "scope": "./",
   "start_url": "./",
   "icons": [

@@ -5,6 +5,18 @@
             <mat-icon>tune</mat-icon>
             <span>{{ activeProfileName() }}</span>
         </button>
+        @if (sys.inPwaWindow()) {
+            <span class="status-pill time-pill" aria-label="time">
+                <mat-icon>schedule</mat-icon>
+                <span>{{ sys.timeText() }}</span>
+            </span>
+            @if (sys.batteryAvailable()) {
+                <span class="status-pill battery-pill" aria-label="battery">
+                    <mat-icon>{{ sys.batteryIcon() }}</mat-icon>
+                    <span>{{ sys.batteryText() }}</span>
+                </span>
+            }
+        }
     </div>
     <div class="input-wrapper">
 
