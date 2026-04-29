@@ -42,8 +42,8 @@ Thumbs.db
 /*.log
 /*.tar
 
-# Claude Code local-only settings (personal permissions, etc.)
-.claude/settings.local.json
+# Claude Code local-only state (personal settings, scheduled tasks, worktrees, etc.)
+.claude/*
 .mcp.json
 
 # Locally-generated dev TLS certs (created by tools/dev-cert.cjs)
