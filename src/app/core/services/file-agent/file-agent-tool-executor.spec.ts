@@ -112,6 +112,34 @@ describe('searchReplace', () => {
     expect(r.response).toMatchObject({ status: 'success', totalReplacements: 2 });
     expect(onFileReplaced).toHaveBeenCalledWith('a.md', 'FOO BAR');
   });
+
+  it('errors and leaves file unchanged on expectedTotalReplacements mismatch', () => {
+    const { context, onFileReplaced } = makeContext({ 'a.md': 'foo bar' });
+    const r = run({ action: 'searchReplace', args: { filename: 'a.md', replacements: [{ pattern: 'foo', replacement: 'FOO' }, { pattern: 'bar', replacement: 'BAR' }], expectedTotalReplacements: 5 } }, context);
+    expect(r.response).toMatchObject({ error: expect.stringMatching(/expectedTotalReplacements mismatch/), found: 2 });
+    expect(onFileReplaced).not.toHaveBeenCalled();
+  });
+
+  it('errors with "No matches found" when nothing matches and not in dry-run mode', () => {
+    const { context, onFileReplaced } = makeContext({ 'a.md': 'foo bar' });
+    const r = run({ action: 'searchReplace', args: { filename: 'a.md', replacements: [{ pattern: 'absent', replacement: 'present' }] } }, context);
+    expect(r.response).toMatchObject({ error: expect.stringMatching(/No matches found/) });
+    expect(onFileReplaced).not.toHaveBeenCalled();
+  });
+
+  it('treats pattern as a regex when isRegex=true', () => {
+    const { context, onFileReplaced } = makeContext({ 'a.md': 'one1 two2 three3' });
+    const r = run({ action: 'searchReplace', args: { filename: 'a.md', replacements: [{ pattern: '\\d', replacement: '#', isRegex: true }] } }, context);
+    expect(r.response).toMatchObject({ status: 'success', totalReplacements: 3 });
+    expect(onFileReplaced).toHaveBeenCalledWith('a.md', 'one# two# three#');
+  });
+
+  it('treats pattern as literal when isRegex is omitted (regex chars do not match)', () => {
+    const { context, onFileReplaced } = makeContext({ 'a.md': 'one1 two2 plain\\d' });
+    const r = run({ action: 'searchReplace', args: { filename: 'a.md', replacements: [{ pattern: '\\d', replacement: '#' }] } }, context);
+    expect(r.response).toMatchObject({ status: 'success', totalReplacements: 1 });
+    expect(onFileReplaced).toHaveBeenCalledWith('a.md', 'one1 two2 plain#');
+  });
 });
 
 describe('replaceFile', () => {
@@ -281,7 +309,7 @@ describe('insertIntoSection', () => {
 
   it('errors when position is invalid', () => {
     const { context } = makeContext({ 'a.md': '# A' });
-    const r = run({ action: 'insertIntoSection', args: { filename: 'a.md', sectionPath: 'A', content: 'x', position: 'middle' as 'start' } }, context);
+    const r = run({ action: 'insertIntoSection', args: { filename: 'a.md', sectionPath: 'A', content: 'x', position: 'middle' as unknown as 'start' } }, context);
     expect(r.response).toMatchObject({ error: expect.stringMatching(/position must be/) });
   });
 
