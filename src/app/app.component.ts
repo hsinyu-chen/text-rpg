@@ -13,6 +13,9 @@ import { GameEngineService } from './core/services/game-engine.service';
 import { GameStateService } from './core/services/game-state.service';
 import { SettingsDialogComponent } from './features/settings/settings-dialog.component';
 import { firstValueFrom, map } from 'rxjs';
+import { filter } from 'rxjs/operators';
+import { SwUpdate, VersionReadyEvent } from '@angular/service-worker';
+import { WINDOW } from './core/tokens/window.token';
 import { LoadingService } from './core/services/loading.service';
 import { LLMProviderInitService } from './core/services/llm-provider-init.service';
 import { SyncProviderInitService } from './core/services/sync/sync-provider-init.service';
@@ -23,6 +26,7 @@ import { CodeScreensaverComponent } from './features/screensaver/code-screensave
 import { MigrationService } from './core/services/migration.service';
 import { BookListComponent } from './features/sidebar/components/book-list/book-list.component';
 import { SessionService } from './core/services/session.service';
+import { WakeLockService } from './core/services/wake-lock.service';
 
 
 @Component({
@@ -57,6 +61,12 @@ export class AppComponent {
   private syncProviderInit = inject(SyncProviderInitService);
   private sync = inject(SyncService);
   idleService = inject(IdleService);
+  // Eagerly construct so its effect() registers and holds a screen wake lock
+  // during generation — prevents mobile screen-off from killing the API stream.
+  private wakeLock = inject(WakeLockService);
+  private swUpdate = inject(SwUpdate);
+  private win = inject(WINDOW);
+  private appUpdateSnackRef: MatSnackBarRef<TextOnlySnackBar> | null = null;
 
   // Responsive signals
 
@@ -118,6 +128,40 @@ export class AppComponent {
       const update = this.sync.remoteUpdateAvailable();
       if (!update) return;
       this.handleRemoteUpdate(update.bookId);
+    });
+
+    // PWA — service worker fetched a new app version; ask user to reload to activate.
+    // SwUpdate.isEnabled is false in dev and Tauri (we disabled SW there), so the
+    // signal simply never updates in those contexts.
+    effect(() => {
+      if (this.versionReady()) this.handleAppUpdate();
+    });
+  }
+
+  private versionReady = toSignal(
+    this.swUpdate.versionUpdates.pipe(
+      filter((e): e is VersionReadyEvent => e.type === 'VERSION_READY')
+    ),
+    { initialValue: null }
+  );
+
+  private handleAppUpdate(): void {
+    this.appUpdateSnackRef?.dismiss();
+    const ref = this.snackBar.open('新版本已下載，重新載入以套用。', '重新載入', { duration: 0 });
+    this.appUpdateSnackRef = ref;
+    firstValueFrom(ref.onAction()).then(async () => {
+      if (this.state.status() === 'generating') {
+        this.snackBar.open('等本回合結束再重新載入。', 'OK', { duration: 3000 });
+        return;
+      }
+      try {
+        await this.swUpdate.activateUpdate();
+      } finally {
+        this.win.location.reload();
+      }
+    }).catch(() => { /* dismissed without action */ });
+    firstValueFrom(ref.afterDismissed()).then(() => {
+      if (this.appUpdateSnackRef === ref) this.appUpdateSnackRef = null;
     });
   }
 
