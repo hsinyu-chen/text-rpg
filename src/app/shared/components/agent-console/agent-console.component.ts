@@ -70,7 +70,7 @@ export class AgentConsoleComponent implements OnDestroy {
   private agentScrollFrameId: number | null = null;
   private userScrolledUpAgent = false;
   private lastAgentScrollTop = 0;
-  private initialPromptTimeoutId: number | null = null;
+  private initialPromptTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     // Auto-scroll: observe content growth and follow the bottom unless the user
