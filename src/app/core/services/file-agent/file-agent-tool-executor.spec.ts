@@ -166,16 +166,22 @@ describe('readSection', () => {
   it('reports per-section errors for not-found / ambiguous paths', () => {
     const md = ['# A', '## Same', '# B', '## Same'].join('\n');
     const { context } = makeContext({ 'a.md': md });
-    const r = run({ action: 'readSection', args: { filename: 'a.md', sectionPaths: ['Missing', 'Same'] } }, context) as { response: { sections: { path: string; error?: string }[] } };
-    expect(r.response.sections[0]).toMatchObject({ path: 'Missing', error: 'Section not found' });
-    expect(r.response.sections[1]).toMatchObject({ path: 'Same', error: expect.stringMatching(/Ambiguous/) });
+    const r = run({ action: 'readSection', args: { filename: 'a.md', sectionPaths: ['Missing', 'Same'] } }, context);
+    expect(r.response).toMatchObject({
+      sections: [
+        { path: 'Missing', error: 'Section not found' },
+        { path: 'Same', error: expect.stringMatching(/Ambiguous/) },
+      ],
+    });
   });
 
   it('returns body without the heading line and uses 1-indexed line numbers', () => {
     const md = ['# A', 'a-body-1', 'a-body-2', '# B'].join('\n');
     const { context } = makeContext({ 'a.md': md });
-    const r = run({ action: 'readSection', args: { filename: 'a.md', sectionPaths: ['A'] } }, context) as { response: { sections: { content: string; startLine: number; endLine: number }[] } };
-    expect(r.response.sections[0]).toMatchObject({ content: 'a-body-1\na-body-2', startLine: 1, endLine: 3 });
+    const r = run({ action: 'readSection', args: { filename: 'a.md', sectionPaths: ['A'] } }, context);
+    expect(r.response).toMatchObject({
+      sections: [{ content: 'a-body-1\na-body-2', startLine: 1, endLine: 3 }],
+    });
   });
 });
 
