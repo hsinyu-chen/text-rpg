@@ -3,7 +3,9 @@
   "version": "0.0.0",
   "scripts": {
     "ng": "ng",
-    "start": "ng serve",
+    "start": "node tools/dev-cert.cjs && ng serve --ssl --ssl-cert .certs/dev.pem --ssl-key .certs/dev-key.pem --host 0.0.0.0",
+    "start:plain": "ng serve",
+    "start:pwa": "npm run build && node tools/dev-cert.cjs && node tools/serve-dist.cjs",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "tauri": "tauri",
