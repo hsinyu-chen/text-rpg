@@ -43,7 +43,8 @@ The final structure must match this template:
 What to fix:
 - Drop intermediate headings such as `## Initial Assets` and `## Initial Real Estate`; move their content directly under the corresponding H1.
 - **Do NOT modify the actual data** (amounts / base layouts) — only adjust structural headings.
-- If the legacy file has no `## Save Format` or `> Scope` block, add them following the template above. If `## Save Format` was previously split between `# Movable Assets` and `# Real Estate`, merge them into a single block placed under top-level `# Assets`.
+- The `> Scope` blockquote and `## Save Format` block must be added **idempotently**: before inserting, use `readSection` on the top of `# Assets` or `grep` for `Scope`/`Save Format` to confirm the block does **not already exist**. If a similar block is already present (even with slightly different wording), treat it as done and skip — do NOT add a second copy. If the existing block is genuinely outdated or wrong, rewrite it with `replaceSection` / `searchReplace`, never `insertIntoSection` on top of it.
+- If `## Save Format` was previously split between `# Movable Assets` and `# Real Estate`, merge them into a single block placed under top-level `# Assets` (delete the old copies first, then insert the merged block in the correct position).
 
 ## 2. `3.Character_Status.md`
 
