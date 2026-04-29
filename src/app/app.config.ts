@@ -1,4 +1,4 @@
-import { ApplicationConfig, provideZonelessChangeDetection } from '@angular/core';
+import { ApplicationConfig, provideZonelessChangeDetection, isDevMode } from '@angular/core';
 import { provideHttpClient } from '@angular/common/http';
 import { provideMarkdown } from 'ngx-markdown';
 import {
@@ -11,6 +11,7 @@ import {
   LLM_TRANSLATIONS,
   DEFAULT_LLM_TRANSLATIONS
 } from '@hcs/llm-angular-common';
+import { provideServiceWorker } from '@angular/service-worker';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -28,6 +29,12 @@ export const appConfig: ApplicationConfig = {
         new LLMManager(storage, registry),
       deps: [LLM_STORAGE_TOKEN, LLMProviderRegistry]
     },
-    { provide: LLM_TRANSLATIONS, useValue: DEFAULT_LLM_TRANSLATIONS }
+    { provide: LLM_TRANSLATIONS, useValue: DEFAULT_LLM_TRANSLATIONS },
+    provideServiceWorker('ngsw-worker.js', {
+      // Tauri webview ships its own background lifecycle; SW gives no benefit there
+      // and can confuse the custom protocol — only register on real browsers.
+      enabled: !isDevMode() && !('__TAURI_INTERNALS__' in window) && !('__TAURI__' in window),
+      registrationStrategy: 'registerWhenStable:30000'
+    })
   ]
 };
