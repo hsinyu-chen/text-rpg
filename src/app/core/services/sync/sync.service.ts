@@ -1063,9 +1063,19 @@ export class SyncService {
             const collidesDifferent = existing && !existing.isBuiltIn &&
                 (existing.displayName !== incomingName || existing.baseProfileId !== incomingBase);
 
-            const targetId = (collidesWithBuiltIn || collidesDifferent)
-                ? `${incoming.id}_imported_${importSuffix()}`
-                : incoming.id;
+            // Defense in depth: if rename is needed, keep generating suffixes
+            // until the target id is genuinely unused. 8 hex chars makes a
+            // first-collision astronomically unlikely (~4 billion space) and
+            // a second collision essentially impossible — but the cost of the
+            // check is one map lookup, and it stops a future caller that
+            // weakens importSuffix() from silently corrupting an existing
+            // imported entry.
+            let targetId = incoming.id;
+            if (collidesWithBuiltIn || collidesDifferent) {
+                do {
+                    targetId = `${incoming.id}_imported_${importSuffix()}`;
+                } while (this.profileRegistry.get(targetId));
+            }
             if (targetId !== incoming.id) idRemap.set(incoming.id, targetId);
 
             const meta = {

@@ -396,6 +396,20 @@ export class InjectionService {
         this.state.activePromptProfile.set(newProfileId);
         localStorage.setItem('app_active_prompt_profile', newProfileId);
 
+        await this.forceReload();
+    }
+
+    /**
+     * Re-run the loader for the currently-active profile, resetting both
+     * guards (`isSettingsLoading`, `injectionSettingsLoaded`) so the IDB
+     * is re-read even if a previous load is mid-flight or marked done.
+     *
+     * Use this whenever IDB rows for the active profile change underneath
+     * the live signals — sync download, disk pull, single-profile import
+     * that overwrites the active id, etc. `switchProfile` also funnels
+     * through here.
+     */
+    async forceReload(): Promise<void> {
         this.isSettingsLoading = false;
         this.state.injectionSettingsLoaded.set(false);
         await this.loadDynamicInjectionSettings();

@@ -144,9 +144,9 @@ export class DiskProfileSyncService {
         }
 
         // Force a fresh load so live signals + dirty checks pick up the new
-        // content. switchProfile is the canonical reload path; calling it
-        // with the same id is a no-op for the picker but flips the loader.
-        await this.injection.loadDynamicInjectionSettings();
+        // content. forceReload resets both guards so a previous in-flight or
+        // marked-done load doesn't short-circuit the re-read.
+        await this.injection.forceReload();
         return { updatedTypes, metaUpdated };
     }
 

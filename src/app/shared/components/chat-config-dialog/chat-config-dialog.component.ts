@@ -458,11 +458,24 @@ export class ChatConfigDialogComponent {
                     this.snackBar.open(this.ui().PROFILE_IMPORT_EMPTY, this.ui().CLOSE, { duration: 3000 });
                     return;
                 }
-                // Switch to whichever new user profile appeared (rename-on-conflict handled in service).
+                // Two import outcomes need UI side-effects:
+                //   (a) A new user profile appeared (most common — rename-on-
+                //       conflict path also lands here). Switch the active id
+                //       to it so the user immediately sees what they imported.
+                //   (b) No fresh id, but `imported > 0`. The payload contained
+                //       a profile that exact-matches a local entry (same id +
+                //       displayName + baseProfileId), so prompts were
+                //       overwritten in place. If that entry happens to be the
+                //       active profile, the editor's signals are now stale —
+                //       force a reload to refresh the Monaco models.
                 const after = this.registry.userProfiles();
                 const fresh = after.find(p => !before.has(p.id));
                 if (fresh) {
                     await this.injection.switchProfile(fresh.id);
+                    this.refreshAllEditorContent();
+                    this.dirtyState.set(new Map());
+                } else {
+                    await this.injection.forceReload();
                     this.refreshAllEditorContent();
                     this.dirtyState.set(new Map());
                 }
