@@ -1114,9 +1114,9 @@ export class SyncService {
 
             const profileId = idRemap.get(incomingId) ?? incomingId;
             const profile = this.profileRegistry.get(profileId);
-            const isBuiltIn = BUILT_IN_PROFILES.some(p => p.id === profileId);
+            const isBuiltIn = profile?.isBuiltIn ?? false;
             // Reject orphan user-id rows without a matching profile entry.
-            if (!isBuiltIn && !profile) continue;
+            if (!profile) continue;
 
             await this.storage.saveProfilePrompt(type, profileId, value.content, value.tokens);
             if (isBuiltIn) {

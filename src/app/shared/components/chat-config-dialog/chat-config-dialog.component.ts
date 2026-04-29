@@ -407,7 +407,9 @@ export class ChatConfigDialogComponent {
         this.loading.show(this.ui().PROMPT_SYNC_DOWNLOADING);
         try {
             const { imported } = await this.sync.downloadPrompts();
-            await this.injection.switchProfile(this.activeProfileId());
+            // forceReload, not switchProfile — `switchProfile(sameId)` early-
+            // returns and the editor would read stale pre-pull signals.
+            await this.injection.forceReload();
             this.refreshAllEditorContent();
             this.dirtyState.set(new Map());
             const msg = imported === 0
