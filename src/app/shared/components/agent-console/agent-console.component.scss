@@ -192,6 +192,14 @@
                         white-space: pre-wrap;
                         border-top: 1px solid rgba(255, 255, 255, 0.05);
                     }
+
+                    .log-tool-reason {
+                        padding: 2px 8px 4px 26px;
+                        color: rgba(255, 255, 255, 0.6);
+                        font-size: 11px;
+                        font-style: italic;
+                        white-space: pre-wrap;
+                    }
                 }
 
                 .log-text {

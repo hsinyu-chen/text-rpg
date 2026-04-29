@@ -648,6 +648,7 @@ export class FileAgentService {
         return;
       }
 
+      const reason = ('reason' in a.args && typeof a.args.reason === 'string') ? a.args.reason : undefined;
       if (accumulatedText.trim()) {
         const filename = ('filename' in a.args) ? a.args.filename : '';
         const toolName = `${a.action}(${filename})`;
@@ -660,7 +661,8 @@ export class FileAgentService {
             type: 'model' as const,
             isToolCall: true,
             isToolCallCollapsed: true,
-            toolName
+            toolName,
+            reason
           }
         ]);
       } else {
@@ -675,7 +677,8 @@ export class FileAgentService {
               text: JSON.stringify({ action: a.action, args: a.args }, null, 2),
               isToolCall: true,
               isToolCallCollapsed: true,
-              toolName
+              toolName,
+              reason
             };
           }
           return next;
@@ -719,6 +722,7 @@ export class FileAgentService {
       }
       const filename = ('filename' in a.args) ? a.args.filename : '';
       const toolName = `${a.action}(${filename})`;
+      const reason = ('reason' in a.args && typeof a.args.reason === 'string') ? a.args.reason : undefined;
       this.agentLogs.update(logs => [
         ...logs,
         {
@@ -727,7 +731,8 @@ export class FileAgentService {
           type: 'model' as const,
           isToolCall: true,
           isToolCallCollapsed: true,
-          toolName
+          toolName,
+          reason
         }
       ]);
       const result = executeFileTool(a, batchContext);

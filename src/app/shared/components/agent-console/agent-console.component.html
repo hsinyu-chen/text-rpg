@@ -63,6 +63,9 @@
                                     <mat-icon inline="true">{{ log.isToolCallCollapsed ? 'chevron_right' : 'expand_more' }}</mat-icon>
                                     <span>{{ log.toolName ? 'Tool Request: ' + log.toolName : 'Tool Execution Request' }}</span>
                                 </div>
+                                @if (log.reason) {
+                                    <div class="log-tool-reason">{{ log.reason }}</div>
+                                }
                                 @if (!log.isToolCallCollapsed) {
                                     <div class="log-thought-text">{{ log.text }}</div>
                                 }
