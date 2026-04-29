@@ -16,7 +16,7 @@ import {
     SnapshotTrigger
 } from './sync.types';
 import { cleanBookForSync, cleanCollectionForSync } from './clean.util';
-import { BUILT_IN_PROFILES, getProfileScopedKey } from '../../constants/prompt-profiles';
+import { BUILT_IN_PROFILES, getProfileScopedKey, USER_PROFILE_ID_PREFIX } from '../../constants/prompt-profiles';
 import { PromptProfileRegistryService } from '../prompt-profile-registry.service';
 import { ALL_PROMPT_TYPES, type PromptType } from '../injection.service';
 
@@ -49,8 +49,16 @@ function importSuffix(): string {
 
 function isValidUserProfileId(id: unknown): id is string {
     // Untrimmed: leading / trailing whitespace must fail outright since the
-    // raw id ends up as an IDB key + registry entry verbatim.
-    return typeof id === 'string' && /^[A-Za-z0-9_-]{3,}$/.test(id);
+    // raw id ends up as an IDB key + registry entry verbatim. Prefix check
+    // enforces the user-profile naming convention so an export claiming
+    // `id: 'cloud'` or `id: 'local'` (whether by malice or accident) is
+    // dropped before it can collide with a built-in slot — the collision-
+    // remap path below would still rename it, but rejecting at validation
+    // is cleaner and keeps the registry's "ids starting with user_ are
+    // always user profiles" invariant intact.
+    return typeof id === 'string'
+        && id.startsWith(USER_PROFILE_ID_PREFIX)
+        && /^[A-Za-z0-9_-]{3,}$/.test(id);
 }
 
 async function loadS3Module() {
@@ -1057,8 +1065,10 @@ export class SyncService {
             const incomingCreatedAt = incoming.createdAt || Date.now();
             const incomingUpdatedAt = incoming.updatedAt || incomingCreatedAt;
 
+            // Built-in collision can't happen here: the validator above rejects
+            // any id without the `user_` prefix, and built-in ids never have
+            // it. Only same-prefix user-profile collisions remain.
             const existing = this.profileRegistry.get(incoming.id);
-            const collidesWithBuiltIn = existing?.isBuiltIn === true;
             const collidesDifferent = existing && !existing.isBuiltIn &&
                 (existing.displayName !== incomingName || existing.baseProfileId !== incomingBase);
 
@@ -1070,7 +1080,7 @@ export class SyncService {
             // weakens importSuffix() from silently corrupting an existing
             // imported entry.
             let targetId = incoming.id;
-            if (collidesWithBuiltIn || collidesDifferent) {
+            if (collidesDifferent) {
                 do {
                     targetId = `${incoming.id}_imported_${importSuffix()}`;
                 } while (this.profileRegistry.get(targetId));

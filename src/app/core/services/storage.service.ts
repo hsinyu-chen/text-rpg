@@ -217,12 +217,8 @@ export class StorageService {
     const db = await this.dbPromise;
     const tx = db.transaction('prompt_store', 'readwrite');
     const prefix = `${profileId}:`;
-    const range = IDBKeyRange.bound(prefix, prefix + '￿');
-    let cursor = await tx.store.openCursor(range);
-    while (cursor) {
-      await cursor.delete();
-      cursor = await cursor.continue();
-    }
+    // Bulk delete by key range — single IDB op, no per-row cursor traversal.
+    await tx.store.delete(IDBKeyRange.bound(prefix, prefix + '￿'));
     await tx.done;
   }
 
