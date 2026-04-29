@@ -8,7 +8,7 @@ Output a scene-focused character roster that preserves the original file's struc
 - Every character named in "Characters": **{{CHARACTER}}**.
 - Every character with a **close relationship** to any Tier-A character — friends, lovers, spouses, siblings, parents / children / other family, classmates / coworkers, mentors / disciples, direct subordinates, immediate superiors, party companions, notable rivals or antagonists of the protagonist. Relationship is inferred from the source file itself.
 
-For Tier A: do NOT paraphrase, shorten, or "summarize" their sheets. Stats, backstory, traits, equipment lines, quirks, sub-entries — everything stays.
+For Tier A: do NOT paraphrase, shorten, or "summarize" their sheets. Stats, backstory, traits, equipment lines, quirks, sub-entries — everything stays. Subsections such as `### Known Significant Possessions`, `### Core Values and Behavior Guidelines`, and `### Key Turning Points` MUST be preserved verbatim.
 
 #### Tier B — Single-line summary (never delete entirely)
 

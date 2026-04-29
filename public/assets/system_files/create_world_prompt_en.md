@@ -74,6 +74,11 @@ Fill ALL 9 files. Each file serves a specific role:
       - **Attire**: [Attire description]
       - **Notes**: [Other notes]
 
+    ### Known Significant Possessions
+
+    - **Last Updated**: [Calendar Date HH:MM; date precise to day, time precise to minute, e.g. `Cosmic Calendar Year 1000, April 02, Tuesday 18:40`]
+    - [Item Name] / [Quantity] (Note: source / use)
+
     ### Core Values and Behavior Guidelines
 
     1. **[Value name]**: [Description]
@@ -82,7 +87,12 @@ Fill ALL 9 files. Each file serves a specific role:
     ### Key Turning Points
 
     ```
-- **4.Assets.md** — Fill two sections: `Liquid Assets>Initial Assets` (cash/currency) and `Real Estate>Initial Real Estate` (property/bases; write "None" if the protagonist has none).
+
+  - **`### Known Significant Possessions` rules**:
+    - This subsection records **only the named NPC's pre-existing personal items with plot value** at story start (weapons, keepsakes, key documents, wealth, special tools, etc.).
+    - If no known significant items exist at start, leave only the `**Last Updated**` line and let item entries be filled in during gameplay through `character_log`.
+    - **STRICTLY FORBIDDEN** to write any item owned by the protagonist here (the protagonist's items go to `9.Inventory.md`; the protagonist's real estate / cash goes to `4.Assets.md`).
+- **4.Assets.md** — **Protagonist-owned** financial assets (cash, real estate / base layouts; NPC personal assets must NOT be written here). **Following the `## Save Format` template**, use `replaceSection` to **replace the entire placeholder content** under the `Movable Assets` and `Real Estate` H1 sections with actual data (write directly as "current state"; do NOT introduce intermediate headings like `## Initial Assets` / `## Initial Real Estate`; write "None" if absent). Each base layout MAY include long-term items deposited at that location.
 - **5.Tech_Equipment.md** — Fill the `Tech & Equipment>Protagonist Equipment` section with the world's technology level overview and the protagonist's gear. If you need a separate world-tech section, use `insertSection` to add it first.
 - **6.Factions_and_World.md** — Fill the following sections; add each sub-entry with `insertSection` (`anchor: "append-into"`) into the appropriate parent:
   - **`# Major Factions`**: Add a `## [Faction Name]` for each major faction/organization, with `- **Nature**` and `- **Current Status**`.
@@ -91,7 +101,7 @@ Fill ALL 9 files. Each file serves a specific role:
   - **Do NOT fill** `# Discovered Landmarks` or `# Real-World Equivalents` — those are populated dynamically during gameplay.
 - **7.Magic_and_Skills.md** — Magic or ability system rules, and the protagonist's known skills/spells.
 - **8.Plans.md** — Use `replaceSection` to replace the placeholder in the `Active` section. Write 2–3 initial plan entries under `Active` using the `Save Format` template. **Never write actual content inside the `Save Format` code block** — it is only a format reference. All real plans go under the `Active` section heading.
-- **9.Inventory.md** — Fill the `Inventory>Held` section with the protagonist's starting items and brief descriptions.
+- **9.Inventory.md** — The **protagonist's carried, on-person** starting items (NPC personal items must NOT be written here; non-carried items belong in `4.Assets.md`). Fill the `Inventory>Held` section with brief descriptions.
 
 Requirements:
 - Preserve the structural format (headers, sections, dividers) of each file.

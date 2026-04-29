@@ -93,12 +93,14 @@ When adding a new header entry (e.g., new character), `context` should point to 
 
 | File | Recorded Content | Forbidden |
 |------|------------------|-----------|
-| `{{FILE_ASSETS}}` | Protagonist's party's cash balance, base layout | Portable items, magic, equipment |
+| `{{FILE_ASSETS}}` | **Protagonist-owned** cash, real estate / base layouts, items deposited at bases/inns or in third-party safekeeping (non-carried) | Carried items, magic, equipment, **NPC personal property** |
 | `{{FILE_TECH_EQUIPMENT}}` | **Detailed Specs/Settings** of developed or discovered technology, equipment, tools, vehicles | Magic itself, spells, **Current Stock** |
 | `{{FILE_WORLD_FACTIONS}}` | Faction dynamics, world building (see details below) | Personal quests, user plans, equipment items |
 | `{{FILE_MAGIC_SKILLS}}` | Protagonist's party's **mastered, learned, or actively researched** formulas, casting process, spell logic, combat skills | Magic items, enchanted gear, **Observed NPC magic** |
 | `{{FILE_PLANS}}` | Accepted quests, personal goals, progress | World events, faction dynamics |
-| `{{FILE_INVENTORY}}` | **Current Possession Status** of weapons, armor, consumables, materials, magical items | Real estate, large vehicles, **Detailed Specs** |
+| `{{FILE_INVENTORY}}` | **Protagonist-owned, carried** weapons, armor, consumables, materials, magical items (pocket / backpack / portable spaces — judge "carried" by setting) | Real estate, large vehicles, **Detailed Specs**, **NPC personal items** |
+
+> **[Protagonist-Owned Only]**: `{{FILE_ASSETS}}` and `{{FILE_INVENTORY}}` record ONLY items personally owned by the protagonist. Personal property of companions, love interests, employers, hosts, and other **NPCs goes to `{{FILE_CHARACTER_STATUS}}`** under that NPC's `### Known Significant Possessions` section. Even if the protagonist is temporarily sheltered, hosted, or kept as a kept-man, the host's belongings are NOT the protagonist's possessions.
 
 **{{FILE_BASIC_SETTINGS}}** is READ-ONLY. Record all world building in `{{FILE_WORLD_FACTIONS}}`.
 
@@ -171,9 +173,10 @@ ACT Format:
 If the current ACT (starting from `--- ACT START ---`) has LOG content, you **MUST** automatically generate corresponding `<save>` updates:
 
 ### `inventory_log` → Target Files
-- Protagonist's party's money change → `{{FILE_ASSETS}}`
-- Protagonist's party's base/property → `{{FILE_ASSETS}}`
-- Protagonist's party's portable items → `{{FILE_INVENTORY}}`
+- Protagonist's money change → `{{FILE_ASSETS}}`
+- Protagonist-owned base / real estate acquisition or change → `{{FILE_ASSETS}}`
+- Protagonist-owned but **deposited at a base / inn / third-party safekeeping** (non-carried) items → `{{FILE_ASSETS}}` under the corresponding base layout
+- Protagonist's **carried (on-person)** items → `{{FILE_INVENTORY}}`
 
 ### `character_log` → `{{FILE_CHARACTER_STATUS}}`
 - **First Encounter Evaluation**: If a character is encountered for the first time (not in file), you **MUST** evaluate if they are significant.
@@ -186,6 +189,8 @@ If the current ACT (starting from `--- ACT START ---`) has LOG content, you **MU
   - **Death**: Remove from categories and move to `# Deceased Characters`.
   - **Functional Task Completed**: If a `# Secondary Characters` entry has fulfilled purpose and will not logically reappear, **proactively delete** their entry.
   - **Permanent Departure**: If a character has "permanently left the stage", move to `# Historical Figures` or delete.
+
+- **Possession Change Handling**: Each `Possession Change:` entry in `character_log` MUST be written into the `### Known Significant Possessions` subsection under that NPC's entry, and the subsection's `**Last Updated**` line MUST be refreshed to the current turn's timestamp. If the NPC entry has no such subsection, add it in the same position as `### Core Values and Behavior Guidelines` (immediately before it).
 
 ### `quest_log` → `{{FILE_PLANS}}`
 - Quests/Plans

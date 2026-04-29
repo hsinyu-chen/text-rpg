@@ -256,17 +256,20 @@ Strictly follow these JSON field definitions:
 
 - **inventory_log**:
   - `string[]`.
-  - Record **THIS TURN'S** item changes or equipment in `{{FILE_INVENTORY}}` or property changes in `{{FILE_ASSETS}}`. Use precise labels based on the action:
-    - **Gained**: New items acquired (e.g., `Gained Rusty Sword`).
-    - **Lost/Handed Over**: Items leaving ownership (e.g., `Lost Task Letter`).
+  - Record **THIS TURN'S** changes to items and assets **owned by the protagonist**. Use precise labels based on the action:
+    - **Gained**: Protagonist acquires a new item and stores it on-person (e.g., `Gained Rusty Sword`).
+    - **Lost/Handed Over**: Items leaving the protagonist's ownership (e.g., `Lost Task Letter`).
     - **Consumed/Used**: Items used up or functional consumption (e.g., `Consumed Health Potion / 1`).
-    - **Moved/Stored**: Items moved to independent storage (e.g., `Moved to Dimensional Box / Arcane Crystal x3`, `Stored in Home Chest / Diary x1`).
-  - **Core Principle: Strictly FORBIDDEN to label simple storage movements (e.g., moving to a dimensional box or Home Chest) as "Consumed". Use "Consumed" ONLY when an item is actually used up or destroyed.**
+    - **Moved**: Items moved into a portable on-person storage (e.g., `Moved to Dimensional Box / Arcane Crystal x3`).
+    - **Deposited**: Items placed in long-term storage at a base owned by the protagonist, OR stored at an inn / third-party safekeeping (e.g., `Deposited at Manor Cellar / Diary x1`).
+  - **[Protagonist-Owned Only]**: This field records ONLY items/money/assets **personally owned by the protagonist**. Personal property of **companions, love interests, employers, hosts**, etc. **MUST NOT** be recorded here — use `character_log`'s `Possession Change:` label instead. Even if the protagonist is temporarily sheltered, hosted, or kept as a kept-man, the host's belongings are NOT the protagonist's possessions.
+  - **[Carried vs Non-Carried]**: Whether an item is "carried" (on-person) or "non-carried" is judged by you based on setting and context. Carried-item changes (pocket, hand, backpack, protagonist's private portable space, etc.) map to `{{FILE_INVENTORY}}`; non-carried money, real estate, items deposited at bases/inns map to `{{FILE_ASSETS}}`.
+  - **Core Principle**: Strictly FORBIDDEN to label simple storage movements (Moved/Deposited) as "Consumed". Use "Consumed" ONLY when an item is actually used up or destroyed.
   - **No Storage = No Log**: If an item was NOT explicitly stored (put in pocket, backpack, etc.), do NOT log "Gained".
-  - **Scene Consumables = No Log**: Items used directly within the scene (hotel-provided meals, items handed by NPCs, consumables taken from the environment) do NOT require logging. ONLY log items in `{{FILE_INVENTORY}}` or historical `inventory_log`.
+  - **Scene Consumables = No Log**: Items used directly within the scene (hotel-provided meals, items handed by NPCs, consumables taken from the environment) do NOT require logging. ONLY log items in `{{FILE_INVENTORY}}`, `{{FILE_ASSETS}}`, or historical `inventory_log`.
   - **No Prediction**: Only log AFTER confirmation.
   - **No Duplicates**: Check history `Inventory Changes`. **ABSOLUTELY PROHIBIT** repeating items recorded in previous turns.
-  - **Example**: `["Gained Rusty Sword", "Consumed Health Potion / 1", "Moved to Dimensional Box / Arcane Crystal x3", "Stored in Home Chest / Diary x1"]`
+  - **Example**: `["Gained Rusty Sword", "Consumed Health Potion / 1", "Moved to Dimensional Box / Arcane Crystal x3", "Deposited at Manor Cellar / Diary x1"]`
 - **quest_log**:
   - `string[]`.
   - Record **THIS TURN'S** changes to quests or long-term plans (`{{FILE_PLANS}}`). Record specific quest details and plot twists.
@@ -282,15 +285,16 @@ Strictly follow these JSON field definitions:
 
 - **character_log**:
   - `string[]`.
-  - Record **THIS TURN'S** encounters with noteworthy characters, and **any substantial state changes across all fields** (Physical condition, Injuries, Emotions, Relationships, Goals, Location, etc.).
+  - Record **THIS TURN'S** encounters with noteworthy characters, and **any substantial state changes across all fields** (Physical condition, Injuries, Emotions, Relationships, Goals, Location, **Known Significant Possessions**, etc.).
   - **No Spoilers**: Use descriptions for unrevealed characters (e.g., `Blonde Man??`). **ABSOLUTELY PROHIBIT** using real names from files until revealed in the story.
   - **No Mob/Generic Logging**: **ABSOLUTELY PROHIBIT** logging generic "Passerby A", "Guard B", "Villager", "Bandit", etc.
     - **Identification Rule**: If the character name follows a pattern like `{Generic Role} + {Letter/Number/ID}` (e.g., Guard A, Thief B) or lacks a specific name ("Nameless Soldier"), it is considered a generic mob and **MUST NOT** be logged in `character_log`.
     - **Impact Rule**: Only log **named characters with narrative impact**, OR entities that the **protagonist actively interacts with, asks their name, or shows explicit interest in**.
+  - **[Possession Change — NPC Personal Items Only]**: When the protagonist observes, infers, or is told that a named NPC (companion, love interest, employer, enemy, etc.) holds a plot-relevant item (weapon, keepsake, key document, wealth, special tool, etc.), record it as `Possession Change: NPC_Name (Add/Lose/Trade: Item_Name x_Qty, Source/Use)`. This entry maps to the `### Known Significant Possessions` section under that NPC's entry. Mobs and one-shot NPCs must NOT be logged. **Note**: The protagonist's own items belong in `inventory_log`, NEVER here.
 
   - **No Duplicates**: Check history `Character Changes`. **ABSOLUTELY PROHIBIT** repeating items recorded in previous turns.
   - **Example**:
-    - `["New Character: Lita (an elf girl met on a forest path)", "Status Change: Alwin (critically injured and unconscious)", "Status Change: Hilde (intrigued and friendly after the protagonist's help)", "Location Update: Arthur (has left the tavern for the city gate)"]`
+    - `["New Character: Lita (an elf girl met on a forest path)", "Status Change: Alwin (critically injured and unconscious)", "Status Change: Hilde (intrigued and friendly after the protagonist's help)", "Location Update: Arthur (has left the tavern for the city gate)", "Possession Change: Lita (Add: Father's heirloom necklace x1, Source: retrieved from a hidden compartment in her home)"]`
   - Empty `[]` if no change.
 
 - **world_log**:
