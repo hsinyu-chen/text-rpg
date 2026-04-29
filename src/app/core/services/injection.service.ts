@@ -332,7 +332,11 @@ export class InjectionService {
                 }
             }
 
-            if (isModified && dbRecord?.content?.trim()) {
+            // `content !== undefined` (not truthiness) — user may have intentionally
+            // saved an empty string to blank out a prompt. The trim()-based check
+            // this replaced silently reset such customizations to the server
+            // default on every reload.
+            if (isModified && dbRecord?.content !== undefined) {
                 this.setSignalContent(type.id as PromptType, dbRecord.content);
             } else {
                 this.setSignalContent(type.id as PromptType, processedServerContent);
