@@ -27,6 +27,7 @@ import { MigrationService } from './core/services/migration.service';
 import { BookListComponent } from './features/sidebar/components/book-list/book-list.component';
 import { SessionService } from './core/services/session.service';
 import { WakeLockService } from './core/services/wake-lock.service';
+import { BackgroundFetchService } from './core/services/background-fetch.service';
 
 
 @Component({
@@ -64,6 +65,7 @@ export class AppComponent {
   // Eagerly construct so its effect() registers and holds a screen wake lock
   // during generation — prevents mobile screen-off from killing the API stream.
   private wakeLock = inject(WakeLockService);
+  private bgFetch = inject(BackgroundFetchService);
   private swUpdate = inject(SwUpdate);
   private win = inject(WINDOW);
   private appUpdateSnackRef: MatSnackBarRef<TextOnlySnackBar> | null = null;
@@ -88,6 +90,10 @@ export class AppComponent {
   sidenavMode = computed(() => (this.isMobile() ? 'over' : 'side'));
 
   constructor() {
+    // Install the SW-routed fetch shim before any LLM call goes out so the
+    // upstream Gemini connection is owned by the service worker thread.
+    this.bgFetch.install();
+
     const migrationService = inject(MigrationService);
     // Migrations must finish BEFORE provider init runs, since migrateLLMProfiles
     // writes seed profiles that LLMConfigService will read on its first pass.

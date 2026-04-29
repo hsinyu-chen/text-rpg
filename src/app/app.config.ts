@@ -30,7 +30,10 @@ export const appConfig: ApplicationConfig = {
       deps: [LLM_STORAGE_TOKEN, LLMProviderRegistry]
     },
     { provide: LLM_TRANSLATIONS, useValue: DEFAULT_LLM_TRANSLATIONS },
-    provideServiceWorker('ngsw-worker.js', {
+    // sw.js wraps ngsw-worker.js (via importScripts) and adds a message-driven
+    // fetch proxy used by BackgroundFetchService to keep LLM streaming alive
+    // when the page is briefly suspended on mobile.
+    provideServiceWorker('sw.js', {
       // Tauri webview ships its own background lifecycle; SW gives no benefit there
       // and can confuse the custom protocol — only register on real browsers.
       enabled: !isDevMode() && !('__TAURI_INTERNALS__' in window) && !('__TAURI__' in window),
