@@ -2,6 +2,10 @@ import { Injectable } from '@angular/core';
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
 import { StorageValue, SessionSave, ChatMessage, Book, Collection } from '../models/types';
 import { cleanBookForSync, cleanCollectionForSync } from './sync/clean.util';
+import { DEFAULT_PROFILE_ID, PromptProfile } from '../constants/prompt-profiles';
+
+/** IDB-persisted user profile metadata. Built-in profiles never appear here. */
+export type StoredProfileMeta = Required<Pick<PromptProfile, 'id' | 'displayName' | 'baseProfileId' | 'createdAt' | 'updatedAt'>>;
 
 interface TextRPGDB extends DBSchema {
   chat_store: {
@@ -15,6 +19,10 @@ interface TextRPGDB extends DBSchema {
   prompt_store: {
     key: string;
     value: { content: string, lastModified: number, tokens?: number };
+  };
+  prompt_profile_meta: {
+    key: string;
+    value: StoredProfileMeta;
   };
   books_store: {
     key: string;
@@ -39,7 +47,7 @@ export class StorageService {
   private dbPromise: Promise<IDBPDatabase<TextRPGDB>>;
 
   constructor() {
-    this.dbPromise = openDB<TextRPGDB>('TextRPG_DB', 8, {
+    this.dbPromise = openDB<TextRPGDB>('TextRPG_DB', 9, {
       upgrade(db, oldVersion) {
         if (oldVersion < 1) {
           db.createObjectStore('chat_store');
@@ -72,6 +80,11 @@ export class StorageService {
         if (oldVersion < 8) {
           if (!db.objectStoreNames.contains('sync_handles')) {
             db.createObjectStore('sync_handles');
+          }
+        }
+        if (oldVersion < 9) {
+          if (!db.objectStoreNames.contains('prompt_profile_meta')) {
+            db.createObjectStore('prompt_profile_meta');
           }
         }
       },
@@ -171,10 +184,10 @@ export class StorageService {
 
   /**
    * Gets a profile-scoped prompt key.
-   * Default profile ('cloud') uses the bare key for backward compatibility.
+   * Default profile uses the bare key for backward compatibility.
    */
   private getProfilePromptKey(name: string, profileId: string): string {
-    return profileId === 'cloud' ? name : `${profileId}:${name}`;
+    return profileId === DEFAULT_PROFILE_ID ? name : `${profileId}:${name}`;
   }
 
   /**
@@ -190,6 +203,34 @@ export class StorageService {
   async saveProfilePrompt(name: string, profileId: string, content: string, tokens?: number) {
     const key = this.getProfilePromptKey(name, profileId);
     await (await this.dbPromise).put('prompt_store', { content, tokens, lastModified: Date.now() }, key);
+  }
+
+  /** No-op for the default profile — its rows are unprefixed and would all be wiped. */
+  async deleteAllProfilePrompts(profileId: string): Promise<void> {
+    if (profileId === DEFAULT_PROFILE_ID) return;
+    const db = await this.dbPromise;
+    const tx = db.transaction('prompt_store', 'readwrite');
+    const prefix = `${profileId}:`;
+    await tx.store.delete(IDBKeyRange.bound(prefix, prefix + '￿'));
+    await tx.done;
+  }
+
+  // ========== Prompt Profile Meta (v9+) ==========
+
+  async listProfileMeta(): Promise<StoredProfileMeta[]> {
+    return (await this.dbPromise).getAll('prompt_profile_meta');
+  }
+
+  async getProfileMeta(id: string): Promise<StoredProfileMeta | undefined> {
+    return (await this.dbPromise).get('prompt_profile_meta', id);
+  }
+
+  async putProfileMeta(meta: StoredProfileMeta): Promise<void> {
+    await (await this.dbPromise).put('prompt_profile_meta', meta, meta.id);
+  }
+
+  async deleteProfileMeta(id: string): Promise<void> {
+    await (await this.dbPromise).delete('prompt_profile_meta', id);
   }
 
   // ========== Books Store (v6+) ==========

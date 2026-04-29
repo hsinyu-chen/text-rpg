@@ -1,0 +1,12 @@
+<h2 mat-dialog-title>{{ data.title || 'Input' }}</h2>
+<mat-dialog-content>
+    <p class="message-content">{{ data.message }}</p>
+    <mat-form-field appearance="outline" class="prompt-input-field">
+        <input matInput [ngModel]="value()" (ngModelChange)="value.set($event)"
+            [placeholder]="data.placeholder || ''" (keydown.enter)="submit()" cdkFocusInitial>
+    </mat-form-field>
+</mat-dialog-content>
+<mat-dialog-actions align="end">
+    <button mat-button (click)="cancel()">{{ data.cancelText || 'Cancel' }}</button>
+    <button mat-flat-button color="primary" (click)="submit()" [disabled]="!value().trim()">{{ data.okText || 'OK' }}</button>
+</mat-dialog-actions>

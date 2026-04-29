@@ -1,4 +1,11 @@
 <div class="input-area" [class.editing-mode]="editingMessageId()">
+    <div class="input-status-row">
+        <button class="profile-pill" (click)="openConfigDialog()"
+            [matTooltip]="lang.t('PROMPT_PROFILE_LABEL') + ': ' + activeProfileName()">
+            <mat-icon>tune</mat-icon>
+            <span>{{ activeProfileName() }}</span>
+        </button>
+    </div>
     <div class="input-wrapper">
 
         <!-- Mobile Menu Trigger -->

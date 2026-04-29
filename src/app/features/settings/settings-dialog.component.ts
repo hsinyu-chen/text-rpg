@@ -18,10 +18,6 @@ import { LLMProviderRegistryService } from '../../core/services/llm-provider-reg
 import { LLMConfigService } from '../../core/services/llm-config.service';
 import { LoadingService } from '../../core/services/loading.service';
 import { SettingsSyncService } from '../../core/services/settings-sync.service';
-import { SyncService } from '../../core/services/sync/sync.service';
-import { InjectionService } from '../../core/services/injection.service';
-import { MatSnackBar } from '@angular/material/snack-bar';
-import { DialogService } from '../../core/services/dialog.service';
 import { getLanguagesList } from '../../core/constants/locales';
 import { LLMProfilesDialogComponent } from './llm-profiles-dialog.component';
 
@@ -55,10 +51,6 @@ export class SettingsDialogComponent {
   private matDialog = inject(MatDialog);
   loading = inject(LoadingService);
   private settingsSync = inject(SettingsSyncService);
-  private sync = inject(SyncService);
-  private injection = inject(InjectionService);
-  private snackBar = inject(MatSnackBar);
-  private dialogService = inject(DialogService);
 
   /** List of profiles, reactive to the storage layer. */
   profiles = this.llmConfig.profiles;
@@ -197,40 +189,4 @@ export class SettingsDialogComponent {
     }
   }
 
-  async uploadPrompts(): Promise<void> {
-    this.loading.show('Uploading prompts...');
-    try {
-      const { exported } = await this.sync.uploadPrompts();
-      this.snackBar.open(`Uploaded ${exported} customized prompt${exported === 1 ? '' : 's'}.`, 'OK', { duration: 3000 });
-    } catch (e) {
-      console.error('[Settings] uploadPrompts failed', e);
-      this.snackBar.open('Upload failed: ' + ((e as { message?: string })?.message || 'Unknown error'), 'Close', { duration: 5000 });
-    } finally {
-      this.loading.hide();
-    }
-  }
-
-  async downloadPrompts(): Promise<void> {
-    const confirmed = await this.dialogService.confirm(
-      'This will overwrite any locally-customized prompts with the cloud versions. Defaults are not affected. Continue?',
-      'Download Prompts'
-    );
-    if (!confirmed) return;
-    this.loading.show('Downloading prompts...');
-    try {
-      const { imported } = await this.sync.downloadPrompts();
-      // Re-run injection loader so the live signals pick up the new content.
-      await this.injection.loadDynamicInjectionSettings();
-      if (imported === 0) {
-        this.snackBar.open('No customized prompts on cloud.', 'OK', { duration: 3000 });
-      } else {
-        this.snackBar.open(`Imported ${imported} prompt${imported === 1 ? '' : 's'}.`, 'OK', { duration: 3000 });
-      }
-    } catch (e) {
-      console.error('[Settings] downloadPrompts failed', e);
-      this.snackBar.open('Download failed: ' + ((e as { message?: string })?.message || 'Unknown error'), 'Close', { duration: 5000 });
-    } finally {
-      this.loading.hide();
-    }
-  }
 }

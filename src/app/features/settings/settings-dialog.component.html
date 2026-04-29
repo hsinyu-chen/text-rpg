@@ -171,24 +171,6 @@
             </div>
         </div>
 
-        <!-- Prompts Sync -->
-        <div class="advanced-section">
-            <h3>Prompts Sync</h3>
-            <p class="hint-text">
-                Cross-device sync for user-edited prompts (action / continue / fastforward / system /
-                save / postprocess / system_main). Defaults stay out, so importing won't override
-                this device's locally-correct defaults. Manual only.
-            </p>
-            <div class="button-row">
-                <button mat-stroked-button (click)="uploadPrompts()" [disabled]="loading.isLoading()">
-                    <mat-icon>cloud_upload</mat-icon> Upload Prompts
-                </button>
-                <button mat-stroked-button (click)="downloadPrompts()" [disabled]="loading.isLoading()">
-                    <mat-icon>cloud_download</mat-icon> Download Prompts
-                </button>
-            </div>
-        </div>
-
     </div>
 </mat-dialog-content>
 <mat-dialog-actions align="end">

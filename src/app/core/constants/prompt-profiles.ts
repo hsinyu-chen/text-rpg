@@ -1,23 +1,24 @@
-/**
- * Prompt Profile system - allows switching between multiple sets of system prompts.
- * Each profile represents a complete set of prompt files (system_prompt.md, injection_*.md, etc.)
- */
-
+/** User profile ids must start with USER_PROFILE_ID_PREFIX to never collide with built-in ids. */
 export interface PromptProfile {
-    /** Unique identifier, e.g. 'cloud', 'local' */
     id: string;
-    /** i18n key for display name (maps to uiStrings) */
-    nameKey: string;
-    /** i18n key for description */
-    descriptionKey: string;
-    /** Whether this profile ships with the app */
+    /** Built-in only; user profiles use `displayName`. */
+    nameKey?: string;
+    /** Built-in only. */
+    descriptionKey?: string;
     isBuiltIn: boolean;
-    /**
-     * Sub-directory under `assets/system_files/{lang}/`.
-     * null = root directory (default/cloud profile, backward compatible).
-     * 'profiles/local' = `assets/system_files/{lang}/profiles/local/`
-     */
+    /** Asset sub-dir under `assets/system_files/{lang}/`; null for the default profile and user profiles. */
     subDir: string | null;
+    /** User-set; overrides `nameKey` when present. */
+    displayName?: string;
+    baseProfileId?: string;
+    createdAt?: number;
+    updatedAt?: number;
+}
+
+export const USER_PROFILE_ID_PREFIX = 'user_';
+
+export function isUserProfile(p: PromptProfile): boolean {
+    return !p.isBuiltIn;
 }
 
 export const BUILT_IN_PROFILES: readonly PromptProfile[] = [
@@ -39,22 +40,21 @@ export const BUILT_IN_PROFILES: readonly PromptProfile[] = [
 
 export const DEFAULT_PROFILE_ID = 'cloud';
 
-/**
- * Resolves the asset directory path for a given profile and language folder.
- * If the profile has a subDir, returns `assets/system_files/{langFolder}/{subDir}/`.
- * Otherwise, returns the root `assets/system_files/{langFolder}/`.
- */
+/** Built-in only — user profiles have no asset path. */
 export function getProfileBasePath(langFolder: string, profileId: string): string {
     const profile = BUILT_IN_PROFILES.find(p => p.id === profileId);
     const base = `assets/system_files/${langFolder}`;
     return profile?.subDir ? `${base}/${profile.subDir}` : base;
 }
 
-/**
- * Gets a profile-scoped localStorage/IDB key.
- * For the default 'cloud' profile, returns the key as-is (backward compatible).
- * For other profiles, prefixes the key with the profile ID.
- */
+/** Default profile uses the bare key for backward compatibility with pre-profile data. */
 export function getProfileScopedKey(baseKey: string, profileId: string): string {
     return profileId === DEFAULT_PROFILE_ID ? baseKey : `${profileId}:${baseKey}`;
+}
+
+/** displayName → i18n via nameKey → id. */
+export function getProfileDisplayName(profile: PromptProfile, uiStrings: Record<string, string>): string {
+    if (profile.displayName) return profile.displayName;
+    if (profile.nameKey) return uiStrings[profile.nameKey] ?? profile.nameKey;
+    return profile.id;
 }

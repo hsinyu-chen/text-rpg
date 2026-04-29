@@ -5,7 +5,6 @@ import { LLMProvider, LLMProviderConfig } from '@hcs/llm-core';
 import { CostService } from './cost.service';
 import { GameStateService } from './game-state.service';
 import { ChatHistoryService } from './chat-history.service';
-import { InjectionService } from './injection.service';
 
 import { CacheManagerService } from './cache-manager.service';
 import { SessionService } from './session.service';
@@ -34,7 +33,6 @@ export class GameEngineService {
     private snackBar = inject(MatSnackBar);
     private state = inject(GameStateService);
     private chatHistory = inject(ChatHistoryService);
-    private injection = inject(InjectionService);
     private cacheManager = inject(CacheManagerService);
     private session = inject(SessionService);
     private contextBuilder = inject(ContextBuilderService);
@@ -70,8 +68,6 @@ export class GameEngineService {
         // Effects moved to ConfigService.
     }
 
-    // ==================== Injection Operations (Delegated to InjectionService) ====================
-
     /**
      * Initializes the service by loading configuration and usage stats from localStorage.
      * Call this AFTER registering LLM Providers.
@@ -80,13 +76,6 @@ export class GameEngineService {
         this.configService.init();
     }
 
-
-    /**
-     * Resets injection defaults.
-     */
-    async resetInjectionDefaults(type: 'action' | 'continue' | 'fastforward' | 'system' | 'save' | 'postprocess' | 'system_main' | 'all' = 'all'): Promise<void> {
-        return this.injection.resetInjectionDefaults(type);
-    }
 
     /**
      * Saves application configuration to localStorage and updates the engine state.

@@ -5,6 +5,48 @@
     z-index: 10;
 }
 
+.input-status-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    min-height: 22px;
+
+    .profile-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        height: 22px;
+        padding: 0 10px;
+        border: 1px solid #444;
+        border-radius: 11px;
+        background: rgba(255, 255, 255, 0.04);
+        color: #d0d0d0;
+        font-size: 0.72rem;
+        line-height: 1;
+        cursor: pointer;
+        transition: background-color 0.15s ease, border-color 0.15s ease;
+
+        &:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: #666;
+        }
+
+        mat-icon {
+            font-size: 14px;
+            width: 14px;
+            height: 14px;
+        }
+
+        span {
+            max-width: 220px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+    }
+}
+
 .input-wrapper {
     width: 100%;
     margin: 0 auto;

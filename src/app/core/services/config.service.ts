@@ -5,6 +5,8 @@ import { StorageService } from './storage.service';
 import { SessionService } from './session.service';
 import { CacheManagerService } from './cache-manager.service';
 import { InjectionService } from './injection.service';
+import { PromptProfileRegistryService } from './prompt-profile-registry.service';
+import { DEFAULT_PROFILE_ID } from '../constants/prompt-profiles';
 import { CostService } from './cost.service';
 import { LLMProviderRegistryService } from './llm-provider-registry.service';
 import { LLMConfigService } from './llm-config.service';
@@ -18,6 +20,7 @@ export class ConfigService {
     private session = inject(SessionService);
     private cacheManager = inject(CacheManagerService);
     private injection = inject(InjectionService);
+    private profileRegistry = inject(PromptProfileRegistryService);
     private cost = inject(CostService);
     private providerRegistry = inject(LLMProviderRegistryService);
     private llmConfig = inject(LLMConfigService);
@@ -65,8 +68,18 @@ export class ConfigService {
      * Call this AFTER registering LLM Providers.
      */
     public async init() {
-        // Trigger FX rate update (don't await to avoid blocking init)
         this.updateExchangeRateFromApi();
+
+        // Registry must finish before injection load — the active id may resolve to a user profile from IDB.
+        await this.profileRegistry.init();
+
+        // Cross-tab deletion can leave the active id pointing at a profile we no longer know about.
+        const activeId = this.state.activePromptProfile();
+        if (!this.profileRegistry.get(activeId)) {
+            console.warn(`[ConfigService] Active prompt profile '${activeId}' no longer exists — falling back to default.`);
+            this.state.activePromptProfile.set(DEFAULT_PROFILE_ID);
+            localStorage.setItem('app_active_prompt_profile', DEFAULT_PROFILE_ID);
+        }
 
         // Initialize Injection Settings (History is loaded by session.init() → loadBook())
         await this.injection.loadDynamicInjectionSettings();
