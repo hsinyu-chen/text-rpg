@@ -384,6 +384,16 @@ describe('insertSection', () => {
     expect(onFileReplaced).not.toHaveBeenCalled();
   });
 
+  it('detects heading duplication despite different internal whitespace', () => {
+    const { context, onFileReplaced } = makeContext({ 'a.md': '# A' });
+    const r = run({
+      action: 'insertSection',
+      args: { filename: 'a.md', heading: '## New Section', content: '##  New   Section\nbody', anchor: 'after', anchorSectionPath: 'A' },
+    }, context);
+    expect(r.response).toMatchObject({ error: expect.stringMatching(/must NOT repeat the heading/) });
+    expect(onFileReplaced).not.toHaveBeenCalled();
+  });
+
   // Regression: an anchorSectionPath that only matches a heading INSIDE a
   // fenced block must not be treated as a real anchor.
   it('errors when anchorSectionPath only appears inside a fenced block', () => {
