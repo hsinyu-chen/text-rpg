@@ -129,13 +129,34 @@ export class InjectionService {
      * lookup recurses through `baseProfileId` until it lands on a built-in,
      * which is then served from its own IDB row.
      */
-    private async loadUserProfilePrompt(type: PromptType, profileId: string): Promise<string> {
+    private async loadUserProfilePrompt(type: PromptType, profileId: string, langFolder: string, lang: string): Promise<string> {
         const visited = new Set<string>();
         let current: PromptProfile | undefined = this.registry.get(profileId);
         while (current && !visited.has(current.id)) {
             visited.add(current.id);
+
             const row = await this.storage.getProfilePrompt(type, current.id);
             if (row?.content !== undefined) return row.content;
+
+            // Reached a built-in with no IDB row for this type — likely an
+            // app update introduced a new PromptType that pre-existing user
+            // profiles never copied. Pull from the built-in's shipped asset
+            // and seed both rows so subsequent loads are O(1). Without this,
+            // the loop would skip past the correct base (e.g. 'local') and
+            // serve cloud's content, which is the wrong default for users
+            // cloned from a non-default built-in.
+            if (current.isBuiltIn) {
+                try {
+                    const filename = INJECTION_FILE_PATHS[type];
+                    const raw = await this.loadBuiltInAsset(langFolder, filename, current.id);
+                    const processed = type === 'postprocess' ? raw : this.applyPromptPlaceholders(raw, lang);
+                    await this.storage.saveProfilePrompt(type, current.id, processed);
+                    return processed;
+                } catch (err) {
+                    console.warn(`[InjectionService] loadUserProfilePrompt: asset fetch failed for built-in '${current.id}', falling through`, err);
+                }
+            }
+
             if (!current.baseProfileId) break;
             current = this.registry.get(current.baseProfileId);
         }
@@ -225,7 +246,7 @@ export class InjectionService {
             if (isBuiltIn) {
                 await this.loadBuiltInProfile(currentProfile, langFolder, lang);
             } else {
-                await this.loadUserProfile(currentProfile);
+                await this.loadUserProfile(currentProfile, langFolder, lang);
             }
 
             this.state.injectionSettingsLoaded.set(true);
@@ -327,10 +348,10 @@ export class InjectionService {
         this.state.promptUpdateStatus.set(updateStatusMap);
     }
 
-    private async loadUserProfile(currentProfile: string): Promise<void> {
+    private async loadUserProfile(currentProfile: string, langFolder: string, lang: string): Promise<void> {
         const updateStatusMap = new Map<string, { hasUpdate: boolean, serverContent: string }>();
         for (const type of this.ALL_TYPES) {
-            const content = await this.loadUserProfilePrompt(type, currentProfile);
+            const content = await this.loadUserProfilePrompt(type, currentProfile, langFolder, lang);
             this.setSignalContent(type, content);
             // User profiles never participate in ship-update badging — `serverContent`
             // is filled with the resolved content for any UI that reads the map,
