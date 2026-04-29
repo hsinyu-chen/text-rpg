@@ -112,6 +112,24 @@
 
     <!-- Prompt Input -->
     <div class="agent-input-container">
+        <button mat-icon-button [matMenuTriggerFor]="builtInPromptsMenu"
+                matTooltip="Built-in prompts"
+                [disabled]="agentService.isAgentRunning() || builtInPromptsService.index.isLoading()">
+            <mat-icon>bolt</mat-icon>
+        </button>
+        <mat-menu #builtInPromptsMenu="matMenu">
+            @for (p of builtInPromptsService.index.value() ?? []; track p.id) {
+                <button mat-menu-item (click)="useBuiltInPrompt(p.id)" [matTooltip]="p.description ?? ''">
+                    <mat-icon>{{ p.icon }}</mat-icon>
+                    <span>{{ p.label }}</span>
+                </button>
+            }
+            @if ((builtInPromptsService.index.value() ?? []).length === 0) {
+                <div style="padding: 8px 16px; color: var(--mat-sys-on-surface-variant); font-size: 12px;">
+                    No prompts available
+                </div>
+            }
+        </mat-menu>
         <mat-form-field appearance="outline" class="agent-input" subscriptSizing="dynamic">
             <textarea matInput placeholder="Tell agent to do something..."
                      [ngModel]="agentPrompt()" (ngModelChange)="agentPrompt.set($event)"

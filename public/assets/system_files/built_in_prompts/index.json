@@ -1,0 +1,17 @@
+{
+  "prompts": [
+    {
+      "id": "migrate-to-current-format",
+      "icon": "sync_alt",
+      "label": {
+        "zh-tw": "遷移到最新格式",
+        "en": "Migrate to current format"
+      },
+      "description": {
+        "zh-tw": "把舊版資料檔（資產／物品欄／人物狀態）遷移到當前格式規範",
+        "en": "Update legacy data files (assets / inventory / character status) to the current format spec"
+      },
+      "autoRun": false
+    }
+  ]
+}

@@ -20,8 +20,10 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatMenuModule } from '@angular/material/menu';
 import { MarkdownModule } from 'ngx-markdown';
 import { FileAgentService } from '../../../core/services/file-agent/file-agent.service';
+import { BuiltInPromptsService } from '../../../core/services/file-agent/built-in-prompts.service';
 
 @Component({
   selector: 'app-agent-console',
@@ -36,6 +38,7 @@ import { FileAgentService } from '../../../core/services/file-agent/file-agent.s
     MatSelectModule,
     MatProgressSpinnerModule,
     MatTooltipModule,
+    MatMenuModule,
     MarkdownModule
   ],
   templateUrl: './agent-console.component.html',
@@ -49,6 +52,7 @@ export class AgentConsoleComponent implements OnDestroy {
 
   // Injected services
   agentService = inject(FileAgentService);
+  builtInPromptsService = inject(BuiltInPromptsService);
   private clipboard = inject(Clipboard);
 
   // Internal state
@@ -160,6 +164,20 @@ export class AgentConsoleComponent implements OnDestroy {
         this.files().set(filename, content);
       }
     });
+  }
+
+  /** Fill the input with a built-in prompt body; auto-run only if the entry opts in. */
+  async useBuiltInPrompt(id: string): Promise<void> {
+    try {
+      const body = await this.builtInPromptsService.loadPromptBody(id);
+      this.agentPrompt.set(body);
+      const meta = (this.builtInPromptsService.index.value() ?? []).find(p => p.id === id);
+      if (meta?.autoRun) {
+        await this.runAgent();
+      }
+    } catch (err) {
+      console.error('Failed to load built-in prompt', id, err);
+    }
   }
 
   private setupAgentConsoleScroll(): void {
