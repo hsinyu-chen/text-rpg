@@ -1,5 +1,7 @@
 import { LLMFunctionDeclaration } from '@hcs/llm-core';
 
+const REASON_DESC = 'One sentence explaining WHY you are calling this tool right now — what you intend to find or change, and how it advances the current task. Required so you (and the user) can re-read the action trace later and follow your reasoning. Avoid restating the file name or echoing the tool name.';
+
 export const FILE_AGENT_TOOLS: LLMFunctionDeclaration[] = [
   {
     name: 'readFile',
@@ -7,11 +9,12 @@ export const FILE_AGENT_TOOLS: LLMFunctionDeclaration[] = [
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: REASON_DESC },
         filename: { type: 'string', description: 'The exact path of the file' },
         startLine: { type: 'number', description: '1-based starting line. Omit (or 1) to read from the beginning.' },
         lineCount: { type: 'number', description: 'Maximum number of lines to read from startLine. Omit to read to end of file.' }
       },
-      required: ['filename']
+      required: ['reason', 'filename']
     }
   },
   {
@@ -20,10 +23,11 @@ export const FILE_AGENT_TOOLS: LLMFunctionDeclaration[] = [
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: REASON_DESC },
         filename: { type: 'string', description: 'The exact path of the file' },
         content: { type: 'string', description: 'The new full content of the file' }
       },
-      required: ['filename', 'content']
+      required: ['reason', 'filename', 'content']
     }
   },
   {
@@ -31,8 +35,11 @@ export const FILE_AGENT_TOOLS: LLMFunctionDeclaration[] = [
     description: 'Get the heading outline of a markdown file',
     parameters: {
       type: 'object',
-      properties: { filename: { type: 'string', description: 'The exact path of the file' } },
-      required: ['filename']
+      properties: {
+        reason: { type: 'string', description: REASON_DESC },
+        filename: { type: 'string', description: 'The exact path of the file' }
+      },
+      required: ['reason', 'filename']
     }
   },
   {
@@ -41,13 +48,14 @@ export const FILE_AGENT_TOOLS: LLMFunctionDeclaration[] = [
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: REASON_DESC },
         pattern: { type: 'string', description: 'JavaScript regex source — no surrounding slashes, no inline flags. Example: "TODO|FIXME|脈衝".' },
         filename: { type: 'string', description: 'Optional. Restrict the search to this single file. Omit to search across all files.' },
         caseInsensitive: { type: 'boolean', description: 'Optional. Default false. Set true to search case-insensitively.' },
         maxResults: { type: 'number', description: 'Optional. Cap on the number of matches returned (default 100). Higher values risk filling the context window.' },
         contextLines: { type: 'number', description: 'Optional. Default 0. Number of surrounding lines to include before AND after each match (capped at 10). Each match gains "before" and "after" string arrays. Use 1-2 to sanity-check ambiguous patterns before searchReplace.' }
       },
-      required: ['pattern']
+      required: ['reason', 'pattern']
     }
   },
   {
@@ -56,6 +64,7 @@ export const FILE_AGENT_TOOLS: LLMFunctionDeclaration[] = [
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: REASON_DESC },
         filename: { type: 'string', description: 'The exact path of the file' },
         replacements: {
           type: 'array',
@@ -76,7 +85,7 @@ export const FILE_AGENT_TOOLS: LLMFunctionDeclaration[] = [
         expectedTotalReplacements: { type: 'number', description: 'Optional safety net for the total across all entries. If provided and the total differs, the call fails and the file is unchanged.' },
         dryRun: { type: 'boolean', description: 'Optional. Default false. If true, no write happens — returns counts and up to 3 before/after samples per pattern.' }
       },
-      required: ['filename', 'replacements']
+      required: ['reason', 'filename', 'replacements']
     }
   },
   {
@@ -85,6 +94,7 @@ export const FILE_AGENT_TOOLS: LLMFunctionDeclaration[] = [
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: REASON_DESC },
         filename: { type: 'string', description: 'The exact path of the file' },
         sectionPaths: {
           type: 'array',
@@ -92,7 +102,7 @@ export const FILE_AGENT_TOOLS: LLMFunctionDeclaration[] = [
           items: { type: 'string' }
         }
       },
-      required: ['filename', 'sectionPaths']
+      required: ['reason', 'filename', 'sectionPaths']
     }
   },
   {
@@ -101,6 +111,7 @@ export const FILE_AGENT_TOOLS: LLMFunctionDeclaration[] = [
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: REASON_DESC },
         filename: { type: 'string', description: 'The exact path of the file' },
         updates: {
           type: 'array',
@@ -117,22 +128,23 @@ export const FILE_AGENT_TOOLS: LLMFunctionDeclaration[] = [
           }
         }
       },
-      required: ['filename', 'updates']
+      required: ['reason', 'filename', 'updates']
     }
   },
   {
     name: 'insertSection',
-    description: 'Insert a NEW markdown section (with its own heading) at a specific position. heading must include the hash marks (e.g. "## New Section"). content is the section body without the heading line (optional). anchor controls where to insert: "prepend" = before everything in the file; "before" = immediately before anchorSectionPath (sibling); "after" = immediately after anchorSectionPath and all its content (sibling); "append-into" = as the last child inside anchorSectionPath. Omit anchor entirely to append at end of file. To insert plain lines (without a heading) into an existing section, use insertIntoSection instead.',
+    description: 'Insert a NEW markdown section (with its own heading) at a specific position. heading must include the hash marks (e.g. "## New Section"). content is the section body ONLY — DO NOT repeat the heading line inside content (the runtime writes the heading from the "heading" arg, then content directly below it; duplicating the heading produces two identical headings in the file). anchor controls where to insert: "prepend" = before everything in the file; "before" = immediately before anchorSectionPath (sibling); "after" = immediately after anchorSectionPath and all its content (sibling); "append-into" = as the last child inside anchorSectionPath. Omit anchor entirely to append at end of file. To insert plain lines (without a heading) into an existing section, use insertIntoSection instead.',
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: REASON_DESC },
         filename: { type: 'string', description: 'The exact path of the file' },
         heading: { type: 'string', description: 'Full heading line including hashes, e.g. "## Equipment"' },
-        content: { type: 'string', description: 'Section body content without the heading line (optional)' },
+        content: { type: 'string', description: 'Section body content WITHOUT the heading line (optional). Do NOT repeat the value of "heading" here — the runtime emits the heading on its own line and then this content; including the heading again creates a duplicate.' },
         anchor: { type: 'string', enum: ['prepend', 'before', 'after', 'append-into'], description: 'Where to insert. Omit to append at end of file.' },
         anchorSectionPath: { type: 'string', description: 'Required for before/after/append-into. Path like "Character>Stats"' }
       },
-      required: ['filename', 'heading']
+      required: ['reason', 'filename', 'heading']
     }
   },
   {
@@ -141,12 +153,13 @@ export const FILE_AGENT_TOOLS: LLMFunctionDeclaration[] = [
     parameters: {
       type: 'object',
       properties: {
+        reason: { type: 'string', description: REASON_DESC },
         filename: { type: 'string', description: 'The exact path of the file' },
         sectionPath: { type: 'string', description: 'Path of headers separated by ">", e.g. "Character>Stats"' },
         content: { type: 'string', description: 'The lines to insert. Multi-line is supported. Will not include any heading line — pass body content only.' },
         position: { type: 'string', enum: ['start', 'end'], description: '"start" = right after the heading; "end" = after all body and child sections.' }
       },
-      required: ['filename', 'sectionPath', 'content', 'position']
+      required: ['reason', 'filename', 'sectionPath', 'content', 'position']
     }
   },
   {
@@ -180,15 +193,15 @@ export function buildJsonSchema(isLocal: boolean): object {
     return {
       type: 'object',
       anyOf: [
-        { properties: { action: { type: 'string', enum: ['readFile'] }, args: { type: 'object', properties: { filename: { type: 'string' }, startLine: { type: 'number' }, lineCount: { type: 'number' } }, required: ['filename'], additionalProperties: false } }, required: ['action', 'args'] },
-        { properties: { action: { type: 'string', enum: ['replaceFile'] }, args: { type: 'object', properties: { filename: { type: 'string' }, content: { type: 'string' } }, required: ['filename', 'content'], additionalProperties: false } }, required: ['action', 'args'] },
-        { properties: { action: { type: 'string', enum: ['getFileOutline'] }, args: { type: 'object', properties: { filename: { type: 'string' } }, required: ['filename'], additionalProperties: false } }, required: ['action', 'args'] },
-        { properties: { action: { type: 'string', enum: ['grep'] }, args: { type: 'object', properties: { pattern: { type: 'string' }, filename: { type: 'string' }, caseInsensitive: { type: 'boolean' }, maxResults: { type: 'number' }, contextLines: { type: 'number' } }, required: ['pattern'], additionalProperties: false } }, required: ['action', 'args'] },
-        { properties: { action: { type: 'string', enum: ['searchReplace'] }, args: { type: 'object', properties: { filename: { type: 'string' }, replacements: { type: 'array', items: { type: 'object', properties: { pattern: { type: 'string' }, replacement: { type: 'string' }, isRegex: { type: 'boolean' }, caseInsensitive: { type: 'boolean' }, multiline: { type: 'boolean' }, expectedCount: { type: 'number' } }, required: ['pattern', 'replacement'] } }, expectedTotalReplacements: { type: 'number' }, dryRun: { type: 'boolean' } }, required: ['filename', 'replacements'], additionalProperties: false } }, required: ['action', 'args'] },
-        { properties: { action: { type: 'string', enum: ['readSection'] }, args: { type: 'object', properties: { filename: { type: 'string' }, sectionPaths: { type: 'array', items: { type: 'string' } } }, required: ['filename', 'sectionPaths'], additionalProperties: false } }, required: ['action', 'args'] },
-        { properties: { action: { type: 'string', enum: ['replaceSection'] }, args: { type: 'object', properties: { filename: { type: 'string' }, updates: { type: 'array', items: { type: 'object', properties: { sectionPath: { type: 'string' }, content: { type: 'string' }, newTitle: { type: 'string' }, force: { type: 'boolean' } }, required: ['sectionPath', 'content'] } } }, required: ['filename', 'updates'], additionalProperties: false } }, required: ['action', 'args'] },
-        { properties: { action: { type: 'string', enum: ['insertSection'] }, args: { type: 'object', properties: { filename: { type: 'string' }, heading: { type: 'string' }, content: { type: 'string' }, anchor: { type: 'string', enum: ['prepend', 'before', 'after', 'append-into'] }, anchorSectionPath: { type: 'string' } }, required: ['filename', 'heading'], additionalProperties: false } }, required: ['action', 'args'] },
-        { properties: { action: { type: 'string', enum: ['insertIntoSection'] }, args: { type: 'object', properties: { filename: { type: 'string' }, sectionPath: { type: 'string' }, content: { type: 'string' }, position: { type: 'string', enum: ['start', 'end'] } }, required: ['filename', 'sectionPath', 'content', 'position'], additionalProperties: false } }, required: ['action', 'args'] },
+        { properties: { action: { type: 'string', enum: ['readFile'] }, args: { type: 'object', properties: { reason: { type: 'string' }, filename: { type: 'string' }, startLine: { type: 'number' }, lineCount: { type: 'number' } }, required: ['reason', 'filename'], additionalProperties: false } }, required: ['action', 'args'] },
+        { properties: { action: { type: 'string', enum: ['replaceFile'] }, args: { type: 'object', properties: { reason: { type: 'string' }, filename: { type: 'string' }, content: { type: 'string' } }, required: ['reason', 'filename', 'content'], additionalProperties: false } }, required: ['action', 'args'] },
+        { properties: { action: { type: 'string', enum: ['getFileOutline'] }, args: { type: 'object', properties: { reason: { type: 'string' }, filename: { type: 'string' } }, required: ['reason', 'filename'], additionalProperties: false } }, required: ['action', 'args'] },
+        { properties: { action: { type: 'string', enum: ['grep'] }, args: { type: 'object', properties: { reason: { type: 'string' }, pattern: { type: 'string' }, filename: { type: 'string' }, caseInsensitive: { type: 'boolean' }, maxResults: { type: 'number' }, contextLines: { type: 'number' } }, required: ['reason', 'pattern'], additionalProperties: false } }, required: ['action', 'args'] },
+        { properties: { action: { type: 'string', enum: ['searchReplace'] }, args: { type: 'object', properties: { reason: { type: 'string' }, filename: { type: 'string' }, replacements: { type: 'array', items: { type: 'object', properties: { pattern: { type: 'string' }, replacement: { type: 'string' }, isRegex: { type: 'boolean' }, caseInsensitive: { type: 'boolean' }, multiline: { type: 'boolean' }, expectedCount: { type: 'number' } }, required: ['pattern', 'replacement'] } }, expectedTotalReplacements: { type: 'number' }, dryRun: { type: 'boolean' } }, required: ['reason', 'filename', 'replacements'], additionalProperties: false } }, required: ['action', 'args'] },
+        { properties: { action: { type: 'string', enum: ['readSection'] }, args: { type: 'object', properties: { reason: { type: 'string' }, filename: { type: 'string' }, sectionPaths: { type: 'array', items: { type: 'string' } } }, required: ['reason', 'filename', 'sectionPaths'], additionalProperties: false } }, required: ['action', 'args'] },
+        { properties: { action: { type: 'string', enum: ['replaceSection'] }, args: { type: 'object', properties: { reason: { type: 'string' }, filename: { type: 'string' }, updates: { type: 'array', items: { type: 'object', properties: { sectionPath: { type: 'string' }, content: { type: 'string' }, newTitle: { type: 'string' }, force: { type: 'boolean' } }, required: ['sectionPath', 'content'] } } }, required: ['reason', 'filename', 'updates'], additionalProperties: false } }, required: ['action', 'args'] },
+        { properties: { action: { type: 'string', enum: ['insertSection'] }, args: { type: 'object', properties: { reason: { type: 'string' }, filename: { type: 'string' }, heading: { type: 'string' }, content: { type: 'string' }, anchor: { type: 'string', enum: ['prepend', 'before', 'after', 'append-into'] }, anchorSectionPath: { type: 'string' } }, required: ['reason', 'filename', 'heading'], additionalProperties: false } }, required: ['action', 'args'] },
+        { properties: { action: { type: 'string', enum: ['insertIntoSection'] }, args: { type: 'object', properties: { reason: { type: 'string' }, filename: { type: 'string' }, sectionPath: { type: 'string' }, content: { type: 'string' }, position: { type: 'string', enum: ['start', 'end'] } }, required: ['reason', 'filename', 'sectionPath', 'content', 'position'], additionalProperties: false } }, required: ['action', 'args'] },
         { properties: { action: { type: 'string', enum: ['reportProgress'] }, args: { type: 'object', properties: { message: { type: 'string' } }, required: ['message'], additionalProperties: false } }, required: ['action', 'args'] },
         { properties: { action: { type: 'string', enum: ['submitResponse'] }, args: { type: 'object', properties: { message: { type: 'string' } }, required: ['message'], additionalProperties: false } }, required: ['action', 'args'] }
       ]
@@ -200,8 +213,9 @@ export function buildJsonSchema(isLocal: boolean): object {
       action: { type: 'string', enum: ACTION_ENUM, description: 'The tool to use.' },
       args: {
         type: 'object',
-        description: 'Arguments for the tool. Required fields depend on the action.',
+        description: 'Arguments for the tool. Required fields depend on the action. All file-operation actions also require a "reason" string.',
         properties: {
+          reason: { type: 'string', description: REASON_DESC },
           filename: { type: 'string' },
           content: { type: 'string' },
           sectionPath: { type: 'string' },

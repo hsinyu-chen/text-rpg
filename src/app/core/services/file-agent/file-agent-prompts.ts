@@ -21,15 +21,18 @@ THINKING EFFICIENCY: Do NOT rehearse, repeat, or draft the JSON output multiple 
 
 TOOL ARGUMENTS GUIDE (JSON mode):
 You must ONLY provide the arguments required for your chosen action. Omit all other fields.
-- action: "readFile" -> args: { "filename": "...", "startLine"?: 1, "lineCount"?: 200 }   // startLine/lineCount optional; omit both to read whole file
-- action: "replaceFile" -> args: { "filename": "...", "content": "..." }
-- action: "getFileOutline" -> args: { "filename": "..." }
-- action: "grep" -> args: { "pattern": "...", "filename"?: "...", "caseInsensitive"?: false, "maxResults"?: 100, "contextLines"?: 2 }
-- action: "searchReplace" -> args: { "filename": "...", "replacements": [{ "pattern": "...", "replacement": "...", "isRegex"?: false, "caseInsensitive"?: false, "multiline"?: false, "expectedCount"?: 27 }], "expectedTotalReplacements"?: 10, "dryRun"?: false }
-- action: "readSection" -> args: { "filename": "...", "sectionPaths": ["path1", "path2"] }
-- action: "replaceSection" -> args: { "filename": "...", "updates": [{ "sectionPath": "...", "content": "...", "newTitle"?: "...", "force"?: false }] }
-- action: "insertSection" -> args: { "filename": "...", "heading": "## ...", "content"?: "...", "anchor"?: "append-into", "anchorSectionPath"?: "..." }
-- action: "insertIntoSection" -> args: { "filename": "...", "sectionPath": "...", "content": "...", "position": "start" | "end" }
+
+EVERY file-operation action (all except reportProgress / submitResponse) REQUIRES a "reason" field — one sentence in plain language stating WHY you are calling this tool right now (what you intend to find or change, and how it advances the current task). Write it BEFORE the other args; this anchors your own intent so subsequent turns stay coherent. Avoid restating the file name or echoing the tool name.
+
+- action: "readFile" -> args: { "reason": "...", "filename": "...", "startLine"?: 1, "lineCount"?: 200 }   // startLine/lineCount optional; omit both to read whole file
+- action: "replaceFile" -> args: { "reason": "...", "filename": "...", "content": "..." }
+- action: "getFileOutline" -> args: { "reason": "...", "filename": "..." }
+- action: "grep" -> args: { "reason": "...", "pattern": "...", "filename"?: "...", "caseInsensitive"?: false, "maxResults"?: 100, "contextLines"?: 2 }
+- action: "searchReplace" -> args: { "reason": "...", "filename": "...", "replacements": [{ "pattern": "...", "replacement": "...", "isRegex"?: false, "caseInsensitive"?: false, "multiline"?: false, "expectedCount"?: 27 }], "expectedTotalReplacements"?: 10, "dryRun"?: false }
+- action: "readSection" -> args: { "reason": "...", "filename": "...", "sectionPaths": ["path1", "path2"] }
+- action: "replaceSection" -> args: { "reason": "...", "filename": "...", "updates": [{ "sectionPath": "...", "content": "...", "newTitle"?: "...", "force"?: false }] }
+- action: "insertSection" -> args: { "reason": "...", "filename": "...", "heading": "## ...", "content"?: "...", "anchor"?: "append-into", "anchorSectionPath"?: "..." }   // content is the BODY ONLY — never repeat the value of "heading" inside content (causes duplicate headings)
+- action: "insertIntoSection" -> args: { "reason": "...", "filename": "...", "sectionPath": "...", "content": "...", "position": "start" | "end" }
 - action: "reportProgress" -> args: { "message": "..." }
 - action: "submitResponse" -> args: { "message": "..." }
 

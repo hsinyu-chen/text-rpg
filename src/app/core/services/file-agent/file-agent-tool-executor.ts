@@ -487,6 +487,13 @@ function insertSection(args: InsertSectionArgs, context: FileAgentContext): Tool
   if ((args.anchor === 'before' || args.anchor === 'after' || args.anchor === 'append-into') && !args.anchorSectionPath) {
     return { response: { error: `anchor "${args.anchor}" requires anchorSectionPath` } };
   }
+  if (args.content) {
+    const firstNonEmpty = args.content.match(/^\s*(\S.*)$/m)?.[1];
+    const canonical = (s: string) => s.replace(/\s+/g, ' ').trim();
+    if (firstNonEmpty && canonical(firstNonEmpty) === canonical(args.heading)) {
+      return { response: { error: `content must NOT repeat the heading line — the runtime emits "${args.heading}" from the "heading" arg, then your content directly below. Including the heading inside content produces two identical headings. Pass body content only.` } };
+    }
+  }
   let insertBody = args.content;
   if (insertBody) {
     const latexCheck = checkLatex(insertBody, 'content');
