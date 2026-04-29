@@ -33,6 +33,13 @@ TextRPG is a **Local-First**, **Bring Your Own Key (BYOK)** web app built around
     *   Enter your **Google Gemini API Key**.
     *   **Output Language** defaults to Traditional Chinese; switch it if needed.
 
+## Install as a Progressive Web App
+
+The app ships a service worker and manifest, so it can be installed as a PWA — fullscreen, home-screen icon, in-app clock / battery, and a service-worker-mediated streaming proxy that keeps long LLM turns alive while the screen is briefly off. Chrome no longer auto-prompts PWA installation on Android, so trigger it from the browser menu:
+
+*   **Android Chrome / Desktop Chrome / Edge**: browser menu (three dots) → **Install app** (or **Add to Home screen**).
+*   **iOS Safari**: Share button → **Add to Home Screen**. The Battery Status API is unavailable on iOS, so the in-app battery indicator is hidden there; everything else works.
+
 ## Recommended Usage Flow
 
 1. **First Run (Act I)**

@@ -33,6 +33,13 @@ TextRPG 是一個**本地優先 (Local-First)**、**自帶金鑰 (Bring Your Own
     *   填入您的 **Google Gemini API Key**。
     *   檢查 **Output Language** (預設為繁體中文)。
 
+## 安裝為 PWA (Install as Progressive Web App)
+
+本 App 內建 service worker 與 manifest，可安裝為 PWA — 取得全螢幕、桌面圖示、App 內時間/電量顯示，以及經由 service worker 中繼的串流通道（鎖屏短時間內 LLM 回合不會被切斷）。Chrome 在 Android 已不再自動跳出安裝提示，請從瀏覽器選單手動安裝：
+
+*   **Android Chrome / 桌面 Chrome / Edge**：瀏覽器選單（三個點）→ **安裝應用程式** (Install app) / **加到主畫面** (Add to Home screen)。
+*   **iOS Safari**：分享按鈕 → **加入主畫面** (Add to Home Screen)。iOS 沒有 Battery Status API，App 內的電量指示會隱藏，其他功能正常。
+
 ## 建議使用流程 (Recommended Workflow)
 
 1. **冒險之書 (Adventure Books) (新功能!)**
