@@ -90,8 +90,10 @@ export class AppComponent {
   sidenavMode = computed(() => (this.isMobile() ? 'over' : 'side'));
 
   constructor() {
-    // Install the SW-routed fetch shim before any LLM call goes out so the
-    // upstream Gemini connection is owned by the service worker thread.
+    // Install the SW-routed fetch shim. On the very first visit the SW is not
+    // yet a controller, so the first turn that fires before SW activation
+    // falls through to direct fetch — every subsequent turn (and every turn
+    // after a reload) goes through the SW.
     this.bgFetch.install();
 
     const migrationService = inject(MigrationService);

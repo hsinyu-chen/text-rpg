@@ -9,7 +9,7 @@ interface BgFetchHeadMessage {
 }
 interface BgFetchChunkMessage { type: 'chunk'; value: Uint8Array; }
 interface BgFetchDoneMessage { type: 'done'; }
-interface BgFetchErrorMessage { type: 'error'; message: string; openedBeforeError?: boolean; }
+interface BgFetchErrorMessage { type: 'error'; message: string; }
 type BgFetchMessage =
     | BgFetchHeadMessage
     | BgFetchChunkMessage
@@ -54,12 +54,15 @@ export class BackgroundFetchService {
         const shim = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
             const url = this.urlOf(input);
             const controller = sw.controller;
-            if (!controller || !this.shouldRoute(url)) {
+            // Skip routing if the body isn't trivially clonable — fallback would
+            // otherwise re-read an already-consumed Blob/FormData/ReadableStream.
+            if (!controller || !this.shouldRoute(url) || !this.canRouteBody(init?.body)) {
                 return original(input, init);
             }
             return this.bgFetch(controller, url, init).catch((err) => {
-                // Routing failed for any reason — fall through to direct fetch so
-                // the user's turn doesn't break because of a SW glitch.
+                // Routing failed before the response opened — direct fetch as a
+                // fallback so a SW glitch doesn't break the user's turn. Safe
+                // because the body got reused only as a string/ArrayBuffer.
                 console.warn('[bg-fetch] proxy failed, falling back to direct fetch', err);
                 return original(input, init);
             });
@@ -77,6 +80,14 @@ export class BackgroundFetchService {
 
     private shouldRoute(url: string): boolean {
         return /^https:\/\/generativelanguage\.googleapis\.com\//.test(url);
+    }
+
+    private canRouteBody(body: BodyInit | null | undefined): boolean {
+        if (body == null) return true;
+        if (typeof body === 'string') return true;
+        if (body instanceof ArrayBuffer) return true;
+        if (ArrayBuffer.isView(body)) return true;
+        return false;
     }
 
     private async bgFetch(controller: ServiceWorker, url: string, init: RequestInit | undefined): Promise<Response> {
@@ -138,7 +149,7 @@ export class BackgroundFetchService {
             }
         };
 
-        const serialized = await this.serializeInit(init);
+        const serialized = this.serializeInit(init);
         controller.postMessage(
             { type: 'bgfetch:start', id, url, init: serialized, port: channel.port2 },
             [channel.port2]
@@ -146,7 +157,7 @@ export class BackgroundFetchService {
         return respPromise;
     }
 
-    private async serializeInit(init: RequestInit | undefined): Promise<SerializedInit> {
+    private serializeInit(init: RequestInit | undefined): SerializedInit {
         const out: SerializedInit = { method: init?.method ?? 'GET' };
         if (!init) return out;
         if (init.headers) {
@@ -160,21 +171,14 @@ export class BackgroundFetchService {
         if (init.referrerPolicy) out.referrerPolicy = init.referrerPolicy;
         if (init.integrity) out.integrity = init.integrity;
 
+        // canRouteBody in install() guarantees the body is null/string/ArrayBuffer
+        // by the time we get here — Blob/FormData/Stream bodies skip the route.
         if (init.body !== undefined && init.body !== null) {
             const b = init.body;
             if (typeof b === 'string') {
                 out.body = b;
             } else if (b instanceof ArrayBuffer || ArrayBuffer.isView(b)) {
                 out.body = b as ArrayBuffer | ArrayBufferView;
-            } else {
-                // Blob, FormData, URLSearchParams, ReadableStream — collapse to text.
-                // Gemini SDK uses JSON strings, so this branch should be cold; it's
-                // here so non-Gemini fetches that happen to match the route don't blow up.
-                try {
-                    out.body = await new Response(b as BodyInit).text();
-                } catch {
-                    out.body = String(b);
-                }
             }
         }
         return out;

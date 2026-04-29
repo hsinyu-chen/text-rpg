@@ -28,15 +28,8 @@ async function handleFetch(id, url, init, port) {
     const ctrl = new AbortController();
     inflight.set(id, ctrl);
 
-    port.addEventListener('message', (e) => {
-        if (e.data && e.data.type === 'bgfetch:abort') ctrl.abort();
-    });
-    port.start();
-
-    let opened = false;
     try {
         const resp = await fetch(url, { ...init, signal: ctrl.signal });
-        opened = true;
         safePost(port, {
             type: 'head',
             status: resp.status,
@@ -56,7 +49,7 @@ async function handleFetch(id, url, init, port) {
         safePost(port, { type: 'done' });
     } catch (err) {
         const message = (err && err.message) ? String(err.message) : String(err);
-        safePost(port, { type: 'error', message, openedBeforeError: opened });
+        safePost(port, { type: 'error', message });
     } finally {
         inflight.delete(id);
         try { port.close(); } catch { /* noop */ }
