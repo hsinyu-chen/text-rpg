@@ -160,10 +160,16 @@ export class GameEngineService {
 
     /**
      * Loads files from a directory and initializes the Knowledge Base.
+     * Defaults to bumpTimestamp=true: callers reaching the engine layer are
+     * user-driven actions (button click, post-LLM-update reload, folder pick),
+     * which represent real KB-content change. Programmatic re-reads that are
+     * NOT a real change (startup hydration, language toggle) call
+     * session.loadFiles directly with bumpTimestamp=false instead.
      * @param pickFolder Whether to prompt the user to pick a new folder.
+     * @param bumpTimestamp Whether to bump book.lastActiveAt for sync.
      */
-    async loadFiles(pickFolder = true) {
-        await this.session.loadFiles(pickFolder);
+    async loadFiles(pickFolder = true, bumpTimestamp = true) {
+        await this.session.loadFiles(pickFolder, bumpTimestamp);
     }
 
     /**
