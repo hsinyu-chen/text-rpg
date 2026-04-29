@@ -46,6 +46,21 @@ describe('parseMarkdownOutline', () => {
     ]);
   });
 
+  it('skips ### lines inside a fence even when the fence body looks like an outline', () => {
+    const md = [
+      '# 格式定義',
+      '```',
+      '### inside-fence-1',
+      '### inside-fence-2',
+      '```',
+      '# Next',
+    ].join('\n');
+    expect(parseMarkdownOutline('a.md', md)).toEqual([
+      { level: 1, text: '格式定義', lineNumber: 1 },
+      { level: 1, text: 'Next', lineNumber: 6 },
+    ]);
+  });
+
   it('rejects 7+ hashes (caps at 6)', () => {
     expect(parseMarkdownOutline('a.md', '####### nope')).toEqual([]);
   });
@@ -151,6 +166,49 @@ describe('findMarkdownSections', () => {
     const md = ['# Real', '```', '## Fake', '```'].join('\n');
     expect(findMarkdownSections(md, 'Fake')).toEqual([]);
   });
+
+  // Mirrors the real `# 格式定義` scenario from blank_world_zh/3.人物狀態.md:
+  // a top-level section's body wraps a format-spec doc in a fenced block.
+  // The ### lines inside the fence must NOT terminate the parent section's
+  // bounds, otherwise the fenced spec gets misclassified as child sections.
+  it('section spans through a fenced block whose body looks like sub-headings', () => {
+    const md = [
+      '# 格式定義',
+      '',
+      '```',
+      '### inside-fence-1',
+      '- entry',
+      '### inside-fence-2',
+      '```',
+      '',
+      '---',
+      '',
+      '# Next Real',
+    ].join('\n');
+    const result = findMarkdownSections(md, '格式定義');
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ startLine: 0, level: 1 });
+    expect(result[0].endLine).toBe(8);
+  });
+
+  it('recognises tilde fences just like backtick fences', () => {
+    const md = ['# Real', '~~~', '## Fake', '~~~', '# Real Two'].join('\n');
+    expect(findMarkdownSections(md, 'Fake')).toEqual([]);
+    const real = findMarkdownSections(md, 'Real')[0];
+    expect(real.endLine).toBe(3);
+  });
+
+  it('treats an unclosed backtick fence as code through EOF (trailing # ignored)', () => {
+    const md = ['# Real', '```', 'no close', '# Fake at EOF'].join('\n');
+    expect(findMarkdownSections(md, 'Fake at EOF')).toEqual([]);
+    expect(findMarkdownSections(md, 'Real')[0].endLine).toBe(3);
+  });
+
+  it('long backtick fence containing inner ``` ignores inner heading', () => {
+    const md = ['# Real', '````', '```', '## inner-fake', '```', '````', '## Real Two'].join('\n');
+    expect(findMarkdownSections(md, 'inner-fake')).toEqual([]);
+    expect(findMarkdownSections(md, 'Real Two')).toHaveLength(1);
+  });
 });
 
 describe('resolveSection', () => {
@@ -219,14 +277,25 @@ describe('insertSectionIntoContent', () => {
     expect(insertSectionIntoContent(md, '## A1', 'aa', 'append-into', 'A')).toMatchObject({ newContent: expected });
   });
 
-  it('emits just the heading line when body is undefined', () => {
+  it('emits just the heading line when body is undefined and content is empty', () => {
     expect(insertSectionIntoContent('', '# A', undefined, undefined, undefined))
-      .toMatchObject({ newContent: '\n# A' });
+      .toMatchObject({ newContent: '# A', insertedAtLine: 1 });
   });
 
-  it('splits multi-line body across lines', () => {
+  it('splits multi-line body across lines (empty content, no anchor)', () => {
     expect(insertSectionIntoContent('', '# A', 'line1\nline2', undefined, undefined))
-      .toMatchObject({ newContent: '\n# A\nline1\nline2' });
+      .toMatchObject({ newContent: '# A\nline1\nline2', insertedAtLine: 1 });
+  });
+
+  it('prepend into empty content does not leave a trailing blank line', () => {
+    expect(insertSectionIntoContent('', '# A', 'body', 'prepend', undefined))
+      .toMatchObject({ newContent: '# A\nbody', insertedAtLine: 1 });
+  });
+
+  it('errors when the requested anchor only exists inside a fenced block', () => {
+    const md = ['# Real', '```', '## Fenced', '```'].join('\n');
+    const r = insertSectionIntoContent(md, '## X', undefined, 'after', 'Fenced');
+    expect(r).toMatchObject({ error: expect.stringMatching(/not found/) });
   });
 });
 
@@ -253,6 +322,20 @@ describe('getDescendantHeaders', () => {
     const md = ['# A', '```', '## fake', '```', '## real', '# B'].join('\n');
     const bounds = findMarkdownSections(md, 'A')[0];
     expect(getDescendantHeaders(md, bounds)).toEqual(['## real']);
+  });
+
+  it('returns [] for a section whose ENTIRE body is a fenced spec (no real children)', () => {
+    const md = [
+      '# 格式定義',
+      '```',
+      '### fake-1',
+      '### fake-2',
+      '```',
+      '# Next',
+    ].join('\n');
+    const bounds = findMarkdownSections(md, '格式定義')[0];
+    expect(getDescendantHeaders(md, bounds)).toEqual([]);
+    expect(sectionHasChildren(md, bounds)).toBe(false);
   });
 });
 

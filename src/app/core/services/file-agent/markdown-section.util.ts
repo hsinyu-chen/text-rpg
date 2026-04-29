@@ -110,15 +110,24 @@ export function insertSectionIntoContent(
 ): { newContent: string; insertedAtLine: number } | { error: string } {
   const lines = content.split('\n');
   const insertLines = [heading, ...(body ? body.split('\n') : [])];
+  // `''.split('\n')` is `['']`, not `[]` — treat that single empty token as an empty
+  // file so we don't emit a junk separator newline before/after the inserted heading.
+  const isEmpty = lines.length === 1 && lines[0] === '';
 
   if (!anchor) {
     // Append to end of file
+    if (isEmpty) {
+      return { newContent: insertLines.join('\n'), insertedAtLine: 1 };
+    }
     const trailing = lines[lines.length - 1] === '' ? [] : [''];
     const newLines = [...lines, ...trailing, ...insertLines];
     return { newContent: newLines.join('\n'), insertedAtLine: lines.length + trailing.length + 1 };
   }
 
   if (anchor === 'prepend') {
+    if (isEmpty) {
+      return { newContent: insertLines.join('\n'), insertedAtLine: 1 };
+    }
     const newLines = [...insertLines, '', ...lines];
     return { newContent: newLines.join('\n'), insertedAtLine: 1 };
   }
