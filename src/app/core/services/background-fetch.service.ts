@@ -100,12 +100,18 @@ export class BackgroundFetchService {
             const accept = new Headers(init.headers).get('accept') ?? '';
             if (accept.toLowerCase().includes('text/event-stream')) return true;
         }
-        // URL hints — Gemini's REST streaming endpoint and SSE variant.
+        // URL hints. /v1/(chat/)?completions covers OpenAI and the entire
+        // OpenAI-compatible ecosystem (llama.cpp OAI mode, OpenRouter, vLLM,
+        // LM Studio, …). :streamGenerateContent and ?alt=sse cover Gemini.
+        // /v1/messages covers Anthropic. URL-based catches non-streaming calls
+        // to the same endpoints too — harmless extra hop, worth the simplicity.
+        if (/\/v1\/(chat\/)?completions(?:[?#]|$)/.test(url)) return true;
+        if (/\/v1\/messages(?:[?#]|$)/.test(url)) return true;
         if (/:streamGenerateContent\b/.test(url)) return true;
         if (/[?&]alt=sse(?:&|$)/.test(url)) return true;
-        // JSON body with "stream": true — OpenAI, llama-cpp OpenAI-compat,
-        // Anthropic, Mistral, most chat-completion APIs. Bounded body inspection
-        // avoids parsing megabyte-scale uploads.
+        // JSON body fallback for endpoints that don't follow common path
+        // conventions (custom proxies, self-hosted shims). Bounded inspection
+        // avoids scanning megabyte-scale uploads.
         const body = init?.body;
         if (typeof body === 'string' && body.length <= 1024 * 1024) {
             if (/"stream"\s*:\s*true\b/.test(body)) return true;
