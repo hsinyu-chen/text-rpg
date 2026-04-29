@@ -278,6 +278,12 @@ export class FileViewerDialogComponent implements OnDestroy {
   private highlightTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
+    // Detach from caller's Map: edits-in-progress must not leak back into
+    // engine state (sidebar passes state.loadedFiles() by reference).
+    // Without this, every keystroke mutated the caller's map, so closing
+    // without saving still left the change in place on reopen.
+    this.data.files = new Map(this.data.files);
+
     // Initialize active file
     if (this.data.initialFile) {
       this.activeFile.set(this.data.initialFile);
