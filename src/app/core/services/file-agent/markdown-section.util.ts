@@ -1,4 +1,5 @@
 import { MarkdownHeader } from '../../../features/sidebar/file-viewer-dialog.component';
+import { computeFencedLineMask } from '../../utils/markdown-fence.util';
 
 export interface SectionBounds {
   startLine: number;
@@ -18,32 +19,13 @@ interface HeadingHit {
   text: string;
 }
 
-/**
- * Scan markdown lines for ATX headings, FSM-skipping fenced code blocks
- * so `# foo` lines inside ``` / ~~~ fences don't get mistaken for headings.
- * Closing fence requires same char and >= length per CommonMark.
- */
+/** Scan ATX headings, skipping fenced code blocks so `# foo` inside ``` doesn't count. */
 function findHeadingLines(lines: string[]): HeadingHit[] {
+  const fencedMask = computeFencedLineMask(lines);
   const out: HeadingHit[] = [];
-  let fenceChar = '';
-  let fenceLen = 0;
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (fenceChar) {
-      const close = line.match(/^(\s{0,3})([`~]{3,})\s*$/);
-      if (close && close[2][0] === fenceChar && close[2].length >= fenceLen) {
-        fenceChar = '';
-        fenceLen = 0;
-      }
-      continue;
-    }
-    const open = line.match(/^(\s{0,3})([`~]{3,})/);
-    if (open) {
-      fenceChar = open[2][0];
-      fenceLen = open[2].length;
-      continue;
-    }
-    const hm = line.trimEnd().match(/^(#{1,6})\s+(.+)$/);
+    if (fencedMask[i]) continue;
+    const hm = lines[i].trimEnd().match(/^(#{1,6})\s+(.+)$/);
     if (hm) out.push({ index: i, level: hm[1].length, text: hm[2].trim() });
   }
   return out;
