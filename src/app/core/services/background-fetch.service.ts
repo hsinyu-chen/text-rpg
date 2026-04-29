@@ -18,7 +18,7 @@ type BgFetchMessage =
 
 interface SerializedInit {
     method: string;
-    headers?: Record<string, string>;
+    headers?: [string, string][];
     body?: string | ArrayBuffer | ArrayBufferView;
     mode?: RequestMode;
     credentials?: RequestCredentials;
@@ -147,7 +147,14 @@ export class BackgroundFetchService {
             }
         };
 
-        const onAbort = () => {
+        const detachSignal = () => {
+            // Avoid leaking the listener on a long-lived AbortSignal once the
+            // request finishes naturally — `once: true` only auto-removes when
+            // the abort event actually fires.
+            signal?.removeEventListener('abort', onAbort);
+        };
+
+        function onAbort() {
             clearTtfm();
             sendAbort();
             const err = new DOMException('The operation was aborted.', 'AbortError');
@@ -158,7 +165,7 @@ export class BackgroundFetchService {
                 bodyClosed = true;
             }
             closePort();
-        };
+        }
         signal?.addEventListener('abort', onAbort, { once: true });
 
         channel.port1.onmessage = (e: MessageEvent<BgFetchMessage>) => {
@@ -184,6 +191,7 @@ export class BackgroundFetchService {
                         bodyController.close();
                         bodyClosed = true;
                     }
+                    detachSignal();
                     break;
                 }
                 case 'error': {
@@ -194,6 +202,7 @@ export class BackgroundFetchService {
                         bodyController.error(err);
                         bodyClosed = true;
                     }
+                    detachSignal();
                     break;
                 }
             }
@@ -211,7 +220,10 @@ export class BackgroundFetchService {
         const out: SerializedInit = { method: init?.method ?? 'GET' };
         if (!init) return out;
         if (init.headers) {
-            out.headers = Object.fromEntries(new Headers(init.headers));
+            // Keep as array-of-pairs so multi-value headers (e.g. Set-Cookie-style
+            // duplicates on requests) survive the trip; Object.fromEntries would
+            // collapse to the last value.
+            out.headers = [...new Headers(init.headers)];
         }
         if (init.mode) out.mode = init.mode;
         if (init.credentials) out.credentials = init.credentials;
