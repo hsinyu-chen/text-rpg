@@ -1,4 +1,4 @@
-import { Component, inject, signal, output, computed, effect, untracked } from '@angular/core';
+import { Component, inject, signal, output, computed, linkedSignal } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -389,7 +389,6 @@ export class BookListComponent {
     readonly rootId = ROOT_COLLECTION_ID;
 
     books = signal<Book[]>([]);
-    private expandedIds = signal<Set<string>>(new Set([ROOT_COLLECTION_ID]));
 
     totalBookCount = computed(() => this.books().length);
 
@@ -398,6 +397,19 @@ export class BookListComponent {
         if (!id) return null;
         const book = this.books().find(b => b.id === id);
         return book?.collectionId ?? null;
+    });
+
+    // Source must include bookId, not just collectionId — switching between two
+    // books in the same collection has to reset too, otherwise a prior manual
+    // collapse would persist across the switch. Both upstream signals do
+    // Object.is dedup, so unrelated books() churn (autosave) never reaches this
+    // computation; whenever it runs, something we care about actually changed.
+    private expandedIds = linkedSignal<{ bookId: string | null; collectionId: string | null }, Set<string>>({
+        source: () => ({
+            bookId: this.session.currentBookId(),
+            collectionId: this.activeCollectionId()
+        }),
+        computation: (s) => new Set<string>([s.collectionId ?? ROOT_COLLECTION_ID])
     });
 
     bookGroups = computed<BookGroup[]>(() => {
@@ -427,9 +439,14 @@ export class BookListComponent {
     }
 
     toggleCollection(id: string): void {
-        const next = new Set(this.expandedIds());
-        if (next.has(id)) next.delete(id); else next.add(id);
-        this.expandedIds.set(next);
+        // Accordion: if this one is already the (only) open one, collapse it;
+        // otherwise open it exclusively and close every other collection.
+        const current = this.expandedIds();
+        if (current.has(id)) {
+            this.expandedIds.set(new Set());
+        } else {
+            this.expandedIds.set(new Set([id]));
+        }
     }
 
     private activeSessionCost = computed(() => {
@@ -497,29 +514,8 @@ export class BookListComponent {
         return `${currency} ${converted.toFixed(decimals)}`;
     }
 
-    private lastAutoExpandedFor: string | null = null;
-
     constructor() {
         this.loadBooks();
-        // Auto-expand the collection containing the active book once per
-        // book switch. Reads of expandedIds happen inside untracked() so user
-        // collapses don't immediately re-trigger this and re-open the panel.
-        effect(() => {
-            const id = this.session.currentBookId();
-            if (!id) return;
-            if (id === this.lastAutoExpandedFor) return;
-            const book = this.books().find(b => b.id === id);
-            if (!book) return; // wait for books to hydrate
-            untracked(() => {
-                const cid = book.collectionId || ROOT_COLLECTION_ID;
-                if (!this.expandedIds().has(cid)) {
-                    const next = new Set(this.expandedIds());
-                    next.add(cid);
-                    this.expandedIds.set(next);
-                }
-                this.lastAutoExpandedFor = id;
-            });
-        });
     }
 
     async loadBooks() {
@@ -595,10 +591,8 @@ export class BookListComponent {
         try {
             await this.collectionService.moveBook(book.id, targetId);
             await this.loadBooks();
-            // Make sure the destination is visible after the move.
-            const next = new Set(this.expandedIds());
-            next.add(targetId);
-            this.expandedIds.set(next);
+            // Accordion: surface the destination exclusively after the move.
+            this.expandedIds.set(new Set([targetId]));
         } catch (e) {
             await this.dialog.alert((e as Error).message);
         }
@@ -634,9 +628,7 @@ export class BookListComponent {
         const name = await this.promptName('New Collection');
         if (!name) return;
         const c = await this.collectionService.create(name);
-        const next = new Set(this.expandedIds());
-        next.add(c.id);
-        this.expandedIds.set(next);
+        this.expandedIds.set(new Set([c.id]));
     }
 
     async renameCollection(collection: Collection, event: Event) {
