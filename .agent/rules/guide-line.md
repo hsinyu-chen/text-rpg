@@ -21,6 +21,10 @@ description: Project Coding Standards and Rules
 # ANGULAR 21+ CODING STANDARDS
 **THIS IS ZONELESS PROJECT**
 
+## Tooling: angular-cli MCP
+- Use `find_examples` / `search_documentation` for unfamiliar APIs instead of guessing from training data.
+- `get_best_practices` returns upstream Angular standards; **this file overrides it** when stricter (e.g. upstream may show `subscribe()` / constructor DI, both banned here).
+
 ## 🚫 NEGATIVE CONSTRAINTS (HARD BANS)
 1. **NO Manual Subscriptions**: BANNED `.subscribe()`. Use `resource` or `rxResource`.
 2. **NO Manual Loading State**: BANNED manual flags like `isLoading = signal(false)`. Use `resource.isLoading()`.
