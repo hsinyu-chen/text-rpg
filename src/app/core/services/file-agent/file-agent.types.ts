@@ -88,6 +88,10 @@ export interface InsertIntoSectionArgs extends FileToolArgsBase {
   position: 'start' | 'end';
 }
 
+export interface GetFileOutlineArgs extends FileToolArgsBase {
+  filename: string;
+}
+
 export interface ReportProgressArgs {
   message: string;
 }
@@ -101,7 +105,7 @@ export type ParsedAction =
   | { action: 'grep'; args: GrepArgs; callId?: string }
   | { action: 'searchReplace'; args: SearchReplaceArgs; callId?: string }
   | { action: 'replaceFile'; args: ReplaceFileArgs; callId?: string }
-  | { action: 'getFileOutline'; args: FileToolArgsBase & { filename: string }; callId?: string }
+  | { action: 'getFileOutline'; args: GetFileOutlineArgs; callId?: string }
   | { action: 'readSection'; args: ReadSectionArgs; callId?: string }
   | { action: 'replaceSection'; args: ReplaceSectionArgs; callId?: string }
   | { action: 'insertSection'; args: InsertSectionArgs; callId?: string }
