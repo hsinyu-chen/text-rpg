@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
 import { StorageValue, SessionSave, ChatMessage, Book, Collection } from '../models/types';
 import { cleanBookForSync, cleanCollectionForSync } from './sync/clean.util';
-import { PromptProfile } from '../constants/prompt-profiles';
+import { DEFAULT_PROFILE_ID, PromptProfile } from '../constants/prompt-profiles';
 
 /** IDB-persisted user profile metadata. Built-in profiles never appear here. */
 export type StoredProfileMeta = Required<Pick<PromptProfile, 'id' | 'displayName' | 'baseProfileId' | 'createdAt' | 'updatedAt'>>;
@@ -184,10 +184,10 @@ export class StorageService {
 
   /**
    * Gets a profile-scoped prompt key.
-   * Default profile ('cloud') uses the bare key for backward compatibility.
+   * Default profile uses the bare key for backward compatibility.
    */
   private getProfilePromptKey(name: string, profileId: string): string {
-    return profileId === 'cloud' ? name : `${profileId}:${name}`;
+    return profileId === DEFAULT_PROFILE_ID ? name : `${profileId}:${name}`;
   }
 
   /**
@@ -213,7 +213,7 @@ export class StorageService {
    * only walks the matching key range instead of every row in the store.
    */
   async deleteAllProfilePrompts(profileId: string): Promise<void> {
-    if (profileId === 'cloud') return;
+    if (profileId === DEFAULT_PROFILE_ID) return;
     const db = await this.dbPromise;
     const tx = db.transaction('prompt_store', 'readwrite');
     const prefix = `${profileId}:`;

@@ -16,7 +16,7 @@ import {
     SnapshotTrigger
 } from './sync.types';
 import { cleanBookForSync, cleanCollectionForSync } from './clean.util';
-import { BUILT_IN_PROFILES } from '../../constants/prompt-profiles';
+import { BUILT_IN_PROFILES, getProfileScopedKey } from '../../constants/prompt-profiles';
 import { PromptProfileRegistryService } from '../prompt-profile-registry.service';
 import { ALL_PROMPT_TYPES, type PromptType } from '../injection.service';
 
@@ -981,8 +981,7 @@ export class SyncService {
         for (const profile of this.profileRegistry.list()) {
             if (profile.isBuiltIn) {
                 for (const type of PROMPT_TYPES) {
-                    const flagKey = `prompt_user_modified_${type}`;
-                    const scopedFlagKey = profile.id === 'cloud' ? flagKey : `${profile.id}:${flagKey}`;
+                    const scopedFlagKey = getProfileScopedKey(`prompt_user_modified_${type}`, profile.id);
                     if (localStorage.getItem(scopedFlagKey) !== 'true') continue;
                     const rec = await this.storage.getProfilePrompt(type, profile.id);
                     if (!rec) continue;
@@ -1120,9 +1119,7 @@ export class SyncService {
 
             await this.storage.saveProfilePrompt(type, profileId, value.content, value.tokens);
             if (isBuiltIn) {
-                const flagKey = `prompt_user_modified_${type}`;
-                const scopedFlagKey = profileId === 'cloud' ? flagKey : `${profileId}:${flagKey}`;
-                localStorage.setItem(scopedFlagKey, 'true');
+                localStorage.setItem(getProfileScopedKey(`prompt_user_modified_${type}`, profileId), 'true');
             }
             imported++;
         }
@@ -1145,9 +1142,7 @@ export class SyncService {
             if (!BUILT_IN_PROFILES.some(p => p.id === profileId)) continue;
             if (!PROMPT_TYPES.includes(type as PromptType)) continue;
             await this.storage.saveProfilePrompt(type, profileId, value.content, value.tokens);
-            const flagKey = `prompt_user_modified_${type}`;
-            const scopedFlagKey = profileId === 'cloud' ? flagKey : `${profileId}:${flagKey}`;
-            localStorage.setItem(scopedFlagKey, 'true');
+            localStorage.setItem(getProfileScopedKey(`prompt_user_modified_${type}`, profileId), 'true');
             imported++;
         }
         return { imported };

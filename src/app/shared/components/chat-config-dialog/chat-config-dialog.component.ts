@@ -23,7 +23,7 @@ import { LoadingService } from '../../../core/services/loading.service';
 import { DialogService } from '../../../core/services/dialog.service';
 import { PromptDiffDialogComponent } from '../prompt-diff-dialog/prompt-diff-dialog.component';
 import { MatBadgeModule } from '@angular/material/badge';
-import { PromptProfile } from '../../../core/constants/prompt-profiles';
+import { DEFAULT_PROFILE_ID, PromptProfile, getProfileDisplayName } from '../../../core/constants/prompt-profiles';
 
 /** Injection type definition */
 interface InjectionType {
@@ -120,9 +120,7 @@ export class ChatConfigDialogComponent {
 
     /** Resolve a profile's display name (built-in via i18n, user via displayName). */
     getProfileLabel(profile: PromptProfile): string {
-        if (profile.displayName) return profile.displayName;
-        const ui = this.ui() as unknown as Record<string, string>;
-        return profile.nameKey ? (ui[profile.nameKey] ?? profile.nameKey) : profile.id;
+        return getProfileDisplayName(profile, this.ui() as unknown as Record<string, string>);
     }
 
     isSidebarCollapsed = signal(false);
@@ -376,7 +374,7 @@ export class ChatConfigDialogComponent {
         try {
             const fallbackId = active.baseProfileId && this.registry.get(active.baseProfileId)
                 ? active.baseProfileId
-                : 'cloud';
+                : DEFAULT_PROFILE_ID;
             await this.injection.switchProfile(fallbackId);
             await this.injection.deleteProfile(active.id);
             this.refreshAllEditorContent();

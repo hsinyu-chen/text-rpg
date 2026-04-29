@@ -77,3 +77,21 @@ export function getProfileBasePath(langFolder: string, profileId: string): strin
 export function getProfileScopedKey(baseKey: string, profileId: string): string {
     return profileId === DEFAULT_PROFILE_ID ? baseKey : `${profileId}:${baseKey}`;
 }
+
+/**
+ * Resolve a profile's user-facing display name.
+ *
+ * Priority: explicit `displayName` (user profile) → i18n via `nameKey`
+ * (built-in) → raw id (defensive — should never be reached for known
+ * profiles).
+ *
+ * `uiStrings` is the locale's uiStrings object cast to a Record so we can
+ * look up by key without enumerating every nameKey at the call site.
+ * Both ChatConfigDialog and ChatInput call this; keep the resolution
+ * shape in one place so locale changes / future fields don't drift.
+ */
+export function getProfileDisplayName(profile: PromptProfile, uiStrings: Record<string, string>): string {
+    if (profile.displayName) return profile.displayName;
+    if (profile.nameKey) return uiStrings[profile.nameKey] ?? profile.nameKey;
+    return profile.id;
+}

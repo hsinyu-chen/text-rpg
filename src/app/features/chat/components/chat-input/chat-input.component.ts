@@ -25,6 +25,7 @@ import { TauriWindow } from '../../../../core/models/types';
 import { LanguageService } from '../../../../core/services/language.service';
 import { PromptProfileRegistryService } from '../../../../core/services/prompt-profile-registry.service';
 import { getUIStrings } from '../../../../core/constants/engine-protocol';
+import { getProfileDisplayName } from '../../../../core/constants/prompt-profiles';
 
 @Component({
     selector: 'app-chat-input',
@@ -61,10 +62,8 @@ export class ChatInputComponent {
         const id = this.state.activePromptProfile();
         const profile = this.profileRegistry.get(id);
         if (!profile) return id;
-        if (profile.displayName) return profile.displayName;
-        if (!profile.nameKey) return profile.id;
         const ui = getUIStrings(this.state.config()?.outputLanguage) as unknown as Record<string, string>;
-        return ui[profile.nameKey] ?? profile.nameKey;
+        return getProfileDisplayName(profile, ui);
     });
 
     // Computed: Whether there's an active session (book) to work with
