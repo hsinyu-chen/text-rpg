@@ -155,19 +155,18 @@ describe('findMarkdownSections', () => {
 
 describe('resolveSection', () => {
   it('wraps a single match as ok', () => {
-    const r = resolveSection('# A\nbody', 'A');
-    expect(r.kind).toBe('ok');
-    if (r.kind === 'ok') expect(r.section.startLine).toBe(0);
+    expect(resolveSection('# A\nbody', 'A'))
+      .toMatchObject({ kind: 'ok', section: { startLine: 0 } });
   });
 
   it('returns none when path is missing', () => {
-    expect(resolveSection('# A', 'Missing').kind).toBe('none');
+    expect(resolveSection('# A', 'Missing')).toMatchObject({ kind: 'none' });
   });
 
   it('returns ambiguous with all matches when multiple sections match', () => {
     const md = ['# X', '## Equipment', '# Y', '## Equipment'].join('\n');
     const r = resolveSection(md, 'Equipment');
-    expect(r.kind).toBe('ambiguous');
+    expect(r).toMatchObject({ kind: 'ambiguous' });
     if (r.kind === 'ambiguous') expect(r.matches).toHaveLength(2);
   });
 });
