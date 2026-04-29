@@ -47,7 +47,31 @@ What to fix:
 
 ## 2. `3.Character_Status.md`
 
-For every **non-player character** (skip entries marked `**Player Character**: Yes`), insert the following subsection **immediately before** `### Core Values and Behavior Guidelines` (skip if it already exists):
+For every **non-player character** (skip entries marked `**Player Character**: Yes`), ensure a `### Known Significant Possessions` subsection exists **immediately before** `### Core Values and Behavior Guidelines`. Even if the NPC already has this subsection — or already looks fully migrated — **still read the entire entry** and check whether any significant possessions remain stranded in other fields; if so, fold them in. Do NOT skip the scan just because the subsection exists.
+
+**Scan scope** — items can hide anywhere, but common hot spots:
+- Direct fields: `Possessions`, `Equipment`, `Carried Items`, `Gear`, etc.
+- Sub-fields under `Personal Details`: `Attire`, `Appearance`, `Disguise` — rings, necklaces, weapons, communication devices, keepsakes mentioned here.
+- Prose paragraphs in `Background`, `Current Mindset`, `View of [character]`, etc., where items get mentioned in passing (e.g. "always carries her father's dagger at her waist").
+
+**Criteria for "significant possessions"** — include any of:
+1. Named items (with a proper name, e.g. "Hyacinth Ring", "Bee Sting", "Trinity Ring").
+2. Items with emotional or relational meaning (gifted by whom, symbolizes what).
+3. Weapons, communication / magic devices, or items that shape the character's actions or identity.
+
+**Do NOT include**: ordinary clothing (uniforms, socks, dresses with no special meaning), hairstyles, or body descriptions.
+
+**Subsection format**:
+
+```
+### Known Significant Possessions
+
+- **Last Updated**: (As of Act.[Number], compiled from existing character card description)
+- [Item Name]: [one-line summary of source / purpose / meaning]
+- ...
+```
+
+Use the placeholder content ONLY if a careful read genuinely turns up nothing:
 
 ```
 ### Known Significant Possessions
@@ -55,6 +79,11 @@ For every **non-player character** (skip entries marked `**Player Character**: Y
 - **Last Updated**: (TBD; not yet observed)
 - (No known significant items recorded yet)
 ```
+
+**Clean up the source fields after migrating** (the goal here is consolidation, not duplication):
+- For **dedicated fields** (e.g. `Possessions or Equipment: Bee Sting, Communication Device`): remove the migrated entries; if the field is left empty, drop the field itself.
+- For **prose fields** (Attire / Appearance / Disguise / Background, etc.): rewrite to remove the item's description while keeping the surrounding tone and any unrelated details (e.g. "On her left ring finger she wears the 'Hyacinth Ring' Yusei gave her, symbolizing 'a lifetime'" → drop the sentence; the item moves to the new subsection with the meaning "gifted by Yusei, symbolizes 'a lifetime'" preserved in its summary).
+- If a rewrite would leave the prose broken or strip away important unrelated context, list the sentence in the final report for user judgment instead of forcing the deletion.
 
 **Never add this subsection to the protagonist's entry.**
 
