@@ -54,15 +54,14 @@ export class BackgroundFetchService {
         const shim = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
             const url = this.urlOf(input);
             const controller = sw.controller;
-            // Skip routing if the body isn't trivially clonable — fallback would
-            // otherwise re-read an already-consumed Blob/FormData/ReadableStream.
-            if (!controller || !this.shouldRoute(url) || !this.canRouteBody(init?.body)) {
+            if (!controller || !this.shouldRoute(url, init)) {
                 return original(input, init);
             }
             return this.bgFetch(controller, url, init).catch((err) => {
                 // Routing failed before the response opened — direct fetch as a
                 // fallback so a SW glitch doesn't break the user's turn. Safe
-                // because the body got reused only as a string/ArrayBuffer.
+                // because the body was only re-used as a string/ArrayBuffer
+                // (canRouteBody filters out Blob/FormData/Stream upstream).
                 console.warn('[bg-fetch] proxy failed, falling back to direct fetch', err);
                 return original(input, init);
             });
@@ -78,8 +77,40 @@ export class BackgroundFetchService {
         return input.url;
     }
 
-    private shouldRoute(url: string): boolean {
-        return /^https:\/\/generativelanguage\.googleapis\.com\//.test(url);
+    /**
+     * Decide whether a fetch should hop through the SW. We can't know the user's
+     * LLM endpoint up front (could be OpenAI, Anthropic, llama-cpp, a proxy, …)
+     * so we detect streaming-shaped requests by their wire format instead. Only
+     * cross-origin HTTP(S) requests with a clonable body are eligible — same-
+     * origin and asset fetches stay on the direct path so we don't add a hop
+     * to every page request.
+     */
+    private shouldRoute(url: string, init: RequestInit | undefined): boolean {
+        if (!/^https?:\/\//i.test(url)) return false;
+        let parsed: URL;
+        try { parsed = new URL(url); } catch { return false; }
+        if (parsed.origin === this.win.location.origin) return false;
+        if (!this.canRouteBody(init?.body)) return false;
+        return this.looksLikeStreaming(url, init);
+    }
+
+    private looksLikeStreaming(url: string, init: RequestInit | undefined): boolean {
+        // Strong signal: SSE Accept header (OpenAI, Anthropic, most SSE endpoints).
+        if (init?.headers) {
+            const accept = new Headers(init.headers).get('accept') ?? '';
+            if (accept.toLowerCase().includes('text/event-stream')) return true;
+        }
+        // URL hints — Gemini's REST streaming endpoint and SSE variant.
+        if (/:streamGenerateContent\b/.test(url)) return true;
+        if (/[?&]alt=sse(?:&|$)/.test(url)) return true;
+        // JSON body with "stream": true — OpenAI, llama-cpp OpenAI-compat,
+        // Anthropic, Mistral, most chat-completion APIs. Bounded body inspection
+        // avoids parsing megabyte-scale uploads.
+        const body = init?.body;
+        if (typeof body === 'string' && body.length <= 1024 * 1024) {
+            if (/"stream"\s*:\s*true\b/.test(body)) return true;
+        }
+        return false;
     }
 
     private canRouteBody(body: BodyInit | null | undefined): boolean {
