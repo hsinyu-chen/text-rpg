@@ -30,12 +30,16 @@ async function handleFetch(id, url, init, port) {
 
     try {
         const resp = await fetch(url, { ...init, signal: ctrl.signal });
-        safePost(port, {
+        if (!safePost(port, {
             type: 'head',
             status: resp.status,
             statusText: resp.statusText,
             headers: [...resp.headers]
-        });
+        })) {
+            // Page already gone — bail before opening the body reader.
+            ctrl.abort();
+            return;
+        }
         if (!resp.body) {
             safePost(port, { type: 'done' });
             return;

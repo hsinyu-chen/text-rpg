@@ -113,7 +113,10 @@ export class BackgroundFetchService {
         // conventions (custom proxies, self-hosted shims). Bounded inspection
         // avoids scanning megabyte-scale uploads.
         const body = init?.body;
-        if (typeof body === 'string' && body.length <= 1024 * 1024) {
+        // 64 KB cap — chat-completion request metadata (model, messages
+        // preamble, stream flag) lands in the first few KB; bigger bodies are
+        // either context-dump uploads we don't want to stream-route or noise.
+        if (typeof body === 'string' && body.length <= 64 * 1024) {
             if (/"stream"\s*:\s*true\b/.test(body)) return true;
         }
         return false;
@@ -156,6 +159,8 @@ export class BackgroundFetchService {
                 // into the page queue still reach onmessage — flag bodyClosed so those
                 // late chunks no-op instead of throwing on a cancelled stream.
                 bodyClosed = true;
+                clearTtfm();
+                detachSignal();
                 sendAbort();
                 closePort();
             }
@@ -176,6 +181,7 @@ export class BackgroundFetchService {
         let ttfmTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
             ttfmTimer = null;
             if (opened) return;
+            detachSignal();
             sendAbort();
             closePort();
             respReject(new Error('bg-fetch: no response from service worker within 60s'));
