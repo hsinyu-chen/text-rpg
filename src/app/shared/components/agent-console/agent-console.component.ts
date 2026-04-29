@@ -20,8 +20,11 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatMenuModule } from '@angular/material/menu';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { MarkdownModule } from 'ngx-markdown';
 import { FileAgentService } from '../../../core/services/file-agent/file-agent.service';
+import { BuiltInPromptsService } from '../../../core/services/file-agent/built-in-prompts.service';
 
 @Component({
   selector: 'app-agent-console',
@@ -36,6 +39,7 @@ import { FileAgentService } from '../../../core/services/file-agent/file-agent.s
     MatSelectModule,
     MatProgressSpinnerModule,
     MatTooltipModule,
+    MatMenuModule,
     MarkdownModule
   ],
   templateUrl: './agent-console.component.html',
@@ -49,7 +53,9 @@ export class AgentConsoleComponent implements OnDestroy {
 
   // Injected services
   agentService = inject(FileAgentService);
+  builtInPromptsService = inject(BuiltInPromptsService);
   private clipboard = inject(Clipboard);
+  private snackBar = inject(MatSnackBar);
 
   // Internal state
   agentPrompt = signal('');
@@ -160,6 +166,28 @@ export class AgentConsoleComponent implements OnDestroy {
         this.files().set(filename, content);
       }
     });
+  }
+
+  /** Fill the input with a built-in prompt body; auto-run only if the entry opts in. */
+  async useBuiltInPrompt(id: string): Promise<void> {
+    try {
+      const body = await this.builtInPromptsService.loadPromptBody(id);
+      this.agentPrompt.set(body);
+      const meta = (this.builtInPromptsService.index.value() ?? []).find(p => p.id === id);
+      if (meta?.autoRun) {
+        await this.runAgent();
+      }
+    } catch (err) {
+      console.error('Failed to load built-in prompt', id, err);
+      // Surface the failure — silent fallback would mask a missing translation file
+      // and the user would only see an empty input. Each prompt MUST have a body
+      // file for every supported language; a missing one is a maintenance error.
+      this.snackBar.open(
+        `Failed to load prompt "${id}" for the current language.`,
+        'Close',
+        { duration: 5000 }
+      );
+    }
   }
 
   private setupAgentConsoleScroll(): void {
