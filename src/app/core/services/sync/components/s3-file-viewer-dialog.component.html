@@ -47,6 +47,7 @@
                         <span class="col-name">Name</span>
                         <span class="col-id">ID</span>
                         <span class="col-mod">Modified</span>
+                        <span class="col-meta-active" title="metadata x-amz-meta-last-active — what sync newer-wins compares">Meta LastActive</span>
                         <span class="col-size">Size</span>
                     </div>
                     <cdk-virtual-scroll-viewport itemSize="32" class="vscroll"
@@ -58,6 +59,7 @@
                             <span class="col-name">{{ e.name ?? '—' }}</span>
                             <span class="col-id" [title]="e.id">{{ shortId(e.id) }}</span>
                             <span class="col-mod">{{ formatDate(e.modifiedAt) }}</span>
+                            <span class="col-meta-active">{{ formatDate(e.lastActiveAt) }}</span>
                             <span class="col-size">{{ formatBytes(e.size) }}</span>
                         </div>
                     </cdk-virtual-scroll-viewport>
@@ -71,6 +73,13 @@
                 } @else if (!selectedId()) {
                     <div class="placeholder">Select an entry to view its JSON.</div>
                 } @else {
+                    <div class="meta detail-times" [class.mismatch]="detailLastActiveMismatch()">
+                        <div>Meta lastActive: <code>{{ formatDate(detailEntry()?.lastActiveAt) }}</code> ({{ detailEntry()?.lastActiveAt ?? '—' }})</div>
+                        <div>Body lastActiveAt: <code>{{ formatDate(detailBodyLastActive()) }}</code> ({{ detailBodyLastActive() ?? '—' }})</div>
+                        @if (detailLastActiveMismatch()) {
+                            <div class="warn">⚠ Mismatch — sync trusts metadata, so this entry will never upload until cleared (Force Push).</div>
+                        }
+                    </div>
                     <pre class="json">{{ detailPretty() }}</pre>
                 }
             </div>

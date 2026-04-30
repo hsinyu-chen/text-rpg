@@ -1,6 +1,14 @@
 {
   "$schema": "./node_modules/@angular/service-worker/config/schema.json",
   "index": "/index.html",
+  "navigationUrls": [
+    "/**",
+    "!/**/*.*",
+    "!/**/*__*",
+    "!/**/*__*/**",
+    "!/**/*.json",
+    "!/**/*.json?**"
+  ],
   "assetGroups": [
     {
       "name": "app",
@@ -13,7 +21,9 @@
           "/manifest.webmanifest",
           "/*.css",
           "/*.js",
-          "!/assets/system_files/**"
+          "!/assets/system_files/**",
+          "!/**/*.json",
+          "!/**/*.json?**"
         ]
       }
     },
@@ -24,7 +34,9 @@
       "resources": {
         "files": [
           "/**/*.(svg|cur|jpg|jpeg|png|apng|webp|avif|gif|otf|ttf|woff|woff2)",
-          "!/assets/system_files/**"
+          "!/assets/system_files/**",
+          "!/**/*.json",
+          "!/**/*.json?**"
         ]
       }
     }

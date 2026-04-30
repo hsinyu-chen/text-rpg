@@ -89,6 +89,35 @@ export class S3FileViewerDialogComponent {
         }
     });
 
+    /** Selected entry from the current list — exposes the metadata lastActiveAt that sync uses for newer-wins decisions. */
+    detailEntry = computed<DisplayEntry | null>(() => {
+        const id = this.selectedId();
+        if (!id) return null;
+        const list = this.activeTab() === 'book' ? this.bookEntries() : this.collectionEntries();
+        return list.find(e => e.id === id) ?? null;
+    });
+
+    /** Body's own lastActiveAt — parsed from raw JSON. May diverge from metadata if a write was partial / Drive→S3 carryover / restore raced. */
+    detailBodyLastActive = computed<number | null>(() => {
+        const raw = this.detailRaw();
+        if (!raw) return null;
+        try {
+            const obj = JSON.parse(raw) as { lastActiveAt?: number; updatedAt?: number };
+            const v = Number(obj.lastActiveAt ?? obj.updatedAt);
+            return Number.isFinite(v) && v > 0 ? v : null;
+        } catch {
+            return null;
+        }
+    });
+
+    /** True iff metadata lastActiveAt and body lastActiveAt disagree by more than 1s — sync trusts metadata so a mismatch means it can never converge. */
+    detailLastActiveMismatch = computed<boolean>(() => {
+        const meta = this.detailEntry()?.lastActiveAt;
+        const body = this.detailBodyLastActive();
+        if (meta == null || body == null) return false;
+        return Math.abs(meta - body) > 1000;
+    });
+
     async onTabChange(index: number): Promise<void> {
         const tab: ViewerTab = index === 0 ? 'book'
             : index === 1 ? 'collection'

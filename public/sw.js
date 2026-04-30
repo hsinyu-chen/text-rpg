@@ -9,6 +9,21 @@
 // active fetch, so this is mitigation, not a cure. Android Chrome is much
 // more permissive.
 
+// Bypass Chrome HTTP disk cache for *.json fetches (S3 / Drive sync bodies).
+// Without this, an unchanged URL fetched after a successful PUT can hit the
+// browser's disk cache via ETag/Last-Modified conditional GET and return the
+// pre-PUT body — making sync look like it silently failed. Listener registers
+// BEFORE importScripts so our respondWith commits before ngsw-worker's fetch
+// handler runs. Skip ngsw.json itself; Angular SW manages its own manifest
+// freshness and breaking it bricks update detection.
+self.addEventListener('fetch', (event) => {
+    const url = event.request.url;
+    if (event.request.method !== 'GET') return;
+    if (!/\.json(\?|$)/.test(url)) return;
+    if (url.includes('/ngsw.json')) return;
+    event.respondWith(fetch(new Request(event.request, { cache: 'no-store' })));
+});
+
 importScripts('./ngsw-worker.js');
 
 const inflight = new Map();

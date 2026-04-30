@@ -65,7 +65,7 @@
 
 .row {
     display: grid;
-    grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) 64px;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.9fr) minmax(0, 1fr) minmax(0, 1fr) 64px;
     gap: 8px;
     padding: 0 10px;
     height: 32px; // matches cdk-virtual-scroll-viewport itemSize
@@ -111,9 +111,39 @@
         opacity: 0.85;
     }
 
+    .col-meta-active {
+        opacity: 0.85;
+    }
+
     .col-size {
         text-align: right;
         opacity: 0.85;
+    }
+}
+
+.detail-times {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-bottom: 8px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    background: rgba(127, 127, 127, 0.08);
+    font-size: 0.78em;
+
+    code {
+        font-family: 'Fira Code', 'Courier New', monospace;
+    }
+
+    &.mismatch {
+        background: rgba(244, 135, 113, 0.15);
+        border-left: 3px solid #f48771;
+        padding-left: 8px;
+    }
+
+    .warn {
+        color: #f48771;
+        margin-top: 4px;
     }
 }
 
