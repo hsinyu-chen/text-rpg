@@ -747,8 +747,15 @@ export class FileViewerDialogComponent implements OnDestroy {
       // refreshes token counts, and invalidates the KB cache hash.
       await this.engine.updateSingleFile(fileName, content);
 
-      // [Added] Clear remote cache since files have changed
-      await this.cacheManager.clearAllServerCaches();
+      // Server-side orphan-cache cleanup is cost-only — correctness is already
+      // handled by updateSingleFile (nulls kbCacheName, refreshes kbCacheHash;
+      // checkCacheAndRefresh rebuilds on the next chat turn). Skip it while the
+      // file agent is running: on llama.cpp's single-slot model, deleteAllCaches
+      // POSTs /slots/0?action=erase and aborts the in-flight inference (also
+      // raises a loading mask that won't lift until the agent unblocks).
+      if (!this.fileAgentService.isAgentRunning()) {
+        await this.cacheManager.clearAllServerCaches();
+      }
 
       // Persist the in-memory session state into the current Book entity.
       // Without this, loadBook() on next reload would wipe the change from file_store.
