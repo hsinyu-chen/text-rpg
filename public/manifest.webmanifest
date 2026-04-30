@@ -3,7 +3,6 @@
   "short_name": "Text RPG",
   "display": "standalone",
   "display_override": ["fullscreen", "standalone"],
-  "orientation": "any",
   "theme_color": "#c2185b",
   "background_color": "#121212",
   "scope": "./",

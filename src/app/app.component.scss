@@ -1,6 +1,9 @@
 :host {
     display: block;
-    height: 100vh;
+    // dvh shrinks when the on-screen keyboard appears (paired with the
+    // viewport's interactive-widget=resizes-content), so the layout
+    // collapses around the input instead of pushing it below the fold.
+    height: 100dvh;
     background-color: #121212;
     color: #e0e0e0;
 }
