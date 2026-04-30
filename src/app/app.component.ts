@@ -111,6 +111,13 @@ export class AppComponent {
         void this.sync.bootSync();
         return this.session.init();
       })
+      // loadFiles must run AFTER session.init() resolves — it reads file_store
+      // and writes state.loadedFiles + saves the active book. Running it in
+      // parallel with loadBook (which clearFiles()'s + re-populates file_store)
+      // produces a race where loadFiles reads a half-populated store and then
+      // persists the truncated set back into books_store, losing files on
+      // every reload. bumpTimestamp=false: pure re-read, not a content change.
+      .then(() => this.session.loadFiles(false, false))
       .then(() => this.engine.startSession());
 
     // Initialize sidebar state based on mobile

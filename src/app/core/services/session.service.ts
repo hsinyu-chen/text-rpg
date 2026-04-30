@@ -58,7 +58,11 @@ export class SessionService {
                 const book = await this.storage.getBook(lastBookId);
                 if (book) {
                     console.log(`[SessionService] Auto-loading last book: ${book.name} (${lastBookId})`);
-                    await this.loadBook(lastBookId);
+                    // autoSave=false: boot has no prior active book to save —
+                    // loadBook's unloadCurrentSession branch is gated on
+                    // currentBookId() anyway, but pass the accurate flag so
+                    // the log line doesn't claim AutoSave: true.
+                    await this.loadBook(lastBookId, false);
                     return; // loadBook already restored messages
                 } else {
                     console.warn(`[SessionService] Last active book ${lastBookId} not found. Clearing.`);

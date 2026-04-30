@@ -125,11 +125,12 @@ export class ConfigService {
         // Populate the sync model cache for cost displays.
         void this.providerRegistry.refreshActiveModels();
 
-        // Sync files from DB on startup. bumpTimestamp=false: this is a re-read
-        // of files already on disk, not a real KB content change. Bumping
-        // lastActiveAt here makes bootSync see the local book as newer than the
-        // cloud and overwrites a freshly-uploaded version from another device.
-        this.session.loadFiles(false, false);
+        // KB token recompute is sequenced AFTER session.init() in app.component
+        // so it doesn't race loadBook's clearFiles + saveFile loop. Doing it
+        // here fire-and-forget would let loadFiles read a half-populated
+        // file_store, set state.loadedFiles to an incomplete map, and then
+        // saveCurrentSessionToBook would persist the truncated set back into
+        // books_store — losing files on every reload.
     }
 
     /**
