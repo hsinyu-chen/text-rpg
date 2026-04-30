@@ -7,14 +7,14 @@ The final structure must match this template:
 ````markdown
 # Assets
 
-> **Scope**: This file records ONLY cash, real estate, and base layouts **owned by the protagonist**. Each base layout MAY include **long-term items deposited at that location** (distinct from `9.Inventory.md`: Inventory is for carried items, this file is for non-carried storage). **NPCs' and companions' personal assets** belong in `3.Character_Status.md` under that character's entry, NOT here.
+> **Scope**: This file records ONLY the protagonist's **non-carried wealth** — **cash stored at bases / vaults**, real estate, and base layouts. Each base layout MAY include **long-term items deposited at that location**. **The protagonist's pocket cash and on-person items** belong in `9.Inventory.md` (this file's "Movable Assets → Stored Cash" and Inventory's "Pocket Cash" are two mutually exclusive ledgers). **NPCs' and companions' personal assets** belong in `3.Character_Status.md` under that character's entry, NOT here.
 
 ## Save Format
 
 ```
 # Movable Assets
 
-* **Current Cash**: **[Amount] [Currency]** (As of Act.[Number])
+* **Stored Cash**: **[Amount] [Currency]** (As of Act.[Number]; counts only cash held at bases / vaults, NOT what the protagonist is carrying)
 
 # Real Estate
 
@@ -45,6 +45,7 @@ What to fix:
 - **Do NOT modify the actual data** (amounts / base layouts) — only adjust structural headings.
 - The `> Scope` blockquote and `## Save Format` block must be added **idempotently**: before inserting, use `readSection` on the top of `# Assets` or `grep` for `Scope`/`Save Format` to confirm the block does **not already exist**. If a similar block is already present (even with slightly different wording), treat it as done and skip — do NOT add a second copy. If the existing block is genuinely outdated or wrong, rewrite it with `replaceSection` / `searchReplace`, never `insertIntoSection` on top of it.
 - If `## Save Format` was previously split between `# Movable Assets` and `# Real Estate`, merge them into a single block placed under top-level `# Assets` (delete the old copies first, then insert the merged block in the correct position).
+- **Split the cash field**: legacy files often label `# Movable Assets`'s cash entry "Current Cash", lumping pocket cash together with treasury cash. Rename it to "Stored Cash" and keep ONLY the portion held at bases / vaults. If the description explicitly mentions an on-person remainder ("the rest is carried", "N gold on him"), add a cash entry under a carried container in `9.Inventory.md` (copy the amount, note the source if needed) and subtract it here. If the split is undeterminable (a single combined total with no breakdown), leave the original amount under Stored Cash and call it out in the final report for the user to adjust.
 
 ## 2. `3.Character_Status.md`
 
@@ -90,9 +91,10 @@ Use the placeholder content ONLY if a careful read genuinely turns up nothing:
 
 ## 3. `9.Inventory.md`
 
-New rule: this file records ONLY items **owned by the protagonist** that are **carried (on-person)**. Review the content:
+New rule: this file records ONLY items **owned by the protagonist** that are **carried (on-person)** — including pocket cash and any small valuables the protagonist keeps on them. Review the content:
 - If any entries describe an NPC's personal items (e.g. "Lita's necklace"), move them into that NPC's `### Known Significant Possessions` in `3.Character_Status.md` and delete them from this file.
 - If any containers represent storage at a base, inn, or third-party safekeeping (e.g. "Home Chest", "Inn Locker"), remove them from this file and write the content under the corresponding base layout in `4.Assets.md` (create the base in `4.Assets.md` if it does not yet exist).
+- For any **on-person cash** split out from `4.Assets.md`'s Movable Assets, add it under a carried container here (e.g. `## 【On-Person】Pockets` → `### Cash → * Gold / N`); create the container if none exists yet.
 - For ambiguous entries, leave them in place and call them out in the final report so the user can decide.
 
 ## Finish
