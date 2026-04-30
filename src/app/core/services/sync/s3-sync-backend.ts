@@ -305,10 +305,15 @@ export class S3SyncBackend implements SyncBackend {
         }
 
         // Metadata missing (CORS strip or never written) — read body.
+        // ResponseCacheControl tells the server to set Cache-Control: no-store
+        // on its reply, so Chrome's HTTP disk cache doesn't serve stale bodies
+        // on subsequent GETs (heuristic freshness off Last-Modified would
+        // otherwise mask post-PUT updates inside the cache window).
         try {
             const get = await this.client.send(new GetObjectCommand({
                 Bucket: this.bucket,
-                Key: p.key
+                Key: p.key,
+                ResponseCacheControl: 'no-store'
             }));
             if (!get.Body) return fallback;
             const text = await get.Body.transformToString();
@@ -323,7 +328,8 @@ export class S3SyncBackend implements SyncBackend {
     async read(resource: SyncResource, id: string): Promise<string> {
         const res = await this.client.send(new GetObjectCommand({
             Bucket: this.bucket,
-            Key: this.keyFor(resource, id)
+            Key: this.keyFor(resource, id),
+            ResponseCacheControl: 'no-store'
         }));
         if (!res.Body) throw new Error(`S3: empty body for ${resource}/${id}`);
         return res.Body.transformToString();
@@ -435,7 +441,8 @@ export class S3SyncBackend implements SyncBackend {
         try {
             const res = await this.client.send(new GetObjectCommand({
                 Bucket: this.bucket,
-                Key: this.settingsKey()
+                Key: this.settingsKey(),
+                ResponseCacheControl: 'no-store'
             }));
             if (!res.Body) return null;
             return await res.Body.transformToString();
@@ -458,7 +465,8 @@ export class S3SyncBackend implements SyncBackend {
         try {
             const res = await this.client.send(new GetObjectCommand({
                 Bucket: this.bucket,
-                Key: this.promptsKey()
+                Key: this.promptsKey(),
+                ResponseCacheControl: 'no-store'
             }));
             if (!res.Body) return null;
             return await res.Body.transformToString();
@@ -603,7 +611,8 @@ export class S3SyncBackend implements SyncBackend {
         assertSnapshotId(snapshotId);
         const res = await this.client.send(new GetObjectCommand({
             Bucket: this.bucket,
-            Key: this.snapshotManifestKey(snapshotId)
+            Key: this.snapshotManifestKey(snapshotId),
+            ResponseCacheControl: 'no-store'
         }));
         if (!res.Body) throw new Error(`S3: empty manifest for snapshot ${snapshotId}`);
         const text = await res.Body.transformToString();
@@ -892,7 +901,8 @@ export class S3SyncBackend implements SyncBackend {
         await this.parallelPool([...bookRestoreSrc, ...collRestoreSrc], async (item) => {
             const get = await this.client.send(new GetObjectCommand({
                 Bucket: this.bucket,
-                Key: item.srcKey
+                Key: item.srcKey,
+                ResponseCacheControl: 'no-store'
             }));
             if (!get.Body) {
                 throw new Error(`S3: empty body for snapshot entry ${item.dstResource}/${item.id}`);
