@@ -2,7 +2,6 @@ import { LLMPart, LLMUsageMetadata } from '@hcs/llm-core';
 
 export type Schema = object;
 
-// New nested response structure (analysis -> response)
 export interface EngineResponseNested {
     analysis: string;
     response: {
@@ -12,22 +11,9 @@ export interface EngineResponseNested {
         inventory_log?: string[];
         quest_log?: string[];
         world_log?: string[];
-        isCorrection?: boolean;
+        correction?: string;
     };
 }
-
-// Old flat response structure (for backward compatibility with old saved data)
-export interface EngineResponseFlat {
-    analysis: string;
-    story: string;
-    summary: string;
-    correction?: string; // Deprecated: old format used string, now we use isCorrection boolean
-}
-
-// Union type supporting both old and new formats
-export type EngineResponse = EngineResponseNested | EngineResponseFlat;
-
-
 
 export type ExtendedPart = LLMPart;
 
@@ -55,7 +41,7 @@ export interface ChatMessage {
     summary?: string;
     intent?: string;
     isManualRefOnly?: boolean;
-    isCorrection?: boolean;
+    correction?: string;
 }
 
 export interface TauriWindow extends Window {

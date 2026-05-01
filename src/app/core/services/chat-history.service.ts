@@ -65,6 +65,16 @@ export class ChatHistoryService {
     }
 
     /**
+     * Updates the correction note of a specific message by ID.
+     */
+    updateMessageCorrection(id: string, correction: string) {
+        this.state.messages.update(msgs =>
+            msgs.map(m => (m.id === id ? { ...m, correction } : m))
+        );
+        this.storage.set('chat_history', this.state.messages());
+    }
+
+    /**
      * Deletes a specific message from the chat history.
      */
     deleteMessage(id: string) {

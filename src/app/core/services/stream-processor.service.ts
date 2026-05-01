@@ -14,7 +14,7 @@ export interface StreamProcessResult {
     finalInventoryLog: string[];
     finalQuestLog: string[];
     finalWorldLog: string[];
-    isCorrection: boolean;
+    correction: string;
     turnUsage: LLMUsageMetadata;
     capturedFCs: ExtendedPart[];
     capturedThoughtSignature?: string;
@@ -173,7 +173,7 @@ export class StreamProcessorService {
         let finalInventoryLog: string[] = [];
         let finalQuestLog: string[] = [];
         let finalWorldLog: string[] = [];
-        let isCorrection = false;
+        let correction = '';
 
         try {
             const parsed = this.parser.bestEffortJsonParser(currentJSONAccumulator) as Partial<EngineResponseNested>;
@@ -197,7 +197,9 @@ export class StreamProcessorService {
                     finalWorldLog = parsed.response.world_log.map(w => this.parser.processModelField(w));
                 }
 
-                if (parsed.response.isCorrection) isCorrection = true;
+                if (typeof parsed.response.correction === 'string' && parsed.response.correction.trim()) {
+                    correction = this.parser.processModelField(parsed.response.correction).trim();
+                }
             }
         } catch (jsonErr) {
             console.error('[StreamProcessor] JSON Parse Failed:', jsonErr);
@@ -225,7 +227,7 @@ export class StreamProcessorService {
             finalInventoryLog: processed.inventory_log,
             finalQuestLog: processed.quest_log,
             finalWorldLog: processed.world_log,
-            isCorrection,
+            correction,
             turnUsage,
             capturedFCs,
             capturedThoughtSignature,

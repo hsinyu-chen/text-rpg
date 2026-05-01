@@ -8,12 +8,45 @@ import { CacheManagerService } from './cache-manager.service';
 import { CostService } from './cost.service';
 import { KnowledgeService } from './knowledge.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { SessionSave, Scenario, Book, ROOT_COLLECTION_ID } from '../models/types';
+import { SessionSave, Scenario, Book, ROOT_COLLECTION_ID, ChatMessage } from '../models/types';
 import { CollectionService } from './collection.service';
 import { GAME_INTENTS } from '../constants/game-intents';
 import { getCoreFilenames, getSectionHeaders, getUIStrings } from '../constants/engine-protocol';
 import { LOCALES } from '../constants/locales';
 import { convertLatexToSymbols, repairCorruptedLatex } from '../utils/latex.util';
+
+// Pre-feat/correction-string saves stored intent as the raw <XXX> tag and used
+// boolean isCorrection. Normalize on load so downstream code only sees the
+// current shape. Built dynamically from LOCALES so legacy saves from any
+// supported locale (zh-tw <行動意圖>, en <Action>, …) all migrate.
+const LEGACY_INTENT_TAG_MAP: Map<string, string> = (() => {
+    const m = new Map<string, string>();
+    for (const locale of Object.values(LOCALES)) {
+        const t = locale.intentTags;
+        m.set(t.ACTION, GAME_INTENTS.ACTION);
+        m.set(t.FAST_FORWARD, GAME_INTENTS.FAST_FORWARD);
+        m.set(t.SYSTEM, GAME_INTENTS.SYSTEM);
+        m.set(t.SAVE, GAME_INTENTS.SAVE);
+        m.set(t.CONTINUE, GAME_INTENTS.CONTINUE);
+    }
+    return m;
+})();
+
+function migrateIntent(m: ChatMessage): ChatMessage {
+    if (!m.intent) return m;
+    const canonical = LEGACY_INTENT_TAG_MAP.get(m.intent);
+    return canonical ? { ...m, intent: canonical } : m;
+}
+
+function migrateLegacyCorrection(raw: ChatMessage & { isCorrection?: boolean }): ChatMessage {
+    if (!('isCorrection' in raw)) return raw;
+    const m: ChatMessage & { isCorrection?: boolean } = { ...raw };
+    if (m.isCorrection && !m.correction) {
+        m.correction = '(legacy correction — original note unavailable)';
+    }
+    delete m.isCorrection;
+    return m;
+}
 
 @Injectable({
     providedIn: 'root'
@@ -491,21 +524,24 @@ export class SessionService {
             // Restore Messages
             await this.storage.clear(); // chat_store
             // Repair corrupted LaTeX in existing messages from older sessions
-            const repairedMessages = book.messages.map(m => ({
-                ...m,
-                content: repairCorruptedLatex(m.content),
-                thought: m.thought ? repairCorruptedLatex(m.thought) : m.thought,
-                analysis: m.analysis ? repairCorruptedLatex(m.analysis) : m.analysis,
-                summary: m.summary ? convertLatexToSymbols(m.summary) : m.summary,
-                character_log: m.character_log?.map(c => convertLatexToSymbols(c)),
-                inventory_log: m.inventory_log?.map(i => convertLatexToSymbols(i)),
-                quest_log: m.quest_log?.map(q => convertLatexToSymbols(q)),
-                world_log: m.world_log?.map(w => convertLatexToSymbols(w)),
-                parts: m.parts?.map(p => ({
-                    ...p,
-                    text: p.text ? (m.role === 'model' && (p.thought || p.thoughtSignature) ? repairCorruptedLatex(p.text) : convertLatexToSymbols(p.text)) : p.text
-                })) || []
-            }));
+            const repairedMessages = book.messages.map(raw => {
+                const m = migrateLegacyCorrection(migrateIntent(raw));
+                return {
+                    ...m,
+                    content: repairCorruptedLatex(m.content),
+                    thought: m.thought ? repairCorruptedLatex(m.thought) : m.thought,
+                    analysis: m.analysis ? repairCorruptedLatex(m.analysis) : m.analysis,
+                    summary: m.summary ? convertLatexToSymbols(m.summary) : m.summary,
+                    character_log: m.character_log?.map(c => convertLatexToSymbols(c)),
+                    inventory_log: m.inventory_log?.map(i => convertLatexToSymbols(i)),
+                    quest_log: m.quest_log?.map(q => convertLatexToSymbols(q)),
+                    world_log: m.world_log?.map(w => convertLatexToSymbols(w)),
+                    parts: m.parts?.map(p => ({
+                        ...p,
+                        text: p.text ? (m.role === 'model' && (p.thought || p.thoughtSignature) ? repairCorruptedLatex(p.text) : convertLatexToSymbols(p.text)) : p.text
+                    })) || []
+                };
+            });
             await this.storage.set('chat_history', repairedMessages);
             this.state.messages.set(repairedMessages);
             if (repairedMessages.length > 0) this.isContextInjected = true;
@@ -760,9 +796,10 @@ export class SessionService {
      * Imports a saved session state.
      */
     async importSession(save: SessionSave) {
-        // Restore messages
-        this.state.messages.set(save.messages);
-        await this.storage.set('chat_history', save.messages);
+        // Restore messages (apply same legacy migrations as the other load paths)
+        const migrated = save.messages.map(m => migrateLegacyCorrection(migrateIntent(m)));
+        this.state.messages.set(migrated);
+        await this.storage.set('chat_history', migrated);
 
         // Restore usage stats
         this.state.tokenUsage.set(save.tokenUsage);
@@ -975,15 +1012,7 @@ export class SessionService {
     async loadHistoryFromStorage() {
         const saved = await this.storage.get('chat_history');
         if (saved && Array.isArray(saved)) {
-            const migrated = saved.map(m => {
-                if (!m.intent) return m;
-                if (m.intent === '<行動意圖>') return { ...m, intent: GAME_INTENTS.ACTION };
-                if (m.intent === '<快轉>') return { ...m, intent: GAME_INTENTS.FAST_FORWARD };
-                if (m.intent === '<系統>') return { ...m, intent: GAME_INTENTS.SYSTEM };
-                if (m.intent === '<存檔>') return { ...m, intent: GAME_INTENTS.SAVE };
-                if (m.intent === '<繼續>') return { ...m, intent: GAME_INTENTS.CONTINUE };
-                return m;
-            });
+            const migrated = saved.map(m => migrateLegacyCorrection(migrateIntent(m)));
             this.state.messages.set(migrated);
             if (saved.length > 0) {
                 this.isContextInjected = true;

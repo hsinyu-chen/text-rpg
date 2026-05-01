@@ -283,14 +283,20 @@ Strictly follow these JSON field definitions:
     - **Consumed/Used**: Items used up or functional consumption (e.g., `Consumed Health Potion / 1`).
     - **Moved**: Items moved into a portable on-person storage (e.g., `Moved to Dimensional Box / Arcane Crystal x3`).
     - **Deposited**: Items placed in long-term storage at a base owned by the protagonist, OR stored at an inn / third-party safekeeping (e.g., `Deposited at Manor Cellar / Diary x1`).
+    - **Retrieved**: Items retrieved from a deposit/non-carried location back on-person (e.g., `Retrieved from Manor Cellar / Battle Armor x1`). Append `(Equipped)` to indicate direct donning.
+    - **Equipped**: Don a piece of equipment/clothing/accessory/weapon (e.g., `Equipped Rusty Sword`, `Equipped Steel Breastplate`).
+    - **Unequipped**: Take off an equipped item back into carried storage (e.g., `Unequipped Rusty Sword`).
+    - **Corrected**: Item-state correction caused by a story correction. **ONLY allowed when `correction` is non-empty** (e.g., `Corrected Red Gown→Blue School Uniform`).
   - **[Protagonist-Owned Only]**: This field records ONLY items/money/assets **personally owned by the protagonist**. Personal property of **companions, love interests, employers, hosts**, etc. **MUST NOT** be recorded here — use `character_log`'s `Possession Change:` label instead. Even if the protagonist is temporarily sheltered, hosted, or kept as a kept-man, the host's belongings are NOT the protagonist's possessions.
   - **[Carried vs Non-Carried]**: Whether an item is "carried" (on-person) or "non-carried" is judged by you based on setting and context. Carried-item changes (pocket, hand, backpack, protagonist's private portable space, etc.) map to `{{FILE_INVENTORY}}`; non-carried money, real estate, items deposited at bases/inns map to `{{FILE_ASSETS}}`.
   - **Core Principle**: Strictly FORBIDDEN to label simple storage movements (Moved/Deposited) as "Consumed". Use "Consumed" ONLY when an item is actually used up or destroyed.
   - **No Storage = No Log**: If an item was NOT explicitly stored (put in pocket, backpack, etc.), do NOT log "Gained".
   - **Scene Consumables = No Log**: Items used directly within the scene (hotel-provided meals, items handed by NPCs, consumables taken from the environment) do NOT require logging. ONLY log items in `{{FILE_INVENTORY}}`, `{{FILE_ASSETS}}`, or historical `inventory_log`.
+  - **[Equip Scope]**: `Equipped`/`Unequipped` apply to **clothing/equipment, accessories, weapons, gear** (armor, helmet, cloak, coat, necklace, ring, gloves, weapons). Briefly taking out and putting back (e.g., pocket-watch) is NOT a state change.
+  - **[Mandatory Double-Write for Equip/Unequip]**: When using `Equipped`/`Unequipped`/`Retrieved (Equipped)`, you **MUST** also write a corresponding `Equipment Change:` entry in `character_log`. Both fields are required.
   - **No Prediction**: Only log AFTER confirmation.
 
-  - **Example**: `["Gained Rusty Sword", "Consumed Health Potion / 1", "Moved to Dimensional Box / Arcane Crystal x3", "Deposited at Manor Cellar / Diary x1"]`
+  - **Example**: `["Gained Rusty Sword", "Consumed Health Potion / 1", "Moved to Dimensional Box / Arcane Crystal x3", "Deposited at Manor Cellar / Diary x1", "Retrieved from Manor Cellar / Battle Armor x1 (Equipped)", "Equipped Rusty Sword", "Unequipped Steel Breastplate"]`
 - **quest_log**:
   - `string[]`.
   - Record **THIS TURN'S** changes to quests or long-term plans (`{{FILE_PLANS}}`). Record specific quest details and plot twists.
@@ -305,15 +311,21 @@ Strictly follow these JSON field definitions:
 
 - **character_log**:
   - `string[]`.
-  - Record **THIS TURN'S** encounters with noteworthy characters, and **any substantial state changes across all fields** (Physical condition, Injuries, Emotions, Relationships, Goals, Location, **Known Significant Possessions**, etc.).
+  - Record **THIS TURN'S** state changes for the **protagonist themselves** AND noteworthy NPCs encountered, across **any substantial field change** (Physical condition, Injuries, Emotions, Relationships, Goals, Location, Equipment State, **Known Significant Possessions**, etc.).
+  - **[Protagonist Scope]**: This field **also records the protagonist's own** state changes (injuries, emotions, goals, location, equipment state). However, **plain protagonist item gain/consume/move/deposit/retrieve are NOT recorded here** — those go to `inventory_log`.
+  - **[Protagonist Equipment Change — Mandatory Double-Write]**: When the protagonist equips, unequips, swaps, draws, or sheathes clothing, accessories, weapons, or gear, you **MUST**:
+    1. Write `Equipment Change: Protagonist_Name (Action1: Item1, Action2: Item2, ...)` (Action ∈ Equipped/Unequipped/Swapped/Drawn/Sheathed) in `character_log`.
+    2. ALSO write corresponding entries in `inventory_log`, mapping: `Drawn`→`Equipped`, `Sheathed`→`Unequipped`, `Swapped: A for B`→two entries `Unequipped A` + `Equipped B`; `Equipped`/`Unequipped` map directly to the same tag.
+    Both fields are mandatory.
+  - **[NPC Scope]**: All NPC changes (state, location, possession) belong here, NO double-write to `inventory_log`.
   - **No Spoilers**: Use descriptions for unrevealed characters (e.g., `Blonde Man??`). **ABSOLUTELY PROHIBIT** using real names from files until revealed in the story.
   - **No Mob/Generic Logging**: **ABSOLUTELY PROHIBIT** logging generic "Passerby A", "Guard B", "Villager", "Bandit", etc.
-    - **Identification Rule**: If the character name follows a pattern like `{Generic Role} + {Letter/Number/ID}` (e.g., Guard A, Thief B) or lacks a specific name ("Nameless Soldier"), it is considered a generic mob and **MUST NOT** be logged in `character_log`.
-    - **Impact Rule**: Only log **named characters with narrative impact**, OR entities that the **protagonist actively interacts with, asks their name, or shows explicit interest in**.
-  - **[Possession Change — NPC Personal Items Only]**: When the protagonist observes, infers, or is told that a named NPC (companion, love interest, employer, enemy, etc.) holds a plot-relevant item (weapon, keepsake, key document, wealth, special tool, etc.), record it as `Possession Change: NPC_Name (Add/Lose/Trade: Item_Name x_Qty, Source/Use)`. This entry maps to the `### Known Significant Possessions` section under that NPC's entry. Mobs and one-shot NPCs must NOT be logged. **Note**: The protagonist's own items belong in `inventory_log`, NEVER here.
+    - **Identification Rule**: If the NPC name follows a pattern like `{Generic Role} + {Letter/Number/ID}` (e.g., Guard A, Thief B) or lacks a specific name ("Nameless Soldier"), it is considered a generic mob and **MUST NOT** be logged. Protagonist exempt.
+    - **Impact Rule**: Only log **named NPCs with narrative impact**, OR entities the **protagonist actively interacts with**. Protagonist always qualifies.
+  - **[Possession Change — NPC Personal Items Only]**: When the protagonist observes, infers, or is told that a named NPC (companion, love interest, employer, enemy, etc.) holds a plot-relevant item (weapon, keepsake, key document, wealth, special tool, etc.), record it as `Possession Change: NPC_Name (Add/Lose/Trade: Item_Name x_Qty, Source/Use)`. This entry maps to the `### Known Significant Possessions` section under that NPC's entry. Mobs and one-shot NPCs must NOT be logged. **Note**: The protagonist's own non-equipment items belong in `inventory_log`, NEVER here.
 
   - **Example**:
-    - `["New Character: Lita (an elf girl met on a forest path)", "Status Change: Alwin (critically injured and unconscious)", "Status Change: Hilde (intrigued and friendly after the protagonist's help)", "Location Update: Arthur (has left the tavern for the city gate)", "Possession Change: Lita (Add: Father's heirloom necklace x1, Source: retrieved from a hidden compartment in her home)"]`
+    - `["New Character: Lita (an elf girl met on a forest path)", "Status Change: Alwin (critically injured and unconscious)", "Status Change: Hilde (intrigued and friendly after the protagonist's help)", "Location Update: Arthur (has left the tavern for the city gate)", "Possession Change: Lita (Add: Father's heirloom necklace x1, Source: retrieved from a hidden compartment in her home)", "Equipment Change: Cheng Yang-Zong (Equipped: Steel Breastplate)", "Status Change: Cheng Yang-Zong (left shoulder pierced by arrow, bleeding)"]`
   - Empty `[]` if no change.
 
 - **world_log**:
@@ -336,10 +348,17 @@ Strictly follow these JSON field definitions:
     - `["Discovery[Faction]: Silver Moon Guild (a mysterious merchant organization monopolizing northern mines)", "Discovery[Resource]: Moonseed (a rare spice that glows faint blue in moonlight)", "Develop[Equipment]: Reinforced Crossbow (effective range increased to 80 meters)", "Develop[Magic]: Wind Blade (can fire cutting blades of wind)", "Status Change: North Gate Fortress (fallen, now occupied by enemy forces)"]`
   - Empty `[]` if no change.
 
-- **isCorrection** (Optional):
-  - `boolean`, default `false`.
-  - Set `true` ONLY if user used `<System>` to request **Story Correction**.
-  - If `true`: `story` MUST contain the **Full Corrected Version**.
+- **correction** (Optional):
+  - `string`, default `""`.
+  - Fill **ONLY** when user requests a **Story Correction** via `<System>` AND you accept it.
+  - **Content**: 1–2 sentences as a **rule statement** (what was wrong + corrected rule going forward).
+    - Example: `"Original story incorrectly described the protagonist wearing a red gown; going forward, the blue school uniform is canonical."`
+  - When non-empty:
+    - `story` MUST contain the **Full Corrected Version**; `analysis` and `summary` also corrected.
+    - If error involves protagonist equipment/items/state, also write `Corrected` entry in `inventory_log` or corresponding `character_log` change.
+    - System auto-marks the previous story as "reference only".
+  - If `<System>` is just an OOC question, keep `correction` as `""`.
+  - **[Historical correction = hard rule]**: If a `correction:` entry appears in earlier history, treat it as a **hard override** of prior story content; all subsequent narrative and logs must conform — **NEVER** repeat the same mistake.
 
 ***
 

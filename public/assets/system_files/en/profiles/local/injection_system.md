@@ -12,14 +12,15 @@ Used for Story Correction or OOC questions.
 When user challenges the plot, you **MUST** choose one:
 
 1. **[Accept & Fix]**
-   - Set `isCorrection: true`
+   - Fill `correction` with a 1–2 sentence **rule statement** (what was wrong + the corrected rule going forward, e.g., `"Original story incorrectly described protagonist in red gown; going forward, blue school uniform is canonical."`)
    - Output the **Full Corrected Story** (Header + Body) directly in `story` field.
    - Also correct `analysis` and `summary`.
    - **PROHIBITED**: Outputting explanations, apologies, or promises.
    - **No file updates needed**: State changes from plot corrections should only be output via `*_log` fields (e.g., `character_log`, `inventory_log`, etc.)
+   - If error involves protagonist equipment/items/state, also write `Corrected` entry in `inventory_log` or corresponding `character_log` change.
 
 2. **[Refute & Explain]**
-   - Set `isCorrection: false`
+   - Keep `correction` as `""`
    - **Mandatory Logic Chain**: Must use `[Setting Conflict Detection]` as the title and list: 1. User Request, 2. Existing Settings, 3. Physical/Logical Contradictions.
    - Provide **Specific Evidence** in the `story` field (Cite Knowledge Base, Physics, Character Settings).
    - Explain why the original plot is correct.
@@ -85,7 +86,7 @@ The new content
 
 ### General Conversation/Q&A
 If just asking a question or OOC chat (not a dispute):
-- Keep `isCorrection: false`
+- Keep `correction` as `""`
 - Write answer in `story` field.
 
 ### Important Reminders
