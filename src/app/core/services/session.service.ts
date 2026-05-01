@@ -17,15 +17,25 @@ import { convertLatexToSymbols, repairCorruptedLatex } from '../utils/latex.util
 
 // Pre-feat/correction-string saves stored intent as the raw <XXX> tag and used
 // boolean isCorrection. Normalize on load so downstream code only sees the
-// current shape.
+// current shape. Built dynamically from LOCALES so legacy saves from any
+// supported locale (zh-tw <行動意圖>, en <Action>, …) all migrate.
+const LEGACY_INTENT_TAG_MAP: Map<string, string> = (() => {
+    const m = new Map<string, string>();
+    for (const locale of Object.values(LOCALES)) {
+        const t = locale.intentTags;
+        m.set(t.ACTION, GAME_INTENTS.ACTION);
+        m.set(t.FAST_FORWARD, GAME_INTENTS.FAST_FORWARD);
+        m.set(t.SYSTEM, GAME_INTENTS.SYSTEM);
+        m.set(t.SAVE, GAME_INTENTS.SAVE);
+        m.set(t.CONTINUE, GAME_INTENTS.CONTINUE);
+    }
+    return m;
+})();
+
 function migrateIntent(m: ChatMessage): ChatMessage {
     if (!m.intent) return m;
-    if (m.intent === '<行動意圖>') return { ...m, intent: GAME_INTENTS.ACTION };
-    if (m.intent === '<快轉>') return { ...m, intent: GAME_INTENTS.FAST_FORWARD };
-    if (m.intent === '<系統>') return { ...m, intent: GAME_INTENTS.SYSTEM };
-    if (m.intent === '<存檔>') return { ...m, intent: GAME_INTENTS.SAVE };
-    if (m.intent === '<繼續>') return { ...m, intent: GAME_INTENTS.CONTINUE };
-    return m;
+    const canonical = LEGACY_INTENT_TAG_MAP.get(m.intent);
+    return canonical ? { ...m, intent: canonical } : m;
 }
 
 function migrateLegacyCorrection(raw: ChatMessage & { isCorrection?: boolean }): ChatMessage {
