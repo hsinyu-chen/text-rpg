@@ -488,7 +488,7 @@ export class GameEngineService {
                 finalInventoryLog,
                 finalQuestLog,
                 finalWorldLog,
-                isCorrection,
+                correction,
                 turnUsage,
                 capturedFCs,
                 capturedThoughtSignature,
@@ -509,10 +509,11 @@ export class GameEngineService {
             }
 
             // Correction Handling
+            const isCorrection = !!correction;
             let correctedIntent: string | undefined;
             if (isCorrection) {
                 const storyIntents = [GAME_INTENTS.ACTION, GAME_INTENTS.CONTINUE, GAME_INTENTS.FAST_FORWARD];
-                console.log('[GameEngine] Correction detected.');
+                console.log('[GameEngine] Correction detected:', correction);
                 this.updateMessages(prev => {
                     const updated = [...prev];
                     for (let i = updated.length - 2; i >= 0; i--) {
@@ -564,7 +565,7 @@ export class GameEngineService {
                         world_log: finalWorldLog,
                         usage: turnUsage,
                         intent: isCorrection ? (correctedIntent || GAME_INTENTS.ACTION) : currentIntent, // Inherit user intent or correction
-                        isCorrection: isCorrection ? true : last.isCorrection
+                        correction: isCorrection ? correction : last.correction
                     };
 
                     if (isCorrection) {
@@ -667,6 +668,11 @@ export class GameEngineService {
 
     async updateMessageSummary(id: string, summary: string) {
         this.chatHistory.updateMessageSummary(id, summary);
+        await this.session.saveCurrentSessionToBook();
+    }
+
+    async updateMessageCorrection(id: string, correction: string) {
+        this.chatHistory.updateMessageCorrection(id, correction);
         await this.session.saveCurrentSessionToBook();
     }
 

@@ -12,7 +12,7 @@ export interface EngineResponseNested {
         inventory_log?: string[];
         quest_log?: string[];
         world_log?: string[];
-        isCorrection?: boolean;
+        correction?: string;
     };
 }
 
@@ -21,7 +21,7 @@ export interface EngineResponseFlat {
     analysis: string;
     story: string;
     summary: string;
-    correction?: string; // Deprecated: old format used string, now we use isCorrection boolean
+    correction?: string;
 }
 
 // Union type supporting both old and new formats
@@ -55,7 +55,7 @@ export interface ChatMessage {
     summary?: string;
     intent?: string;
     isManualRefOnly?: boolean;
-    isCorrection?: boolean;
+    correction?: string;
 }
 
 export interface TauriWindow extends Window {

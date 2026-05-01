@@ -49,4 +49,9 @@ export class TurnUpdateComponent {
         source: this.message,
         computation: (m) => (m.character_log?.length ?? 0) > 0
     });
+
+    showCorrection = linkedSignal({
+        source: this.message,
+        computation: (m) => !!m.correction
+    });
 }

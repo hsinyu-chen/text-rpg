@@ -23,7 +23,7 @@ export const getResponseSchema = (lang = 'default'): Schema => {
                     inventory_log: { type: 'array', items: { type: 'string' }, description: responseSchema.inventory },
                     quest_log: { type: 'array', items: { type: 'string' }, description: responseSchema.quest },
                     world_log: { type: 'array', items: { type: 'string' }, description: responseSchema.world },
-                    isCorrection: { type: 'boolean', description: "Set to true ONLY when the user requests a story correction via <系統>." }
+                    correction: { type: 'string', description: "Non-empty string ONLY when the user requests a story correction via <系統>. Write 1-2 sentences stating what was wrong AND the corrected rule going forward (e.g., '原劇情誤寫主角穿紅色禮服；實際應為藍色學校制服。後續以藍色制服為準。'). Empty/omitted otherwise." }
                 },
                 required: ['story', 'summary']
             }

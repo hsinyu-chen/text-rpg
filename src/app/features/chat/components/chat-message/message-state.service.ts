@@ -29,7 +29,7 @@ export class MessageStateService {
     // Local UI State
     isUpdateVisible = linkedSignal({
         // Only reset when content presence changes (e.g. from none to some)
-        source: () => !!(this.message()?.summary || (this.message()?.character_log?.length ?? 0) > 0 || (this.message()?.inventory_log?.length ?? 0) > 0 || (this.message()?.quest_log?.length ?? 0) > 0 || (this.message()?.world_log?.length ?? 0) > 0),
+        source: () => !!(this.message()?.summary || (this.message()?.character_log?.length ?? 0) > 0 || (this.message()?.inventory_log?.length ?? 0) > 0 || (this.message()?.quest_log?.length ?? 0) > 0 || (this.message()?.world_log?.length ?? 0) > 0 || !!this.message()?.correction),
         computation: (hasContent) => hasContent
     });
 
@@ -53,6 +53,9 @@ export class MessageStateService {
 
     isEditingSummary = signal(false);
     editSummaryContent = signal('');
+
+    isEditingCorrection = signal(false);
+    editCorrectionContent = signal('');
 
     editingLogKey = signal<string | null>(null);
     editingLogContent = signal('');
@@ -246,5 +249,24 @@ export class MessageStateService {
 
     cancelSummaryEdit() {
         this.isEditingSummary.set(false);
+    }
+
+    // Correction Edit Logic
+    startCorrectionEdit(content: string) {
+        this.editCorrectionContent.set(content);
+        this.isEditingCorrection.set(true);
+    }
+
+    async saveCorrectionEdit() {
+        await this.engine.updateMessageCorrection(this.message().id, this.editCorrectionContent());
+        this.cancelCorrectionEdit();
+    }
+
+    cancelCorrectionEdit() {
+        this.isEditingCorrection.set(false);
+    }
+
+    async deleteCorrection() {
+        await this.engine.updateMessageCorrection(this.message().id, '');
     }
 }

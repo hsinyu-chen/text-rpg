@@ -317,6 +317,9 @@ export class ContextBuilderService {
         if (m.world_log && m.world_log.length > 0) {
             stateUpdates.push(`world_log:${JSON.stringify(m.world_log)}`);
         }
+        if (m.correction && m.correction.trim()) {
+            stateUpdates.push(`correction: ${m.correction.trim()}`);
+        }
         return stateUpdates;
     }
 

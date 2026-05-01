@@ -16,6 +16,10 @@
             [matTooltip]="showCharacter() ? 'Hide Character' : 'Show Character'">
             <mat-icon [class.muted]="!showCharacter()" class="char-icon">person</mat-icon>
         </button>
+        <button mat-icon-button class="tiny-btn" (click)="showCorrection.set(!showCorrection())"
+            [matTooltip]="showCorrection() ? 'Hide Correction' : 'Show Correction'">
+            <mat-icon [class.muted]="!showCorrection()" class="correction-icon">gavel</mat-icon>
+        </button>
     </div>
     <!-- Narrative Summary -->
     @if (message().summary) {
@@ -245,6 +249,47 @@
         <div class="empty-log-hint" (click)="state.addLogItem('char')" (keydown.enter)="state.addLogItem('char')"
             tabindex="0" role="button">No updates.
             Click + to add.</div>
+        }
+    </div>
+    }
+
+    <!-- Correction -->
+    @if (showCorrection()) {
+    <div class="log-section correction-logs">
+        <div class="log-header">
+            <div class="header-left">
+                <mat-icon class="sub-icon">gavel</mat-icon>
+                <span>Correction Note</span>
+            </div>
+            @if (message().correction && !state.isEditingCorrection()) {
+            <button mat-icon-button class="tiny-btn" (click)="state.deleteCorrection()" matTooltip="Clear Correction">
+                <mat-icon>delete</mat-icon>
+            </button>
+            }
+        </div>
+        @if (state.isEditingCorrection()) {
+        <div class="summary-editor">
+            <input appAutofocusSelect type="text" [ngModel]="state.editCorrectionContent()"
+                (ngModelChange)="state.editCorrectionContent.set($event)"
+                (keydown.enter)="state.saveCorrectionEdit()" (keydown.escape)="state.cancelCorrectionEdit()">
+            <button mat-icon-button class="tiny-btn" (click)="state.saveCorrectionEdit()">
+                <mat-icon>check</mat-icon>
+            </button>
+            <button mat-icon-button class="tiny-btn" (click)="state.cancelCorrectionEdit()">
+                <mat-icon>close</mat-icon>
+            </button>
+        </div>
+        } @else if (message().correction) {
+        <div class="correction-text-row">
+            <span class="log-text">{{ message().correction }}</span>
+            <button mat-icon-button class="tiny-btn" (click)="state.startCorrectionEdit(message().correction!)">
+                <mat-icon>edit</mat-icon>
+            </button>
+        </div>
+        } @else {
+        <div class="empty-log-hint" (click)="state.startCorrectionEdit('')" (keydown.enter)="state.startCorrectionEdit('')"
+            tabindex="0" role="button">No correction.
+            Click to add.</div>
         }
     </div>
     }

@@ -233,7 +233,7 @@
                     <div class="msg-meta">
                         @if (msg.intent) { <span class="intent-tag" [class.system]="msg.intent === Intents.SYSTEM"
                             [class.save]="msg.intent === Intents.SAVE">{{ getIntentLabel(msg.intent) }}</span> }
-                        @if (msg.isCorrection) { <span class="correction-tag">(修正)</span> }
+                        @if (msg.correction) { <span class="correction-tag" [matTooltip]="msg.correction">(修正)</span> }
                         Model Response @if (msg.isRefOnly) { <span>(Ref Only)</span> }
                         @if (msg.usage) {
                         @if (msg.usage.promptSpeed) {
