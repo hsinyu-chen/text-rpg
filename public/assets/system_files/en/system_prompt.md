@@ -303,8 +303,8 @@ Strictly follow these JSON field definitions:
   - **[Protagonist Scope]**: This field **also records the protagonist's own** state changes (injuries, emotions, goals, location, equipment state). However, **the protagonist's plain item gain/consumption/move/deposit/retrieval are NOT recorded here** — those go to `inventory_log`.
   - **[Protagonist Equipment Change — Mandatory Double-Write]**: When the protagonist equips, unequips, swaps, draws, or sheathes clothing, accessories, weapons, or gear, you **MUST**:
     1. Write `Equipment Change: Protagonist_Name (Action1: Item1, Action2: Item2, ...)` (Action ∈ Equipped/Unequipped/Swapped/Drawn/Sheathed) in `character_log` to reflect appearance/combat state.
-    2. ALSO write the corresponding `Equipped` / `Unequipped` / `Retrieved (Equipped)` entry in `inventory_log`.
-    Both are **mandatory** — writing only one causes state desync.
+    2. ALSO write corresponding entries in `inventory_log`, mapping the broader character_log verbs to the inventory_log tag set: `Drawn`→`Equipped`, `Sheathed`→`Unequipped`, `Swapped: A for B`→two entries `Unequipped A` + `Equipped B`. A single `Equipped` or `Unequipped` action maps directly to the same tag.
+    Both fields are **mandatory** — writing only one causes state desync.
   - **[NPC Scope]**: All NPC changes (state, location, possession changes) belong here, **NO double-write** to `inventory_log` needed.
   - **No Spoilers**: Use descriptions for unrevealed characters (e.g., `Blonde Man??`). **ABSOLUTELY PROHIBIT** using real names from files until revealed in the story.
   - **No Mob/Generic Logging**: **ABSOLUTELY PROHIBIT** logging generic "Passerby A", "Guard B", "Villager", "Bandit", etc.
