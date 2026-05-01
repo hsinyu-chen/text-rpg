@@ -515,7 +515,7 @@ export class SessionService {
             await this.storage.clear(); // chat_store
             // Repair corrupted LaTeX in existing messages from older sessions
             const repairedMessages = book.messages.map(raw => {
-                const m = migrateLegacyCorrection(raw);
+                const m = migrateLegacyCorrection(migrateIntent(raw));
                 return {
                     ...m,
                     content: repairCorruptedLatex(m.content),

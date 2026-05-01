@@ -301,8 +301,8 @@ Strictly follow these JSON field definitions:
   - `string[]`.
   - Record **THIS TURN'S** state changes for the **protagonist themselves** AND noteworthy NPCs encountered (named main/secondary characters), across **any substantial field change** (Physical condition, Injuries, Emotions, Relationships, Goals, Location, Equipment State, **Known Significant Possessions**, etc.).
   - **[Protagonist Scope]**: This field **also records the protagonist's own** state changes (injuries, emotions, goals, location, equipment state). However, **the protagonist's plain item gain/consumption/move/deposit/retrieval are NOT recorded here** — those go to `inventory_log`.
-  - **[Protagonist Equipment Change — Mandatory Double-Write]**: When the protagonist equips/unequips/swaps clothing, accessories, weapons, or gear, you **MUST**:
-    1. Write `Equipment Change: Protagonist_Name (Equipped/Unequipped/Swapped: Item_Name)` in `character_log` to reflect appearance/combat state.
+  - **[Protagonist Equipment Change — Mandatory Double-Write]**: When the protagonist equips, unequips, swaps, draws, or sheathes clothing, accessories, weapons, or gear, you **MUST**:
+    1. Write `Equipment Change: Protagonist_Name (Action1: Item1, Action2: Item2, ...)` (Action ∈ Equipped/Unequipped/Swapped/Drawn/Sheathed) in `character_log` to reflect appearance/combat state.
     2. ALSO write the corresponding `Equipped` / `Unequipped` / `Retrieved (Equipped)` entry in `inventory_log`.
     Both are **mandatory** — writing only one causes state desync.
   - **[NPC Scope]**: All NPC changes (state, location, possession changes) belong here, **NO double-write** to `inventory_log` needed.
