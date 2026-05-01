@@ -786,9 +786,10 @@ export class SessionService {
      * Imports a saved session state.
      */
     async importSession(save: SessionSave) {
-        // Restore messages
-        this.state.messages.set(save.messages);
-        await this.storage.set('chat_history', save.messages);
+        // Restore messages (apply same legacy migrations as the other load paths)
+        const migrated = save.messages.map(m => migrateLegacyCorrection(migrateIntent(m)));
+        this.state.messages.set(migrated);
+        await this.storage.set('chat_history', migrated);
 
         // Restore usage stats
         this.state.tokenUsage.set(save.tokenUsage);
