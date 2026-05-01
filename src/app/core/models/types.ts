@@ -2,7 +2,6 @@ import { LLMPart, LLMUsageMetadata } from '@hcs/llm-core';
 
 export type Schema = object;
 
-// New nested response structure (analysis -> response)
 export interface EngineResponseNested {
     analysis: string;
     response: {
@@ -15,19 +14,6 @@ export interface EngineResponseNested {
         correction?: string;
     };
 }
-
-// Old flat response structure (for backward compatibility with old saved data)
-export interface EngineResponseFlat {
-    analysis: string;
-    story: string;
-    summary: string;
-    correction?: string;
-}
-
-// Union type supporting both old and new formats
-export type EngineResponse = EngineResponseNested | EngineResponseFlat;
-
-
 
 export type ExtendedPart = LLMPart;
 
