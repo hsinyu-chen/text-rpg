@@ -61,6 +61,15 @@
             @if (!enableAdultDeclaration()) {
             <p class="hint-text">Some models may refuse or filter mature scenes without this declaration.</p>
             }
+
+            <div class="toggle-row">
+                <mat-slide-toggle [ngModel]="engineMode() === 'two-call'"
+                    (ngModelChange)="engineMode.set($event ? 'two-call' : 'single')" color="primary"
+                    [disabled]="true">
+                    Two-Call Engine (Resolver + Narrator)
+                </mat-slide-toggle>
+            </div>
+            <p class="hint-text">Coming soon. Splits a turn into a structured-resolution call and a narrator call. Will increase LLM cost per turn.</p>
         </div>
 
         <div class="advanced-section">

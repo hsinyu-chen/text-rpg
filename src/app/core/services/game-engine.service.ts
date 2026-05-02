@@ -1,7 +1,5 @@
 import { Injectable, inject } from '@angular/core';
 
-import { LLMProviderRegistryService } from './llm-provider-registry.service';
-import { LLMProvider, LLMProviderConfig } from '@hcs/llm-core';
 import { CostService } from './cost.service';
 import { GameStateService } from './game-state.service';
 import { ChatHistoryService } from './chat-history.service';
@@ -12,23 +10,21 @@ import { ContextBuilderService } from './context-builder.service';
 import { ConfigService } from './config.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ChatMessage, SessionSave, ExtendedPart, Scenario } from '../models/types';
-import { StreamProcessorService } from './stream-processor.service';
 
 import { GAME_INTENTS } from '../constants/game-intents';
 import {
     getAdultDeclaration,
     getIntentTags,
-    getResponseSchema,
     getSectionHeaders,
     getUIStrings
 } from '../constants/engine-protocol';
 import { LOCALES } from '../constants/locales';
+import { SingleCallTurnEngine } from './turn-engines/single-call-turn-engine.service';
 
 @Injectable({
     providedIn: 'root'
 })
 export class GameEngineService {
-    private providerRegistry = inject(LLMProviderRegistryService);
     private cost = inject(CostService);
     private snackBar = inject(MatSnackBar);
     private state = inject(GameStateService);
@@ -37,23 +33,9 @@ export class GameEngineService {
     private session = inject(SessionService);
     private contextBuilder = inject(ContextBuilderService);
     private configService = inject(ConfigService);
-    private streamProcessor = inject(StreamProcessorService);
+    private singleCallEngine = inject(SingleCallTurnEngine);
 
     private currentAbortController: AbortController | null = null;
-
-    /** Get the currently active LLM provider */
-    private get provider(): LLMProvider {
-        const p = this.providerRegistry.getActive();
-        if (!p) throw new Error('No active LLM provider');
-        return p;
-    }
-
-    /** Config for the active provider — monorepo providers require it per call. */
-    private get providerConfig(): LLMProviderConfig {
-        return this.providerRegistry.getActiveConfig();
-    }
-
-
 
     /**
      * Calculates the estimated cost of a single turn based on token usage.
@@ -94,7 +76,8 @@ export class GameEngineService {
         outputLanguage?: string,
         idleOnBlur?: boolean,
         thinkingLevelStory?: string,
-        thinkingLevelGeneral?: string
+        thinkingLevelGeneral?: string,
+        engineMode?: 'single' | 'two-call'
     }) {
         await this.configService.saveConfig(genConfig);
     }
@@ -460,31 +443,22 @@ export class GameEngineService {
             this.currentAbortController = new AbortController();
             const abortSignal = this.currentAbortController.signal;
 
-            const hasCache = !!this.state.kbCacheName();
-            const bakesContent = this.provider.getCapabilities().cacheBakesContent ?? true;
-            const omitKB = hasCache && bakesContent;
-            const stream = this.provider.generateContentStream(
-                this.providerConfig,
-                history,
-                this.contextBuilder.getEffectiveSystemInstruction(!omitKB),
-                {
-                    cachedContentName: this.state.kbCacheName() || undefined,
-                    responseSchema: getResponseSchema(this.state.config()?.outputLanguage),
-                    responseMimeType: 'application/json',
-                    intent: currentIntent,
-                    signal: abortSignal
-                }
-            );
-
             const modelMsgId = crypto.randomUUID();
-            const outputLanguage = this.state.config()?.outputLanguage || 'default';
 
-            const result = await this.streamProcessor.processStream(
-                stream,
+            const engineMode = config?.engineMode ?? 'single';
+            if (engineMode === 'two-call') {
+                throw new Error('Two-call engine mode is not implemented yet (planned for PR3).');
+            }
+            const engine = this.singleCallEngine;
+
+            const result = await engine.runTurn({
+                history,
+                intent: currentIntent,
+                outputLanguage: lang,
                 modelMsgId,
-                outputLanguage,
-                (updater) => this.updateMessages(updater)
-            );
+                signal: abortSignal,
+                updateMessages: (updater) => this.updateMessages(updater)
+            });
 
             // Extract results
             const {
