@@ -6,11 +6,17 @@ import { StorageService } from './storage.service';
 import { getProfileBasePath, getProfileScopedKey, DEFAULT_PROFILE_ID, PromptProfile } from '../constants/prompt-profiles';
 import { PromptProfileRegistryService } from './prompt-profile-registry.service';
 
-export type PromptType = 'action' | 'continue' | 'fastforward' | 'system' | 'save' | 'postprocess' | 'system_main';
+export type PromptType = 'action' | 'continue' | 'fastforward' | 'system' | 'save' | 'postprocess' | 'system_main' | 'protocol_single';
 
 export const ALL_PROMPT_TYPES: readonly PromptType[] = [
-    'action', 'continue', 'fastforward', 'system', 'save', 'system_main', 'postprocess'
+    'action', 'continue', 'fastforward', 'system', 'save', 'system_main', 'postprocess', 'protocol_single'
 ] as const;
+
+// Optional types soft-load: missing asset returns '' instead of throwing,
+// and there is no profile fallback (a missing local-profile file must NOT
+// inherit from the default profile, since that would duplicate content with
+// the local profile's still-inline copy).
+const OPTIONAL_PROMPT_TYPES: ReadonlySet<PromptType> = new Set(['protocol_single']);
 
 @Injectable({
     providedIn: 'root'
@@ -92,6 +98,16 @@ export class InjectionService {
         }
     }
 
+    /** Soft load — returns '' when the file is absent, no profile fallback. */
+    private async loadOptionalProfileAsset(langFolder: string, filename: string, targetProfileId: string): Promise<string> {
+        const profilePath = `${getProfileBasePath(langFolder, targetProfileId)}/${filename}`;
+        try {
+            return await this.loadInjectionFile(profilePath);
+        } catch {
+            return '';
+        }
+    }
+
     private async loadUserProfilePrompt(type: PromptType, profileId: string, langFolder: string, lang: string): Promise<string> {
         const visited = new Set<string>();
         let current: PromptProfile | undefined = this.registry.get(profileId);
@@ -119,7 +135,9 @@ export class InjectionService {
     private async seedBuiltInAssetToIdb(type: PromptType, langFolder: string, lang: string, profileId: string): Promise<string | null> {
         try {
             const filename = INJECTION_FILE_PATHS[type];
-            const raw = await this.loadBuiltInAsset(langFolder, filename, profileId);
+            const raw = OPTIONAL_PROMPT_TYPES.has(type)
+                ? await this.loadOptionalProfileAsset(langFolder, filename, profileId)
+                : await this.loadBuiltInAsset(langFolder, filename, profileId);
             const processed = type === 'postprocess' ? raw : this.applyPromptPlaceholders(raw, lang);
             await this.storage.saveProfilePrompt(type, profileId, processed);
             return processed;
@@ -205,10 +223,11 @@ export class InjectionService {
 
     private async loadBuiltInProfile(currentProfile: string, langFolder: string, lang: string): Promise<void> {
         const loadPath = (filename: string) => this.loadBuiltInAsset(langFolder, filename, currentProfile);
+        const loadOptional = (filename: string) => this.loadOptionalProfileAsset(langFolder, filename, currentProfile);
 
-        let actionDef, continueDef, fastforwardDef, systemDef, saveDef, systemMainDef, postprocessDef;
+        let actionDef, continueDef, fastforwardDef, systemDef, saveDef, systemMainDef, postprocessDef, protocolSingleDef;
         try {
-            [actionDef, continueDef, fastforwardDef, systemDef, saveDef, systemMainDef, postprocessDef] =
+            [actionDef, continueDef, fastforwardDef, systemDef, saveDef, systemMainDef, postprocessDef, protocolSingleDef] =
                 await Promise.all([
                     loadPath(INJECTION_FILE_PATHS.action),
                     loadPath(INJECTION_FILE_PATHS.continue),
@@ -216,7 +235,8 @@ export class InjectionService {
                     loadPath(INJECTION_FILE_PATHS.system),
                     loadPath(INJECTION_FILE_PATHS.save),
                     loadPath(INJECTION_FILE_PATHS.system_main),
-                    loadPath(INJECTION_FILE_PATHS.postprocess)
+                    loadPath(INJECTION_FILE_PATHS.postprocess),
+                    loadOptional(INJECTION_FILE_PATHS.protocol_single)
                 ]);
         } catch (err: unknown) {
             console.error('[InjectionService] Critical Error loading prompts', err);
@@ -233,7 +253,8 @@ export class InjectionService {
             { id: 'system', content: systemDef, legacyKey: 'dynamic_system_injection', isPost: false },
             { id: 'save', content: saveDef, legacyKey: 'dynamic_save_injection', isPost: false },
             { id: 'system_main', content: systemMainDef, legacyKey: '', isPost: false },
-            { id: 'postprocess', content: postprocessDef, legacyKey: 'post_process_script', isPost: true }
+            { id: 'postprocess', content: postprocessDef, legacyKey: 'post_process_script', isPost: true },
+            { id: 'protocol_single', content: protocolSingleDef, legacyKey: '', isPost: false }
         ] as const;
 
         const updateStatusMap = new Map<string, { hasUpdate: boolean, serverContent: string }>();
@@ -310,6 +331,7 @@ export class InjectionService {
             case 'save': this.state.dynamicSaveInjection.set(content); break;
             case 'system_main': this.state.dynamicSystemMainInjection.set(content); break;
             case 'postprocess': this.state.postProcessScript.set(content); break;
+            case 'protocol_single': this.state.dynamicProtocolSingleInjection.set(content); break;
         }
     }
 
@@ -431,6 +453,7 @@ export class InjectionService {
             case 'save': return this.state.dynamicSaveInjection();
             case 'system_main': return this.state.dynamicSystemMainInjection();
             case 'postprocess': return this.state.postProcessScript();
+            case 'protocol_single': return this.state.dynamicProtocolSingleInjection();
         }
     }
 }

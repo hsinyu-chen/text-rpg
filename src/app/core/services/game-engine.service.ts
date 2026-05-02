@@ -439,7 +439,14 @@ export class GameEngineService {
 
                         // Replace {{USER_INPUT}} placeholder with actual user input
                         const mergedContent = injectionContent.replace(/\{\{USER_INPUT\}\}/g, userInput);
-                        const finalContent = this.contextBuilder.wrapUserMessage(mergedContent, history);
+
+                        // Protocol injection (cache-prefix shared between v1 single-call
+                        // and the future v2 two-call mode): append schema/output spec at
+                        // the user message tail. Empty string when the active locale/profile
+                        // hasn't been migrated yet — system_prompt.md still holds the spec.
+                        const protocolSingle = this.state.dynamicProtocolSingleInjection();
+                        const withProtocol = protocolSingle ? `${mergedContent}\n\n${protocolSingle}` : mergedContent;
+                        const finalContent = this.contextBuilder.wrapUserMessage(withProtocol, history);
 
                         history.push({
                             role: 'user',

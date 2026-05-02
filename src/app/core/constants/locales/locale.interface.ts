@@ -126,6 +126,7 @@ export interface AppLocale {
         SAVE_SUCCESS: string;
         SAVE_FAILED: string;
         SYSTEM_PROMPT_TITLE: string;
+        PROTOCOL_SINGLE_TITLE: string;
         CATEGORY_MAIN: string;
         CATEGORY_INJECTION: string;
         CATEGORY_PROCESS: string;
