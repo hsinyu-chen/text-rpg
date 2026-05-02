@@ -444,9 +444,8 @@ export class GameEngineService {
             const abortSignal = this.currentAbortController.signal;
 
             const modelMsgId = crypto.randomUUID();
-            const outputLanguage = this.state.config()?.outputLanguage || 'default';
 
-            const engineMode = this.state.config()?.engineMode ?? 'single';
+            const engineMode = config?.engineMode ?? 'single';
             if (engineMode === 'two-call') {
                 throw new Error('Two-call engine mode is not implemented yet (planned for PR3).');
             }
@@ -455,7 +454,7 @@ export class GameEngineService {
             const result = await engine.runTurn({
                 history,
                 intent: currentIntent,
-                outputLanguage,
+                outputLanguage: lang,
                 modelMsgId,
                 signal: abortSignal,
                 updateMessages: (updater) => this.updateMessages(updater)
