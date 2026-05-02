@@ -74,13 +74,17 @@ export class TwoCallTurnEngine implements TurnEngine {
         });
 
         const combinedUsage: LLMUsageMetadata = {
-            // Spread the narrator usage first to preserve transient/diagnostic fields
-            // (promptProgress, promptCache, promptTotal, promptProcessed); then sum
-            // the cumulative counters across both calls.
+            // Spread narrator usage first to preserve rate/progress fields
+            // (promptSpeed, completionSpeed, promptProgress) — summing those
+            // across calls is meaningless. Then sum every cumulative token
+            // counter for accurate per-turn telemetry.
             ...narratorResult.turnUsage,
             prompt: (resolverResult.usage.prompt || 0) + (narratorResult.turnUsage.prompt || 0),
             candidates: (resolverResult.usage.candidates || 0) + (narratorResult.turnUsage.candidates || 0),
             cached: (resolverResult.usage.cached || 0) + (narratorResult.turnUsage.cached || 0),
+            promptCache: (resolverResult.usage.promptCache || 0) + (narratorResult.turnUsage.promptCache || 0),
+            promptTotal: (resolverResult.usage.promptTotal || 0) + (narratorResult.turnUsage.promptTotal || 0),
+            promptProcessed: (resolverResult.usage.promptProcessed || 0) + (narratorResult.turnUsage.promptProcessed || 0),
             totalDuration: (resolverResult.usage.totalDuration || 0) + (narratorResult.turnUsage.totalDuration || 0)
         };
 
