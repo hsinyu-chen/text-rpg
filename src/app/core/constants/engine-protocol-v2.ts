@@ -1,4 +1,5 @@
 import { Schema } from '../models/types';
+import { getLocale } from './locales';
 
 /**
  * v2 (two-call) schema definitions.
@@ -65,8 +66,11 @@ const stepSchema: Schema = {
 };
 
 export const getResolverSchema = (lang = 'default'): Schema => {
-    // The resolver schema fields don't currently vary by locale (the prompt
-    // injection carries localized rules); accept lang for future extension.
+    // Resolver fields are structural — the per-step shape is the contract,
+    // not the prose. The localized rules ride in the resolver injection
+    // markdown; the schema here only supplies one-line type docs in English.
+    // `lang` is accepted for API symmetry with getNarratorSchema and is held
+    // open for fields that may want localized descriptions later.
     void lang;
     return {
         type: 'object',
@@ -100,12 +104,12 @@ export const getResolverSchema = (lang = 'default'): Schema => {
 };
 
 export const getNarratorSchema = (lang = 'default'): Schema => {
-    // Field-level localized descriptions reuse v1's locale strings where the
-    // semantics are identical (summary / *_log). Story description stays
-    // English here; the narrator injection carries the full localized rules.
-    // We accept lang for future extension but currently only summary / *_log
-    // descriptions vary by locale.
-    void lang;
+    // story / summary / *_log share semantics with v1's response shape, so the
+    // field descriptions reuse v1's locale strings. Resolver-side fields and
+    // the narrator-only `interrupted_acknowledged` are English literals — the
+    // first because they have no v1 analogue, the second because it's a
+    // protocol-level flag, not a content field.
+    const { responseSchema } = getLocale(lang);
 
     return {
         type: 'object',
@@ -115,11 +119,11 @@ export const getNarratorSchema = (lang = 'default'): Schema => {
                 type: 'string',
                 description: 'User-facing scene prose. Must include the mandatory <CREATIVE FICTION CONTEXT> + bracketed header, then narration of every executed step in order. When interrupted=true, narration stops at the broken step\'s consequence — no "he was about to say X" prose, no smuggling of truncated dialogue.'
             },
-            summary: { type: 'string', description: 'High-density telegraphic context log for future turns. Same [EVT] / [NPC] / [PLOT] structure as v1.' },
-            character_log: { type: 'array', items: { type: 'string' }, description: 'Per-turn changes to protagonist + named NPCs. Same labels as v1 (狀態變化 / 位置更新 / 持有變化 / 裝備變更 etc).' },
-            inventory_log: { type: 'array', items: { type: 'string' }, description: 'Protagonist-owned item changes this turn. Same labels as v1 (獲得 / 消耗 / 移入 / 寄存 / 取回 / 穿戴 / 卸下 / 校正).' },
-            quest_log: { type: 'array', items: { type: 'string' }, description: 'Quest / long-term plan changes this turn.' },
-            world_log: { type: 'array', items: { type: 'string' }, description: 'World events, faction moves, technology / magic developments this turn.' },
+            summary: { type: 'string', description: responseSchema.summary },
+            character_log: { type: 'array', items: { type: 'string' }, description: responseSchema.character },
+            inventory_log: { type: 'array', items: { type: 'string' }, description: responseSchema.inventory },
+            quest_log: { type: 'array', items: { type: 'string' }, description: responseSchema.quest },
+            world_log: { type: 'array', items: { type: 'string' }, description: responseSchema.world },
             interrupted_acknowledged: {
                 type: 'boolean',
                 description: 'Confirms the narrator received and respected the interrupted flag. Echoes input.interrupted; mismatch is a model error.'

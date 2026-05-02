@@ -37,8 +37,6 @@ export class GameEngineService {
 
     private currentAbortController: AbortController | null = null;
 
-
-
     /**
      * Calculates the estimated cost of a single turn based on token usage.
      * @param turnUsage Object containing prompt, candidates, and cached tokens.
