@@ -24,6 +24,12 @@ export interface GameEngineConfig {
     thinkingLevelStory?: string;
     thinkingLevelGeneral?: string;
     smartContextTurns?: number;
+    /**
+     * Turn engine mode. `'single'` (default) is the legacy single-LLM-call path.
+     * `'two-call'` splits a turn into a resolver + narrator pair; not yet wired
+     * end-to-end (see PR3) — selecting it here currently throws.
+     */
+    engineMode?: 'single' | 'two-call';
 }
 
 /**

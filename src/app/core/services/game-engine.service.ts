@@ -78,7 +78,8 @@ export class GameEngineService {
         outputLanguage?: string,
         idleOnBlur?: boolean,
         thinkingLevelStory?: string,
-        thinkingLevelGeneral?: string
+        thinkingLevelGeneral?: string,
+        engineMode?: 'single' | 'two-call'
     }) {
         await this.configService.saveConfig(genConfig);
     }
@@ -447,7 +448,13 @@ export class GameEngineService {
             const modelMsgId = crypto.randomUUID();
             const outputLanguage = this.state.config()?.outputLanguage || 'default';
 
-            const result = await this.singleCallEngine.runTurn({
+            const engineMode = this.state.config()?.engineMode ?? 'single';
+            if (engineMode === 'two-call') {
+                throw new Error('Two-call engine mode is not implemented yet (planned for PR3).');
+            }
+            const engine = this.singleCallEngine;
+
+            const result = await engine.runTurn({
                 history,
                 intent: currentIntent,
                 outputLanguage,

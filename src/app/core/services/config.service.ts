@@ -95,6 +95,7 @@ export class ConfigService {
         const enableConversion = localStorage.getItem('app_enable_conversion') === 'true';
         const idleOnBlur = localStorage.getItem('app_idle_on_blur') === 'true';
         const enableAdultDeclaration = localStorage.getItem('app_enable_adult_declaration') !== 'false';
+        const engineMode = (localStorage.getItem('app_engine_mode') as 'single' | 'two-call') || 'single';
 
         // Get Provider-Specific settings from the active provider's persisted config
         const activeProvider = this.providerRegistry.getActive();
@@ -116,7 +117,8 @@ export class ConfigService {
             enableAdultDeclaration,
             thinkingLevelStory: providerExtras.thinkingLevelStory || 'minimal',
             thinkingLevelGeneral: providerExtras.thinkingLevelGeneral || 'high',
-            smartContextTurns: parseInt(localStorage.getItem('app_smart_context_turns') || localStorage.getItem('gemini_smart_context_turns') || '10', 10)
+            smartContextTurns: parseInt(localStorage.getItem('app_smart_context_turns') || localStorage.getItem('gemini_smart_context_turns') || '10', 10),
+            engineMode
         };
 
         this.state.config.set(cfg);
@@ -158,7 +160,8 @@ export class ConfigService {
         enableAdultDeclaration?: boolean,
         thinkingLevelStory?: string,
         thinkingLevelGeneral?: string,
-        smartContextTurns?: number
+        smartContextTurns?: number,
+        engineMode?: 'single' | 'two-call'
     }) {
         // API Key and Model ID handling is now provider-specific via saveConfig, 
         // but we still update the active config signal.
@@ -170,6 +173,7 @@ export class ConfigService {
         if (genConfig.outputLanguage !== undefined) localStorage.setItem('app_output_language', genConfig.outputLanguage);
         if (genConfig.idleOnBlur !== undefined) localStorage.setItem('app_idle_on_blur', genConfig.idleOnBlur.toString());
         if (genConfig.enableAdultDeclaration !== undefined) localStorage.setItem('app_enable_adult_declaration', genConfig.enableAdultDeclaration.toString());
+        if (genConfig.engineMode !== undefined) localStorage.setItem('app_engine_mode', genConfig.engineMode);
 
         // Caching and Thinking levels are mostly provider specific but can be toggled in global config if common
         if (genConfig.enableCache !== undefined) localStorage.setItem('app_enable_cache', genConfig.enableCache.toString());
@@ -237,7 +241,8 @@ export class ConfigService {
             enableAdultDeclaration: typeof cfg.enableAdultDeclaration === 'boolean' ? cfg.enableAdultDeclaration : undefined,
             thinkingLevelStory: typeof cfg.thinkingLevelStory === 'string' ? cfg.thinkingLevelStory : undefined,
             thinkingLevelGeneral: typeof cfg.thinkingLevelGeneral === 'string' ? cfg.thinkingLevelGeneral : undefined,
-            smartContextTurns: typeof cfg.smartContextTurns === 'number' ? cfg.smartContextTurns : undefined
+            smartContextTurns: typeof cfg.smartContextTurns === 'number' ? cfg.smartContextTurns : undefined,
+            engineMode: (cfg.engineMode === 'single' || cfg.engineMode === 'two-call') ? cfg.engineMode : undefined
         };
 
         // Reuse saveConfig to handle persistence (localStorage + Signal update + Service re-init)

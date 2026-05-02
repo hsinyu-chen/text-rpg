@@ -79,6 +79,7 @@ export class SettingsDialogComponent {
   screensaverType = signal<'invaders' | 'code'>('invaders');
   idleOnBlur = signal(false);
   enableAdultDeclaration = signal(true);
+  engineMode = signal<'single' | 'two-call'>('single');
   outputLanguage = signal('default');
   customOutputLanguage = signal('');
   languages: { value: string; label: string }[] = getLanguagesList();
@@ -139,6 +140,7 @@ export class SettingsDialogComponent {
       this.screensaverType.set(current.screensaverType ?? 'invaders');
       this.idleOnBlur.set(current.idleOnBlur ?? false);
       this.enableAdultDeclaration.set(current.enableAdultDeclaration ?? true);
+      this.engineMode.set(current.engineMode ?? 'single');
 
       const lang = current.outputLanguage || 'default';
       const isPresetLang = this.languages.some(l => l.value === lang);
@@ -175,6 +177,7 @@ export class SettingsDialogComponent {
       screensaverType: this.screensaverType(),
       idleOnBlur: this.idleOnBlur(),
       enableAdultDeclaration: this.enableAdultDeclaration(),
+      engineMode: this.engineMode(),
       outputLanguage: this.outputLanguage() === 'custom' ? this.customOutputLanguage() : this.outputLanguage()
     };
 
