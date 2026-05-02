@@ -6,17 +6,17 @@ import { StorageService } from './storage.service';
 import { getProfileBasePath, getProfileScopedKey, DEFAULT_PROFILE_ID, PromptProfile } from '../constants/prompt-profiles';
 import { PromptProfileRegistryService } from './prompt-profile-registry.service';
 
-export type PromptType = 'action' | 'continue' | 'fastforward' | 'system' | 'save' | 'postprocess' | 'system_main' | 'protocol_single';
+export type PromptType = 'action' | 'continue' | 'fastforward' | 'system' | 'save' | 'postprocess' | 'system_main' | 'protocol_single' | 'protocol_resolver' | 'protocol_narrator';
 
 export const ALL_PROMPT_TYPES: readonly PromptType[] = [
-    'action', 'continue', 'fastforward', 'system', 'save', 'system_main', 'postprocess', 'protocol_single'
+    'action', 'continue', 'fastforward', 'system', 'save', 'system_main', 'postprocess', 'protocol_single', 'protocol_resolver', 'protocol_narrator'
 ] as const;
 
 // Optional types soft-load: missing asset returns '' instead of throwing,
 // and there is no profile fallback (a missing local-profile file must NOT
 // inherit from the default profile, since that would duplicate content with
 // the local profile's still-inline copy).
-const OPTIONAL_PROMPT_TYPES: ReadonlySet<PromptType> = new Set(['protocol_single']);
+const OPTIONAL_PROMPT_TYPES: ReadonlySet<PromptType> = new Set(['protocol_single', 'protocol_resolver', 'protocol_narrator']);
 
 @Injectable({
     providedIn: 'root'
@@ -225,9 +225,9 @@ export class InjectionService {
         const loadPath = (filename: string) => this.loadBuiltInAsset(langFolder, filename, currentProfile);
         const loadOptional = (filename: string) => this.loadOptionalProfileAsset(langFolder, filename, currentProfile);
 
-        let actionDef, continueDef, fastforwardDef, systemDef, saveDef, systemMainDef, postprocessDef, protocolSingleDef;
+        let actionDef, continueDef, fastforwardDef, systemDef, saveDef, systemMainDef, postprocessDef, protocolSingleDef, protocolResolverDef, protocolNarratorDef;
         try {
-            [actionDef, continueDef, fastforwardDef, systemDef, saveDef, systemMainDef, postprocessDef, protocolSingleDef] =
+            [actionDef, continueDef, fastforwardDef, systemDef, saveDef, systemMainDef, postprocessDef, protocolSingleDef, protocolResolverDef, protocolNarratorDef] =
                 await Promise.all([
                     loadPath(INJECTION_FILE_PATHS.action),
                     loadPath(INJECTION_FILE_PATHS.continue),
@@ -236,7 +236,9 @@ export class InjectionService {
                     loadPath(INJECTION_FILE_PATHS.save),
                     loadPath(INJECTION_FILE_PATHS.system_main),
                     loadPath(INJECTION_FILE_PATHS.postprocess),
-                    loadOptional(INJECTION_FILE_PATHS.protocol_single)
+                    loadOptional(INJECTION_FILE_PATHS.protocol_single),
+                    loadOptional(INJECTION_FILE_PATHS.protocol_resolver),
+                    loadOptional(INJECTION_FILE_PATHS.protocol_narrator)
                 ]);
         } catch (err: unknown) {
             console.error('[InjectionService] Critical Error loading prompts', err);
@@ -254,7 +256,9 @@ export class InjectionService {
             { id: 'save', content: saveDef, legacyKey: 'dynamic_save_injection', isPost: false },
             { id: 'system_main', content: systemMainDef, legacyKey: '', isPost: false },
             { id: 'postprocess', content: postprocessDef, legacyKey: 'post_process_script', isPost: true },
-            { id: 'protocol_single', content: protocolSingleDef, legacyKey: '', isPost: false }
+            { id: 'protocol_single', content: protocolSingleDef, legacyKey: '', isPost: false },
+            { id: 'protocol_resolver', content: protocolResolverDef, legacyKey: '', isPost: false },
+            { id: 'protocol_narrator', content: protocolNarratorDef, legacyKey: '', isPost: false }
         ] as const;
 
         const updateStatusMap = new Map<string, { hasUpdate: boolean, serverContent: string }>();
@@ -332,6 +336,8 @@ export class InjectionService {
             case 'system_main': this.state.dynamicSystemMainInjection.set(content); break;
             case 'postprocess': this.state.postProcessScript.set(content); break;
             case 'protocol_single': this.state.dynamicProtocolSingleInjection.set(content); break;
+            case 'protocol_resolver': this.state.dynamicProtocolResolverInjection.set(content); break;
+            case 'protocol_narrator': this.state.dynamicProtocolNarratorInjection.set(content); break;
         }
     }
 
@@ -454,6 +460,8 @@ export class InjectionService {
             case 'system_main': return this.state.dynamicSystemMainInjection();
             case 'postprocess': return this.state.postProcessScript();
             case 'protocol_single': return this.state.dynamicProtocolSingleInjection();
+            case 'protocol_resolver': return this.state.dynamicProtocolResolverInjection();
+            case 'protocol_narrator': return this.state.dynamicProtocolNarratorInjection();
         }
     }
 }

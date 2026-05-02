@@ -30,6 +30,50 @@ const IDEAL_STATUS = ['intact', 'broken'] as const;
 const IDEAL_STRENGTHS = ['perfectionist', 'pragmatic', 'desperate'] as const;
 const NPC_REACTION_TYPES = ['comply', 'resist', 'ignore', 'attack', 'flee', 'observe', 'negotiate', 'mock'] as const;
 
+export type ActionType = typeof ACTION_TYPES[number];
+export type EventType = typeof EVENT_TYPES[number];
+export type IdealStatus = typeof IDEAL_STATUS[number];
+export type IdealStrength = typeof IDEAL_STRENGTHS[number];
+export type NpcReactionType = typeof NPC_REACTION_TYPES[number];
+
+export interface NpcReaction {
+    actor: string;
+    reaction: string;
+    type: NpcReactionType;
+}
+
+export interface ResolverStep {
+    action: string;
+    action_type: ActionType;
+    target: string;
+    dialogue: string;
+    mood: string;
+    state_changes: string[];
+    event_type: EventType;
+    ideal_status: IdealStatus;
+    break_reason: string;
+    npc_reactions: NpcReaction[];
+    ambient: string;
+}
+
+export interface ResolverOutput {
+    ideal_outcome: string;
+    ideal_strength: IdealStrength;
+    steps: ResolverStep[];
+    interrupted: boolean;
+    interrupted_at_step: number;
+}
+
+export interface NarratorOutput {
+    story: string;
+    summary: string;
+    character_log?: string[];
+    inventory_log?: string[];
+    quest_log?: string[];
+    world_log?: string[];
+    interrupted_acknowledged: boolean;
+}
+
 const stepSchema: Schema = {
     type: 'object',
     description: 'One atomic step in the user character\'s attempted action sequence, judged independently.',

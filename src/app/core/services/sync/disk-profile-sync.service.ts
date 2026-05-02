@@ -26,7 +26,9 @@ const TYPE_FILENAME: Record<PromptType, string> = {
     save: 'save.md',
     system_main: 'system_main.md',
     postprocess: 'postprocess.js',
-    protocol_single: 'protocol_single.md'
+    protocol_single: 'protocol_single.md',
+    protocol_resolver: 'protocol_resolver.md',
+    protocol_narrator: 'protocol_narrator.md'
 };
 
 /**

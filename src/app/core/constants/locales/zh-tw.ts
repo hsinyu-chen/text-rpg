@@ -147,6 +147,8 @@ export const ZH_TW_LOCALE: AppLocale = {
         SAVE_FAILED: '儲存設定失敗',
         SYSTEM_PROMPT_TITLE: '主系統提示 (system_prompt.md)',
         PROTOCOL_SINGLE_TITLE: '輸出協議 — 單次呼叫 (injection_protocol_single.md)',
+        PROTOCOL_RESOLVER_TITLE: '輸出協議 — 推演 (injection_protocol_resolver.md)',
+        PROTOCOL_NARRATOR_TITLE: '輸出協議 — 敘事 (injection_protocol_narrator.md)',
         CATEGORY_MAIN: '主提示 (Main)',
         CATEGORY_INJECTION: '注入提示 (Injection)',
         CATEGORY_PROCESS: '處理腳本 (Process)',

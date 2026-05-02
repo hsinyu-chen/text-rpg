@@ -107,6 +107,8 @@ export class GameStateService {
     dynamicSaveInjection = signal<string>('');
     dynamicSystemMainInjection = signal<string>('');
     dynamicProtocolSingleInjection = signal<string>('');
+    dynamicProtocolResolverInjection = signal<string>('');
+    dynamicProtocolNarratorInjection = signal<string>('');
     postProcessScript = signal<string>('');
 
     // Flag to prevent effects from saving until after initial load

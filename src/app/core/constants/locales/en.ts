@@ -147,6 +147,8 @@ When performing the <Save> command, please only compare and synchronize based on
         SAVE_FAILED: 'Failed to save configuration',
         SYSTEM_PROMPT_TITLE: 'Main System Prompt (system_prompt.md)',
         PROTOCOL_SINGLE_TITLE: 'Output Protocol — Single-Call (injection_protocol_single.md)',
+        PROTOCOL_RESOLVER_TITLE: 'Output Protocol — Resolver (injection_protocol_resolver.md)',
+        PROTOCOL_NARRATOR_TITLE: 'Output Protocol — Narrator (injection_protocol_narrator.md)',
         CATEGORY_MAIN: 'Main',
         CATEGORY_INJECTION: 'Injection',
         CATEGORY_PROCESS: 'Process',
