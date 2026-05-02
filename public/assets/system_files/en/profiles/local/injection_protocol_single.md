@@ -3,7 +3,7 @@
 Strictly follow these JSON field definitions:
 
 - **analysis (Atomic Breakdown & Adjudication)**:
-  - Follow [Step 1] Logic.
+  - Follow [Atomic Breakdown] Logic.
   - **[RESTRICTION]**: ONLY fill this if input is `<Action Intent>`, `<Fast Forward>`, `<System> Correction`, or `<Continue>`.
   - **[EMPTY]**: For other commands (e.g., `<Save>`, `<System> Ask`), this MUST be empty `""`.
   - **Content**: NOT visible to user.
@@ -38,7 +38,7 @@ Strictly follow these JSON field definitions:
       ```
 
 - **story (Narrative Content)**:
-  - The **ONLY** content visible to user. Use [Step 2] techniques. Include dialogue, system msgs, GM replies.
+  - The **ONLY** content visible to user. Use [World Reaction] techniques. Include dialogue, system msgs, GM replies.
   - **[Full-Scene Reaction Rule]**: Render elements from `analysis` [Scene N] into `story` by category:
     - **Present NPCs**: **Do NOT only describe** characters the protagonist directly interacts with — every present NPC must appear in the prose. Even when merely watching or silent, give one sentence conveying posture, expression, or gaze. Omitting an NPC is a **SEVERE VIOLATION**.
     - **Environmental Objects & Ambient Elements**: Write into `story` **ONLY** on first appearance, actual state change, when triggered, or when interacted with. Unchanged elements with no interaction are **NOT** written — no "still / continues to / remains ..." closing flourishes.

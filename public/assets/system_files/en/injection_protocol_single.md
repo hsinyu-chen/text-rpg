@@ -3,7 +3,7 @@
 Strictly follow these JSON field definitions:
 
 - **analysis (Atomic Breakdown & Adjudication)**:
-  - Follow [Step 1] Logic.
+  - Follow [Atomic Breakdown] Logic.
   - **[RESTRICTION]**: ONLY fill this if input is `<Action Intent>`, `<Fast Forward>`, `<System> Correction`, or `<Continue>`.
   - **[EMPTY]**: For other commands (e.g., `<Save>`, `<System> Ask`), this MUST be empty `""`.
   - **Content**: NOT visible to user.
@@ -13,7 +13,7 @@ Strictly follow these JSON field definitions:
     3. **[Random Event]**: Check trigger. Describe event or "None".
 
 - **story (Narrative Content)**:
-  - The **ONLY** content visible to user. Use [Step 2] techniques. Include dialogue, system msgs, GM replies.
+  - The **ONLY** content visible to user. Use [World Reaction] techniques. Include dialogue, system msgs, GM replies.
   - **Mandatory Header**: Before text, MUST include: `<CREATIVE FICTION CONTEXT>` on its own line, followed by `[Calendar Name YYYY/MM/DD WeekD HH:MM / Location / Characters Present[Alias](State)]`.
     - **CRITICAL**: You MUST replace "Calendar Name" with the actual calendar name defined in `{{FILE_BASIC_SETTINGS}}` (e.g., Space Calendar, Moon Calendar). DO NOT output the literal string "Calendar Name" and DO NOT nest brackets (e.g., `[(Space Calendar 1000)...]`).
     - **Example**:
