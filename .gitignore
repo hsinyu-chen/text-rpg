@@ -44,6 +44,7 @@ Thumbs.db
 
 # Claude Code local-only state (personal settings, scheduled tasks, worktrees, etc.)
 .claude/*
+!.claude/skills/
 .mcp.json
 
 # Locally-generated dev TLS certs (created by tools/dev-cert.cjs)
