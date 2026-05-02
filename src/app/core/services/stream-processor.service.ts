@@ -6,6 +6,7 @@ import { LLMStreamChunk, LLMUsageMetadata } from '@hcs/llm-core';
 import { ChatMessage } from '../models/types';
 import { getUIStrings } from '../constants/engine-protocol';
 import type { NarratorOutput } from '../constants/engine-protocol-v2';
+import { mergeUsage } from './llm-usage-merge';
 
 export interface StreamProcessResult {
     finalAnalysis: string;
@@ -134,20 +135,7 @@ export class StreamProcessorService {
             }
 
             if (chunk.usageMetadata) {
-                // "Sticky" update: Only update if non-zero to avoid losing data in final chunks
-                turnUsage = {
-                    ...turnUsage,
-                    prompt: chunk.usageMetadata.prompt || turnUsage.prompt,
-                    candidates: chunk.usageMetadata.candidates || turnUsage.candidates,
-                    cached: chunk.usageMetadata.cached || turnUsage.cached,
-                    promptSpeed: chunk.usageMetadata.promptSpeed || turnUsage.promptSpeed,
-                    completionSpeed: chunk.usageMetadata.completionSpeed || turnUsage.completionSpeed,
-                    totalDuration: chunk.usageMetadata.totalDuration || turnUsage.totalDuration,
-                    promptProgress: chunk.usageMetadata.promptProgress !== undefined ? chunk.usageMetadata.promptProgress : turnUsage.promptProgress,
-                    promptTotal: chunk.usageMetadata.promptTotal || turnUsage.promptTotal,
-                    promptProcessed: chunk.usageMetadata.promptProcessed || turnUsage.promptProcessed,
-                    promptCache: chunk.usageMetadata.promptCache || turnUsage.promptCache
-                };
+                turnUsage = mergeUsage(turnUsage, chunk.usageMetadata);
 
                 if (chunk.usageMetadata.promptProgress !== undefined) {
                     updateCallback(prev => {
@@ -325,20 +313,7 @@ export class StreamProcessorService {
             }
 
             if (chunk.usageMetadata) {
-                turnUsage = {
-                    ...turnUsage,
-                    prompt: chunk.usageMetadata.prompt || turnUsage.prompt,
-                    candidates: chunk.usageMetadata.candidates || turnUsage.candidates,
-                    cached: chunk.usageMetadata.cached || turnUsage.cached,
-                    promptSpeed: chunk.usageMetadata.promptSpeed || turnUsage.promptSpeed,
-                    completionSpeed: chunk.usageMetadata.completionSpeed || turnUsage.completionSpeed,
-                    totalDuration: chunk.usageMetadata.totalDuration || turnUsage.totalDuration,
-                    promptProgress: chunk.usageMetadata.promptProgress !== undefined ? chunk.usageMetadata.promptProgress : turnUsage.promptProgress,
-                    promptTotal: chunk.usageMetadata.promptTotal || turnUsage.promptTotal,
-                    promptProcessed: chunk.usageMetadata.promptProcessed || turnUsage.promptProcessed,
-                    promptCache: chunk.usageMetadata.promptCache || turnUsage.promptCache
-                };
-
+                turnUsage = mergeUsage(turnUsage, chunk.usageMetadata);
                 if (chunk.usageMetadata.promptProgress !== undefined) {
                     updateLastModel(last => ({ ...last, progress: chunk.usageMetadata!.promptProgress, usage: { ...turnUsage } }));
                 }

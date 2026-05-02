@@ -398,9 +398,7 @@ export class ContextBuilderService {
         baseHistory: LLMContent[];
         resolver: ResolverOutput;
         executedSteps: ResolverStep[];
-        lang: string;
     }): LLMContent[] {
-        void options.lang;
         const history = options.baseHistory.slice();
         history.pop();
 

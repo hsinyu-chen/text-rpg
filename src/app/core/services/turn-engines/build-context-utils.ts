@@ -52,10 +52,14 @@ export function buildResolverUserMessage(input: {
  *
  * The output is a JSON-fenced narrator-input block followed by the
  * narrator protocol. Original player input is NOT included — narration
- * must derive purely from the structured input. `break_reason` is
- * pulled from the last executed step only when the resolver flagged
- * the run as interrupted; otherwise it's emitted as `''` so the model
- * cannot hallucinate a break that did not occur.
+ * must derive purely from the structured input.
+ *
+ * `interrupted` and `break_reason` are derived from the LAST element of
+ * `executedSteps`, not from `input.resolver.interrupted`. This keeps the
+ * helper safe when callers pass an unsanitized resolver output: a model
+ * that self-reports `interrupted=false` but emits a broken step (or the
+ * reverse) cannot leak inconsistent state into the narrator. Truncation
+ * upstream guarantees that any broken step is the last one in the array.
  */
 export function buildNarratorUserMessage(input: {
     resolver: ResolverOutput;
@@ -77,14 +81,13 @@ export function buildNarratorUserMessage(input: {
     }));
 
     const lastStep = sanitizedSteps[sanitizedSteps.length - 1];
-    const breakReason = input.resolver.interrupted && lastStep?.ideal_status === 'broken'
-        ? lastStep.break_reason
-        : '';
+    const interrupted = lastStep?.ideal_status === 'broken';
+    const breakReason = interrupted ? lastStep.break_reason : '';
 
     const narratorInput = {
         ideal_outcome: input.resolver.ideal_outcome,
         ideal_strength: input.resolver.ideal_strength,
-        interrupted: input.resolver.interrupted,
+        interrupted,
         break_reason: breakReason,
         executed_steps: sanitizedSteps
     };

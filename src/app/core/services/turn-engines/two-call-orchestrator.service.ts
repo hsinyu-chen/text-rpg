@@ -8,6 +8,7 @@ import { StreamProcessorService, StreamProcessResult } from '../stream-processor
 import { ChatMessage } from '../../models/types';
 import { getResolverSchema, getNarratorSchema, ResolverOutput } from '../../constants/engine-protocol-v2';
 import { formatResolverTrace } from './format-resolver-trace';
+import { mergeUsage } from '../llm-usage-merge';
 
 export interface ResolverRunResult {
     resolverOutput: ResolverOutput;
@@ -99,15 +100,7 @@ export class TwoCallOrchestratorService {
                 } catch { /* parse errors during stream are expected */ }
             }
             if (chunk.usageMetadata) {
-                usage = {
-                    ...usage,
-                    prompt: chunk.usageMetadata.prompt || usage.prompt,
-                    candidates: chunk.usageMetadata.candidates || usage.candidates,
-                    cached: chunk.usageMetadata.cached || usage.cached,
-                    promptSpeed: chunk.usageMetadata.promptSpeed || usage.promptSpeed,
-                    completionSpeed: chunk.usageMetadata.completionSpeed || usage.completionSpeed,
-                    totalDuration: chunk.usageMetadata.totalDuration || usage.totalDuration
-                };
+                usage = mergeUsage(usage, chunk.usageMetadata);
             }
         }
 

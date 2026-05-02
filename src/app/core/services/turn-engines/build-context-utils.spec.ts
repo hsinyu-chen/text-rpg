@@ -134,9 +134,10 @@ describe('buildNarratorUserMessage', () => {
         expect(out).toContain('"break_reason": ""');
     });
 
-    it('emits break_reason from the last step only when interrupted=true', () => {
+    it('derives interrupted + break_reason from the last step (broken), ignoring the resolver flag', () => {
         const out = buildNarratorUserMessage({
-            resolver: resolver({ interrupted: true }),
+            // Resolver self-reports false; helper must override based on the actual broken step.
+            resolver: resolver({ interrupted: false }),
             executedSteps: [
                 step({ action: 'a' }),
                 step({ action: 'b', ideal_status: 'broken', break_reason: 'NPC refused' })
@@ -144,17 +145,18 @@ describe('buildNarratorUserMessage', () => {
             protocolNarrator: ''
         });
         const parsed = JSON.parse(out.split('```json\n')[1].split('\n```')[0]);
-        expect(parsed.break_reason).toBe('NPC refused');
         expect(parsed.interrupted).toBe(true);
+        expect(parsed.break_reason).toBe('NPC refused');
     });
 
-    it('emits empty break_reason when resolver claims interrupted but no broken step is present', () => {
+    it('forces interrupted=false when resolver claims true but no step is broken', () => {
         const out = buildNarratorUserMessage({
             resolver: resolver({ interrupted: true }),
             executedSteps: [step({ action: 'a' })],
             protocolNarrator: ''
         });
         const parsed = JSON.parse(out.split('```json\n')[1].split('\n```')[0]);
+        expect(parsed.interrupted).toBe(false);
         expect(parsed.break_reason).toBe('');
     });
 

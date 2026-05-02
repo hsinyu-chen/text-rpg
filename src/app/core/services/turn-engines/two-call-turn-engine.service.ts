@@ -61,8 +61,7 @@ export class TwoCallTurnEngine implements TurnEngine {
                 interrupted: truncated.interrupted,
                 interrupted_at_step: truncated.interruptedAtStep
             },
-            executedSteps: truncated.executed,
-            lang: input.outputLanguage
+            executedSteps: truncated.executed
         });
 
         const narratorResult = await this.orchestrator.runNarrator({
@@ -75,11 +74,13 @@ export class TwoCallTurnEngine implements TurnEngine {
         });
 
         const combinedUsage: LLMUsageMetadata = {
+            // Spread the narrator usage first to preserve transient/diagnostic fields
+            // (promptProgress, promptCache, promptTotal, promptProcessed); then sum
+            // the cumulative counters across both calls.
+            ...narratorResult.turnUsage,
             prompt: (resolverResult.usage.prompt || 0) + (narratorResult.turnUsage.prompt || 0),
             candidates: (resolverResult.usage.candidates || 0) + (narratorResult.turnUsage.candidates || 0),
             cached: (resolverResult.usage.cached || 0) + (narratorResult.turnUsage.cached || 0),
-            promptSpeed: narratorResult.turnUsage.promptSpeed,
-            completionSpeed: narratorResult.turnUsage.completionSpeed,
             totalDuration: (resolverResult.usage.totalDuration || 0) + (narratorResult.turnUsage.totalDuration || 0)
         };
 
