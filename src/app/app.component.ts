@@ -28,6 +28,7 @@ import { BookListComponent } from './features/sidebar/components/book-list/book-
 import { SessionService } from './core/services/session.service';
 import { WakeLockService } from './core/services/wake-lock.service';
 import { BackgroundFetchService } from './core/services/background-fetch.service';
+import { BridgeService } from './core/services/dev/bridge.service';
 
 
 @Component({
@@ -66,6 +67,8 @@ export class AppComponent {
   // during generation — prevents mobile screen-off from killing the API stream.
   private wakeLock = inject(WakeLockService);
   private bgFetch = inject(BackgroundFetchService);
+  // Eagerly construct so its connect-effect registers; gated internally by isDevMode().
+  private bridge = inject(BridgeService);
   private swUpdate = inject(SwUpdate);
   private win = inject(WINDOW);
   private appUpdateSnackRef: MatSnackBarRef<TextOnlySnackBar> | null = null;

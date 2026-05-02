@@ -71,8 +71,35 @@
 .currency-row {
     display: flex;
     gap: 12px;
-    
+
     .half-width {
         flex: 1;
     }
+}
+
+.bridge-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    color: #aaa;
+
+    .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #555;
+    }
+
+    .label {
+        text-transform: capitalize;
+    }
+
+    .error-msg {
+        color: #c66;
+    }
+
+    &.status-connected .dot { background: #4caf50; }
+    &.status-connecting .dot { background: #ffb74d; }
+    &.status-error     .dot { background: #e57373; }
 }

@@ -171,6 +171,35 @@
             </div>
         </div>
 
+        @if (isDev) {
+        <div class="advanced-section">
+            <h3>Debug Bridge</h3>
+            <p class="hint-text">
+                Local agent-driven testing only. Connect this build to a running BridgeServer
+                (sibling repo TextRPG_TestBridge) so an agent can drive turns over HTTP.
+                Hidden in production builds.
+            </p>
+            <mat-form-field appearance="outline" class="full-width">
+                <mat-label>Bridge URL</mat-label>
+                <input matInput [ngModel]="debugBridgeUrl()" (ngModelChange)="debugBridgeUrl.set($event)"
+                    placeholder="wss://localhost:5050/app">
+            </mat-form-field>
+            <div class="toggle-row">
+                <mat-slide-toggle [ngModel]="debugBridgeEnabled()"
+                    (ngModelChange)="debugBridgeEnabled.set($event)" color="primary">
+                    Connect to debug bridge
+                </mat-slide-toggle>
+            </div>
+            <div class="bridge-status status-{{ bridge.status() }}">
+                <span class="dot"></span>
+                <span class="label">{{ bridge.status() }}</span>
+                @if (bridge.lastError(); as err) {
+                <span class="error-msg">— {{ err }}</span>
+                }
+            </div>
+        </div>
+        }
+
     </div>
 </mat-dialog-content>
 <mat-dialog-actions align="end">

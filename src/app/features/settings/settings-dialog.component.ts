@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed } from '@angular/core';
+import { Component, inject, signal, computed, isDevMode } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -20,6 +20,7 @@ import { LoadingService } from '../../core/services/loading.service';
 import { SettingsSyncService } from '../../core/services/settings-sync.service';
 import { getLanguagesList } from '../../core/constants/locales';
 import { LLMProfilesDialogComponent } from './llm-profiles-dialog.component';
+import { BridgeService } from '../../core/services/dev/bridge.service';
 
 @Component({
   selector: 'app-settings-dialog',
@@ -51,6 +52,10 @@ export class SettingsDialogComponent {
   private matDialog = inject(MatDialog);
   loading = inject(LoadingService);
   private settingsSync = inject(SettingsSyncService);
+  bridge = inject(BridgeService);
+
+  /** Dev-only Bridge section is hidden in production builds. */
+  readonly isDev = isDevMode();
 
   /** List of profiles, reactive to the storage layer. */
   profiles = this.llmConfig.profiles;
@@ -96,6 +101,10 @@ export class SettingsDialogComponent {
   ];
 
   customFontName = signal('');
+
+  // Debug bridge — local edit copies; applied on Save.
+  debugBridgeUrl = signal(this.bridge.url());
+  debugBridgeEnabled = signal(this.bridge.enabled());
 
   isValid = computed(() => {
     if (this.outputLanguage() === 'custom' && !this.customOutputLanguage().trim()) return false;
@@ -168,6 +177,11 @@ export class SettingsDialogComponent {
     };
 
     this.engine.saveConfig(commonConfig);
+
+    if (this.isDev) {
+      this.bridge.setUrl(this.debugBridgeUrl().trim());
+      this.bridge.setEnabled(this.debugBridgeEnabled());
+    }
 
     this.dialogRef.close();
   }
