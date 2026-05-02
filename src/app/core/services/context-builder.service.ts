@@ -40,6 +40,23 @@ export class ContextBuilderService {
     }
 
     /**
+     * True when the active provider's cache holds the KB on the server (so the
+     * client should OMIT the KB from `systemInstruction`) AND a cache is
+     * currently in use. False when there's no cache, or when the provider is a
+     * prefix-matched KV cache that requires the KB to be sent every turn.
+     *
+     * Centralized here so single-call, two-call resolver, and two-call narrator
+     * all agree — historically the same `hasCache && bakesContent` expression
+     * was inlined in each engine.
+     */
+    public shouldOmitKbFromSystemInstruction(): boolean {
+        const hasCache = !!this.state.kbCacheName();
+        if (!hasCache) return false;
+        const bakesContent = this.provider?.getCapabilities().cacheBakesContent ?? true;
+        return bakesContent;
+    }
+
+    /**
      * Constructs the JSON payload that will be sent to the Gemini API for preview purposes.
      */
     public getPreviewPayload(userText: string, options?: { intent?: string }) {

@@ -31,6 +31,18 @@ export class StreamProcessorService {
     private parser = inject(ContentParserService);
     private postProcessor = inject(PostProcessorService);
 
+    /** Streaming-phase log mapper: parse + apply safe replacements per item, so the live UI sees post-processed text. */
+    private mapLogStream(log: string[] | undefined): string[] | undefined {
+        if (!Array.isArray(log)) return undefined;
+        return log.map(item => this.postProcessor.applySafeReplacements(this.parser.processModelField(item)));
+    }
+
+    /** Final-phase log mapper: parse only — postProcessor.process is run on the full struct after parsing. */
+    private mapLogFinal(log: string[] | undefined): string[] {
+        if (!Array.isArray(log)) return [];
+        return log.map(item => this.parser.processModelField(item));
+    }
+
     /**
      * Processes an LLM stream, updating the UI in real-time and returning the finalized content.
      * @param stream The async generator from the provider.
@@ -112,18 +124,14 @@ export class StreamProcessorService {
                                     if (partial.response.summary) {
                                         next.summary = this.postProcessor.applySafeReplacements(this.parser.processModelField(partial.response.summary));
                                     }
-                                    if (Array.isArray(partial.response.character_log)) {
-                                        next.character_log = partial.response.character_log.map(c => this.postProcessor.applySafeReplacements(this.parser.processModelField(c)));
-                                    }
-                                    if (Array.isArray(partial.response.inventory_log)) {
-                                        next.inventory_log = partial.response.inventory_log.map(i => this.postProcessor.applySafeReplacements(this.parser.processModelField(i)));
-                                    }
-                                    if (Array.isArray(partial.response.quest_log)) {
-                                        next.quest_log = partial.response.quest_log.map(q => this.postProcessor.applySafeReplacements(this.parser.processModelField(q)));
-                                    }
-                                    if (Array.isArray(partial.response.world_log)) {
-                                        next.world_log = partial.response.world_log.map(w => this.postProcessor.applySafeReplacements(this.parser.processModelField(w)));
-                                    }
+                                    const character_log = this.mapLogStream(partial.response.character_log);
+                                    const inventory_log = this.mapLogStream(partial.response.inventory_log);
+                                    const quest_log = this.mapLogStream(partial.response.quest_log);
+                                    const world_log = this.mapLogStream(partial.response.world_log);
+                                    if (character_log) next.character_log = character_log;
+                                    if (inventory_log) next.inventory_log = inventory_log;
+                                    if (quest_log) next.quest_log = quest_log;
+                                    if (world_log) next.world_log = world_log;
                                 }
 
                                 arr[arr.length - 1] = next;
@@ -173,18 +181,10 @@ export class StreamProcessorService {
                 if (parsed.response.story) finalStory = this.parser.processModelField(parsed.response.story);
                 if (parsed.response.summary) finalSummary = this.parser.processModelField(parsed.response.summary);
 
-                if (Array.isArray(parsed.response.character_log)) {
-                    finalCharacterLog = parsed.response.character_log.map(c => this.parser.processModelField(c));
-                }
-                if (Array.isArray(parsed.response.inventory_log)) {
-                    finalInventoryLog = parsed.response.inventory_log.map(i => this.parser.processModelField(i));
-                }
-                if (Array.isArray(parsed.response.quest_log)) {
-                    finalQuestLog = parsed.response.quest_log.map(q => this.parser.processModelField(q));
-                }
-                if (Array.isArray(parsed.response.world_log)) {
-                    finalWorldLog = parsed.response.world_log.map(w => this.parser.processModelField(w));
-                }
+                finalCharacterLog = this.mapLogFinal(parsed.response.character_log);
+                finalInventoryLog = this.mapLogFinal(parsed.response.inventory_log);
+                finalQuestLog = this.mapLogFinal(parsed.response.quest_log);
+                finalWorldLog = this.mapLogFinal(parsed.response.world_log);
 
                 if (typeof parsed.response.correction === 'string' && parsed.response.correction.trim()) {
                     correction = this.parser.processModelField(parsed.response.correction).trim();
@@ -294,18 +294,14 @@ export class StreamProcessorService {
                             if (partial.summary) {
                                 next.summary = this.postProcessor.applySafeReplacements(this.parser.processModelField(partial.summary));
                             }
-                            if (Array.isArray(partial.character_log)) {
-                                next.character_log = partial.character_log.map(c => this.postProcessor.applySafeReplacements(this.parser.processModelField(c)));
-                            }
-                            if (Array.isArray(partial.inventory_log)) {
-                                next.inventory_log = partial.inventory_log.map(i => this.postProcessor.applySafeReplacements(this.parser.processModelField(i)));
-                            }
-                            if (Array.isArray(partial.quest_log)) {
-                                next.quest_log = partial.quest_log.map(q => this.postProcessor.applySafeReplacements(this.parser.processModelField(q)));
-                            }
-                            if (Array.isArray(partial.world_log)) {
-                                next.world_log = partial.world_log.map(w => this.postProcessor.applySafeReplacements(this.parser.processModelField(w)));
-                            }
+                            const character_log = this.mapLogStream(partial.character_log);
+                            const inventory_log = this.mapLogStream(partial.inventory_log);
+                            const quest_log = this.mapLogStream(partial.quest_log);
+                            const world_log = this.mapLogStream(partial.world_log);
+                            if (character_log) next.character_log = character_log;
+                            if (inventory_log) next.inventory_log = inventory_log;
+                            if (quest_log) next.quest_log = quest_log;
+                            if (world_log) next.world_log = world_log;
                             return next;
                         });
                     } catch { /* ignore parsing errors during stream */ }
@@ -331,10 +327,10 @@ export class StreamProcessorService {
             const parsed = this.parser.bestEffortJsonParser(currentJSONAccumulator) as Partial<NarratorOutput>;
             if (parsed.story) finalStory = this.parser.processModelField(parsed.story);
             if (parsed.summary) finalSummary = this.parser.processModelField(parsed.summary);
-            if (Array.isArray(parsed.character_log)) finalCharacterLog = parsed.character_log.map(c => this.parser.processModelField(c));
-            if (Array.isArray(parsed.inventory_log)) finalInventoryLog = parsed.inventory_log.map(i => this.parser.processModelField(i));
-            if (Array.isArray(parsed.quest_log)) finalQuestLog = parsed.quest_log.map(q => this.parser.processModelField(q));
-            if (Array.isArray(parsed.world_log)) finalWorldLog = parsed.world_log.map(w => this.parser.processModelField(w));
+            finalCharacterLog = this.mapLogFinal(parsed.character_log);
+            finalInventoryLog = this.mapLogFinal(parsed.inventory_log);
+            finalQuestLog = this.mapLogFinal(parsed.quest_log);
+            finalWorldLog = this.mapLogFinal(parsed.world_log);
         } catch (jsonErr) {
             console.error('[StreamProcessor] Narrator JSON Parse Failed:', jsonErr);
             const ui = getUIStrings(outputLanguage);

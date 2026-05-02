@@ -52,9 +52,7 @@ export class TwoCallOrchestratorService {
         modelMsgId?: string;
         updateMessages?: (updater: (prev: ChatMessage[]) => ChatMessage[]) => void;
     }): Promise<ResolverRunResult> {
-        const hasCache = !!this.state.kbCacheName();
-        const bakesContent = this.provider.getCapabilities().cacheBakesContent ?? true;
-        const omitKB = hasCache && bakesContent;
+        const omitKB = this.contextBuilder.shouldOmitKbFromSystemInstruction();
 
         const stream = this.provider.generateContentStream(
             this.providerRegistry.getActiveConfig(),
@@ -117,9 +115,7 @@ export class TwoCallOrchestratorService {
         signal: AbortSignal;
         updateMessages: (updater: (prev: ChatMessage[]) => ChatMessage[]) => void;
     }): Promise<StreamProcessResult> {
-        const hasCache = !!this.state.kbCacheName();
-        const bakesContent = this.provider.getCapabilities().cacheBakesContent ?? true;
-        const omitKB = hasCache && bakesContent;
+        const omitKB = this.contextBuilder.shouldOmitKbFromSystemInstruction();
 
         const stream = this.provider.generateContentStream(
             this.providerRegistry.getActiveConfig(),
