@@ -127,9 +127,15 @@ export class BridgeService {
 
         ws.addEventListener('message', event => {
             if (this.ws !== ws) return;
+            // Server only sends text frames; defensive guard so a stray binary frame
+            // doesn't get coerced through `JSON.parse(<Blob>)`.
+            if (typeof event.data !== 'string') {
+                console.warn('[bridge] non-text frame', event.data);
+                return;
+            }
             let frame: BridgeFrame;
             try {
-                frame = JSON.parse(event.data as string) as BridgeFrame;
+                frame = JSON.parse(event.data) as BridgeFrame;
             } catch {
                 console.warn('[bridge] non-json frame', event.data);
                 return;
@@ -184,7 +190,6 @@ export class BridgeService {
             return;
         }
         const intent = BridgeService.normalizeIntent(rawIntent);
-        const before = this.state.messages().length;
 
         try {
             await this.engine.sendMessage(userInput, intent ? { intent } : undefined);
@@ -199,14 +204,18 @@ export class BridgeService {
             return;
         }
 
+        // Walk from the end to find the most recent user→model adjacency. Don't anchor
+        // on a length captured before the await — the user can delete messages in the
+        // UI mid-turn, which can leave length <= captured and skip the pair entirely.
         const all = this.state.messages();
-        let userMsg: ChatMessage | null = null;
         let modelMsg: ChatMessage | null = null;
-        for (let i = all.length - 1; i >= before; i--) {
-            const m = all[i];
-            if (m.role === 'model' && !modelMsg) modelMsg = m;
-            else if (m.role === 'user' && !userMsg) userMsg = m;
-            if (userMsg && modelMsg) break;
+        let userMsg: ChatMessage | null = null;
+        for (let i = all.length - 1; i >= 0; i--) {
+            if (all[i].role === 'model') {
+                modelMsg = all[i];
+                if (i > 0 && all[i - 1].role === 'user') userMsg = all[i - 1];
+                break;
+            }
         }
         if (!modelMsg || !userMsg) {
             this.send({ type: 'action_error', requestId, error: 'no_pair_produced' });
