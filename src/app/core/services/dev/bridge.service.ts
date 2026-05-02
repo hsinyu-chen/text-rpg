@@ -4,6 +4,7 @@ import { GameStateService } from '../game-state.service';
 import { GameEngineService } from '../game-engine.service';
 import { GAME_INTENTS } from '../../constants/game-intents';
 import { ChatMessage } from '../../models/types';
+import { WINDOW } from '../../tokens/window.token';
 
 /**
  * Dev-only relay client. Connects to a local BridgeServer (sibling repo
@@ -38,11 +39,18 @@ interface SendActionFrame extends BridgeFrame {
 
 interface ListFrame extends BridgeFrame {
     limit?: number;
+    full?: boolean;
 }
 
 interface DeleteFrame extends BridgeFrame {
     messageId?: string;
     alsoDeletePair?: boolean;
+}
+
+interface ReloadFrame extends BridgeFrame {
+    // The Location.reload(force) parameter is non-standard and ignored by
+    // modern browsers, but accept it for forward-compat / explicit intent.
+    force?: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -51,6 +59,7 @@ export class BridgeService {
     private state = inject(GameStateService);
     private engine = inject(GameEngineService);
     private destroyRef = inject(DestroyRef);
+    private win = inject(WINDOW);
 
     private static readonly VALID_INTENTS: ReadonlySet<string> = new Set(Object.values(GAME_INTENTS));
 
@@ -204,9 +213,22 @@ export class BridgeService {
             case 'delete':
                 void this.handleDelete(frame as DeleteFrame);
                 break;
+            case 'reload':
+                void this.handleReload(frame as ReloadFrame);
+                break;
             default:
                 console.warn('[bridge] unknown frame type', type, frame);
         }
+    }
+
+    private async handleReload(frame: ReloadFrame): Promise<void> {
+        const { requestId } = frame;
+        if (!requestId) return;
+        // Ack first — once reload() runs, the WS tears down and any later
+        // frame would be lost. Tiny delay ensures the response flushes.
+        this.send({ type: 'reload_response', requestId, ok: true });
+        await new Promise(r => setTimeout(r, 50));
+        this.win.location.reload();
     }
 
     private async handleSendAction(frame: SendActionFrame): Promise<void> {
@@ -284,17 +306,31 @@ export class BridgeService {
     }
 
     private handleList(frame: ListFrame): void {
-        const { requestId, limit: rawLimit } = frame;
+        const { requestId, limit: rawLimit, full } = frame;
         if (!requestId) return;
         const limit = typeof rawLimit === 'number' && rawLimit > 0 ? Math.min(rawLimit, 200) : 50;
         const all = this.state.messages();
         const slice = all.slice(-limit);
-        const messages = slice.map(m => ({
-            id: m.id,
-            role: m.role,
-            headPreview: (m.content ?? '').slice(0, 80),
-            intent: m.intent,
-        }));
+        const messages = full
+            ? slice.map(m => ({
+                id: m.id,
+                role: m.role,
+                intent: m.intent,
+                content: m.content,
+                analysis: m.analysis,
+                thought: m.thought,
+                summary: m.summary,
+                character_log: m.character_log,
+                inventory_log: m.inventory_log,
+                quest_log: m.quest_log,
+                world_log: m.world_log,
+            }))
+            : slice.map(m => ({
+                id: m.id,
+                role: m.role,
+                headPreview: (m.content ?? '').slice(0, 80),
+                intent: m.intent,
+            }));
         this.send({ type: 'list_response', requestId, messages });
     }
 

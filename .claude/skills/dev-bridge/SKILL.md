@@ -41,8 +41,34 @@ on every invocation.
 . ./.claude/skills/dev-bridge/bridge.ps1; Get-BridgeMessages -Limit 5 | Format-Table id, role, headPreview
 ```
 
+`Get-BridgeMessages` defaults to a `headPreview` (first 80 chars of `content`). When you need
+to compare full turn output structure (e.g. baseline vs post-change verification), pass `-Full`:
+
+```pwsh
+. ./.claude/skills/dev-bridge/bridge.ps1
+$last = (Get-BridgeMessages -Limit 1 -Full)[0]
+$last.analysis    # full analysis block (【現況盤點】/【動作N】/【全場景N】/【事件】 etc)
+$last.summary     # [EVT] / [NPC] / [PLOT] telegraphic summary
+$last.content     # the full scene incl. <CREATIVE FICTION CONTEXT> header
+$last.character_log; $last.inventory_log; $last.world_log; $last.quest_log
+```
+
 If you see `app_not_connected`, the user's app isn't connected — pause and tell them to flip the
 Debug Bridge toggle / open the app, do not retry blindly.
+
+### Reload the running app
+
+After editing prompt assets in `public/assets/system_files/**/*.md`, the running app still has
+the old text in memory — those files are fetched once at init. Trigger a hard refresh from
+the agent side:
+
+```pwsh
+. ./.claude/skills/dev-bridge/bridge.ps1; Invoke-BridgeReload | Out-Null
+```
+
+The app acks then reloads, so the WS drops mid-flight (expected). After ~2 s the WS reconnects
+and `Get-BridgeMessages` works again. Use this any time you change `system_prompt.md` /
+`injection_*.md` and want to verify behavior on the live app without asking the user to F5.
 
 ### Drive one action turn
 
