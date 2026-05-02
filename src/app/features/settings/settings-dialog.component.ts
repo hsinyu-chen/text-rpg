@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed } from '@angular/core';
+import { Component, inject, signal, computed, isDevMode } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -20,6 +20,7 @@ import { LoadingService } from '../../core/services/loading.service';
 import { SettingsSyncService } from '../../core/services/settings-sync.service';
 import { getLanguagesList } from '../../core/constants/locales';
 import { LLMProfilesDialogComponent } from './llm-profiles-dialog.component';
+import { BridgeService } from '../../core/services/dev/bridge.service';
 
 @Component({
   selector: 'app-settings-dialog',
@@ -51,6 +52,10 @@ export class SettingsDialogComponent {
   private matDialog = inject(MatDialog);
   loading = inject(LoadingService);
   private settingsSync = inject(SettingsSyncService);
+  bridge = inject(BridgeService);
+
+  /** Dev-only Bridge section is hidden in production builds. */
+  readonly isDev = isDevMode();
 
   /** List of profiles, reactive to the storage layer. */
   profiles = this.llmConfig.profiles;
@@ -96,6 +101,12 @@ export class SettingsDialogComponent {
   ];
 
   customFontName = signal('');
+
+  // Debug bridge — local edit copies; applied on Save.
+  debugBridgeUrl = signal(this.bridge.url());
+  debugBridgeEnabled = signal(this.bridge.enabled());
+  bridgeTestInProgress = signal(false);
+  bridgeTestResult = signal<{ ok: boolean; error?: string } | null>(null);
 
   isValid = computed(() => {
     if (this.outputLanguage() === 'custom' && !this.customOutputLanguage().trim()) return false;
@@ -169,7 +180,31 @@ export class SettingsDialogComponent {
 
     this.engine.saveConfig(commonConfig);
 
+    if (this.isDev) {
+      this.bridge.setUrl(this.debugBridgeUrl().trim());
+      this.bridge.setEnabled(this.debugBridgeEnabled());
+    }
+
     this.dialogRef.close();
+  }
+
+  onDebugBridgeUrlChange(url: string): void {
+    this.debugBridgeUrl.set(url);
+    // Stale result is worse than no result — clear as soon as the URL changes.
+    this.bridgeTestResult.set(null);
+  }
+
+  async testBridgeConnection(): Promise<void> {
+    const url = this.debugBridgeUrl().trim();
+    if (!url || this.bridgeTestInProgress()) return;
+    this.bridgeTestInProgress.set(true);
+    this.bridgeTestResult.set(null);
+    try {
+      const res = await this.bridge.testConnection(url);
+      this.bridgeTestResult.set(res);
+    } finally {
+      this.bridgeTestInProgress.set(false);
+    }
   }
 
   async uploadSettings(): Promise<void> {

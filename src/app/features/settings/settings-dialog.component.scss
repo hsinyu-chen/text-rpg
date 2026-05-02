@@ -71,8 +71,59 @@
 .currency-row {
     display: flex;
     gap: 12px;
-    
+
     .half-width {
         flex: 1;
     }
+}
+
+.bridge-test-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+
+    .test-result {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 0.8rem;
+
+        mat-icon {
+            font-size: 18px;
+            width: 18px;
+            height: 18px;
+        }
+
+        &.ok { color: #4caf50; }
+        &.fail { color: #e57373; }
+    }
+}
+
+.bridge-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    color: #aaa;
+
+    .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #555;
+    }
+
+    .label {
+        text-transform: capitalize;
+    }
+
+    .error-msg {
+        color: #c66;
+    }
+
+    &.status-connected .dot { background: #4caf50; }
+    &.status-connecting .dot { background: #ffb74d; }
+    &.status-error     .dot { background: #e57373; }
 }
