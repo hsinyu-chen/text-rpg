@@ -38,8 +38,10 @@ export function buildResolverUserMessage(input: {
     intentInjection: string;
     protocolResolver: string;
 }): string {
-    const merged = input.intentInjection.replace(/\{\{USER_INPUT\}\}/g, input.userInput);
-    const protocol = input.protocolResolver.replace(/\{\{USER_INPUT\}\}/g, input.userInput);
+    // Function-form replace so a literal `$&` / `$1` in userInput is not
+    // interpreted as a backreference pattern.
+    const merged = input.intentInjection.replace(/\{\{USER_INPUT\}\}/g, () => input.userInput);
+    const protocol = input.protocolResolver.replace(/\{\{USER_INPUT\}\}/g, () => input.userInput);
 
     if (merged && protocol) return `${merged}\n\n${protocol}`;
     if (protocol) return protocol;

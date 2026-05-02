@@ -9,7 +9,8 @@ import { ResolverOutput, ResolverStep } from '../../constants/engine-protocol-v2
  * as truncated so the user can see what the model considered but did
  * not execute.
  */
-export function formatResolverTrace(output: Partial<ResolverOutput>): string {
+export function formatResolverTrace(output: Partial<ResolverOutput> | null | undefined): string {
+    if (!output) return '';
     const lines: string[] = [];
 
     if (output.ideal_outcome) {

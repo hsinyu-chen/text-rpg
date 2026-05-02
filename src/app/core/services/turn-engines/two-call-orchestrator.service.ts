@@ -102,8 +102,8 @@ export class TwoCallOrchestratorService {
             }
         }
 
-        const parsed = this.parser.bestEffortJsonParser(accumulator) as Partial<ResolverOutput>;
-        const resolverOutput = this.normalizeResolver(parsed);
+        const parsed = this.parser.bestEffortJsonParser(accumulator) as Partial<ResolverOutput> | null;
+        const resolverOutput = this.normalizeResolver(parsed ?? {});
         return { resolverOutput, rawJson: accumulator, usage, finishReason };
     }
 
