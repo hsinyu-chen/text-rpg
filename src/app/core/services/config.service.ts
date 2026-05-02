@@ -95,7 +95,9 @@ export class ConfigService {
         const enableConversion = localStorage.getItem('app_enable_conversion') === 'true';
         const idleOnBlur = localStorage.getItem('app_idle_on_blur') === 'true';
         const enableAdultDeclaration = localStorage.getItem('app_enable_adult_declaration') !== 'false';
-        const engineMode = (localStorage.getItem('app_engine_mode') as 'single' | 'two-call') || 'single';
+        // Sanitize on read — localStorage can hold any string (corruption /
+        // manual edit). Anything other than the known opt-in falls back to single.
+        const engineMode: 'single' | 'two-call' = localStorage.getItem('app_engine_mode') === 'two-call' ? 'two-call' : 'single';
 
         // Get Provider-Specific settings from the active provider's persisted config
         const activeProvider = this.providerRegistry.getActive();

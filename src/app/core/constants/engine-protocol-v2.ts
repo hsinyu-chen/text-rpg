@@ -62,7 +62,7 @@ const stepSchema: Schema = {
         },
         ambient: { type: 'string', description: 'One-sentence environmental note (weather change, object state, ambient sound) tied to this step. Empty if no change.' }
     },
-    required: ['action', 'action_type', 'event_type', 'ideal_status', 'npc_reactions']
+    required: ['action', 'action_type', 'target', 'dialogue', 'mood', 'state_changes', 'event_type', 'ideal_status', 'break_reason', 'npc_reactions', 'ambient']
 };
 
 export const getResolverSchema = (lang = 'default'): Schema => {
@@ -99,7 +99,7 @@ export const getResolverSchema = (lang = 'default'): Schema => {
                 description: '1-based index of the first broken step, or 0 when interrupted=false. The program uses this for hard-stop truncation.'
             }
         },
-        required: ['ideal_outcome', 'ideal_strength', 'steps', 'interrupted']
+        required: ['ideal_outcome', 'ideal_strength', 'steps', 'interrupted', 'interrupted_at_step']
     };
 };
 
