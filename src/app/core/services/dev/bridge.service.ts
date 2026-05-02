@@ -190,6 +190,11 @@ export class BridgeService {
             return;
         }
         const intent = BridgeService.normalizeIntent(rawIntent);
+        // Snapshot ids before the await so we can verify the pair we surface is genuinely new.
+        // Engine no-ops (e.g. empty userInput on ACTION/SYSTEM/FAST_FORWARD) return without
+        // touching status or messages; without this guard we would silently report the
+        // *previous* turn's pair as a fresh result.
+        const existingIds = new Set(this.state.messages().map(m => m.id));
 
         try {
             await this.engine.sendMessage(userInput, intent ? { intent } : undefined);
@@ -204,9 +209,8 @@ export class BridgeService {
             return;
         }
 
-        // Walk from the end to find the most recent user→model adjacency. Don't anchor
-        // on a length captured before the await — the user can delete messages in the
-        // UI mid-turn, which can leave length <= captured and skip the pair entirely.
+        // Walk from the end to find the most recent user→model adjacency. Index-from-`before`
+        // is unreliable because the user can delete messages in the UI mid-turn.
         const all = this.state.messages();
         let modelMsg: ChatMessage | null = null;
         let userMsg: ChatMessage | null = null;
@@ -217,7 +221,7 @@ export class BridgeService {
                 break;
             }
         }
-        if (!modelMsg || !userMsg) {
+        if (!modelMsg || !userMsg || existingIds.has(modelMsg.id)) {
             this.send({ type: 'action_error', requestId, error: 'no_pair_produced' });
             return;
         }

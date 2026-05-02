@@ -7,12 +7,14 @@ description: Drive a running TextRPG dev build through the local BridgeServer re
 
 The user's setup runs three pieces:
 
-1. TextRPG dev server at `https://localhost:4200` (`npm start` in [h:/MyWork/TextRPG](h:/MyWork/TextRPG))
-2. BridgeServer at `http://127.0.0.1:5051` (agent) + `wss://127.0.0.1:5050/app` (app)
-   ([h:/MyWork/TextRPG_TestBridge](h:/MyWork/TextRPG_TestBridge), `dotnet run`)
+1. TextRPG dev server at `https://localhost:4200` (`npm start` from the TextRPG repo)
+2. BridgeServer at `http://127.0.0.1:5051` (agent) + `wss://127.0.0.1:5050/app` (app), from
+   the sibling [text-rpg-test-bridge](https://github.com/hsinyu-chen/text-rpg-test-bridge) checkout
+   (`dotnet run`)
 3. The app's Settings → Debug Bridge has the URL set + toggle on, and the status indicator is **green**.
 
-When all three are up, you drive the app via HTTP from PowerShell.
+When all three are up, you drive the app via HTTP from PowerShell. The dot-source paths
+below are relative to the TextRPG repo root, which is the harness's default working directory.
 
 ## Critical: Windows + UTF-8
 
@@ -25,7 +27,7 @@ Always send through PowerShell with explicit UTF-8 encoding, via the helper at
 [bridge.ps1](bridge.ps1):
 
 ```pwsh
-. h:/MyWork/TextRPG/.claude/skills/dev-bridge/bridge.ps1
+. ./.claude/skills/dev-bridge/bridge.ps1
 ```
 
 Then call the helpers below. The PowerShell tool resets shell state between calls, so dot-source
@@ -36,7 +38,7 @@ on every invocation.
 ### Sanity check what's loaded
 
 ```pwsh
-. h:/MyWork/TextRPG/.claude/skills/dev-bridge/bridge.ps1; Get-BridgeMessages -Limit 5 | Format-Table id, role, headPreview
+. ./.claude/skills/dev-bridge/bridge.ps1; Get-BridgeMessages -Limit 5 | Format-Table id, role, headPreview
 ```
 
 If you see `app_not_connected`, the user's app isn't connected — pause and tell them to flip the
@@ -49,7 +51,7 @@ action, then the spoken line. The engine prepends the `<行動意圖>` tag itsel
 it.
 
 ```pwsh
-. h:/MyWork/TextRPG/.claude/skills/dev-bridge/bridge.ps1
+. ./.claude/skills/dev-bridge/bridge.ps1
 $resp = Send-BridgeAction -UserInput "([好奇]張望)這裡是哪？" -Intent action
 $resp.pair.model.summary    # one-line story summary the engine produced
 $resp.pair.model.content    # the full scene
@@ -66,7 +68,7 @@ before it (and vice versa). Use this whenever the model output isn't what you wa
 want to re-run with a tweaked prompt or different input.
 
 ```pwsh
-. h:/MyWork/TextRPG/.claude/skills/dev-bridge/bridge.ps1
+. ./.claude/skills/dev-bridge/bridge.ps1
 Remove-BridgeMessage -MessageId $resp.messageId   # nukes the pair
 Send-BridgeAction -UserInput "([緊張]說)等一下，先別走" -Intent action
 ```
