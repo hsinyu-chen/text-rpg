@@ -7,6 +7,7 @@ import { ContentParserService } from '../content-parser.service';
 import { StreamProcessorService, StreamProcessResult } from '../stream-processor.service';
 import { ChatMessage } from '../../models/types';
 import { getResolverSchema, getNarratorSchema, ResolverOutput } from '../../constants/engine-protocol-v2';
+import { formatResolverTrace } from './format-resolver-trace';
 
 export interface ResolverRunResult {
     resolverOutput: ResolverOutput;
@@ -47,6 +48,8 @@ export class TwoCallOrchestratorService {
         outputLanguage: string;
         intent: string;
         signal: AbortSignal;
+        modelMsgId?: string;
+        updateMessages?: (updater: (prev: ChatMessage[]) => ChatMessage[]) => void;
     }): Promise<ResolverRunResult> {
         const hasCache = !!this.state.kbCacheName();
         const bakesContent = this.provider.getCapabilities().cacheBakesContent ?? true;
@@ -68,10 +71,33 @@ export class TwoCallOrchestratorService {
         let accumulator = '';
         let usage: LLMUsageMetadata = { prompt: 0, candidates: 0, cached: 0 };
         let finishReason: string | undefined;
+        let lastTraceText = '';
+
+        const updateLastModelAnalysis = (text: string) => {
+            if (!input.updateMessages || !input.modelMsgId) return;
+            input.updateMessages(prev => {
+                const arr = [...prev];
+                const last = arr[arr.length - 1];
+                if (last?.role === 'model' && last.id === input.modelMsgId) {
+                    arr[arr.length - 1] = { ...last, analysis: text, isThinking: true };
+                }
+                return arr;
+            });
+        };
 
         for await (const chunk of stream) {
             if (chunk.finishReason) finishReason = chunk.finishReason;
-            if (chunk.text && !chunk.thought) accumulator += chunk.text;
+            if (chunk.text && !chunk.thought) {
+                accumulator += chunk.text;
+                try {
+                    const partial = this.parser.bestEffortJsonParser(accumulator) as Partial<ResolverOutput>;
+                    const trace = formatResolverTrace(partial);
+                    if (trace && trace !== lastTraceText) {
+                        lastTraceText = trace;
+                        updateLastModelAnalysis(trace);
+                    }
+                } catch { /* parse errors during stream are expected */ }
+            }
             if (chunk.usageMetadata) {
                 usage = {
                     ...usage,

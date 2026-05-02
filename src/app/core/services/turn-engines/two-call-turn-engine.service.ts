@@ -6,6 +6,7 @@ import { ChatMessage } from '../../models/types';
 import { TurnEngine, TurnRunInput } from './turn-engine.interface';
 import { TwoCallOrchestratorService } from './two-call-orchestrator.service';
 import { truncateAtFirstBroken } from './truncate-steps';
+import { formatResolverTrace } from './format-resolver-trace';
 
 /**
  * v2 turn engine — splits a turn into a resolver call (atomic action
@@ -46,7 +47,9 @@ export class TwoCallTurnEngine implements TurnEngine {
             history: resolverHistory,
             outputLanguage: input.outputLanguage,
             intent: input.intent,
-            signal: input.signal
+            signal: input.signal,
+            modelMsgId: input.modelMsgId,
+            updateMessages: input.updateMessages
         });
 
         const truncated = truncateAtFirstBroken(resolverResult.resolverOutput.steps);
@@ -80,11 +83,17 @@ export class TwoCallTurnEngine implements TurnEngine {
             totalDuration: (resolverResult.usage.totalDuration || 0) + (narratorResult.turnUsage.totalDuration || 0)
         };
 
+        const finalTrace = formatResolverTrace({
+            ...resolverResult.resolverOutput,
+            interrupted: truncated.interrupted,
+            interrupted_at_step: truncated.interruptedAtStep
+        });
+
         return {
             ...narratorResult,
-            // Surface the resolver output as analysis so the existing thought-window
-            // UI shows step trace until D13 lands a dedicated presenter.
-            finalAnalysis: resolverResult.rawJson,
+            // Final formatted resolver trace lands in the analysis field so it
+            // renders in the existing "Atomic Breakdown & Check" panel.
+            finalAnalysis: finalTrace || resolverResult.rawJson,
             turnUsage: combinedUsage,
             finalFinishReason: narratorResult.finalFinishReason || resolverResult.finishReason
         };
