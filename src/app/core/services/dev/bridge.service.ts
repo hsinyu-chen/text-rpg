@@ -70,6 +70,37 @@ export class BridgeService {
         localStorage.setItem(STORAGE_URL, url);
     }
 
+    /**
+     * One-shot WebSocket dial to verify a URL is reachable, without disturbing the
+     * active connection. Resolves to `{ ok: true }` on `open`, `{ ok: false, error }`
+     * on a constructor throw, the `error` event, or after `timeoutMs`.
+     */
+    async testConnection(url: string, timeoutMs = 5000): Promise<{ ok: boolean; error?: string }> {
+        return new Promise(resolve => {
+            let probe: WebSocket;
+            try {
+                probe = new WebSocket(url);
+            } catch (e) {
+                resolve({ ok: false, error: e instanceof Error ? e.message : 'invalid url' });
+                return;
+            }
+            const timer = setTimeout(() => {
+                try { probe.close(); } catch { /* already closed */ }
+                resolve({ ok: false, error: 'timeout' });
+            }, timeoutMs);
+            probe.addEventListener('open', () => {
+                clearTimeout(timer);
+                try { probe.close(); } catch { /* already closed */ }
+                resolve({ ok: true });
+            }, { once: true });
+            probe.addEventListener('error', () => {
+                clearTimeout(timer);
+                try { probe.close(); } catch { /* already closed */ }
+                resolve({ ok: false, error: 'connection failed' });
+            }, { once: true });
+        });
+    }
+
     setEnabled(enabled: boolean): void {
         this.enabled.set(enabled);
         localStorage.setItem(STORAGE_ENABLED, String(enabled));
@@ -291,9 +322,7 @@ export class BridgeService {
             }
         }
 
-        for (const id of ids) {
-            await this.engine.deleteMessage(id);
-        }
+        await this.engine.deleteMessages(ids);
         this.send({ type: 'delete_response', requestId, deleted: ids });
     }
 

@@ -681,6 +681,14 @@ export class GameEngineService {
         await this.session.saveCurrentSessionToBook();
     }
 
+    async deleteMessages(ids: string[]) {
+        if (ids.length === 0) return;
+        for (const id of ids) {
+            this.chatHistory.deleteMessage(id);
+        }
+        await this.session.saveCurrentSessionToBook();
+    }
+
     async deleteFrom(id: string) {
         this.chatHistory.deleteFrom(id);
         await this.session.saveCurrentSessionToBook();

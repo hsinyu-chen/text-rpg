@@ -105,6 +105,8 @@ export class SettingsDialogComponent {
   // Debug bridge — local edit copies; applied on Save.
   debugBridgeUrl = signal(this.bridge.url());
   debugBridgeEnabled = signal(this.bridge.enabled());
+  bridgeTestInProgress = signal(false);
+  bridgeTestResult = signal<{ ok: boolean; error?: string } | null>(null);
 
   isValid = computed(() => {
     if (this.outputLanguage() === 'custom' && !this.customOutputLanguage().trim()) return false;
@@ -184,6 +186,25 @@ export class SettingsDialogComponent {
     }
 
     this.dialogRef.close();
+  }
+
+  onDebugBridgeUrlChange(url: string): void {
+    this.debugBridgeUrl.set(url);
+    // Stale result is worse than no result — clear as soon as the URL changes.
+    this.bridgeTestResult.set(null);
+  }
+
+  async testBridgeConnection(): Promise<void> {
+    const url = this.debugBridgeUrl().trim();
+    if (!url || this.bridgeTestInProgress()) return;
+    this.bridgeTestInProgress.set(true);
+    this.bridgeTestResult.set(null);
+    try {
+      const res = await this.bridge.testConnection(url);
+      this.bridgeTestResult.set(res);
+    } finally {
+      this.bridgeTestInProgress.set(false);
+    }
   }
 
   async uploadSettings(): Promise<void> {

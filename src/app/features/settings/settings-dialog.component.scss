@@ -77,6 +77,30 @@
     }
 }
 
+.bridge-test-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+
+    .test-result {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 0.8rem;
+
+        mat-icon {
+            font-size: 18px;
+            width: 18px;
+            height: 18px;
+        }
+
+        &.ok { color: #4caf50; }
+        &.fail { color: #e57373; }
+    }
+}
+
 .bridge-status {
     display: flex;
     align-items: center;
