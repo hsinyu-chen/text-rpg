@@ -637,7 +637,17 @@ export class GameEngineService {
                         correctionText: correction
                     }
                 };
-                queueMicrotask(() => { void this.sendMessage(oldStoryUserContent!, resendOpts); });
+                queueMicrotask(() => {
+                    this.sendMessage(oldStoryUserContent!, resendOpts).catch(err => {
+                        // sendMessage has its own try/catch and surfaces user-facing
+                        // errors via snackbar + status='error'. Anything that escapes
+                        // that net (push of the empty user msg failing, etc.) lands
+                        // here. Logging keeps it visible instead of becoming a silent
+                        // unhandled rejection. The system pair stays non-ref-only on
+                        // failure so the user can manually retry or delete it.
+                        console.error('[GameEngine] Auto-resend after correction failed:', err);
+                    });
+                });
             }
         } catch (e: unknown) {
             this.currentAbortController = null;
