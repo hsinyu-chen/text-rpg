@@ -38,6 +38,7 @@ export function buildResolverUserMessage(input: {
     intentInjection: string;
     protocolResolver: string;
     correctionReminder: string;
+    idealOutcomeConstraint?: string;
 }): string {
     // Function-form replace so literal `$&` / `$1` in any substituted text is
     // not interpreted as a backreference pattern. Correction reminder fills
@@ -46,7 +47,9 @@ export function buildResolverUserMessage(input: {
     const merged = input.intentInjection
         .replace(/\{\{CORRECTION_REMINDER\}\}/g, () => input.correctionReminder)
         .replace(/\{\{USER_INPUT\}\}/g, () => input.userInput);
-    const protocol = input.protocolResolver.replace(/\{\{USER_INPUT\}\}/g, () => input.userInput);
+    const protocol = input.protocolResolver
+        .replace(/\{\{IDEAL_OUTCOME_CONSTRAINT\}\}/g, () => input.idealOutcomeConstraint ?? '')
+        .replace(/\{\{USER_INPUT\}\}/g, () => input.userInput);
 
     if (merged && protocol) return `${merged}\n\n${protocol}`;
     if (protocol) return protocol;

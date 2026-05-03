@@ -6,31 +6,15 @@ import { LLMContent, LLMPart, LLMGenerateConfig } from '@hcs/llm-core';
 import { LLM_MARKERS, getResponseSchema, getIntentTags } from '../constants/engine-protocol';
 import { LLMProviderRegistryService } from './llm-provider-registry.service';
 import { LanguageService } from './language.service';
-import { LOCALES, getLangFolder } from '../constants/locales';
+import { LOCALES, getLocale } from '../constants/locales';
 import { GAME_INTENTS, STORY_INTENTS } from '../constants/game-intents';
 import { ResolverOutput, ResolverStep } from '../constants/engine-protocol-two-call';
 import { applyIntentTag, buildResolverUserMessage, buildNarratorUserMessage } from './turn-engines/build-context-utils';
 import { stripSystemMainMarker } from './profile-compat';
 
-// Layer 3 — substituted into protocol_resolver / protocol_narrator markdown via
-// `{{HISTORICAL_CORRECTION_RULE}}` only when chat history actually carries any
-// correction. Engine-level behaviour, not profile style — kept as a const here
-// instead of as an injection file. Per-folder so the rule reads natively in the
-// active output language.
-const HISTORICAL_CORRECTION_RULE_BY_FOLDER: Record<string, string> = {
-    'zh-tw': `## 歷史 correction（最高優先）
-
-history 訊息或 stateUpdates summary 出現 \`correction:\` 條目時，**必須**將其視為**硬性覆蓋**先前劇情的規則：
-- 所有欄位（prose、\`*_log\`、step \`state_changes\`／\`target\`）都必須與 correction 一致；衝突時以 correction 為準。
-- 已宣告的 correction 持續有效，不會自動失效。
-- \`correction\` 欄位是「規則／原因」的單一來源；其他欄位只寫修正後的最終狀態，不要重述修正過程或加 \`校正\`／calibration 標籤。`,
-    'en': `## Historical correction (top priority)
-
-When chat history or stateUpdates summary contains a \`correction:\` entry, treat it as a **hard override** of prior story content:
-- All fields (prose, \`*_log\`, step \`state_changes\` / \`target\`) must align with the correction; on conflict, the correction wins.
-- Declared corrections persist across turns; they do not silently expire.
-- The \`correction\` field is the single source of "reason / rule" — other fields write only the corrected final state, no \`校正\` / calibration markers, no recap of the correction process.`
-};
+// Engine prompt directives (HISTORICAL_CORRECTION_RULE, IDEAL_OUTCOME_CONSTRAINT)
+// live in the locale files under `enginePromptDirectives`. Engine behaviour,
+// not profile style — both built-in and user profiles share these.
 
 @Injectable({
     providedIn: 'root'
@@ -430,8 +414,33 @@ export class ContextBuilderService {
      */
     public getHistoricalCorrectionRule(lang: string): string {
         if (!this.hasHistoricalCorrection()) return '';
-        const folder = getLangFolder(lang);
-        return HISTORICAL_CORRECTION_RULE_BY_FOLDER[folder] ?? HISTORICAL_CORRECTION_RULE_BY_FOLDER['en'];
+        return getLocale(lang).enginePromptDirectives.HISTORICAL_CORRECTION_RULE;
+    }
+
+    /**
+     * Returns the trimmed `userIdealOutcome` of the most recent user message, or
+     * '' when absent / blank. Drives the {@link getIdealOutcomeConstraint} slot.
+     */
+    public getRecentUserIdealOutcome(): string {
+        const messages = this.state.messages();
+        for (let i = messages.length - 1; i >= 0; i--) {
+            const m = messages[i];
+            if (m.role !== 'user') continue;
+            return m.userIdealOutcome?.trim() ?? '';
+        }
+        return '';
+    }
+
+    /**
+     * Returns the rule paragraph to substitute into protocol_resolver's
+     * `{{IDEAL_OUTCOME_CONSTRAINT}}` slot, or '' when the user did not supply
+     * one. Plain `.split/.join` avoids backreference reinterpretation of the
+     * user-supplied text (which can contain `$&` / `$1` legitimately).
+     */
+    public getIdealOutcomeConstraint(text: string, lang: string): string {
+        if (!text) return '';
+        const template = getLocale(lang).enginePromptDirectives.IDEAL_OUTCOME_CONSTRAINT_TEMPLATE;
+        return template.split('{0}').join(text);
     }
 
     /**
@@ -472,7 +481,8 @@ export class ContextBuilderService {
             userInput,
             intentInjection,
             protocolResolver,
-            correctionReminder: this.renderCorrectionReminder(this.getRecentCorrection())
+            correctionReminder: this.renderCorrectionReminder(this.getRecentCorrection()),
+            idealOutcomeConstraint: this.getIdealOutcomeConstraint(this.getRecentUserIdealOutcome(), options.lang)
         });
         const finalContent = this.wrapUserMessage(tail, history);
 

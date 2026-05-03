@@ -7,6 +7,8 @@
 
 {{HISTORICAL_CORRECTION_RULE}}
 
+{{IDEAL_OUTCOME_CONSTRAINT}}
+
 ## 輸出（依 resolver schema）
 
 - **`ideal_outcome`**：一句話寫使用者想達成什麼。

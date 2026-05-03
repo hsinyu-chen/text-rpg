@@ -341,6 +341,11 @@ export class GameEngineService {
     async sendMessage(userText: string, options?: {
         isHidden?: boolean,
         intent?: string,
+        // Optional user-supplied ideal_outcome for two-call resolver. When non-empty,
+        // ContextBuilder injects it into the resolver's protocol via the
+        // {{IDEAL_OUTCOME_CONSTRAINT}} slot on the next turn. Carried on the user
+        // message so it persists across reloads / rewinds.
+        userIdealOutcome?: string,
         // Set when this call is the auto-resend triggered by a `<系統>` correction.
         // Its presence drives post-turn cleanup: the system pair + the original
         // (now-failed) action user message become ref-only, and the correction
@@ -368,6 +373,7 @@ export class GameEngineService {
         const userMsgId = crypto.randomUUID();
 
         // 1. Immediately update UI & Storage
+        const userIdealOutcome = options?.userIdealOutcome?.trim() || undefined;
         this.updateMessages(prev => [...prev, {
             id: userMsgId,
             role: 'user',
@@ -375,7 +381,8 @@ export class GameEngineService {
             parts,
             isRefOnly: false,
             isHidden: options?.isHidden,
-            intent: options?.intent
+            intent: options?.intent,
+            userIdealOutcome
         }]);
 
         this.state.status.set('generating');
@@ -471,7 +478,8 @@ export class GameEngineService {
                 capturedFCs,
                 capturedThoughtSignature,
                 finalThought,
-                finalFinishReason
+                finalFinishReason,
+                contextTokens
             } = result;
 
             // Show stop reason notification if not normal
@@ -560,6 +568,7 @@ export class GameEngineService {
                         quest_log: finalQuestLog,
                         world_log: finalWorldLog,
                         usage: turnUsage,
+                        contextTokens,
                         // intent stays the user's original (SYSTEM for correction-declaration
                         // turns, story intent for normal turns). The auto-resend below
                         // produces a separate story-intent turn — we no longer fuse the

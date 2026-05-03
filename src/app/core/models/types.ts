@@ -44,6 +44,10 @@ export interface ChatMessage {
     correction?: string;
     /** Engine-controlled CoT panel default. true while a thought phase is active, false once non-thought content begins. UI's per-message toggle overrides until the next phase transition. */
     cotOpen?: boolean;
+    /** Optional user-supplied ideal_outcome for two-call resolver (carried on the user message that committed the turn). */
+    userIdealOutcome?: string;
+    /** Post-turn KV cache occupancy in tokens. In two-call mode this is the narrator-call only — `usage.prompt + usage.candidates` would double-count both LLM calls. Sidebar uses this when present. */
+    contextTokens?: number;
 }
 
 export interface TauriWindow extends Window {

@@ -7,6 +7,8 @@
 
 {{HISTORICAL_CORRECTION_RULE}}
 
+{{IDEAL_OUTCOME_CONSTRAINT}}
+
 ## 輸出協議
 
 依照 system response schema 的 `resolver` shape 輸出 JSON。各欄位的語意：

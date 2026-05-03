@@ -248,6 +248,97 @@ describe('two-call orchestrator integration', () => {
         expect(Object.keys(narratorSchema.properties ?? {})).not.toContain('steps');
     });
 
+    it('injects {{IDEAL_OUTCOME_CONSTRAINT}} into the resolver call when the latest user msg supplied userIdealOutcome', async () => {
+        messages.push({ id: 'u', role: 'user', content: 'walk forward', parts: [{ text: 'walk forward' }], userIdealOutcome: 'reach the plaza unseen' });
+
+        // Override the resolver protocol to include the slot for this test.
+        const fakeState = TestBed.inject(GameStateService) as unknown as { dynamicProtocolResolverInjection: { set: (v: string) => void } };
+        fakeState.dynamicProtocolResolverInjection.set('RESOLVER PROTOCOL\n\n{{IDEAL_OUTCOME_CONSTRAINT}}\n\n{{USER_INPUT}}');
+
+        mockProvider.enqueueJsonStream(resolverJson({
+            ideal_outcome: 'reach the plaza unseen',
+            ideal_strength: 'pragmatic',
+            steps: [
+                { action: 'walk', action_type: 'movement', target: '', dialogue: '', mood: 'calm', state_changes: [], event_type: 'ambient', ideal_status: 'intact', break_reason: '', npc_reactions: [], ambient: '' }
+            ],
+            interrupted: false,
+            interrupted_at_step: 0
+        }));
+        mockProvider.enqueueJsonStream(narratorJson('Walked.'));
+
+        const engine = getEngine();
+        await engine.runTurn({
+            history: [{ role: 'user', parts: [{ text: 'walk forward' }] }],
+            intent: 'action',
+            outputLanguage: 'default',
+            modelMsgId: 'm1',
+            signal: new AbortController().signal,
+            updateMessages
+        });
+
+        const resolverCall = mockProvider.calls[0];
+        const resolverTail = resolverCall.contents[resolverCall.contents.length - 1].parts[0].text!;
+        // The constraint paragraph (with the user-supplied text echoed) must reach the resolver.
+        expect(resolverTail).toContain('reach the plaza unseen');
+        // Slot was substituted, not left as a literal placeholder.
+        expect(resolverTail).not.toContain('{{IDEAL_OUTCOME_CONSTRAINT}}');
+    });
+
+    it('leaves the resolver protocol slot empty when no userIdealOutcome was supplied', async () => {
+        messages.push({ id: 'u', role: 'user', content: 'walk forward', parts: [{ text: 'walk forward' }] });
+
+        const fakeState = TestBed.inject(GameStateService) as unknown as { dynamicProtocolResolverInjection: { set: (v: string) => void } };
+        fakeState.dynamicProtocolResolverInjection.set('RESOLVER PROTOCOL\n\n{{IDEAL_OUTCOME_CONSTRAINT}}\n\n{{USER_INPUT}}');
+
+        mockProvider.enqueueJsonStream(resolverJson({
+            ideal_outcome: '', ideal_strength: 'pragmatic', steps: [], interrupted: false, interrupted_at_step: 0
+        }));
+        mockProvider.enqueueJsonStream(narratorJson('s'));
+
+        const engine = getEngine();
+        await engine.runTurn({
+            history: [{ role: 'user', parts: [{ text: 'walk forward' }] }],
+            intent: 'action',
+            outputLanguage: 'default',
+            modelMsgId: 'm1',
+            signal: new AbortController().signal,
+            updateMessages
+        });
+
+        const resolverTail = mockProvider.calls[0].contents[mockProvider.calls[0].contents.length - 1].parts[0].text!;
+        expect(resolverTail).not.toContain('{{IDEAL_OUTCOME_CONSTRAINT}}');
+        // No constraint heading is injected.
+        expect(resolverTail).not.toContain('User-declared ideal_outcome');
+        expect(resolverTail).not.toContain('使用者聲明的 ideal_outcome');
+    });
+
+    it('reports narrator-only contextTokens so the sidebar bar reflects post-turn cache occupancy, not the cost-billable sum', async () => {
+        pushUser('go');
+        mockProvider.enqueueJsonStream(
+            resolverJson({ ideal_outcome: '', ideal_strength: 'pragmatic', steps: [], interrupted: false, interrupted_at_step: 0 }),
+            { usage: { prompt: 100, candidates: 30, cached: 50 } }
+        );
+        mockProvider.enqueueJsonStream(narratorJson('s'),
+            { usage: { prompt: 200, candidates: 40, cached: 150 } }
+        );
+
+        const engine = getEngine();
+        const result = await engine.runTurn({
+            history: [{ role: 'user', parts: [{ text: 'go' }] }],
+            intent: 'action',
+            outputLanguage: 'default',
+            modelMsgId: 'm1',
+            signal: new AbortController().signal,
+            updateMessages
+        });
+
+        // turnUsage.prompt (300) + candidates (70) = 370 — the cost-billable sum.
+        // contextTokens must be the narrator-only view (200 + 40 = 240) so the
+        // sidebar context bar doesn't double-count both calls.
+        expect(result.contextTokens).toBe(240);
+        expect(result.turnUsage.prompt).toBe(300);
+    });
+
     it('combines usage metadata from both calls', async () => {
         pushUser('y');
         mockProvider.enqueueJsonStream(

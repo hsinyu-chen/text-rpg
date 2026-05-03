@@ -7,6 +7,8 @@
 
 {{HISTORICAL_CORRECTION_RULE}}
 
+{{IDEAL_OUTCOME_CONSTRAINT}}
+
 ## Output (resolver schema)
 
 - **`ideal_outcome`** — one sentence on what the user wants to achieve.

@@ -38,6 +38,22 @@ export const ZH_TW_LOCALE: AppLocale = {
     promptHoles: {
         LANGUAGE_RULE: "必須使用繁體中文進行創作，嚴禁使用中國用語。"
     },
+    enginePromptDirectives: {
+        HISTORICAL_CORRECTION_RULE: `## 歷史 correction（最高優先）
+
+history 訊息或 stateUpdates summary 出現 \`correction:\` 條目時，**必須**將其視為**硬性覆蓋**先前劇情的規則：
+- 所有欄位（prose、\`*_log\`、step \`state_changes\`／\`target\`）都必須與 correction 一致；衝突時以 correction 為準。
+- 已宣告的 correction 持續有效，不會自動失效。
+- \`correction\` 欄位是「規則／原因」的單一來源；其他欄位只寫修正後的最終狀態，不要重述修正過程或加 \`校正\`／calibration 標籤。`,
+        IDEAL_OUTCOME_CONSTRAINT_TEMPLATE: `## 使用者聲明的 ideal_outcome（最高優先）
+
+使用者已聲明 ideal_outcome 為：
+\`\`\`
+{0}
+\`\`\`
+
+**必須**以此為基準判定每一步，**禁止**自行 infer。仍需 echo 該值到 schema 的 \`ideal_outcome\` 欄位（一字不漏）。`
+    },
     sectionHeaders: {
         START_SCENE: '## 開始場景',
         INPUT_FORMAT: '## 使用者輸入格式'
@@ -215,6 +231,14 @@ export const ZH_TW_LOCALE: AppLocale = {
         CALIBRATE_TOOLTIP: '視覺化校準：在左側選取正確文字以自動修正',
         CALIBRATE_MODE_TITLE: '【視覺化校正中】請在左側檔案預覽區，圈選正確的文字片段：',
         CALIBRATE_CONFIRM: '確認並套用校正',
-        CALIBRATE_CANCEL: '取消校正'
+        CALIBRATE_CANCEL: '取消校正',
+        IDEAL_OUTCOME_FIELD_LABEL: '理想結果（選填，僅 2-call）',
+        IDEAL_OUTCOME_FIELD_PLACEHOLDER: '一句話描述本串動作要達成什麼。Resolver 以此逐步判定，遇阻會在該步停下不再續寫。',
+        IDEAL_OUTCOME_CHIP_LABEL: '理想結果',
+        IDEAL_OUTCOME_CHIP_PREFIX: '理想：',
+        IDEAL_OUTCOME_TOGGLE_TOOLTIP: '展開／收合理想結果欄位',
+        ENGINE_MODE_SINGLE: '1 Call',
+        ENGINE_MODE_TWO_CALL: '2 Call',
+        ENGINE_MODE_TOGGLE_TOOLTIP: '切換引擎模式（單次／推演＋敘事兩次）'
     }
 };

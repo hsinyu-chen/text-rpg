@@ -144,6 +144,38 @@ describe('buildResolverUserMessage', () => {
         });
         expect(out).toBe('$1 and $& survived');
     });
+
+    it('substitutes {{IDEAL_OUTCOME_CONSTRAINT}} into the resolver protocol when supplied', () => {
+        const out = buildResolverUserMessage({
+            userInput: 'walk',
+            intentInjection: '',
+            protocolResolver: 'PROTO\n\n{{IDEAL_OUTCOME_CONSTRAINT}}\n\n{{USER_INPUT}}',
+            correctionReminder: '',
+            idealOutcomeConstraint: 'CONSTRAINT: hit eyebrow'
+        });
+        expect(out).toBe('PROTO\n\nCONSTRAINT: hit eyebrow\n\nwalk');
+    });
+
+    it('drops {{IDEAL_OUTCOME_CONSTRAINT}} to empty when no constraint is supplied', () => {
+        const out = buildResolverUserMessage({
+            userInput: 'walk',
+            intentInjection: '',
+            protocolResolver: 'PROTO\n\n{{IDEAL_OUTCOME_CONSTRAINT}}\n\n{{USER_INPUT}}',
+            correctionReminder: ''
+        });
+        expect(out).toBe('PROTO\n\n\n\nwalk');
+    });
+
+    it('does not interpret $&/$1 backreferences in the ideal-outcome constraint text', () => {
+        const out = buildResolverUserMessage({
+            userInput: 'x',
+            intentInjection: '',
+            protocolResolver: '{{IDEAL_OUTCOME_CONSTRAINT}}',
+            correctionReminder: '',
+            idealOutcomeConstraint: '$1 and $& survived'
+        });
+        expect(out).toBe('$1 and $& survived');
+    });
 });
 
 describe('buildNarratorUserMessage', () => {
