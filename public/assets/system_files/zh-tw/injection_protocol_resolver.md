@@ -5,12 +5,7 @@
 {{USER_INPUT}}
 ```
 
-## 歷史 correction 規則（最高優先）
-
-若 history 訊息或 stateUpdates summary 區塊中出現 `correction:` 條目，**必須**將該條目視為**硬性覆蓋**先前劇情的規則：
-- 判定 step 的 `state_changes` 與 `target` 必須與 correction 規則一致（例如修正規則說「主角穿藍色制服」，後續 step 引用裝備時不可寫紅色）。
-- 與原劇情或舊 stateUpdates 衝突時一律以 correction 為準。
-- 已宣告過的 correction 規則持續有效，不會自動失效。
+{{HISTORICAL_CORRECTION_RULE}}
 
 ## 輸出協議
 

@@ -5,12 +5,7 @@
 {{USER_INPUT}}
 ```
 
-## Historical correction rules (top priority)
-
-If the chat history or stateUpdates summary blocks contain `correction:` entries, treat each entry as a **hard override** of prior story content:
-- A step's `state_changes` and `target` must align with the correction (e.g., if the rule says "protagonist wears blue uniform", later steps must not reference red).
-- When the correction conflicts with the original story or older stateUpdates, the correction wins.
-- Once declared, a correction stays in force across turns; it does not silently expire.
+{{HISTORICAL_CORRECTION_RULE}}
 
 ## Output Protocol
 

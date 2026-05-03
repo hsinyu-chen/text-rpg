@@ -1,8 +1,6 @@
 # 敘事協議（v2 Call 2 — Narrator / 本地版）
 
-## 歷史 correction（最高優先）
-
-narrator input JSON 含 `correction` 欄位，或 history／stateUpdates 含 `correction:` 條目時，視為**硬性覆蓋**：prose 與 `*_log` 必須與 correction 一致；涉及主角裝備／物品／狀態時 `inventory_log` 寫 `校正` 條目或 `character_log` 寫對應變更；與 `executed_steps` 衝突時以 correction 為準；不要在 prose 中提及「修正」。
+{{HISTORICAL_CORRECTION_RULE}}
 
 ## 輸出（依 narrator schema）
 

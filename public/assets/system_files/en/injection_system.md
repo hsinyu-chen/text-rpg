@@ -16,8 +16,7 @@ When user challenges the plot, you **MUST** choose one:
    - In `story`, write **only a short acknowledgement** (e.g., `"Correction recorded. Re-narrating the prior scene with the new setting."`). **Do NOT rewrite the previous scene** — the system will automatically re-trigger the same player action in the next turn, and that turn produces the corrected story.
    - `analysis` and `summary` should be brief acknowledgements; no story content here.
    - **PROHIBITED**: Outputting explanations, apologies, or promises.
-   - **No file updates needed**: State changes from plot corrections should only be output via `*_log` fields.
-   - If the error involves protagonist equipment / items / state, you **MUST** also write a `校正` (calibration) entry in `inventory_log` or a corresponding state change in `character_log` (effective immediately so the auto-resent next turn sees them).
+   - **Do NOT update files; do NOT write any `*_log` entries this turn.** State changes are emitted in the next turn's (auto-resent) narrator output, which writes logs as the corrected final state. This turn declares the rule only — keep state deltas out.
 
 2. **[Refute & Explain]**
    - Keep `correction` as `""`

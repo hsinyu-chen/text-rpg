@@ -5,9 +5,7 @@
 {{USER_INPUT}}
 ```
 
-## Historical correction (top priority)
-
-If history or stateUpdates contain `correction:` entries, treat them as a **hard override**: a step's `state_changes` / `target` must align with the correction; correction wins on conflict; declared corrections persist across turns.
+{{HISTORICAL_CORRECTION_RULE}}
 
 ## Output (resolver schema)
 

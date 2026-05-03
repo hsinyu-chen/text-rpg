@@ -1,8 +1,6 @@
 # Narration Protocol (v2 Call 2 — Narrator / Local)
 
-## Historical correction (top priority)
-
-If narrator input JSON includes `correction`, OR history / stateUpdates contain `correction:` entries, treat as a **hard override**: prose and `*_log` must match the correction; if it touches gear/items/state, write a `校正` entry in `inventory_log` or corresponding `character_log` change; correction wins over `executed_steps` on conflict; do not mention "correction" in the prose.
+{{HISTORICAL_CORRECTION_RULE}}
 
 ## Output (narrator schema)
 

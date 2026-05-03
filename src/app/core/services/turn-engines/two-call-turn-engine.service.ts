@@ -62,7 +62,8 @@ export class TwoCallTurnEngine implements TurnEngine {
                 interrupted: truncated.interrupted,
                 interrupted_at_step: truncated.interruptedAtStep
             },
-            executedSteps: truncated.executed
+            executedSteps: truncated.executed,
+            lang: input.outputLanguage
         });
 
         // Prefix narrator's CoT with the resolver's so both phases share one panel.

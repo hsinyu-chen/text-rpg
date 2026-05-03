@@ -5,9 +5,7 @@
 {{USER_INPUT}}
 ```
 
-## 歷史 correction（最高優先）
-
-history 或 stateUpdates 出現 `correction:` 條目即視為**硬性覆蓋**：step 的 `state_changes`／`target` 必須與 correction 一致；衝突時以 correction 為準；已宣告的 correction 不會自動失效。
+{{HISTORICAL_CORRECTION_RULE}}
 
 ## 輸出（依 resolver schema）
 

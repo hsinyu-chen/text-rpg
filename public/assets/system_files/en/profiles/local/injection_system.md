@@ -16,8 +16,7 @@ When user challenges the plot, you **MUST** choose one:
    - In `story`, write **only a short acknowledgement**. Do NOT rewrite the previous scene — the system auto-resends the same player action next turn, which produces the corrected story.
    - `analysis` and `summary` should be brief acknowledgements; no story content.
    - **PROHIBITED**: explanations, apologies, promises.
-   - **No file updates**: state changes only via `*_log` fields.
-   - If the error involves equipment/items/state, write a `校正` entry in `inventory_log` or corresponding `character_log` change (effective immediately).
+   - Do NOT update files or write `*_log` entries this turn — the next (auto-resent) narrator turn writes logs as the corrected final state.
 
 2. **[Refute & Explain]**
    - Keep `correction` as `""`
