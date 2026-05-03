@@ -99,8 +99,17 @@ export class StreamProcessorService {
                     });
                 } else {
                     currentJSONAccumulator += part.text;
-                    const closeCot = !cotClosed;
-                    if (closeCot) cotClosed = true;
+                    if (!cotClosed) {
+                        cotClosed = true;
+                        updateCallback(prev => {
+                            const arr = [...prev];
+                            const last = arr[arr.length - 1];
+                            if (last?.role === 'model') {
+                                arr[arr.length - 1] = { ...last, cotOpen: false };
+                            }
+                            return arr;
+                        });
+                    }
 
                     // Streaming Parsers for all fields
                     try {
@@ -112,7 +121,6 @@ export class StreamProcessorService {
                             const last = arr[arr.length - 1];
                             if (last?.role === 'model') {
                                 const next = { ...last, isThinking: true };
-                                if (closeCot) next.cotOpen = false;
 
                                 // Update Fields if they exist in partial
                                 if (partial.analysis) {
@@ -289,13 +297,14 @@ export class StreamProcessorService {
                     updateLastModel(last => ({ ...last, thought: currentThought }));
                 } else {
                     currentJSONAccumulator += part.text;
-                    const closeCot = !cotClosed;
-                    if (closeCot) cotClosed = true;
+                    if (!cotClosed) {
+                        cotClosed = true;
+                        updateLastModel(last => ({ ...last, cotOpen: false }));
+                    }
                     try {
                         const partial = this.parser.bestEffortJsonParser(currentJSONAccumulator) as Partial<NarratorOutput>;
                         updateLastModel(last => {
                             const next: ChatMessage = { ...last, isThinking: true };
-                            if (closeCot) next.cotOpen = false;
                             if (partial.story) {
                                 currentStoryPreview = this.parser.processModelField(partial.story);
                                 next.content = this.postProcessor.applySafeReplacements(currentStoryPreview);
