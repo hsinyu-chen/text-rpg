@@ -144,7 +144,7 @@ describe('buildNarratorUserMessage', () => {
             ],
             protocolNarrator: ''
         });
-        const parsed = JSON.parse(out.split('```json\n')[1].split('\n```')[0]);
+        const parsed = JSON.parse(out.split('~~~json\n')[1].split('\n~~~')[0]);
         expect(parsed.interrupted).toBe(true);
         expect(parsed.break_reason).toBe('NPC refused');
     });
@@ -155,7 +155,7 @@ describe('buildNarratorUserMessage', () => {
             executedSteps: [step({ action: 'a' })],
             protocolNarrator: ''
         });
-        const parsed = JSON.parse(out.split('```json\n')[1].split('\n```')[0]);
+        const parsed = JSON.parse(out.split('~~~json\n')[1].split('\n~~~')[0]);
         expect(parsed.interrupted).toBe(false);
         expect(parsed.break_reason).toBe('');
     });
@@ -166,7 +166,7 @@ describe('buildNarratorUserMessage', () => {
             executedSteps: [step()],
             protocolNarrator: ''
         });
-        expect(out.endsWith('```')).toBe(true);
+        expect(out.endsWith('~~~')).toBe(true);
     });
 
     it('round-trips ideal_outcome / ideal_strength / interrupted into the JSON block', () => {
@@ -175,7 +175,7 @@ describe('buildNarratorUserMessage', () => {
             executedSteps: [step()],
             protocolNarrator: ''
         });
-        const parsed = JSON.parse(out.split('```json\n')[1].split('\n```')[0]);
+        const parsed = JSON.parse(out.split('~~~json\n')[1].split('\n~~~')[0]);
         expect(parsed.ideal_outcome).toBe('X');
         expect(parsed.ideal_strength).toBe('desperate');
         expect(parsed.interrupted).toBe(false);

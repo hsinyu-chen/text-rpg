@@ -94,6 +94,9 @@ export function buildNarratorUserMessage(input: {
         executed_steps: sanitizedSteps
     };
 
-    const inputBlock = '[NARRATOR INPUT]\n```json\n' + JSON.stringify(narratorInput, null, 2) + '\n```';
+    // Use tilde fences instead of backticks — JSON.stringify does not escape
+    // backticks, so dialogue containing ``` would prematurely close a backtick
+    // fence and confuse the model.
+    const inputBlock = '[NARRATOR INPUT]\n~~~json\n' + JSON.stringify(narratorInput, null, 2) + '\n~~~';
     return input.protocolNarrator ? `${inputBlock}\n\n${input.protocolNarrator}` : inputBlock;
 }

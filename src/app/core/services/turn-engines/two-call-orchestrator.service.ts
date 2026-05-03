@@ -117,7 +117,15 @@ export class TwoCallOrchestratorService {
             }
         }
 
-        const parsed = this.parser.bestEffortJsonParser(accumulator) as Partial<ResolverOutput> | null;
+        let parsed: Partial<ResolverOutput> | null = null;
+        try {
+            parsed = this.parser.bestEffortJsonParser(accumulator) as Partial<ResolverOutput>;
+        } catch (err) {
+            // bestEffortJsonParser swallows its own parse errors and returns {},
+            // so this catch is defensive — guards against any future change to
+            // its contract or downstream cast failures.
+            console.error('[TwoCallOrchestrator] Resolver JSON parse failed:', err);
+        }
         const resolverOutput = this.normalizeResolver(parsed ?? {});
         return { resolverOutput, rawJson: accumulator, thought: thoughtAccumulator, usage, finishReason };
     }
