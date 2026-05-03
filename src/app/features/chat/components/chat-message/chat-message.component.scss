@@ -495,6 +495,7 @@
         }
     }
 }
+
 .prefill-container {
     margin-bottom: 16px;
     padding: 12px;
@@ -561,3 +562,13 @@
     }
 }
 
+:host::ng-deep {
+    markdown {
+        // Parent .thought-content sets `white-space: pre-wrap` for plain text
+        // CoT, but inside markdown HTML the `\n` between block tags becomes
+        // visible whitespace and bloats list / paragraph heights.
+        white-space: normal;
+
+        
+    }
+}
