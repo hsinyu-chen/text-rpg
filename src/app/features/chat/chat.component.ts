@@ -95,10 +95,15 @@ export class ChatComponent {
         // message's height enough to push distFromBottom past the smartScroll
         // threshold, breaking auto-follow. Re-pin to bottom once on the
         // false→true edge so streaming chunks resume following.
-        effect(() => {
+        // Wrap the value in a computed so the effect doesn't re-run on every
+        // streaming chunk — only when cotOpen on the last message flips.
+        const lastCotOpen = computed(() => {
             const msgs = this.state.messages();
             const last = msgs[msgs.length - 1];
-            const cot = last?.role === 'model' ? (last.cotOpen ?? false) : false;
+            return last?.role === 'model' ? (last.cotOpen ?? false) : false;
+        });
+        effect(() => {
+            const cot = lastCotOpen();
             const wasOpen = this.prevLastCotOpen;
             this.prevLastCotOpen = cot;
             if (cot && !wasOpen && this.state.status() === 'generating' && !this.userScrolledUp) {
