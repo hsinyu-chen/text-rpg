@@ -2,9 +2,13 @@ import { Injectable, signal, effect, inject, isDevMode, DestroyRef } from '@angu
 import { SessionService } from '../session.service';
 import { GameStateService } from '../game-state.service';
 import { GameEngineService } from '../game-engine.service';
+import { InjectionService } from '../injection.service';
+import { PromptProfileRegistryService } from '../prompt-profile-registry.service';
+import { ConfigService } from '../config.service';
 import { GAME_INTENTS } from '../../constants/game-intents';
 import { ChatMessage } from '../../models/types';
 import { WINDOW } from '../../tokens/window.token';
+import { isSystemMainCompatible } from '../profile-compat';
 
 /**
  * Dev-only relay client. Connects to a local BridgeServer (sibling repo
@@ -53,11 +57,23 @@ interface ReloadFrame extends BridgeFrame {
     force?: boolean;
 }
 
+interface ProfileSwitchFrame extends BridgeFrame {
+    id?: string;
+}
+
+interface ConfigSetFrame extends BridgeFrame {
+    engineMode?: 'single' | 'two-call';
+    outputLanguage?: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class BridgeService {
     private session = inject(SessionService);
     private state = inject(GameStateService);
     private engine = inject(GameEngineService);
+    private injection = inject(InjectionService);
+    private registry = inject(PromptProfileRegistryService);
+    private config = inject(ConfigService);
     private destroyRef = inject(DestroyRef);
     private win = inject(WINDOW);
 
@@ -216,9 +232,116 @@ export class BridgeService {
             case 'reload':
                 void this.handleReload(frame as ReloadFrame);
                 break;
+            case 'profile_list':
+                void this.handleProfileList(frame);
+                break;
+            case 'profile_get_active':
+                this.handleProfileGetActive(frame);
+                break;
+            case 'profile_switch':
+                void this.handleProfileSwitch(frame as ProfileSwitchFrame);
+                break;
+            case 'config_get':
+                this.handleConfigGet(frame);
+                break;
+            case 'config_set':
+                void this.handleConfigSet(frame as ConfigSetFrame);
+                break;
             default:
                 console.warn('[bridge] unknown frame type', type, frame);
         }
+    }
+
+    private async handleProfileList(frame: BridgeFrame): Promise<void> {
+        const { requestId } = frame;
+        if (!requestId) return;
+        const all = [...this.registry.builtInProfiles(), ...this.registry.userProfiles()];
+        const profiles = await Promise.all(all.map(async p => {
+            let compat: 'compatible' | 'legacy' | 'unknown' = 'unknown';
+            try {
+                const content = await this.injection.getResolvedProfilePrompt('system_main', p.id);
+                compat = isSystemMainCompatible(content) ? 'compatible' : 'legacy';
+            } catch { /* leave unknown */ }
+            return {
+                id: p.id,
+                displayName: p.displayName ?? p.id,
+                isBuiltIn: p.isBuiltIn,
+                baseProfileId: p.baseProfileId,
+                compat,
+            };
+        }));
+        this.send({ type: 'profile_list_response', requestId, active: this.state.activePromptProfile(), profiles });
+    }
+
+    private handleProfileGetActive(frame: BridgeFrame): void {
+        const { requestId } = frame;
+        if (!requestId) return;
+        const id = this.state.activePromptProfile();
+        const profile = this.registry.get(id);
+        this.send({
+            type: 'profile_get_active_response',
+            requestId,
+            id,
+            displayName: profile?.displayName ?? id,
+            isBuiltIn: profile?.isBuiltIn ?? false,
+            baseProfileId: profile?.baseProfileId ?? null,
+            compat: this.state.activeProfileCompat(),
+        });
+    }
+
+    private async handleProfileSwitch(frame: ProfileSwitchFrame): Promise<void> {
+        const { requestId, id } = frame;
+        if (!requestId) return;
+        if (typeof id !== 'string' || !id) {
+            this.send({ type: 'action_error', requestId, error: 'invalid_id' });
+            return;
+        }
+        if (!this.registry.get(id)) {
+            this.send({ type: 'action_error', requestId, error: 'unknown_profile' });
+            return;
+        }
+        await this.injection.switchProfile(id);
+        this.send({
+            type: 'profile_switch_response',
+            requestId,
+            active: this.state.activePromptProfile(),
+            compat: this.state.activeProfileCompat(),
+        });
+    }
+
+    private handleConfigGet(frame: BridgeFrame): void {
+        const { requestId } = frame;
+        if (!requestId) return;
+        const cfg = this.state.config();
+        this.send({
+            type: 'config_get_response',
+            requestId,
+            engineMode: cfg?.engineMode ?? 'single',
+            outputLanguage: cfg?.outputLanguage ?? 'default',
+            modelId: cfg?.modelId ?? null,
+        });
+    }
+
+    private async handleConfigSet(frame: ConfigSetFrame): Promise<void> {
+        const { requestId, engineMode, outputLanguage } = frame;
+        if (!requestId) return;
+        // Whitelist — accept only fields that are safe to change at runtime
+        // from a test harness. apiKey / modelId / fonts etc. stay UI-only.
+        const patch: { engineMode?: 'single' | 'two-call'; outputLanguage?: string } = {};
+        if (engineMode === 'single' || engineMode === 'two-call') patch.engineMode = engineMode;
+        if (typeof outputLanguage === 'string' && outputLanguage) patch.outputLanguage = outputLanguage;
+        if (Object.keys(patch).length === 0) {
+            this.send({ type: 'action_error', requestId, error: 'no_valid_fields' });
+            return;
+        }
+        await this.config.saveConfig(patch);
+        const cfg = this.state.config();
+        this.send({
+            type: 'config_set_response',
+            requestId,
+            engineMode: cfg?.engineMode ?? 'single',
+            outputLanguage: cfg?.outputLanguage ?? 'default',
+        });
     }
 
     private async handleReload(frame: ReloadFrame): Promise<void> {
