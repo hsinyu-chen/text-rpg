@@ -48,9 +48,9 @@ When chat history or stateUpdates summary contains a \`correction:\` entry, trea
         IDEAL_OUTCOME_CONSTRAINT_TEMPLATE: `## User-declared ideal_outcome (top priority)
 
 The user has declared ideal_outcome as:
-\`\`\`
+~~~
 {0}
-\`\`\`
+~~~
 
 **You MUST** judge every step against this and **MUST NOT** infer your own. Echo this value verbatim into the schema's \`ideal_outcome\` field.`
     },
