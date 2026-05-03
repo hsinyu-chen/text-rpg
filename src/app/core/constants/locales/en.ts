@@ -149,6 +149,8 @@ When performing the <Save> command, please only compare and synchronize based on
         PROTOCOL_SINGLE_TITLE: 'Output Protocol — Single-Call (injection_protocol_single.md)',
         PROTOCOL_RESOLVER_TITLE: 'Output Protocol — Resolver (injection_protocol_resolver.md)',
         PROTOCOL_NARRATOR_TITLE: 'Output Protocol — Narrator (injection_protocol_narrator.md)',
+        LEGACY_PROFILE_BADGE_TIP: 'This custom profile uses an old main system prompt (missing the v2 marker — output protocol may still be embedded in it). It will auto-switch to the Cloud default at run time. Update or revert this profile\'s main system prompt.',
+        LEGACY_PROFILE_AUTOSWITCH: 'The active profile uses an old main system prompt; auto-switched to the Cloud default to avoid duplicate protocol specs.',
         CATEGORY_MAIN: 'Main',
         CATEGORY_INJECTION: 'Injection',
         CATEGORY_PROCESS: 'Process',

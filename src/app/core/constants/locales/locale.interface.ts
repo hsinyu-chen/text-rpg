@@ -129,6 +129,8 @@ export interface AppLocale {
         PROTOCOL_SINGLE_TITLE: string;
         PROTOCOL_RESOLVER_TITLE: string;
         PROTOCOL_NARRATOR_TITLE: string;
+        LEGACY_PROFILE_BADGE_TIP: string;
+        LEGACY_PROFILE_AUTOSWITCH: string;
         CATEGORY_MAIN: string;
         CATEGORY_INJECTION: string;
         CATEGORY_PROCESS: string;

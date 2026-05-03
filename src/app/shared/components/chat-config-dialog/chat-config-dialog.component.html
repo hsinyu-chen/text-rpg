@@ -57,6 +57,10 @@
                             @for (profile of builtInProfiles(); track profile.id) {
                             <mat-option [value]="profile.id">
                                 {{ getProfileLabel(profile) }}
+                                @if (isLegacyProfile(profile.id)) {
+                                <mat-icon class="legacy-profile-warn"
+                                    [matTooltip]="ui().LEGACY_PROFILE_BADGE_TIP">warning</mat-icon>
+                                }
                             </mat-option>
                             }
                             @if (userProfiles().length > 0) {
@@ -64,6 +68,10 @@
                             @for (profile of userProfiles(); track profile.id) {
                             <mat-option [value]="profile.id">
                                 {{ getProfileLabel(profile) }}
+                                @if (isLegacyProfile(profile.id)) {
+                                <mat-icon class="legacy-profile-warn"
+                                    [matTooltip]="ui().LEGACY_PROFILE_BADGE_TIP">warning</mat-icon>
+                                }
                             </mat-option>
                             }
                             }

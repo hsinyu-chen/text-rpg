@@ -59,6 +59,15 @@
     }
 }
 
+mat-option mat-icon.legacy-profile-warn {
+    color: var(--mat-sys-error, #d32f2f);
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+    margin-left: 8px;
+    vertical-align: middle;
+}
+
 // Dirty Indicator Dot
 .dirty-indicator {
     display: inline-block;

@@ -24,6 +24,8 @@ import { SingleCallTurnEngine } from './turn-engines/single-call-turn-engine.ser
 import { TwoCallTurnEngine } from './turn-engines/two-call-turn-engine.service';
 import { STORY_INTENTS } from '../constants/game-intents';
 import type { TurnEngine } from './turn-engines/turn-engine.interface';
+import { InjectionService } from './injection.service';
+import { DEFAULT_PROFILE_ID } from '../constants/prompt-profiles';
 
 @Injectable({
     providedIn: 'root'
@@ -39,6 +41,7 @@ export class GameEngineService {
     private configService = inject(ConfigService);
     private singleCallEngine = inject(SingleCallTurnEngine);
     private twoCallEngine = inject(TwoCallTurnEngine);
+    private injection = inject(InjectionService);
 
     private currentAbortController: AbortController | null = null;
 
@@ -343,6 +346,15 @@ export class GameEngineService {
 
         // Force full context for <存檔> intent regardless of UI setting
         const forceFullContext = options?.intent === GAME_INTENTS.SAVE;
+
+        // If the active profile's system_main is a pre-PR-#25 legacy fork
+        // (lacks the @system-main-version marker), it carries the v1 output
+        // protocol embedded — combining that with the new injection-based
+        // protocol files would either double-spec (single-call) or send
+        // contradicting v1+v2 protocols (two-call). Auto-switch to the
+        // default profile before dispatching; user keeps their custom
+        // content but it stays inactive until they reconcile it.
+        await this.autoSwitchIfLegacyProfile();
 
         const parts: ExtendedPart[] = [{ text: userText }];
         const userMsgId = crypto.randomUUID();
@@ -652,6 +664,34 @@ export class GameEngineService {
 
     private updateMessages(updater: (prev: ChatMessage[]) => ChatMessage[]) {
         this.chatHistory.updateMessages(updater);
+    }
+
+    /**
+     * Detects a legacy v1 system_main fork on the active profile and
+     * auto-switches to the default profile + warns the user via snackbar.
+     * No-op when the active profile is already compatible.
+     *
+     * The active profile is determined post-switch from the active prompt
+     * profile id; the user's custom content stays in IDB untouched, so
+     * reverting / updating it later restores availability.
+     */
+    private async autoSwitchIfLegacyProfile(): Promise<void> {
+        if (this.state.activeProfileCompat() !== 'legacy') return;
+        if (this.state.activePromptProfile() === DEFAULT_PROFILE_ID) {
+            // Should not happen — built-in cloud always carries the marker —
+            // but guard against a busted shipped asset.
+            console.warn('[GameEngine] Default profile reports legacy compat; check shipped system_prompt.md marker.');
+            return;
+        }
+
+        const lang = this.state.config()?.outputLanguage;
+        const ui = getUIStrings(lang);
+        console.warn('[GameEngine] Active profile is legacy — auto-switching to default.');
+        await this.injection.switchProfile(DEFAULT_PROFILE_ID);
+        this.snackBar.open(ui.LEGACY_PROFILE_AUTOSWITCH, ui.CLOSE, {
+            duration: 8000,
+            panelClass: ['snackbar-warning']
+        });
     }
 
     /**
