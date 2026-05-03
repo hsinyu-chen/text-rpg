@@ -137,15 +137,19 @@ export class ChatConfigDialogComponent {
 
     async refreshLegacyProfileIds(): Promise<void> {
         const all = [...this.builtInProfiles(), ...this.userProfiles()];
-        const legacy = new Set<string>();
-        for (const profile of all) {
+        const results = await Promise.all(all.map(async profile => {
             try {
                 const content = await this.injection.getResolvedProfilePrompt('system_main', profile.id);
-                if (!isSystemMainCompatible(content)) legacy.add(profile.id);
+                return { id: profile.id, compatible: isSystemMainCompatible(content) };
             } catch (err) {
                 console.warn(`[ChatConfigDialog] compat check failed for ${profile.id}`, err);
+                // Treat fetch failures as compatible — surfacing a false ⚠ on
+                // every profile because storage hiccupped is worse than
+                // missing one legacy badge until the next refresh.
+                return { id: profile.id, compatible: true };
             }
-        }
+        }));
+        const legacy = new Set<string>(results.filter(r => !r.compatible).map(r => r.id));
         this.legacyProfileIds.set(legacy);
     }
 
