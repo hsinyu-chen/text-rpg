@@ -104,4 +104,15 @@ describe('stripSystemMainMarker', () => {
         expect(out).toContain('<!-- inner comment -->');
         expect(out).not.toContain('@system-main-version');
     });
+
+    it('does NOT strip a body comment that happens to start with "v2:"', () => {
+        const content =
+            '<!-- @system-main-version: 2 -->\n' +
+            '<!-- v2: leading companion gets stripped -->\n\n' +
+            '# Heading\n\n' +
+            'Paragraph: <!-- v2: this body comment must survive --> here.';
+        const out = stripSystemMainMarker(content);
+        expect(out).not.toContain('leading companion');
+        expect(out).toContain('this body comment must survive');
+    });
 });

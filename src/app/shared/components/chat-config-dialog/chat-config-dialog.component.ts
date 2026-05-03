@@ -76,7 +76,7 @@ export class ChatConfigDialogComponent {
     editorRef = viewChild<MonacoEditorComponent>('editorRef');
 
     constructor() {
-        this.refreshLegacyProfileIds();
+        void this.refreshLegacyProfileIds();
     }
 
     ui = computed(() => {
@@ -221,7 +221,7 @@ export class ChatConfigDialogComponent {
         });
 
         if (type === 'system_main') {
-            this.refreshLegacyProfileIds();
+            await this.refreshLegacyProfileIds();
         }
 
         this.snackBar.open(this.ui().SAVE_SUCCESS, this.ui().CLOSE, { duration: 2000 });

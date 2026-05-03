@@ -1,28 +1,21 @@
 /**
  * Schema-version compatibility for the active prompt profile's `system_main`.
  *
- * The output-protocol spec used to live inside `system_prompt.md`. PR #25
- * extracted it into `injection_protocol_single.md` so v1 and v2 (two-call)
- * paths can share the same cache prefix while differing only in the
- * user-message tail. The new shipped `system_prompt.md` carries an
- * `@system-main-version: 2` HTML-comment marker right at the top to signal
- * "the protocol spec lives in the injection file, not here anymore."
- *
- * Custom profiles that were forked BEFORE PR #25 still have the old
- * `system_main` content with the protocol spec embedded. Without
- * detection, those profiles either:
- *   - send the protocol spec twice (once from their own system_main, once
- *     from the new injection) on the v1 path, or
- *   - send a v1 protocol spec from system_main while the user-message tail
- *     carries the v2 resolver/narrator spec — a hard contradiction that
- *     causes two-call mode to produce unparseable output.
- *
- * The version number is bumped here whenever the prompt's structural
- * contract changes incompatibly.
+ * The shipped `system_prompt.md` carries an `@system-main-version` marker
+ * as an HTML comment in the file's leading metadata block. The number is
+ * bumped here whenever the system_main contract changes incompatibly with
+ * the injection assets layered on top of it (intent injections / output
+ * protocols). A custom profile whose stored `system_main` lacks the
+ * current version is "legacy" — combining it with the current injection
+ * stack produces duplicated or contradictory output-protocol specs.
  */
 export const SYSTEM_MAIN_CURRENT_VERSION = 2;
 
 const VERSION_MARKER_RE = /<!--\s*@system-main-version:\s*(\d+)\s*-->/;
+// Companion explanation comment; only stripped when it sits in the leading
+// metadata block at file start, so a body comment that happens to start
+// with "v2:" is not silently removed.
+const LEADING_V2_COMMENT_RE = /^\s*<!--\s*v2:[\s\S]*?-->\s*\n?/;
 
 /**
  * Reads the `@system-main-version` marker. Treats absence as v1
@@ -42,14 +35,15 @@ export function isSystemMainCompatible(content: string): boolean {
 }
 
 /**
- * Strips the version marker (and the freeform v2 explanation comment that
- * sits next to it) before the system instruction is sent to the LLM —
- * this metadata is for the loader, not the model.
+ * Strips the version marker and its leading companion comment before
+ * the system instruction is sent to the LLM — the metadata is for the
+ * loader, not the model. The companion-comment regex is anchored to
+ * file start so body comments are never touched.
  */
 export function stripSystemMainMarker(content: string): string {
     if (!content) return content;
     return content
         .replace(VERSION_MARKER_RE, '')
-        .replace(/<!--\s*v2:[\s\S]*?-->\s*\n?/, '')
+        .replace(LEADING_V2_COMMENT_RE, '')
         .replace(/^\s*\n+/, '');
 }
