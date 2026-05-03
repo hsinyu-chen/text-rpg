@@ -2,10 +2,8 @@ import { Schema } from '../models/types';
 import { getLocale } from './locales';
 
 /**
- * v2 (two-call) schema definitions.
- *
- * These are pure data — no caller yet. The orchestrator (PR3) will pass them
- * to the LLM provider for the resolver and narrator calls respectively.
+ * Two-call mode schema definitions. (Two-call is one of the two engine
+ * modes alongside single-call — not a successor; both are first-class.)
  *
  * Design summary (see TextRPG_Plans/two-call-engine-separation.md):
  *
@@ -13,15 +11,15 @@ import { getLocale } from './locales';
  *   tags the first one whose precondition broke. Output is structured
  *   `steps[]` plus an `interrupted` flag the program uses to truncate.
  * - **Narrator call** receives the post-truncation steps + idealOutcome and
- *   writes the user-facing scene. Output mirrors v1's user-visible subset
- *   (story / summary / *_log) but takes an `interrupted` hint so it can
- *   handle the hard-stop case correctly.
+ *   writes the user-facing scene. Output mirrors single-call's user-visible
+ *   subset (story / summary / *_log) but takes an `interrupted` hint so it
+ *   can handle the hard-stop case correctly.
  *
- * The localized field descriptions reuse v1's `locale.responseSchema` strings
- * where they map cleanly (summary / *_log) since the per-field semantics did
- * not change. Resolver-specific fields use English descriptions inline — the
- * resolver's prompt injection carries the full localized rules; the schema
- * description here is just a one-line type doc for the LLM.
+ * The localized field descriptions reuse single-call's `locale.responseSchema`
+ * strings where they map cleanly (summary / *_log) since the per-field
+ * semantics did not change. Resolver-specific fields use English descriptions
+ * inline — the resolver's prompt injection carries the full localized rules;
+ * the schema description here is just a one-line type doc for the LLM.
  */
 
 const ACTION_TYPES = ['movement', 'speech', 'physical', 'mental', 'magic', 'item_use', 'social', 'observation', 'wait'] as const;
@@ -148,10 +146,11 @@ export const getResolverSchema = (lang = 'default'): Schema => {
 };
 
 export const getNarratorSchema = (lang = 'default'): Schema => {
-    // story / summary / *_log share semantics with v1's response shape, so the
-    // field descriptions reuse v1's locale strings. Resolver-side fields and
-    // the narrator-only `interrupted_acknowledged` are English literals — the
-    // first because they have no v1 analogue, the second because it's a
+    // story / summary / *_log share semantics with single-call's response
+    // shape, so the field descriptions reuse single-call's locale strings.
+    // Resolver-side fields and the narrator-only `interrupted_acknowledged`
+    // are English literals — the first because they have no single-call
+    // analogue, the second because it's a
     // protocol-level flag, not a content field.
     const { responseSchema } = getLocale(lang);
 

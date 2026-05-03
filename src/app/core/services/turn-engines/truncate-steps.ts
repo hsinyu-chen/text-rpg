@@ -1,4 +1,4 @@
-import { ResolverStep } from '../../constants/engine-protocol-v2';
+import { ResolverStep } from '../../constants/engine-protocol-two-call';
 
 export interface TruncateResult {
     executed: ResolverStep[];

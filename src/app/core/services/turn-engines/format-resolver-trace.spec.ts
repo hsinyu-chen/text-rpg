@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { formatResolverTrace } from './format-resolver-trace';
-import type { ResolverOutput, ResolverStep } from '../../constants/engine-protocol-v2';
+import type { ResolverOutput, ResolverStep } from '../../constants/engine-protocol-two-call';
 
 function step(overrides: Partial<ResolverStep> = {}): ResolverStep {
     return {

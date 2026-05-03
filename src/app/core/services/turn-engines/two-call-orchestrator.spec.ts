@@ -13,7 +13,7 @@ import { LLMProviderRegistryService } from '../llm-provider-registry.service';
 import { CostService } from '../cost.service';
 import { PostProcessorService } from '../post-processor.service';
 import { MockLLMProvider } from '../../testing/mock-llm-provider';
-import type { ResolverOutput } from '../../constants/engine-protocol-v2';
+import type { ResolverOutput } from '../../constants/engine-protocol-two-call';
 import type { ChatMessage } from '../../models/types';
 
 function resolverJson(payload: ResolverOutput): string {

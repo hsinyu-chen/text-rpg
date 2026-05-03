@@ -5,7 +5,7 @@ import {
     buildNarratorUserMessage,
     type IntentTagSet
 } from './build-context-utils';
-import type { ResolverOutput, ResolverStep } from '../../constants/engine-protocol-v2';
+import type { ResolverOutput, ResolverStep } from '../../constants/engine-protocol-two-call';
 
 const TAGS: IntentTagSet = {
     ACTION: '<行動意圖>',

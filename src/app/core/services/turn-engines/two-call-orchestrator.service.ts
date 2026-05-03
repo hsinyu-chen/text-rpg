@@ -6,7 +6,7 @@ import { ContextBuilderService } from '../context-builder.service';
 import { ContentParserService } from '../content-parser.service';
 import { StreamProcessorService, StreamProcessResult } from '../stream-processor.service';
 import { ChatMessage } from '../../models/types';
-import { getResolverSchema, getNarratorSchema, ResolverOutput } from '../../constants/engine-protocol-v2';
+import { getResolverSchema, getNarratorSchema, ResolverOutput } from '../../constants/engine-protocol-two-call';
 import { formatResolverTrace } from './format-resolver-trace';
 import { mergeUsage } from '../llm-usage-merge';
 
@@ -20,7 +20,7 @@ export interface ResolverRunResult {
 }
 
 /**
- * Drives the two LLM calls of v2 mode. The {@link TwoCallTurnEngine}
+ * Drives the two LLM calls of two-call mode. The {@link TwoCallTurnEngine}
  * coordinates context building + truncation around these primitives.
  *
  * `runResolver` does NOT touch the chat message — the resolver phase is

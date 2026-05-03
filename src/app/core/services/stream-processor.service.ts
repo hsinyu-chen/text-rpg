@@ -5,7 +5,7 @@ import { ExtendedPart, ThoughtPart, EngineResponseNested } from '../models/types
 import { LLMStreamChunk, LLMUsageMetadata } from '@hcs/llm-core';
 import { ChatMessage } from '../models/types';
 import { getUIStrings } from '../constants/engine-protocol';
-import type { NarratorOutput } from '../constants/engine-protocol-v2';
+import type { NarratorOutput } from '../constants/engine-protocol-two-call';
 import { mergeUsage } from './llm-usage-merge';
 
 export interface StreamProcessResult {
@@ -238,7 +238,7 @@ export class StreamProcessorService {
     }
 
     /**
-     * v2 narrator stream variant. Parses the flat narrator schema
+     * Two-call narrator stream variant. Parses the flat narrator schema
      * (`{story, summary, *_log, interrupted_acknowledged}` — no analysis,
      * no response wrapper, no correction) and updates the existing model
      * message in-place. The caller (TwoCallTurnEngine) is responsible for

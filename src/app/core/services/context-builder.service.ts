@@ -8,7 +8,7 @@ import { LLMProviderRegistryService } from './llm-provider-registry.service';
 import { LanguageService } from './language.service';
 import { LOCALES } from '../constants/locales';
 import { GAME_INTENTS, STORY_INTENTS } from '../constants/game-intents';
-import { ResolverOutput, ResolverStep } from '../constants/engine-protocol-v2';
+import { ResolverOutput, ResolverStep } from '../constants/engine-protocol-two-call';
 import { applyIntentTag, buildResolverUserMessage, buildNarratorUserMessage } from './turn-engines/build-context-utils';
 import { stripSystemMainMarker } from './profile-compat';
 
@@ -361,9 +361,9 @@ export class ContextBuilderService {
     }
 
     /**
-     * Builds the LLM history for the v2 resolver call (Call 1).
+     * Builds the LLM history for the two-call resolver call (Call 1).
      *
-     * The cache prefix (system instruction + KB) is shared with the v1 single-call
+     * The cache prefix (system instruction + KB) is shared with the single-call
      * path; the resolver-specific protocol rides at the user-message tail along
      * with the intent injection. Both `{{USER_INPUT}}` placeholders are
      * substituted with the (intent-tagged) user input.
@@ -403,7 +403,7 @@ export class ContextBuilderService {
     }
 
     /**
-     * Builds the LLM history for the v2 narrator call (Call 2).
+     * Builds the LLM history for the two-call narrator call (Call 2).
      *
      * The narrator MUST NOT see the original user input — narration must
      * derive purely from the executed steps and the interrupted hint, so

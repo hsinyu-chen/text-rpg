@@ -704,7 +704,7 @@ export class GameEngineService {
     }
 
     /**
-     * Augments the base chat history with the v1 single-call user-message
+     * Augments the base chat history with the single-call user-message
      * tail (intent injection + protocol_single, both with `{{USER_INPUT}}`
      * substituted). The two-call path skips this method entirely — its
      * augmentation lives in {@link ContextBuilderService.buildResolverContext}

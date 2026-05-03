@@ -9,7 +9,7 @@ import { truncateAtFirstBroken } from './truncate-steps';
 import { formatResolverTrace } from './format-resolver-trace';
 
 /**
- * v2 turn engine — splits a turn into a resolver call (atomic action
+ * Two-call turn engine — splits a turn into a resolver call (atomic action
  * breakdown + per-step ideal_status judgment) followed by a narrator
  * call (renders the post-truncation steps into prose).
  *

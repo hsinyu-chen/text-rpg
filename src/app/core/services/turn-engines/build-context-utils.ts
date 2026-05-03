@@ -1,4 +1,4 @@
-import { ResolverOutput, ResolverStep } from '../../constants/engine-protocol-v2';
+import { ResolverOutput, ResolverStep } from '../../constants/engine-protocol-two-call';
 
 export interface IntentTagSet {
     ACTION: string;
@@ -25,13 +25,13 @@ export function applyIntentTag(userInput: string, intent: string, tags: IntentTa
 }
 
 /**
- * Assembles the user-message tail for the v2 resolver call.
+ * Assembles the user-message tail for the two-call resolver call.
  *
  * Both `intentInjection` and `protocolResolver` markdowns may contain
  * `{{USER_INPUT}}` placeholders. The (intent-tagged) `userInput` is
  * substituted into both. When either is empty, the wrapper preserves only
- * the non-empty parts so the cache-prefix shape matches the v1 path
- * during partial migrations.
+ * the non-empty parts so the cache-prefix shape matches the single-call
+ * path during partial migrations.
  */
 export function buildResolverUserMessage(input: {
     userInput: string;
@@ -50,7 +50,7 @@ export function buildResolverUserMessage(input: {
 }
 
 /**
- * Assembles the user-message tail for the v2 narrator call.
+ * Assembles the user-message tail for the two-call narrator call.
  *
  * The output is a JSON-fenced narrator-input block followed by the
  * narrator protocol. Original player input is NOT included — narration
