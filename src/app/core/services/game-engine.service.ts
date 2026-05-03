@@ -502,10 +502,14 @@ export class GameEngineService {
                             updated[i] = { ...msg, isRefOnly: true };
                             correctedIntent = msg.intent;
                             // The user message paired with this old story model is at i-1.
-                            const paired = updated[i - 1];
-                            if (paired?.role === 'user') {
-                                oldStoryUserId = paired.id;
-                                oldStoryUserContent = paired.content;
+                            // Guard the index explicitly so a malformed history starting
+                            // with a model message doesn't trip an out-of-bounds read.
+                            if (i > 0) {
+                                const paired = updated[i - 1];
+                                if (paired.role === 'user') {
+                                    oldStoryUserId = paired.id;
+                                    oldStoryUserContent = paired.content;
+                                }
                             }
                             console.log('[GameEngine] Marked old story model ref-only:', msg.id);
                             break;
@@ -517,13 +521,19 @@ export class GameEngineService {
 
 
 
-            this.updateMessages(prev => {
-                const updated = [...prev];
-                const last = updated[updated.length - 1];
-                if (last && last.role === 'model') {
-                    // Create a NEW object reference to ensure Signal/Input reactivity triggers
-                    updated[updated.length - 1] = {
-                        ...last,
+            // Single update covers both:
+            //  (a) committing the just-finished model message (always)
+            //  (b) post-resend cleanup when this turn was triggered as a
+            //      correction resend — ref-only the system pair + original
+            //      action user msg, and transplant the correction string onto
+            //      the freshly-committed corrective story model so Layer 1
+            //      stateUpdates keeps propagating the rule going forward.
+            const resendOpts = !isCorrection ? options?.isCorrectionResend : undefined;
+            this.updateMessages(prev => prev.map((m, i) => {
+                const isLast = i === prev.length - 1;
+                if (isLast && m.role === 'model') {
+                    const committed: ChatMessage = {
+                        ...m,
                         isThinking: false,
                         parts: ((): ExtendedPart[] => {
                             const parts: ExtendedPart[] = [];
@@ -555,31 +565,18 @@ export class GameEngineService {
                         // produces a separate story-intent turn — we no longer fuse the
                         // correction declaration into the corrected story slot inline.
                         intent: currentIntent,
-                        correction: isCorrection ? correction : last.correction
+                        // For correction-resend, transplant the prior system model's
+                        // correction string here so Layer 1 keeps the rule alive after
+                        // the system pair becomes ref-only below.
+                        correction: resendOpts ? resendOpts.correctionText : (isCorrection ? correction : m.correction)
                     };
+                    return committed;
                 }
-                return updated;
-            });
-
-            // Post-resend cleanup. When THIS turn was triggered as a correction
-            // resend (and itself produced no new correction), atomically:
-            // (a) ref-only the original action user msg, system user msg, and
-            //     system model msg — they are superseded by this corrective pair
-            // (b) transplant the correction string from the now-ref-only system
-            //     model onto this corrective story model so Layer 1 stateUpdates
-            //     keeps propagating the rule going forward.
-            if (options?.isCorrectionResend && !isCorrection) {
-                const opts = options.isCorrectionResend;
-                this.updateMessages(prev => prev.map(m => {
-                    if (m.id === opts.systemUserId || m.id === opts.systemModelId || m.id === opts.oldStoryUserId) {
-                        return { ...m, isRefOnly: true };
-                    }
-                    if (m.id === modelMsgId && m.role === 'model') {
-                        return { ...m, correction: opts.correctionText };
-                    }
-                    return m;
-                }));
-            }
+                if (resendOpts && (m.id === resendOpts.systemUserId || m.id === resendOpts.systemModelId || m.id === resendOpts.oldStoryUserId)) {
+                    return { ...m, isRefOnly: true };
+                }
+                return m;
+            }));
 
             // Update local state with fresh usage stats
             // Robust calculation: prompt may be total or fresh-only depending on provider/timings.
