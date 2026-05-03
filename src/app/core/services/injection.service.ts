@@ -114,14 +114,20 @@ export class InjectionService {
         while (current && !visited.has(current.id)) {
             visited.add(current.id);
 
-            const row = await this.storage.getProfilePrompt(type, current.id);
-            if (row?.content !== undefined) return row.content;
-
-            // Built-in IDB rows are only seeded for the active profile,
-            // so a non-active base needs its shipped asset fetched on demand.
+            // Built-ins are immutable — always re-fetch from the shipped disk
+            // asset (which also refreshes the IDB cache) so changes to a
+            // shipped prompt (e.g. the @system-main-version marker added in
+            // PR #28) propagate without requiring users to manually accept
+            // the prompt-update badge.
             if (current.isBuiltIn) {
                 const seeded = await this.seedBuiltInAssetToIdb(type, langFolder, lang, current.id);
                 if (seeded !== null) return seeded;
+                // disk fetch failed — fall back to the (possibly stale) IDB row
+                const row = await this.storage.getProfilePrompt(type, current.id);
+                if (row?.content !== undefined) return row.content;
+            } else {
+                const row = await this.storage.getProfilePrompt(type, current.id);
+                if (row?.content !== undefined) return row.content;
             }
 
             if (!current.baseProfileId) break;
@@ -139,7 +145,13 @@ export class InjectionService {
                 ? await this.loadOptionalProfileAsset(langFolder, filename, profileId)
                 : await this.loadBuiltInAsset(langFolder, filename, profileId);
             const processed = type === 'postprocess' ? raw : this.applyPromptPlaceholders(raw, lang);
-            await this.storage.saveProfilePrompt(type, profileId, processed);
+            // Skip the IDB write when content matches — without this guard,
+            // every read-side caller (compat checks, profile listing) would
+            // perform a write on every invocation.
+            const existing = await this.storage.getProfilePrompt(type, profileId);
+            if (!existing || existing.content !== processed) {
+                await this.storage.saveProfilePrompt(type, profileId, processed);
+            }
             return processed;
         } catch (err) {
             console.warn(`[InjectionService] seedBuiltInAssetToIdb: failed for ${type} on '${profileId}'`, err);
@@ -305,8 +317,12 @@ export class InjectionService {
                 this.setSignalContent(type.id as PromptType, processedServerContent);
                 localStorage.setItem(modifiedKey, 'false');
 
-                // Seed default into IDB so a future clone has something to copy.
-                if (!dbRecord) {
+                // Seed default into IDB so a future clone has something to copy,
+                // AND re-write when an unmodified built-in's disk content has
+                // changed (otherwise non-active reads via getResolvedProfilePrompt
+                // surface stale content — which broke per-profile compat checks
+                // after the @system-main-version marker was added).
+                if (!dbRecord || dbRecord.content !== processedServerContent) {
                     await this.storage.saveProfilePrompt(type.id, currentProfile, processedServerContent);
                 }
             }

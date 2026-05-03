@@ -101,13 +101,42 @@ Send-BridgeAction -UserInput "([緊張]說)等一下，先別走" -Intent action
 
 Pass `-AlsoDeletePair:$false` if you really want to remove only one side (rare).
 
+### Inspect / change profile + engine config
+
+When verifying which prompt profile is active, switching profiles, or toggling
+`engineMode` from outside the UI:
+
+```pwsh
+. ./.claude/skills/dev-bridge/bridge.ps1
+Get-BridgeProfile             # active profile id + displayName + compat
+Get-BridgeProfiles            # full list (built-in + user) with compat tags
+Set-BridgeProfile -Id cloud   # switch active
+
+Get-BridgeConfig                            # engineMode / outputLanguage / modelId
+Set-BridgeConfig -EngineMode two-call       # toggle two-call mode
+Set-BridgeConfig -OutputLanguage default    # only `engineMode` and `outputLanguage` are whitelisted
+```
+
+`compat` is `'compatible'` when the profile's `system_main` carries the current
+`@system-main-version` marker, `'legacy'` for pre-PR-#28 forks. Legacy profiles
+auto-switch to default at turn time (with a snackbar) — driving turns on a
+legacy profile via `Send-BridgeAction` will silently land on default.
+
+### Two-call timing
+
+Bridge `RequestTimeout` is 600s and PS helper `Invoke-Bridge` defaults match —
+single resolver+narrator turns on a slow local model can take 3-5 min and
+should not need polling. Don't write `until` loops around `Send-BridgeAction`
+to retry through busy state — every retry queues another turn the app dutifully
+processes.
+
 ## Failure modes
 
 | Symptom | Cause | What to do |
 |---------|-------|------------|
 | `app_not_connected` (HTTP 503) | Bridge running but app WS not attached | Tell user to open app + flip Debug Bridge toggle on |
-| `app_timeout` (504) | Generation > 120 s | Probably stuck or huge KB — tell user to abort in app, list to see what landed |
-| `app_error` with `detail: "busy"` | App is mid-turn from another source | Wait and retry; if persistent, ask the user |
+| `app_timeout` (504) | Generation > 600 s | Probably stuck or huge KB — tell user to abort in app, list to see what landed |
+| `app_error` with `detail: "busy"` | App is mid-turn from another source | Wait passively; do NOT retry-loop, every retry queues another turn |
 | `app_error` with `detail: "no_pair_produced"` | Engine returned without producing a model message (e.g. empty userInput on ACTION intent) | Check `userInput` — engine ignores empty strings on ACTION/FAST_FORWARD/SYSTEM |
 | `���` in `pair.user.content` | UTF-8 encoding bug — you used `curl -d` instead of the PS helpers | Delete the pair, retry through `Send-BridgeAction` |
 

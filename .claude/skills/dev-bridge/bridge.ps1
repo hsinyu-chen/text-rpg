@@ -12,7 +12,10 @@ function Invoke-Bridge {
     param(
         [Parameter(Mandatory)] [string] $Path,
         [Parameter(Mandatory)] [hashtable] $Body,
-        [int] $TimeoutSec = 130
+        # Default raised to 600s (10 min) so two-call mode (resolver + narrator
+        # = 2 LLM calls) doesn't time out at the HTTP layer on slow local
+        # models. The bridge's own RequestTimeout matches.
+        [int] $TimeoutSec = 600
     )
     $json = $Body | ConvertTo-Json -Compress -Depth 8
     $bytes = [System.Text.Encoding]::UTF8.GetBytes($json)
@@ -63,4 +66,42 @@ function Invoke-BridgeReload {
     $body = @{}
     if ($Force) { $body.force = $true }
     Invoke-Bridge -Path '/reload' -Body $body -TimeoutSec 30
+}
+
+function Get-BridgeProfile {
+    [CmdletBinding()]
+    param()
+    Invoke-Bridge -Path '/profile/active' -Body @{} -TimeoutSec 30
+}
+
+function Get-BridgeProfiles {
+    [CmdletBinding()]
+    param()
+    Invoke-Bridge -Path '/profile/list' -Body @{} -TimeoutSec 30
+}
+
+function Set-BridgeProfile {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string] $Id
+    )
+    Invoke-Bridge -Path '/profile/switch' -Body @{ id = $Id } -TimeoutSec 30
+}
+
+function Get-BridgeConfig {
+    [CmdletBinding()]
+    param()
+    Invoke-Bridge -Path '/config/get' -Body @{} -TimeoutSec 30
+}
+
+function Set-BridgeConfig {
+    [CmdletBinding()]
+    param(
+        [ValidateSet('single', 'two-call')] [string] $EngineMode,
+        [string] $OutputLanguage
+    )
+    $body = @{}
+    if ($PSBoundParameters.ContainsKey('EngineMode')) { $body.engineMode = $EngineMode }
+    if ($PSBoundParameters.ContainsKey('OutputLanguage')) { $body.outputLanguage = $OutputLanguage }
+    Invoke-Bridge -Path '/config/set' -Body $body -TimeoutSec 30
 }
