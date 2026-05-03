@@ -362,10 +362,15 @@ export class ChatInputComponent {
     }
 
     // External API for parent to trigger edit mode
-    startEdit(intent: string, content: string) {
+    startEdit(intent: string, content: string, idealOutcome?: string) {
         this.originalIntentBeforeEdit = this.selectedIntent();
         this.selectedIntent.set(intent);
         this.userInput.set(content);
+        // Rehydrate the user-supplied ideal_outcome so an edit-resend keeps
+        // the constraint instead of silently dropping it (which would put the
+        // resolver back into full-inference mode for that turn).
+        this.userIdealOutcome.set(idealOutcome ?? '');
+        if (idealOutcome) this.idealOutcomeExpanded.set(true);
         this.focusInput();
     }
 

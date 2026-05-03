@@ -499,6 +499,7 @@ export class GameEngineService {
             let correctedIntent: string | undefined;
             let oldStoryUserId: string | undefined;
             let oldStoryUserContent: string | undefined;
+            let oldStoryUserIdealOutcome: string | undefined;
             if (isCorrection) {
                 const storyIntents = [GAME_INTENTS.ACTION, GAME_INTENTS.CONTINUE, GAME_INTENTS.FAST_FORWARD];
                 console.log('[GameEngine] Correction detected:', correction);
@@ -517,6 +518,7 @@ export class GameEngineService {
                                 if (paired.role === 'user') {
                                     oldStoryUserId = paired.id;
                                     oldStoryUserContent = paired.content;
+                                    oldStoryUserIdealOutcome = paired.userIdealOutcome;
                                 }
                             }
                             console.log('[GameEngine] Marked old story model ref-only:', msg.id);
@@ -639,6 +641,11 @@ export class GameEngineService {
             if (isCorrection && correctedIntent && oldStoryUserId && oldStoryUserContent !== undefined) {
                 const resendOpts = {
                     intent: correctedIntent,
+                    // Carry the original action's user-supplied ideal_outcome through
+                    // the resend so the corrective resolver run keeps the same
+                    // constraint (otherwise it silently reverts to full inference,
+                    // which can re-introduce the very mismatch the correction fixed).
+                    userIdealOutcome: oldStoryUserIdealOutcome,
                     isCorrectionResend: {
                         systemUserId: userMsgId,
                         systemModelId: modelMsgId,

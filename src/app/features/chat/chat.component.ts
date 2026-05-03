@@ -247,7 +247,7 @@ export class ChatComponent {
         this.editingMessageId.set(msg.id);
         const intent = msg.intent || GAME_INTENTS.ACTION;
         const content = msg.content.replace(/^<[^>]+>/, '').trim();
-        this.chatInput()?.startEdit(intent, content);
+        this.chatInput()?.startEdit(intent, content, msg.userIdealOutcome);
     }
 
     isLastUserMessage(id: string): boolean {
