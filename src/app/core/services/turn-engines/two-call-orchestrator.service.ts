@@ -13,6 +13,8 @@ import { mergeUsage } from '../llm-usage-merge';
 export interface ResolverRunResult {
     resolverOutput: ResolverOutput;
     rawJson: string;
+    /** Concatenated `thought` chunks from the resolver call (CoT). Empty when the model emits no thought stream. */
+    thought: string;
     usage: LLMUsageMetadata;
     finishReason?: string;
 }
@@ -68,17 +70,18 @@ export class TwoCallOrchestratorService {
         );
 
         let accumulator = '';
+        let thoughtAccumulator = '';
         let usage: LLMUsageMetadata = { prompt: 0, candidates: 0, cached: 0 };
         let finishReason: string | undefined;
         let lastTraceText = '';
 
-        const updateLastModelAnalysis = (text: string) => {
+        const patchLastModel = (patch: (prev: ChatMessage) => ChatMessage) => {
             if (!input.updateMessages || !input.modelMsgId) return;
             input.updateMessages(prev => {
                 const arr = [...prev];
                 const last = arr[arr.length - 1];
                 if (last?.role === 'model' && last.id === input.modelMsgId) {
-                    arr[arr.length - 1] = { ...last, analysis: text, isThinking: true };
+                    arr[arr.length - 1] = patch(last);
                 }
                 return arr;
             });
@@ -86,25 +89,37 @@ export class TwoCallOrchestratorService {
 
         for await (const chunk of stream) {
             if (chunk.finishReason) finishReason = chunk.finishReason;
-            if (chunk.text && !chunk.thought) {
-                accumulator += chunk.text;
-                try {
-                    const partial = this.parser.bestEffortJsonParser(accumulator) as Partial<ResolverOutput>;
-                    const trace = formatResolverTrace(partial);
-                    if (trace && trace !== lastTraceText) {
-                        lastTraceText = trace;
-                        updateLastModelAnalysis(trace);
-                    }
-                } catch { /* parse errors during stream are expected */ }
+            if (chunk.text) {
+                if (chunk.thought) {
+                    thoughtAccumulator += chunk.text;
+                    patchLastModel(last => ({ ...last, thought: thoughtAccumulator, isThinking: true }));
+                } else {
+                    accumulator += chunk.text;
+                    try {
+                        const partial = this.parser.bestEffortJsonParser(accumulator) as Partial<ResolverOutput>;
+                        const trace = formatResolverTrace(partial);
+                        if (trace && trace !== lastTraceText) {
+                            lastTraceText = trace;
+                            patchLastModel(last => ({ ...last, analysis: trace, isThinking: true }));
+                        }
+                    } catch { /* parse errors during stream are expected */ }
+                }
             }
             if (chunk.usageMetadata) {
                 usage = mergeUsage(usage, chunk.usageMetadata);
+                if (chunk.usageMetadata.promptProgress !== undefined) {
+                    patchLastModel(last => ({
+                        ...last,
+                        progress: chunk.usageMetadata!.promptProgress,
+                        usage: { ...usage }
+                    }));
+                }
             }
         }
 
         const parsed = this.parser.bestEffortJsonParser(accumulator) as Partial<ResolverOutput> | null;
         const resolverOutput = this.normalizeResolver(parsed ?? {});
-        return { resolverOutput, rawJson: accumulator, usage, finishReason };
+        return { resolverOutput, rawJson: accumulator, thought: thoughtAccumulator, usage, finishReason };
     }
 
     async runNarrator(input: {
@@ -114,6 +129,8 @@ export class TwoCallOrchestratorService {
         modelMsgId: string;
         signal: AbortSignal;
         updateMessages: (updater: (prev: ChatMessage[]) => ChatMessage[]) => void;
+        /** CoT from the resolver call to prepend in the same `thought` field, so a single panel shows both phases. */
+        seedThought?: string;
     }): Promise<StreamProcessResult> {
         const omitKB = this.contextBuilder.shouldOmitKbFromSystemInstruction();
 
@@ -134,7 +151,8 @@ export class TwoCallOrchestratorService {
             stream,
             input.modelMsgId,
             input.outputLanguage,
-            input.updateMessages
+            input.updateMessages,
+            input.seedThought ?? ''
         );
     }
 

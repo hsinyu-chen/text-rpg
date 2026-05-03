@@ -241,11 +241,12 @@ export class StreamProcessorService {
         stream: AsyncIterable<LLMStreamChunk>,
         modelMsgId: string,
         outputLanguage: string,
-        updateCallback: (updater: (prev: ChatMessage[]) => ChatMessage[]) => void
+        updateCallback: (updater: (prev: ChatMessage[]) => ChatMessage[]) => void,
+        seedThought = ''
     ): Promise<StreamProcessResult> {
         let currentJSONAccumulator = '';
         let currentStoryPreview = '';
-        let currentThought = '';
+        let currentThought = seedThought;
         let turnUsage: LLMUsageMetadata = { prompt: 0, candidates: 0, cached: 0 };
         const capturedFCs: ExtendedPart[] = [];
         let capturedThoughtSignature: string | undefined;

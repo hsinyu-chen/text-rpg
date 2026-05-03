@@ -64,13 +64,20 @@ export class TwoCallTurnEngine implements TurnEngine {
             executedSteps: truncated.executed
         });
 
+        // Prefix narrator's CoT with the resolver's so both phases share one panel.
+        // Use a clear separator + heading so the user can tell where each phase ended.
+        const seedThought = resolverResult.thought
+            ? `### Resolver thought\n\n${resolverResult.thought}\n\n---\n\n### Narrator thought\n\n`
+            : '';
+
         const narratorResult = await this.orchestrator.runNarrator({
             history: narratorHistory,
             outputLanguage: input.outputLanguage,
             intent: input.intent,
             modelMsgId: input.modelMsgId,
             signal: input.signal,
-            updateMessages: input.updateMessages
+            updateMessages: input.updateMessages,
+            seedThought
         });
 
         const combinedUsage: LLMUsageMetadata = {
