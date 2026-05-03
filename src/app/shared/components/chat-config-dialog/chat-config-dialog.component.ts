@@ -24,6 +24,7 @@ import { DialogService } from '../../../core/services/dialog.service';
 import { PromptDiffDialogComponent } from '../prompt-diff-dialog/prompt-diff-dialog.component';
 import { MatBadgeModule } from '@angular/material/badge';
 import { DEFAULT_PROFILE_ID, PromptProfile, getProfileDisplayName } from '../../../core/constants/prompt-profiles';
+import { isSystemMainCompatible } from '../../../core/services/profile-compat';
 
 interface InjectionType {
     id: 'action' | 'continue' | 'fastforward' | 'system' | 'save' | 'postprocess' | 'system_main' | 'protocol_single' | 'protocol_resolver' | 'protocol_narrator';
@@ -74,6 +75,10 @@ export class ChatConfigDialogComponent {
 
     editorRef = viewChild<MonacoEditorComponent>('editorRef');
 
+    constructor() {
+        void this.refreshLegacyProfileIds();
+    }
+
     ui = computed(() => {
         const lang = this.state.config()?.outputLanguage || 'default';
         return getUIStrings(lang);
@@ -115,8 +120,37 @@ export class ChatConfigDialogComponent {
     isActiveBuiltIn = computed(() => this.activeProfile()?.isBuiltIn ?? false);
     isSwitchingProfile = signal(false);
 
+    /**
+     * Set of profile ids whose `system_main` lacks the v2 version marker.
+     * Recomputed on dialog init and after any profile-list mutation; the
+     * template renders a ⚠ badge inside `<mat-option>` for these.
+     */
+    legacyProfileIds = signal<Set<string>>(new Set());
+
     getProfileLabel(profile: PromptProfile): string {
         return getProfileDisplayName(profile, this.ui() as unknown as Record<string, string>);
+    }
+
+    isLegacyProfile(profileId: string): boolean {
+        return this.legacyProfileIds().has(profileId);
+    }
+
+    async refreshLegacyProfileIds(): Promise<void> {
+        const all = [...this.builtInProfiles(), ...this.userProfiles()];
+        const results = await Promise.all(all.map(async profile => {
+            try {
+                const content = await this.injection.getResolvedProfilePrompt('system_main', profile.id);
+                return { id: profile.id, compatible: isSystemMainCompatible(content) };
+            } catch (err) {
+                console.warn(`[ChatConfigDialog] compat check failed for ${profile.id}`, err);
+                // Treat fetch failures as compatible — surfacing a false ⚠ on
+                // every profile because storage hiccupped is worse than
+                // missing one legacy badge until the next refresh.
+                return { id: profile.id, compatible: true };
+            }
+        }));
+        const legacy = new Set<string>(results.filter(r => !r.compatible).map(r => r.id));
+        this.legacyProfileIds.set(legacy);
     }
 
     isSidebarCollapsed = signal(false);
@@ -189,6 +223,10 @@ export class ChatConfigDialogComponent {
             newMap.set(type, false);
             return newMap;
         });
+
+        if (type === 'system_main') {
+            await this.refreshLegacyProfileIds();
+        }
 
         this.snackBar.open(this.ui().SAVE_SUCCESS, this.ui().CLOSE, { duration: 2000 });
     }
@@ -314,6 +352,7 @@ export class ChatConfigDialogComponent {
             await this.injection.switchProfile(newId);
             this.refreshAllEditorContent();
             this.dirtyState.set(new Map());
+            await this.refreshLegacyProfileIds();
             this.snackBar.open(this.ui().PROFILE_CLONED, this.ui().CLOSE, { duration: 2000 });
         } catch (err) {
             console.error('[ChatConfig] cloneActive failed', err);
@@ -366,6 +405,7 @@ export class ChatConfigDialogComponent {
             await this.injection.deleteProfile(active.id);
             this.refreshAllEditorContent();
             this.dirtyState.set(new Map());
+            await this.refreshLegacyProfileIds();
             this.snackBar.open(this.ui().PROFILE_DELETED, this.ui().CLOSE, { duration: 2000 });
         } catch (err) {
             console.error('[ChatConfig] deleteActive failed', err);
@@ -402,6 +442,7 @@ export class ChatConfigDialogComponent {
             await this.injection.forceReload();
             this.refreshAllEditorContent();
             this.dirtyState.set(new Map());
+            await this.refreshLegacyProfileIds();
             const msg = imported === 0
                 ? this.ui().PROMPT_SYNC_NONE_FOUND
                 : this.ui().PROMPT_SYNC_DOWNLOADED.replace('{count}', String(imported));
@@ -459,6 +500,7 @@ export class ChatConfigDialogComponent {
                 }
                 this.refreshAllEditorContent();
                 this.dirtyState.set(new Map());
+                await this.refreshLegacyProfileIds();
                 this.snackBar.open(this.ui().PROFILE_IMPORTED, this.ui().CLOSE, { duration: 3000 });
             } catch (err) {
                 console.error('[ChatConfig] importProfileFromFile failed', err);
@@ -524,6 +566,7 @@ export class ChatConfigDialogComponent {
             const { updatedTypes } = await this.diskSync.pullActiveFromDisk();
             this.refreshAllEditorContent();
             this.dirtyState.set(new Map());
+            await this.refreshLegacyProfileIds();
             const msg = updatedTypes === 0
                 ? this.ui().DISK_SYNC_PULL_EMPTY
                 : this.ui().DISK_SYNC_PULLED.replace('{count}', String(updatedTypes));

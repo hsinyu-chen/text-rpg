@@ -24,6 +24,8 @@ import { SingleCallTurnEngine } from './turn-engines/single-call-turn-engine.ser
 import { TwoCallTurnEngine } from './turn-engines/two-call-turn-engine.service';
 import { STORY_INTENTS } from '../constants/game-intents';
 import type { TurnEngine } from './turn-engines/turn-engine.interface';
+import { InjectionService } from './injection.service';
+import { DEFAULT_PROFILE_ID } from '../constants/prompt-profiles';
 
 @Injectable({
     providedIn: 'root'
@@ -39,6 +41,7 @@ export class GameEngineService {
     private configService = inject(ConfigService);
     private singleCallEngine = inject(SingleCallTurnEngine);
     private twoCallEngine = inject(TwoCallTurnEngine);
+    private injection = inject(InjectionService);
 
     private currentAbortController: AbortController | null = null;
 
@@ -344,6 +347,9 @@ export class GameEngineService {
         // Force full context for <存檔> intent regardless of UI setting
         const forceFullContext = options?.intent === GAME_INTENTS.SAVE;
 
+        // Switch off any legacy-fork profile before composing a turn.
+        const switchedFromLegacy = await this.autoSwitchIfLegacyProfile();
+
         const parts: ExtendedPart[] = [{ text: userText }];
         const userMsgId = crypto.randomUUID();
 
@@ -362,18 +368,24 @@ export class GameEngineService {
 
         // 2. Ensure cache is valid before generating
         try {
-            // ALWAYS pass clean instruction to CacheManager. 
+            // ALWAYS pass clean instruction to CacheManager.
             // If CacheManager needs to create/refresh an explicit cache, it will use this as header.
             // KB content is already handled by CacheManager via fileParts in createCache.
             await this.cacheManager.checkCacheAndRefresh(this.contextBuilder.getEffectiveSystemInstruction(false));
         } catch (e: unknown) {
+            // If we just auto-switched profiles, fold that note into the
+            // error message so the user understands the silent state change
+            // before retrying.
+            const lang = this.state.config()?.outputLanguage;
+            const ui = getUIStrings(lang);
+            const autoswitchPrefix = switchedFromLegacy ? `${ui.LEGACY_PROFILE_AUTOSWITCH}\n\n` : '';
             if (e instanceof Error && e.message === 'SESSION_EXPIRED') {
-                this.snackBar.open('Session Expired: Please reload your Knowledge Base folder to continue.', 'Close', {
+                this.snackBar.open(autoswitchPrefix + 'Session Expired: Please reload your Knowledge Base folder to continue.', 'Close', {
                     duration: 10000,
                     panelClass: ['snackbar-error']
                 });
             } else {
-                this.snackBar.open(`Error: ${e instanceof Error ? e.message : 'Unknown error during cache refresh'}`, 'Close', {
+                this.snackBar.open(autoswitchPrefix + `Error: ${e instanceof Error ? e.message : 'Unknown error during cache refresh'}`, 'Close', {
                     duration: 5000,
                     panelClass: ['snackbar-error']
                 });
@@ -389,6 +401,17 @@ export class GameEngineService {
             const config = this.state.config();
             const lang = config?.outputLanguage || 'default';
             const engineMode = config?.engineMode ?? 'single';
+
+            // Notify the user about a legacy-profile auto-switch only once
+            // the cache refresh has succeeded — otherwise a cache error
+            // snackbar would replace this one before they read it.
+            if (switchedFromLegacy) {
+                const ui = getUIStrings(lang);
+                this.snackBar.open(ui.LEGACY_PROFILE_AUTOSWITCH, ui.CLOSE, {
+                    duration: 8000,
+                    panelClass: ['snackbar-warning']
+                });
+            }
 
             // Two-call only applies to story intents — SYSTEM/SAVE bypass the
             // resolver/narrator split (they have no atomic-action semantics).
@@ -563,7 +586,13 @@ export class GameEngineService {
         } catch (e: unknown) {
             this.currentAbortController = null;
             if (e instanceof Error && e.name === 'AbortError') {
-                console.log('[GameEngine] Generation aborted by user.');
+                console.log('[GameEngine] Generation aborted.');
+                // Reset status — without this, an abort that didn't come from
+                // stopGeneration() (e.g. external signal cancellation when a
+                // bridge HTTP read times out mid-stream) leaves state.status
+                // stuck on 'generating' and every subsequent sendMessage is
+                // rejected as 'busy' until a full page reload.
+                this.state.status.set('idle');
                 return;
             }
             console.error(e);
@@ -652,6 +681,26 @@ export class GameEngineService {
 
     private updateMessages(updater: (prev: ChatMessage[]) => ChatMessage[]) {
         this.chatHistory.updateMessages(updater);
+    }
+
+    /**
+     * Switches off a legacy-fork profile (system_main missing the current
+     * version marker) before composing a turn. Returns true when a switch
+     * happened so the caller can sequence the user-facing notification
+     * after other in-flight side effects (e.g. cache refresh) settle.
+     * The user's custom IDB content is left untouched.
+     */
+    private async autoSwitchIfLegacyProfile(): Promise<boolean> {
+        if (this.state.activeProfileCompat() !== 'legacy') return false;
+        if (this.state.activePromptProfile() === DEFAULT_PROFILE_ID) {
+            // Built-in default should always carry the marker; bail rather
+            // than loop if the shipped asset is somehow malformed.
+            console.warn('[GameEngine] Default profile reports legacy compat; check shipped system_prompt.md marker.');
+            return false;
+        }
+        console.warn('[GameEngine] Active profile is legacy — auto-switching to default.');
+        await this.injection.switchProfile(DEFAULT_PROFILE_ID);
+        return true;
     }
 
     /**

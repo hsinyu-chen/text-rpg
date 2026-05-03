@@ -10,6 +10,7 @@ import { LOCALES } from '../constants/locales';
 import { GAME_INTENTS, STORY_INTENTS } from '../constants/game-intents';
 import { ResolverOutput, ResolverStep } from '../constants/engine-protocol-v2';
 import { applyIntentTag, buildResolverUserMessage, buildNarratorUserMessage } from './turn-engines/build-context-utils';
+import { stripSystemMainMarker } from './profile-compat';
 
 @Injectable({
     providedIn: 'root'
@@ -29,7 +30,9 @@ export class ContextBuilderService {
      * @param includeKB Whether to append the full Knowledge Base text to the system prompt.
      */
     public getEffectiveSystemInstruction(includeKB = false): string {
-        let base = this.state.systemInstructionCache();
+        // The version marker is loader-only metadata; strip before sending
+        // to the LLM. No-op for legacy v1 forks that lack the marker.
+        let base = stripSystemMainMarker(this.state.systemInstructionCache());
         if (includeKB) {
             const kbText = this.kb.buildKnowledgeBaseText(this.state.loadedFiles());
             if (kbText) {

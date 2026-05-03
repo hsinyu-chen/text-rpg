@@ -149,6 +149,8 @@ export const ZH_TW_LOCALE: AppLocale = {
         PROTOCOL_SINGLE_TITLE: '輸出協議 — 單次呼叫 (injection_protocol_single.md)',
         PROTOCOL_RESOLVER_TITLE: '輸出協議 — 推演 (injection_protocol_resolver.md)',
         PROTOCOL_NARRATOR_TITLE: '輸出協議 — 敘事 (injection_protocol_narrator.md)',
+        LEGACY_PROFILE_BADGE_TIP: '此自訂方案使用舊版主系統提示（缺少 v2 marker，輸出協議規範可能仍嵌在主提示內）。啟動時會自動切回 Cloud 預設方案。請更新或還原此方案的主系統提示。',
+        LEGACY_PROFILE_AUTOSWITCH: '當前方案為舊版主系統提示，已自動切換至 Cloud 預設方案以避免雙份協議規範衝突。',
         CATEGORY_MAIN: '主提示 (Main)',
         CATEGORY_INJECTION: '注入提示 (Injection)',
         CATEGORY_PROCESS: '處理腳本 (Process)',

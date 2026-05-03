@@ -4,6 +4,7 @@ import { CostService } from './cost.service';
 import { KnowledgeService } from './knowledge.service';
 import { LLMProviderRegistryService } from './llm-provider-registry.service';
 import { DEFAULT_PROFILE_ID } from '../constants/prompt-profiles';
+import { isSystemMainCompatible } from './profile-compat';
 
 /**
  * Configuration for the game engine.
@@ -163,4 +164,16 @@ export class GameStateService {
     systemInstructionCache = computed(() => this.dynamicSystemMainInjection());
     isContextInjected = false;
     injectionContentHash = '';
+
+    /**
+     * 'legacy' when the active profile's `system_main` lacks the
+     * `@system-main-version` marker — i.e. it was forked before PR #25
+     * extracted the output protocol into `injection_protocol_*.md`.
+     * GameEngineService uses this to auto-switch to the default profile
+     * before dispatching, so legacy forks don't mis-render under the
+     * new injection model.
+     */
+    activeProfileCompat = computed<'compatible' | 'legacy'>(() =>
+        isSystemMainCompatible(this.dynamicSystemMainInjection()) ? 'compatible' : 'legacy'
+    );
 }

@@ -450,6 +450,21 @@ export class InjectionService {
         this.registry.remove(id);
     }
 
+    /**
+     * Resolves the prompt content for a SPECIFIC profile without disturbing
+     * the active state — intended for the profile selector UI to compute
+     * per-profile compatibility badges. Walks the same chain as the active
+     * loader (custom IDB row → base built-in via seed-on-demand).
+     */
+    async getResolvedProfilePrompt(type: PromptType, profileId: string): Promise<string> {
+        const lang = this.state.config()?.outputLanguage
+            || localStorage.getItem('app_output_language')
+            || localStorage.getItem('gemini_output_language')
+            || 'default';
+        const langFolder = getLangFolder(lang);
+        return this.loadUserProfilePrompt(type, profileId, langFolder, lang);
+    }
+
     getContentForType(type: PromptType): string {
         switch (type) {
             case 'action': return this.state.dynamicActionInjection();
