@@ -1,12 +1,5 @@
 # Narration Protocol (v2 Call 2 — Narrator)
 
-## Your Role
-
-You are running the **narration stage**. The previous call (resolver) has
-already done atomic breakdown, judged each step, and the program has
-truncated the array at the first `ideal_status='broken'`. Your job is to
-**render the truncated steps + ideal_outcome into user-facing scene prose**.
-
 ## Historical correction rules (top priority)
 
 If the narrator input JSON includes a `correction` field, OR the chat history / stateUpdates summary contains `correction:` entries, treat the correction as a **hard override** of prior story content:

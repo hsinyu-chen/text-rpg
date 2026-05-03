@@ -1,9 +1,5 @@
 # 敘事協議（v2 Call 2 — Narrator）
 
-## 你的角色
-
-你正在執行**敘事（narration）階段**。前一次呼叫（resolver）已完成原子拆解、判定每一步、並由程式根據 `ideal_status='broken'` 截斷了不再執行的步驟。你的工作是**將截斷後的步驟與 ideal_outcome 轉為使用者面向的劇情文字**。
-
 ## 歷史 correction 規則（最高優先）
 
 若 narrator input JSON 含 `correction` 欄位，或 history 訊息／stateUpdates summary 含 `correction:` 條目，**必須**將該條目視為**硬性覆蓋**先前劇情的規則：
