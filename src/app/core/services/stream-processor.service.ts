@@ -104,7 +104,7 @@ export class StreamProcessorService {
                         updateCallback(prev => {
                             const arr = [...prev];
                             const last = arr[arr.length - 1];
-                            if (last?.role === 'model') {
+                            if (last?.role === 'model' && last.id === modelMsgId) {
                                 arr[arr.length - 1] = { ...last, cotOpen: false };
                             }
                             return arr;
