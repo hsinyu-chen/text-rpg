@@ -74,6 +74,7 @@ export class TwoCallOrchestratorService {
         let usage: LLMUsageMetadata = { prompt: 0, candidates: 0, cached: 0 };
         let finishReason: string | undefined;
         let lastTraceText = '';
+        let cotClosed = false;
 
         const patchLastModel = (patch: (prev: ChatMessage) => ChatMessage) => {
             if (!input.updateMessages || !input.modelMsgId) return;
@@ -95,6 +96,10 @@ export class TwoCallOrchestratorService {
                     patchLastModel(last => ({ ...last, thought: thoughtAccumulator, isThinking: true }));
                 } else {
                     accumulator += chunk.text;
+                    if (!cotClosed) {
+                        cotClosed = true;
+                        patchLastModel(last => ({ ...last, cotOpen: false }));
+                    }
                     try {
                         const partial = this.parser.bestEffortJsonParser(accumulator) as Partial<ResolverOutput>;
                         const trace = formatResolverTrace(partial);

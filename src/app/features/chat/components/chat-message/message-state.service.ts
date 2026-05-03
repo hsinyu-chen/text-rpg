@@ -39,36 +39,15 @@ export class MessageStateService {
         computation: (isThinking) => isThinking ?? false
     });
 
-    // Wrapped source so the linkedSignal only re-runs its computation when one
-    // of these tracked booleans actually changes — without `equal`, every
-    // chunk produces a fresh `{...}` source value (reference-different) and
-    // wipes out the user's manual toggle while a turn is streaming.
-    private thoughtSource = computed(() => {
-        const msg = this.message();
-        return {
-            isThinking: msg?.isThinking ?? false,
-            hasAnalysis: !!msg?.analysis,
-            // Two-call mode: narrator phase begins when the merged CoT panel
-            // gains the "### Narrator thought" separator. Re-open at that point
-            // so the user sees the second phase even if they had collapsed
-            // during resolver.
-            narratorStarted: !!msg?.thought?.includes('### Narrator thought')
-        };
-    }, {
-        equal: (a, b) =>
-            a.isThinking === b.isThinking
-            && a.hasAnalysis === b.hasAnalysis
-            && a.narratorStarted === b.narratorStarted
-    });
-
-    // Auto-expand on first thinking, auto-collapse when analysis appears,
-    // re-open when narrator phase begins (two-call mode).
+    // Engine drives this via `cotOpen`: true when a thought phase starts (turn
+    // begin / narrator phase begin in two-call), false on the first non-thought
+    // chunk. linkedSignal lets the user override mid-phase; the override holds
+    // until cotOpen flips again. Source is wrapped in computed() so spurious
+    // re-emits with the same boolean don't wipe the user's manual toggle.
+    private cotOpenSource = computed(() => this.message()?.cotOpen ?? false);
     isThoughtVisible = linkedSignal({
-        source: this.thoughtSource,
-        computation: ({ isThinking, hasAnalysis, narratorStarted }) => {
-            if (narratorStarted) return true;
-            return isThinking && !hasAnalysis;
-        }
+        source: this.cotOpenSource,
+        computation: (cotOpen) => cotOpen
     });
 
     isRaw = signal(false);

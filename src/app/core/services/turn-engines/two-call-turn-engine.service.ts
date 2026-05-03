@@ -34,7 +34,8 @@ export class TwoCallTurnEngine implements TurnEngine {
             role: 'model',
             content: '',
             thought: '',
-            isThinking: true
+            isThinking: true,
+            cotOpen: true
         } as ChatMessage]);
 
         const resolverHistory = this.contextBuilder.buildResolverContext({
@@ -69,6 +70,17 @@ export class TwoCallTurnEngine implements TurnEngine {
         const seedThought = resolverResult.thought
             ? `### Resolver thought\n\n${resolverResult.thought}\n\n---\n\n### Narrator thought\n\n`
             : '';
+
+        // Re-open the CoT panel for the narrator phase. processNarratorStream will
+        // close it again on the first non-thought chunk.
+        input.updateMessages(prev => {
+            const arr = [...prev];
+            const last = arr[arr.length - 1];
+            if (last?.role === 'model' && last.id === input.modelMsgId) {
+                arr[arr.length - 1] = { ...last, cotOpen: true };
+            }
+            return arr;
+        });
 
         const narratorResult = await this.orchestrator.runNarrator({
             history: narratorHistory,
