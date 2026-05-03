@@ -39,10 +39,36 @@ export class MessageStateService {
         computation: (isThinking) => isThinking ?? false
     });
 
-    // Auto-expand on start thinking, auto-collapse when analysis starts
+    // Wrapped source so the linkedSignal only re-runs its computation when one
+    // of these tracked booleans actually changes — without `equal`, every
+    // chunk produces a fresh `{...}` source value (reference-different) and
+    // wipes out the user's manual toggle while a turn is streaming.
+    private thoughtSource = computed(() => {
+        const msg = this.message();
+        return {
+            isThinking: msg?.isThinking ?? false,
+            hasAnalysis: !!msg?.analysis,
+            // Two-call mode: narrator phase begins when the merged CoT panel
+            // gains the "### Narrator thought" separator. Re-open at that point
+            // so the user sees the second phase even if they had collapsed
+            // during resolver.
+            narratorStarted: !!msg?.thought?.includes('### Narrator thought')
+        };
+    }, {
+        equal: (a, b) =>
+            a.isThinking === b.isThinking
+            && a.hasAnalysis === b.hasAnalysis
+            && a.narratorStarted === b.narratorStarted
+    });
+
+    // Auto-expand on first thinking, auto-collapse when analysis appears,
+    // re-open when narrator phase begins (two-call mode).
     isThoughtVisible = linkedSignal({
-        source: () => ({ isThinking: this.message()?.isThinking, hasAnalysis: !!this.message()?.analysis }),
-        computation: ({ isThinking, hasAnalysis }) => (isThinking && !hasAnalysis)
+        source: this.thoughtSource,
+        computation: ({ isThinking, hasAnalysis, narratorStarted }) => {
+            if (narratorStarted) return true;
+            return isThinking && !hasAnalysis;
+        }
     });
 
     isRaw = signal(false);
