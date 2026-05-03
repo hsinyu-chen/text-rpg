@@ -368,18 +368,24 @@ export class GameEngineService {
 
         // 2. Ensure cache is valid before generating
         try {
-            // ALWAYS pass clean instruction to CacheManager. 
+            // ALWAYS pass clean instruction to CacheManager.
             // If CacheManager needs to create/refresh an explicit cache, it will use this as header.
             // KB content is already handled by CacheManager via fileParts in createCache.
             await this.cacheManager.checkCacheAndRefresh(this.contextBuilder.getEffectiveSystemInstruction(false));
         } catch (e: unknown) {
+            // If we just auto-switched profiles, fold that note into the
+            // error message so the user understands the silent state change
+            // before retrying.
+            const lang = this.state.config()?.outputLanguage;
+            const ui = getUIStrings(lang);
+            const autoswitchPrefix = switchedFromLegacy ? `${ui.LEGACY_PROFILE_AUTOSWITCH}\n\n` : '';
             if (e instanceof Error && e.message === 'SESSION_EXPIRED') {
-                this.snackBar.open('Session Expired: Please reload your Knowledge Base folder to continue.', 'Close', {
+                this.snackBar.open(autoswitchPrefix + 'Session Expired: Please reload your Knowledge Base folder to continue.', 'Close', {
                     duration: 10000,
                     panelClass: ['snackbar-error']
                 });
             } else {
-                this.snackBar.open(`Error: ${e instanceof Error ? e.message : 'Unknown error during cache refresh'}`, 'Close', {
+                this.snackBar.open(autoswitchPrefix + `Error: ${e instanceof Error ? e.message : 'Unknown error during cache refresh'}`, 'Close', {
                     duration: 5000,
                     panelClass: ['snackbar-error']
                 });

@@ -442,6 +442,7 @@ export class ChatConfigDialogComponent {
             await this.injection.forceReload();
             this.refreshAllEditorContent();
             this.dirtyState.set(new Map());
+            await this.refreshLegacyProfileIds();
             const msg = imported === 0
                 ? this.ui().PROMPT_SYNC_NONE_FOUND
                 : this.ui().PROMPT_SYNC_DOWNLOADED.replace('{count}', String(imported));
@@ -499,6 +500,7 @@ export class ChatConfigDialogComponent {
                 }
                 this.refreshAllEditorContent();
                 this.dirtyState.set(new Map());
+                await this.refreshLegacyProfileIds();
                 this.snackBar.open(this.ui().PROFILE_IMPORTED, this.ui().CLOSE, { duration: 3000 });
             } catch (err) {
                 console.error('[ChatConfig] importProfileFromFile failed', err);
@@ -564,6 +566,7 @@ export class ChatConfigDialogComponent {
             const { updatedTypes } = await this.diskSync.pullActiveFromDisk();
             this.refreshAllEditorContent();
             this.dirtyState.set(new Map());
+            await this.refreshLegacyProfileIds();
             const msg = updatedTypes === 0
                 ? this.ui().DISK_SYNC_PULL_EMPTY
                 : this.ui().DISK_SYNC_PULLED.replace('{count}', String(updatedTypes));
