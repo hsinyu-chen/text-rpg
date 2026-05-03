@@ -570,18 +570,15 @@ export class GameEngineService {
             //     keeps propagating the rule going forward.
             if (options?.isCorrectionResend && !isCorrection) {
                 const opts = options.isCorrectionResend;
-                this.updateMessages(prev => {
-                    const updated = [...prev];
-                    for (let i = 0; i < updated.length; i++) {
-                        const m = updated[i];
-                        if (m.id === opts.systemUserId || m.id === opts.systemModelId || m.id === opts.oldStoryUserId) {
-                            updated[i] = { ...m, isRefOnly: true };
-                        } else if (m.id === modelMsgId && m.role === 'model') {
-                            updated[i] = { ...m, correction: opts.correctionText };
-                        }
+                this.updateMessages(prev => prev.map(m => {
+                    if (m.id === opts.systemUserId || m.id === opts.systemModelId || m.id === opts.oldStoryUserId) {
+                        return { ...m, isRefOnly: true };
                     }
-                    return updated;
-                });
+                    if (m.id === modelMsgId && m.role === 'model') {
+                        return { ...m, correction: opts.correctionText };
+                    }
+                    return m;
+                }));
             }
 
             // Update local state with fresh usage stats
