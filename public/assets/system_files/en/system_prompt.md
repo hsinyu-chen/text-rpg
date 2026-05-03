@@ -1,5 +1,5 @@
-<!-- @system-main-version: 2 -->
-<!-- v2: output protocol extracted to injection_protocol_*.md. Do not delete this marker. -->
+<!-- @system-main-version: 3 -->
+<!-- v3: `<System>` correction flow split into "declare + auto-resend" (injection_system.md no longer inlines a story rewrite); {{CORRECTION_REMINDER}} substitution now active via injection_correction.md. Do not delete this marker. -->
 
 # Core Settings
 

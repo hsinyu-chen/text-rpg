@@ -28,7 +28,8 @@ const TYPE_FILENAME: Record<PromptType, string> = {
     postprocess: 'postprocess.js',
     protocol_single: 'protocol_single.md',
     protocol_resolver: 'protocol_resolver.md',
-    protocol_narrator: 'protocol_narrator.md'
+    protocol_narrator: 'protocol_narrator.md',
+    correction: 'correction.md'
 };
 
 /**

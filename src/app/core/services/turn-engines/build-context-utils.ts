@@ -100,7 +100,7 @@ export function buildNarratorUserMessage(input: {
         executed_steps: sanitizedSteps
     };
     if (input.correction) {
-        narratorInput.correction = input.correction;
+        narratorInput['correction'] = input.correction;
     }
 
     // Use tilde fences instead of backticks — JSON.stringify does not escape

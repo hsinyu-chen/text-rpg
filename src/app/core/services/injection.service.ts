@@ -494,6 +494,7 @@ export class InjectionService {
             case 'protocol_single': return this.state.dynamicProtocolSingleInjection();
             case 'protocol_resolver': return this.state.dynamicProtocolResolverInjection();
             case 'protocol_narrator': return this.state.dynamicProtocolNarratorInjection();
+            case 'correction': return this.state.dynamicCorrectionInjection();
         }
     }
 }

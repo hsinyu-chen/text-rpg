@@ -40,7 +40,8 @@ describe('getSystemMainVersion', () => {
 
 describe('isSystemMainCompatible', () => {
     it('accepts content at the current version', () => {
-        expect(isSystemMainCompatible('<!-- @system-main-version: 2 -->')).toBe(true);
+        const atCurrent = `<!-- @system-main-version: ${SYSTEM_MAIN_CURRENT_VERSION} -->`;
+        expect(isSystemMainCompatible(atCurrent)).toBe(true);
     });
 
     it('accepts content above the current version (forward-compatible)', () => {
@@ -49,6 +50,10 @@ describe('isSystemMainCompatible', () => {
 
     it('rejects v1 (legacy fork)', () => {
         expect(isSystemMainCompatible('# Old heading without marker')).toBe(false);
+    });
+
+    it('rejects v2 (legacy fork after v3 bump for correction-resend)', () => {
+        expect(isSystemMainCompatible('<!-- @system-main-version: 2 -->')).toBe(false);
     });
 
     it('rejects empty content', () => {

@@ -361,19 +361,20 @@ export class ContextBuilderService {
     }
 
     /**
-     * Looks at the most recent model message's `correction` field. The
-     * substitution machinery for `{{CORRECTION_REMINDER}}` and the narrator's
-     * structured `correction` field both consume this. One-shot by design:
-     * after the corrective turn commits and the system pair becomes ref-only,
-     * the most recent model message is the corrective story (no correction),
-     * so the slot naturally falls back to empty.
+     * Returns the correction text iff the most recent model message is a
+     * `<系統>` correction declaration (`intent === SYSTEM` with non-empty
+     * `correction`). Story-intent messages may carry transplanted correction
+     * for Layer 1 long-term propagation via stateUpdates summaries, but the
+     * Layer 2 `{{CORRECTION_REMINDER}}` slot is one-shot — fires only on the
+     * immediate auto-resend turn.
      */
     public getRecentCorrection(): string {
         const messages = this.state.messages();
         for (let i = messages.length - 1; i >= 0; i--) {
-            if (messages[i].role === 'model') {
-                return messages[i].correction?.trim() ?? '';
-            }
+            const m = messages[i];
+            if (m.role !== 'model') continue;
+            if (m.intent !== GAME_INTENTS.SYSTEM) return '';
+            return m.correction?.trim() ?? '';
         }
         return '';
     }

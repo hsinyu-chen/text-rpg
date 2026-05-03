@@ -338,7 +338,21 @@ export class GameEngineService {
      * @param userText The user's input text.
      * @param options Optional flags for hidden messages or specific intents.
      */
-    async sendMessage(userText: string, options?: { isHidden?: boolean, intent?: string }) {
+    async sendMessage(userText: string, options?: {
+        isHidden?: boolean,
+        intent?: string,
+        // Set when this call is the auto-resend triggered by a `<系統>` correction.
+        // Its presence drives post-turn cleanup: the system pair + the original
+        // (now-failed) action user message become ref-only, and the correction
+        // string is transplanted onto the freshly-committed corrective story
+        // model message so Layer 1 (stateUpdates summary) keeps propagating it.
+        isCorrectionResend?: {
+            systemUserId: string;
+            systemModelId: string;
+            oldStoryUserId: string;
+            correctionText: string;
+        }
+    }) {
         console.log('[GameEngine] sendMessage received with intent:', options?.intent);
         // Allow empty text for CONTINUE and SAVE intents
         const isActionOrSystem = !options?.intent || options.intent === GAME_INTENTS.ACTION || options.intent === GAME_INTENTS.SYSTEM || options.intent === GAME_INTENTS.FAST_FORWARD;
@@ -475,6 +489,8 @@ export class GameEngineService {
             // Correction Handling
             const isCorrection = !!correction;
             let correctedIntent: string | undefined;
+            let oldStoryUserId: string | undefined;
+            let oldStoryUserContent: string | undefined;
             if (isCorrection) {
                 const storyIntents = [GAME_INTENTS.ACTION, GAME_INTENTS.CONTINUE, GAME_INTENTS.FAST_FORWARD];
                 console.log('[GameEngine] Correction detected:', correction);
@@ -483,9 +499,15 @@ export class GameEngineService {
                     for (let i = updated.length - 2; i >= 0; i--) {
                         const msg = updated[i];
                         if (msg.role === 'model' && !msg.isRefOnly && msg.intent && (storyIntents as string[]).includes(msg.intent)) {
-                            msg.isRefOnly = true;
+                            updated[i] = { ...msg, isRefOnly: true };
                             correctedIntent = msg.intent;
-                            console.log('[GameEngine] Marked ref-only:', msg.id);
+                            // The user message paired with this old story model is at i-1.
+                            const paired = updated[i - 1];
+                            if (paired?.role === 'user') {
+                                oldStoryUserId = paired.id;
+                                oldStoryUserContent = paired.content;
+                            }
+                            console.log('[GameEngine] Marked old story model ref-only:', msg.id);
                             break;
                         }
                     }
@@ -528,20 +550,39 @@ export class GameEngineService {
                         quest_log: finalQuestLog,
                         world_log: finalWorldLog,
                         usage: turnUsage,
-                        intent: isCorrection ? (correctedIntent || GAME_INTENTS.ACTION) : currentIntent, // Inherit user intent or correction
+                        // intent stays the user's original (SYSTEM for correction-declaration
+                        // turns, story intent for normal turns). The auto-resend below
+                        // produces a separate story-intent turn — we no longer fuse the
+                        // correction declaration into the corrected story slot inline.
+                        intent: currentIntent,
                         correction: isCorrection ? correction : last.correction
                     };
-
-                    if (isCorrection) {
-                        // Also mark corresponding user message as ref-only (immutable update)
-                        const userMsgIndex = updated.findIndex(m => m.id === userMsgId);
-                        if (userMsgIndex !== -1) {
-                            updated[userMsgIndex] = { ...updated[userMsgIndex], isRefOnly: true };
-                        }
-                    }
                 }
                 return updated;
             });
+
+            // Post-resend cleanup. When THIS turn was triggered as a correction
+            // resend (and itself produced no new correction), atomically:
+            // (a) ref-only the original action user msg, system user msg, and
+            //     system model msg — they are superseded by this corrective pair
+            // (b) transplant the correction string from the now-ref-only system
+            //     model onto this corrective story model so Layer 1 stateUpdates
+            //     keeps propagating the rule going forward.
+            if (options?.isCorrectionResend && !isCorrection) {
+                const opts = options.isCorrectionResend;
+                this.updateMessages(prev => {
+                    const updated = [...prev];
+                    for (let i = 0; i < updated.length; i++) {
+                        const m = updated[i];
+                        if (m.id === opts.systemUserId || m.id === opts.systemModelId || m.id === opts.oldStoryUserId) {
+                            updated[i] = { ...m, isRefOnly: true };
+                        } else if (m.id === modelMsgId && m.role === 'model') {
+                            updated[i] = { ...m, correction: opts.correctionText };
+                        }
+                    }
+                    return updated;
+                });
+            }
 
             // Update local state with fresh usage stats
             // Robust calculation: prompt may be total or fresh-only depending on provider/timings.
@@ -583,6 +624,27 @@ export class GameEngineService {
 
             this.state.status.set('idle');
             this.currentAbortController = null;
+
+            // Auto-resend after a `<系統>` correction was accepted. Microtask
+            // queue ensures this runs after the current turn's status flip to
+            // 'idle' so the new sendMessage doesn't see itself as re-entrant.
+            // The resend runs through the normal engine, which means two-call
+            // mode produces the corrected story via resolver+narrator (the
+            // whole point of the auto-resend pattern). Cleanup of the system
+            // pair + correction transplant happens inside that next turn's
+            // `isCorrectionResend` post-commit hook above.
+            if (isCorrection && correctedIntent && oldStoryUserId && oldStoryUserContent !== undefined) {
+                const resendOpts = {
+                    intent: correctedIntent,
+                    isCorrectionResend: {
+                        systemUserId: userMsgId,
+                        systemModelId: modelMsgId,
+                        oldStoryUserId,
+                        correctionText: correction
+                    }
+                };
+                queueMicrotask(() => { void this.sendMessage(oldStoryUserContent!, resendOpts); });
+            }
         } catch (e: unknown) {
             this.currentAbortController = null;
             if (e instanceof Error && e.name === 'AbortError') {
