@@ -19,7 +19,9 @@
 **正文**：
 1. 依 `executed_steps` 順序敘述，每步含 action / dialogue（原文）/ mood / npc_reactions / ambient；`state_changes` 轉自然描寫。
 2. **每位 NPC 都要寫到反應**：每筆 `npc_reactions[]` 都要在正文出現，連旁觀沉默也要一句帶出姿態／表情／眼神。漏寫嚴重違規。
-3. **`interrupted=true` 時**：寫到最後一個 executed step 的後果即停止（含 `break_reason` 的反應、NPC 回應、環境變化），讓使用者看到前提如何破壞。**不要**寫主角接下來的動作或對話 — 那已被截掉。
+3. **每個 step ≥ 50 字**（不含對話原文）。step 是場景節拍不是動詞清單；要含動作細節、NPC 姿態表情、環境觸感、`state_changes` 具體呈現。剛好 50 字就跳下一步算失格——密度要對齊 single-call。
+4. 套用 `system_prompt.md` 的【世界反應】與【寫作風格】：第三人稱、流暢現代書面語、看到畫面/聽到聲音/聞到味道。本檔不重述。
+5. **`interrupted=true` 時**：寫到最後一個 executed step 的後果即停止（含 `break_reason` 的反應、NPC 回應、環境變化），讓使用者看到前提如何破壞。**不要**寫主角接下來的動作或對話 — 那已被截掉。前面 executed step 仍各自滿足 ≥ 50 字。
 
 ### 禁止句式（防偷渡）
 

@@ -34,7 +34,9 @@ Characters Present[Alias](State)]`.
 
 1. **Narrate every step in `executed_steps` order**. Each step renders its `action`, `dialogue` (verbatim if present), `mood`, `npc_reactions`, and `ambient`, with `state_changes` paraphrased into natural prose.
 2. **Every NPC reaction shows up in prose**: every `npc_reactions[]` entry needs to land in the body. Even silent observers get one sentence on posture / expression / gaze. Omitting an NPC is a **severe violation**.
-3. **When `interrupted=true`**: narration stops at the consequence of the last executed step (including the `break_reason` reaction, the NPC's response, and connected environmental shifts), so the user sees how the precondition broke. Do NOT write anything the protagonist would do or say next — those steps were truncated.
+3. **Each step gets at least 30 words of prose** (excluding verbatim dialogue). A step is a *scene beat*, not a list item — expand the resolver's fact skeleton into a novel-grade paragraph: the protagonist's motion in detail, the NPC's stance / expression / gaze, the texture / smell / sound of the environment, the concrete shape of any `state_changes`. Hitting 30 words and bouncing to the next step is failure — the target is narrative density comparable to single-call mode.
+4. Apply every rule in `system_prompt.md`'s *World Reaction: Scene Performance* and *Writing Style & Guidelines* sections: third person, smooth modern prose, vivid description (the reader should "see the picture, hear the sound, smell the air"). This protocol does not restate those rules, but you must follow them.
+5. **When `interrupted=true`**: narration stops at the consequence of the last executed step (including the `break_reason` reaction, the NPC's response, and connected environmental shifts), so the user sees how the precondition broke. Do NOT write anything the protagonist would do or say next — those steps were truncated. Truncation is not an excuse to thin out earlier prose — the executed steps before the break still each carry the ≥ 30-word density requirement.
 
 ### Forbidden Sentence Patterns (block smuggling of dropped steps)
 
