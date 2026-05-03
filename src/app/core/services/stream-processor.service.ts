@@ -65,9 +65,10 @@ export class StreamProcessorService {
         const capturedFCs: ExtendedPart[] = [];
         let capturedThoughtSignature: string | undefined;
         let finalFinishReason: string | undefined;
+        let cotClosed = false;
 
         // Initialize empty model message
-        updateCallback(prev => [...prev, { id: modelMsgId, role: 'model', content: '', thought: '', isThinking: true }]);
+        updateCallback(prev => [...prev, { id: modelMsgId, role: 'model', content: '', thought: '', isThinking: true, cotOpen: true }]);
 
         for await (const chunk of stream) {
             const part: LLMStreamChunk = chunk;
@@ -98,6 +99,8 @@ export class StreamProcessorService {
                     });
                 } else {
                     currentJSONAccumulator += part.text;
+                    const closeCot = !cotClosed;
+                    if (closeCot) cotClosed = true;
 
                     // Streaming Parsers for all fields
                     try {
@@ -109,6 +112,7 @@ export class StreamProcessorService {
                             const last = arr[arr.length - 1];
                             if (last?.role === 'model') {
                                 const next = { ...last, isThinking: true };
+                                if (closeCot) next.cotOpen = false;
 
                                 // Update Fields if they exist in partial
                                 if (partial.analysis) {
@@ -251,6 +255,7 @@ export class StreamProcessorService {
         const capturedFCs: ExtendedPart[] = [];
         let capturedThoughtSignature: string | undefined;
         let finalFinishReason: string | undefined;
+        let cotClosed = false;
 
         const updateLastModel = (patch: (prev: ChatMessage) => ChatMessage) => {
             updateCallback(prev => {
@@ -284,10 +289,13 @@ export class StreamProcessorService {
                     updateLastModel(last => ({ ...last, thought: currentThought }));
                 } else {
                     currentJSONAccumulator += part.text;
+                    const closeCot = !cotClosed;
+                    if (closeCot) cotClosed = true;
                     try {
                         const partial = this.parser.bestEffortJsonParser(currentJSONAccumulator) as Partial<NarratorOutput>;
                         updateLastModel(last => {
                             const next: ChatMessage = { ...last, isThinking: true };
+                            if (closeCot) next.cotOpen = false;
                             if (partial.story) {
                                 currentStoryPreview = this.parser.processModelField(partial.story);
                                 next.content = this.postProcessor.applySafeReplacements(currentStoryPreview);

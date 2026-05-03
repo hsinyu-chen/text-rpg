@@ -42,6 +42,8 @@ export interface ChatMessage {
     intent?: string;
     isManualRefOnly?: boolean;
     correction?: string;
+    /** Engine-controlled CoT panel default. true while a thought phase is active, false once non-thought content begins. UI's per-message toggle overrides until the next phase transition. */
+    cotOpen?: boolean;
 }
 
 export interface TauriWindow extends Window {

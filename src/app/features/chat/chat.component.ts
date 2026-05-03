@@ -60,6 +60,7 @@ export class ChatComponent {
     private lastScrollTop = 0;
     private scrollFrameId: number | null = null;
     private hasInitialScrolled = false;
+    private prevLastCotOpen = false;
 
     constructor() {
         // Initial load: force scroll to bottom the first time messages appear,
@@ -87,6 +88,21 @@ export class ChatComponent {
                 setTimeout(() => {
                     this.scrollToBottom(true);
                 }, 50);
+            }
+        });
+
+        // CoT panel re-opens (e.g. two-call narrator phase) expand the last
+        // message's height enough to push distFromBottom past the smartScroll
+        // threshold, breaking auto-follow. Re-pin to bottom once on the
+        // false→true edge so streaming chunks resume following.
+        effect(() => {
+            const msgs = this.state.messages();
+            const last = msgs[msgs.length - 1];
+            const cot = last?.role === 'model' ? (last.cotOpen ?? false) : false;
+            const wasOpen = this.prevLastCotOpen;
+            this.prevLastCotOpen = cot;
+            if (cot && !wasOpen && this.state.status() === 'generating' && !this.userScrolledUp) {
+                requestAnimationFrame(() => this.scrollToBottom(true));
             }
         });
 
