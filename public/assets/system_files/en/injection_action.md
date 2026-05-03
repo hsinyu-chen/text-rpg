@@ -1,3 +1,5 @@
+{{CORRECTION_REMINDER}}
+
 > User input for this turn:
 ```
 {{USER_INPUT}}

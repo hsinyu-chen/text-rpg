@@ -1,3 +1,5 @@
+{{CORRECTION_REMINDER}}
+
 > 使用者本回合輸入：
 ```
 {{USER_INPUT}}
