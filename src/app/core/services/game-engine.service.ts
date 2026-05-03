@@ -586,7 +586,13 @@ export class GameEngineService {
         } catch (e: unknown) {
             this.currentAbortController = null;
             if (e instanceof Error && e.name === 'AbortError') {
-                console.log('[GameEngine] Generation aborted by user.');
+                console.log('[GameEngine] Generation aborted.');
+                // Reset status — without this, an abort that didn't come from
+                // stopGeneration() (e.g. external signal cancellation when a
+                // bridge HTTP read times out mid-stream) leaves state.status
+                // stuck on 'generating' and every subsequent sendMessage is
+                // rejected as 'busy' until a full page reload.
+                this.state.status.set('idle');
                 return;
             }
             console.error(e);
