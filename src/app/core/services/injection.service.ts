@@ -145,7 +145,13 @@ export class InjectionService {
                 ? await this.loadOptionalProfileAsset(langFolder, filename, profileId)
                 : await this.loadBuiltInAsset(langFolder, filename, profileId);
             const processed = type === 'postprocess' ? raw : this.applyPromptPlaceholders(raw, lang);
-            await this.storage.saveProfilePrompt(type, profileId, processed);
+            // Skip the IDB write when content matches — without this guard,
+            // every read-side caller (compat checks, profile listing) would
+            // perform a write on every invocation.
+            const existing = await this.storage.getProfilePrompt(type, profileId);
+            if (!existing || existing.content !== processed) {
+                await this.storage.saveProfilePrompt(type, profileId, processed);
+            }
             return processed;
         } catch (err) {
             console.warn(`[InjectionService] seedBuiltInAssetToIdb: failed for ${type} on '${profileId}'`, err);

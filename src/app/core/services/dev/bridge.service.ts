@@ -15,12 +15,16 @@ import { isSystemMainCompatible } from '../profile-compat';
  * `TextRPG_TestBridge`) over WebSocket so an external agent can drive the
  * running app via HTTP. No-op in production builds — gated by isDevMode().
  *
- * Handles three server commands:
- *   send_action — runs a real GameEngineService.sendMessage turn and replies
- *                 with the same pair JSON shape as the in-app "copy" feature.
- *   list        — last N messages (id / role / 80-char preview / intent).
- *   delete      — removes a message; alsoDeletePair (default true) also nukes
- *                 the matching user/model sibling so a turn can be re-run.
+ * Frame types handled:
+ *   send_action       — real GameEngineService.sendMessage turn + pair reply
+ *   list              — last N messages (id / role / preview)
+ *   delete            — removes a message ± its pair sibling
+ *   reload            — triggers window.location.reload()
+ *   profile_list      — built-in + user profiles with per-profile compat tag
+ *   profile_get_active— active id + meta + compat
+ *   profile_switch    — switches active profile by id
+ *   config_get        — engineMode + outputLanguage + modelId
+ *   config_set        — whitelisted writes (engineMode + outputLanguage only)
  */
 
 const STORAGE_URL = 'app_debug_bridge_url';
@@ -292,6 +296,11 @@ export class BridgeService {
     private async handleProfileSwitch(frame: ProfileSwitchFrame): Promise<void> {
         const { requestId, id } = frame;
         if (!requestId) return;
+        if (this.state.isBusy()) {
+            // Switching mid-turn would swap injections under a live engine call.
+            this.send({ type: 'action_error', requestId, error: 'busy' });
+            return;
+        }
         if (typeof id !== 'string' || !id) {
             this.send({ type: 'action_error', requestId, error: 'invalid_id' });
             return;
@@ -301,10 +310,17 @@ export class BridgeService {
             return;
         }
         await this.injection.switchProfile(id);
+        // switchProfile silently no-ops on unknown id; surface the actual
+        // post-switch state so the caller can detect a mid-flight delete race.
+        const active = this.state.activePromptProfile();
+        if (active !== id) {
+            this.send({ type: 'action_error', requestId, error: 'switch_failed', active });
+            return;
+        }
         this.send({
             type: 'profile_switch_response',
             requestId,
-            active: this.state.activePromptProfile(),
+            active,
             compat: this.state.activeProfileCompat(),
         });
     }
@@ -325,6 +341,11 @@ export class BridgeService {
     private async handleConfigSet(frame: ConfigSetFrame): Promise<void> {
         const { requestId, engineMode, outputLanguage } = frame;
         if (!requestId) return;
+        if (this.state.isBusy()) {
+            // engineMode swap mid-turn could change dispatch under a live call.
+            this.send({ type: 'action_error', requestId, error: 'busy' });
+            return;
+        }
         // Whitelist — accept only fields that are safe to change at runtime
         // from a test harness. apiKey / modelId / fonts etc. stay UI-only.
         const patch: { engineMode?: 'single' | 'two-call'; outputLanguage?: string } = {};
