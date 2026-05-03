@@ -105,6 +105,14 @@ describe('stripSystemMainMarker', () => {
         expect(out).not.toContain('@system-main-version');
     });
 
+    it('strips a leading vN: companion comment for future version bumps', () => {
+        const content =
+            '<!-- @system-main-version: 3 -->\n' +
+            '<!-- v3: future bump should also be stripped -->\n\n' +
+            '# Heading';
+        expect(stripSystemMainMarker(content)).toBe('# Heading');
+    });
+
     it('does NOT strip a body comment that happens to start with "v2:"', () => {
         const content =
             '<!-- @system-main-version: 2 -->\n' +

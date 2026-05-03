@@ -14,8 +14,9 @@ export const SYSTEM_MAIN_CURRENT_VERSION = 2;
 const VERSION_MARKER_RE = /<!--\s*@system-main-version:\s*(\d+)\s*-->/;
 // Companion explanation comment; only stripped when it sits in the leading
 // metadata block at file start, so a body comment that happens to start
-// with "v2:" is not silently removed.
-const LEADING_V2_COMMENT_RE = /^\s*<!--\s*v2:[\s\S]*?-->\s*\n?/;
+// with "vN:" is not silently removed. The version digits are generic so
+// future bumps (v3, v4, ...) don't require touching this regex.
+const LEADING_VERSION_COMMENT_RE = /^\s*<!--\s*v\d+:[\s\S]*?-->\s*\n?/;
 
 /**
  * Reads the `@system-main-version` marker. Treats absence as v1
@@ -44,6 +45,6 @@ export function stripSystemMainMarker(content: string): string {
     if (!content) return content;
     return content
         .replace(VERSION_MARKER_RE, '')
-        .replace(LEADING_V2_COMMENT_RE, '')
+        .replace(LEADING_VERSION_COMMENT_RE, '')
         .replace(/^\s*\n+/, '');
 }
