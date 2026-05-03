@@ -114,13 +114,21 @@ export class TwoCallTurnEngine implements TurnEngine {
             interrupted_at_step: truncated.interruptedAtStep
         });
 
+        // Post-turn KV cache holds only the narrator call's tokens — the resolver
+        // call's prefix was overwritten when narrator ran. Sidebar consumes this
+        // so the context bar reflects single-call occupancy, not the cost-billable
+        // sum of both calls.
+        const narratorContextTokens =
+            (narratorResult.turnUsage.prompt || 0) + (narratorResult.turnUsage.candidates || 0);
+
         return {
             ...narratorResult,
             // Final formatted resolver trace lands in the analysis field so it
             // renders in the existing "Atomic Breakdown & Check" panel.
             finalAnalysis: finalTrace || resolverResult.rawJson,
             turnUsage: combinedUsage,
-            finalFinishReason: narratorResult.finalFinishReason || resolverResult.finishReason
+            finalFinishReason: narratorResult.finalFinishReason || resolverResult.finishReason,
+            contextTokens: narratorContextTokens
         };
     }
 }

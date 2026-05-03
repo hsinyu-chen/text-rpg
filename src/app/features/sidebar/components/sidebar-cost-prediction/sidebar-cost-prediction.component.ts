@@ -50,9 +50,20 @@ export class SidebarCostPredictionComponent {
         return match?.contextSize ?? null;
     });
 
-    // Tokens currently occupying the KV cache after the most recent turn:
-    // prompt sent for that turn + tokens generated in response.
+    // Tokens currently occupying the KV cache after the most recent turn.
+    // Prefer the engine-reported `contextTokens` on the latest model message —
+    // in two-call mode, `usage.prompt + usage.candidates` is the SUM of both
+    // calls (resolver + narrator) but only the narrator-call's tokens remain
+    // in cache after the turn. Single-call doesn't set contextTokens; the
+    // fallback `prompt + candidates` is correct there.
     contextUsed = computed<number>(() => {
+        const messages = this.state.messages();
+        for (let i = messages.length - 1; i >= 0; i--) {
+            const m = messages[i];
+            if (m.role !== 'model' || m.isRefOnly) continue;
+            if (m.contextTokens != null) return m.contextTokens;
+            break;
+        }
         const turn = this.computedLastTurnUsage();
         if (!turn) return this.state.kbCacheTokens();
         return turn.prompt + turn.candidates;
