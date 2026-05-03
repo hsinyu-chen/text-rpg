@@ -1,11 +1,6 @@
 # Narration Protocol (v2 Call 2 — Narrator)
 
-## Your Role
-
-You are running the **narration stage**. The previous call (resolver) has
-already done atomic breakdown, judged each step, and the program has
-truncated the array at the first `ideal_status='broken'`. Your job is to
-**render the truncated steps + ideal_outcome into user-facing scene prose**.
+{{HISTORICAL_CORRECTION_RULE}}
 
 ## Input
 

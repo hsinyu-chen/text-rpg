@@ -79,5 +79,6 @@ export const INJECTION_FILE_PATHS = {
     postprocess: 'postprocess_template.js',
     protocol_single: 'injection_protocol_single.md',
     protocol_resolver: 'injection_protocol_resolver.md',
-    protocol_narrator: 'injection_protocol_narrator.md'
+    protocol_narrator: 'injection_protocol_narrator.md',
+    correction: 'injection_correction.md'
 } as const;

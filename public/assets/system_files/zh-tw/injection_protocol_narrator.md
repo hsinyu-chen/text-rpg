@@ -1,8 +1,6 @@
 # 敘事協議（v2 Call 2 — Narrator）
 
-## 你的角色
-
-你正在執行**敘事（narration）階段**。前一次呼叫（resolver）已完成原子拆解、判定每一步、並由程式根據 `ideal_status='broken'` 截斷了不再執行的步驟。你的工作是**將截斷後的步驟與 ideal_outcome 轉為使用者面向的劇情文字**。
+{{HISTORICAL_CORRECTION_RULE}}
 
 ## 輸入
 

@@ -1,8 +1,6 @@
 # 敘事協議（v2 Call 2 — Narrator / 本地版）
 
-## 角色
-
-**敘事階段**。resolver 已產 `steps[]` 並由程式截斷。你只看到 `executed_steps`、`ideal_outcome`、`interrupted`、`break_reason`、`context`。**不會看到**原始輸入字串、被截掉的步驟、resolver 內部分析。
+{{HISTORICAL_CORRECTION_RULE}}
 
 ## 輸出（依 narrator schema）
 

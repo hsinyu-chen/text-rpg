@@ -5,11 +5,7 @@
 {{USER_INPUT}}
 ```
 
-## Your Role
-
-You are running the **resolution stage**. This stage produces **NO narrative**;
-your only output is the structured per-step action array with judgment. A
-follow-up call (narrator) will write the user-facing scene from your output.
+{{HISTORICAL_CORRECTION_RULE}}
 
 ## Output Protocol
 

@@ -5,9 +5,7 @@
 {{USER_INPUT}}
 ```
 
-## 角色
-
-**推演階段**。本階段不寫敘事，只產結構化 `steps[]` 與每步 `ideal_status`。後續 narrator 才寫劇情。
+{{HISTORICAL_CORRECTION_RULE}}
 
 ## 輸出（依 resolver schema）
 

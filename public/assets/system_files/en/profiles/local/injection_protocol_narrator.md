@@ -1,11 +1,6 @@
 # Narration Protocol (v2 Call 2 — Narrator / Local)
 
-## Role
-
-**Narration stage**. Resolver produced `steps[]`; the program truncated at
-the first `broken` step. You see `executed_steps`, `ideal_outcome`,
-`interrupted`, `break_reason`, `context`. You **don't** see the raw user
-input, dropped post-break steps, or resolver internals.
+{{HISTORICAL_CORRECTION_RULE}}
 
 ## Output (narrator schema)
 

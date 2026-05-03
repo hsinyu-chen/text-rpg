@@ -5,9 +5,7 @@
 {{USER_INPUT}}
 ```
 
-## 你的角色
-
-你正在執行**推演（resolution）階段**。本階段**不寫敘事**，只產出結構化的「動作步驟陣列」與每一步的判定。後續另一次呼叫（narrator）會根據你的輸出寫劇情。
+{{HISTORICAL_CORRECTION_RULE}}
 
 ## 輸出協議
 

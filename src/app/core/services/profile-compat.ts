@@ -9,7 +9,7 @@
  * current version is "legacy" — combining it with the current injection
  * stack produces duplicated or contradictory output-protocol specs.
  */
-export const SYSTEM_MAIN_CURRENT_VERSION = 2;
+export const SYSTEM_MAIN_CURRENT_VERSION = 3;
 
 const VERSION_MARKER_RE = /<!--\s*@system-main-version:\s*(\d+)\s*-->/;
 // Companion explanation comment; only stripped when it sits in the leading

@@ -58,6 +58,7 @@ describe('two-call orchestrator integration', () => {
             dynamicProtocolResolverInjection: signal('RESOLVER PROTOCOL {{USER_INPUT}}'),
             dynamicProtocolNarratorInjection: signal('NARRATOR PROTOCOL'),
             dynamicProtocolSingleInjection: signal(''),
+            dynamicCorrectionInjection: signal(''),
             dynamicSystemMainInjection: signal(''),
             postProcessScript: signal(''),
             messages: signal([]),

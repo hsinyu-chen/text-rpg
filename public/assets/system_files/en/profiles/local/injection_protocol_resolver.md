@@ -5,10 +5,7 @@
 {{USER_INPUT}}
 ```
 
-## Role
-
-**Resolution stage**. No narrative — only structured `steps[]` + per-step
-`ideal_status`. The narrator call writes the prose later.
+{{HISTORICAL_CORRECTION_RULE}}
 
 ## Output (resolver schema)
 

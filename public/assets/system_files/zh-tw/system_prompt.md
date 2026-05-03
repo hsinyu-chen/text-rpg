@@ -1,5 +1,5 @@
-<!-- @system-main-version: 2 -->
-<!-- v2: 輸出協議從本檔抽至 injection_protocol_*.md。請勿手動刪除此 marker。 -->
+<!-- @system-main-version: 3 -->
+<!-- v3: <系統> 修正流程改為「宣告 + 自動重跑」(injection_system.md 不再 inline 重寫劇情)，並啟用 {{CORRECTION_REMINDER}} 注入機制 (injection_correction.md)。請勿手動刪除此 marker。 -->
 
 # 核心設定
 

@@ -338,7 +338,21 @@ export class GameEngineService {
      * @param userText The user's input text.
      * @param options Optional flags for hidden messages or specific intents.
      */
-    async sendMessage(userText: string, options?: { isHidden?: boolean, intent?: string }) {
+    async sendMessage(userText: string, options?: {
+        isHidden?: boolean,
+        intent?: string,
+        // Set when this call is the auto-resend triggered by a `<系統>` correction.
+        // Its presence drives post-turn cleanup: the system pair + the original
+        // (now-failed) action user message become ref-only, and the correction
+        // string is transplanted onto the freshly-committed corrective story
+        // model message so Layer 1 (stateUpdates summary) keeps propagating it.
+        isCorrectionResend?: {
+            systemUserId: string;
+            systemModelId: string;
+            oldStoryUserId: string;
+            correctionText: string;
+        }
+    }) {
         console.log('[GameEngine] sendMessage received with intent:', options?.intent);
         // Allow empty text for CONTINUE and SAVE intents
         const isActionOrSystem = !options?.intent || options.intent === GAME_INTENTS.ACTION || options.intent === GAME_INTENTS.SYSTEM || options.intent === GAME_INTENTS.FAST_FORWARD;
@@ -475,6 +489,8 @@ export class GameEngineService {
             // Correction Handling
             const isCorrection = !!correction;
             let correctedIntent: string | undefined;
+            let oldStoryUserId: string | undefined;
+            let oldStoryUserContent: string | undefined;
             if (isCorrection) {
                 const storyIntents = [GAME_INTENTS.ACTION, GAME_INTENTS.CONTINUE, GAME_INTENTS.FAST_FORWARD];
                 console.log('[GameEngine] Correction detected:', correction);
@@ -483,9 +499,19 @@ export class GameEngineService {
                     for (let i = updated.length - 2; i >= 0; i--) {
                         const msg = updated[i];
                         if (msg.role === 'model' && !msg.isRefOnly && msg.intent && (storyIntents as string[]).includes(msg.intent)) {
-                            msg.isRefOnly = true;
+                            updated[i] = { ...msg, isRefOnly: true };
                             correctedIntent = msg.intent;
-                            console.log('[GameEngine] Marked ref-only:', msg.id);
+                            // The user message paired with this old story model is at i-1.
+                            // Guard the index explicitly so a malformed history starting
+                            // with a model message doesn't trip an out-of-bounds read.
+                            if (i > 0) {
+                                const paired = updated[i - 1];
+                                if (paired.role === 'user') {
+                                    oldStoryUserId = paired.id;
+                                    oldStoryUserContent = paired.content;
+                                }
+                            }
+                            console.log('[GameEngine] Marked old story model ref-only:', msg.id);
                             break;
                         }
                     }
@@ -495,13 +521,19 @@ export class GameEngineService {
 
 
 
-            this.updateMessages(prev => {
-                const updated = [...prev];
-                const last = updated[updated.length - 1];
-                if (last && last.role === 'model') {
-                    // Create a NEW object reference to ensure Signal/Input reactivity triggers
-                    updated[updated.length - 1] = {
-                        ...last,
+            // Single update covers both:
+            //  (a) committing the just-finished model message (always)
+            //  (b) post-resend cleanup when this turn was triggered as a
+            //      correction resend — ref-only the system pair + original
+            //      action user msg, and transplant the correction string onto
+            //      the freshly-committed corrective story model so Layer 1
+            //      stateUpdates keeps propagating the rule going forward.
+            const resendOpts = !isCorrection ? options?.isCorrectionResend : undefined;
+            this.updateMessages(prev => prev.map((m, i) => {
+                const isLast = i === prev.length - 1;
+                if (isLast && m.role === 'model') {
+                    const committed: ChatMessage = {
+                        ...m,
                         isThinking: false,
                         parts: ((): ExtendedPart[] => {
                             const parts: ExtendedPart[] = [];
@@ -528,20 +560,23 @@ export class GameEngineService {
                         quest_log: finalQuestLog,
                         world_log: finalWorldLog,
                         usage: turnUsage,
-                        intent: isCorrection ? (correctedIntent || GAME_INTENTS.ACTION) : currentIntent, // Inherit user intent or correction
-                        correction: isCorrection ? correction : last.correction
+                        // intent stays the user's original (SYSTEM for correction-declaration
+                        // turns, story intent for normal turns). The auto-resend below
+                        // produces a separate story-intent turn — we no longer fuse the
+                        // correction declaration into the corrected story slot inline.
+                        intent: currentIntent,
+                        // For correction-resend, transplant the prior system model's
+                        // correction string here so Layer 1 keeps the rule alive after
+                        // the system pair becomes ref-only below.
+                        correction: resendOpts ? resendOpts.correctionText : (isCorrection ? correction : m.correction)
                     };
-
-                    if (isCorrection) {
-                        // Also mark corresponding user message as ref-only (immutable update)
-                        const userMsgIndex = updated.findIndex(m => m.id === userMsgId);
-                        if (userMsgIndex !== -1) {
-                            updated[userMsgIndex] = { ...updated[userMsgIndex], isRefOnly: true };
-                        }
-                    }
+                    return committed;
                 }
-                return updated;
-            });
+                if (resendOpts && (m.id === resendOpts.systemUserId || m.id === resendOpts.systemModelId || m.id === resendOpts.oldStoryUserId)) {
+                    return { ...m, isRefOnly: true };
+                }
+                return m;
+            }));
 
             // Update local state with fresh usage stats
             // Robust calculation: prompt may be total or fresh-only depending on provider/timings.
@@ -583,6 +618,37 @@ export class GameEngineService {
 
             this.state.status.set('idle');
             this.currentAbortController = null;
+
+            // Auto-resend after a `<系統>` correction was accepted. Microtask
+            // queue ensures this runs after the current turn's status flip to
+            // 'idle' so the new sendMessage doesn't see itself as re-entrant.
+            // The resend runs through the normal engine, which means two-call
+            // mode produces the corrected story via resolver+narrator (the
+            // whole point of the auto-resend pattern). Cleanup of the system
+            // pair + correction transplant happens inside that next turn's
+            // `isCorrectionResend` post-commit hook above.
+            if (isCorrection && correctedIntent && oldStoryUserId && oldStoryUserContent !== undefined) {
+                const resendOpts = {
+                    intent: correctedIntent,
+                    isCorrectionResend: {
+                        systemUserId: userMsgId,
+                        systemModelId: modelMsgId,
+                        oldStoryUserId,
+                        correctionText: correction
+                    }
+                };
+                queueMicrotask(() => {
+                    this.sendMessage(oldStoryUserContent!, resendOpts).catch(err => {
+                        // sendMessage has its own try/catch and surfaces user-facing
+                        // errors via snackbar + status='error'. Anything that escapes
+                        // that net (push of the empty user msg failing, etc.) lands
+                        // here. Logging keeps it visible instead of becoming a silent
+                        // unhandled rejection. The system pair stays non-ref-only on
+                        // failure so the user can manually retry or delete it.
+                        console.error('[GameEngine] Auto-resend after correction failed:', err);
+                    });
+                });
+            }
         } catch (e: unknown) {
             this.currentAbortController = null;
             if (e instanceof Error && e.name === 'AbortError') {
@@ -746,8 +812,13 @@ export class GameEngineService {
 
         console.log(`[GameEngine] Injecting Dynamic Prompt for ${currentIntent}`);
         // Function-form replace so a literal `$&` / `$1` in userInput is not
-        // interpreted as a backreference pattern.
-        const mergedContent = injectionContent.replace(/\{\{USER_INPUT\}\}/g, () => userInput);
+        // interpreted as a backreference pattern. Correction reminder fills
+        // first so its rendered text can itself contain `{{USER_INPUT}}`-like
+        // sequences without bleeding into the next pass.
+        const correctionReminder = this.contextBuilder.renderCorrectionReminder(this.contextBuilder.getRecentCorrection());
+        const mergedContent = injectionContent
+            .replace(/\{\{CORRECTION_REMINDER\}\}/g, () => correctionReminder)
+            .replace(/\{\{USER_INPUT\}\}/g, () => userInput);
         const protocolSingle = this.state.dynamicProtocolSingleInjection().replace(/\{\{USER_INPUT\}\}/g, () => userInput);
         const withProtocol = protocolSingle ? `${mergedContent}\n\n${protocolSingle}` : mergedContent;
         const finalContent = this.contextBuilder.wrapUserMessage(withProtocol, history);

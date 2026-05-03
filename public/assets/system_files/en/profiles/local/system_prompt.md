@@ -1,5 +1,5 @@
-<!-- @system-main-version: 2 -->
-<!-- v2: output protocol extracted to injection_protocol_*.md. Do not delete this marker. -->
+<!-- @system-main-version: 3 -->
+<!-- v3: `<System>` correction flow now declare-only + auto-resend; {{CORRECTION_REMINDER}} substitution active. Do not delete this marker. -->
 
 # Core Settings
 

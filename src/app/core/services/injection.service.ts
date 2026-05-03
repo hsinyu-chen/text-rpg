@@ -6,17 +6,17 @@ import { StorageService } from './storage.service';
 import { getProfileBasePath, getProfileScopedKey, DEFAULT_PROFILE_ID, PromptProfile } from '../constants/prompt-profiles';
 import { PromptProfileRegistryService } from './prompt-profile-registry.service';
 
-export type PromptType = 'action' | 'continue' | 'fastforward' | 'system' | 'save' | 'postprocess' | 'system_main' | 'protocol_single' | 'protocol_resolver' | 'protocol_narrator';
+export type PromptType = 'action' | 'continue' | 'fastforward' | 'system' | 'save' | 'postprocess' | 'system_main' | 'protocol_single' | 'protocol_resolver' | 'protocol_narrator' | 'correction';
 
 export const ALL_PROMPT_TYPES: readonly PromptType[] = [
-    'action', 'continue', 'fastforward', 'system', 'save', 'system_main', 'postprocess', 'protocol_single', 'protocol_resolver', 'protocol_narrator'
+    'action', 'continue', 'fastforward', 'system', 'save', 'system_main', 'postprocess', 'protocol_single', 'protocol_resolver', 'protocol_narrator', 'correction'
 ] as const;
 
 // Optional types soft-load: missing asset returns '' instead of throwing,
 // and there is no profile fallback (a missing local-profile file must NOT
 // inherit from the default profile, since that would duplicate content with
 // the local profile's still-inline copy).
-const OPTIONAL_PROMPT_TYPES: ReadonlySet<PromptType> = new Set(['protocol_single', 'protocol_resolver', 'protocol_narrator']);
+const OPTIONAL_PROMPT_TYPES: ReadonlySet<PromptType> = new Set(['protocol_single', 'protocol_resolver', 'protocol_narrator', 'correction']);
 
 @Injectable({
     providedIn: 'root'
@@ -354,6 +354,7 @@ export class InjectionService {
             case 'protocol_single': this.state.dynamicProtocolSingleInjection.set(content); break;
             case 'protocol_resolver': this.state.dynamicProtocolResolverInjection.set(content); break;
             case 'protocol_narrator': this.state.dynamicProtocolNarratorInjection.set(content); break;
+            case 'correction': this.state.dynamicCorrectionInjection.set(content); break;
         }
     }
 
@@ -493,6 +494,7 @@ export class InjectionService {
             case 'protocol_single': return this.state.dynamicProtocolSingleInjection();
             case 'protocol_resolver': return this.state.dynamicProtocolResolverInjection();
             case 'protocol_narrator': return this.state.dynamicProtocolNarratorInjection();
+            case 'correction': return this.state.dynamicCorrectionInjection();
         }
     }
 }

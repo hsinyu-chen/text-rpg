@@ -6,11 +6,31 @@ import { LLMContent, LLMPart, LLMGenerateConfig } from '@hcs/llm-core';
 import { LLM_MARKERS, getResponseSchema, getIntentTags } from '../constants/engine-protocol';
 import { LLMProviderRegistryService } from './llm-provider-registry.service';
 import { LanguageService } from './language.service';
-import { LOCALES } from '../constants/locales';
+import { LOCALES, getLangFolder } from '../constants/locales';
 import { GAME_INTENTS, STORY_INTENTS } from '../constants/game-intents';
 import { ResolverOutput, ResolverStep } from '../constants/engine-protocol-two-call';
 import { applyIntentTag, buildResolverUserMessage, buildNarratorUserMessage } from './turn-engines/build-context-utils';
 import { stripSystemMainMarker } from './profile-compat';
+
+// Layer 3 — substituted into protocol_resolver / protocol_narrator markdown via
+// `{{HISTORICAL_CORRECTION_RULE}}` only when chat history actually carries any
+// correction. Engine-level behaviour, not profile style — kept as a const here
+// instead of as an injection file. Per-folder so the rule reads natively in the
+// active output language.
+const HISTORICAL_CORRECTION_RULE_BY_FOLDER: Record<string, string> = {
+    'zh-tw': `## 歷史 correction（最高優先）
+
+history 訊息或 stateUpdates summary 出現 \`correction:\` 條目時，**必須**將其視為**硬性覆蓋**先前劇情的規則：
+- 所有欄位（prose、\`*_log\`、step \`state_changes\`／\`target\`）都必須與 correction 一致；衝突時以 correction 為準。
+- 已宣告的 correction 持續有效，不會自動失效。
+- \`correction\` 欄位是「規則／原因」的單一來源；其他欄位只寫修正後的最終狀態，不要重述修正過程或加 \`校正\`／calibration 標籤。`,
+    'en': `## Historical correction (top priority)
+
+When chat history or stateUpdates summary contains a \`correction:\` entry, treat it as a **hard override** of prior story content:
+- All fields (prose, \`*_log\`, step \`state_changes\` / \`target\`) must align with the correction; on conflict, the correction wins.
+- Declared corrections persist across turns; they do not silently expire.
+- The \`correction\` field is the single source of "reason / rule" — other fields write only the corrected final state, no \`校正\` / calibration markers, no recap of the correction process.`
+};
 
 @Injectable({
     providedIn: 'root'
@@ -361,6 +381,60 @@ export class ContextBuilderService {
     }
 
     /**
+     * Returns the correction text iff the most recent model message is a
+     * `<系統>` correction declaration (`intent === SYSTEM` with non-empty
+     * `correction`). Story-intent messages may carry transplanted correction
+     * for Layer 1 long-term propagation via stateUpdates summaries, but the
+     * Layer 2 `{{CORRECTION_REMINDER}}` slot is one-shot — fires only on the
+     * immediate auto-resend turn.
+     */
+    public getRecentCorrection(): string {
+        const messages = this.state.messages();
+        for (let i = messages.length - 1; i >= 0; i--) {
+            const m = messages[i];
+            if (m.role !== 'model') continue;
+            if (m.intent !== GAME_INTENTS.SYSTEM) return '';
+            return m.correction?.trim() ?? '';
+        }
+        return '';
+    }
+
+    /**
+     * Renders the correction reminder block by filling `{{CORRECTION_TEXT}}`
+     * in the active profile's `injection_correction.md`. Returns '' when
+     * there's no correction or the template is missing (legacy profile).
+     */
+    public renderCorrectionReminder(correction: string): string {
+        if (!correction) return '';
+        const template = this.state.dynamicCorrectionInjection();
+        if (!template) return '';
+        return template.replace(/\{\{CORRECTION_TEXT\}\}/g, () => correction);
+    }
+
+    /**
+     * True when chat history (post-ref-only filter, since that's what the LLM
+     * sees) contains at least one model message with a non-empty `correction`
+     * field. Drives the {@link getHistoricalCorrectionRule} slot fill.
+     */
+    public hasHistoricalCorrection(): boolean {
+        return this.state.messages().some(m =>
+            m.role === 'model' && !m.isRefOnly && !!m.correction?.trim()
+        );
+    }
+
+    /**
+     * Returns the rule paragraph to substitute into protocol_resolver /
+     * protocol_narrator's `{{HISTORICAL_CORRECTION_RULE}}` slot, or '' when
+     * no correction lives in active history. The rule is engine behaviour,
+     * not profile style — same text for cloud and local profiles.
+     */
+    public getHistoricalCorrectionRule(lang: string): string {
+        if (!this.hasHistoricalCorrection()) return '';
+        const folder = getLangFolder(lang);
+        return HISTORICAL_CORRECTION_RULE_BY_FOLDER[folder] ?? HISTORICAL_CORRECTION_RULE_BY_FOLDER['en'];
+    }
+
+    /**
      * Builds the LLM history for the two-call resolver call (Call 1).
      *
      * The cache prefix (system instruction + KB) is shared with the single-call
@@ -391,10 +465,14 @@ export class ContextBuilderService {
             case GAME_INTENTS.SAVE: intentInjection = this.state.dynamicSaveInjection(); break;
         }
 
+        const protocolResolver = this.state.dynamicProtocolResolverInjection()
+            .replace(/\{\{HISTORICAL_CORRECTION_RULE\}\}/g, () => this.getHistoricalCorrectionRule(options.lang));
+
         const tail = buildResolverUserMessage({
             userInput,
             intentInjection,
-            protocolResolver: this.state.dynamicProtocolResolverInjection()
+            protocolResolver,
+            correctionReminder: this.renderCorrectionReminder(this.getRecentCorrection())
         });
         const finalContent = this.wrapUserMessage(tail, history);
 
@@ -418,14 +496,19 @@ export class ContextBuilderService {
         baseHistory: LLMContent[];
         resolver: ResolverOutput;
         executedSteps: ResolverStep[];
+        lang: string;
     }): LLMContent[] {
         const history = options.baseHistory.slice();
         history.pop();
 
+        const protocolNarrator = this.state.dynamicProtocolNarratorInjection()
+            .replace(/\{\{HISTORICAL_CORRECTION_RULE\}\}/g, () => this.getHistoricalCorrectionRule(options.lang));
+
         const tail = buildNarratorUserMessage({
             resolver: options.resolver,
             executedSteps: options.executedSteps,
-            protocolNarrator: this.state.dynamicProtocolNarratorInjection()
+            protocolNarrator,
+            correction: this.getRecentCorrection()
         });
         const finalContent = this.wrapUserMessage(tail, history);
 
