@@ -22,7 +22,9 @@ input, dropped post-break steps, or resolver internals.
 **Body**:
 1. Narrate each `executed_steps` entry in order, rendering `action`, `dialogue` (verbatim), `mood`, `npc_reactions`, and `ambient`; paraphrase `state_changes` into prose.
 2. **Every NPC reaction lands in prose** — every `npc_reactions[]` entry shows up, even silent observers (one sentence on posture / expression / gaze). Omitting an NPC is a **severe violation**.
-3. **When `interrupted=true`**: narration stops at the consequence of the last executed step (including the `break_reason` reaction, NPC response, connected environmental shifts), so the user sees how the precondition broke. Do NOT write what the protagonist would do or say next — those steps were truncated.
+3. **Each step ≥ 30 words** (excluding verbatim dialogue). A step is a scene beat, not a list item — expand the resolver fact skeleton into prose with motion detail, NPC stance / expression, environmental texture, and concrete shape of `state_changes`. Hitting 30 and bouncing fails — match single-call density.
+4. Apply `system_prompt.md`'s *World Reaction* and *Writing Style* rules: third-person, smooth modern prose, vivid description (see / hear / smell). Not restated here.
+5. **When `interrupted=true`**: narration stops at the consequence of the last executed step (including the `break_reason` reaction, NPC response, connected environmental shifts), so the user sees how the precondition broke. Do NOT write what the protagonist would do or say next — those steps were truncated. Earlier executed steps still each carry the ≥ 30-word density requirement.
 
 ### Forbidden Patterns (block smuggling)
 

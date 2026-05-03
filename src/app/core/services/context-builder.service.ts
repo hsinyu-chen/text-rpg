@@ -3,11 +3,13 @@ import { GameStateService } from './game-state.service';
 import { KnowledgeService } from './knowledge.service';
 import { ChatMessage, ExtendedPart } from '../models/types';
 import { LLMContent, LLMPart, LLMGenerateConfig } from '@hcs/llm-core';
-import { LLM_MARKERS, getResponseSchema } from '../constants/engine-protocol';
+import { LLM_MARKERS, getResponseSchema, getIntentTags } from '../constants/engine-protocol';
 import { LLMProviderRegistryService } from './llm-provider-registry.service';
 import { LanguageService } from './language.service';
 import { LOCALES } from '../constants/locales';
-import { STORY_INTENTS } from '../constants/game-intents';
+import { GAME_INTENTS, STORY_INTENTS } from '../constants/game-intents';
+import { ResolverOutput, ResolverStep } from '../constants/engine-protocol-v2';
+import { applyIntentTag, buildResolverUserMessage, buildNarratorUserMessage } from './turn-engines/build-context-utils';
 
 @Injectable({
     providedIn: 'root'
@@ -35,6 +37,23 @@ export class ContextBuilderService {
             }
         }
         return base;
+    }
+
+    /**
+     * True when the active provider's cache holds the KB on the server (so the
+     * client should OMIT the KB from `systemInstruction`) AND a cache is
+     * currently in use. False when there's no cache, or when the provider is a
+     * prefix-matched KV cache that requires the KB to be sent every turn.
+     *
+     * Centralized here so single-call, two-call resolver, and two-call narrator
+     * all agree — historically the same `hasCache && bakesContent` expression
+     * was inlined in each engine.
+     */
+    public shouldOmitKbFromSystemInstruction(): boolean {
+        const hasCache = !!this.state.kbCacheName();
+        if (!hasCache) return false;
+        const bakesContent = this.provider?.getCapabilities().cacheBakesContent ?? true;
+        return bakesContent;
     }
 
     /**
@@ -336,5 +355,78 @@ export class ContextBuilderService {
     private stripSavePoints(text: string): string {
         if (!text) return '';
         return text.replace(/<possible save point>/gi, '');
+    }
+
+    /**
+     * Builds the LLM history for the v2 resolver call (Call 1).
+     *
+     * The cache prefix (system instruction + KB) is shared with the v1 single-call
+     * path; the resolver-specific protocol rides at the user-message tail along
+     * with the intent injection. Both `{{USER_INPUT}}` placeholders are
+     * substituted with the (intent-tagged) user input.
+     *
+     * Caller passes `baseHistory` from {@link getLLMHistory}; this method
+     * pops the last user message, augments it, and pushes it back. Returns a
+     * new array — the input is not mutated.
+     */
+    public buildResolverContext(options: { baseHistory: LLMContent[]; intent: string; lang: string }): LLMContent[] {
+        const history = options.baseHistory.slice();
+        const lastMsg = history.pop();
+        if (!lastMsg || !lastMsg.parts || typeof lastMsg.parts[0]?.text !== 'string') {
+            if (lastMsg) history.push(lastMsg);
+            return history;
+        }
+
+        const userInput = applyIntentTag(lastMsg.parts[0].text, options.intent, getIntentTags(options.lang));
+
+        let intentInjection = '';
+        switch (options.intent) {
+            case GAME_INTENTS.ACTION: intentInjection = this.state.dynamicActionInjection(); break;
+            case GAME_INTENTS.CONTINUE: intentInjection = this.state.dynamicContinueInjection(); break;
+            case GAME_INTENTS.FAST_FORWARD: intentInjection = this.state.dynamicFastforwardInjection(); break;
+            case GAME_INTENTS.SYSTEM: intentInjection = this.state.dynamicSystemInjection(); break;
+            case GAME_INTENTS.SAVE: intentInjection = this.state.dynamicSaveInjection(); break;
+        }
+
+        const tail = buildResolverUserMessage({
+            userInput,
+            intentInjection,
+            protocolResolver: this.state.dynamicProtocolResolverInjection()
+        });
+        const finalContent = this.wrapUserMessage(tail, history);
+
+        history.push({ role: 'user', parts: [{ text: finalContent }] });
+        return history;
+    }
+
+    /**
+     * Builds the LLM history for the v2 narrator call (Call 2).
+     *
+     * The narrator MUST NOT see the original user input — narration must
+     * derive purely from the executed steps and the interrupted hint, so
+     * unexecuted dialogue/actions cannot smuggle through. This method pops
+     * the last user message (raw player input) and replaces it with a
+     * synthetic narrator-input message containing the structured resolver
+     * output plus the protocol_narrator injection.
+     *
+     * Earlier history (prior turns, ACT header, summaries) is preserved.
+     */
+    public buildNarratorContext(options: {
+        baseHistory: LLMContent[];
+        resolver: ResolverOutput;
+        executedSteps: ResolverStep[];
+    }): LLMContent[] {
+        const history = options.baseHistory.slice();
+        history.pop();
+
+        const tail = buildNarratorUserMessage({
+            resolver: options.resolver,
+            executedSteps: options.executedSteps,
+            protocolNarrator: this.state.dynamicProtocolNarratorInjection()
+        });
+        const finalContent = this.wrapUserMessage(tail, history);
+
+        history.push({ role: 'user', parts: [{ text: finalContent }] });
+        return history;
     }
 }

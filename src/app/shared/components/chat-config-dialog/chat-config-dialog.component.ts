@@ -26,7 +26,7 @@ import { MatBadgeModule } from '@angular/material/badge';
 import { DEFAULT_PROFILE_ID, PromptProfile, getProfileDisplayName } from '../../../core/constants/prompt-profiles';
 
 interface InjectionType {
-    id: 'action' | 'continue' | 'fastforward' | 'system' | 'save' | 'postprocess' | 'system_main' | 'protocol_single';
+    id: 'action' | 'continue' | 'fastforward' | 'system' | 'save' | 'postprocess' | 'system_main' | 'protocol_single' | 'protocol_resolver' | 'protocol_narrator';
     label: string;
     icon: string;
     category: 'main' | 'injection' | 'process';
@@ -85,6 +85,8 @@ export class ChatConfigDialogComponent {
         return [
             { id: 'system_main', label: ui.SYSTEM_PROMPT_TITLE || 'Main System Prompt', icon: 'settings', category: 'main' },
             { id: 'protocol_single', label: ui.PROTOCOL_SINGLE_TITLE || 'Output Protocol — Single-Call', icon: 'description', category: 'main' },
+            { id: 'protocol_resolver', label: ui.PROTOCOL_RESOLVER_TITLE || 'Output Protocol — Resolver', icon: 'description', category: 'main' },
+            { id: 'protocol_narrator', label: ui.PROTOCOL_NARRATOR_TITLE || 'Output Protocol — Narrator', icon: 'description', category: 'main' },
             { id: 'system', label: labels.SYSTEM, icon: 'psychology', category: 'injection' },
             { id: 'action', label: labels.ACTION, icon: 'play_arrow', category: 'injection' },
             { id: 'continue', label: labels.CONTINUE, icon: 'arrow_forward', category: 'injection' },
@@ -130,6 +132,8 @@ export class ChatConfigDialogComponent {
         files.set('save', this.state.dynamicSaveInjection());
         files.set('system_main', this.state.dynamicSystemMainInjection());
         files.set('protocol_single', this.state.dynamicProtocolSingleInjection());
+        files.set('protocol_resolver', this.state.dynamicProtocolResolverInjection());
+        files.set('protocol_narrator', this.state.dynamicProtocolNarratorInjection());
         files.set('postprocess', this.state.postProcessScript());
         return files;
     });

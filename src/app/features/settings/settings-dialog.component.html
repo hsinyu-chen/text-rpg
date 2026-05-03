@@ -64,12 +64,11 @@
 
             <div class="toggle-row">
                 <mat-slide-toggle [ngModel]="engineMode() === 'two-call'"
-                    (ngModelChange)="engineMode.set($event ? 'two-call' : 'single')" color="primary"
-                    [disabled]="true">
+                    (ngModelChange)="engineMode.set($event ? 'two-call' : 'single')" color="primary">
                     Two-Call Engine (Resolver + Narrator)
                 </mat-slide-toggle>
             </div>
-            <p class="hint-text">Coming soon. Splits a turn into a structured-resolution call and a narrator call. Will increase LLM cost per turn.</p>
+            <p class="hint-text">Splits each story turn into a structured-resolution call and a narrator call. Improves precondition handling at the cost of an extra LLM call per turn.</p>
         </div>
 
         <div class="advanced-section">

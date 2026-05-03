@@ -1,4 +1,5 @@
 import { Injectable, inject } from '@angular/core';
+import type { LLMContent } from '@hcs/llm-core';
 
 import { CostService } from './cost.service';
 import { GameStateService } from './game-state.service';
@@ -20,6 +21,9 @@ import {
 } from '../constants/engine-protocol';
 import { LOCALES } from '../constants/locales';
 import { SingleCallTurnEngine } from './turn-engines/single-call-turn-engine.service';
+import { TwoCallTurnEngine } from './turn-engines/two-call-turn-engine.service';
+import { STORY_INTENTS } from '../constants/game-intents';
+import type { TurnEngine } from './turn-engines/turn-engine.interface';
 
 @Injectable({
     providedIn: 'root'
@@ -34,6 +38,7 @@ export class GameEngineService {
     private contextBuilder = inject(ContextBuilderService);
     private configService = inject(ConfigService);
     private singleCallEngine = inject(SingleCallTurnEngine);
+    private twoCallEngine = inject(TwoCallTurnEngine);
 
     private currentAbortController: AbortController | null = null;
 
@@ -378,78 +383,33 @@ export class GameEngineService {
         }
 
         try {
-            const history = this.contextBuilder.getLLMHistory(forceFullContext);
-
+            const baseHistory = this.contextBuilder.getLLMHistory(forceFullContext);
 
             const currentIntent = options?.intent || GAME_INTENTS.ACTION;
             const config = this.state.config();
             const lang = config?.outputLanguage || 'default';
-            const tags = getIntentTags(lang);
+            const engineMode = config?.engineMode ?? 'single';
 
-            let injectionContent = '';
-            if (currentIntent === GAME_INTENTS.ACTION) {
-                injectionContent = this.state.dynamicActionInjection();
-            } else if (currentIntent === GAME_INTENTS.CONTINUE) {
-                injectionContent = this.state.dynamicContinueInjection();
-            } else if (currentIntent === GAME_INTENTS.FAST_FORWARD) {
-                injectionContent = this.state.dynamicFastforwardInjection();
-            } else if (currentIntent === GAME_INTENTS.SYSTEM) {
-                injectionContent = this.state.dynamicSystemInjection();
-            } else if (currentIntent === GAME_INTENTS.SAVE) {
-                injectionContent = this.state.dynamicSaveInjection();
+            // Two-call only applies to story intents — SYSTEM/SAVE bypass the
+            // resolver/narrator split (they have no atomic-action semantics).
+            const useTwoCall = engineMode === 'two-call' && (STORY_INTENTS as string[]).includes(currentIntent);
+
+            let history: LLMContent[];
+            let engine: TurnEngine;
+
+            if (useTwoCall) {
+                history = baseHistory;
+                engine = this.twoCallEngine;
+                console.log(`[GameEngine] Dispatching two-call engine for intent ${currentIntent}`);
+            } else {
+                history = this.augmentSingleCallHistory(baseHistory, currentIntent, lang);
+                engine = this.singleCallEngine;
             }
 
-            if (injectionContent) {
-                console.log(`[GameEngine] Injecting Dynamic Prompt for ${currentIntent}`);
-                // Merge injection content with user input into a single message
-                if (history.length > 0) {
-                    const lastMsg = history.pop(); // Remove last user msg
-
-                    if (lastMsg && lastMsg.parts && typeof lastMsg.parts[0].text === 'string') {
-                        let userInput = lastMsg.parts[0].text;
-
-                        // Prepend intent tag if needed
-                        let tag = '';
-                        if (currentIntent === GAME_INTENTS.ACTION) tag = tags.ACTION;
-                        else if (currentIntent === GAME_INTENTS.CONTINUE) tag = tags.CONTINUE;
-                        else if (currentIntent === GAME_INTENTS.FAST_FORWARD) tag = tags.FAST_FORWARD;
-                        else if (currentIntent === GAME_INTENTS.SYSTEM) tag = tags.SYSTEM;
-                        else if (currentIntent === GAME_INTENTS.SAVE) tag = tags.SAVE;
-
-                        if (tag && !userInput.trim().startsWith(tag)) {
-                            userInput = tag + userInput;
-                        }
-
-                        // Replace {{USER_INPUT}} placeholder with actual user input
-                        const mergedContent = injectionContent.replace(/\{\{USER_INPUT\}\}/g, userInput);
-
-                        // Protocol injection (cache-prefix shared between v1 single-call
-                        // and the future v2 two-call mode): append schema/output spec at
-                        // the user message tail. Empty string when the active locale/profile
-                        // hasn't been migrated yet — system_prompt.md still holds the spec.
-                        const protocolSingle = this.state.dynamicProtocolSingleInjection();
-                        const withProtocol = protocolSingle ? `${mergedContent}\n\n${protocolSingle}` : mergedContent;
-                        const finalContent = this.contextBuilder.wrapUserMessage(withProtocol, history);
-
-                        history.push({
-                            role: 'user',
-                            parts: [{ text: finalContent }]
-                        });
-                    }
-                }
-            }
-
-            // Create and track AbortController
             this.currentAbortController = new AbortController();
             const abortSignal = this.currentAbortController.signal;
 
             const modelMsgId = crypto.randomUUID();
-
-            const engineMode = config?.engineMode ?? 'single';
-            if (engineMode === 'two-call') {
-                throw new Error('Two-call engine mode is not implemented yet (planned for PR3).');
-            }
-            const engine = this.singleCallEngine;
 
             const result = await engine.runTurn({
                 history,
@@ -692,6 +652,59 @@ export class GameEngineService {
 
     private updateMessages(updater: (prev: ChatMessage[]) => ChatMessage[]) {
         this.chatHistory.updateMessages(updater);
+    }
+
+    /**
+     * Augments the base chat history with the v1 single-call user-message
+     * tail (intent injection + protocol_single, both with `{{USER_INPUT}}`
+     * substituted). The two-call path skips this method entirely — its
+     * augmentation lives in {@link ContextBuilderService.buildResolverContext}
+     * and {@link ContextBuilderService.buildNarratorContext}.
+     */
+    private augmentSingleCallHistory(baseHistory: LLMContent[], currentIntent: string, lang: string): LLMContent[] {
+        const history = baseHistory.slice();
+
+        let injectionContent = '';
+        switch (currentIntent) {
+            case GAME_INTENTS.ACTION: injectionContent = this.state.dynamicActionInjection(); break;
+            case GAME_INTENTS.CONTINUE: injectionContent = this.state.dynamicContinueInjection(); break;
+            case GAME_INTENTS.FAST_FORWARD: injectionContent = this.state.dynamicFastforwardInjection(); break;
+            case GAME_INTENTS.SYSTEM: injectionContent = this.state.dynamicSystemInjection(); break;
+            case GAME_INTENTS.SAVE: injectionContent = this.state.dynamicSaveInjection(); break;
+        }
+
+        if (!injectionContent || history.length === 0) return history;
+
+        const lastMsg = history.pop();
+        if (!lastMsg || !lastMsg.parts || typeof lastMsg.parts[0]?.text !== 'string') {
+            if (lastMsg) history.push(lastMsg);
+            return history;
+        }
+
+        const tags = getIntentTags(lang);
+        let userInput = lastMsg.parts[0].text;
+        let tag = '';
+        switch (currentIntent) {
+            case GAME_INTENTS.ACTION: tag = tags.ACTION; break;
+            case GAME_INTENTS.CONTINUE: tag = tags.CONTINUE; break;
+            case GAME_INTENTS.FAST_FORWARD: tag = tags.FAST_FORWARD; break;
+            case GAME_INTENTS.SYSTEM: tag = tags.SYSTEM; break;
+            case GAME_INTENTS.SAVE: tag = tags.SAVE; break;
+        }
+        if (tag && !userInput.trim().startsWith(tag)) {
+            userInput = tag + userInput;
+        }
+
+        console.log(`[GameEngine] Injecting Dynamic Prompt for ${currentIntent}`);
+        // Function-form replace so a literal `$&` / `$1` in userInput is not
+        // interpreted as a backreference pattern.
+        const mergedContent = injectionContent.replace(/\{\{USER_INPUT\}\}/g, () => userInput);
+        const protocolSingle = this.state.dynamicProtocolSingleInjection().replace(/\{\{USER_INPUT\}\}/g, () => userInput);
+        const withProtocol = protocolSingle ? `${mergedContent}\n\n${protocolSingle}` : mergedContent;
+        const finalContent = this.contextBuilder.wrapUserMessage(withProtocol, history);
+
+        history.push({ role: 'user', parts: [{ text: finalContent }] });
+        return history;
     }
 
     /**

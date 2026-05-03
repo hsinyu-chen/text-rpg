@@ -21,9 +21,7 @@ export class SingleCallTurnEngine implements TurnEngine {
     }
 
     async runTurn(input: TurnRunInput): Promise<StreamProcessResult> {
-        const hasCache = !!this.state.kbCacheName();
-        const bakesContent = this.provider.getCapabilities().cacheBakesContent ?? true;
-        const omitKB = hasCache && bakesContent;
+        const omitKB = this.contextBuilder.shouldOmitKbFromSystemInstruction();
 
         const stream = this.provider.generateContentStream(
             this.providerRegistry.getActiveConfig(),
