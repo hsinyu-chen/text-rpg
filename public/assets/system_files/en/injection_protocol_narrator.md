@@ -7,6 +7,14 @@ already done atomic breakdown, judged each step, and the program has
 truncated the array at the first `ideal_status='broken'`. Your job is to
 **render the truncated steps + ideal_outcome into user-facing scene prose**.
 
+## Historical correction rules (top priority)
+
+If the narrator input JSON includes a `correction` field, OR the chat history / stateUpdates summary contains `correction:` entries, treat the correction as a **hard override** of prior story content:
+- All prose descriptions must align with the correction (e.g., if the rule says "protagonist wears blue uniform", no description may show red).
+- `*_log` entries must align with the correction. If the correction touches the protagonist's gear/inventory/status, write a `校正` entry in `inventory_log` or a corresponding `character_log` change.
+- When the correction conflicts with the `executed_steps` description, the correction is the final truth — write the prose with the corrected version.
+- Do not apologize or mention "correction" in the prose — to the player, this is simply the correct story.
+
 ## Input
 
 You receive:

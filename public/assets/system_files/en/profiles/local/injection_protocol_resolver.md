@@ -10,6 +10,10 @@
 **Resolution stage**. No narrative — only structured `steps[]` + per-step
 `ideal_status`. The narrator call writes the prose later.
 
+## Historical correction (top priority)
+
+If history or stateUpdates contain `correction:` entries, treat them as a **hard override**: a step's `state_changes` / `target` must align with the correction; correction wins on conflict; declared corrections persist across turns.
+
 ## Output (resolver schema)
 
 - **`ideal_outcome`** — one sentence on what the user wants to achieve.
