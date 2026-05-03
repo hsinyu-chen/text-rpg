@@ -37,10 +37,15 @@ export function buildResolverUserMessage(input: {
     userInput: string;
     intentInjection: string;
     protocolResolver: string;
+    correctionReminder: string;
 }): string {
-    // Function-form replace so a literal `$&` / `$1` in userInput is not
-    // interpreted as a backreference pattern.
-    const merged = input.intentInjection.replace(/\{\{USER_INPUT\}\}/g, () => input.userInput);
+    // Function-form replace so literal `$&` / `$1` in any substituted text is
+    // not interpreted as a backreference pattern. Correction reminder fills
+    // first so the rendered block can itself contain `{{USER_INPUT}}`-like
+    // text without it bleeding into the next pass.
+    const merged = input.intentInjection
+        .replace(/\{\{CORRECTION_REMINDER\}\}/g, () => input.correctionReminder)
+        .replace(/\{\{USER_INPUT\}\}/g, () => input.userInput);
     const protocol = input.protocolResolver.replace(/\{\{USER_INPUT\}\}/g, () => input.userInput);
 
     if (merged && protocol) return `${merged}\n\n${protocol}`;
@@ -67,6 +72,7 @@ export function buildNarratorUserMessage(input: {
     resolver: ResolverOutput;
     executedSteps: ResolverStep[];
     protocolNarrator: string;
+    correction: string;
 }): string {
     const sanitizedSteps = input.executedSteps.map(s => ({
         action: s.action,
@@ -86,13 +92,16 @@ export function buildNarratorUserMessage(input: {
     const interrupted = lastStep?.ideal_status === 'broken';
     const breakReason = interrupted ? lastStep.break_reason : '';
 
-    const narratorInput = {
+    const narratorInput: Record<string, unknown> = {
         ideal_outcome: input.resolver.ideal_outcome,
         ideal_strength: input.resolver.ideal_strength,
         interrupted,
         break_reason: breakReason,
         executed_steps: sanitizedSteps
     };
+    if (input.correction) {
+        narratorInput.correction = input.correction;
+    }
 
     // Use tilde fences instead of backticks — JSON.stringify does not escape
     // backticks, so dialogue containing ``` would prematurely close a backtick

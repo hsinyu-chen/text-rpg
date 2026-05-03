@@ -70,7 +70,8 @@ describe('buildResolverUserMessage', () => {
         const out = buildResolverUserMessage({
             userInput: 'walk forward',
             intentInjection: 'INTENT: {{USER_INPUT}}',
-            protocolResolver: 'PROTOCOL: {{USER_INPUT}}'
+            protocolResolver: 'PROTOCOL: {{USER_INPUT}}',
+            correctionReminder: ''
         });
         expect(out).toBe('INTENT: walk forward\n\nPROTOCOL: walk forward');
     });
@@ -79,7 +80,8 @@ describe('buildResolverUserMessage', () => {
         const out = buildResolverUserMessage({
             userInput: 'x',
             intentInjection: '',
-            protocolResolver: 'PROTO {{USER_INPUT}}'
+            protocolResolver: 'PROTO {{USER_INPUT}}',
+            correctionReminder: ''
         });
         expect(out).toBe('PROTO x');
     });
@@ -88,7 +90,8 @@ describe('buildResolverUserMessage', () => {
         const out = buildResolverUserMessage({
             userInput: 'y',
             intentInjection: 'I {{USER_INPUT}}',
-            protocolResolver: ''
+            protocolResolver: '',
+            correctionReminder: ''
         });
         expect(out).toBe('I y');
     });
@@ -97,7 +100,8 @@ describe('buildResolverUserMessage', () => {
         expect(buildResolverUserMessage({
             userInput: 'z',
             intentInjection: '',
-            protocolResolver: ''
+            protocolResolver: '',
+            correctionReminder: ''
         })).toBe('z');
     });
 
@@ -105,9 +109,40 @@ describe('buildResolverUserMessage', () => {
         const out = buildResolverUserMessage({
             userInput: 'a',
             intentInjection: '{{USER_INPUT}}/{{USER_INPUT}}',
-            protocolResolver: ''
+            protocolResolver: '',
+            correctionReminder: ''
         });
         expect(out).toBe('a/a');
+    });
+
+    it('substitutes {{CORRECTION_REMINDER}} with the rendered block', () => {
+        const out = buildResolverUserMessage({
+            userInput: 'walk',
+            intentInjection: '{{CORRECTION_REMINDER}}\n\nIntent: {{USER_INPUT}}',
+            protocolResolver: '',
+            correctionReminder: 'CORRECTION: cat is white'
+        });
+        expect(out).toBe('CORRECTION: cat is white\n\nIntent: walk');
+    });
+
+    it('drops {{CORRECTION_REMINDER}} to empty when no reminder is supplied', () => {
+        const out = buildResolverUserMessage({
+            userInput: 'walk',
+            intentInjection: '{{CORRECTION_REMINDER}}\n\nIntent: {{USER_INPUT}}',
+            protocolResolver: '',
+            correctionReminder: ''
+        });
+        expect(out).toBe('\n\nIntent: walk');
+    });
+
+    it('does not interpret $&/$1 backreferences in the correction reminder text', () => {
+        const out = buildResolverUserMessage({
+            userInput: 'x',
+            intentInjection: '{{CORRECTION_REMINDER}}',
+            protocolResolver: '',
+            correctionReminder: '$1 and $& survived'
+        });
+        expect(out).toBe('$1 and $& survived');
     });
 });
 
@@ -116,7 +151,8 @@ describe('buildNarratorUserMessage', () => {
         const out = buildNarratorUserMessage({
             resolver: resolver({ ideal_outcome: 'X', interrupted: false }),
             executedSteps: [step({ action: 'walk', dialogue: 'hi' })],
-            protocolNarrator: 'NARR'
+            protocolNarrator: 'NARR',
+            correction: ''
         });
         // The narrator must not see the raw user input; only structured data is present.
         expect(out).toContain('[NARRATOR INPUT]');
@@ -128,7 +164,8 @@ describe('buildNarratorUserMessage', () => {
         const out = buildNarratorUserMessage({
             resolver: resolver({ interrupted: false }),
             executedSteps: [step({ ideal_status: 'intact', break_reason: 'leaked text' })],
-            protocolNarrator: ''
+            protocolNarrator: '',
+            correction: ''
         });
         expect(out).not.toContain('leaked text');
         expect(out).toContain('"break_reason": ""');
@@ -142,7 +179,8 @@ describe('buildNarratorUserMessage', () => {
                 step({ action: 'a' }),
                 step({ action: 'b', ideal_status: 'broken', break_reason: 'NPC refused' })
             ],
-            protocolNarrator: ''
+            protocolNarrator: '',
+            correction: ''
         });
         const parsed = JSON.parse(out.split('~~~json\n')[1].split('\n~~~')[0]);
         expect(parsed.interrupted).toBe(true);
@@ -153,7 +191,8 @@ describe('buildNarratorUserMessage', () => {
         const out = buildNarratorUserMessage({
             resolver: resolver({ interrupted: true }),
             executedSteps: [step({ action: 'a' })],
-            protocolNarrator: ''
+            protocolNarrator: '',
+            correction: ''
         });
         const parsed = JSON.parse(out.split('~~~json\n')[1].split('\n~~~')[0]);
         expect(parsed.interrupted).toBe(false);
@@ -164,7 +203,8 @@ describe('buildNarratorUserMessage', () => {
         const out = buildNarratorUserMessage({
             resolver: resolver(),
             executedSteps: [step()],
-            protocolNarrator: ''
+            protocolNarrator: '',
+            correction: ''
         });
         expect(out.endsWith('~~~')).toBe(true);
     });
@@ -173,11 +213,34 @@ describe('buildNarratorUserMessage', () => {
         const out = buildNarratorUserMessage({
             resolver: resolver({ ideal_outcome: 'X', ideal_strength: 'desperate', interrupted: false }),
             executedSteps: [step()],
-            protocolNarrator: ''
+            protocolNarrator: '',
+            correction: ''
         });
         const parsed = JSON.parse(out.split('~~~json\n')[1].split('\n~~~')[0]);
         expect(parsed.ideal_outcome).toBe('X');
         expect(parsed.ideal_strength).toBe('desperate');
         expect(parsed.interrupted).toBe(false);
+    });
+
+    it('embeds the correction string into the narrator JSON when supplied', () => {
+        const out = buildNarratorUserMessage({
+            resolver: resolver(),
+            executedSteps: [step()],
+            protocolNarrator: '',
+            correction: '原劇情誤寫紅色禮服；後續以藍色制服為準。'
+        });
+        const parsed = JSON.parse(out.split('~~~json\n')[1].split('\n~~~')[0]);
+        expect(parsed.correction).toBe('原劇情誤寫紅色禮服；後續以藍色制服為準。');
+    });
+
+    it('omits the correction field entirely when empty (no leakage as undefined/null)', () => {
+        const out = buildNarratorUserMessage({
+            resolver: resolver(),
+            executedSteps: [step()],
+            protocolNarrator: '',
+            correction: ''
+        });
+        const parsed = JSON.parse(out.split('~~~json\n')[1].split('\n~~~')[0]);
+        expect('correction' in parsed).toBe(false);
     });
 });

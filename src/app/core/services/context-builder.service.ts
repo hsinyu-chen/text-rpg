@@ -361,6 +361,36 @@ export class ContextBuilderService {
     }
 
     /**
+     * Looks at the most recent model message's `correction` field. The
+     * substitution machinery for `{{CORRECTION_REMINDER}}` and the narrator's
+     * structured `correction` field both consume this. One-shot by design:
+     * after the corrective turn commits and the system pair becomes ref-only,
+     * the most recent model message is the corrective story (no correction),
+     * so the slot naturally falls back to empty.
+     */
+    public getRecentCorrection(): string {
+        const messages = this.state.messages();
+        for (let i = messages.length - 1; i >= 0; i--) {
+            if (messages[i].role === 'model') {
+                return messages[i].correction?.trim() ?? '';
+            }
+        }
+        return '';
+    }
+
+    /**
+     * Renders the correction reminder block by filling `{{CORRECTION_TEXT}}`
+     * in the active profile's `injection_correction.md`. Returns '' when
+     * there's no correction or the template is missing (legacy profile).
+     */
+    public renderCorrectionReminder(correction: string): string {
+        if (!correction) return '';
+        const template = this.state.dynamicCorrectionInjection();
+        if (!template) return '';
+        return template.replace(/\{\{CORRECTION_TEXT\}\}/g, () => correction);
+    }
+
+    /**
      * Builds the LLM history for the two-call resolver call (Call 1).
      *
      * The cache prefix (system instruction + KB) is shared with the single-call
@@ -394,7 +424,8 @@ export class ContextBuilderService {
         const tail = buildResolverUserMessage({
             userInput,
             intentInjection,
-            protocolResolver: this.state.dynamicProtocolResolverInjection()
+            protocolResolver: this.state.dynamicProtocolResolverInjection(),
+            correctionReminder: this.renderCorrectionReminder(this.getRecentCorrection())
         });
         const finalContent = this.wrapUserMessage(tail, history);
 
@@ -425,7 +456,8 @@ export class ContextBuilderService {
         const tail = buildNarratorUserMessage({
             resolver: options.resolver,
             executedSteps: options.executedSteps,
-            protocolNarrator: this.state.dynamicProtocolNarratorInjection()
+            protocolNarrator: this.state.dynamicProtocolNarratorInjection(),
+            correction: this.getRecentCorrection()
         });
         const finalContent = this.wrapUserMessage(tail, history);
 

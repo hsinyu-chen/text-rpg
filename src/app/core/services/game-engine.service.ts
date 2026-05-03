@@ -746,8 +746,13 @@ export class GameEngineService {
 
         console.log(`[GameEngine] Injecting Dynamic Prompt for ${currentIntent}`);
         // Function-form replace so a literal `$&` / `$1` in userInput is not
-        // interpreted as a backreference pattern.
-        const mergedContent = injectionContent.replace(/\{\{USER_INPUT\}\}/g, () => userInput);
+        // interpreted as a backreference pattern. Correction reminder fills
+        // first so its rendered text can itself contain `{{USER_INPUT}}`-like
+        // sequences without bleeding into the next pass.
+        const correctionReminder = this.contextBuilder.renderCorrectionReminder(this.contextBuilder.getRecentCorrection());
+        const mergedContent = injectionContent
+            .replace(/\{\{CORRECTION_REMINDER\}\}/g, () => correctionReminder)
+            .replace(/\{\{USER_INPUT\}\}/g, () => userInput);
         const protocolSingle = this.state.dynamicProtocolSingleInjection().replace(/\{\{USER_INPUT\}\}/g, () => userInput);
         const withProtocol = protocolSingle ? `${mergedContent}\n\n${protocolSingle}` : mergedContent;
         const finalContent = this.contextBuilder.wrapUserMessage(withProtocol, history);
