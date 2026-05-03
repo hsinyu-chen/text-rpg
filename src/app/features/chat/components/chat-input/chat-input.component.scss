@@ -48,6 +48,36 @@
             background: rgba(255, 255, 255, 0.08);
             border-color: #666;
         }
+
+        &:disabled {
+            cursor: not-allowed;
+            opacity: 0.5;
+        }
+    }
+
+    .engine-mode-pill {
+        // Distinct from profile-pill: tinted border + icon when 2-call so the
+        // user can see the active engine mode at a glance without reading text.
+        &.two-call {
+            border-color: var(--intent-fastforward, #ba68c8);
+            color: #e1bee7;
+        }
+    }
+
+    .ideal-outcome-pill {
+        max-width: 220px;
+
+        &.expanded {
+            background: rgba(186, 104, 200, 0.18);
+            border-color: rgba(186, 104, 200, 0.55);
+            color: #f3e5f5;
+        }
+
+        // Subtle outline when the field has content but is currently collapsed —
+        // mirrors the badge pattern used elsewhere for unsaved/queued state.
+        &.has-text:not(.expanded) {
+            box-shadow: 0 0 0 1px rgba(186, 104, 200, 0.45) inset;
+        }
     }
 
     .status-pill {
@@ -72,6 +102,17 @@
     align-items: center;
 }
 
+// Full-width row ABOVE the input area. Hidden by default on both PC and mobile;
+// user reveals it via the ideal-outcome chip in the status row.
+.ideal-outcome-row {
+    margin-bottom: 6px;
+
+    .ideal-outcome-field {
+        width: 100%;
+        margin-bottom: -16px;
+    }
+}
+
 .intent-select {
     width: 100%;
     margin-bottom: -16px;
@@ -81,7 +122,6 @@
 .main-input {
     width: 100%;
     margin-bottom: -16px;
-
 }
 
 .send-btn,
@@ -139,6 +179,17 @@
 
     .mobile-menu-btn {
         display: block !important;
+    }
+
+    // Tighter chip caps on mobile so a long profile name can't crowd the
+    // engine-mode + ideal-outcome chips off the row.
+    .input-status-row {
+        .profile-pill span {
+            max-width: 110px;
+        }
+        .ideal-outcome-pill {
+            max-width: 130px;
+        }
     }
 }
 
