@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { GameStateService } from './game-state.service';
 import { StorageService } from './storage.service';
-import { ChatMessage } from '../models/types';
+import { ChatMessage, ExtendedPart } from '../models/types';
 
 /**
  * Service responsible for chat history CRUD operations.
@@ -25,13 +25,34 @@ export class ChatHistoryService {
     }
 
     /**
-     * Updates the content of a specific message by ID.
+     * Updates the content of a specific message by ID. Also rewrites the last
+     * non-thought text part so the LLM history view (which prefers `parts`
+     * over `content` when both exist) reflects the edit.
      */
     updateMessageContent(id: string, newContent: string) {
         this.state.messages.update(msgs =>
-            msgs.map(m => (m.id === id ? { ...m, content: newContent } : m))
+            msgs.map(m => {
+                if (m.id !== id) return m;
+                return { ...m, content: newContent, parts: this.replaceLastTextPart(m.parts, newContent) };
+            })
         );
         this.storage.set('chat_history', this.state.messages());
+    }
+
+    private replaceLastTextPart(parts: ExtendedPart[] | undefined, newText: string): ExtendedPart[] {
+        if (!parts || parts.length === 0) return [{ text: newText }];
+        // Walk from the end for the last visible text part — thought parts and
+        // function-call parts must keep their original payload.
+        for (let i = parts.length - 1; i >= 0; i--) {
+            const p = parts[i];
+            if (p.text !== undefined && !(p as ExtendedPart).thought) {
+                const next = [...parts];
+                next[i] = { ...p, text: newText };
+                return next;
+            }
+        }
+        // No editable text part — append one so the edit is at least visible.
+        return [...parts, { text: newText }];
     }
 
     /**
