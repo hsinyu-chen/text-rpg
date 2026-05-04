@@ -568,6 +568,12 @@ export class FileUpdateService {
     public findInsertionPoint(lines: string[], context?: string): number {
         if (!context) return lines.length;
 
+        // Skip fenced code block lines so a `## fake` inside ```...``` can't be
+        // matched as the insertion anchor — siblings (`findContextLine`,
+        // `verifyContext`, `inferContextFromLine`) already do this; PR #13
+        // fixed those four heading scans but missed `findInsertionPoint`.
+        const fencedMask = computeFencedLineMask(lines);
+
         const crumbs = context.split('>').map(c => c.trim());
         let currentLine = 0;
         let anyFound = false; // Track if at least one crumb was matched
@@ -582,6 +588,7 @@ export class FileUpdateService {
             const normalizedCrumb = this.normalizeForComparison(crumbText);
 
             for (let i = currentLine; i < lines.length; i++) {
+                if (fencedMask[i]) continue;
                 const line = lines[i].trim();
                 const lineHeading = parseAtxHeading(lines[i]);
                 const isLineHeader = !!lineHeading;
@@ -625,6 +632,7 @@ export class FileUpdateService {
         const currentLevel = headerLevelMatch ? headerLevelMatch[1].length : 0;
 
         for (let i = currentLine; i < lines.length; i++) {
+            if (fencedMask[i]) continue;
             const nextHeaderMatch = lines[i].trimStart().match(/^(#+)/);
             if (nextHeaderMatch && nextHeaderMatch[1].length <= currentLevel) {
                 return i;
