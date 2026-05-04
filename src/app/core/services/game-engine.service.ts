@@ -433,17 +433,51 @@ export class GameEngineService {
 
         // 2. Ensure cache is valid before generating
         try {
-            // ALWAYS pass clean instruction to CacheManager.
-            // If CacheManager needs to create/refresh an explicit cache, it will use this as header.
-            // KB content is already handled by CacheManager via fileParts in createCache.
-            // CacheManager always wants the bare system prompt (no KB body) — it
-            // owns the KB injection itself via fileParts. Inlined here rather
-            // than going through ContextBuilder so we don't have to snapshot
-            // the build context before cache validation runs (cache refresh
-            // can mutate kbCacheName, and we want the post-refresh value in
-            // the snapshot).
-            await this.cacheManager.checkCacheAndRefresh(stripSystemMainMarker(this.state.systemInstructionCache()));
+            // CacheManager always wants the bare system prompt (no KB body)
+            // — it owns the KB injection itself via fileParts. Caller
+            // resolves the four kbCacheXxx signal reads here so the service
+            // doesn't pull state, then commits the returned result.
+            const cacheProvider = this.providerRegistry.getActive();
+            if (!cacheProvider) throw new Error('No active LLM provider');
+            const cacheResult = await this.cacheManager.checkCacheAndRefresh({
+                provider: cacheProvider,
+                providerConfig: this.providerRegistry.getActiveConfig(),
+                enableCache: !!this.state.config()?.enableCache,
+                modelId: this.state.config()?.modelId || '',
+                systemInstruction: stripSystemMainMarker(this.state.systemInstructionCache()),
+                loadedFiles: this.state.loadedFiles(),
+                currentCacheName: this.state.kbCacheName(),
+                currentCacheHash: this.state.kbCacheHash(),
+                currentCacheTokens: this.state.kbCacheTokens(),
+                currentCacheExpireTime: this.state.kbCacheExpireTime()
+            });
+
+            // Commit the result. Service no longer mutates state.kbCacheXxx —
+            // the four lines below are the only writers on the success path.
+            this.state.kbCacheName.set(cacheResult.cacheName);
+            this.state.kbCacheExpireTime.set(cacheResult.expireTime);
+            this.state.kbCacheHash.set(cacheResult.hash);
+            this.state.kbCacheTokens.set(cacheResult.tokens);
+
+            if (cacheResult.sunkUsageTokens > 0) {
+                this.chatHistory.recordSunkUsage(cacheResult.sunkUsageTokens, 0, 0);
+            }
+
+            // Storage cost timer follows the cache lifecycle: start when a
+            // cache is registered, stop otherwise. Service-side
+            // start/stopStorageTimer reads state, so they must run after
+            // the writes above.
+            if (cacheResult.cacheName) {
+                this.cacheManager.startStorageTimer();
+            } else {
+                this.cacheManager.stopStorageTimer();
+            }
         } catch (e: unknown) {
+            // SESSION_EXPIRED path: service threw without committing a result,
+            // so caller is responsible for clearing kbCacheName here.
+            if (e instanceof Error && e.message === 'SESSION_EXPIRED') {
+                this.state.kbCacheName.set(null);
+            }
             // If we just auto-switched profiles, fold that note into the
             // error message so the user understands the silent state change
             // before retrying.
