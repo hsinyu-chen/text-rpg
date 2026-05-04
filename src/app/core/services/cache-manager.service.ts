@@ -102,6 +102,18 @@ export class CacheManagerService {
         this.state.kbCacheTokens.set(0);
     }
 
+    /**
+     * Parse a provider-reported expireTime (number ms or ISO string) and
+     * fall back to `now + ttlSeconds*1000` for any invalid / missing
+     * value. CostService treats NaN as "expired now", which would tank
+     * the storage cost calc — never let a poisoned value through.
+     */
+    private parseExpireOrFallback(raw: number | string | undefined | null, ttlSeconds: number): number {
+        if (raw == null) return Date.now() + ttlSeconds * 1000;
+        const parsed = typeof raw === 'number' ? raw : new Date(raw).getTime();
+        return isNaN(parsed) ? Date.now() + ttlSeconds * 1000 : parsed;
+    }
+
     /** Config for the active provider — monorepo providers require it on every call. */
     private get providerConfig(): LLMProviderConfig {
         return this.providerRegistry.getActiveConfig();
@@ -222,19 +234,7 @@ export class CacheManagerService {
 
                             // If updated valid, or just exists (fall through)
                             if (updated?.expireTime) {
-                                const expireMs = typeof updated.expireTime === 'number'
-                                    ? updated.expireTime
-                                    : new Date(updated.expireTime).getTime();
-                                // updateCacheTTL was just called, so on a NaN
-                                // ISO string we can assume the requested
-                                // extension landed and fall back to now+TTL —
-                                // same shape the recovery/createCache path
-                                // uses (line ~303). Keeping the old expireTime
-                                // would advertise a stale countdown that's
-                                // already past.
-                                resultExpireTime = isNaN(expireMs)
-                                    ? (Date.now() + ttlSeconds * 1000)
-                                    : expireMs;
+                                resultExpireTime = this.parseExpireOrFallback(updated.expireTime, ttlSeconds);
                                 validationSuccess = true;
 
                                 // Sync tokens from restored cache so UI shows current slot occupancy.
@@ -298,18 +298,7 @@ export class CacheManagerService {
 
                         if (cacheRes?.name) {
                             resultCacheName = cacheRes.name;
-                            // Mirror the validation path's expireTime parsing.
-                            // Guard against NaN from invalid ISO strings —
-                            // CostService treats NaN as "expired now" and
-                            // would mis-bill storage. Fall back to now+TTL
-                            // for both "missing" and "unparseable" cases.
-                            const rawExpire = cacheRes.expireTime;
-                            const parsed = typeof rawExpire === 'number'
-                                ? rawExpire
-                                : (rawExpire ? new Date(rawExpire).getTime() : NaN);
-                            resultExpireTime = isNaN(parsed)
-                                ? (Date.now() + ttlSeconds * 1000)
-                                : parsed;
+                            resultExpireTime = this.parseExpireOrFallback(cacheRes.expireTime, ttlSeconds);
                             resultHash = currentHash;
                             resultTokens = cacheRes.usageMetadata?.totalTokenCount || 0;
 
