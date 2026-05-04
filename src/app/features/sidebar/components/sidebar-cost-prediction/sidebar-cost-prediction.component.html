@@ -37,7 +37,7 @@
 
     <!-- Last Turn Breakdown -->
     <div class="turn-stats">
-        @if (state.loadedFiles().size > 0 && !state.kbCacheName()) {
+        @if (isCacheEnabled() && state.loadedFiles().size > 0 && !state.kbCacheName()) {
         <div class="kb-warning">
             <mat-icon>warning</mat-icon>
             <span>KB changed. Next send will rebuild cache.</span>

@@ -4,7 +4,7 @@ import { CostService } from './cost.service';
 import { KnowledgeService } from './knowledge.service';
 import { LLMProviderRegistryService } from './llm-provider-registry.service';
 import { DEFAULT_PROFILE_ID } from '../constants/prompt-profiles';
-import { isSystemMainCompatible } from './profile-compat';
+import { isSystemMainCompatible, stripSystemMainMarker } from './profile-compat';
 
 /**
  * Configuration for the game engine.
@@ -69,11 +69,14 @@ export class GameStateService {
     estimatedKbTokens = signal<number>(0);
     unsavedFiles = signal<Set<string>>(new Set());
 
-    // Reactive KB Hash
+    // Reactive KB Hash. systemInstruction is stripped of the version marker so
+    // this matches what CacheManager hashes when validating / minting a cache —
+    // otherwise stored vs current diverge across reloads on profiles that ship
+    // the marker, and every boot's loadFiles invalidates a still-valid cache.
     currentKbHash = computed(() => {
         const files = this.loadedFiles();
         const modelId = this.config()?.modelId || 'gemini-prod';
-        const systemInstruction = this.systemInstructionCache();
+        const systemInstruction = stripSystemMainMarker(this.systemInstructionCache());
 
         const kbText = this.kb.buildKnowledgeBaseText(files);
         return this.kb.calculateKbHash(kbText, modelId, systemInstruction);
