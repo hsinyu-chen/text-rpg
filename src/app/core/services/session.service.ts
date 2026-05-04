@@ -899,7 +899,11 @@ export class SessionService {
         const currentHash = this.state.currentKbHash();
         if (this.state.kbCacheHash() !== currentHash) {
             console.log('[SessionService] KB Content changed through single update. Invalidating remote state.');
-            this.state.kbCacheName.set(null);
+            // Match the resilience pattern used elsewhere in this file:
+            // resetCacheState clears all four kbCacheXxx signals AND
+            // finalizes the storage usage timer so we don't keep billing
+            // for a cache the app already considers dead.
+            this.cacheManager.resetCacheState();
             this.state.kbCacheHash.set(currentHash);
 
             // Also re-calculate total estimated tokens
@@ -984,7 +988,7 @@ export class SessionService {
             if (hasKbContent) {
                 if (this.state.kbCacheHash() !== currentHash) {
                     console.log('[SessionService] KB Content changed. Invalidating remote state.');
-                    this.state.kbCacheName.set(null);
+                    this.cacheManager.resetCacheState();
                     this.state.kbCacheHash.set(currentHash);
                 }
 

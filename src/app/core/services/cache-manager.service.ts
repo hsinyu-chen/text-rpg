@@ -123,10 +123,15 @@ export class CacheManagerService {
     }
 
     /**
-     * Stops the storage cost timer.
+     * Stops the storage cost timer AND clears the context state so the
+     * UI countdown disappears. Without the second call, cacheCountdown
+     * would freeze on its last value (e.g. "29:42") because
+     * updateCacheCountdown is only invoked from updateContextState or
+     * the timer tick — and we just stopped both.
      */
     stopStorageTimer(): void {
         this.cost.stopStorageTimer();
+        this.cost.updateContextState(0, null, 'unknown', null);
     }
 
     // ==================== Cache Validation & Refresh ====================
@@ -141,6 +146,10 @@ export class CacheManagerService {
      * chat-history if non-zero, and starts/stops the storage timer based
      * on whether `cacheName` is set.
      *
+     * @param input Per-call snapshot — provider + config, current cache
+     *   identity (name/hash/tokens/expireTime), targetHash for staleness
+     *   detection, loaded files for restoration, and the system prompt
+     *   the cache should bind to.
      * @throws Error with 'SESSION_EXPIRED' if context is lost and cannot be recovered.
      */
     async checkCacheAndRefresh(input: CacheCheckInput): Promise<CacheCheckResult> {
