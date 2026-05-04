@@ -9,6 +9,7 @@ import { CacheManagerService } from './cache-manager.service';
 import { SessionService } from './session.service';
 import { ContextBuilderService } from './context-builder.service';
 import { ConfigService } from './config.service';
+import { LLMProviderRegistryService } from './llm-provider-registry.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ChatMessage, SessionSave, ExtendedPart, Scenario } from '../models/types';
 
@@ -42,6 +43,7 @@ export class GameEngineService {
     private singleCallEngine = inject(SingleCallTurnEngine);
     private twoCallEngine = inject(TwoCallTurnEngine);
     private injection = inject(InjectionService);
+    private providerRegistry = inject(LLMProviderRegistryService);
 
     private currentAbortController: AbortController | null = null;
 
@@ -455,13 +457,27 @@ export class GameEngineService {
 
             const modelMsgId = crypto.randomUUID();
 
+            // Capture per-turn runtime once. Engines run as functionally pure
+            // calls — no DI singleton substitution needed in specs, and no
+            // signal re-read mid-turn.
+            const provider = this.providerRegistry.getActive();
+            if (!provider) throw new Error('No active LLM provider');
+            const providerConfig = this.providerRegistry.getActiveConfig();
+            const cachedContentName = this.state.kbCacheName() || undefined;
+            const omitKB = this.contextBuilder.shouldOmitKbFromSystemInstruction();
+            const systemInstruction = this.contextBuilder.getEffectiveSystemInstruction(!omitKB);
+
             const result = await engine.runTurn({
                 history,
                 intent: currentIntent,
                 outputLanguage: lang,
                 modelMsgId,
                 signal: abortSignal,
-                updateMessages: (updater) => this.updateMessages(updater)
+                updateMessages: (updater) => this.updateMessages(updater),
+                provider,
+                providerConfig,
+                cachedContentName,
+                systemInstruction
             });
 
             // Extract results
