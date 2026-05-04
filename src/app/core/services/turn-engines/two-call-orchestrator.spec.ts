@@ -30,14 +30,17 @@ function narratorJson(story: string, summary = 's'): string {
 
 describe('two-call orchestrator integration', () => {
     let mockProvider: MockLLMProvider;
+    let messagesSignal: ReturnType<typeof signal<ChatMessage[]>>;
     let messages: ChatMessage[];
     const updateMessages = (updater: (prev: ChatMessage[]) => ChatMessage[]) => {
         messages = updater(messages);
+        messagesSignal.set(messages);
     };
 
     beforeEach(() => {
         mockProvider = new MockLLMProvider();
         messages = [];
+        messagesSignal = signal<ChatMessage[]>([]);
 
         const fakeRegistry = {
             getActive: () => mockProvider,
@@ -61,7 +64,7 @@ describe('two-call orchestrator integration', () => {
             dynamicCorrectionInjection: signal(''),
             dynamicSystemMainInjection: signal(''),
             postProcessScript: signal(''),
-            messages: signal([]),
+            messages: messagesSignal,
             contextMode: signal('full'),
             saveContextMode: signal('full'),
             config: signal({ outputLanguage: 'default' }),
@@ -92,8 +95,9 @@ describe('two-call orchestrator integration', () => {
         return TestBed.inject(TwoCallTurnEngine);
     }
 
-    function pushUser(text: string) {
-        messages.push({ id: 'u', role: 'user', content: text, parts: [{ text }] });
+    function pushUser(text: string, extra: Partial<ChatMessage> = {}) {
+        messages.push({ id: 'u', role: 'user', content: text, parts: [{ text }], ...extra });
+        messagesSignal.set([...messages]);
     }
 
     it('drives resolver → truncate → narrator with no broken steps', async () => {
@@ -249,7 +253,7 @@ describe('two-call orchestrator integration', () => {
     });
 
     it('injects {{IDEAL_OUTCOME_CONSTRAINT}} into the resolver call when the latest user msg supplied userIdealOutcome', async () => {
-        messages.push({ id: 'u', role: 'user', content: 'walk forward', parts: [{ text: 'walk forward' }], userIdealOutcome: 'reach the plaza unseen' });
+        pushUser('walk forward', { userIdealOutcome: 'reach the plaza unseen' });
 
         // Override the resolver protocol to include the slot for this test.
         const fakeState = TestBed.inject(GameStateService) as unknown as { dynamicProtocolResolverInjection: { set: (v: string) => void } };
@@ -285,7 +289,7 @@ describe('two-call orchestrator integration', () => {
     });
 
     it('leaves the resolver protocol slot empty when no userIdealOutcome was supplied', async () => {
-        messages.push({ id: 'u', role: 'user', content: 'walk forward', parts: [{ text: 'walk forward' }] });
+        pushUser('walk forward');
 
         const fakeState = TestBed.inject(GameStateService) as unknown as { dynamicProtocolResolverInjection: { set: (v: string) => void } };
         fakeState.dynamicProtocolResolverInjection.set('RESOLVER PROTOCOL\n\n{{IDEAL_OUTCOME_CONSTRAINT}}\n\n{{USER_INPUT}}');
