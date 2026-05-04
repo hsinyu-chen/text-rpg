@@ -162,13 +162,15 @@ export class CacheManagerService {
                 // Check Hash first
                 if (currentHash !== storedHash) {
                     console.log('[CacheManager] Cache hash mismatch (Stale). Deleting stale cache...');
-                    // Server-side delete + cost-side acc transfer happen in-place.
-                    // State mutation (kbCacheXxx) is conveyed via the result —
-                    // caller commits null/0 below if recovery doesn't overwrite.
+                    // finalize FIRST so the storage timer stops immediately —
+                    // billing during the deleteCache network round-trip would
+                    // be against an already-retired cache. State mutation
+                    // (kbCacheXxx) is conveyed via the result — caller commits
+                    // null/0 below if recovery doesn't overwrite.
+                    this.finalizeStorageUsage();
                     if (input.provider.deleteCache) {
                         await input.provider.deleteCache(input.providerConfig, cacheName);
                     }
-                    this.finalizeStorageUsage();
                     resultCacheName = null;
                     resultExpireTime = null;
                     resultHash = null;
@@ -316,10 +318,11 @@ export class CacheManagerService {
             if (!useCache && cacheName) {
                 // We are in No-Cache/Implicit mode. If there's a leftover Cache, clean it up to save costs.
                 console.log('[CacheManager] Cleaning up leftover Cache while in Implicit mode.');
+                // Stop billing before the async deleteCache round-trip.
+                this.finalizeStorageUsage();
                 if (input.provider.deleteCache) {
                     await input.provider.deleteCache(input.providerConfig, cacheName);
                 }
-                this.finalizeStorageUsage();
                 resultCacheName = null;
                 resultExpireTime = null;
                 resultHash = null;
