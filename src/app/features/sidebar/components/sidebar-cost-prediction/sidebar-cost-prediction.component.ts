@@ -46,7 +46,13 @@ export class SidebarCostPredictionComponent {
     contextSize = computed<number | null>(() => {
         const modelId = this.currentModelId();
         const models = this.providerRegistry.getActiveModels();
-        const match = models.find(m => m.id === modelId);
+        if (models.length === 0) return null;
+        // Single-model providers (llama.cpp: whatever's loaded on the
+        // server) report a dynamic id from /props.modelAlias that the
+        // user's saved cfg.modelId can drift away from. Fall back to the
+        // sole entry so the bar still renders instead of disappearing.
+        const match = models.find(m => m.id === modelId)
+            ?? (models.length === 1 ? models[0] : null);
         return match?.contextSize ?? null;
     });
 
