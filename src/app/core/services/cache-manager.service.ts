@@ -69,6 +69,22 @@ export class CacheManagerService {
         return p;
     }
 
+    /**
+     * Transfer the in-flight storage cost accumulator into the historical
+     * tally, then zero it. Called from every path that retires a cache —
+     * lifecycle methods (cleanup/release/clearAll), the per-turn refresh's
+     * three null-out branches (staleness, proactive, leftover), AND the
+     * session-expiry reset. Without this, accumulated cost from a now-
+     * defunct cache is silently dropped.
+     */
+    private finalizeStorageUsage(): void {
+        const currentAcc = this.state.storageUsageAccumulated();
+        if (currentAcc > 0) {
+            this.state.historyStorageUsageAccumulated.update(v => v + currentAcc);
+            this.state.storageUsageAccumulated.set(0);
+        }
+    }
+
     /** Config for the active provider — monorepo providers require it on every call. */
     private get providerConfig(): LLMProviderConfig {
         return this.providerRegistry.getActiveConfig();
@@ -143,18 +159,13 @@ export class CacheManagerService {
                 // Check Hash first
                 if (storedHash && currentHash !== storedHash) {
                     console.log('[CacheManager] Cache hash mismatch (Stale). Deleting stale cache...');
-                    // Server-side delete + cost-side acc transfer + timer stop happen
-                    // in-place. State mutation (kbCacheXxx) is conveyed via the
-                    // result instead — caller commits null/0 below if validation
-                    // recovery doesn't overwrite them.
+                    // Server-side delete + cost-side acc transfer happen in-place.
+                    // State mutation (kbCacheXxx) is conveyed via the result —
+                    // caller commits null/0 below if recovery doesn't overwrite.
                     if (input.provider.deleteCache) {
                         await input.provider.deleteCache(input.providerConfig, cacheName);
                     }
-                    const currentAcc = this.state.storageUsageAccumulated();
-                    if (currentAcc > 0) {
-                        this.state.historyStorageUsageAccumulated.update(v => v + currentAcc);
-                        this.state.storageUsageAccumulated.set(0);
-                    }
+                    this.finalizeStorageUsage();
                     resultCacheName = null;
                     resultExpireTime = null;
                     resultHash = null;
@@ -204,6 +215,10 @@ export class CacheManagerService {
                         // Proactive cleanup — cache gone server-side. Null
                         // all four so caller doesn't commit stale tokens /
                         // expireTime / hash from a now-defunct cache.
+                        // Also retire the active storage accumulator —
+                        // cost incurred while the cache was alive shouldn't
+                        // vanish when the cache does.
+                        this.finalizeStorageUsage();
                         resultCacheName = null;
                         resultExpireTime = null;
                         resultHash = null;
@@ -303,6 +318,7 @@ export class CacheManagerService {
                 if (input.provider.deleteCache) {
                     await input.provider.deleteCache(input.providerConfig, cacheName);
                 }
+                this.finalizeStorageUsage();
                 resultCacheName = null;
                 resultExpireTime = null;
                 resultHash = null;
@@ -330,12 +346,7 @@ export class CacheManagerService {
         if (this.state.kbCacheName()) {
             console.log('[CacheManager] Cleaning up cache:', this.state.kbCacheName());
 
-            // Before clearing, add the current session's storage usage to history
-            const currentAcc = this.state.storageUsageAccumulated();
-            if (currentAcc > 0) {
-                this.state.historyStorageUsageAccumulated.update(v => v + currentAcc);
-                this.state.storageUsageAccumulated.set(0);
-            }
+            this.finalizeStorageUsage();
 
             if (this.provider.deleteCache) {
                 await this.provider.deleteCache(this.providerConfig, this.state.kbCacheName()!);
@@ -361,17 +372,12 @@ export class CacheManagerService {
                 count = await this.provider.deleteAllCaches(this.providerConfig);
             }
 
-            // Transfer Active Usage to History (Preserving costs)
-            const currentAcc = this.state.storageUsageAccumulated();
-            if (currentAcc > 0) {
-                this.state.historyStorageUsageAccumulated.update(v => v + currentAcc);
-            }
+            this.finalizeStorageUsage();
 
             // Reset active cache signals
             this.state.kbCacheName.set(null);
             this.state.kbCacheExpireTime.set(null);
             this.state.kbCacheHash.set(null);
-            this.state.storageUsageAccumulated.set(0);
             this.state.kbCacheTokens.set(0);
             this.stopStorageTimer();
 
@@ -398,11 +404,7 @@ export class CacheManagerService {
         if (cacheName) {
             console.log('[CacheManager] Manually releasing cache:', cacheName);
             try {
-                // Add current to history before release
-                const currentAcc = this.state.storageUsageAccumulated();
-                if (currentAcc > 0) {
-                    this.state.historyStorageUsageAccumulated.update(v => v + currentAcc);
-                }
+                this.finalizeStorageUsage();
 
                 if (this.provider.deleteCache) {
                     await this.provider.deleteCache(this.providerConfig, cacheName);
@@ -416,7 +418,6 @@ export class CacheManagerService {
         this.state.kbCacheName.set(null);
         this.state.kbCacheExpireTime.set(null);
         this.state.kbCacheHash.set(null);
-        this.state.storageUsageAccumulated.set(0);
         this.state.kbCacheTokens.set(0);
         this.stopStorageTimer();
 
@@ -428,6 +429,7 @@ export class CacheManagerService {
      * Used by wipeLocalSession to reset cache state after clearing storage.
      */
     resetCacheState(): void {
+        this.finalizeStorageUsage();
         this.state.kbCacheName.set(null);
         this.state.kbCacheExpireTime.set(null);
         this.state.kbCacheHash.set(null);
