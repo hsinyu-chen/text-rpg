@@ -8,20 +8,20 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MarkdownModule } from 'ngx-markdown';
 import { TextFieldModule } from '@angular/cdk/text-field';
-import { ContentSanitizerPipe } from '../../../../shared/pipes/content-sanitizer.pipe';
-import { WrapSaveXmlPipe } from '../../../../shared/pipes/wrap-save-xml.pipe';
-import { ChatMessage } from '../../../../core/models/types';
+import { ContentSanitizerPipe } from '@app/shared/pipes/content-sanitizer.pipe';
+import { WrapSaveXmlPipe } from '@app/shared/pipes/wrap-save-xml.pipe';
+import { ChatMessage } from '@app/core/models/types';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MessageStateService } from './message-state.service';
-import { GameEngineService } from '../../../../core/services/game-engine.service';
-import { GameStateService } from '../../../../core/services/game-state.service';
+import { GameEngineService } from '@app/core/services/game-engine.service';
+import { GameStateService } from '@app/core/services/game-state.service';
 import { TurnUpdateComponent } from '../turn-update/turn-update.component';
-import { GAME_INTENTS } from '../../../../core/constants/game-intents';
-import { getIntentLabels, getUIStrings } from '../../../../core/constants/engine-protocol';
-import { getLocale } from '../../../../core/constants/locales';
+import { GAME_INTENTS } from '@app/core/constants/game-intents';
+import { getIntentLabels, getUIStrings } from '@app/core/constants/engine-protocol';
+import { getLocale } from '@app/core/constants/locales';
 import { computed } from '@angular/core';
-import { KATEX_DELIMITERS, hasKatexDelimiters } from '../../../../core/utils/latex.util';
+import { KATEX_DELIMITERS, hasKatexDelimiters } from '@app/core/utils/latex.util';
 
 @Component({
     selector: 'app-chat-message',

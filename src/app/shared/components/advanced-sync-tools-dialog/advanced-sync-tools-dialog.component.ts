@@ -11,11 +11,11 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { firstValueFrom } from 'rxjs';
 
-import { SyncService, SnapshotPreOpError } from '../../../core/services/sync/sync.service';
-import { SnapshotMeta } from '../../../core/services/sync/sync.types';
-import { DialogService } from '../../../core/services/dialog.service';
-import { LoadingService } from '../../../core/services/loading.service';
-import { GameStateService } from '../../../core/services/game-state.service';
+import { SyncService, SnapshotPreOpError } from '@app/core/services/sync/sync.service';
+import { SnapshotMeta } from '@app/core/services/sync/sync.types';
+import { DialogService } from '@app/core/services/dialog.service';
+import { LoadingService } from '@app/core/services/loading.service';
+import { GameStateService } from '@app/core/services/game-state.service';
 import { SaveNameDialogComponent, SaveNameDialogData } from '../save-name-dialog/save-name-dialog.component';
 
 @Component({

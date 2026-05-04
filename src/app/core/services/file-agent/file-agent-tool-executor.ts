@@ -19,7 +19,7 @@ import {
   insertSectionIntoContent,
   SectionBounds
 } from './markdown-section.util';
-import { detectLatexViolations, latexViolationError, sanitizeLatexToUnicode } from '../../utils/latex.util';
+import { detectLatexViolations, latexViolationError, sanitizeLatexToUnicode } from '@app/core/utils/latex.util';
 
 /** Returns the content to write (original or auto-sanitized), or an error if LaTeX remains after sanitization. */
 function checkLatex(content: string, label: string): { content: string } | { error: string } {

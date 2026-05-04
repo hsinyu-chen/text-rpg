@@ -10,13 +10,13 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { GameStateService } from '../../../../core/services/game-state.service';
-import { GameEngineService } from '../../../../core/services/game-engine.service';
-import { ChatHistoryService } from '../../../../core/services/chat-history.service';
-import { GAME_INTENTS, GameIntent } from '../../../../core/constants/game-intents';
-import { getIntentLabels } from '../../../../core/constants/engine-protocol';
-import { ChatMessage } from '../../../../core/models/types';
-import { LanguageService } from '../../../../core/services/language.service';
+import { GameStateService } from '@app/core/services/game-state.service';
+import { GameEngineService } from '@app/core/services/game-engine.service';
+import { ChatHistoryService } from '@app/core/services/chat-history.service';
+import { GAME_INTENTS, GameIntent } from '@app/core/constants/game-intents';
+import { getIntentLabels } from '@app/core/constants/engine-protocol';
+import { ChatMessage } from '@app/core/models/types';
+import { LanguageService } from '@app/core/services/language.service';
 
 export type SearchField = 'all' | 'story' | 'summary' | 'logs';
 

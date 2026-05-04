@@ -8,16 +8,16 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { NewGameDialogComponent } from '../new-game-dialog/new-game-dialog.component';
 import { CreateSceneDialogComponent } from '../create-scene-dialog/create-scene-dialog.component';
 
-import { GameEngineService } from '../../../../core/services/game-engine.service';
-import { GameStateService, GameEngineConfig } from '../../../../core/services/game-state.service';
-import { DialogService } from '../../../../core/services/dialog.service';
-import { SessionService } from '../../../../core/services/session.service';
-import { FileSystemService } from '../../../../core/services/file-system.service';
-import { CacheManagerService } from '../../../../core/services/cache-manager.service';
+import { GameEngineService } from '@app/core/services/game-engine.service';
+import { GameStateService, GameEngineConfig } from '@app/core/services/game-state.service';
+import { DialogService } from '@app/core/services/dialog.service';
+import { SessionService } from '@app/core/services/session.service';
+import { FileSystemService } from '@app/core/services/file-system.service';
+import { CacheManagerService } from '@app/core/services/cache-manager.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { SaveNameDialogComponent } from '../../../../shared/components/save-name-dialog/save-name-dialog.component';
+import { SaveNameDialogComponent } from '@app/shared/components/save-name-dialog/save-name-dialog.component';
 import { firstValueFrom } from 'rxjs';
-import { ConfigService } from '../../../../core/services/config.service';
+import { ConfigService } from '@app/core/services/config.service';
 
 @Component({
     selector: 'app-sidebar-context-controls',

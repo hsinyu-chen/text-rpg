@@ -1,8 +1,8 @@
 import { Component, ElementRef, inject, afterNextRender, DestroyRef, viewChild } from '@angular/core';
 import Phaser from 'phaser';
 import { InvadersScene } from './invaders-scene';
-import { IdleService } from '../../core/services/idle.service';
-import { WINDOW } from '../../core/tokens/window.token';
+import { IdleService } from '@app/core/services/idle.service';
+import { WINDOW } from '@app/core/tokens/window.token';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 

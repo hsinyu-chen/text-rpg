@@ -6,12 +6,12 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
-import { GameEngineService } from '../../../../core/services/game-engine.service';
-import { GameStateService } from '../../../../core/services/game-state.service';
-import { FileSystemService } from '../../../../core/services/file-system.service';
-import { DialogService } from '../../../../core/services/dialog.service';
-import { LoadingService } from '../../../../core/services/loading.service';
-import { SyncDialogComponent, SyncItem, SyncDialogData } from '../../../../shared/components/sync-dialog/sync-dialog.component';
+import { GameEngineService } from '@app/core/services/game-engine.service';
+import { GameStateService } from '@app/core/services/game-state.service';
+import { FileSystemService } from '@app/core/services/file-system.service';
+import { DialogService } from '@app/core/services/dialog.service';
+import { LoadingService } from '@app/core/services/loading.service';
+import { SyncDialogComponent, SyncItem, SyncDialogData } from '@app/shared/components/sync-dialog/sync-dialog.component';
 
 @Component({
     selector: 'app-sidebar-file-sync',

@@ -12,9 +12,9 @@ import { KnowledgeService } from '../knowledge.service';
 import { LLMProviderRegistryService } from '../llm-provider-registry.service';
 import { CostService } from '../cost.service';
 import { PostProcessorService } from '../post-processor.service';
-import { MockLLMProvider } from '../../testing/mock-llm-provider';
-import type { ResolverOutput } from '../../constants/engine-protocol-two-call';
-import type { ChatMessage } from '../../models/types';
+import { MockLLMProvider } from '@app/core/testing/mock-llm-provider';
+import type { ResolverOutput } from '@app/core/constants/engine-protocol-two-call';
+import type { ChatMessage } from '@app/core/models/types';
 
 function resolverJson(payload: ResolverOutput): string {
     return JSON.stringify(payload);

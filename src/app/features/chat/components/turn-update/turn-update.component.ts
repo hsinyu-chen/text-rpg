@@ -5,8 +5,8 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MessageStateService } from '../chat-message/message-state.service';
-import { AutofocusSelectDirective } from '../../../../shared/directives/autofocus-select.directive';
-import { ChatMessage } from '../../../../core/models/types';
+import { AutofocusSelectDirective } from '@app/shared/directives/autofocus-select.directive';
+import { ChatMessage } from '@app/core/models/types';
 
 @Component({
     selector: 'app-turn-update',

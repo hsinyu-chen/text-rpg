@@ -5,7 +5,7 @@ import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from '@angular/materia
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
-import { Collection } from '../../../core/models/types';
+import { Collection } from '@app/core/models/types';
 
 export interface MoveBookDialogData {
     bookName: string;

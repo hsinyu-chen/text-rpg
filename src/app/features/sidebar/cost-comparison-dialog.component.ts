@@ -3,10 +3,10 @@ import { CommonModule } from '@angular/common';
 import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
-import { GameEngineService } from '../../core/services/game-engine.service';
-import { GameStateService } from '../../core/services/game-state.service';
-import { LLMProviderRegistryService } from '../../core/services/llm-provider-registry.service';
-import { CostService } from '../../core/services/cost.service';
+import { GameEngineService } from '@app/core/services/game-engine.service';
+import { GameStateService } from '@app/core/services/game-state.service';
+import { LLMProviderRegistryService } from '@app/core/services/llm-provider-registry.service';
+import { CostService } from '@app/core/services/cost.service';
 import { LLMModelDefinition } from '@hcs/llm-core';
 
 interface ModelCostInfo {

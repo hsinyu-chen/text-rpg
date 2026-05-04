@@ -15,15 +15,15 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatDialog } from '@angular/material/dialog';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
-import { GameEngineService } from '../../../../core/services/game-engine.service';
-import { GameStateService } from '../../../../core/services/game-state.service';
-import { getUIStrings } from '../../../../core/constants/engine-protocol';
-import { IdentityOption, Scenario, WorldPreset } from '../../../../core/models/types';
-import { getLocale } from '../../../../core/constants/locales';
-import { FileViewerDialogComponent } from '../../file-viewer-dialog.component';
-import { WORLD_PRESETS } from '../../../../core/constants/world-preset';
-import { WorldCompletionValidator } from '../../../../core/services/file-agent/world-completion-validator';
-import { LLMConfigService } from '../../../../core/services/llm-config.service';
+import { GameEngineService } from '@app/core/services/game-engine.service';
+import { GameStateService } from '@app/core/services/game-state.service';
+import { getUIStrings } from '@app/core/constants/engine-protocol';
+import { IdentityOption, Scenario, WorldPreset } from '@app/core/models/types';
+import { getLocale } from '@app/core/constants/locales';
+import { FileViewerDialogComponent } from '@app/features/sidebar/file-viewer-dialog.component';
+import { WORLD_PRESETS } from '@app/core/constants/world-preset';
+import { WorldCompletionValidator } from '@app/core/services/file-agent/world-completion-validator';
+import { LLMConfigService } from '@app/core/services/llm-config.service';
 
 const BLANK_FILES_EN = [
     '1.Base_Settings.md', '2.Story_Outline.md', '3.Character_Status.md',

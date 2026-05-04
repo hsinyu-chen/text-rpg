@@ -1,5 +1,5 @@
-import { MarkdownHeader } from '../../../features/sidebar/file-viewer-dialog.component';
-import { findAtxHeadings } from '../../utils/markdown.util';
+import { MarkdownHeader } from '@app/features/sidebar/file-viewer-dialog.component';
+import { findAtxHeadings } from '@app/core/utils/markdown.util';
 
 export interface SectionBounds {
   startLine: number;

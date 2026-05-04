@@ -1,5 +1,5 @@
 import { inject, signal } from '@angular/core';
-import { WINDOW } from '../../tokens/window.token';
+import { WINDOW } from '@app/core/tokens/window.token';
 import { StorageService } from '../storage.service';
 
 export type FolderHandlePermissionState = 'unknown' | 'granted' | 'prompt' | 'denied';

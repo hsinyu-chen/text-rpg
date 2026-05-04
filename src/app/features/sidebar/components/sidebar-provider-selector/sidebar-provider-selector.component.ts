@@ -7,10 +7,10 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialog } from '@angular/material/dialog';
-import { LLMProviderRegistryService } from '../../../../core/services/llm-provider-registry.service';
-import { LLMConfigService } from '../../../../core/services/llm-config.service';
-import { GameStateService } from '../../../../core/services/game-state.service';
-import { LLMProfilesDialogComponent } from '../../../settings/llm-profiles-dialog.component';
+import { LLMProviderRegistryService } from '@app/core/services/llm-provider-registry.service';
+import { LLMConfigService } from '@app/core/services/llm-config.service';
+import { GameStateService } from '@app/core/services/game-state.service';
+import { LLMProfilesDialogComponent } from '@app/features/settings/llm-profiles-dialog.component';
 
 /**
  * Compact profile switcher for the left sidebar — hot-swaps the active

@@ -14,34 +14,42 @@
     "importHelpers": true,
     "target": "ES2022",
     "module": "preserve",
-    "baseUrl": ".",
     "paths": {
+      "@app/core/*": [
+        "./src/app/core/*"
+      ],
+      "@app/features/*": [
+        "./src/app/features/*"
+      ],
+      "@app/shared/*": [
+        "./src/app/shared/*"
+      ],
       "@hcs/llm-core": [
-        "lib/hcs-llm-monorepo/packages/core/src/index.ts"
+        "./lib/hcs-llm-monorepo/packages/core/src/index.ts"
       ],
       "@hcs/llm-provider-gemini": [
-        "lib/hcs-llm-monorepo/packages/provider-gemini/src/index.ts"
+        "./lib/hcs-llm-monorepo/packages/provider-gemini/src/index.ts"
       ],
       "@hcs/llm-provider-llama-cpp": [
-        "lib/hcs-llm-monorepo/packages/provider-llama-cpp/src/index.ts"
+        "./lib/hcs-llm-monorepo/packages/provider-llama-cpp/src/index.ts"
       ],
       "@hcs/llm-provider-openai": [
-        "lib/hcs-llm-monorepo/packages/provider-openai/src/index.ts"
+        "./lib/hcs-llm-monorepo/packages/provider-openai/src/index.ts"
       ],
       "@hcs/llm-angular-common": [
-        "lib/hcs-llm-monorepo/packages/angular-common/src/index.ts"
+        "./lib/hcs-llm-monorepo/packages/angular-common/src/index.ts"
       ],
       "@hcs/llm-angular-settings": [
-        "lib/hcs-llm-monorepo/packages/angular-settings/src/index.ts"
+        "./lib/hcs-llm-monorepo/packages/angular-settings/src/index.ts"
       ],
       "@hcs/llm-angular-ui-gemini": [
-        "lib/hcs-llm-monorepo/packages/angular-ui-gemini/src/index.ts"
+        "./lib/hcs-llm-monorepo/packages/angular-ui-gemini/src/index.ts"
       ],
       "@hcs/llm-angular-ui-llama-cpp": [
-        "lib/hcs-llm-monorepo/packages/angular-ui-llama-cpp/src/index.ts"
+        "./lib/hcs-llm-monorepo/packages/angular-ui-llama-cpp/src/index.ts"
       ],
       "@hcs/llm-angular-ui-openai": [
-        "lib/hcs-llm-monorepo/packages/angular-ui-openai/src/index.ts"
+        "./lib/hcs-llm-monorepo/packages/angular-ui-openai/src/index.ts"
       ]
     }
   },

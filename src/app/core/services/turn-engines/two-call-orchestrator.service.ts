@@ -5,8 +5,8 @@ import { LLMProviderRegistryService } from '../llm-provider-registry.service';
 import { ContextBuilderService } from '../context-builder.service';
 import { ContentParserService } from '../content-parser.service';
 import { StreamProcessorService, StreamProcessResult } from '../stream-processor.service';
-import { ChatMessage } from '../../models/types';
-import { getResolverSchema, getNarratorSchema, ResolverOutput } from '../../constants/engine-protocol-two-call';
+import { ChatMessage } from '@app/core/models/types';
+import { getResolverSchema, getNarratorSchema, ResolverOutput } from '@app/core/constants/engine-protocol-two-call';
 import { formatResolverTrace } from './format-resolver-trace';
 import { mergeUsage } from '../llm-usage-merge';
 

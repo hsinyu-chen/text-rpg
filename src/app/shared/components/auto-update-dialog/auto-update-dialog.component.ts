@@ -12,16 +12,16 @@ import { DragDropModule, CdkDragDrop, moveItemInArray } from '@angular/cdk/drag-
 import { FormsModule } from '@angular/forms';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MonacoEditorComponent } from '../monaco-editor/monaco-editor.component';
-import { FileUpdate, FileUpdateService } from '../../../core/services/file-update.service';
-import { FileSystemService } from '../../../core/services/file-system.service';
-import { GameEngineService } from '../../../core/services/game-engine.service';
-import { GameStateService } from '../../../core/services/game-state.service';
+import { FileUpdate, FileUpdateService } from '@app/core/services/file-update.service';
+import { FileSystemService } from '@app/core/services/file-system.service';
+import { GameEngineService } from '@app/core/services/game-engine.service';
+import { GameStateService } from '@app/core/services/game-state.service';
 import { CommonModule } from '@angular/common';
-import { CacheManagerService } from '../../../core/services/cache-manager.service';
+import { CacheManagerService } from '@app/core/services/cache-manager.service';
 import { ConfirmDialogComponent, ConfirmDialogData } from '../confirm-dialog/confirm-dialog.component';
-import { GAME_INTENTS } from '../../../core/constants/game-intents';
-import { getCoreFilenames } from '../../../core/constants/engine-protocol';
-import { getLocale } from '../../../core/constants/locales';
+import { GAME_INTENTS } from '@app/core/constants/game-intents';
+import { getCoreFilenames } from '@app/core/constants/engine-protocol';
+import { getLocale } from '@app/core/constants/locales';
 
 interface ValidationStatus {
   exists: boolean;

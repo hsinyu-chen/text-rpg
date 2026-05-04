@@ -4,7 +4,7 @@ import { ContextBuilderService } from '../context-builder.service';
 import { GameStateService } from '../game-state.service';
 import { LLMProviderRegistryService } from '../llm-provider-registry.service';
 import { StreamProcessorService, StreamProcessResult } from '../stream-processor.service';
-import { getResponseSchema } from '../../constants/engine-protocol';
+import { getResponseSchema } from '@app/core/constants/engine-protocol';
 import { TurnEngine, TurnRunInput } from './turn-engine.interface';
 
 @Injectable({ providedIn: 'root' })

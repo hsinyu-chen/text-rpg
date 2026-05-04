@@ -17,11 +17,11 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDividerModule } from '@angular/material/divider';
 import type { LLMContent } from '@hcs/llm-core';
 
-import { GameStateService } from '../../../../core/services/game-state.service';
-import { SessionService } from '../../../../core/services/session.service';
-import { LLMProviderRegistryService } from '../../../../core/services/llm-provider-registry.service';
-import { LOCALES, getLocale } from '../../../../core/constants/locales';
-import { MonacoEditorComponent } from '../../../../shared/components/monaco-editor/monaco-editor.component';
+import { GameStateService } from '@app/core/services/game-state.service';
+import { SessionService } from '@app/core/services/session.service';
+import { LLMProviderRegistryService } from '@app/core/services/llm-provider-registry.service';
+import { LOCALES, getLocale } from '@app/core/constants/locales';
+import { MonacoEditorComponent } from '@app/shared/components/monaco-editor/monaco-editor.component';
 
 type Phase = 'input' | 'processing' | 'review';
 type ProcessingStage = 'opening' | 'extracting' | 'done';

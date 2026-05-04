@@ -11,23 +11,23 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatBadgeModule } from '@angular/material/badge';
 import { TextFieldModule } from '@angular/cdk/text-field';
-import { GAME_INTENTS, STORY_INTENTS } from '../../../../core/constants/game-intents';
-import { getIntentLabels, getIntentDescriptions, getInputPlaceholders } from '../../../../core/constants/engine-protocol';
-import { GameEngineService } from '../../../../core/services/game-engine.service';
-import { GameStateService } from '../../../../core/services/game-state.service';
-import { ConfigService } from '../../../../core/services/config.service';
-import { SessionService } from '../../../../core/services/session.service';
+import { GAME_INTENTS, STORY_INTENTS } from '@app/core/constants/game-intents';
+import { getIntentLabels, getIntentDescriptions, getInputPlaceholders } from '@app/core/constants/engine-protocol';
+import { GameEngineService } from '@app/core/services/game-engine.service';
+import { GameStateService } from '@app/core/services/game-state.service';
+import { ConfigService } from '@app/core/services/config.service';
+import { SessionService } from '@app/core/services/session.service';
 import { MatDialog } from '@angular/material/dialog';
-import { PayloadDialogComponent } from '../../../../shared/components/payload-dialog/payload-dialog.component';
-import { ChatConfigDialogComponent } from '../../../../shared/components/chat-config-dialog/chat-config-dialog.component';
+import { PayloadDialogComponent } from '@app/shared/components/payload-dialog/payload-dialog.component';
+import { ChatConfigDialogComponent } from '@app/shared/components/chat-config-dialog/chat-config-dialog.component';
 import { ChatReplaceDialogComponent } from '../chat-replace-dialog/chat-replace-dialog.component';
-import { ConfirmDialogComponent, ConfirmDialogData } from '../../../../shared/components/confirm-dialog/confirm-dialog.component';
-import { TauriWindow } from '../../../../core/models/types';
-import { LanguageService } from '../../../../core/services/language.service';
-import { PromptProfileRegistryService } from '../../../../core/services/prompt-profile-registry.service';
-import { SystemStatusService } from '../../../../core/services/system-status.service';
-import { getUIStrings } from '../../../../core/constants/engine-protocol';
-import { getProfileDisplayName } from '../../../../core/constants/prompt-profiles';
+import { ConfirmDialogComponent, ConfirmDialogData } from '@app/shared/components/confirm-dialog/confirm-dialog.component';
+import { TauriWindow } from '@app/core/models/types';
+import { LanguageService } from '@app/core/services/language.service';
+import { PromptProfileRegistryService } from '@app/core/services/prompt-profile-registry.service';
+import { SystemStatusService } from '@app/core/services/system-status.service';
+import { getUIStrings } from '@app/core/constants/engine-protocol';
+import { getProfileDisplayName } from '@app/core/constants/prompt-profiles';
 
 @Component({
     selector: 'app-chat-input',

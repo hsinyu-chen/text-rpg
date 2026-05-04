@@ -7,7 +7,7 @@ import { FILE_AGENT_TOOLS, buildJsonSchema } from './file-agent-tools';
 import { buildSystemInstruction } from './file-agent-prompts';
 import { executeFileTool } from './file-agent-tool-executor';
 import { WorldCompletionValidator } from './world-completion-validator';
-import { sanitizeLatexToUnicode } from '../../utils/latex.util';
+import { sanitizeLatexToUnicode } from '@app/core/utils/latex.util';
 
 export type { FileAgentContext, ToolCallMode } from './file-agent.types';
 

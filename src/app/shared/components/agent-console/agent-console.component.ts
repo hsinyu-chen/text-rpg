@@ -23,8 +23,8 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MarkdownModule } from 'ngx-markdown';
-import { FileAgentService } from '../../../core/services/file-agent/file-agent.service';
-import { BuiltInPromptsService } from '../../../core/services/file-agent/built-in-prompts.service';
+import { FileAgentService } from '@app/core/services/file-agent/file-agent.service';
+import { BuiltInPromptsService } from '@app/core/services/file-agent/built-in-prompts.service';
 
 @Component({
   selector: 'app-agent-console',

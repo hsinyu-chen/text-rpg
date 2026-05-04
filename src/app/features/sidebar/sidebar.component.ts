@@ -8,8 +8,8 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatTabsModule } from '@angular/material/tabs';
 
-import { GameEngineService } from '../../core/services/game-engine.service';
-import { GameStateService } from '../../core/services/game-state.service';
+import { GameEngineService } from '@app/core/services/game-engine.service';
+import { GameStateService } from '@app/core/services/game-state.service';
 import { SettingsDialogComponent } from '../settings/settings-dialog.component';
 import { SyncProviderDialogComponent } from '../settings/sync-provider-dialog.component';
 import { FileViewerDialogComponent } from './file-viewer-dialog.component';

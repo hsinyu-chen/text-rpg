@@ -4,7 +4,7 @@ import { GoogleDriveService } from '../google-drive.service';
 import { GDriveConfigComponent } from './components/gdrive-config.component';
 import { S3ConfigComponent } from './components/s3-config.component';
 import { FileBackendConfigComponent } from './components/file-backend-config.component';
-import { WINDOW } from '../../tokens/window.token';
+import { WINDOW } from '@app/core/tokens/window.token';
 
 @Injectable({ providedIn: 'root' })
 export class SyncProviderInitService {
