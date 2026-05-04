@@ -20,6 +20,14 @@ export interface CacheCheckInput {
     modelId: string;
     systemInstruction: string;
     loadedFiles: Map<string, string>;
+    /**
+     * Pre-computed KB hash for the current state. Caller passes this from
+     * `state.currentKbHash()` (a memoized computed signal), so the service
+     * doesn't re-walk the file map to hash on every turn. Becomes the
+     * stored hash on a fresh cache creation, so validation across turns
+     * compares like-for-like.
+     */
+    targetHash: string;
     currentCacheName: string | null;
     currentCacheHash: string | null;
     currentCacheTokens: number;
@@ -115,18 +123,15 @@ export class CacheManagerService {
         let resultTokens = input.currentCacheTokens;
         let sunkUsageTokens = 0;
 
-        // KB parts + hash are needed by both the validation block below
-        // (staleness check) and the recovery block (createCache + new hash).
-        // Compute once and reuse — for large KBs this is the dominant cost
-        // of the method. Both are null when useCache is false (cache-disabled
-        // path doesn't hash or rebuild).
+        // Hash for staleness check + new-cache storage comes pre-computed
+        // from caller (state.currentKbHash signal). Avoids walking the
+        // file map on every turn for the validated-success path.
+        const currentHash = input.targetHash;
+
+        // KB parts only get built when recovery actually fires
+        // (cache missing / stale / cache-disabled-mode-leftover doesn't
+        // need them). Lazy-init below.
         let kbParts: LLMPart[] | null = null;
-        let currentHash: string | null = null;
-        if (useCache) {
-            kbParts = this.kb.buildKnowledgeBaseParts(input.loadedFiles);
-            const kbText = kbParts.map(p => p.text ?? '').join('');
-            currentHash = this.kb.calculateKbHash(kbText, input.modelId, input.systemInstruction);
-        }
 
         // 1. Validate based on CURRENT MODE (Cache or File)
         if (useCache) {
@@ -218,11 +223,12 @@ export class CacheManagerService {
 
                 try {
                     if (useCache) {
-                        // Reuse kbParts + hash computed once at the top of the
-                        // method — this branch is only reached when useCache
-                        // is true, so both are non-null by construction.
-                        const fileParts = kbParts!;
-                        const newHash = currentHash!;
+                        // Build kbParts on demand — this is the only branch
+                        // that needs the parts shape (createCache contents).
+                        // Validation path skips this entirely.
+                        kbParts ??= this.kb.buildKnowledgeBaseParts(input.loadedFiles);
+                        const fileParts = kbParts;
+                        const newHash = currentHash;
                         let cacheRes: LLMCacheInfo | null = null;
                         if (input.provider.createCache) {
                             cacheRes = await input.provider.createCache(

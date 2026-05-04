@@ -446,6 +446,11 @@ export class GameEngineService {
                 modelId: this.state.config()?.modelId || cacheProvider.getDefaultModelId(),
                 systemInstruction: stripSystemMainMarker(this.state.systemInstructionCache()),
                 loadedFiles: this.state.loadedFiles(),
+                // Pre-computed via the memoized currentKbHash signal — service
+                // would otherwise re-walk loadedFiles on every turn just to
+                // hash. The signal already invalidates correctly on KB / model
+                // / system-instruction changes.
+                targetHash: this.state.currentKbHash(),
                 currentCacheName: this.state.kbCacheName(),
                 currentCacheHash: this.state.kbCacheHash(),
                 currentCacheTokens: this.state.kbCacheTokens(),

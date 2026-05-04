@@ -43,6 +43,7 @@ function baseInput(provider: LLMProvider, overrides: Partial<CacheCheckInput> = 
         modelId: 'm1',
         systemInstruction: 'SYS',
         loadedFiles: new Map([['a.md', 'KB']]),
+        targetHash: 'TARGET-HASH',
         currentCacheName: null,
         currentCacheHash: null,
         currentCacheTokens: 0,
@@ -141,19 +142,12 @@ describe('CacheManagerService.checkCacheAndRefresh', () => {
                 })
             });
 
-            // Caller passes the same hash on input as the service computes,
-            // so the staleness branch doesn't fire. Recompute it here from
-            // the same primitives KnowledgeService uses.
-            const kb = TestBed.inject(KnowledgeService);
-            const fileParts = kb.buildKnowledgeBaseParts(new Map([['a.md', 'KB']]));
-            const expectedHash = kb.calculateKbHash(
-                fileParts.map(p => p.text).join(''),
-                'm1', 'SYS'
-            );
-
+            // For the non-stale path, the stored hash must match the
+            // pre-computed targetHash caller passes in.
             const result = await svc.checkCacheAndRefresh(baseInput(provider, {
                 currentCacheName: 'existing',
-                currentCacheHash: expectedHash,
+                targetHash: 'STABLE-HASH',
+                currentCacheHash: 'STABLE-HASH',
                 currentCacheTokens: 700
             }));
 
