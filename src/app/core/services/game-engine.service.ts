@@ -471,12 +471,11 @@ export class GameEngineService {
         } catch (e: unknown) {
             const sessionExpired = e instanceof Error && e.message === 'SESSION_EXPIRED';
             if (sessionExpired) {
-                // Service threw without committing a result; null everything so
-                // the next turn's recovery path starts from a clean slate.
-                this.state.kbCacheName.set(null);
-                this.state.kbCacheExpireTime.set(null);
-                this.state.kbCacheHash.set(null);
-                this.state.kbCacheTokens.set(0);
+                // Service threw without committing a result. resetCacheState
+                // clears all four kbCache signals AND stops the storage timer —
+                // otherwise we'd keep accumulating cost against a cache that's
+                // gone server-side.
+                this.cacheManager.resetCacheState();
             }
             // If we just auto-switched profiles, fold that note into the
             // error message so the user understands the silent state change

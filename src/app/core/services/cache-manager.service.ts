@@ -117,9 +117,11 @@ export class CacheManagerService {
         // 1. Validate based on CURRENT MODE (Cache or File)
         if (useCache) {
             // [New] Hash Check for Staleness
-            // Calculate current hash to ensure we're not using a stale cache
-            const fileParts = this.kb.buildKnowledgeBaseParts(input.loadedFiles);
-            const kbText = fileParts.map(p => p.text).join('');
+            // Calculate current hash to ensure we're not using a stale cache.
+            // Use buildKnowledgeBaseText directly here — recovery below needs
+            // the parts array for createCache, but this validation path only
+            // needs the joined text for hashing.
+            const kbText = this.kb.buildKnowledgeBaseText(input.loadedFiles);
             const currentHash = this.kb.calculateKbHash(kbText, input.modelId, input.systemInstruction);
             const storedHash = input.currentCacheHash;
 
@@ -219,9 +221,13 @@ export class CacheManagerService {
 
                         if (cacheRes?.name) {
                             resultCacheName = cacheRes.name;
+                            // Mirror the validation path's expireTime parsing —
+                            // some providers return ISO strings, not numbers.
+                            // Falls back to now+TTL only when expireTime is
+                            // missing entirely.
                             resultExpireTime = typeof cacheRes.expireTime === 'number'
                                 ? cacheRes.expireTime
-                                : Date.now() + ttlSeconds * 1000;
+                                : (cacheRes.expireTime ? new Date(cacheRes.expireTime).getTime() : Date.now() + ttlSeconds * 1000);
                             resultHash = newHash;
                             resultTokens = cacheRes.usageMetadata?.totalTokenCount || 0;
 
