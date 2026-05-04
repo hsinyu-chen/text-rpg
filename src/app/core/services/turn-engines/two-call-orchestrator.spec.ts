@@ -100,6 +100,21 @@ describe('two-call orchestrator integration', () => {
         messagesSignal.set([...messages]);
     }
 
+    function runtime(text: string) {
+        return {
+            provider: mockProvider,
+            providerConfig: {},
+            cachedContentName: undefined,
+            systemInstruction: 'SYS',
+            history: [{ role: 'user' as const, parts: [{ text }] }],
+            intent: 'action',
+            outputLanguage: 'default',
+            modelMsgId: 'm1',
+            signal: new AbortController().signal,
+            updateMessages
+        };
+    }
+
     it('drives resolver → truncate → narrator with no broken steps', async () => {
         pushUser('walk forward');
 
@@ -115,14 +130,7 @@ describe('two-call orchestrator integration', () => {
         mockProvider.enqueueJsonStream(narratorJson('She walked forward.'));
 
         const engine = getEngine();
-        const result = await engine.runTurn({
-            history: [{ role: 'user', parts: [{ text: 'walk forward' }] }],
-            intent: 'action',
-            outputLanguage: 'default',
-            modelMsgId: 'm1',
-            signal: new AbortController().signal,
-            updateMessages
-        });
+        const result = await engine.runTurn(runtime('walk forward'));
 
         expect(mockProvider.calls).toHaveLength(2);
         expect(result.finalStory).toContain('walked');
@@ -153,14 +161,7 @@ describe('two-call orchestrator integration', () => {
         mockProvider.enqueueJsonStream(narratorJson('Farmer stepped back.'));
 
         const engine = getEngine();
-        await engine.runTurn({
-            history: [{ role: 'user', parts: [{ text: 'shake hands and chat' }] }],
-            intent: 'action',
-            outputLanguage: 'default',
-            modelMsgId: 'm1',
-            signal: new AbortController().signal,
-            updateMessages
-        });
+        await engine.runTurn(runtime('shake hands and chat'));
 
         const narratorCall = mockProvider.calls[1];
         const narratorText = narratorCall.contents[narratorCall.contents.length - 1].parts[0].text!;
@@ -186,14 +187,7 @@ describe('two-call orchestrator integration', () => {
         mockProvider.enqueueJsonStream(narratorJson('No mana.'));
 
         const engine = getEngine();
-        await engine.runTurn({
-            history: [{ role: 'user', parts: [{ text: 'cast fireball' }] }],
-            intent: 'action',
-            outputLanguage: 'default',
-            modelMsgId: 'm1',
-            signal: new AbortController().signal,
-            updateMessages
-        });
+        await engine.runTurn(runtime('cast fireball'));
 
         const narratorText = mockProvider.calls[1].contents[mockProvider.calls[1].contents.length - 1].parts[0].text!;
         expect(narratorText).toContain('no mana');
@@ -214,14 +208,7 @@ describe('two-call orchestrator integration', () => {
         mockProvider.enqueueJsonStream(narratorJson('s'));
 
         const engine = getEngine();
-        await engine.runTurn({
-            history: [{ role: 'user', parts: [{ text: 'do thing' }] }],
-            intent: 'action',
-            outputLanguage: 'default',
-            modelMsgId: 'm1',
-            signal: new AbortController().signal,
-            updateMessages
-        });
+        await engine.runTurn(runtime('do thing'));
 
         const narratorText = mockProvider.calls[1].contents[mockProvider.calls[1].contents.length - 1].parts[0].text!;
         expect(narratorText).toContain('"interrupted": true');
@@ -236,14 +223,7 @@ describe('two-call orchestrator integration', () => {
         mockProvider.enqueueJsonStream(narratorJson('s'));
 
         const engine = getEngine();
-        await engine.runTurn({
-            history: [{ role: 'user', parts: [{ text: 'x' }] }],
-            intent: 'action',
-            outputLanguage: 'default',
-            modelMsgId: 'm1',
-            signal: new AbortController().signal,
-            updateMessages
-        });
+        await engine.runTurn(runtime('x'));
 
         const resolverSchema = mockProvider.calls[0].genConfig.responseSchema as { properties?: Record<string, unknown> };
         const narratorSchema = mockProvider.calls[1].genConfig.responseSchema as { properties?: Record<string, unknown> };
@@ -271,14 +251,7 @@ describe('two-call orchestrator integration', () => {
         mockProvider.enqueueJsonStream(narratorJson('Walked.'));
 
         const engine = getEngine();
-        await engine.runTurn({
-            history: [{ role: 'user', parts: [{ text: 'walk forward' }] }],
-            intent: 'action',
-            outputLanguage: 'default',
-            modelMsgId: 'm1',
-            signal: new AbortController().signal,
-            updateMessages
-        });
+        await engine.runTurn(runtime('walk forward'));
 
         const resolverCall = mockProvider.calls[0];
         const resolverTail = resolverCall.contents[resolverCall.contents.length - 1].parts[0].text!;
@@ -300,14 +273,7 @@ describe('two-call orchestrator integration', () => {
         mockProvider.enqueueJsonStream(narratorJson('s'));
 
         const engine = getEngine();
-        await engine.runTurn({
-            history: [{ role: 'user', parts: [{ text: 'walk forward' }] }],
-            intent: 'action',
-            outputLanguage: 'default',
-            modelMsgId: 'm1',
-            signal: new AbortController().signal,
-            updateMessages
-        });
+        await engine.runTurn(runtime('walk forward'));
 
         const resolverTail = mockProvider.calls[0].contents[mockProvider.calls[0].contents.length - 1].parts[0].text!;
         expect(resolverTail).not.toContain('{{IDEAL_OUTCOME_CONSTRAINT}}');
@@ -327,14 +293,7 @@ describe('two-call orchestrator integration', () => {
         );
 
         const engine = getEngine();
-        const result = await engine.runTurn({
-            history: [{ role: 'user', parts: [{ text: 'go' }] }],
-            intent: 'action',
-            outputLanguage: 'default',
-            modelMsgId: 'm1',
-            signal: new AbortController().signal,
-            updateMessages
-        });
+        const result = await engine.runTurn(runtime('go'));
 
         // turnUsage.prompt (300) + candidates (70) = 370 — the cost-billable sum.
         // contextTokens must be the narrator-only view (200 + 40 = 240) so the
@@ -354,14 +313,7 @@ describe('two-call orchestrator integration', () => {
         );
 
         const engine = getEngine();
-        const result = await engine.runTurn({
-            history: [{ role: 'user', parts: [{ text: 'y' }] }],
-            intent: 'action',
-            outputLanguage: 'default',
-            modelMsgId: 'm1',
-            signal: new AbortController().signal,
-            updateMessages
-        });
+        const result = await engine.runTurn(runtime('y'));
 
         expect(result.turnUsage.prompt).toBe(300);
         expect(result.turnUsage.candidates).toBe(70);

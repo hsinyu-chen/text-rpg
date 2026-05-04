@@ -45,6 +45,10 @@ export class TwoCallTurnEngine implements TurnEngine {
         });
 
         const resolverResult = await this.orchestrator.runResolver({
+            provider: input.provider,
+            providerConfig: input.providerConfig,
+            cachedContentName: input.cachedContentName,
+            systemInstruction: input.systemInstruction,
             history: resolverHistory,
             outputLanguage: input.outputLanguage,
             intent: input.intent,
@@ -84,6 +88,10 @@ export class TwoCallTurnEngine implements TurnEngine {
         });
 
         const narratorResult = await this.orchestrator.runNarrator({
+            provider: input.provider,
+            providerConfig: input.providerConfig,
+            cachedContentName: input.cachedContentName,
+            systemInstruction: input.systemInstruction,
             history: narratorHistory,
             outputLanguage: input.outputLanguage,
             intent: input.intent,

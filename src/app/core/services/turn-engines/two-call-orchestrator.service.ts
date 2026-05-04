@@ -1,8 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { LLMContent, LLMProvider, LLMUsageMetadata } from '@hcs/llm-core';
-import { GameStateService } from '../game-state.service';
-import { LLMProviderRegistryService } from '../llm-provider-registry.service';
-import { ContextBuilderService } from '../context-builder.service';
+import { LLMContent, LLMProvider, LLMProviderConfig, LLMUsageMetadata } from '@hcs/llm-core';
 import { ContentParserService } from '../content-parser.service';
 import { StreamProcessorService, StreamProcessResult } from '../stream-processor.service';
 import { ChatMessage } from '@app/core/models/types';
@@ -20,6 +17,19 @@ export interface ResolverRunResult {
 }
 
 /**
+ * Common per-call runtime context that the orchestrator forwards into
+ * `provider.generateContentStream`. Captured once by the caller (game-engine)
+ * for the whole turn so resolver and narrator agree on which provider /
+ * cache / system-prompt they target.
+ */
+interface OrchestratorRuntime {
+    provider: LLMProvider;
+    providerConfig: LLMProviderConfig;
+    cachedContentName?: string;
+    systemInstruction: string;
+}
+
+/**
  * Drives the two LLM calls of two-call mode. The {@link TwoCallTurnEngine}
  * coordinates context building + truncation around these primitives.
  *
@@ -34,19 +44,10 @@ export interface ResolverRunResult {
  */
 @Injectable({ providedIn: 'root' })
 export class TwoCallOrchestratorService {
-    private providerRegistry = inject(LLMProviderRegistryService);
-    private state = inject(GameStateService);
-    private contextBuilder = inject(ContextBuilderService);
     private parser = inject(ContentParserService);
     private streamProcessor = inject(StreamProcessorService);
 
-    private get provider(): LLMProvider {
-        const p = this.providerRegistry.getActive();
-        if (!p) throw new Error('No active LLM provider');
-        return p;
-    }
-
-    async runResolver(input: {
+    async runResolver(input: OrchestratorRuntime & {
         history: LLMContent[];
         outputLanguage: string;
         intent: string;
@@ -54,14 +55,12 @@ export class TwoCallOrchestratorService {
         modelMsgId?: string;
         updateMessages?: (updater: (prev: ChatMessage[]) => ChatMessage[]) => void;
     }): Promise<ResolverRunResult> {
-        const omitKB = this.contextBuilder.shouldOmitKbFromSystemInstruction();
-
-        const stream = this.provider.generateContentStream(
-            this.providerRegistry.getActiveConfig(),
+        const stream = input.provider.generateContentStream(
+            input.providerConfig,
             input.history,
-            this.contextBuilder.getEffectiveSystemInstruction(!omitKB),
+            input.systemInstruction,
             {
-                cachedContentName: this.state.kbCacheName() || undefined,
+                cachedContentName: input.cachedContentName,
                 responseSchema: getResolverSchema(input.outputLanguage),
                 responseMimeType: 'application/json',
                 intent: input.intent,
@@ -135,7 +134,7 @@ export class TwoCallOrchestratorService {
         return { resolverOutput, rawJson: accumulator, thought: thoughtAccumulator, usage, finishReason };
     }
 
-    async runNarrator(input: {
+    async runNarrator(input: OrchestratorRuntime & {
         history: LLMContent[];
         outputLanguage: string;
         intent: string;
@@ -145,14 +144,12 @@ export class TwoCallOrchestratorService {
         /** CoT from the resolver call to prepend in the same `thought` field, so a single panel shows both phases. */
         seedThought?: string;
     }): Promise<StreamProcessResult> {
-        const omitKB = this.contextBuilder.shouldOmitKbFromSystemInstruction();
-
-        const stream = this.provider.generateContentStream(
-            this.providerRegistry.getActiveConfig(),
+        const stream = input.provider.generateContentStream(
+            input.providerConfig,
             input.history,
-            this.contextBuilder.getEffectiveSystemInstruction(!omitKB),
+            input.systemInstruction,
             {
-                cachedContentName: this.state.kbCacheName() || undefined,
+                cachedContentName: input.cachedContentName,
                 responseSchema: getNarratorSchema(input.outputLanguage),
                 responseMimeType: 'application/json',
                 intent: input.intent,
