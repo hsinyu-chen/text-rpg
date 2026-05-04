@@ -563,7 +563,12 @@ export class SessionService {
                 if (stats.kbCacheHash) this.state.kbCacheHash.set(stats.kbCacheHash);
                 const restoredTotal = stats.estimatedKbTokens || Array.from(tokensMap.values()).reduce((a, b) => a + b, 0);
                 this.state.estimatedKbTokens.set(restoredTotal);
-                this.cacheManager.startStorageTimer();
+                this.cacheManager.startStorageTimer({
+                    tokens: stats.kbCacheTokens,
+                    expireTime: stats.kbCacheExpireTime ?? null,
+                    modelId: this.state.config()?.modelId || this.provider.getDefaultModelId(),
+                    cacheName: stats.kbCacheName
+                });
             } else {
                 this.cacheManager.resetCacheState();
             }
@@ -899,11 +904,10 @@ export class SessionService {
         const currentHash = this.state.currentKbHash();
         if (this.state.kbCacheHash() !== currentHash) {
             console.log('[SessionService] KB Content changed through single update. Invalidating remote state.');
-            // Match the resilience pattern used elsewhere in this file:
-            // resetCacheState clears all four kbCacheXxx signals AND
-            // finalizes the storage usage timer so we don't keep billing
-            // for a cache the app already considers dead.
-            this.cacheManager.resetCacheState();
+            // cleanupCache (not resetCacheState) so the now-stale cache is
+            // also deleted server-side. Otherwise the orphan keeps billing
+            // for the rest of its TTL while we generate a fresh one next turn.
+            await this.cacheManager.cleanupCache();
             this.state.kbCacheHash.set(currentHash);
 
             // Also re-calculate total estimated tokens
@@ -988,7 +992,7 @@ export class SessionService {
             if (hasKbContent) {
                 if (this.state.kbCacheHash() !== currentHash) {
                     console.log('[SessionService] KB Content changed. Invalidating remote state.');
-                    this.cacheManager.resetCacheState();
+                    await this.cacheManager.cleanupCache();
                     this.state.kbCacheHash.set(currentHash);
                 }
 

@@ -110,15 +110,19 @@ export class CacheManagerService {
     // ==================== Timer Management ====================
 
     /**
-     * Starts the storage cost timer for context caching.
+     * Starts the storage cost timer for context caching. Caller passes the
+     * cache identity explicitly rather than letting the service read the
+     * `kbCacheXxx` signals — same decoupling principle as
+     * `checkCacheAndRefresh`. Eliminates the implicit "signals must be
+     * committed before this call" ordering dependency.
      */
-    startStorageTimer(): void {
-        this.cost.updateContextState(
-            this.state.kbCacheTokens(),
-            this.state.kbCacheExpireTime(),
-            this.state.config()?.modelId || this.provider.getDefaultModelId(),
-            this.state.kbCacheName()
-        );
+    startStorageTimer(input: {
+        tokens: number;
+        expireTime: number | null;
+        modelId: string;
+        cacheName: string | null;
+    }): void {
+        this.cost.updateContextState(input.tokens, input.expireTime, input.modelId, input.cacheName);
         this.cost.startStorageTimer();
     }
 
@@ -221,13 +225,16 @@ export class CacheManagerService {
                                 const expireMs = typeof updated.expireTime === 'number'
                                     ? updated.expireTime
                                     : new Date(updated.expireTime).getTime();
-                                // Guard: `new Date('garbage').getTime()` is NaN.
-                                // Skip the assignment rather than poison
-                                // kbCacheExpireTime — CostService treats NaN as
-                                // "expired now", which would tank cost calc.
-                                if (!isNaN(expireMs)) {
-                                    resultExpireTime = expireMs;
-                                }
+                                // updateCacheTTL was just called, so on a NaN
+                                // ISO string we can assume the requested
+                                // extension landed and fall back to now+TTL —
+                                // same shape the recovery/createCache path
+                                // uses (line ~303). Keeping the old expireTime
+                                // would advertise a stale countdown that's
+                                // already past.
+                                resultExpireTime = isNaN(expireMs)
+                                    ? (Date.now() + ttlSeconds * 1000)
+                                    : expireMs;
                                 validationSuccess = true;
 
                                 // Sync tokens from restored cache so UI shows current slot occupancy.
@@ -345,19 +352,15 @@ export class CacheManagerService {
 
         // 4. Proactive cleanup of "leftover" resources from the OTHER mode
         // If we reached here, validationSuccess is true for the CURRENT mode.
+        // Result fields are already null/0 from the !useCache initialization
+        // at the top of the method — no reassignment needed after the delete.
         try {
             if (!useCache && cacheName) {
-                // We are in No-Cache/Implicit mode. If there's a leftover Cache, clean it up to save costs.
                 console.log('[CacheManager] Cleaning up leftover Cache while in Implicit mode.');
-                // Stop billing before the async deleteCache round-trip.
                 this.finalizeStorageUsage();
                 if (input.provider.deleteCache) {
                     await input.provider.deleteCache(input.providerConfig, cacheName);
                 }
-                resultCacheName = null;
-                resultExpireTime = null;
-                resultHash = null;
-                resultTokens = 0;
             }
         } catch (cleanupErr) {
             console.warn('[CacheManager] Non-critical cleanup error during mode switch:', cleanupErr);

@@ -440,11 +440,12 @@ export class GameEngineService {
             const cacheProvider = this.providerRegistry.getActive();
             if (!cacheProvider) throw new Error('No active LLM provider');
             const cfg = this.state.config();
+            const resolvedModelId = cfg?.modelId || cacheProvider.getDefaultModelId();
             const cacheResult = await this.cacheManager.checkCacheAndRefresh({
                 provider: cacheProvider,
                 providerConfig: this.providerRegistry.getActiveConfig(),
                 enableCache: !!cfg?.enableCache,
-                modelId: cfg?.modelId || cacheProvider.getDefaultModelId(),
+                modelId: resolvedModelId,
                 systemInstruction: stripSystemMainMarker(this.state.systemInstructionCache()),
                 loadedFiles: this.state.loadedFiles(),
                 // Pre-computed via the memoized currentKbHash signal — service
@@ -467,10 +468,13 @@ export class GameEngineService {
                 this.chatHistory.recordSunkUsage(cacheResult.sunkUsageTokens, 0, 0);
             }
 
-            // Storage cost timer reads the cache state we just wrote, so
-            // it must run after the four .set() calls above.
             if (cacheResult.cacheName) {
-                this.cacheManager.startStorageTimer();
+                this.cacheManager.startStorageTimer({
+                    tokens: cacheResult.tokens,
+                    expireTime: cacheResult.expireTime,
+                    modelId: resolvedModelId,
+                    cacheName: cacheResult.cacheName
+                });
             } else {
                 this.cacheManager.stopStorageTimer();
             }
