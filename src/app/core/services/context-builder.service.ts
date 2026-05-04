@@ -1,10 +1,8 @@
 import { Injectable, inject } from '@angular/core';
-import { GameStateService } from './game-state.service';
 import { KnowledgeService } from './knowledge.service';
 import { ChatMessage, ExtendedPart } from '../models/types';
-import { LLMContent, LLMPart, LLMGenerateConfig } from '@hcs/llm-core';
+import { LLMContent, LLMPart, LLMGenerateConfig, LLMProvider, LLMProviderCapabilities } from '@hcs/llm-core';
 import { LLM_MARKERS, getResponseSchema, getIntentTags } from '../constants/engine-protocol';
-import { LLMProviderRegistryService } from './llm-provider-registry.service';
 import { LanguageService } from './language.service';
 import { LOCALES, getLocale } from '../constants/locales';
 import { GAME_INTENTS, STORY_INTENTS } from '../constants/game-intents';
@@ -16,29 +14,76 @@ import { stripSystemMainMarker } from './profile-compat';
 // live in the locale files under `enginePromptDirectives`. Engine behaviour,
 // not profile style — both built-in and user profiles share these.
 
+/**
+ * Per-call snapshot of every game-state value the context builder reads.
+ *
+ * Caller (game-engine, chat-input preview path) captures this once at turn /
+ * preview dispatch time, so each ContextBuilder method runs as a function
+ * over its inputs — no signal re-read mid-call, and specs can drive the
+ * builder by handing it a literal `BuildContext` instead of substituting
+ * `GameStateService` / `LLMProviderRegistryService`.
+ *
+ * The preview-only fields (`modelId`, `outputLanguage`, `provider`) are
+ * optional because the engine path goes through `TurnRunInput` and never
+ * re-enters `getPreviewPayload`.
+ */
+export interface BuildContext {
+    // History assembly
+    messages: ChatMessage[];
+    contextMode: 'smart' | 'full' | 'summarized';
+    saveContextMode: 'smart' | 'full' | 'summarized';
+    smartContextTurns: number;
+
+    // System instruction + KB sources
+    systemInstructionCache: string;
+    loadedFiles: Map<string, string>;
+
+    // Cache-aware "should the KB be embedded in systemInstruction" decision
+    kbCacheName: string | null;
+    providerCapabilities: LLMProviderCapabilities;
+
+    // Active profile's dynamic injections — captured up-front so the resolver
+    // protocol path doesn't see a half-applied edit if the user toggles a
+    // profile mid-turn.
+    dynamicAction: string;
+    dynamicContinue: string;
+    dynamicFastforward: string;
+    dynamicSystem: string;
+    dynamicSave: string;
+    dynamicProtocolResolver: string;
+    dynamicProtocolNarrator: string;
+    dynamicProtocolSingle: string;
+    dynamicCorrection: string;
+
+    // Caller-side dispatch hints (read by GameEngineService, not by ContextBuilder).
+    // Kept on the snapshot so a mid-turn config edit can't make the dispatch
+    // and the resolver/narrator paths disagree about engine mode.
+    engineMode: 'single' | 'two-call';
+
+    // Preview path only — engine path goes through TurnRunInput so these
+    // never need to be set there.
+    modelId?: string;
+    outputLanguage?: string;
+    provider?: LLMProvider;
+}
+
 @Injectable({
     providedIn: 'root'
 })
 export class ContextBuilderService {
-    private state = inject(GameStateService);
     private kb = inject(KnowledgeService);
-    private providerRegistry = inject(LLMProviderRegistryService);
     private lang = inject(LanguageService);
-
-    private get provider() {
-        return this.providerRegistry.getActive();
-    }
 
     /**
      * Gets the effective system instruction, replacing placeholders and adding language overrides.
      * @param includeKB Whether to append the full Knowledge Base text to the system prompt.
      */
-    public getEffectiveSystemInstruction(includeKB = false): string {
+    public getEffectiveSystemInstruction(ctx: BuildContext, includeKB = false): string {
         // The version marker is loader-only metadata; strip before sending
         // to the LLM. No-op for legacy v1 forks that lack the marker.
-        let base = stripSystemMainMarker(this.state.systemInstructionCache());
+        let base = stripSystemMainMarker(ctx.systemInstructionCache);
         if (includeKB) {
-            const kbText = this.kb.buildKnowledgeBaseText(this.state.loadedFiles());
+            const kbText = this.kb.buildKnowledgeBaseText(ctx.loadedFiles);
             if (kbText) {
                 base += '\n\n' + LLM_MARKERS.FILE_CONTENT_SEPARATOR + '\n' + kbText;
             }
@@ -56,50 +101,49 @@ export class ContextBuilderService {
      * all agree — historically the same `hasCache && bakesContent` expression
      * was inlined in each engine.
      */
-    public shouldOmitKbFromSystemInstruction(): boolean {
-        const hasCache = !!this.state.kbCacheName();
+    public shouldOmitKbFromSystemInstruction(ctx: BuildContext): boolean {
+        const hasCache = !!ctx.kbCacheName;
         if (!hasCache) return false;
-        const bakesContent = this.provider?.getCapabilities().cacheBakesContent ?? true;
+        const bakesContent = ctx.providerCapabilities.cacheBakesContent ?? true;
         return bakesContent;
     }
 
     /**
      * Constructs the JSON payload that will be sent to the Gemini API for preview purposes.
      */
-    public getPreviewPayload(userText: string, options?: { intent?: string }) {
+    public getPreviewPayload(ctx: BuildContext, userText: string, options?: { intent?: string }) {
         const userMsgContent = (options?.intent || '') + this.stripSavePoints(userText);
 
-        const history = this.getLLMHistory(); // This is the history BEFORE the new message
+        const history = this.getLLMHistory(ctx); // This is the history BEFORE the new message
         const finalUserText = this.wrapUserMessage(userMsgContent, history);
 
         let finalContent: LLMContent[] = [...history, { role: 'user', parts: [{ text: finalUserText }] }];
 
         // Allow provider to customize preview
-        if (this.provider?.getPreview) {
-            finalContent = this.provider.getPreview(finalContent);
+        if (ctx.provider?.getPreview) {
+            finalContent = ctx.provider.getPreview(finalContent);
         }
 
-        const config = this.state.config();
-        const modelId = config?.modelId || this.provider?.getDefaultModelId() || 'gemini-prod';
+        const modelId = ctx.modelId || ctx.provider?.getDefaultModelId() || 'gemini-prod';
 
         // Construct the generation config
         const generationConfig: LLMGenerateConfig = {
             responseMimeType: 'application/json',
-            responseSchema: getResponseSchema(config?.outputLanguage)
+            responseSchema: getResponseSchema(ctx.outputLanguage)
         };
 
-        const cachedContentName = this.state.kbCacheName() || undefined;
+        const cachedContentName = ctx.kbCacheName || undefined;
         if (cachedContentName) {
             generationConfig.cachedContentName = cachedContentName;
         }
 
-        const bakesContent = this.provider?.getCapabilities().cacheBakesContent ?? true;
+        const bakesContent = ctx.providerCapabilities.cacheBakesContent ?? true;
         const includeKB = !(cachedContentName && bakesContent); // Include KB unless cache stores content server-side
         return {
             model: modelId,
             contents: finalContent,
             config: generationConfig,
-            systemInstruction: this.getEffectiveSystemInstruction(includeKB)
+            systemInstruction: this.getEffectiveSystemInstruction(ctx, includeKB)
         };
     }
 
@@ -125,8 +169,8 @@ export class ContextBuilderService {
      * @param filter Optional predicate to filter messages.
      * @returns Array of Content objects.
      */
-    public getLLMHistory(forceFullContext = false, filter?: (m: ChatMessage) => boolean): LLMContent[] {
-        const all = this.state.messages();
+    public getLLMHistory(ctx: BuildContext, forceFullContext = false, filter?: (m: ChatMessage) => boolean): LLMContent[] {
+        const all = ctx.messages;
 
         // Use custom filter or default: Filter out RefOnly, but keep tool responses
         const defaultFilter = (m: ChatMessage) => !m.isRefOnly || m.parts?.some(p => p.functionResponse);
@@ -136,13 +180,13 @@ export class ContextBuilderService {
         let RECENT_WINDOW = 20;
 
         // Use full context if forced (e.g., save commands) or if contextMode is 'full'
-        const mode = forceFullContext ? this.state.saveContextMode() : this.state.contextMode();
+        const mode = forceFullContext ? ctx.saveContextMode : ctx.contextMode;
 
         const useFullContext = mode === 'full';
         if (mode === 'summarized') {
             RECENT_WINDOW = 2;
         } else if (mode === 'smart') {
-            RECENT_WINDOW = (this.state.config()?.smartContextTurns ?? 10) * 2;
+            RECENT_WINDOW = ctx.smartContextTurns * 2;
         }
 
         const splitIndex = useFullContext ? 0 : Math.max(0, filtered.length - RECENT_WINDOW);
@@ -372,10 +416,9 @@ export class ContextBuilderService {
      * Layer 2 `{{CORRECTION_REMINDER}}` slot is one-shot — fires only on the
      * immediate auto-resend turn.
      */
-    public getRecentCorrection(): string {
-        const messages = this.state.messages();
-        for (let i = messages.length - 1; i >= 0; i--) {
-            const m = messages[i];
+    public getRecentCorrection(ctx: BuildContext): string {
+        for (let i = ctx.messages.length - 1; i >= 0; i--) {
+            const m = ctx.messages[i];
             if (m.role !== 'model') continue;
             if (m.intent !== GAME_INTENTS.SYSTEM) return '';
             return m.correction?.trim() ?? '';
@@ -388,9 +431,9 @@ export class ContextBuilderService {
      * in the active profile's `injection_correction.md`. Returns '' when
      * there's no correction or the template is missing (legacy profile).
      */
-    public renderCorrectionReminder(correction: string): string {
+    public renderCorrectionReminder(ctx: BuildContext, correction: string): string {
         if (!correction) return '';
-        const template = this.state.dynamicCorrectionInjection();
+        const template = ctx.dynamicCorrection;
         if (!template) return '';
         return template.replace(/\{\{CORRECTION_TEXT\}\}/g, () => correction);
     }
@@ -400,8 +443,8 @@ export class ContextBuilderService {
      * sees) contains at least one model message with a non-empty `correction`
      * field. Drives the {@link getHistoricalCorrectionRule} slot fill.
      */
-    public hasHistoricalCorrection(): boolean {
-        return this.state.messages().some(m =>
+    public hasHistoricalCorrection(ctx: BuildContext): boolean {
+        return ctx.messages.some(m =>
             m.role === 'model' && !m.isRefOnly && !!m.correction?.trim()
         );
     }
@@ -412,8 +455,8 @@ export class ContextBuilderService {
      * no correction lives in active history. The rule is engine behaviour,
      * not profile style — same text for cloud and local profiles.
      */
-    public getHistoricalCorrectionRule(lang: string): string {
-        if (!this.hasHistoricalCorrection()) return '';
+    public getHistoricalCorrectionRule(ctx: BuildContext, lang: string): string {
+        if (!this.hasHistoricalCorrection(ctx)) return '';
         return getLocale(lang).enginePromptDirectives.HISTORICAL_CORRECTION_RULE;
     }
 
@@ -421,10 +464,9 @@ export class ContextBuilderService {
      * Returns the trimmed `userIdealOutcome` of the most recent user message, or
      * '' when absent / blank. Drives the {@link getIdealOutcomeConstraint} slot.
      */
-    public getRecentUserIdealOutcome(): string {
-        const messages = this.state.messages();
-        for (let i = messages.length - 1; i >= 0; i--) {
-            const m = messages[i];
+    public getRecentUserIdealOutcome(ctx: BuildContext): string {
+        for (let i = ctx.messages.length - 1; i >= 0; i--) {
+            const m = ctx.messages[i];
             if (m.role !== 'user') continue;
             return m.userIdealOutcome?.trim() ?? '';
         }
@@ -444,6 +486,22 @@ export class ContextBuilderService {
     }
 
     /**
+     * Resolves the per-intent dynamic injection text from the snapshot.
+     * Centralized so the resolver tail (this method's caller) and the
+     * single-call augmentation in GameEngineService agree on the mapping.
+     */
+    public intentInjection(ctx: BuildContext, intent: string): string {
+        switch (intent) {
+            case GAME_INTENTS.ACTION: return ctx.dynamicAction;
+            case GAME_INTENTS.CONTINUE: return ctx.dynamicContinue;
+            case GAME_INTENTS.FAST_FORWARD: return ctx.dynamicFastforward;
+            case GAME_INTENTS.SYSTEM: return ctx.dynamicSystem;
+            case GAME_INTENTS.SAVE: return ctx.dynamicSave;
+            default: return '';
+        }
+    }
+
+    /**
      * Builds the LLM history for the two-call resolver call (Call 1).
      *
      * The cache prefix (system instruction + KB) is shared with the single-call
@@ -455,7 +513,7 @@ export class ContextBuilderService {
      * pops the last user message, augments it, and pushes it back. Returns a
      * new array — the input is not mutated.
      */
-    public buildResolverContext(options: { baseHistory: LLMContent[]; intent: string; lang: string }): LLMContent[] {
+    public buildResolverContext(ctx: BuildContext, options: { baseHistory: LLMContent[]; intent: string; lang: string }): LLMContent[] {
         const history = options.baseHistory.slice();
         const lastMsg = history.pop();
         if (!lastMsg || !lastMsg.parts || typeof lastMsg.parts[0]?.text !== 'string') {
@@ -465,24 +523,17 @@ export class ContextBuilderService {
 
         const userInput = applyIntentTag(lastMsg.parts[0].text, options.intent, getIntentTags(options.lang));
 
-        let intentInjection = '';
-        switch (options.intent) {
-            case GAME_INTENTS.ACTION: intentInjection = this.state.dynamicActionInjection(); break;
-            case GAME_INTENTS.CONTINUE: intentInjection = this.state.dynamicContinueInjection(); break;
-            case GAME_INTENTS.FAST_FORWARD: intentInjection = this.state.dynamicFastforwardInjection(); break;
-            case GAME_INTENTS.SYSTEM: intentInjection = this.state.dynamicSystemInjection(); break;
-            case GAME_INTENTS.SAVE: intentInjection = this.state.dynamicSaveInjection(); break;
-        }
+        const intentInjection = this.intentInjection(ctx, options.intent);
 
-        const protocolResolver = this.state.dynamicProtocolResolverInjection()
-            .replace(/\{\{HISTORICAL_CORRECTION_RULE\}\}/g, () => this.getHistoricalCorrectionRule(options.lang));
+        const protocolResolver = ctx.dynamicProtocolResolver
+            .replace(/\{\{HISTORICAL_CORRECTION_RULE\}\}/g, () => this.getHistoricalCorrectionRule(ctx, options.lang));
 
         const tail = buildResolverUserMessage({
             userInput,
             intentInjection,
             protocolResolver,
-            correctionReminder: this.renderCorrectionReminder(this.getRecentCorrection()),
-            idealOutcomeConstraint: this.getIdealOutcomeConstraint(this.getRecentUserIdealOutcome(), options.lang)
+            correctionReminder: this.renderCorrectionReminder(ctx, this.getRecentCorrection(ctx)),
+            idealOutcomeConstraint: this.getIdealOutcomeConstraint(this.getRecentUserIdealOutcome(ctx), options.lang)
         });
         const finalContent = this.wrapUserMessage(tail, history);
 
@@ -502,7 +553,7 @@ export class ContextBuilderService {
      *
      * Earlier history (prior turns, ACT header, summaries) is preserved.
      */
-    public buildNarratorContext(options: {
+    public buildNarratorContext(ctx: BuildContext, options: {
         baseHistory: LLMContent[];
         resolver: ResolverOutput;
         executedSteps: ResolverStep[];
@@ -511,14 +562,14 @@ export class ContextBuilderService {
         const history = options.baseHistory.slice();
         history.pop();
 
-        const protocolNarrator = this.state.dynamicProtocolNarratorInjection()
-            .replace(/\{\{HISTORICAL_CORRECTION_RULE\}\}/g, () => this.getHistoricalCorrectionRule(options.lang));
+        const protocolNarrator = ctx.dynamicProtocolNarrator
+            .replace(/\{\{HISTORICAL_CORRECTION_RULE\}\}/g, () => this.getHistoricalCorrectionRule(ctx, options.lang));
 
         const tail = buildNarratorUserMessage({
             resolver: options.resolver,
             executedSteps: options.executedSteps,
             protocolNarrator,
-            correction: this.getRecentCorrection()
+            correction: this.getRecentCorrection(ctx)
         });
         const finalContent = this.wrapUserMessage(tail, history);
 

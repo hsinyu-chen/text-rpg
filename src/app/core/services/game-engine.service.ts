@@ -7,9 +7,11 @@ import { ChatHistoryService } from './chat-history.service';
 
 import { CacheManagerService } from './cache-manager.service';
 import { SessionService } from './session.service';
-import { ContextBuilderService } from './context-builder.service';
+import { ContextBuilderService, BuildContext } from './context-builder.service';
 import { ConfigService } from './config.service';
 import { LLMProviderRegistryService } from './llm-provider-registry.service';
+import { LLMProviderCapabilities } from '@hcs/llm-core';
+import { stripSystemMainMarker } from './profile-compat';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ChatMessage, SessionSave, ExtendedPart, Scenario } from '../models/types';
 
@@ -331,7 +333,47 @@ export class GameEngineService {
      * @returns The constructed payload object.
      */
     getPreviewPayload(userText: string, options?: { intent?: string }) {
-        return this.contextBuilder.getPreviewPayload(userText, options);
+        return this.contextBuilder.getPreviewPayload(this.snapshotBuildContext(), userText, options);
+    }
+
+    /**
+     * Captures every signal the context builder reads, in one shot. The
+     * returned object is what each ContextBuilder method now operates on
+     * — caller never re-enters state mid-call. Used by both `sendMessage`
+     * (engine path) and `getPreviewPayload` (chat-input live preview).
+     */
+    private snapshotBuildContext(): BuildContext {
+        const config = this.state.config();
+        const provider = this.providerRegistry.getActive();
+        // Defensive default for `cacheBakesContent` matches the historical
+        // `?? true` fallback in ContextBuilder. The engine path itself
+        // throws on a null provider before constructing TurnRunInput, so
+        // this default only fires on the preview path's edge case.
+        const providerCapabilities = provider?.getCapabilities()
+            ?? ({ cacheBakesContent: true } as LLMProviderCapabilities);
+        return {
+            messages: this.state.messages(),
+            contextMode: this.state.contextMode(),
+            saveContextMode: this.state.saveContextMode(),
+            smartContextTurns: config?.smartContextTurns ?? 10,
+            systemInstructionCache: this.state.systemInstructionCache(),
+            loadedFiles: this.state.loadedFiles(),
+            kbCacheName: this.state.kbCacheName(),
+            providerCapabilities,
+            dynamicAction: this.state.dynamicActionInjection(),
+            dynamicContinue: this.state.dynamicContinueInjection(),
+            dynamicFastforward: this.state.dynamicFastforwardInjection(),
+            dynamicSystem: this.state.dynamicSystemInjection(),
+            dynamicSave: this.state.dynamicSaveInjection(),
+            dynamicProtocolResolver: this.state.dynamicProtocolResolverInjection(),
+            dynamicProtocolNarrator: this.state.dynamicProtocolNarratorInjection(),
+            dynamicProtocolSingle: this.state.dynamicProtocolSingleInjection(),
+            dynamicCorrection: this.state.dynamicCorrectionInjection(),
+            engineMode: config?.engineMode ?? 'single',
+            modelId: config?.modelId,
+            outputLanguage: config?.outputLanguage,
+            provider: provider ?? undefined
+        };
     }
 
     /**
@@ -394,7 +436,13 @@ export class GameEngineService {
             // ALWAYS pass clean instruction to CacheManager.
             // If CacheManager needs to create/refresh an explicit cache, it will use this as header.
             // KB content is already handled by CacheManager via fileParts in createCache.
-            await this.cacheManager.checkCacheAndRefresh(this.contextBuilder.getEffectiveSystemInstruction(false));
+            // CacheManager always wants the bare system prompt (no KB body) — it
+            // owns the KB injection itself via fileParts. Inlined here rather
+            // than going through ContextBuilder so we don't have to snapshot
+            // the build context before cache validation runs (cache refresh
+            // can mutate kbCacheName, and we want the post-refresh value in
+            // the snapshot).
+            await this.cacheManager.checkCacheAndRefresh(stripSystemMainMarker(this.state.systemInstructionCache()));
         } catch (e: unknown) {
             // If we just auto-switched profiles, fold that note into the
             // error message so the user understands the silent state change
@@ -418,12 +466,18 @@ export class GameEngineService {
         }
 
         try {
-            const baseHistory = this.contextBuilder.getLLMHistory(forceFullContext);
+            // Snapshot once. Every signal read for the rest of this turn — both
+            // the context builder calls below and the engine's downstream
+            // resolver/narrator calls — operates on this frozen view, so a
+            // mid-turn config edit / profile switch / message append cannot
+            // cause two halves of the same turn to disagree.
+            const buildCtx = this.snapshotBuildContext();
+
+            const baseHistory = this.contextBuilder.getLLMHistory(buildCtx, forceFullContext);
 
             const currentIntent = options?.intent || GAME_INTENTS.ACTION;
-            const config = this.state.config();
-            const lang = config?.outputLanguage || 'default';
-            const engineMode = config?.engineMode ?? 'single';
+            const lang = buildCtx.outputLanguage || 'default';
+            const engineMode = buildCtx.engineMode;
 
             // Notify the user about a legacy-profile auto-switch only once
             // the cache refresh has succeeded — otherwise a cache error
@@ -448,7 +502,7 @@ export class GameEngineService {
                 engine = this.twoCallEngine;
                 console.log(`[GameEngine] Dispatching two-call engine for intent ${currentIntent}`);
             } else {
-                history = this.augmentSingleCallHistory(baseHistory, currentIntent, lang);
+                history = this.augmentSingleCallHistory(buildCtx, baseHistory, currentIntent, lang);
                 engine = this.singleCallEngine;
             }
 
@@ -457,15 +511,15 @@ export class GameEngineService {
 
             const modelMsgId = crypto.randomUUID();
 
-            // Capture per-turn runtime once. Engines run as functionally pure
-            // calls — no DI singleton substitution needed in specs, and no
-            // signal re-read mid-turn.
-            const provider = this.providerRegistry.getActive();
+            // Resolve the four engine-runtime fields off the same snapshot.
+            // The engine never inspects provider capabilities or cache state
+            // for the include/omit-KB decision; that's done here.
+            const provider = buildCtx.provider;
             if (!provider) throw new Error('No active LLM provider');
             const providerConfig = this.providerRegistry.getActiveConfig();
-            const cachedContentName = this.state.kbCacheName() || undefined;
-            const omitKB = this.contextBuilder.shouldOmitKbFromSystemInstruction();
-            const systemInstruction = this.contextBuilder.getEffectiveSystemInstruction(!omitKB);
+            const cachedContentName = buildCtx.kbCacheName || undefined;
+            const omitKB = this.contextBuilder.shouldOmitKbFromSystemInstruction(buildCtx);
+            const systemInstruction = this.contextBuilder.getEffectiveSystemInstruction(buildCtx, !omitKB);
 
             const result = await engine.runTurn({
                 history,
@@ -477,7 +531,8 @@ export class GameEngineService {
                 provider,
                 providerConfig,
                 cachedContentName,
-                systemInstruction
+                systemInstruction,
+                buildContext: buildCtx
             });
 
             // Extract results
@@ -808,17 +863,10 @@ export class GameEngineService {
      * augmentation lives in {@link ContextBuilderService.buildResolverContext}
      * and {@link ContextBuilderService.buildNarratorContext}.
      */
-    private augmentSingleCallHistory(baseHistory: LLMContent[], currentIntent: string, lang: string): LLMContent[] {
+    private augmentSingleCallHistory(ctx: BuildContext, baseHistory: LLMContent[], currentIntent: string, lang: string): LLMContent[] {
         const history = baseHistory.slice();
 
-        let injectionContent = '';
-        switch (currentIntent) {
-            case GAME_INTENTS.ACTION: injectionContent = this.state.dynamicActionInjection(); break;
-            case GAME_INTENTS.CONTINUE: injectionContent = this.state.dynamicContinueInjection(); break;
-            case GAME_INTENTS.FAST_FORWARD: injectionContent = this.state.dynamicFastforwardInjection(); break;
-            case GAME_INTENTS.SYSTEM: injectionContent = this.state.dynamicSystemInjection(); break;
-            case GAME_INTENTS.SAVE: injectionContent = this.state.dynamicSaveInjection(); break;
-        }
+        const injectionContent = this.contextBuilder.intentInjection(ctx, currentIntent);
 
         if (!injectionContent || history.length === 0) return history;
 
@@ -847,11 +895,11 @@ export class GameEngineService {
         // interpreted as a backreference pattern. Correction reminder fills
         // first so its rendered text can itself contain `{{USER_INPUT}}`-like
         // sequences without bleeding into the next pass.
-        const correctionReminder = this.contextBuilder.renderCorrectionReminder(this.contextBuilder.getRecentCorrection());
+        const correctionReminder = this.contextBuilder.renderCorrectionReminder(ctx, this.contextBuilder.getRecentCorrection(ctx));
         const mergedContent = injectionContent
             .replace(/\{\{CORRECTION_REMINDER\}\}/g, () => correctionReminder)
             .replace(/\{\{USER_INPUT\}\}/g, () => userInput);
-        const protocolSingle = this.state.dynamicProtocolSingleInjection().replace(/\{\{USER_INPUT\}\}/g, () => userInput);
+        const protocolSingle = ctx.dynamicProtocolSingle.replace(/\{\{USER_INPUT\}\}/g, () => userInput);
         const withProtocol = protocolSingle ? `${mergedContent}\n\n${protocolSingle}` : mergedContent;
         const finalContent = this.contextBuilder.wrapUserMessage(withProtocol, history);
 

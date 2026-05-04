@@ -1,6 +1,7 @@
 import { LLMContent, LLMProvider, LLMProviderConfig } from '@hcs/llm-core';
 import { ChatMessage } from '@app/core/models/types';
 import { StreamProcessResult } from '../stream-processor.service';
+import { BuildContext } from '../context-builder.service';
 
 /**
  * Per-call execution context for a single user turn.
@@ -30,6 +31,16 @@ export interface TurnRunInput {
     providerConfig: LLMProviderConfig;
     cachedContentName?: string;
     systemInstruction: string;
+
+    /**
+     * Snapshot of `GameStateService` / `LLMProviderRegistryService` values
+     * the engine's downstream `ContextBuilderService` calls need. Required
+     * by the two-call path (which calls `buildResolverContext` /
+     * `buildNarratorContext` mid-turn). Single-call ignores it but the
+     * field is required so `TurnEngine` stays a single uniform shape and
+     * the caller can capture once for both code paths.
+     */
+    buildContext: BuildContext;
 }
 
 export interface TurnEngine {
