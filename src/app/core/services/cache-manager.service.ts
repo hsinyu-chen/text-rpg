@@ -4,6 +4,7 @@ import { LLMProviderRegistryService } from './llm-provider-registry.service';
 import { LLMProvider, LLMProviderConfig, LLMCacheInfo } from '@hcs/llm-core';
 import { CostService } from './cost.service';
 import { KnowledgeService } from './knowledge.service';
+import type { LLMPart } from '@hcs/llm-core';
 
 /**
  * Per-call input for {@link CacheManagerService.checkCacheAndRefresh}.
@@ -114,15 +115,21 @@ export class CacheManagerService {
         let resultTokens = input.currentCacheTokens;
         let sunkUsageTokens = 0;
 
+        // KB parts + hash are needed by both the validation block below
+        // (staleness check) and the recovery block (createCache + new hash).
+        // Compute once and reuse — for large KBs this is the dominant cost
+        // of the method. Both are null when useCache is false (cache-disabled
+        // path doesn't hash or rebuild).
+        let kbParts: LLMPart[] | null = null;
+        let currentHash: string | null = null;
+        if (useCache) {
+            kbParts = this.kb.buildKnowledgeBaseParts(input.loadedFiles);
+            const kbText = kbParts.map(p => p.text ?? '').join('');
+            currentHash = this.kb.calculateKbHash(kbText, input.modelId, input.systemInstruction);
+        }
+
         // 1. Validate based on CURRENT MODE (Cache or File)
         if (useCache) {
-            // [New] Hash Check for Staleness
-            // Calculate current hash to ensure we're not using a stale cache.
-            // Use buildKnowledgeBaseText directly here — recovery below needs
-            // the parts array for createCache, but this validation path only
-            // needs the joined text for hashing.
-            const kbText = this.kb.buildKnowledgeBaseText(input.loadedFiles);
-            const currentHash = this.kb.calculateKbHash(kbText, input.modelId, input.systemInstruction);
             const storedHash = input.currentCacheHash;
 
             if (cacheName && input.provider.getCache) {
@@ -162,7 +169,13 @@ export class CacheManagerService {
                                 const expireMs = typeof updated.expireTime === 'number'
                                     ? updated.expireTime
                                     : new Date(updated.expireTime).getTime();
-                                resultExpireTime = expireMs;
+                                // Guard: `new Date('garbage').getTime()` is NaN.
+                                // Skip the assignment rather than poison
+                                // kbCacheExpireTime — CostService treats NaN as
+                                // "expired now", which would tank cost calc.
+                                if (!isNaN(expireMs)) {
+                                    resultExpireTime = expireMs;
+                                }
                                 validationSuccess = true;
 
                                 // Sync tokens from restored cache so UI shows current slot occupancy.
@@ -202,12 +215,14 @@ export class CacheManagerService {
             // Unified recovery logic
             if (hasLocalFiles) {
                 console.log('[CacheManager] Re-creating Knowledge Base from local files...');
-                const fileParts = this.kb.buildKnowledgeBaseParts(input.loadedFiles);
-                const kbText = fileParts.map(p => p.text).join('');
 
                 try {
                     if (useCache) {
-                        const newHash = this.kb.calculateKbHash(kbText, input.modelId, input.systemInstruction);
+                        // Reuse kbParts + hash computed once at the top of the
+                        // method — this branch is only reached when useCache
+                        // is true, so both are non-null by construction.
+                        const fileParts = kbParts!;
+                        const newHash = currentHash!;
                         let cacheRes: LLMCacheInfo | null = null;
                         if (input.provider.createCache) {
                             cacheRes = await input.provider.createCache(
@@ -221,13 +236,18 @@ export class CacheManagerService {
 
                         if (cacheRes?.name) {
                             resultCacheName = cacheRes.name;
-                            // Mirror the validation path's expireTime parsing —
-                            // some providers return ISO strings, not numbers.
-                            // Falls back to now+TTL only when expireTime is
-                            // missing entirely.
-                            resultExpireTime = typeof cacheRes.expireTime === 'number'
-                                ? cacheRes.expireTime
-                                : (cacheRes.expireTime ? new Date(cacheRes.expireTime).getTime() : Date.now() + ttlSeconds * 1000);
+                            // Mirror the validation path's expireTime parsing.
+                            // Guard against NaN from invalid ISO strings —
+                            // CostService treats NaN as "expired now" and
+                            // would mis-bill storage. Fall back to now+TTL
+                            // for both "missing" and "unparseable" cases.
+                            const rawExpire = cacheRes.expireTime;
+                            const parsed = typeof rawExpire === 'number'
+                                ? rawExpire
+                                : (rawExpire ? new Date(rawExpire).getTime() : NaN);
+                            resultExpireTime = isNaN(parsed)
+                                ? (Date.now() + ttlSeconds * 1000)
+                                : parsed;
                             resultHash = newHash;
                             resultTokens = cacheRes.usageMetadata?.totalTokenCount || 0;
 
