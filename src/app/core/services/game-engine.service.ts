@@ -369,6 +369,7 @@ export class GameEngineService {
             dynamicProtocolNarrator: this.state.dynamicProtocolNarratorInjection(),
             dynamicProtocolSingle: this.state.dynamicProtocolSingleInjection(),
             dynamicCorrection: this.state.dynamicCorrectionInjection(),
+            engineMode: config?.engineMode ?? 'single',
             modelId: config?.modelId,
             outputLanguage: config?.outputLanguage,
             provider: provider ?? undefined
@@ -476,7 +477,7 @@ export class GameEngineService {
 
             const currentIntent = options?.intent || GAME_INTENTS.ACTION;
             const lang = buildCtx.outputLanguage || 'default';
-            const engineMode = this.state.config()?.engineMode ?? 'single';
+            const engineMode = buildCtx.engineMode;
 
             // Notify the user about a legacy-profile auto-switch only once
             // the cache refresh has succeeded — otherwise a cache error

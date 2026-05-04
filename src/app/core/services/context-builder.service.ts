@@ -55,6 +55,11 @@ export interface BuildContext {
     dynamicProtocolSingle: string;
     dynamicCorrection: string;
 
+    // Caller-side dispatch hints (read by GameEngineService, not by ContextBuilder).
+    // Kept on the snapshot so a mid-turn config edit can't make the dispatch
+    // and the resolver/narrator paths disagree about engine mode.
+    engineMode: 'single' | 'two-call';
+
     // Preview path only — engine path goes through TurnRunInput so these
     // never need to be set there.
     modelId?: string;

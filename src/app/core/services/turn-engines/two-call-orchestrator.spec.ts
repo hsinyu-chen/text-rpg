@@ -89,6 +89,7 @@ describe('two-call orchestrator integration', () => {
             dynamicProtocolNarrator: 'NARRATOR PROTOCOL',
             dynamicProtocolSingle: '',
             dynamicCorrection: '',
+            engineMode: 'two-call',
             ...overrides
         };
     }
