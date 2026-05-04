@@ -615,13 +615,18 @@ export class FileUpdateService {
         // This prevents inserting at file end when LLM gives a non-existent context
         if (!anyFound) return -1;
 
-        // Find end of section: next header of <= current level
-        const headerHeading = parseAtxHeading(lines[currentLine - 1]);
-        const currentLevel = headerHeading ? headerHeading.level : 0;
+        // Find end of section: next header of <= current level.
+        // Uses a lenient `^(#+)` count rather than `parseAtxHeading` to stay
+        // consistent with this function's loose-by-design crumb matching —
+        // a crumb that landed on `####### foo` (rejected by strict ATX parse)
+        // would otherwise read currentLevel=0 and let the section run to EOF.
+        const headerLine = lines[currentLine - 1].trimStart();
+        const headerLevelMatch = headerLine.match(/^(#+)/);
+        const currentLevel = headerLevelMatch ? headerLevelMatch[1].length : 0;
 
         for (let i = currentLine; i < lines.length; i++) {
-            const nextHeading = parseAtxHeading(lines[i]);
-            if (nextHeading && nextHeading.level <= currentLevel) {
+            const nextHeaderMatch = lines[i].trimStart().match(/^(#+)/);
+            if (nextHeaderMatch && nextHeaderMatch[1].length <= currentLevel) {
                 return i;
             }
         }

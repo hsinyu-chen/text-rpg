@@ -54,13 +54,14 @@ export function computeFencedLineMask(lines: string[]): boolean[] {
  * list items. Dropping those silently is a worse failure mode than the
  * spec-purist alternative.
  *
- * Group 1 = hashes (length ∈ 1..6). Group 2 = body (possibly undefined for
- * bare `###` or `### ###`).
+ * Group 1 = hashes (length ∈ 1..6). Group 2 = body, which may be undefined
+ * (bare `###`) or empty string (`### ###` after closing-sequence strip);
+ * `parseAtxHeading` collapses both to `text:''`.
  *
  * `[ \t]` instead of `\s` so a stray `\r` from CRLF input doesn't get
  * absorbed into the indent class on lines that haven't been trimEnd'd.
  */
-export const ATX_HEADING_RE = /^[ \t]*(#{1,6})(?:[ \t]+(.*?)[ \t]*#*[ \t]*)?$/;
+const ATX_HEADING_RE = /^[ \t]*(#{1,6})(?:[ \t]+(.*?)[ \t]*#*[ \t]*)?$/;
 
 export interface AtxHeading {
   /** Heading level, 1–6. */
