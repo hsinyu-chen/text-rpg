@@ -341,6 +341,11 @@ export class GameEngineService {
     async sendMessage(userText: string, options?: {
         isHidden?: boolean,
         intent?: string,
+        // Optional user-supplied ideal_outcome for two-call resolver. When non-empty,
+        // ContextBuilder injects it into the resolver's protocol via the
+        // {{IDEAL_OUTCOME_CONSTRAINT}} slot on the next turn. Carried on the user
+        // message so it persists across reloads / rewinds.
+        userIdealOutcome?: string,
         // Set when this call is the auto-resend triggered by a `<系統>` correction.
         // Its presence drives post-turn cleanup: the system pair + the original
         // (now-failed) action user message become ref-only, and the correction
@@ -368,6 +373,7 @@ export class GameEngineService {
         const userMsgId = crypto.randomUUID();
 
         // 1. Immediately update UI & Storage
+        const userIdealOutcome = options?.userIdealOutcome?.trim() || undefined;
         this.updateMessages(prev => [...prev, {
             id: userMsgId,
             role: 'user',
@@ -375,7 +381,8 @@ export class GameEngineService {
             parts,
             isRefOnly: false,
             isHidden: options?.isHidden,
-            intent: options?.intent
+            intent: options?.intent,
+            userIdealOutcome
         }]);
 
         this.state.status.set('generating');
@@ -471,7 +478,8 @@ export class GameEngineService {
                 capturedFCs,
                 capturedThoughtSignature,
                 finalThought,
-                finalFinishReason
+                finalFinishReason,
+                contextTokens
             } = result;
 
             // Show stop reason notification if not normal
@@ -491,6 +499,7 @@ export class GameEngineService {
             let correctedIntent: string | undefined;
             let oldStoryUserId: string | undefined;
             let oldStoryUserContent: string | undefined;
+            let oldStoryUserIdealOutcome: string | undefined;
             if (isCorrection) {
                 const storyIntents = [GAME_INTENTS.ACTION, GAME_INTENTS.CONTINUE, GAME_INTENTS.FAST_FORWARD];
                 console.log('[GameEngine] Correction detected:', correction);
@@ -509,6 +518,7 @@ export class GameEngineService {
                                 if (paired.role === 'user') {
                                     oldStoryUserId = paired.id;
                                     oldStoryUserContent = paired.content;
+                                    oldStoryUserIdealOutcome = paired.userIdealOutcome;
                                 }
                             }
                             console.log('[GameEngine] Marked old story model ref-only:', msg.id);
@@ -560,6 +570,7 @@ export class GameEngineService {
                         quest_log: finalQuestLog,
                         world_log: finalWorldLog,
                         usage: turnUsage,
+                        contextTokens,
                         // intent stays the user's original (SYSTEM for correction-declaration
                         // turns, story intent for normal turns). The auto-resend below
                         // produces a separate story-intent turn — we no longer fuse the
@@ -630,6 +641,11 @@ export class GameEngineService {
             if (isCorrection && correctedIntent && oldStoryUserId && oldStoryUserContent !== undefined) {
                 const resendOpts = {
                     intent: correctedIntent,
+                    // Carry the original action's user-supplied ideal_outcome through
+                    // the resend so the corrective resolver run keeps the same
+                    // constraint (otherwise it silently reverts to full inference,
+                    // which can re-introduce the very mismatch the correction fixed).
+                    userIdealOutcome: oldStoryUserIdealOutcome,
                     isCorrectionResend: {
                         systemUserId: userMsgId,
                         systemModelId: modelMsgId,

@@ -28,6 +28,17 @@ export interface AppLocale {
     promptHoles: {
         LANGUAGE_RULE: string;
     };
+    /**
+     * Prompt fragments injected into LLM context (NOT user-facing UI). Engine
+     * behaviour, not profile style — both built-in and user profiles share
+     * these. Keep model-facing strings here so they're versioned with the locale.
+     */
+    enginePromptDirectives: {
+        /** Substituted into protocol_resolver / protocol_narrator's `{{HISTORICAL_CORRECTION_RULE}}` slot only when chat history carries a `correction:` entry. */
+        HISTORICAL_CORRECTION_RULE: string;
+        /** Substituted into protocol_resolver's `{{IDEAL_OUTCOME_CONSTRAINT}}` slot when the latest user msg supplied `userIdealOutcome`. The `{0}` token is replaced with that text. */
+        IDEAL_OUTCOME_CONSTRAINT_TEMPLATE: string;
+    };
     sectionHeaders: {
         START_SCENE: string;
         INPUT_FORMAT: string;
@@ -196,5 +207,13 @@ export interface AppLocale {
         CALIBRATE_MODE_TITLE: string;
         CALIBRATE_CONFIRM: string;
         CALIBRATE_CANCEL: string;
+        IDEAL_OUTCOME_FIELD_LABEL: string;
+        IDEAL_OUTCOME_FIELD_PLACEHOLDER: string;
+        IDEAL_OUTCOME_CHIP_LABEL: string;
+        IDEAL_OUTCOME_CHIP_PREFIX: string;
+        IDEAL_OUTCOME_TOGGLE_TOOLTIP: string;
+        ENGINE_MODE_SINGLE: string;
+        ENGINE_MODE_TWO_CALL: string;
+        ENGINE_MODE_TOGGLE_TOOLTIP: string;
     };
 }

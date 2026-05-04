@@ -5,6 +5,21 @@
             <mat-icon>tune</mat-icon>
             <span>{{ activeProfileName() }}</span>
         </button>
+        <button class="profile-pill engine-mode-pill" [class.two-call]="isTwoCall()"
+            [disabled]="state.status() === 'generating'" (click)="toggleEngineMode()"
+            [matTooltip]="engineModeTooltip()">
+            <span>{{ engineModeLabel() }}</span>
+        </button>
+        @if (isTwoCall()) {
+        <button class="profile-pill ideal-outcome-pill"
+            [class.expanded]="idealOutcomeExpanded()"
+            [class.has-text]="!!userIdealOutcome().trim()"
+            [disabled]="state.status() === 'generating'" (click)="toggleIdealOutcome()"
+            [matTooltip]="idealOutcomeToggleTooltip()">
+            <mat-icon>flag</mat-icon>
+            <span>{{ idealOutcomeChipLabel() }}</span>
+        </button>
+        }
         @if (sys.inPwaWindow()) {
             <span class="status-pill time-pill" aria-label="time">
                 <mat-icon>schedule</mat-icon>
@@ -18,6 +33,16 @@
             }
         }
     </div>
+    @if (isTwoCall() && idealOutcomeExpanded()) {
+    <div class="ideal-outcome-row">
+        <mat-form-field appearance="outline" class="ideal-outcome-field" floatLabel="always">
+            <mat-label>{{ idealOutcomeLabel() }}</mat-label>
+            <textarea matInput rows="1" cdkTextareaAutosize cdkAutosizeMinRows="1" cdkAutosizeMaxRows="3"
+                [(ngModel)]="userIdealOutcome" [placeholder]="idealOutcomePlaceholder()"
+                [disabled]="state.status() === 'generating' || !hasActiveSession()"></textarea>
+        </mat-form-field>
+    </div>
+    }
     <div class="input-wrapper">
 
         <!-- Mobile Menu Trigger -->
@@ -124,11 +149,11 @@
             </mat-select>
         </mat-form-field>
 
-        <mat-form-field appearance="outline" class="main-input">
+        <mat-form-field appearance="outline" class="main-input" floatLabel="always">
             <mat-label>{{ editingMessageId() ? 'Editing Mode. Ctrl+Enter to save.' : (dynamicPlaceholder() || 'Enter
                 your action...')
                 }}</mat-label>
-            <textarea #messageInput matInput cdkTextareaAutosize cdkAutosizeMinRows="1" cdkAutosizeMaxRows="5"
+            <textarea #messageInput matInput rows="1" cdkTextareaAutosize cdkAutosizeMinRows="1" cdkAutosizeMaxRows="5"
                 [(ngModel)]="userInput" (keydown)="onEnter($event)" (focus)="onInteraction()" (click)="onInteraction()"
                 (blur)="onBlur()" [disabled]="state.status() === 'generating' || !hasActiveSession()"
                 [placeholder]="!hasActiveSession() ? 'No active session. Create or select a book.' : ''"></textarea>

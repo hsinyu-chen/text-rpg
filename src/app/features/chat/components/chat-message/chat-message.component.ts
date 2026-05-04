@@ -18,7 +18,7 @@ import { GameEngineService } from '../../../../core/services/game-engine.service
 import { GameStateService } from '../../../../core/services/game-state.service';
 import { TurnUpdateComponent } from '../turn-update/turn-update.component';
 import { GAME_INTENTS } from '../../../../core/constants/game-intents';
-import { getIntentLabels } from '../../../../core/constants/engine-protocol';
+import { getIntentLabels, getUIStrings } from '../../../../core/constants/engine-protocol';
 import { getLocale } from '../../../../core/constants/locales';
 import { computed } from '@angular/core';
 import { KATEX_DELIMITERS, hasKatexDelimiters } from '../../../../core/utils/latex.util';
@@ -77,6 +77,7 @@ export class ChatMessageComponent {
     // Localized strings
     locale = computed(() => getLocale(this.gameState.config()?.outputLanguage));
     intentLabels = computed(() => getIntentLabels(this.gameState.config()?.outputLanguage));
+    idealOutcomeChipPrefix = computed(() => getUIStrings(this.gameState.config()?.outputLanguage).IDEAL_OUTCOME_CHIP_PREFIX);
 
     // Prefill Metrics
     prefillSpeed = computed(() => {

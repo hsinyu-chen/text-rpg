@@ -70,6 +70,23 @@
     margin-right: 4px;
 }
 
+.ideal-outcome-chip {
+    display: inline-block;
+    max-width: 320px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: middle;
+    background: rgba(186, 104, 200, 0.15);
+    color: #ce93d8;
+    border: 1px solid rgba(186, 104, 200, 0.35);
+    padding: 1px 6px;
+    border-radius: 4px;
+    margin-right: 8px;
+    font-size: 10px;
+    letter-spacing: 0.2px;
+}
+
 .intent-tag {
     background: rgba(255, 255, 255, 0.1);
     color: #e0e0e0;

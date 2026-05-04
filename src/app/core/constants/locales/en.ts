@@ -38,6 +38,22 @@ When performing the <Save> command, please only compare and synchronize based on
     promptHoles: {
         LANGUAGE_RULE: "You MUST output ALL content in English. Use vivid, descriptive English prose."
     },
+    enginePromptDirectives: {
+        HISTORICAL_CORRECTION_RULE: `## Historical correction (top priority)
+
+When chat history or stateUpdates summary contains a \`correction:\` entry, treat it as a **hard override** of prior story content:
+- All fields (prose, \`*_log\`, step \`state_changes\` / \`target\`) must align with the correction; on conflict, the correction wins.
+- Declared corrections persist across turns; they do not silently expire.
+- The \`correction\` field is the single source of "reason / rule" — other fields write only the corrected final state, no \`校正\` / calibration markers, no recap of the correction process.`,
+        IDEAL_OUTCOME_CONSTRAINT_TEMPLATE: `## User-declared ideal_outcome (top priority)
+
+The user has declared ideal_outcome as:
+~~~
+{0}
+~~~
+
+**You MUST** judge every step against this and **MUST NOT** infer your own. Echo this value verbatim into the schema's \`ideal_outcome\` field.`
+    },
     sectionHeaders: {
         START_SCENE: '## Start Scene',
         INPUT_FORMAT: '## User Input Format'
@@ -215,6 +231,14 @@ When performing the <Save> command, please only compare and synchronize based on
         CALIBRATE_TOOLTIP: 'Visual Calibration: Select correct text on the left to fix',
         CALIBRATE_MODE_TITLE: '[Visual Calibrating] Select the correct text segment in the left pane:',
         CALIBRATE_CONFIRM: 'Confirm & Apply Fix',
-        CALIBRATE_CANCEL: 'Cancel Calibration'
+        CALIBRATE_CANCEL: 'Cancel Calibration',
+        IDEAL_OUTCOME_FIELD_LABEL: 'Ideal Outcome (optional, 2-call only)',
+        IDEAL_OUTCOME_FIELD_PLACEHOLDER: 'One-line goal for this action sequence. Resolver judges step-by-step and stops at the first step that cannot reach it.',
+        IDEAL_OUTCOME_CHIP_LABEL: 'Ideal Outcome',
+        IDEAL_OUTCOME_CHIP_PREFIX: 'Ideal: ',
+        IDEAL_OUTCOME_TOGGLE_TOOLTIP: 'Show / hide the ideal outcome field',
+        ENGINE_MODE_SINGLE: '1 Call',
+        ENGINE_MODE_TWO_CALL: '2 Call',
+        ENGINE_MODE_TOGGLE_TOOLTIP: 'Toggle engine mode (single call vs resolver + narrator)'
     }
 };

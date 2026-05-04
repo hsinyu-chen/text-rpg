@@ -15,6 +15,7 @@ import { GAME_INTENTS, STORY_INTENTS } from '../../../../core/constants/game-int
 import { getIntentLabels, getIntentDescriptions, getInputPlaceholders } from '../../../../core/constants/engine-protocol';
 import { GameEngineService } from '../../../../core/services/game-engine.service';
 import { GameStateService } from '../../../../core/services/game-state.service';
+import { ConfigService } from '../../../../core/services/config.service';
 import { SessionService } from '../../../../core/services/session.service';
 import { MatDialog } from '@angular/material/dialog';
 import { PayloadDialogComponent } from '../../../../shared/components/payload-dialog/payload-dialog.component';
@@ -56,6 +57,7 @@ export class ChatInputComponent {
     lang = inject(LanguageService);
     sys = inject(SystemStatusService);
     private profileRegistry = inject(PromptProfileRegistryService);
+    private config = inject(ConfigService);
     private matDialog = inject(MatDialog);
     private readonly doc = inject(DOCUMENT);
 
@@ -67,6 +69,20 @@ export class ChatInputComponent {
         return getProfileDisplayName(profile, ui);
     });
 
+    // Engine mode chip — toggles single ⇄ two-call. Two-call is the only mode
+    // that consumes userIdealOutcome, so the field is conditionally shown.
+    isTwoCall = computed(() => this.state.config()?.engineMode === 'two-call');
+    engineModeLabel = computed(() => {
+        const ui = getUIStrings(this.state.config()?.outputLanguage);
+        return this.isTwoCall() ? ui.ENGINE_MODE_TWO_CALL : ui.ENGINE_MODE_SINGLE;
+    });
+    engineModeTooltip = computed(() => getUIStrings(this.state.config()?.outputLanguage).ENGINE_MODE_TOGGLE_TOOLTIP);
+
+    // Ideal outcome field labels
+    idealOutcomeLabel = computed(() => getUIStrings(this.state.config()?.outputLanguage).IDEAL_OUTCOME_FIELD_LABEL);
+    idealOutcomeChipLabel = computed(() => getUIStrings(this.state.config()?.outputLanguage).IDEAL_OUTCOME_CHIP_LABEL);
+    idealOutcomePlaceholder = computed(() => getUIStrings(this.state.config()?.outputLanguage).IDEAL_OUTCOME_FIELD_PLACEHOLDER);
+    idealOutcomeToggleTooltip = computed(() => getUIStrings(this.state.config()?.outputLanguage).IDEAL_OUTCOME_TOGGLE_TOOLTIP);
 
     hasActiveSession = computed(() => !!this.session.currentBookId());
 
@@ -75,8 +91,11 @@ export class ChatInputComponent {
 
     // Inputs/Models
     userInput = model<string>('');
+    userIdealOutcome = model<string>('');
     selectedIntent = model<string>(GAME_INTENTS.ACTION);
     editingMessageId = model<string | null>(null);
+    /** Toggled via the ideal-outcome chip; collapsed by default on both PC and mobile to keep the row visually quiet until the user opts in. */
+    idealOutcomeExpanded = model<boolean>(false);
 
     // Outputs
     messageSent = output<void>();
@@ -194,12 +213,16 @@ export class ChatInputComponent {
         }
 
         const msgContent = this.userInput();
+        const idealOutcome = this.isTwoCall() && (STORY_INTENTS as string[]).includes(intent)
+            ? this.userIdealOutcome().trim() || undefined
+            : undefined;
         console.log('[ChatInput] Calling engine.sendMessage with intent:', intent, 'content:', msgContent.substring(0, 50));
-        this.engine.sendMessage(msgContent, { intent });
+        this.engine.sendMessage(msgContent, { intent, userIdealOutcome: idealOutcome });
         console.log('[ChatInput] engine.sendMessage called, intent was:', intent);
 
         // Reset
         this.userInput.set('');
+        this.userIdealOutcome.set('');
         if (intent === GAME_INTENTS.CONTINUE || intent === GAME_INTENTS.SAVE) {
             this.selectedIntent.set(GAME_INTENTS.ACTION);
             if (isSaveIntent) {
@@ -208,6 +231,15 @@ export class ChatInputComponent {
         }
 
         this.messageSent.emit();
+    }
+
+    async toggleEngineMode(): Promise<void> {
+        const next: 'single' | 'two-call' = this.state.config()?.engineMode === 'two-call' ? 'single' : 'two-call';
+        await this.config.saveConfig({ engineMode: next });
+    }
+
+    toggleIdealOutcome() {
+        this.idealOutcomeExpanded.update(v => !v);
     }
 
     saveProgress() {
@@ -330,10 +362,15 @@ export class ChatInputComponent {
     }
 
     // External API for parent to trigger edit mode
-    startEdit(intent: string, content: string) {
+    startEdit(intent: string, content: string, idealOutcome?: string) {
         this.originalIntentBeforeEdit = this.selectedIntent();
         this.selectedIntent.set(intent);
         this.userInput.set(content);
+        // Rehydrate the user-supplied ideal_outcome so an edit-resend keeps
+        // the constraint instead of silently dropping it (which would put the
+        // resolver back into full-inference mode for that turn).
+        this.userIdealOutcome.set(idealOutcome ?? '');
+        if (idealOutcome) this.idealOutcomeExpanded.set(true);
         this.focusInput();
     }
 

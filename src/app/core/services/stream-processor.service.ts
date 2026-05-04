@@ -22,6 +22,14 @@ export interface StreamProcessResult {
     capturedThoughtSignature?: string;
     finalThought: string;
     finalFinishReason?: string;
+    /**
+     * Tokens occupying the KV cache after the final LLM call of this turn.
+     * In two-call mode `turnUsage.prompt + turnUsage.candidates` sums BOTH
+     * calls — wrong for the post-turn cache view since only the narrator
+     * call's tokens remain. Single-call leaves this undefined; the sidebar
+     * falls back to `prompt + candidates` (which is correct there).
+     */
+    contextTokens?: number;
 }
 
 @Injectable({

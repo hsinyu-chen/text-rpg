@@ -38,6 +38,11 @@
         <div class="msg-meta">
             @if (msg.intent) { <span class="intent-tag" [class.system]="msg.intent === Intents.SYSTEM"
                 [class.save]="msg.intent === Intents.SAVE">{{ getIntentLabel(msg.intent) }}</span> }
+            @if (msg.userIdealOutcome) {
+            <span class="ideal-outcome-chip" [matTooltip]="msg.userIdealOutcome">
+                {{ idealOutcomeChipPrefix() }}{{ msg.userIdealOutcome }}
+            </span>
+            }
             User Action @if (msg.isRefOnly) { <span>(Ref Only)</span> }
         </div>
     </div>

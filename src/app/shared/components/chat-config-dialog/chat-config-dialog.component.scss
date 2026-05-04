@@ -198,6 +198,19 @@ mat-option mat-icon.legacy-profile-warn {
             border-radius: 8px;
             overflow: visible !important;
 
+            // Constrain Material's ripple + focus-indicator layers to the list
+            // item's rounded corners. Without this they inherit the parent's
+            // overflow:visible (kept for the dirty-indicator glow) and the
+            // ripple wave bleeds out into a much larger square halo than the
+            // rounded item. Matching border-radius clips the canvas-based
+            // ripple to the item's actual shape.
+            ::ng-deep .mat-ripple,
+            ::ng-deep .mat-mdc-focus-indicator,
+            ::ng-deep .mdc-list-item__ripple {
+                border-radius: 8px;
+                overflow: hidden;
+            }
+
             &:hover {
                 background: var(--mat-sys-surface-container-highest);
             }
@@ -339,6 +352,12 @@ mat-option mat-icon.legacy-profile-warn {
         box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
         width: 280px;
         min-width: 280px;
+        // PC mode used surface-container-low (subtle next to a flush editor),
+        // but in mobile overlay mode that variable is too transparent — the
+        // editor's text behind the sidebar bled through and visually mixed
+        // with the list. Bump to surface-container (one elevation step up)
+        // so the overlay sits as an opaque sheet over the editor.
+        background: var(--mat-sys-surface-container);
 
         &.collapsed {
             left: -280px;

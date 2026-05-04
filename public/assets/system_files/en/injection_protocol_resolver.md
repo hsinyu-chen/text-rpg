@@ -7,6 +7,8 @@
 
 {{HISTORICAL_CORRECTION_RULE}}
 
+{{IDEAL_OUTCOME_CONSTRAINT}}
+
 ## Output Protocol
 
 Emit JSON matching the resolver schema. Field semantics:
