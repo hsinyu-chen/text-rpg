@@ -12,15 +12,15 @@ import { MatExpansionModule } from '@angular/material/expansion';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSliderModule } from '@angular/material/slider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { GameEngineService } from '../../core/services/game-engine.service';
-import { GameStateService } from '../../core/services/game-state.service';
-import { LLMProviderRegistryService } from '../../core/services/llm-provider-registry.service';
-import { LLMConfigService } from '../../core/services/llm-config.service';
-import { LoadingService } from '../../core/services/loading.service';
-import { SettingsSyncService } from '../../core/services/settings-sync.service';
-import { getLanguagesList } from '../../core/constants/locales';
+import { GameEngineService } from '@app/core/services/game-engine.service';
+import { GameStateService } from '@app/core/services/game-state.service';
+import { LLMProviderRegistryService } from '@app/core/services/llm-provider-registry.service';
+import { LLMConfigService } from '@app/core/services/llm-config.service';
+import { LoadingService } from '@app/core/services/loading.service';
+import { SettingsSyncService } from '@app/core/services/settings-sync.service';
+import { getLanguagesList } from '@app/core/constants/locales';
 import { LLMProfilesDialogComponent } from './llm-profiles-dialog.component';
-import { BridgeService } from '../../core/services/dev/bridge.service';
+import { BridgeService } from '@app/core/services/dev/bridge.service';
 
 @Component({
   selector: 'app-settings-dialog',

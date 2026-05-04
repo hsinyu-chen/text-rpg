@@ -1,5 +1,5 @@
 import { LLMContent } from '@hcs/llm-core';
-import { ChatMessage } from '../../models/types';
+import { ChatMessage } from '@app/core/models/types';
 import { StreamProcessResult } from '../stream-processor.service';
 
 export interface TurnRunInput {

@@ -1,4 +1,4 @@
-import { ResolverOutput, ResolverStep } from '../../constants/engine-protocol-two-call';
+import { ResolverOutput, ResolverStep } from '@app/core/constants/engine-protocol-two-call';
 
 /**
  * Formats a resolver output (full or partial) as a markdown step trace.

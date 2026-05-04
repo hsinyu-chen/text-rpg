@@ -1,4 +1,4 @@
-import { Book, Collection } from '../../models/types';
+import { Book, Collection } from '@app/core/models/types';
 
 /**
  * Returns a fresh Book containing only the fields the current schema

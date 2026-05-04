@@ -1,16 +1,16 @@
 import { Injectable, inject, signal, linkedSignal, computed } from '@angular/core';
 import { Clipboard } from '@angular/cdk/clipboard';
 import { firstValueFrom } from 'rxjs';
-import { GameEngineService } from '../../../../core/services/game-engine.service';
-import { GameStateService } from '../../../../core/services/game-state.service';
-import { DialogService } from '../../../../core/services/dialog.service';
+import { GameEngineService } from '@app/core/services/game-engine.service';
+import { GameStateService } from '@app/core/services/game-state.service';
+import { DialogService } from '@app/core/services/dialog.service';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { FileUpdateService } from '../../../../core/services/file-update.service';
-import { ChatMessage } from '../../../../core/models/types';
-import { AutoUpdateDialogComponent } from '../../../../shared/components/auto-update-dialog/auto-update-dialog.component';
-import { GAME_INTENTS } from '../../../../core/constants/game-intents';
-import { getInputPlaceholders } from '../../../../core/constants/engine-protocol';
+import { FileUpdateService } from '@app/core/services/file-update.service';
+import { ChatMessage } from '@app/core/models/types';
+import { AutoUpdateDialogComponent } from '@app/shared/components/auto-update-dialog/auto-update-dialog.component';
+import { GAME_INTENTS } from '@app/core/constants/game-intents';
+import { getInputPlaceholders } from '@app/core/constants/engine-protocol';
 
 @Injectable()
 export class MessageStateService {

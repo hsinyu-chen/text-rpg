@@ -8,11 +8,11 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { FormsModule } from '@angular/forms';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { FileSystemService } from '../../../core/services/file-system.service';
-import { GoogleDriveService } from '../../../core/services/google-drive.service';
-import { GameEngineService } from '../../../core/services/game-engine.service';
+import { FileSystemService } from '@app/core/services/file-system.service';
+import { GoogleDriveService } from '@app/core/services/google-drive.service';
+import { GameEngineService } from '@app/core/services/game-engine.service';
 
-import { CacheManagerService } from '../../../core/services/cache-manager.service';
+import { CacheManagerService } from '@app/core/services/cache-manager.service';
 import { MonacoEditorComponent } from '../monaco-editor/monaco-editor.component';
 
 export type SyncMode = 'DISK' | 'CLOUD';

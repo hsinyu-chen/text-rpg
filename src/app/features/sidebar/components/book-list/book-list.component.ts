@@ -5,19 +5,19 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatListModule } from '@angular/material/list';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialog } from '@angular/material/dialog';
-import { SessionService } from '../../../../core/services/session.service';
-import { StorageService } from '../../../../core/services/storage.service';
-import { GameEngineService } from '../../../../core/services/game-engine.service';
-import { GameStateService } from '../../../../core/services/game-state.service';
-import { CostService } from '../../../../core/services/cost.service';
-import { LLMProviderRegistryService } from '../../../../core/services/llm-provider-registry.service';
-import { Book, Collection, ROOT_COLLECTION_ID } from '../../../../core/models/types';
-import { DialogService } from '../../../../core/services/dialog.service';
-import { LoadingService } from '../../../../core/services/loading.service';
-import { CollectionService } from '../../../../core/services/collection.service';
-import { SyncService } from '../../../../core/services/sync/sync.service';
-import { SaveNameDialogComponent, SaveNameDialogData } from '../../../../shared/components/save-name-dialog/save-name-dialog.component';
-import { MoveBookDialogComponent, MoveBookDialogData } from '../../../../shared/components/move-book-dialog/move-book-dialog.component';
+import { SessionService } from '@app/core/services/session.service';
+import { StorageService } from '@app/core/services/storage.service';
+import { GameEngineService } from '@app/core/services/game-engine.service';
+import { GameStateService } from '@app/core/services/game-state.service';
+import { CostService } from '@app/core/services/cost.service';
+import { LLMProviderRegistryService } from '@app/core/services/llm-provider-registry.service';
+import { Book, Collection, ROOT_COLLECTION_ID } from '@app/core/models/types';
+import { DialogService } from '@app/core/services/dialog.service';
+import { LoadingService } from '@app/core/services/loading.service';
+import { CollectionService } from '@app/core/services/collection.service';
+import { SyncService } from '@app/core/services/sync/sync.service';
+import { SaveNameDialogComponent, SaveNameDialogData } from '@app/shared/components/save-name-dialog/save-name-dialog.component';
+import { MoveBookDialogComponent, MoveBookDialogData } from '@app/shared/components/move-book-dialog/move-book-dialog.component';
 import { firstValueFrom } from 'rxjs';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatDividerModule } from '@angular/material/divider';
@@ -668,7 +668,7 @@ export class BookListComponent {
             return;
         }
         const { AdvancedSyncToolsDialogComponent } = await import(
-            '../../../../shared/components/advanced-sync-tools-dialog/advanced-sync-tools-dialog.component'
+            '@app/shared/components/advanced-sync-tools-dialog/advanced-sync-tools-dialog.component'
         );
         const ref = this.matDialog.open(AdvancedSyncToolsDialogComponent, {
             width: '720px',

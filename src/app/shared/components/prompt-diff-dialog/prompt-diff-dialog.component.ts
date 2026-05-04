@@ -4,8 +4,8 @@ import { MatDialogModule, MAT_DIALOG_DATA, MatDialogRef } from '@angular/materia
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MonacoEditorComponent } from '../monaco-editor/monaco-editor.component';
-import { GameStateService } from '../../../core/services/game-state.service';
-import { getUIStrings } from '../../../core/constants/engine-protocol';
+import { GameStateService } from '@app/core/services/game-state.service';
+import { getUIStrings } from '@app/core/constants/engine-protocol';
 import { FormsModule } from '@angular/forms';
 
 export interface PromptDiffDialogData {

@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatDialogModule } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
-import { SyncProviderConfigComponent } from '../../core/services/sync/components/sync-provider-config.component';
+import { SyncProviderConfigComponent } from '@app/core/services/sync/components/sync-provider-config.component';
 
 @Component({
     selector: 'app-sync-provider-dialog',

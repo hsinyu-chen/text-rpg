@@ -5,9 +5,9 @@ import { GameEngineService } from '../game-engine.service';
 import { InjectionService } from '../injection.service';
 import { PromptProfileRegistryService } from '../prompt-profile-registry.service';
 import { ConfigService } from '../config.service';
-import { GAME_INTENTS } from '../../constants/game-intents';
-import { ChatMessage } from '../../models/types';
-import { WINDOW } from '../../tokens/window.token';
+import { GAME_INTENTS } from '@app/core/constants/game-intents';
+import { ChatMessage } from '@app/core/models/types';
+import { WINDOW } from '@app/core/tokens/window.token';
 import { isSystemMainCompatible } from '../profile-compat';
 
 /**

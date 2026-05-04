@@ -1,5 +1,5 @@
 import { Component, inject, signal, computed, viewChild } from '@angular/core';
-import { WINDOW } from '../../../core/tokens/window.token';
+import { WINDOW } from '@app/core/tokens/window.token';
 import { CommonModule } from '@angular/common';
 import { MatDialogModule, MatDialogRef, MatDialog } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -11,20 +11,20 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatDividerModule } from '@angular/material/divider';
 import { FormsModule } from '@angular/forms';
 import { MonacoEditorComponent } from '../monaco-editor/monaco-editor.component';
-import { GameStateService } from '../../../core/services/game-state.service';
+import { GameStateService } from '@app/core/services/game-state.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { getUIStrings, getIntentLabels } from '../../../core/constants/engine-protocol';
-import { PostProcessorService } from '../../../core/services/post-processor.service';
-import { InjectionService, PromptType } from '../../../core/services/injection.service';
-import { PromptProfileRegistryService } from '../../../core/services/prompt-profile-registry.service';
-import { SyncService } from '../../../core/services/sync/sync.service';
-import { DiskProfileSyncService } from '../../../core/services/sync/disk-profile-sync.service';
-import { LoadingService } from '../../../core/services/loading.service';
-import { DialogService } from '../../../core/services/dialog.service';
+import { getUIStrings, getIntentLabels } from '@app/core/constants/engine-protocol';
+import { PostProcessorService } from '@app/core/services/post-processor.service';
+import { InjectionService, PromptType } from '@app/core/services/injection.service';
+import { PromptProfileRegistryService } from '@app/core/services/prompt-profile-registry.service';
+import { SyncService } from '@app/core/services/sync/sync.service';
+import { DiskProfileSyncService } from '@app/core/services/sync/disk-profile-sync.service';
+import { LoadingService } from '@app/core/services/loading.service';
+import { DialogService } from '@app/core/services/dialog.service';
 import { PromptDiffDialogComponent } from '../prompt-diff-dialog/prompt-diff-dialog.component';
 import { MatBadgeModule } from '@angular/material/badge';
-import { DEFAULT_PROFILE_ID, PromptProfile, getProfileDisplayName } from '../../../core/constants/prompt-profiles';
-import { isSystemMainCompatible } from '../../../core/services/profile-compat';
+import { DEFAULT_PROFILE_ID, PromptProfile, getProfileDisplayName } from '@app/core/constants/prompt-profiles';
+import { isSystemMainCompatible } from '@app/core/services/profile-compat';
 
 interface InjectionType {
     id: 'action' | 'continue' | 'fastforward' | 'system' | 'save' | 'postprocess' | 'system_main' | 'protocol_single' | 'protocol_resolver' | 'protocol_narrator';

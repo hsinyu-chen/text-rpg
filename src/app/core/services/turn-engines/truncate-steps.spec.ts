@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { truncateAtFirstBroken } from './truncate-steps';
-import type { ResolverStep } from '../../constants/engine-protocol-two-call';
+import type { ResolverStep } from '@app/core/constants/engine-protocol-two-call';
 
 function step(overrides: Partial<ResolverStep> = {}): ResolverStep {
     return {

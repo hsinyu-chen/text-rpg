@@ -1,12 +1,12 @@
 import { Injectable, DestroyRef, inject, signal, computed, effect } from '@angular/core';
 import { DOCUMENT } from '@angular/common';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { WINDOW } from '../../tokens/window.token';
+import { WINDOW } from '@app/core/tokens/window.token';
 import { StorageService } from '../storage.service';
 import { SessionService } from '../session.service';
 import { CollectionService } from '../collection.service';
 import { GameStateService } from '../game-state.service';
-import { Book, Collection, ROOT_COLLECTION_ID } from '../../models/types';
+import { Book, Collection, ROOT_COLLECTION_ID } from '@app/core/models/types';
 import { GDriveSyncBackend } from './gdrive-sync-backend';
 import type { S3SyncBackend } from './s3-sync-backend';
 import { FileSyncBackend } from './file-sync-backend';
@@ -16,7 +16,7 @@ import {
     SnapshotTrigger
 } from './sync.types';
 import { cleanBookForSync, cleanCollectionForSync } from './clean.util';
-import { BUILT_IN_PROFILES, getProfileScopedKey, USER_PROFILE_ID_PREFIX } from '../../constants/prompt-profiles';
+import { BUILT_IN_PROFILES, getProfileScopedKey, USER_PROFILE_ID_PREFIX } from '@app/core/constants/prompt-profiles';
 import { PromptProfileRegistryService } from '../prompt-profile-registry.service';
 import { ALL_PROMPT_TYPES, type PromptType } from '../injection.service';
 

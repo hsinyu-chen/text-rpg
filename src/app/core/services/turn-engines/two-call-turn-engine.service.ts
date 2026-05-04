@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { LLMUsageMetadata } from '@hcs/llm-core';
 import { ContextBuilderService } from '../context-builder.service';
 import { StreamProcessResult } from '../stream-processor.service';
-import { ChatMessage } from '../../models/types';
+import { ChatMessage } from '@app/core/models/types';
 import { TurnEngine, TurnRunInput } from './turn-engine.interface';
 import { TwoCallOrchestratorService } from './two-call-orchestrator.service';
 import { truncateAtFirstBroken } from './truncate-steps';

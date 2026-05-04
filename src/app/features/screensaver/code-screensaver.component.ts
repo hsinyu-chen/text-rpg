@@ -1,7 +1,7 @@
 import { Component, ElementRef, inject, afterNextRender, DestroyRef, viewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { MonacoLoaderService } from '../../core/services/monaco-loader.service';
-import { IdleService } from '../../core/services/idle.service';
+import { MonacoLoaderService } from '@app/core/services/monaco-loader.service';
+import { IdleService } from '@app/core/services/idle.service';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import * as monaco from 'monaco-editor';

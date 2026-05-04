@@ -1,5 +1,5 @@
 import { Component, inject, signal, computed, viewChild, effect, resource, OnDestroy } from '@angular/core';
-import { WINDOW } from '../../core/tokens/window.token';
+import { WINDOW } from '@app/core/tokens/window.token';
 import { CommonModule } from '@angular/common';
 import { firstValueFrom } from 'rxjs';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -10,18 +10,18 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatInputModule } from '@angular/material/input';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { FormsModule } from '@angular/forms';
-import { MonacoEditorComponent } from '../../shared/components/monaco-editor/monaco-editor.component';
-import { GameEngineService } from '../../core/services/game-engine.service';
+import { MonacoEditorComponent } from '@app/shared/components/monaco-editor/monaco-editor.component';
+import { GameEngineService } from '@app/core/services/game-engine.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
+import { ConfirmDialogComponent } from '@app/shared/components/confirm-dialog/confirm-dialog.component';
 import { MatDialog } from '@angular/material/dialog';
-import { GameStateService } from '../../core/services/game-state.service';
-import { CacheManagerService } from '../../core/services/cache-manager.service';
-import { FileAgentService } from '../../core/services/file-agent/file-agent.service';
-import { WorldCompletionValidator } from '../../core/services/file-agent/world-completion-validator';
-import { AgentConsoleComponent } from '../../shared/components/agent-console/agent-console.component';
-import { SessionService } from '../../core/services/session.service';
-import { findAtxHeadings } from '../../core/utils/markdown.util';
+import { GameStateService } from '@app/core/services/game-state.service';
+import { CacheManagerService } from '@app/core/services/cache-manager.service';
+import { FileAgentService } from '@app/core/services/file-agent/file-agent.service';
+import { WorldCompletionValidator } from '@app/core/services/file-agent/world-completion-validator';
+import { AgentConsoleComponent } from '@app/shared/components/agent-console/agent-console.component';
+import { SessionService } from '@app/core/services/session.service';
+import { findAtxHeadings } from '@app/core/utils/markdown.util';
 
 /** Dialog data interface for multi-file viewer */
 export interface FileViewerDialogData {

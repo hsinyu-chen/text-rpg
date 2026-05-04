@@ -12,7 +12,7 @@ import {
     forwardRef
 } from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
-import { MonacoLoaderService } from '../../../core/services/monaco-loader.service';
+import { MonacoLoaderService } from '@app/core/services/monaco-loader.service';
 
 const DEFAULT_OPTIONS = {
     theme: 'vs-dark',
