@@ -6,7 +6,6 @@ import { GameStateService } from './game-state.service';
 import { LLMProviderRegistryService } from './llm-provider-registry.service';
 import { CostService } from './cost.service';
 import { KnowledgeService } from './knowledge.service';
-import { ChatHistoryService } from './chat-history.service';
 import type { LLMCacheInfo, LLMProvider, LLMProviderCapabilities } from '@hcs/llm-core';
 
 interface FakeProviderOpts {
@@ -76,8 +75,7 @@ describe('CacheManagerService.checkCacheAndRefresh', () => {
                 CostService,
                 KnowledgeService,
                 { provide: GameStateService, useValue: fakeState },
-                { provide: LLMProviderRegistryService, useValue: { getActive: () => null, getActiveConfig: () => ({}) } },
-                { provide: ChatHistoryService, useValue: { recordSunkUsage: () => undefined } }
+                { provide: LLMProviderRegistryService, useValue: { getActive: () => null, getActiveConfig: () => ({}) } }
             ]
         });
         svc = TestBed.inject(CacheManagerService);

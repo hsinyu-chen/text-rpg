@@ -70,12 +70,14 @@ export class CacheManagerService {
     }
 
     /**
-     * Transfer the in-flight storage cost accumulator into the historical
-     * tally, then zero it. Called from every path that retires a cache —
-     * lifecycle methods (cleanup/release/clearAll), the per-turn refresh's
-     * three null-out branches (staleness, proactive, leftover), AND the
-     * session-expiry reset. Without this, accumulated cost from a now-
-     * defunct cache is silently dropped.
+     * Retire the active cache's storage tracking: transfer the in-flight
+     * accumulator into the historical tally, zero it, and stop the timer.
+     * Called from every path that retires a cache — lifecycle methods
+     * (cleanup/release/clearAll), the per-turn refresh's three null-out
+     * branches (staleness, proactive, leftover), AND the session-expiry
+     * reset. Stopping the timer inline (rather than at each callsite)
+     * prevents the timer from continuing to bill against a now-dead cache
+     * during the async recovery window in checkCacheAndRefresh.
      */
     private finalizeStorageUsage(): void {
         const currentAcc = this.state.storageUsageAccumulated();
@@ -83,6 +85,7 @@ export class CacheManagerService {
             this.state.historyStorageUsageAccumulated.update(v => v + currentAcc);
             this.state.storageUsageAccumulated.set(0);
         }
+        this.stopStorageTimer();
     }
 
     /** Config for the active provider — monorepo providers require it on every call. */
@@ -157,7 +160,7 @@ export class CacheManagerService {
                 console.log('[CacheManager] Validating remote cache:', cacheName);
 
                 // Check Hash first
-                if (storedHash && currentHash !== storedHash) {
+                if (currentHash !== storedHash) {
                     console.log('[CacheManager] Cache hash mismatch (Stale). Deleting stale cache...');
                     // Server-side delete + cost-side acc transfer happen in-place.
                     // State mutation (kbCacheXxx) is conveyed via the result —
@@ -242,15 +245,13 @@ export class CacheManagerService {
                         // that needs the parts shape (createCache contents).
                         // Validation path skips this entirely.
                         kbParts ??= this.kb.buildKnowledgeBaseParts(input.loadedFiles);
-                        const fileParts = kbParts;
-                        const newHash = currentHash;
                         let cacheRes: LLMCacheInfo | null = null;
                         if (input.provider.createCache) {
                             cacheRes = await input.provider.createCache(
                                 input.providerConfig,
                                 input.modelId,
                                 input.systemInstruction,
-                                [{ role: 'user', parts: fileParts }],
+                                [{ role: 'user', parts: kbParts }],
                                 ttlSeconds
                             );
                         }
@@ -269,7 +270,7 @@ export class CacheManagerService {
                             resultExpireTime = isNaN(parsed)
                                 ? (Date.now() + ttlSeconds * 1000)
                                 : parsed;
-                            resultHash = newHash;
+                            resultHash = currentHash;
                             resultTokens = cacheRes.usageMetadata?.totalTokenCount || 0;
 
                             // Surface tokens for caller to record as sunk usage,
@@ -355,7 +356,6 @@ export class CacheManagerService {
             this.state.kbCacheExpireTime.set(null);
             this.state.kbCacheHash.set(null);
             this.state.kbCacheTokens.set(0);
-            this.stopStorageTimer();
         }
     }
 
@@ -379,7 +379,6 @@ export class CacheManagerService {
             this.state.kbCacheExpireTime.set(null);
             this.state.kbCacheHash.set(null);
             this.state.kbCacheTokens.set(0);
-            this.stopStorageTimer();
 
             // One-time cleanup of legacy localStorage keys
             localStorage.removeItem('storage_cost_acc');
@@ -419,7 +418,6 @@ export class CacheManagerService {
         this.state.kbCacheExpireTime.set(null);
         this.state.kbCacheHash.set(null);
         this.state.kbCacheTokens.set(0);
-        this.stopStorageTimer();
 
         console.log('[CacheManager] Cache released successfully.');
     }
@@ -434,6 +432,5 @@ export class CacheManagerService {
         this.state.kbCacheExpireTime.set(null);
         this.state.kbCacheHash.set(null);
         this.state.kbCacheTokens.set(0);
-        this.stopStorageTimer();
     }
 }
