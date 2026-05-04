@@ -51,22 +51,28 @@ export class SidebarCostPredictionComponent {
     });
 
     // Tokens currently occupying the KV cache after the most recent turn.
-    // Prefer the engine-reported `contextTokens` on the latest model message —
-    // in two-call mode, `usage.prompt + usage.candidates` is the SUM of both
-    // calls (resolver + narrator) but only the narrator-call's tokens remain
-    // in cache after the turn. Single-call doesn't set contextTokens; the
-    // fallback `prompt + candidates` is correct there.
+    //
+    // Preference order on the latest non-ref-only model message:
+    //   1. `contextTokens` — set post-commit. In 2-call mode this is the
+    //      narrator-only view, NOT the cost-billable resolver+narrator sum.
+    //   2. `usage.prompt + usage.candidates` — set in real time during the
+    //      stream. In 2-call this tracks resolver-only running totals during
+    //      the resolver phase, then narrator-only during the narrator phase
+    //      (each phase resets its own accumulator).
+    //   3. Walk further back if neither field is present yet — happens when
+    //      the engine pushed an empty placeholder model message before the
+    //      provider's first usage chunk arrived. Falling back to `kbCacheTokens`
+    //      or to `state.lastTurnUsage` would render the bar at the prior turn's
+    //      COMBINED total during streaming, which looks like the bar doubled.
     contextUsed = computed<number>(() => {
         const messages = this.state.messages();
         for (let i = messages.length - 1; i >= 0; i--) {
             const m = messages[i];
             if (m.role !== 'model' || m.isRefOnly) continue;
             if (m.contextTokens != null) return m.contextTokens;
-            break;
+            if (m.usage) return (m.usage.prompt || 0) + (m.usage.candidates || 0);
         }
-        const turn = this.computedLastTurnUsage();
-        if (!turn) return this.state.kbCacheTokens();
-        return turn.prompt + turn.candidates;
+        return this.state.kbCacheTokens();
     });
 
     contextUsagePercent = computed<number>(() => {
