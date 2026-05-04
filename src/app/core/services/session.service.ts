@@ -563,7 +563,12 @@ export class SessionService {
                 if (stats.kbCacheHash) this.state.kbCacheHash.set(stats.kbCacheHash);
                 const restoredTotal = stats.estimatedKbTokens || Array.from(tokensMap.values()).reduce((a, b) => a + b, 0);
                 this.state.estimatedKbTokens.set(restoredTotal);
-                this.cacheManager.startStorageTimer();
+                this.cacheManager.startStorageTimer({
+                    tokens: stats.kbCacheTokens,
+                    expireTime: stats.kbCacheExpireTime ?? null,
+                    modelId: this.state.config()?.modelId || this.provider.getDefaultModelId(),
+                    cacheName: stats.kbCacheName
+                });
             } else {
                 this.cacheManager.resetCacheState();
             }
@@ -899,7 +904,10 @@ export class SessionService {
         const currentHash = this.state.currentKbHash();
         if (this.state.kbCacheHash() !== currentHash) {
             console.log('[SessionService] KB Content changed through single update. Invalidating remote state.');
-            this.state.kbCacheName.set(null);
+            // cleanupCache (not resetCacheState) so the now-stale cache is
+            // also deleted server-side. Otherwise the orphan keeps billing
+            // for the rest of its TTL while we generate a fresh one next turn.
+            await this.cacheManager.cleanupCache();
             this.state.kbCacheHash.set(currentHash);
 
             // Also re-calculate total estimated tokens
@@ -984,7 +992,7 @@ export class SessionService {
             if (hasKbContent) {
                 if (this.state.kbCacheHash() !== currentHash) {
                     console.log('[SessionService] KB Content changed. Invalidating remote state.');
-                    this.state.kbCacheName.set(null);
+                    await this.cacheManager.cleanupCache();
                     this.state.kbCacheHash.set(currentHash);
                 }
 
