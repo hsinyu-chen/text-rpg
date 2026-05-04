@@ -150,10 +150,14 @@ export class CacheManagerService {
         const ttlSeconds = 1800; // 30 minutes
 
         let validationSuccess = false;
-        let resultCacheName: string | null = cacheName;
-        let resultExpireTime: number | null = input.currentCacheExpireTime;
-        let resultHash: string | null = input.currentCacheHash;
-        let resultTokens = input.currentCacheTokens;
+        // When caching is off, the result starts cleared — no path below
+        // resets these fields when !useCache && !cacheName, and we don't
+        // want a previously-active cache's stale hash/tokens to ride
+        // through and get re-committed by the caller.
+        let resultCacheName: string | null = useCache ? cacheName : null;
+        let resultExpireTime: number | null = useCache ? input.currentCacheExpireTime : null;
+        let resultHash: string | null = useCache ? input.currentCacheHash : null;
+        let resultTokens = useCache ? input.currentCacheTokens : 0;
         let sunkUsageTokens = 0;
 
         // Hash for staleness check + new-cache storage comes pre-computed
@@ -176,20 +180,24 @@ export class CacheManagerService {
                 // Check Hash first
                 if (currentHash !== storedHash) {
                     console.log('[CacheManager] Cache hash mismatch (Stale). Deleting stale cache...');
-                    // finalize FIRST so the storage timer stops immediately —
-                    // billing during the deleteCache network round-trip would
-                    // be against an already-retired cache. State mutation
-                    // (kbCacheXxx) is conveyed via the result — caller commits
-                    // null/0 below if recovery doesn't overwrite.
+                    // Stop billing + clear the result first so we're committed
+                    // to retiring this cache regardless of what the network
+                    // does next. If deleteCache throws (network blip), recovery
+                    // can still rebuild — losing one orphan server-side cache
+                    // is far better than blocking the turn.
                     this.finalizeStorageUsage();
-                    if (input.provider.deleteCache) {
-                        await input.provider.deleteCache(input.providerConfig, cacheName);
-                    }
                     resultCacheName = null;
                     resultExpireTime = null;
                     resultHash = null;
                     resultTokens = 0;
                     validationSuccess = false; // Force rebuild
+                    if (input.provider.deleteCache) {
+                        try {
+                            await input.provider.deleteCache(input.providerConfig, cacheName);
+                        } catch (err) {
+                            console.warn('[CacheManager] Failed to delete stale cache (continuing to recovery):', err);
+                        }
+                    }
                 } else {
                     const cacheStatus = await input.provider.getCache(input.providerConfig, cacheName);
                     if (cacheStatus) {
@@ -366,8 +374,15 @@ export class CacheManagerService {
 
             this.finalizeStorageUsage();
 
-            if (this.provider.deleteCache) {
-                await this.provider.deleteCache(this.providerConfig, this.state.kbCacheName()!);
+            // Don't let a network blip on deleteCache leave local signals
+            // pointing at a cache that's already been written off in cost.
+            // Same pattern releaseCache uses below.
+            try {
+                if (this.provider.deleteCache) {
+                    await this.provider.deleteCache(this.providerConfig, this.state.kbCacheName()!);
+                }
+            } catch (err) {
+                console.error('[CacheManager] Failed to delete cache from server:', err);
             }
             this.clearLocalCacheSignals();
         }
