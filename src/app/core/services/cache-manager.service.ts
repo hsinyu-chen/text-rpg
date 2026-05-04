@@ -144,7 +144,6 @@ export class CacheManagerService {
                         this.state.historyStorageUsageAccumulated.update(v => v + currentAcc);
                         this.state.storageUsageAccumulated.set(0);
                     }
-                    this.stopStorageTimer();
                     resultCacheName = null;
                     resultExpireTime = null;
                     resultHash = null;
@@ -256,8 +255,8 @@ export class CacheManagerService {
         // 3. Final failure check
         if (!validationSuccess) {
             console.error('[CacheManager] KB context lost and cannot be recovered.');
-            // Caller will see SESSION_EXPIRED and won't commit any result.
-            // Caller is responsible for setting kbCacheName=null on this path.
+            // Caller catches and clears all four kbCache signals — see
+            // game-engine.sendMessage's catch block.
             throw new Error('SESSION_EXPIRED');
         }
 
@@ -274,7 +273,6 @@ export class CacheManagerService {
                 resultExpireTime = null;
                 resultHash = null;
                 resultTokens = 0;
-                this.stopStorageTimer();
             }
         } catch (cleanupErr) {
             console.warn('[CacheManager] Non-critical cleanup error during mode switch:', cleanupErr);

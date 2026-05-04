@@ -452,8 +452,6 @@ export class GameEngineService {
                 currentCacheExpireTime: this.state.kbCacheExpireTime()
             });
 
-            // Commit the result. Service no longer mutates state.kbCacheXxx —
-            // the four lines below are the only writers on the success path.
             this.state.kbCacheName.set(cacheResult.cacheName);
             this.state.kbCacheExpireTime.set(cacheResult.expireTime);
             this.state.kbCacheHash.set(cacheResult.hash);
@@ -463,20 +461,22 @@ export class GameEngineService {
                 this.chatHistory.recordSunkUsage(cacheResult.sunkUsageTokens, 0, 0);
             }
 
-            // Storage cost timer follows the cache lifecycle: start when a
-            // cache is registered, stop otherwise. Service-side
-            // start/stopStorageTimer reads state, so they must run after
-            // the writes above.
+            // Storage cost timer reads the cache state we just wrote, so
+            // it must run after the four .set() calls above.
             if (cacheResult.cacheName) {
                 this.cacheManager.startStorageTimer();
             } else {
                 this.cacheManager.stopStorageTimer();
             }
         } catch (e: unknown) {
-            // SESSION_EXPIRED path: service threw without committing a result,
-            // so caller is responsible for clearing kbCacheName here.
-            if (e instanceof Error && e.message === 'SESSION_EXPIRED') {
+            const sessionExpired = e instanceof Error && e.message === 'SESSION_EXPIRED';
+            if (sessionExpired) {
+                // Service threw without committing a result; null everything so
+                // the next turn's recovery path starts from a clean slate.
                 this.state.kbCacheName.set(null);
+                this.state.kbCacheExpireTime.set(null);
+                this.state.kbCacheHash.set(null);
+                this.state.kbCacheTokens.set(0);
             }
             // If we just auto-switched profiles, fold that note into the
             // error message so the user understands the silent state change
@@ -484,7 +484,7 @@ export class GameEngineService {
             const lang = this.state.config()?.outputLanguage;
             const ui = getUIStrings(lang);
             const autoswitchPrefix = switchedFromLegacy ? `${ui.LEGACY_PROFILE_AUTOSWITCH}\n\n` : '';
-            if (e instanceof Error && e.message === 'SESSION_EXPIRED') {
+            if (sessionExpired) {
                 this.snackBar.open(autoswitchPrefix + 'Session Expired: Please reload your Knowledge Base folder to continue.', 'Close', {
                     duration: 10000,
                     panelClass: ['snackbar-error']

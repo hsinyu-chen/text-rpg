@@ -168,9 +168,9 @@ describe('CacheManagerService.checkCacheAndRefresh', () => {
         it('deletes stale cache, then creates a fresh one — both surfacing in the result', async () => {
             const deleteCalls: string[] = [];
             const provider = makeFakeProvider({
-                // The staleness branch only fires when provider.getCache is
-                // defined (the validation block is gated on it). We define
-                // it here even though it won't be reached on this path.
+                // Hash-mismatch detection lives inside the validation block
+                // that's gated on provider.getCache. Define it here even
+                // though the staleness short-circuits before it's called.
                 getCache: async () => null,
                 createCache: async () => ({
                     name: 'fresh-xyz', displayName: 'fresh-xyz', model: 'm1',
