@@ -69,8 +69,10 @@ describe('parseMarkdownOutline', () => {
     expect(parseMarkdownOutline('a.md', '##nospace')).toEqual([]);
   });
 
-  it('rejects empty-body ATX (regex requires body chars)', () => {
-    expect(parseMarkdownOutline('a.md', '## ')).toEqual([]);
+  it('accepts empty-body ATX (templates rely on bare `### ` placeholders)', () => {
+    expect(parseMarkdownOutline('a.md', '## ')).toEqual([
+      { level: 2, text: '', lineNumber: 1 },
+    ]);
   });
 });
 

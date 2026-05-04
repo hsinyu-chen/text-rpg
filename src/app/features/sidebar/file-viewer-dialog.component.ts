@@ -21,6 +21,7 @@ import { FileAgentService } from '../../core/services/file-agent/file-agent.serv
 import { WorldCompletionValidator } from '../../core/services/file-agent/world-completion-validator';
 import { AgentConsoleComponent } from '../../shared/components/agent-console/agent-console.component';
 import { SessionService } from '../../core/services/session.service';
+import { findAtxHeadings } from '../../core/utils/markdown.util';
 
 /** Dialog data interface for multi-file viewer */
 export interface FileViewerDialogData {
@@ -160,19 +161,11 @@ export class FileViewerDialogComponent implements OnDestroy {
     const active = this.activeFile();
     if (!active.endsWith('.md')) return [];
 
-    const headers: MarkdownHeader[] = [];
-    const lines = content.split('\n');
-    lines.forEach((line, index) => {
-      const match = line.trimEnd().match(/^(#{1,6})\s+(.+)$/);
-      if (match) {
-        headers.push({
-          level: match[1].length,
-          text: match[2].trim(),
-          lineNumber: index + 1
-        });
-      }
-    });
-    return headers;
+    return findAtxHeadings(content.split('\n')).map(h => ({
+      level: h.level,
+      text: h.text,
+      lineNumber: h.index + 1,
+    } as MarkdownHeader));
   });
 
   // Monaco editor options - always allowing editing now

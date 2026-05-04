@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { FileSystemService } from './file-system.service';
 import { getCoreFilenames } from '../constants/engine-protocol';
 import { LOCALES } from '../constants/locales';
-import { computeFencedLineMask } from '../utils/markdown-fence.util';
+import { computeFencedLineMask, parseAtxHeading } from '../utils/markdown.util';
 
 export interface FileUpdate {
     filePath: string;
@@ -357,17 +357,13 @@ export class FileUpdateService {
 
         for (let i = start; i >= 0; i--) {
             if (fencedMask[i]) continue;
-            const line = lines[i].trim();
-            const match = line.match(/^(#+)\s*(.*)/);
-            if (match) {
-                const level = match[1].length;
-                if (level < currentLevel) {
-                    crumbs.unshift(line); // Keep the full header line including hashes
-                    currentLevel = level;
-                    
-                    // If we reached a top-level header (#), we stop as we found the complete path
-                    if (level === 1) break;
-                }
+            const heading = parseAtxHeading(lines[i]);
+            if (heading && heading.level < currentLevel) {
+                crumbs.unshift(lines[i].trim()); // Keep the full header line including hashes
+                currentLevel = heading.level;
+
+                // If we reached a top-level header (#), we stop as we found the complete path
+                if (heading.level === 1) break;
             }
         }
 
@@ -587,9 +583,9 @@ export class FileUpdateService {
 
             for (let i = currentLine; i < lines.length; i++) {
                 const line = lines[i].trim();
-                const lineHeaderMatch = line.match(/^(#+)\s*(.*)/);
-                const isLineHeader = !!lineHeaderMatch;
-                const lineText = isLineHeader ? lineHeaderMatch![2] : line;
+                const lineHeading = parseAtxHeading(lines[i]);
+                const isLineHeader = !!lineHeading;
+                const lineText = lineHeading ? lineHeading.text : line;
                 const normalizedLine = this.normalizeForComparison(lineText);
 
                 if (normalizedLine.includes(normalizedCrumb)) {
@@ -620,18 +616,13 @@ export class FileUpdateService {
         if (!anyFound) return -1;
 
         // Find end of section: next header of <= current level
-        const headerLine = lines[currentLine - 1];
-        const headerLevelMatch = headerLine.match(/^(#+)/);
-        const currentLevel = headerLevelMatch ? headerLevelMatch[1].length : 0;
+        const headerHeading = parseAtxHeading(lines[currentLine - 1]);
+        const currentLevel = headerHeading ? headerHeading.level : 0;
 
         for (let i = currentLine; i < lines.length; i++) {
-            const line = lines[i].trim();
-            const nextHeaderMatch = line.match(/^(#+)/);
-            if (nextHeaderMatch) {
-                const nextLevel = nextHeaderMatch[1].length;
-                if (nextLevel <= currentLevel) {
-                    return i;
-                }
+            const nextHeading = parseAtxHeading(lines[i]);
+            if (nextHeading && nextHeading.level <= currentLevel) {
+                return i;
             }
         }
 
@@ -659,9 +650,9 @@ export class FileUpdateService {
             let found = -1;
             for (let i = currentLine; i < lines.length; i++) {
                 const line = lines[i].trim();
-                const lineHeaderMatch = !fencedMask[i] ? line.match(/^(#+)\s*(.*)/) : null;
-                const isLineHeader = !!lineHeaderMatch;
-                const lineText = isLineHeader ? lineHeaderMatch![2] : line;
+                const lineHeading = !fencedMask[i] ? parseAtxHeading(lines[i]) : null;
+                const isLineHeader = !!lineHeading;
+                const lineText = lineHeading ? lineHeading.text : line;
                 const normalizedLine = this.normalizeForComparison(lineText);
 
                 if (normalizedLine.includes(normalizedCrumb)) {
@@ -696,9 +687,9 @@ export class FileUpdateService {
 
             for (let i = currentIdx - 1; i >= 0; i--) {
                 const line = lines[i].trim();
-                const lineHeaderMatch = !fencedMask[i] ? line.match(/^(#+)\s*(.*)/) : null;
-                const isLineHeader = !!lineHeaderMatch;
-                const lineText = isLineHeader ? lineHeaderMatch![2] : line;
+                const lineHeading = !fencedMask[i] ? parseAtxHeading(lines[i]) : null;
+                const isLineHeader = !!lineHeading;
+                const lineText = lineHeading ? lineHeading.text : line;
                 const normalizedLine = this.normalizeForComparison(lineText);
 
                 if (normalizedLine.includes(normalizedCrumb)) {

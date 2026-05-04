@@ -1,5 +1,5 @@
 import { MarkdownHeader } from '../../../features/sidebar/file-viewer-dialog.component';
-import { computeFencedLineMask } from '../../utils/markdown-fence.util';
+import { findAtxHeadings } from '../../utils/markdown.util';
 
 export interface SectionBounds {
   startLine: number;
@@ -13,28 +13,10 @@ export type SectionResolution =
   | { kind: 'none' }
   | { kind: 'ambiguous', matches: SectionBounds[] };
 
-interface HeadingHit {
-  index: number;
-  level: number;
-  text: string;
-}
-
-/** Scan ATX headings, skipping fenced code blocks so `# foo` inside ``` doesn't count. */
-function findHeadingLines(lines: string[]): HeadingHit[] {
-  const fencedMask = computeFencedLineMask(lines);
-  const out: HeadingHit[] = [];
-  for (let i = 0; i < lines.length; i++) {
-    if (fencedMask[i]) continue;
-    const hm = lines[i].trimEnd().match(/^(#{1,6})\s+(.+)$/);
-    if (hm) out.push({ index: i, level: hm[1].length, text: hm[2].trim() });
-  }
-  return out;
-}
-
 export function parseMarkdownOutline(fileName: string, content: string): MarkdownHeader[] {
   if (!fileName || !fileName.endsWith('.md') || !content) return [];
   const lines = content.split('\n');
-  return findHeadingLines(lines).map(h => ({
+  return findAtxHeadings(lines).map(h => ({
     level: h.level,
     text: h.text,
     lineNumber: h.index + 1
@@ -54,7 +36,7 @@ export function findMarkdownSections(content: string, pathStr: string): SectionB
   if (path.length === 0) return [];
 
   const lines = content.split('\n');
-  const headings = findHeadingLines(lines);
+  const headings = findAtxHeadings(lines);
   const currentStack: { level: number, text: string }[] = [];
   const matchedIdx: number[] = [];
 
@@ -161,7 +143,7 @@ export function insertSectionIntoContent(
 /** Returns all descendant header lines within the section (any level deeper than section.level). */
 export function getDescendantHeaders(content: string, bounds: SectionBounds): string[] {
   const lines = content.split('\n');
-  return findHeadingLines(lines)
+  return findAtxHeadings(lines)
     .filter(h => h.index > bounds.startLine && h.index <= bounds.endLine && h.level > bounds.level)
     .map(h => lines[h.index].trim());
 }
