@@ -396,13 +396,22 @@ export class CacheManagerService {
         this.state.status.set('loading');
         try {
             console.log('[CacheManager] Clearing ALL server-side caches and files...');
-            let count = 0;
-            if (this.provider.deleteAllCaches) {
-                count = await this.provider.deleteAllCaches(this.providerConfig);
-            }
 
+            // Match the resilience pattern used by cleanupCache/releaseCache:
+            // local retirement happens regardless of network outcome so the
+            // billing timer doesn't keep accruing against caches that may be
+            // gone (or that we'll never reach again).
             this.finalizeStorageUsage();
             this.clearLocalCacheSignals();
+
+            let count = 0;
+            if (this.provider.deleteAllCaches) {
+                try {
+                    count = await this.provider.deleteAllCaches(this.providerConfig);
+                } catch (err) {
+                    console.error('[CacheManager] deleteAllCaches failed:', err);
+                }
+            }
 
             // One-time cleanup of legacy localStorage keys
             localStorage.removeItem('storage_cost_acc');
