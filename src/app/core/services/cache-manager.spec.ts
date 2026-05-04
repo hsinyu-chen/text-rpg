@@ -98,7 +98,7 @@ describe('CacheManagerService.checkCacheAndRefresh', () => {
 
             expect(result.cacheName).toBe('new-cache-xyz');
             expect(result.tokens).toBe(500);
-            expect(result.hash).toBeTruthy();
+            expect(result.hash).toBe('TARGET-HASH');
             expect(result.sunkUsageTokens).toBe(500);
         });
 
@@ -152,6 +152,7 @@ describe('CacheManagerService.checkCacheAndRefresh', () => {
             expect(result.cacheName).toBe('existing');
             expect(result.expireTime).toBe(newExpire);
             expect(result.tokens).toBe(700);
+            expect(result.hash).toBe('STABLE-HASH');
             expect(result.sunkUsageTokens).toBe(0);  // no creation = no sunk usage
         });
     });
@@ -183,8 +184,8 @@ describe('CacheManagerService.checkCacheAndRefresh', () => {
             expect(result.cacheName).toBe('fresh-xyz');
             expect(result.tokens).toBe(800);
             expect(result.sunkUsageTokens).toBe(800);
-            // Hash should be the fresh recomputed one, not the stale input
-            expect(result.hash).not.toBe('STALE-HASH');
+            // Recreation aligns the hash with the input targetHash, not the stale one.
+            expect(result.hash).toBe('TARGET-HASH');
         });
     });
 
