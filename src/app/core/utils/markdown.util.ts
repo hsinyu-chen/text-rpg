@@ -54,14 +54,24 @@ export function computeFencedLineMask(lines: string[]): boolean[] {
  * list items. Dropping those silently is a worse failure mode than the
  * spec-purist alternative.
  *
- * Group 1 = hashes (length ∈ 1..6). Group 2 = body, which may be undefined
- * (bare `###`) or empty string (`### ###` after closing-sequence strip);
- * `parseAtxHeading` collapses both to `text:''`.
+ * The regex itself only captures level + raw body; the optional closing `#+`
+ * sequence is stripped in `parseAtxHeading` rather than in the regex,
+ * because expressing "closing seq must be space-preceded EXCEPT when body
+ * is empty (`### ###`)" inline produces a regex that fails one of those two
+ * cases. Post-processing handles both.
  *
  * `[ \t]` instead of `\s` so a stray `\r` from CRLF input doesn't get
  * absorbed into the indent class on lines that haven't been trimEnd'd.
  */
-const ATX_HEADING_RE = /^[ \t]*(#{1,6})(?:[ \t]+(.*?)[ \t]*#*[ \t]*)?$/;
+const ATX_HEADING_RE = /^[ \t]*(#{1,6})(?:[ \t]+(.*))?$/;
+
+/**
+ * Strip a CommonMark ATX closing sequence (` ###...` / leading `#+` when
+ * body is bare hashes). The sequence must be either at start (empty-body
+ * case `### ###`) or whitespace-preceded — `### Foo#` keeps its trailing
+ * `#` because there's no space before it.
+ */
+const ATX_CLOSING_SEQ_RE = /(?:^|[ \t]+)#+$/;
 
 export interface AtxHeading {
   /** Heading level, 1–6. */
@@ -78,7 +88,9 @@ export interface AtxHeading {
 export function parseAtxHeading(line: string): AtxHeading | null {
   const m = line.trimEnd().match(ATX_HEADING_RE);
   if (!m) return null;
-  return { level: m[1].length, text: (m[2] ?? '').trim() };
+  const raw = (m[2] ?? '').trimEnd();
+  const text = raw.replace(ATX_CLOSING_SEQ_RE, '').trim();
+  return { level: m[1].length, text };
 }
 
 export interface AtxHeadingHit extends AtxHeading {

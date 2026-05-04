@@ -68,6 +68,13 @@ describe('parseAtxHeading', () => {
     expect(parseAtxHeading('### ###')).toEqual({ level: 3, text: '' });
   });
 
+  it('keeps trailing `#` in body when not space-preceded (CommonMark §4.2)', () => {
+    // `### Foo#` — no space before the trailing #, so it's part of the body.
+    expect(parseAtxHeading('### Foo#')).toEqual({ level: 3, text: 'Foo#' });
+    // `### foo bar#` — same reason.
+    expect(parseAtxHeading('### foo bar#')).toEqual({ level: 3, text: 'foo bar#' });
+  });
+
   it('tolerates arbitrary leading indent (deliberate spec deviation)', () => {
     expect(parseAtxHeading('   ### deep')).toEqual({ level: 3, text: 'deep' });
     expect(parseAtxHeading('        ## very-deep')).toEqual({ level: 2, text: 'very-deep' });
