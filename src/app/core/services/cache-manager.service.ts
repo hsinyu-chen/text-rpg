@@ -4,7 +4,6 @@ import { LLMProviderRegistryService } from './llm-provider-registry.service';
 import { LLMProvider, LLMProviderConfig, LLMCacheInfo } from '@hcs/llm-core';
 import { CostService } from './cost.service';
 import { KnowledgeService } from './knowledge.service';
-import { ChatHistoryService } from './chat-history.service';
 
 /**
  * Per-call input for {@link CacheManagerService.checkCacheAndRefresh}.
@@ -53,8 +52,6 @@ export class CacheManagerService {
     private providerRegistry = inject(LLMProviderRegistryService);
     private cost = inject(CostService);
     private kb = inject(KnowledgeService);
-
-    private chatHistory = inject(ChatHistoryService);
 
     /** Get the currently active LLM provider. */
     private get provider(): LLMProvider {
@@ -184,8 +181,13 @@ export class CacheManagerService {
                             validationSuccess = true; // Still exists, so we can use it
                         }
                     } else {
-                        // Proactive cleanup — cache gone server-side, nothing to delete remotely
+                        // Proactive cleanup — cache gone server-side. Null
+                        // all four so caller doesn't commit stale tokens /
+                        // expireTime / hash from a now-defunct cache.
                         resultCacheName = null;
+                        resultExpireTime = null;
+                        resultHash = null;
+                        resultTokens = 0;
                     }
                 }
             }
@@ -208,7 +210,7 @@ export class CacheManagerService {
                         if (input.provider.createCache) {
                             cacheRes = await input.provider.createCache(
                                 input.providerConfig,
-                                input.modelId || input.provider.getDefaultModelId(),
+                                input.modelId,
                                 input.systemInstruction,
                                 [{ role: 'user', parts: fileParts }],
                                 ttlSeconds

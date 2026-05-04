@@ -443,7 +443,7 @@ export class GameEngineService {
                 provider: cacheProvider,
                 providerConfig: this.providerRegistry.getActiveConfig(),
                 enableCache: !!this.state.config()?.enableCache,
-                modelId: this.state.config()?.modelId || '',
+                modelId: this.state.config()?.modelId || cacheProvider.getDefaultModelId(),
                 systemInstruction: stripSystemMainMarker(this.state.systemInstructionCache()),
                 loadedFiles: this.state.loadedFiles(),
                 currentCacheName: this.state.kbCacheName(),
