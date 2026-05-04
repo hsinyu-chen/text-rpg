@@ -110,7 +110,38 @@ Optimized for the long context window of Gemini 3, the engine implements multipl
 *   **Smart Context**: Dynamically assembles "Plot Outline (Markdown)" + "Full Chat History".
 *   **Context Caching Integration**: Integrates with Gemini API's Context Caching. When the token count exceeds a threshold (e.g., 32k), it automatically creates a server-side cache for repeated System Prompts and history, significantly reducing Time-to-First-Token (TTFT) and API costs.
 
-### 3. Local-first Storage with Cloud Sync
+### 3. Two-Call Mode (Resolver + Narrator) — Optional
+
+A second engine path that splits each story turn into two LLM calls:
+
+1. **Resolver call** — emits a structured JSON `steps[]` array (atomic-action breakdown with per-step `ideal_status: intact | broken`) plus an `ideal_outcome` summary. No prose.
+2. **Truncation** — the program walks `steps` and slices off everything after the first `broken` step, so unexecuted dialogue / actions cannot leak into prose.
+3. **Narrator call** — receives only the surviving steps + the resolver's `ideal_outcome`, writes the actual `story` field plus `*_log` updates.
+
+The toggle is a chip labelled **`1 Call`** / **`2 Call`** in the status row directly above the input bar; click to switch. The setting is per-device (stored in localStorage) and applies only to story intents (`action` / `continue` / `fast_forward`); `system` and `save` always run single-call. Default is `1 Call`.
+
+**When 2-Call helps**
+*   Multi-step actions where the narrator (in single-call) tends to push through and "complete" something the protagonist couldn't actually finish — e.g. a handshake the NPC refuses, a spell that lacks mana.
+*   Borderline judgments where the analysis already saw a reason to stop but the narrative momentum still produced flowing prose.
+*   When you want the engine's adjudication step to be inspectable separately from the prose; the resolver trace renders in the existing **Atomic Breakdown & Check** panel.
+
+**Optional user-supplied `ideal_outcome`**
+
+When 2-Call is on, an extra chip appears next to it: **`Ideal Outcome`**. Click to expand a one-line textarea above the input. Filling it changes resolver behaviour:
+*   Resolver is told to use your text **verbatim** as the `ideal_outcome` and judge each step against it; it must not infer its own.
+*   Empty / hidden = resolver infers `ideal_outcome` from your action text (default behaviour).
+*   The setting persists with the user message — edit-and-resend repopulates the field, and `<System>` correction auto-resends carry it forward (so the corrective re-run sees the same constraint).
+*   The user message bubble shows a small chip (`Ideal: ...`) when set, so the constraint is visible after commit.
+
+Use this for complex sequences where the resolver's natural inference might be wrong — e.g. "land the strike between the eyes" (perfectionist), "win this fight" (pragmatic), "escape the encirclement" (desperate). The same input string with different `ideal_outcome` will be adjudicated differently.
+
+**Cost characteristics**
+
+*   Two calls per turn → roughly 2x token cost in the simple case, though the system-prompt + KB cache prefix is shared between the two calls so prefill cost only doubles for the (small) per-turn tail.
+*   The sidebar's context-window bar reports **narrator-only** post-turn cache occupancy (the resolver's prefix is overwritten when narrator runs). The session-total cost row continues to charge for both calls.
+*   If you switch from 2-Call to 1-Call mid-book, prior 2-Call turns stay in history as plain prose — they're not regenerated.
+
+### 4. Local-first Storage with Cloud Sync
 Books, collections, and settings live in IndexedDB on each device; cloud backends synchronize state across devices, but the local store remains authoritative — the app stays usable offline.
 *   **Source of Truth**: IndexedDB. Reads go local; writes update local first, then propagate through the sync layer.
 *   **Sync Decision**: Newer-wins on device-clock `lastActiveAt` (books) / `updatedAt` (collections), recorded in cloud-object metadata. Cross-device deletes propagate via per-id tombstones with their own `deletedAt`, so a long-offline device still picks up the deletion when it comes back online.

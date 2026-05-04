@@ -113,7 +113,38 @@ TextRPG 是一個**本地優先 (Local-First)**、**自帶金鑰 (Bring Your Own
 *   **Smart Context**: 動態組裝「劇情大綱 (Markdown)」+「完整對話歷史 (Chat History)」。
 *   **Context Caching Integration**: 整合 Gemini API 的 Context Caching 功能。當 Token 數超過閾值（如 32k），自動建立服務端 Cache，將重複的 System Prompt 與歷史訊息快取，顯著降低 Time-to-First-Token (TTFT) 與 API 成本。
 
-### 3. 本地優先儲存 + 雲端同步 (Local-first Storage with Cloud Sync)
+### 3. 兩次呼叫模式 (Resolver + Narrator) — 選用
+
+把每回合的故事生成拆成兩次 LLM 呼叫的另一條引擎路徑：
+
+1. **Resolver call** — 產出結構化 JSON `steps[]`（原子拆分動作 + 逐步 `ideal_status: intact | broken`）以及 `ideal_outcome` 摘要。**不產敘事**。
+2. **截斷 (Truncation)** — 程式掃過 `steps`，從第一個 `broken` 步驟之後全部砍掉，這樣未執行的對白／動作就無法滲漏到敘事裡。
+3. **Narrator call** — 只收到截斷後的 steps 與 resolver 的 `ideal_outcome`，由它寫出真正的 `story` 與 `*_log` 更新。
+
+切換 chip 標示為 **`1 Call`** / **`2 Call`**，位於輸入欄正上方的狀態列；點一下即切換。設定是裝置本地的（存在 localStorage），且**僅作用於 story intent**（`action` / `continue` / `fast_forward`）；`system` 與 `save` 永遠走單次呼叫。預設 `1 Call`。
+
+**什麼時候用 2-Call 比較有幫助**
+*   多步驟動作場合，single-call 的 narrator 常常會「順勢演完」一個主角其實做不到的事 — 例如握手被 NPC 婉拒、施法但魔力不足。
+*   邊界判定 — analysis 階段已經看到應該停下的理由，敘事卻仍然流暢地寫了過去。
+*   想把「推演判定」跟「敘事產出」分開 inspect — resolver 的逐步 trace 會渲染在既有的 **Atomic Breakdown & Check** 面板。
+
+**選填的使用者自訂 `ideal_outcome`**
+
+打開 2-Call 後，旁邊會多出一個 chip：**`理想結果`**。點開會展出輸入欄正上方的單行文字框。填了之後 resolver 的行為會改變：
+*   Resolver 被指示**一字不漏地**用你給的文字當 `ideal_outcome`，並以此為基準判定每一步；它不可以再自行 infer。
+*   留空 / 收合 = resolver 自行從你的動作文字 infer `ideal_outcome`（預設行為）。
+*   設定值會跟著使用者訊息一起保存 — 「編輯後重送 (Edit & Resend)」會把欄位重新填回，`<System>` 校正後的自動重跑也會把它帶過去（這樣修正後的重跑會看到相同的 constraint）。
+*   訊息送出後，使用者氣泡下方會顯示一個小 chip（`理想：...`），所以 constraint commit 後仍可見。
+
+適用情境：複合行動裡 resolver 自然 infer 可能會猜錯目標 — 例如「精準命中眉心」（perfectionist）、「打贏這場架」（pragmatic）、「逃出包圍」（desperate）。相同的動作字串配不同的 `ideal_outcome` 判定結果會不一樣。
+
+**成本特性**
+
+*   一回合兩次呼叫 → 單純看大約是 2× token 成本，但 system prompt + KB 的 cache 前綴在兩次呼叫間共享，所以 prefill 成本只在每回合那段（很小的）尾巴翻倍。
+*   側邊欄的 context window bar 顯示的是 **narrator-only** 的回合結束後 cache 佔用（resolver 的前綴會在 narrator 執行時被覆寫）。Session 總成本一行則照樣會計兩次呼叫的費用。
+*   遊玩中途從 2-Call 切回 1-Call，先前的 2-Call 回合不會被重新生成，會以敘事原文留在歷史中。
+
+### 4. 本地優先儲存 + 雲端同步 (Local-first Storage with Cloud Sync)
 Books、Collections、Settings 都存在每台裝置的 IndexedDB 中；雲端 backend 負責跨裝置同步，但本地 store 才是權威來源 — 離線時仍可正常使用。
 *   **Source of Truth**: IndexedDB。讀取走本地、寫入先寫本地再透過 sync 層擴散。
 *   **同步策略**: 以裝置時鐘的 `lastActiveAt` (books) / `updatedAt` (collections) 做 newer-wins，時間戳記在雲端物件的 metadata。跨裝置刪除靠 per-id tombstones（帶自己的 `deletedAt`）傳遞，長時間離線的裝置回來後仍能收到刪除訊息。
