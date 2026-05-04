@@ -88,6 +88,20 @@ export class CacheManagerService {
         this.stopStorageTimer();
     }
 
+    /**
+     * Null the four kbCache* signals. Pairs with `finalizeStorageUsage` —
+     * this clears the per-cache identity, that retires the per-cache
+     * cost tracking. Lifecycle methods (cleanup/release/clearAll/reset)
+     * call both. The per-turn refresh path doesn't — it conveys the
+     * desired state via `CacheCheckResult` and lets the caller commit.
+     */
+    private clearLocalCacheSignals(): void {
+        this.state.kbCacheName.set(null);
+        this.state.kbCacheExpireTime.set(null);
+        this.state.kbCacheHash.set(null);
+        this.state.kbCacheTokens.set(0);
+    }
+
     /** Config for the active provider — monorepo providers require it on every call. */
     private get providerConfig(): LLMProviderConfig {
         return this.providerRegistry.getActiveConfig();
@@ -355,10 +369,7 @@ export class CacheManagerService {
             if (this.provider.deleteCache) {
                 await this.provider.deleteCache(this.providerConfig, this.state.kbCacheName()!);
             }
-            this.state.kbCacheName.set(null);
-            this.state.kbCacheExpireTime.set(null);
-            this.state.kbCacheHash.set(null);
-            this.state.kbCacheTokens.set(0);
+            this.clearLocalCacheSignals();
         }
     }
 
@@ -376,12 +387,7 @@ export class CacheManagerService {
             }
 
             this.finalizeStorageUsage();
-
-            // Reset active cache signals
-            this.state.kbCacheName.set(null);
-            this.state.kbCacheExpireTime.set(null);
-            this.state.kbCacheHash.set(null);
-            this.state.kbCacheTokens.set(0);
+            this.clearLocalCacheSignals();
 
             // One-time cleanup of legacy localStorage keys
             localStorage.removeItem('storage_cost_acc');
@@ -416,11 +422,7 @@ export class CacheManagerService {
             }
         }
 
-        // Clear local state
-        this.state.kbCacheName.set(null);
-        this.state.kbCacheExpireTime.set(null);
-        this.state.kbCacheHash.set(null);
-        this.state.kbCacheTokens.set(0);
+        this.clearLocalCacheSignals();
 
         console.log('[CacheManager] Cache released successfully.');
     }
@@ -431,9 +433,6 @@ export class CacheManagerService {
      */
     resetCacheState(): void {
         this.finalizeStorageUsage();
-        this.state.kbCacheName.set(null);
-        this.state.kbCacheExpireTime.set(null);
-        this.state.kbCacheHash.set(null);
-        this.state.kbCacheTokens.set(0);
+        this.clearLocalCacheSignals();
     }
 }

@@ -439,11 +439,12 @@ export class GameEngineService {
             // doesn't pull state, then commits the returned result.
             const cacheProvider = this.providerRegistry.getActive();
             if (!cacheProvider) throw new Error('No active LLM provider');
+            const cfg = this.state.config();
             const cacheResult = await this.cacheManager.checkCacheAndRefresh({
                 provider: cacheProvider,
                 providerConfig: this.providerRegistry.getActiveConfig(),
-                enableCache: !!this.state.config()?.enableCache,
-                modelId: this.state.config()?.modelId || cacheProvider.getDefaultModelId(),
+                enableCache: !!cfg?.enableCache,
+                modelId: cfg?.modelId || cacheProvider.getDefaultModelId(),
                 systemInstruction: stripSystemMainMarker(this.state.systemInstructionCache()),
                 loadedFiles: this.state.loadedFiles(),
                 // Pre-computed via the memoized currentKbHash signal — service
