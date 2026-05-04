@@ -40,12 +40,23 @@ export class ConfigService {
      * semantically the same as `enableCache` for that provider (it's the only
      * cache concept llama.cpp has). Bridge it here so cache-manager's
      * `useCache` check picks it up; otherwise the checkbox toggles nothing.
+     *
+     * Local providers (llama.cpp etc.) don't bill for cache storage and
+     * don't surface a toggle in the UI — caching is just "free, always on,
+     * use it when available". Force enableCache=true regardless of any
+     * historical localStorage / additionalSettings value so the slot save
+     * actually fires. Cloud providers (gemini explicit cache, ...) keep
+     * the user-toggle path because their cache costs real money.
      */
     private readProviderSettings(config: ReturnType<LLMConfigService['getActiveConfig']>) {
         const s = config.additionalSettings || {};
-        const enableCacheRaw = typeof s['enableCache'] === 'boolean'
-            ? s['enableCache'] as boolean
-            : (typeof s['enableCacheSlot'] === 'boolean' ? s['enableCacheSlot'] as boolean : undefined);
+        const caps = this.provider?.getCapabilities(config);
+        const forceCacheAlwaysOn = !!(caps?.supportsContextCaching && caps?.isLocalProvider);
+        const enableCacheRaw = forceCacheAlwaysOn
+            ? true
+            : (typeof s['enableCache'] === 'boolean'
+                ? s['enableCache'] as boolean
+                : (typeof s['enableCacheSlot'] === 'boolean' ? s['enableCacheSlot'] as boolean : undefined));
         return {
             enableCache: enableCacheRaw,
             thinkingLevelStory: typeof s['thinkingLevelStory'] === 'string' ? s['thinkingLevelStory'] as string : undefined,

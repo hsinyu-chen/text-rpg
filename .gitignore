@@ -11,6 +11,9 @@
 npm-debug.log
 yarn-error.log
 
+# aider local-LLM review tool runtime artifacts
+.aider*
+
 # IDEs and editors
 .idea/
 .project
