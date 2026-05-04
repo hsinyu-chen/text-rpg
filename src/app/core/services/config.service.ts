@@ -35,11 +35,19 @@ export class ConfigService {
      * Extract TextRPG-specific fields (enableCache, thinkingLevelStory/General)
      * out of a provider config's additionalSettings bucket. Used to bridge the
      * monorepo's flat LLMProviderConfig shape into the GameEngineConfig shape.
+     *
+     * `enableCacheSlot` is the llama.cpp UI's key for "Persist Slot to Disk" —
+     * semantically the same as `enableCache` for that provider (it's the only
+     * cache concept llama.cpp has). Bridge it here so cache-manager's
+     * `useCache` check picks it up; otherwise the checkbox toggles nothing.
      */
     private readProviderSettings(config: ReturnType<LLMConfigService['getActiveConfig']>) {
         const s = config.additionalSettings || {};
+        const enableCacheRaw = typeof s['enableCache'] === 'boolean'
+            ? s['enableCache'] as boolean
+            : (typeof s['enableCacheSlot'] === 'boolean' ? s['enableCacheSlot'] as boolean : undefined);
         return {
-            enableCache: typeof s['enableCache'] === 'boolean' ? s['enableCache'] as boolean : undefined,
+            enableCache: enableCacheRaw,
             thinkingLevelStory: typeof s['thinkingLevelStory'] === 'string' ? s['thinkingLevelStory'] as string : undefined,
             thinkingLevelGeneral: typeof s['thinkingLevelGeneral'] === 'string' ? s['thinkingLevelGeneral'] as string : undefined
         };
