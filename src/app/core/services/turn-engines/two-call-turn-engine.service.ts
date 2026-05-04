@@ -38,7 +38,7 @@ export class TwoCallTurnEngine implements TurnEngine {
             cotOpen: true
         } as ChatMessage]);
 
-        const resolverHistory = this.contextBuilder.buildResolverContext({
+        const resolverHistory = this.contextBuilder.buildResolverContext(input.buildContext, {
             baseHistory,
             intent: input.intent,
             lang: input.outputLanguage
@@ -59,7 +59,7 @@ export class TwoCallTurnEngine implements TurnEngine {
 
         const truncated = truncateAtFirstBroken(resolverResult.resolverOutput.steps);
 
-        const narratorHistory = this.contextBuilder.buildNarratorContext({
+        const narratorHistory = this.contextBuilder.buildNarratorContext(input.buildContext, {
             baseHistory,
             resolver: {
                 ...resolverResult.resolverOutput,

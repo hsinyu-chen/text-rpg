@@ -3,13 +3,12 @@ import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { TwoCallOrchestratorService } from './two-call-orchestrator.service';
 import { TwoCallTurnEngine } from './two-call-turn-engine.service';
-import { ContextBuilderService } from '../context-builder.service';
+import { ContextBuilderService, BuildContext } from '../context-builder.service';
 import { ContentParserService } from '../content-parser.service';
 import { StreamProcessorService } from '../stream-processor.service';
 import { GameStateService } from '../game-state.service';
 import { LanguageService } from '../language.service';
 import { KnowledgeService } from '../knowledge.service';
-import { LLMProviderRegistryService } from '../llm-provider-registry.service';
 import { CostService } from '../cost.service';
 import { PostProcessorService } from '../post-processor.service';
 import { MockLLMProvider } from '@app/core/testing/mock-llm-provider';
@@ -30,48 +29,21 @@ function narratorJson(story: string, summary = 's'): string {
 
 describe('two-call orchestrator integration', () => {
     let mockProvider: MockLLMProvider;
-    let messagesSignal: ReturnType<typeof signal<ChatMessage[]>>;
     let messages: ChatMessage[];
     const updateMessages = (updater: (prev: ChatMessage[]) => ChatMessage[]) => {
         messages = updater(messages);
-        messagesSignal.set(messages);
     };
 
     beforeEach(() => {
         mockProvider = new MockLLMProvider();
         messages = [];
-        messagesSignal = signal<ChatMessage[]>([]);
 
-        const fakeRegistry = {
-            getActive: () => mockProvider,
-            getActiveConfig: () => ({}),
-            activeProvider: signal(mockProvider)
-        };
-
+        // Only LanguageService + PostProcessorService still pull off
+        // GameStateService — locale + post-process script lookups. Everything
+        // else (ContextBuilder, orchestrator, engine) takes BuildContext now.
         const fakeState: Partial<GameStateService> = {
-            kbCacheName: signal<string | null>(null),
-            systemInstructionCache: signal('SYS'),
-            loadedFiles: signal(new Map()),
-            // Intent injections — empty for narrator-side, populated on the resolver side via dynamic.
-            dynamicActionInjection: signal(''),
-            dynamicContinueInjection: signal(''),
-            dynamicFastforwardInjection: signal(''),
-            dynamicSystemInjection: signal(''),
-            dynamicSaveInjection: signal(''),
-            dynamicProtocolResolverInjection: signal('RESOLVER PROTOCOL {{USER_INPUT}}'),
-            dynamicProtocolNarratorInjection: signal('NARRATOR PROTOCOL'),
-            dynamicProtocolSingleInjection: signal(''),
-            dynamicCorrectionInjection: signal(''),
-            dynamicSystemMainInjection: signal(''),
-            postProcessScript: signal(''),
-            messages: messagesSignal,
-            contextMode: signal('full'),
-            saveContextMode: signal('full'),
             config: signal({ outputLanguage: 'default' }),
-            // Required by ContextBuilder.getLLMHistory's helpers
-            currentKbHash: signal(''),
-            kbCacheTokens: signal(0),
-            kbCacheHash: signal<string | null>(null)
+            postProcessScript: signal('')
         } as unknown as Partial<GameStateService>;
 
         TestBed.configureTestingModule({
@@ -85,8 +57,7 @@ describe('two-call orchestrator integration', () => {
                 LanguageService,
                 CostService,
                 KnowledgeService,
-                { provide: GameStateService, useValue: fakeState },
-                { provide: LLMProviderRegistryService, useValue: fakeRegistry }
+                { provide: GameStateService, useValue: fakeState }
             ]
         });
     });
@@ -97,10 +68,32 @@ describe('two-call orchestrator integration', () => {
 
     function pushUser(text: string, extra: Partial<ChatMessage> = {}) {
         messages.push({ id: 'u', role: 'user', content: text, parts: [{ text }], ...extra });
-        messagesSignal.set([...messages]);
     }
 
-    function runtime(text: string) {
+    function buildCtx(overrides: Partial<BuildContext> = {}): BuildContext {
+        return {
+            messages,
+            contextMode: 'full',
+            saveContextMode: 'full',
+            smartContextTurns: 10,
+            systemInstructionCache: 'SYS',
+            loadedFiles: new Map(),
+            kbCacheName: null,
+            providerCapabilities: mockProvider.getCapabilities(),
+            dynamicAction: '',
+            dynamicContinue: '',
+            dynamicFastforward: '',
+            dynamicSystem: '',
+            dynamicSave: '',
+            dynamicProtocolResolver: 'RESOLVER PROTOCOL {{USER_INPUT}}',
+            dynamicProtocolNarrator: 'NARRATOR PROTOCOL',
+            dynamicProtocolSingle: '',
+            dynamicCorrection: '',
+            ...overrides
+        };
+    }
+
+    function runtime(text: string, ctxOverrides: Partial<BuildContext> = {}) {
         return {
             provider: mockProvider,
             providerConfig: {},
@@ -111,7 +104,8 @@ describe('two-call orchestrator integration', () => {
             outputLanguage: 'default',
             modelMsgId: 'm1',
             signal: new AbortController().signal,
-            updateMessages
+            updateMessages,
+            buildContext: buildCtx(ctxOverrides)
         };
     }
 
@@ -235,10 +229,6 @@ describe('two-call orchestrator integration', () => {
     it('injects {{IDEAL_OUTCOME_CONSTRAINT}} into the resolver call when the latest user msg supplied userIdealOutcome', async () => {
         pushUser('walk forward', { userIdealOutcome: 'reach the plaza unseen' });
 
-        // Override the resolver protocol to include the slot for this test.
-        const fakeState = TestBed.inject(GameStateService) as unknown as { dynamicProtocolResolverInjection: { set: (v: string) => void } };
-        fakeState.dynamicProtocolResolverInjection.set('RESOLVER PROTOCOL\n\n{{IDEAL_OUTCOME_CONSTRAINT}}\n\n{{USER_INPUT}}');
-
         mockProvider.enqueueJsonStream(resolverJson({
             ideal_outcome: 'reach the plaza unseen',
             ideal_strength: 'pragmatic',
@@ -251,7 +241,9 @@ describe('two-call orchestrator integration', () => {
         mockProvider.enqueueJsonStream(narratorJson('Walked.'));
 
         const engine = getEngine();
-        await engine.runTurn(runtime('walk forward'));
+        await engine.runTurn(runtime('walk forward', {
+            dynamicProtocolResolver: 'RESOLVER PROTOCOL\n\n{{IDEAL_OUTCOME_CONSTRAINT}}\n\n{{USER_INPUT}}'
+        }));
 
         const resolverCall = mockProvider.calls[0];
         const resolverTail = resolverCall.contents[resolverCall.contents.length - 1].parts[0].text!;
@@ -264,16 +256,15 @@ describe('two-call orchestrator integration', () => {
     it('leaves the resolver protocol slot empty when no userIdealOutcome was supplied', async () => {
         pushUser('walk forward');
 
-        const fakeState = TestBed.inject(GameStateService) as unknown as { dynamicProtocolResolverInjection: { set: (v: string) => void } };
-        fakeState.dynamicProtocolResolverInjection.set('RESOLVER PROTOCOL\n\n{{IDEAL_OUTCOME_CONSTRAINT}}\n\n{{USER_INPUT}}');
-
         mockProvider.enqueueJsonStream(resolverJson({
             ideal_outcome: '', ideal_strength: 'pragmatic', steps: [], interrupted: false, interrupted_at_step: 0
         }));
         mockProvider.enqueueJsonStream(narratorJson('s'));
 
         const engine = getEngine();
-        await engine.runTurn(runtime('walk forward'));
+        await engine.runTurn(runtime('walk forward', {
+            dynamicProtocolResolver: 'RESOLVER PROTOCOL\n\n{{IDEAL_OUTCOME_CONSTRAINT}}\n\n{{USER_INPUT}}'
+        }));
 
         const resolverTail = mockProvider.calls[0].contents[mockProvider.calls[0].contents.length - 1].parts[0].text!;
         expect(resolverTail).not.toContain('{{IDEAL_OUTCOME_CONSTRAINT}}');

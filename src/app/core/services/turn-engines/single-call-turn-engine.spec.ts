@@ -8,6 +8,7 @@ import { PostProcessorService } from '../post-processor.service';
 import { GameStateService } from '../game-state.service';
 import { MockLLMProvider } from '@app/core/testing/mock-llm-provider';
 import type { ChatMessage } from '@app/core/models/types';
+import type { BuildContext } from '../context-builder.service';
 
 function turnJson(story: string, summary = 's'): string {
     return JSON.stringify({ analysis: '', response: { story, summary } });
@@ -43,6 +44,30 @@ describe('SingleCallTurnEngine.runTurn', () => {
         });
     });
 
+    // SingleCallTurnEngine never reads `buildContext`; it's required by
+    // TurnRunInput so the two-call sibling can use it. We pass a minimal
+    // shell so the type-checker is satisfied — drift in fields here is
+    // safe because the engine ignores them.
+    const dummyBuildContext: BuildContext = {
+        messages: [],
+        contextMode: 'full',
+        saveContextMode: 'full',
+        smartContextTurns: 10,
+        systemInstructionCache: '',
+        loadedFiles: new Map(),
+        kbCacheName: null,
+        providerCapabilities: { cacheBakesContent: true } as BuildContext['providerCapabilities'],
+        dynamicAction: '',
+        dynamicContinue: '',
+        dynamicFastforward: '',
+        dynamicSystem: '',
+        dynamicSave: '',
+        dynamicProtocolResolver: '',
+        dynamicProtocolNarrator: '',
+        dynamicProtocolSingle: '',
+        dynamicCorrection: ''
+    };
+
     function input(extra: { systemInstruction?: string; cachedContentName?: string } = {}) {
         return {
             provider: mockProvider,
@@ -54,7 +79,8 @@ describe('SingleCallTurnEngine.runTurn', () => {
             outputLanguage: 'default',
             modelMsgId: 'm1',
             signal: new AbortController().signal,
-            updateMessages
+            updateMessages,
+            buildContext: dummyBuildContext
         };
     }
 
