@@ -377,6 +377,56 @@ export class GameEngineService {
     }
 
     /**
+     * Resolves the per-turn cache state — validates / refreshes / recreates
+     * via CacheManager, then commits the result back to the kbCacheXxx
+     * signals and arms the storage timer. Throws SESSION_EXPIRED if the KB
+     * is unrecoverable; sendMessage's catch block surfaces that to the user.
+     */
+    private async ensureCacheValid(): Promise<void> {
+        const cacheProvider = this.providerRegistry.getActive();
+        if (!cacheProvider) throw new Error('No active LLM provider');
+        const cfg = this.state.config();
+        const resolvedModelId = cfg?.modelId || cacheProvider.getDefaultModelId();
+        const cacheResult = await this.cacheManager.checkCacheAndRefresh({
+            provider: cacheProvider,
+            providerConfig: this.providerRegistry.getActiveConfig(),
+            enableCache: !!cfg?.enableCache,
+            modelId: resolvedModelId,
+            systemInstruction: stripSystemMainMarker(this.state.systemInstructionCache()),
+            loadedFiles: this.state.loadedFiles(),
+            // Pre-computed via the memoized currentKbHash signal — service
+            // would otherwise re-walk loadedFiles on every turn just to
+            // hash. The signal already invalidates correctly on KB / model
+            // / system-instruction changes.
+            targetHash: this.state.currentKbHash(),
+            currentCacheName: this.state.kbCacheName(),
+            currentCacheHash: this.state.kbCacheHash(),
+            currentCacheTokens: this.state.kbCacheTokens(),
+            currentCacheExpireTime: this.state.kbCacheExpireTime()
+        });
+
+        this.state.kbCacheName.set(cacheResult.cacheName);
+        this.state.kbCacheExpireTime.set(cacheResult.expireTime);
+        this.state.kbCacheHash.set(cacheResult.hash);
+        this.state.kbCacheTokens.set(cacheResult.tokens);
+
+        if (cacheResult.sunkUsageTokens > 0) {
+            this.chatHistory.recordSunkUsage(cacheResult.sunkUsageTokens, 0, 0);
+        }
+
+        if (cacheResult.cacheName) {
+            this.cacheManager.startStorageTimer({
+                tokens: cacheResult.tokens,
+                expireTime: cacheResult.expireTime,
+                modelId: resolvedModelId,
+                cacheName: cacheResult.cacheName
+            });
+        } else {
+            this.cacheManager.stopStorageTimer();
+        }
+    }
+
+    /**
      * Sends a message to the Gemini API and updates the chat history in real-time.
      * Handles streaming responses, JSON parsing, and automatic archiving of old turns.
      * @param userText The user's input text.
@@ -433,51 +483,7 @@ export class GameEngineService {
 
         // 2. Ensure cache is valid before generating
         try {
-            // CacheManager always wants the bare system prompt (no KB body)
-            // — it owns the KB injection itself via fileParts. Caller
-            // resolves the four kbCacheXxx signal reads here so the service
-            // doesn't pull state, then commits the returned result.
-            const cacheProvider = this.providerRegistry.getActive();
-            if (!cacheProvider) throw new Error('No active LLM provider');
-            const cfg = this.state.config();
-            const resolvedModelId = cfg?.modelId || cacheProvider.getDefaultModelId();
-            const cacheResult = await this.cacheManager.checkCacheAndRefresh({
-                provider: cacheProvider,
-                providerConfig: this.providerRegistry.getActiveConfig(),
-                enableCache: !!cfg?.enableCache,
-                modelId: resolvedModelId,
-                systemInstruction: stripSystemMainMarker(this.state.systemInstructionCache()),
-                loadedFiles: this.state.loadedFiles(),
-                // Pre-computed via the memoized currentKbHash signal — service
-                // would otherwise re-walk loadedFiles on every turn just to
-                // hash. The signal already invalidates correctly on KB / model
-                // / system-instruction changes.
-                targetHash: this.state.currentKbHash(),
-                currentCacheName: this.state.kbCacheName(),
-                currentCacheHash: this.state.kbCacheHash(),
-                currentCacheTokens: this.state.kbCacheTokens(),
-                currentCacheExpireTime: this.state.kbCacheExpireTime()
-            });
-
-            this.state.kbCacheName.set(cacheResult.cacheName);
-            this.state.kbCacheExpireTime.set(cacheResult.expireTime);
-            this.state.kbCacheHash.set(cacheResult.hash);
-            this.state.kbCacheTokens.set(cacheResult.tokens);
-
-            if (cacheResult.sunkUsageTokens > 0) {
-                this.chatHistory.recordSunkUsage(cacheResult.sunkUsageTokens, 0, 0);
-            }
-
-            if (cacheResult.cacheName) {
-                this.cacheManager.startStorageTimer({
-                    tokens: cacheResult.tokens,
-                    expireTime: cacheResult.expireTime,
-                    modelId: resolvedModelId,
-                    cacheName: cacheResult.cacheName
-                });
-            } else {
-                this.cacheManager.stopStorageTimer();
-            }
+            await this.ensureCacheValid();
         } catch (e: unknown) {
             const sessionExpired = e instanceof Error && e.message === 'SESSION_EXPIRED';
             if (sessionExpired) {

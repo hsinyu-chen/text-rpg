@@ -381,22 +381,22 @@ export class CacheManagerService {
      * Cleans up the active context cache on the server and resets local cache-related signals.
      */
     async cleanupCache(): Promise<void> {
-        if (this.state.kbCacheName()) {
-            console.log('[CacheManager] Cleaning up cache:', this.state.kbCacheName());
+        const cacheName = this.state.kbCacheName();
+        if (!cacheName) return;
 
-            this.finalizeStorageUsage();
+        console.log('[CacheManager] Cleaning up cache:', cacheName);
+        // Local retirement first so kbCacheXxx signals never point at a
+        // cache mid-deletion — same ordering as clearAllServerCaches /
+        // releaseCache. Network failure on deleteCache leaves an orphan
+        // server-side, which is recoverable; stranded local state is not.
+        this.resetCacheState();
 
-            // Don't let a network blip on deleteCache leave local signals
-            // pointing at a cache that's already been written off in cost.
-            // Same pattern releaseCache uses below.
-            try {
-                if (this.provider.deleteCache) {
-                    await this.provider.deleteCache(this.providerConfig, this.state.kbCacheName()!);
-                }
-            } catch (err) {
-                console.error('[CacheManager] Failed to delete cache from server:', err);
+        try {
+            if (this.provider.deleteCache) {
+                await this.provider.deleteCache(this.providerConfig, cacheName);
             }
-            this.clearLocalCacheSignals();
+        } catch (err) {
+            console.error('[CacheManager] Failed to delete cache from server:', err);
         }
     }
 
@@ -413,8 +413,7 @@ export class CacheManagerService {
             // local retirement happens regardless of network outcome so the
             // billing timer doesn't keep accruing against caches that may be
             // gone (or that we'll never reach again).
-            this.finalizeStorageUsage();
-            this.clearLocalCacheSignals();
+            this.resetCacheState();
 
             let count = 0;
             if (this.provider.deleteAllCaches) {
@@ -445,11 +444,14 @@ export class CacheManagerService {
      */
     async releaseCache(): Promise<void> {
         const cacheName = this.state.kbCacheName();
+        // Always retire local state, even if there's nothing server-side
+        // to delete — keeps the "released" UX consistent regardless of
+        // whether a cache was active.
+        this.resetCacheState();
+
         if (cacheName) {
             console.log('[CacheManager] Manually releasing cache:', cacheName);
             try {
-                this.finalizeStorageUsage();
-
                 if (this.provider.deleteCache) {
                     await this.provider.deleteCache(this.providerConfig, cacheName);
                 }
@@ -457,8 +459,6 @@ export class CacheManagerService {
                 console.error('[CacheManager] Failed to delete cache from server:', err);
             }
         }
-
-        this.clearLocalCacheSignals();
 
         console.log('[CacheManager] Cache released successfully.');
     }
