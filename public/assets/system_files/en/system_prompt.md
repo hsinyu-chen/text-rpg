@@ -1,4 +1,4 @@
-<!-- @system-main-version: 3 -->
+<!-- @system-main-version: 4 -->
 <!-- v3: `<System>` correction flow split into "declare + auto-resend" (injection_system.md no longer inlines a story rewrite); {{CORRECTION_REMINDER}} substitution now active via injection_correction.md. Do not delete this marker. -->
 
 # Core Settings

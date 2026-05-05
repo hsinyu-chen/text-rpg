@@ -1,4 +1,4 @@
-<!-- @system-main-version: 3 -->
+<!-- @system-main-version: 4 -->
 <!-- v3: `<System>` correction flow now declare-only + auto-resend; {{CORRECTION_REMINDER}} substitution active. Do not delete this marker. -->
 
 # Core Settings
