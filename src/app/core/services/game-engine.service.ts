@@ -80,7 +80,6 @@ export class GameEngineService {
     async saveConfig(genConfig: {
         fontSize?: number,
         fontFamily?: string,
-        enableCache?: boolean,
         exchangeRate?: number,
         currency?: string,
         enableConversion?: boolean,
