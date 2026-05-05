@@ -94,13 +94,15 @@ export class ContextUsageBarComponent {
     // info ("am I about to overflow?") that the full variant reveals via
     // its header + breakdown.
     compactTooltip = computed(() => {
-        const used = this.contextUsed();
         const size = this.contextSize();
         if (!size) {
-            // Pre-model-load (or unrecognized model id) — keep the chip
-            // discoverable via tooltip even when % can't be computed.
-            return `Context: ${used.toLocaleString()} tk (limit unknown)`;
+            // Pre-model-load (or unrecognized model id) — surfacing the
+            // raw `used` number without a denominator just adds noise
+            // (a 50K KB looks alarming until you realize there's no limit
+            // resolved). Keep the chip discoverable but say what's wrong.
+            return 'Context limit unknown — model not yet resolved';
         }
+        const used = this.contextUsed();
         const pct = this.contextUsagePercent();
         return `Context: ${used.toLocaleString()} / ${size.toLocaleString()} tk (${pct.toFixed(1)}%)`;
     });
