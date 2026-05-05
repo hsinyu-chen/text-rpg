@@ -55,6 +55,7 @@ export class FileUpdateParser {
 
             let updateMatch;
             updateBlockRegex.lastIndex = 0;
+            let parsedInThisBlock = false;
 
             while ((updateMatch = updateBlockRegex.exec(saveContent)) !== null) {
                 const updateContent = updateMatch[1];
@@ -69,11 +70,15 @@ export class FileUpdateParser {
                         targetContent: targetMatch ? this.dedent(targetMatch[1]) : undefined,
                         replacementContent: replacementMatch ? this.dedent(replacementMatch[1]) : undefined
                     });
+                    parsedInThisBlock = true;
                 }
             }
 
             // Fallback: <save> with bare <target>/<replacement> (no <update> wrapper).
-            if (updates.length > 0 && updates[updates.length - 1].filePath === filePath) continue;
+            // Use a per-block flag rather than peeking `updates[-1].filePath`, which
+            // would mis-skip the fallback when two consecutive <save> blocks target
+            // the same file and the second has only bare tags.
+            if (parsedInThisBlock) continue;
 
             const targetDirect = saveContent.match(targetTagRegex);
             const replacementDirect = saveContent.match(replacementTagRegex);

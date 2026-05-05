@@ -14,8 +14,6 @@ import {
 import { FileUpdate } from './file-update.types';
 
 export type { FileUpdate } from './file-update.types';
-// Re-exported so callers that imported FileUpdateParser via this module keep working.
-export { FileUpdateParser } from './file-update-parser';
 
 @Injectable({
     providedIn: 'root'

@@ -14,11 +14,6 @@ interface ParsedCrumb {
     isStrictHeader: boolean;
 }
 
-interface CrumbMatchResult {
-    matched: boolean;
-    isLineHeader: boolean;
-}
-
 function parseCrumb(crumb: string): ParsedCrumb {
     const headerMatch = crumb.match(/^(#+)\s*(.*)/);
     return headerMatch
@@ -33,16 +28,16 @@ function parseCrumb(crumb: string): ParsedCrumb {
  * fenced lines outright (e.g. `findInsertionPoint`) pre-filter before
  * calling.
  */
-function matchCrumb(line: string, fenced: boolean, crumb: ParsedCrumb): CrumbMatchResult {
+function matchCrumb(line: string, fenced: boolean, crumb: ParsedCrumb): boolean {
     const lineHeading = fenced ? null : parseAtxHeading(line);
     const isLineHeader = !!lineHeading;
     const lineText = lineHeading ? lineHeading.text : line.trim();
     const normalizedLine = normalizeForComparison(lineText);
     const normalizedCrumb = normalizeForComparison(crumb.text);
 
-    if (!normalizedLine.includes(normalizedCrumb)) return { matched: false, isLineHeader };
-    if (crumb.isStrictHeader && !isLineHeader) return { matched: false, isLineHeader };
-    return { matched: true, isLineHeader };
+    if (!normalizedLine.includes(normalizedCrumb)) return false;
+    if (crumb.isStrictHeader && !isLineHeader) return false;
+    return true;
 }
 
 /**
@@ -65,11 +60,17 @@ export function normalizeForComparison(line: string): string {
         .replace(/[#\s]/g, '');
 }
 
+/**
+ * Maps an index in the normalized string back to the original. Relies on
+ * `normalizeForComparison` either dropping a character (matched by `[#\s]`)
+ * or keeping it 1:1 — any future multi-char or surrogate-pair replacement in
+ * normalizeForComparison would desync this mapping and silently corrupt
+ * file edits, so the two MUST evolve together.
+ */
 function mapNormalizedIndexToOriginal(original: string, normalizedIndex: number): number {
     let normalizedCount = 0;
     for (let i = 0; i < original.length; i++) {
         const char = original[i];
-        // MUST stay in sync with normalizeForComparison's `[#\s]` strip.
         if (!/[#\s]/.test(char)) {
             if (normalizedCount === normalizedIndex) {
                 return i;
@@ -127,8 +128,7 @@ function verifyContext(lines: string[], fencedMask: boolean[], matchIndex: numbe
         let found = false;
 
         for (let i = currentIdx - 1; i >= 0; i--) {
-            const result = matchCrumb(lines[i], fencedMask[i], crumb);
-            if (result.matched) {
+            if (matchCrumb(lines[i], fencedMask[i], crumb)) {
                 found = true;
                 matchedCount++;
                 currentIdx = i;
@@ -226,8 +226,7 @@ export function findInsertionPoint(lines: string[], context?: string): number {
 
         for (let i = currentLine; i < lines.length; i++) {
             if (fencedMask[i]) continue;
-            const result = matchCrumb(lines[i], false, crumb);
-            if (result.matched) {
+            if (matchCrumb(lines[i], false, crumb)) {
                 found = i;
                 anyFound = true;
                 break;
@@ -280,8 +279,7 @@ export function findContextLine(content: string, context: string): number | null
         let found = -1;
 
         for (let i = currentLine; i < lines.length; i++) {
-            const result = matchCrumb(lines[i], fencedMask[i], crumb);
-            if (result.matched) {
+            if (matchCrumb(lines[i], fencedMask[i], crumb)) {
                 found = i;
                 break;
             }

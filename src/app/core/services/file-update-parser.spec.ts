@@ -101,6 +101,18 @@ describe('FileUpdateParser', () => {
       expect(result[0].replacementContent).toBe('indented replacement');
     });
 
+    it('does not skip fallback when previous save block targeted same file', () => {
+      // Regression: peeking updates[-1].filePath would mis-skip the second
+      // block's bare-tag fallback because the file matches.
+      const input = `<save file="same.md"><update><target>a</target></update></save>
+<save file="same.md"><target>b</target></save>`;
+      const result = FileUpdateParser.parse(input);
+      expect(result).toEqual([
+        { filePath: 'same.md', context: '', targetContent: 'a', replacementContent: undefined },
+        { filePath: 'same.md', context: '', targetContent: 'b', replacementContent: undefined },
+      ]);
+    });
+
     it('handles target-only (delete) and replacement-only (append) updates', () => {
       const input = `<save file="f.md">
         <update><target>delete me</target></update>
