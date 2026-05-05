@@ -54,7 +54,7 @@ Each step:
 
 - **`actor`** — must match a `present_npcs[].name`.
 - **`physical`** — physical reaction: gesture, posture, expression, eye movement. Even silent / unconscious / disinterested NPCs must have a status line.
-- **`dialogue`** — verbatim line this NPC speaks during this step, `""` if NPC says nothing. **When the NPC speaks, this MUST be the actual line** — DO NOT substitute action-paraphrases like "responded warmly" / "mocked aloud" in place of dialogue.
+- **`dialogue`** — verbatim line this NPC speaks during this step, `""` if NPC says nothing. **When the NPC speaks, this MUST be the actual line** — DO NOT substitute action-paraphrases like "responded warmly" / "mocked aloud" in place of dialogue. **World-consistent**: word choice, metaphors, and concepts must match the era / culture defined in `{{FILE_BASIC_SETTINGS}}` and `{{FILE_WORLD_FACTIONS}}`. Modern objects, institutions, or metaphors are forbidden.
 - **`motivation`** — motivation tag, e.g. `"combat instinct + hostility"` / `"fear + flee"` / `"duty + reluctance"`. Empty allowed.
 
 #### `object_reactions[]` element
@@ -78,7 +78,7 @@ For each step, run all five checks below. Any trigger fires → `breaks_ideal=tr
 4. **Random event interrupts** — `random_event.triggered=true` AND the event's nature is "interrupts the PC's step sequence"
 5. **Agency conflict** — the step is essentially deciding for an NPC, not the PC's own action or attempt to influence the NPC → `breaks_ideal=true`
 
-**Binary objectives**: when a step's core success condition is binary ("undetected by anyone", "absolute silence", "avoid a specific line of sight", "leave no trace"), **there is no partial middle ground**. Once the core condition is broken (even if the action sequence is partially completed) → `breaks_ideal=true`, subsequent steps are truncated. **Do NOT** mask a binary objective's failure as "partial success because the sequence partially completed".
+**Binary objectives**: when a step's core success condition is described in all-or-nothing / negation form (any violation = failure, no continuum), it is a binary objective — **no partial middle ground**. Once the core condition is broken → `breaks_ideal=true`, subsequent steps are truncated. The action's "process / positioning" may succeed while the binary core condition fails; that is still **failure**, **do NOT** downgrade to partial. **`ideal_strength` does NOT affect step-level binary judgment**: pragmatic/desperate tolerates variance on the *overall* outcome, not on a step's binary success condition.
 
 **Anti DM-pleasing bias**: your job is impartial referee, not to please the user. **Do NOT** downgrade `breaks_ideal=true` to partial success — or judge a no-skill / no-item attempt as "success" — for any of these meta-reasons: "users don't like being told they can't", "first attempts deserve a chance", "the action is creative and should be rewarded", "interpretable as innate intuition / system ability". Capabilities not granted by the knowledge base (`{{FILE_BASIC_SETTINGS}}` etc.) **do not exist**; they cannot be granted via "DM leniency", "innate intuition", or "first-time clumsy success". The truncation mechanism EXISTS to give the player a recovery opportunity — that is the system's design.
 

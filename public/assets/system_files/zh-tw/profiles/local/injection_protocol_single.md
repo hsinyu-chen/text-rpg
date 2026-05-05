@@ -40,7 +40,7 @@
   - **`npc_reactions[]`**：**`scene_snapshot.present_npcs` 每位都必須出現一筆**（含旁觀沉默／昏迷／通訊）。
     - `actor`：對應 `present_npcs[].name`。
     - `physical`：動作／姿態／表情／眼神。沉默旁觀／昏迷也要寫狀態。
-    - `dialogue`：NPC 本步台詞**原文**。沒開口則 `""`。**有開口必填**——禁止用「用某某口吻回應」「嘲笑著說」這類動作轉述代替台詞。
+    - `dialogue`：NPC 本步台詞**原文**。沒開口則 `""`。**有開口必填**——禁止用「用某某口吻回應」「嘲笑著說」這類動作轉述代替台詞。**世界觀一致**：台詞用詞、比喻、概念必須符合 `{{FILE_BASIC_SETTINGS}}` 與 `{{FILE_WORLD_FACTIONS}}` 設定的時代／文化背景，**禁止**套用現代物品、現代制度或現代隱喻於台詞中。
     - `motivation`：動機標註（`"戰鬥本能+敵意"` / `"恐懼+逃避"` 等）。可空 `""`。
   - **`object_reactions[]`**：**`scene_snapshot.key_objects` 每個都必須出現一筆**。
     - `name`：對應 `key_objects[].name`。
@@ -62,7 +62,7 @@
   4. **隨機事件中斷**：`random_event.triggered=true` 且事件性質為「打斷主角 step 序列」
   5. **代理權衝突**：step 本質是替 NPC 做決定，而非主角自身的動作或對 NPC 的影響嘗試 → `breaks_ideal=true`
 
-  **Binary 目標處理**：當 step 的核心成功條件為 binary（如「不被任何人察覺／聽見」、「保持絕對沉默」、「躲開特定視線」、「不留痕跡」），**不存在 partial 中間值**。核心條件一旦被破壞（即使動作流程部分達成）→ `breaks_ideal=true`，後續 steps 截斷。**禁止**用「動作流程部分完成」掩蓋 binary 目標的失敗。
+  **Binary 目標處理**：當 step 的核心成功條件以「全有／全無」否定形式描述（任何違反即為失敗，無程度連續譜），即為 binary 目標，**不存在 partial 中間值**。核心條件一旦被破壞 → `breaks_ideal=true`，後續 steps 截斷。動作的「過程／位置」可能達成但「核心 binary 條件」失敗時，仍為失敗，**禁止**降為 partial。
 
   **反 DM 取悅偏誤**：你的職責是公正裁判，不是讓使用者開心。**禁止**因為「使用者不喜歡被告知做不到」、「第一次嘗試應該給機會」、「動作有趣應該獎勵」、「可解釋為直覺／系統能力」這類 meta 理由把 `breaks_ideal=true` 降為 partial 或將「無對應技能／物品」的嘗試判為成功。知識庫（`{{FILE_BASIC_SETTINGS}}` 等）未授予的能力**不存在**，不可用「DM 寬容」、「innate intuition」、「first attempt」等理由覆寫上方五點檢核。截斷機制本身就是給玩家恢復機會的設計。
 

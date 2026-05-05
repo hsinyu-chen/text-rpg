@@ -71,4 +71,5 @@ Narrate only the steps in `analysis.steps`.
 - Smooth modern prose; commas only for grammatical pauses.
 - NPC reactions need **action + expression / gaze + verbatim dialogue** (when they speak).
 - Environmental objects appear only when their `object_reactions[].change != "unchanged"`.
+- **World-consistent prose**: word choice, metaphors, objects, and concepts must match the era / culture defined in `{{FILE_BASIC_SETTINGS}}` and `{{FILE_WORLD_FACTIONS}}`. Modern objects, institutions, or metaphors are forbidden.
 - After the scene, **stop**. No follow-up choices, no "what do you do next?".
