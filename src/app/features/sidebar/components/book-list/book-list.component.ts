@@ -492,18 +492,8 @@ export class BookListComponent {
         return { bookCount: recentBooks.length, totalCost };
     });
 
-    displayCurrency = computed(() => {
-        const cfg = this.state.config();
-        return (cfg?.enableConversion && cfg?.currency) ? cfg.currency : 'USD';
-    });
-
-    displayRate = computed(() => {
-        const cfg = this.state.config();
-        if (cfg?.enableConversion && cfg?.currency !== 'USD') {
-            return cfg.exchangeRate || 30;
-        }
-        return 1;
-    });
+    displayCurrency = this.costService.displayCurrency;
+    displayRate = this.costService.displayRate;
 
     formatCost(cost: number): string {
         const currency = this.displayCurrency();

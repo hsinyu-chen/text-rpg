@@ -18,6 +18,7 @@ import { MatDividerModule } from '@angular/material/divider';
 import type { LLMContent } from '@hcs/llm-core';
 
 import { GameStateService } from '@app/core/services/game-state.service';
+import { AppConfigStore } from '@app/core/services/app-config-store';
 import { SessionService } from '@app/core/services/session.service';
 import { LLMProviderRegistryService } from '@app/core/services/llm-provider-registry.service';
 import { LOCALES, getLocale } from '@app/core/constants/locales';
@@ -90,6 +91,7 @@ export class CreateSceneDialogComponent {
     private dialogRef = inject(MatDialogRef<CreateSceneDialogComponent>);
     private http = inject(HttpClient);
     private state = inject(GameStateService);
+    private appConfig = inject(AppConfigStore);
     private session = inject(SessionService);
     private providerRegistry = inject(LLMProviderRegistryService);
     private snackBar = inject(MatSnackBar);
@@ -274,7 +276,7 @@ export class CreateSceneDialogComponent {
     }
 
     private async runLoop() {
-        const lang = this.state.config()?.outputLanguage || 'default';
+        const lang = this.appConfig.outputLanguage();
         const locale = getLocale(lang);
 
         // Split files by verbatim vs. to-extract.

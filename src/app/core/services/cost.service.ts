@@ -1,4 +1,4 @@
-import { Injectable, signal, inject } from '@angular/core';
+import { Injectable, signal, inject, computed } from '@angular/core';
 import { LLMProviderRegistryService } from './llm-provider-registry.service';
 import { AppConfigStore } from './app-config-store';
 import { LLMModelDefinition } from '@hcs/llm-core';
@@ -18,6 +18,20 @@ export class CostService {
     // (config.service.init() handoff after the API fetch) keep their
     // `cost.exchangeRate()` reference.
     readonly exchangeRate = this.appConfig.exchangeRate;
+
+    // Effective display currency / rate after applying the conversion toggle.
+    // Centralized so the cost-comparison dialog, sidebar prediction, and
+    // book-list summaries agree on the same fallback shape — divergence here
+    // would surface as a user-visible price label mismatch.
+    readonly displayCurrency = computed<string>(() =>
+        this.appConfig.enableConversion() ? this.appConfig.currency() : 'USD'
+    );
+    readonly displayRate = computed<number>(() => {
+        if (this.appConfig.enableConversion() && this.appConfig.currency() !== 'USD') {
+            return this.appConfig.exchangeRate();
+        }
+        return 1;
+    });
 
     // Internal state for cost calculation
     private contextState = signal<{

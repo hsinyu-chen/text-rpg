@@ -11,6 +11,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { SessionSave, Scenario, Book, ROOT_COLLECTION_ID, ChatMessage } from '../models/types';
 import { CollectionService } from './collection.service';
 import { LastActiveBookStore } from './last-active-book-store';
+import { AppConfigStore } from './app-config-store';
 import { GAME_INTENTS } from '../constants/game-intents';
 import { getCoreFilenames, getSectionHeaders, getUIStrings } from '../constants/engine-protocol';
 import { LOCALES } from '../constants/locales';
@@ -63,6 +64,7 @@ export class SessionService {
     private snackBar = inject(MatSnackBar);
     private collections = inject(CollectionService);
     private lastActiveBook = inject(LastActiveBookStore);
+    private appConfig = inject(AppConfigStore);
 
     constructor() {
         // Only write — removal is handled explicitly in unloadCurrentSession()
@@ -263,7 +265,7 @@ export class SessionService {
             await this.loadFiles(false);
 
             // Notify success
-            const ui = getUIStrings(this.state.config()?.outputLanguage);
+            const ui = getUIStrings(this.appConfig.outputLanguage());
             this.snackBar.open(ui.GAME_INIT_SUCCESS, 'OK', { duration: 3000 });
 
             // Note: Caller (GameEngine) still needs to trigger startSession if needed, 
@@ -273,7 +275,7 @@ export class SessionService {
 
         } catch (e) {
             console.error('[SessionService] Failed to initialize new game', e);
-            const ui = getUIStrings(this.state.config()?.outputLanguage);
+            const ui = getUIStrings(this.appConfig.outputLanguage());
             this.snackBar.open(ui.GAME_INIT_FAILED, ui.CLOSE, { duration: 5000 });
             throw e;
         } finally {

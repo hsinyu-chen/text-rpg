@@ -67,7 +67,7 @@
     </div>
     <p class="hint-text">
         @if (state.contextMode() === 'smart') {
-        Older turns summarized + Last {{ state.config()?.smartContextTurns ?? 10 }} Turns Full
+        Older turns summarized + Last {{ appConfig.smartContextTurns() }} Turns Full
         } @else if (state.contextMode() === 'summarized') {
         Older turns summarized + Last 1 Turn Full
         } @else {

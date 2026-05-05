@@ -1,10 +1,11 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import { TestBed } from '@angular/core/testing';
-import { signal } from '@angular/core';
 import { ContextBuilderService, BuildContext } from './context-builder.service';
 import { KnowledgeService } from './knowledge.service';
 import { LanguageService } from './language.service';
 import { GameStateService } from './game-state.service';
+import { KVStore } from './kv/kv-store';
+import { InMemoryKVStore } from '../testing/in-memory-kv-store';
 import { LLMProviderRegistryService } from './llm-provider-registry.service';
 import type { ChatMessage } from '../models/types';
 
@@ -56,18 +57,13 @@ describe('ContextBuilderService', () => {
     let builder: ContextBuilderService;
 
     beforeEach(() => {
-        // LanguageService still injects GameStateService for `config().outputLanguage`.
-        // Provide just enough to resolve the locale.
-        const fakeState: Partial<GameStateService> = {
-            config: signal({ outputLanguage: 'default' })
-        } as unknown as Partial<GameStateService>;
-
         TestBed.configureTestingModule({
             providers: [
                 ContextBuilderService,
                 LanguageService,
                 KnowledgeService,
-                { provide: GameStateService, useValue: fakeState },
+                { provide: KVStore, useValue: new InMemoryKVStore() },
+                { provide: GameStateService, useValue: {} as unknown as GameStateService },
                 { provide: LLMProviderRegistryService, useValue: { getActive: () => null } }
             ]
         });

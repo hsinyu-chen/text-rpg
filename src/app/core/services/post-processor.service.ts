@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { GameStateService } from './game-state.service';
+import { AppConfigStore } from './app-config-store';
 import { getUIStrings } from '../constants/engine-protocol';
 
 /**
@@ -44,6 +45,7 @@ const MOCK_DATA: PostProcessFields = {
 export class PostProcessorService {
     private state = inject(GameStateService);
     private snackBar = inject(MatSnackBar);
+    private appConfig = inject(AppConfigStore);
 
     /**
      * Validates a post-processing script with mock data.
@@ -108,8 +110,7 @@ export class PostProcessorService {
      * @returns Processed text
      */
     applySafeReplacements(text: string): string {
-        const lang = this.state.config()?.outputLanguage;
-        if (lang !== 'zh-TW') return text;
+        if (this.appConfig.outputLanguage() !== 'zh-TW') return text;
 
         let result = text;
         for (const [pattern, replacement] of PostProcessorService.SAFE_ZH_TW_REPLACEMENTS) {
@@ -147,8 +148,7 @@ export class PostProcessorService {
 
             return result;
         } catch (err) {
-            const lang = this.state.config()?.outputLanguage || 'default';
-            const ui = getUIStrings(lang);
+            const ui = getUIStrings(this.appConfig.outputLanguage());
             const errorMsg = err instanceof Error ? err.message : String(err);
             this.snackBar.open(
                 ui.POST_PROCESS_ERROR.replace('{error}', errorMsg),

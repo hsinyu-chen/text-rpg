@@ -11,6 +11,7 @@ import { SidebarComponent } from './features/sidebar/sidebar.component';
 import { ChatComponent } from './features/chat/chat.component';
 import { GameEngineService } from './core/services/game-engine.service';
 import { GameStateService } from './core/services/game-state.service';
+import { AppConfigStore } from './core/services/app-config-store';
 import { SettingsDialogComponent } from './features/settings/settings-dialog.component';
 import { firstValueFrom, map } from 'rxjs';
 import { filter } from 'rxjs/operators';
@@ -53,6 +54,7 @@ import { BridgeService } from './core/services/dev/bridge.service';
 export class AppComponent {
   engine = inject(GameEngineService);
   state = inject(GameStateService);
+  protected appConfig = inject(AppConfigStore);
   session = inject(SessionService); // Public for template access if needed, or private
   loading = inject(LoadingService);
   dialog = inject(MatDialog);

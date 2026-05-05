@@ -16,6 +16,7 @@ import { getIntentLabels, getIntentDescriptions, getInputPlaceholders } from '@a
 import { GameEngineService } from '@app/core/services/game-engine.service';
 import { GameStateService } from '@app/core/services/game-state.service';
 import { ConfigService } from '@app/core/services/config.service';
+import { AppConfigStore } from '@app/core/services/app-config-store';
 import { SessionService } from '@app/core/services/session.service';
 import { MatDialog } from '@angular/material/dialog';
 import { PayloadDialogComponent } from '@app/shared/components/payload-dialog/payload-dialog.component';
@@ -58,31 +59,36 @@ export class ChatInputComponent {
     sys = inject(SystemStatusService);
     private profileRegistry = inject(PromptProfileRegistryService);
     private config = inject(ConfigService);
+    private appConfig = inject(AppConfigStore);
     private matDialog = inject(MatDialog);
     private readonly doc = inject(DOCUMENT);
+
+    // Localized UI string lookup — memoized once per language change so the
+    // many label / tooltip computeds below don't each re-resolve the locale.
+    private uiStrings = computed(() => getUIStrings(this.appConfig.outputLanguage()));
 
     activeProfileName = computed(() => {
         const id = this.state.activePromptProfile();
         const profile = this.profileRegistry.get(id);
         if (!profile) return id;
-        const ui = getUIStrings(this.state.config()?.outputLanguage) as unknown as Record<string, string>;
+        const ui = this.uiStrings() as unknown as Record<string, string>;
         return getProfileDisplayName(profile, ui);
     });
 
     // Engine mode chip — toggles single ⇄ two-call. Two-call is the only mode
     // that consumes userIdealOutcome, so the field is conditionally shown.
-    isTwoCall = computed(() => this.state.config()?.engineMode === 'two-call');
+    isTwoCall = computed(() => this.appConfig.engineMode() === 'two-call');
     engineModeLabel = computed(() => {
-        const ui = getUIStrings(this.state.config()?.outputLanguage);
+        const ui = this.uiStrings();
         return this.isTwoCall() ? ui.ENGINE_MODE_TWO_CALL : ui.ENGINE_MODE_SINGLE;
     });
-    engineModeTooltip = computed(() => getUIStrings(this.state.config()?.outputLanguage).ENGINE_MODE_TOGGLE_TOOLTIP);
+    engineModeTooltip = computed(() => this.uiStrings().ENGINE_MODE_TOGGLE_TOOLTIP);
 
     // Ideal outcome field labels
-    idealOutcomeLabel = computed(() => getUIStrings(this.state.config()?.outputLanguage).IDEAL_OUTCOME_FIELD_LABEL);
-    idealOutcomeChipLabel = computed(() => getUIStrings(this.state.config()?.outputLanguage).IDEAL_OUTCOME_CHIP_LABEL);
-    idealOutcomePlaceholder = computed(() => getUIStrings(this.state.config()?.outputLanguage).IDEAL_OUTCOME_FIELD_PLACEHOLDER);
-    idealOutcomeToggleTooltip = computed(() => getUIStrings(this.state.config()?.outputLanguage).IDEAL_OUTCOME_TOGGLE_TOOLTIP);
+    idealOutcomeLabel = computed(() => this.uiStrings().IDEAL_OUTCOME_FIELD_LABEL);
+    idealOutcomeChipLabel = computed(() => this.uiStrings().IDEAL_OUTCOME_CHIP_LABEL);
+    idealOutcomePlaceholder = computed(() => this.uiStrings().IDEAL_OUTCOME_FIELD_PLACEHOLDER);
+    idealOutcomeToggleTooltip = computed(() => this.uiStrings().IDEAL_OUTCOME_TOGGLE_TOOLTIP);
 
     hasActiveSession = computed(() => !!this.session.currentBookId());
 
@@ -106,8 +112,8 @@ export class ChatInputComponent {
     intents = Object.values(GAME_INTENTS);
     private originalIntentBeforeEdit: string | null = null;
     // Localized intent labels
-    intentLabels = computed(() => getIntentLabels(this.state.config()?.outputLanguage));
-    intentDescriptions = computed(() => getIntentDescriptions(this.state.config()?.outputLanguage));
+    intentLabels = computed(() => getIntentLabels(this.appConfig.outputLanguage()));
+    intentDescriptions = computed(() => getIntentDescriptions(this.appConfig.outputLanguage()));
 
     getIntentLabel(intent: string): string {
         const labels = this.intentLabels();
@@ -151,7 +157,7 @@ export class ChatInputComponent {
     dynamicPlaceholder = computed(() => {
         if (this.editingMessageId()) return '';
         const intent = this.selectedIntent();
-        const placeholders = getInputPlaceholders(this.state.config()?.outputLanguage);
+        const placeholders = getInputPlaceholders(this.appConfig.outputLanguage());
 
         // Map intent to placeholder
         if (intent === GAME_INTENTS.ACTION) return placeholders.ACTION;
@@ -234,7 +240,7 @@ export class ChatInputComponent {
     }
 
     async toggleEngineMode(): Promise<void> {
-        const next: 'single' | 'two-call' = this.state.config()?.engineMode === 'two-call' ? 'single' : 'two-call';
+        const next: 'single' | 'two-call' = this.appConfig.engineMode() === 'two-call' ? 'single' : 'two-call';
         await this.config.saveConfig({ engineMode: next });
     }
 
@@ -243,7 +249,7 @@ export class ChatInputComponent {
     }
 
     saveProgress() {
-        const placeholders = getInputPlaceholders(this.state.config()?.outputLanguage);
+        const placeholders = getInputPlaceholders(this.appConfig.outputLanguage());
         this.userInput.set(placeholders.SAVE);
         this.selectedIntent.set(GAME_INTENTS.SAVE);
         this.focusInput();

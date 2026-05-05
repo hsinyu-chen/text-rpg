@@ -4,7 +4,7 @@ import { MatDialogModule, MAT_DIALOG_DATA, MatDialogRef } from '@angular/materia
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MonacoEditorComponent } from '../monaco-editor/monaco-editor.component';
-import { GameStateService } from '@app/core/services/game-state.service';
+import { AppConfigStore } from '@app/core/services/app-config-store';
 import { getUIStrings } from '@app/core/constants/engine-protocol';
 import { FormsModule } from '@angular/forms';
 
@@ -141,12 +141,9 @@ export interface PromptDiffDialogData {
 export class PromptDiffDialogComponent {
     public dialogRef = inject(MatDialogRef<PromptDiffDialogComponent>);
     public data = inject<PromptDiffDialogData>(MAT_DIALOG_DATA);
-    private state = inject(GameStateService);
+    private appConfig = inject(AppConfigStore);
 
-    ui = computed(() => {
-        const lang = this.state.config()?.outputLanguage || 'default';
-        return getUIStrings(lang);
-    });
+    ui = computed(() => getUIStrings(this.appConfig.outputLanguage()));
 
     onUpdate() {
         this.dialogRef.close('update');

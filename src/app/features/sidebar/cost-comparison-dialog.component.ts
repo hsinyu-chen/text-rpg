@@ -161,13 +161,7 @@ export class CostComparisonDialogComponent {
 
     modelCosts = computed<ModelCostInfo[]>(() => {
         const lastTurn = this.state.lastTurnUsage();
-        const config = this.state.config();
-
-        const enabled = config?.enableConversion ?? false;
-        // If conversion disabled -> USD. If enabled -> selected currency.
-        const currency = (enabled && config?.currency) ? config.currency : 'USD';
-        // If conversion enabled AND not USD -> use rate. Else 1.
-        const exchangeRate = (enabled && currency !== 'USD') ? (config?.exchangeRate || 30) : 1;
+        const exchangeRate = this.costService.displayRate();
 
         // Active Model for Storage Scaling
         const activeModelId = this.providerRegistry.getActiveModelId() || 'gemini-3-flash-preview';
@@ -227,9 +221,7 @@ export class CostComparisonDialogComponent {
     });
 
     formatCost(cost: number): string {
-        const config = this.state.config();
-        const enabled = config?.enableConversion ?? false;
-        const currency = (enabled && config?.currency) ? config.currency : 'USD';
+        const currency = this.costService.displayCurrency();
         const decimals = currency === 'USD' ? 4 : 2;
         return `${currency} $${cost.toFixed(decimals)}`;
     }
