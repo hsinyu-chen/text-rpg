@@ -129,21 +129,16 @@ export class ContextCompositionService {
         });
 
         effect(() => {
-            // All signal reads are synchronous so Angular's effect tracking
-            // sees them. Anything read only inside the async tail (countTokens
-            // resolution) wouldn't establish a dep.
-            const action = this.state.dynamicActionInjection();
-            const protocolR = this.state.dynamicProtocolResolverInjection();
-            const protocolN = this.state.dynamicProtocolNarratorInjection();
-            const protocolS = this.state.dynamicProtocolSingleInjection();
-            // Status + messages are tracked because the protocol templates
-            // carry a `{{HISTORICAL_CORRECTION_RULE}}` slot whose substitution
-            // depends on whether history holds an active correction. The
-            // game-side rendering happens at call time via ContextBuilder;
-            // we mirror just that one substitution here so the count reflects
-            // what would actually be sent on the next turn (a fresh
-            // correction-declaration adds ~hundreds of tokens to the rule
-            // text from the locale).
+            // Signal reads must be synchronous so Angular's effect tracking
+            // sees them. The protocol/action template signals get read by
+            // `buildLightContext(messages)` below — no need to read them
+            // here too. Status, messages, lang, profile, provider are not
+            // covered by buildLightContext and must be tracked explicitly.
+            //
+            // Why messages: protocol templates carry `{{HISTORICAL_CORRECTION_RULE}}`
+            // and the action template carries `{{CORRECTION_REMINDER}}` —
+            // both substitute against history's correction state, so the
+            // count must refire when history changes.
             const messages = this.state.messages();
             const lang = this.appConfig.outputLanguage();
             const status = this.state.status();
@@ -155,8 +150,8 @@ export class ContextCompositionService {
             // waste. Effect re-runs once status flips back to idle.
             if (status === 'generating') return;
 
-            const renderCtx = this.buildLightContext(messages);
-            void this.recomputeInjectionTokens({ action, protocolR, protocolN, protocolS }, renderCtx, lang);
+            const ctx = this.buildLightContext(messages);
+            void this.recomputeInjectionTokens(ctx, lang);
         });
 
         effect(() => {
@@ -225,30 +220,44 @@ export class ContextCompositionService {
         this.systemPromptTokens.set(count);
     }
 
-    private async recomputeInjectionTokens(
-        parts: { action: string; protocolR: string; protocolN: string; protocolS: string; },
-        ctx: BuildContext,
-        lang: string
-    ): Promise<void> {
+    private async recomputeInjectionTokens(ctx: BuildContext, lang: string): Promise<void> {
         const seq = ++this.injectionComputeSeq;
-        // Render the same `{{HISTORICAL_CORRECTION_RULE}}` slot the engine
-        // will substitute at call time, so the count tracks what's actually
-        // sent. Other tail slots ({{USER_INPUT}}, {{CORRECTION_REMINDER}},
-        // {{IDEAL_OUTCOME_CONSTRAINT}}) carry user-input-bound text that
-        // can't be predicted ahead of the user typing — left alone, with
-        // the buffer floor absorbing the residual.
-        const correctionRule = this.contextBuilder.getHistoricalCorrectionRule(ctx, lang);
-        const fillRule = (template: string): string =>
-            template ? template.split('{{HISTORICAL_CORRECTION_RULE}}').join(correctionRule) : '';
 
-        // Mirror `buildResolverUserMessage`'s `${action}\n\n${protocol}`
-        // join so the count covers boundary-tokenization the same way the
-        // provider sees it. Counting action and protocol independently and
-        // summing under-reports the merged form by the boundary tokens
-        // (typically negligible but not free, esp. on BPE tokenizers that
-        // can fuse newline + leading punctuation).
+        // Two history-derived placeholder substitutions track what the
+        // engine renders at call time:
+        //
+        //   {{HISTORICAL_CORRECTION_RULE}} (in protocol_resolver/narrator/single)
+        //     → multi-paragraph rule text from the locale, present whenever
+        //       history holds at least one model message with a correction.
+        //
+        //   {{CORRECTION_REMINDER}} (in action template)
+        //     → renderCorrectionReminder() substitutes the most recent
+        //       correction's text into dynamicCorrection. Active only on the
+        //       turn immediately after a correction-declaration. Hundreds
+        //       of tokens — material to "will I 400" prediction.
+        //
+        // Both are derived purely from history (not user-input-bound), so we
+        // mirror them here. {{USER_INPUT}} and {{IDEAL_OUTCOME_CONSTRAINT}}
+        // genuinely depend on the user typing the next turn — left alone,
+        // residual absorbed by the buffer floor.
+        const correctionRule = this.contextBuilder.getHistoricalCorrectionRule(ctx, lang);
+        const correctionReminder = this.contextBuilder.renderCorrectionReminder(
+            ctx, this.contextBuilder.getRecentCorrection(ctx)
+        );
+        const fillProtocol = (template: string): string =>
+            template ? template.split('{{HISTORICAL_CORRECTION_RULE}}').join(correctionRule) : '';
+        const fillAction = (template: string): string =>
+            template ? template.split('{{CORRECTION_REMINDER}}').join(correctionReminder) : '';
+
+        // Mirror `buildResolverUserMessage`'s `${action}\n\n${protocol}` join
+        // so the count covers boundary-tokenization the same way the provider
+        // sees it. Counting action and protocol independently and summing
+        // under-reports the merged form by the boundary tokens (typically
+        // negligible but not free, esp. on BPE tokenizers that can fuse
+        // newline + leading punctuation).
+        const filledAction = fillAction(ctx.dynamicAction);
         const join = (action: string, protocol: string): string => {
-            const filled = fillRule(protocol);
+            const filled = fillProtocol(protocol);
             if (action && filled) return `${action}\n\n${filled}`;
             return action || filled;
         };
@@ -257,9 +266,9 @@ export class ContextCompositionService {
         // alongside the matching protocol; narrator never sees the action
         // template because its input is the synthetic narrator message.
         const [resolverCombined, narratorOnly, singleCombined] = await Promise.all([
-            this.countText(join(parts.action, parts.protocolR)),
-            this.countText(fillRule(parts.protocolN)),
-            this.countText(join(parts.action, parts.protocolS))
+            this.countText(join(filledAction, ctx.dynamicProtocolResolver)),
+            this.countText(fillProtocol(ctx.dynamicProtocolNarrator)),
+            this.countText(join(filledAction, ctx.dynamicProtocolSingle))
         ]);
         if (seq !== this.injectionComputeSeq) return;
         this.injectionResolverTokens.set(resolverCombined);
