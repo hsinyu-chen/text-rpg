@@ -14,6 +14,7 @@ import { MatSliderModule } from '@angular/material/slider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { GameEngineService } from '@app/core/services/game-engine.service';
 import { GameStateService } from '@app/core/services/game-state.service';
+import { AppConfigStore } from '@app/core/services/app-config-store';
 import { LLMProviderRegistryService } from '@app/core/services/llm-provider-registry.service';
 import { LLMConfigService } from '@app/core/services/llm-config.service';
 import { LoadingService } from '@app/core/services/loading.service';
@@ -47,6 +48,7 @@ export class SettingsDialogComponent {
   private dialogRef = inject(MatDialogRef<SettingsDialogComponent>);
   private engine = inject(GameEngineService);
   state = inject(GameStateService);
+  private appConfig = inject(AppConfigStore);
   private providerRegistry = inject(LLMProviderRegistryService);
   llmConfig = inject(LLMConfigService);
   private matDialog = inject(MatDialog);
@@ -122,34 +124,32 @@ export class SettingsDialogComponent {
   private loadSettings(): void {
     this.selectedProfileId.set(this.llmConfig.activeProfileId());
 
-    const current = this.state.config();
-    if (current) {
-      this.fontSize.set(current.fontSize || 16);
+    this.fontSize.set(this.appConfig.fontSize() || 16);
 
-      const standardFonts = this.fontFamilies.map(f => f.value);
-      if (current.fontFamily && !standardFonts.includes(current.fontFamily)) {
-        this.fontFamily.set('custom');
-        this.customFontName.set(current.fontFamily);
-      } else {
-        this.fontFamily.set(current.fontFamily || 'sans-serif');
-      }
+    const standardFonts = this.fontFamilies.map(f => f.value);
+    const currentFontFamily = this.appConfig.fontFamily();
+    if (currentFontFamily && !standardFonts.includes(currentFontFamily)) {
+      this.fontFamily.set('custom');
+      this.customFontName.set(currentFontFamily);
+    } else {
+      this.fontFamily.set(currentFontFamily || 'sans-serif');
+    }
 
-      this.exchangeRate.set(current.exchangeRate ?? 30);
-      this.currency.set(current.currency || 'TWD');
-      this.enableConversion.set(current.enableConversion ?? false);
-      this.screensaverType.set(current.screensaverType ?? 'invaders');
-      this.idleOnBlur.set(current.idleOnBlur ?? false);
-      this.enableAdultDeclaration.set(current.enableAdultDeclaration ?? true);
-      this.engineMode.set(current.engineMode ?? 'single');
+    this.exchangeRate.set(this.appConfig.exchangeRate());
+    this.currency.set(this.appConfig.currency());
+    this.enableConversion.set(this.appConfig.enableConversion());
+    this.screensaverType.set(this.appConfig.screensaverType());
+    this.idleOnBlur.set(this.appConfig.idleOnBlur());
+    this.enableAdultDeclaration.set(this.appConfig.enableAdultDeclaration());
+    this.engineMode.set(this.appConfig.engineMode());
 
-      const lang = current.outputLanguage || 'default';
-      const isPresetLang = this.languages.some(l => l.value === lang);
-      if (!isPresetLang && lang !== 'default') {
-        this.outputLanguage.set('custom');
-        this.customOutputLanguage.set(lang);
-      } else {
-        this.outputLanguage.set(lang);
-      }
+    const lang = this.appConfig.outputLanguage();
+    const isPresetLang = this.languages.some(l => l.value === lang);
+    if (!isPresetLang && lang !== 'default') {
+      this.outputLanguage.set('custom');
+      this.customOutputLanguage.set(lang);
+    } else {
+      this.outputLanguage.set(lang);
     }
   }
 

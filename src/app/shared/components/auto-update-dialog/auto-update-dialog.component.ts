@@ -16,6 +16,7 @@ import { FileUpdate, FileUpdateService } from '@app/core/services/file-update.se
 import { FileSystemService } from '@app/core/services/file-system.service';
 import { GameEngineService } from '@app/core/services/game-engine.service';
 import { GameStateService } from '@app/core/services/game-state.service';
+import { AppConfigStore } from '@app/core/services/app-config-store';
 import { CommonModule } from '@angular/common';
 import { CacheManagerService } from '@app/core/services/cache-manager.service';
 import { ConfirmDialogComponent, ConfirmDialogData } from '../confirm-dialog/confirm-dialog.component';
@@ -75,6 +76,7 @@ export class AutoUpdateDialogComponent {
   private fileSystem = inject(FileSystemService);
   private engine = inject(GameEngineService);
   private state = inject(GameStateService);
+  private appConfig = inject(AppConfigStore);
   private snackBar = inject(MatSnackBar);
   private dialog = inject(MatDialog);
   private cacheManager = inject(CacheManagerService);
@@ -95,7 +97,7 @@ export class AutoUpdateDialogComponent {
   activeGroup = () => this.groupedUpdates()[this.activeGroupIndex()] || null;
 
   // Get current locale for i18n
-  locale = () => getLocale(this.state.config()?.outputLanguage);
+  locale = () => getLocale(this.appConfig.outputLanguage());
 
   toggleSidebar() {
     this.isSidebarOpen.update(v => !v);
@@ -169,7 +171,7 @@ export class AutoUpdateDialogComponent {
    */
   private generateAutoLastSceneHunk(): FileUpdate | null {
     // 1. Check if there are any manual updates for the plot outline from the model
-    const lang = this.state.config()?.outputLanguage || 'default';
+    const lang = this.appConfig.outputLanguage();
     const names = getCoreFilenames(lang);
     const hasPlotOutlineUpdate = this.data.updates.some(u => u.filePath.includes(names.STORY_OUTLINE));
     if (!hasPlotOutlineUpdate) {

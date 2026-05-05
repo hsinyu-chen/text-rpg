@@ -17,6 +17,7 @@ import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { GameEngineService } from '@app/core/services/game-engine.service';
 import { GameStateService } from '@app/core/services/game-state.service';
+import { AppConfigStore } from '@app/core/services/app-config-store';
 import { getUIStrings } from '@app/core/constants/engine-protocol';
 import { IdentityOption, Scenario, WorldPreset } from '@app/core/models/types';
 import { getLocale } from '@app/core/constants/locales';
@@ -63,6 +64,7 @@ const BLANK_FILES_ZH = [
 export class NewGameDialogComponent {
     private engine = inject(GameEngineService);
     private state = inject(GameStateService);
+    private appConfig = inject(AppConfigStore);
     private dialogRef = inject(MatDialogRef<NewGameDialogComponent>);
     private http = inject(HttpClient);
     private snackBar = inject(MatSnackBar);
@@ -75,7 +77,7 @@ export class NewGameDialogComponent {
 
     // ─── Pre-build tab ────────────────────────────────────────────────────
     ui = computed(() => {
-        const lang = this.state.config()?.outputLanguage || 'default';
+        const lang = this.appConfig.outputLanguage();
         return getUIStrings(lang);
     });
     scenarios = signal<Scenario[]>([]);
@@ -90,7 +92,7 @@ export class NewGameDialogComponent {
     };
 
     labels = computed(() => {
-        const lang = this.state.config()?.outputLanguage || 'default';
+        const lang = this.appConfig.outputLanguage();
         const ui = getUIStrings(lang);
         return {
             name: ui.USER_NAME,
@@ -102,7 +104,7 @@ export class NewGameDialogComponent {
     });
 
     alignments = computed(() => {
-        const lang = this.state.config()?.outputLanguage || 'default';
+        const lang = this.appConfig.outputLanguage();
         const ui = getUIStrings(lang);
         const alignments = ui.ALIGNMENTS || {};
         return [
@@ -125,7 +127,7 @@ export class NewGameDialogComponent {
     });
 
     displayScenarios = computed(() => {
-        const lang = this.state.config()?.outputLanguage || 'default';
+        const lang = this.appConfig.outputLanguage();
         const targetLocaleId = getLocale(lang).id;
         return this.scenarios().filter(s => s.lang === targetLocaleId);
     });
@@ -253,7 +255,7 @@ export class NewGameDialogComponent {
     });
 
     private isZhLang(): boolean {
-        const lang = this.state.config()?.outputLanguage;
+        const lang = this.appConfig.outputLanguage();
         return getLocale(lang).id === 'zh-TW';
     }
 

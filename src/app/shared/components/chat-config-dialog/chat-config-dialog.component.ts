@@ -12,6 +12,7 @@ import { MatDividerModule } from '@angular/material/divider';
 import { FormsModule } from '@angular/forms';
 import { MonacoEditorComponent } from '../monaco-editor/monaco-editor.component';
 import { GameStateService } from '@app/core/services/game-state.service';
+import { AppConfigStore } from '@app/core/services/app-config-store';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { getUIStrings, getIntentLabels } from '@app/core/constants/engine-protocol';
 import { PostProcessorService } from '@app/core/services/post-processor.service';
@@ -72,6 +73,7 @@ export class ChatConfigDialogComponent {
     private dialogService = inject(DialogService);
     private readonly win = inject(WINDOW);
     state = inject(GameStateService);
+    private appConfig = inject(AppConfigStore);
 
     editorRef = viewChild<MonacoEditorComponent>('editorRef');
 
@@ -79,13 +81,10 @@ export class ChatConfigDialogComponent {
         void this.refreshLegacyProfileIds();
     }
 
-    ui = computed(() => {
-        const lang = this.state.config()?.outputLanguage || 'default';
-        return getUIStrings(lang);
-    });
+    ui = computed(() => getUIStrings(this.appConfig.outputLanguage()));
 
     readonly injectionTypes = computed((): InjectionType[] => {
-        const labels = getIntentLabels(this.state.config()?.outputLanguage);
+        const labels = getIntentLabels(this.appConfig.outputLanguage());
         const ui = this.ui();
         return [
             { id: 'system_main', label: ui.SYSTEM_PROMPT_TITLE || 'Main System Prompt', icon: 'settings', category: 'main' },
