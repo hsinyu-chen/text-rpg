@@ -255,13 +255,21 @@ export class ConfigService {
         // overrides win. genConfig is filtered first because importConfig
         // builds it with explicit `undefined` values for missing fields, which
         // would otherwise shadow resolved via spread.
-        const resolved = this.resolveProviderBoundFields();
         const current = this.state.config();
+        if (!current) {
+            // Refuse to persist if init() hasn't seeded yet — otherwise a
+            // pre-init saveConfig (e.g. importConfig fired from a deep link)
+            // would write a truncated GameEngineConfig into IDB, dropping
+            // unrelated fields the user had previously persisted.
+            console.warn('[ConfigService] saveConfig called before init() seeded state.config — ignoring.');
+            return;
+        }
+        const resolved = this.resolveProviderBoundFields();
         const overrides = Object.fromEntries(
             Object.entries(genConfig).filter(([, v]) => v !== undefined)
         );
         const fullConfig: GameEngineConfig = {
-            ...(current || {} as GameEngineConfig),
+            ...current,
             ...resolved,
             ...overrides
         };
