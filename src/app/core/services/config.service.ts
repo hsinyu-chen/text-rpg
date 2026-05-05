@@ -1,4 +1,4 @@
-import { Injectable, RendererFactory2, RendererStyleFlags2, effect, inject } from '@angular/core';
+import { Injectable, RendererFactory2, RendererStyleFlags2, effect, inject, untracked } from '@angular/core';
 import { DOCUMENT } from '@angular/common';
 import { GameStateService, GameEngineConfig } from './game-state.service';
 import { StorageService } from './storage.service';
@@ -64,6 +64,27 @@ export class ConfigService {
         };
     }
 
+    /**
+     * Resolve all GameEngineConfig fields that are bound to the active LLM
+     * profile, applying the same default fallbacks across init(), saveConfig(),
+     * and the profile-swap effect. Centralizing this prevents drift like the
+     * SESSION_EXPIRED bug where a profile swap left a stale modelId behind,
+     * or the previous-profile's `enableCache=true` leaking into a new profile
+     * that didn't explicitly set it.
+     */
+    private resolveProviderBoundFields() {
+        const activeProvider = this.providerRegistry.getActive();
+        const providerConfig = this.llmConfig.getActiveConfig();
+        const providerExtras = this.readProviderSettings(providerConfig);
+        return {
+            apiKey: providerConfig.apiKey || '',
+            modelId: providerConfig.modelId || activeProvider?.getDefaultModelId() || '',
+            enableCache: providerExtras.enableCache ?? (localStorage.getItem('app_enable_cache') === 'true'),
+            thinkingLevelStory: providerExtras.thinkingLevelStory ?? 'minimal',
+            thinkingLevelGeneral: providerExtras.thinkingLevelGeneral ?? 'high'
+        };
+    }
+
     constructor() {
         // ==================== Auto-save Effects ====================
 
@@ -79,7 +100,37 @@ export class ConfigService {
             }
         });
 
-
+        // Mirror the active LLM profile's provider-bound fields into
+        // state.config() so a sidebar profile swap doesn't leave
+        // modelId / apiKey / enableCache / thinking levels pointing at
+        // the previous provider. Without this, ensureCacheValid keeps
+        // sending the old provider's modelId to the new provider's API
+        // (e.g. a llama.cpp .gguf name to gemini's createCachedContent
+        // → 404 → SESSION_EXPIRED on the next turn).
+        // Reads of state.config / activeProvider are untracked so the
+        // write below doesn't retrigger the effect — the only intended
+        // dependency is `llmConfig.activeProfile()`.
+        effect(() => {
+            const profile = this.llmConfig.activeProfile();
+            if (!profile) return;
+            untracked(() => {
+                const current = this.state.config();
+                if (!current) return; // wait for init() to seed
+                const resolved = this.resolveProviderBoundFields();
+                if (
+                    current.apiKey === resolved.apiKey &&
+                    current.modelId === resolved.modelId &&
+                    current.enableCache === resolved.enableCache &&
+                    current.thinkingLevelStory === resolved.thinkingLevelStory &&
+                    current.thinkingLevelGeneral === resolved.thinkingLevelGeneral
+                ) return;
+                const next = { ...current, ...resolved };
+                this.state.config.set(next);
+                // Mirror to IDB so the persisted snapshot doesn't carry the
+                // previous profile's keys until the next saveConfig call.
+                this.storage.set('settings', next);
+            });
+        });
     }
 
     /**
@@ -118,17 +169,10 @@ export class ConfigService {
         // manual edit). Anything other than the known opt-in falls back to single.
         const engineMode: 'single' | 'two-call' = localStorage.getItem('app_engine_mode') === 'two-call' ? 'two-call' : 'single';
 
-        // Get Provider-Specific settings from the active provider's persisted config
-        const activeProvider = this.providerRegistry.getActive();
-        const providerConfig = this.llmConfig.getActiveConfig();
-        const providerExtras = this.readProviderSettings(providerConfig);
-
         const cfg: GameEngineConfig = {
-            apiKey: providerConfig.apiKey || '',
-            modelId: providerConfig.modelId || activeProvider?.getDefaultModelId() || '',
+            ...this.resolveProviderBoundFields(),
             fontSize,
             fontFamily,
-            enableCache: providerExtras.enableCache ?? (localStorage.getItem('app_enable_cache') === 'true'),
             exchangeRate: parseFloat(localStorage.getItem('app_exchange_rate') || localStorage.getItem('gemini_exchange_rate') || '30'),
             currency,
             enableConversion,
@@ -136,8 +180,6 @@ export class ConfigService {
             outputLanguage: localStorage.getItem('app_output_language') || localStorage.getItem('gemini_output_language') || 'default',
             idleOnBlur,
             enableAdultDeclaration,
-            thinkingLevelStory: providerExtras.thinkingLevelStory || 'minimal',
-            thinkingLevelGeneral: providerExtras.thinkingLevelGeneral || 'high',
             smartContextTurns: parseInt(localStorage.getItem('app_smart_context_turns') || localStorage.getItem('gemini_smart_context_turns') || '10', 10),
             engineMode
         };
@@ -205,24 +247,36 @@ export class ConfigService {
 
         if (genConfig.exchangeRate !== undefined) localStorage.setItem('app_exchange_rate', genConfig.exchangeRate.toString());
 
+        // Match the every-other-field pattern: only persist when the caller
+        // actually supplied the field. Earlier `else removeItem` branches
+        // here were wiping font settings on every partial update (e.g. the
+        // chat-input's engineMode toggle).
         if (genConfig.fontSize !== undefined) localStorage.setItem('app_font_size', genConfig.fontSize.toString());
-        else localStorage.removeItem('app_font_size');
-
         if (genConfig.fontFamily !== undefined) localStorage.setItem('app_font_family', genConfig.fontFamily);
-        else localStorage.removeItem('app_font_family');
 
-        // Fetch current provider state for the signal
-        const activeProvider = this.providerRegistry.getActive();
-        const providerConfig = this.llmConfig.getActiveConfig();
-        const providerExtras = this.readProviderSettings(providerConfig);
-
+        // Spread current first so partial-update callers (e.g. the chat-input's
+        // `saveConfig({ engineMode })`) don't wipe unrelated fields, then
+        // resolved for active-profile defaults, then genConfig last so user
+        // overrides win. genConfig is filtered first because importConfig
+        // builds it with explicit `undefined` values for missing fields, which
+        // would otherwise shadow resolved via spread.
+        const current = this.state.config();
+        if (!current) {
+            // Refuse to persist if init() hasn't seeded yet — otherwise a
+            // pre-init saveConfig (e.g. importConfig fired from a deep link)
+            // would write a truncated GameEngineConfig into IDB, dropping
+            // unrelated fields the user had previously persisted.
+            console.warn('[ConfigService] saveConfig called before init() seeded state.config — ignoring.');
+            return;
+        }
+        const resolved = this.resolveProviderBoundFields();
+        const overrides = Object.fromEntries(
+            Object.entries(genConfig).filter(([, v]) => v !== undefined)
+        );
         const fullConfig: GameEngineConfig = {
-            apiKey: providerConfig.apiKey || '',
-            modelId: providerConfig.modelId || activeProvider?.getDefaultModelId() || '',
-            ...genConfig,
-            // enableCache is provider-specific and may not be in genConfig; pull from providerConfig
-            // so toggling the setting takes effect immediately instead of requiring a reload.
-            enableCache: genConfig.enableCache ?? providerExtras.enableCache ?? (localStorage.getItem('app_enable_cache') === 'true')
+            ...current,
+            ...resolved,
+            ...overrides
         };
         this.state.config.set(fullConfig);
 
