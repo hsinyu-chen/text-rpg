@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { assembleStoryWithSceneHeader, buildSceneHeaderLine, formatStructuredAnalysis } from './format-structured-analysis';
+import { assembleStoryWithSceneHeader, buildSceneHeaderLine, formatResolverIntent, formatStructuredAnalysis } from './format-structured-analysis';
 import { AnalysisStep, SceneSnapshot, StructuredAnalysis } from '@app/core/constants/engine-protocol-structured';
 
 function step(overrides: Partial<AnalysisStep> = {}): AnalysisStep {
@@ -110,6 +110,25 @@ describe('formatStructuredAnalysis', () => {
                 pc_in_header: 'P'
             }));
             expect(line).toBe('[D 00:00 / L / P]');
+        });
+    });
+
+    describe('formatResolverIntent', () => {
+        it('renders both fields when supplied', () => {
+            const out = formatResolverIntent('主角想潛行到櫃檯後製造驚喜', 'pragmatic');
+            expect(out).toContain('**[意圖判讀]**');
+            expect(out).toContain('- 目標: 主角想潛行到櫃檯後製造驚喜');
+            expect(out).toContain('- 強度: pragmatic');
+        });
+
+        it('renders only the present field', () => {
+            expect(formatResolverIntent('reach plaza', '')).toContain('- 目標: reach plaza');
+            expect(formatResolverIntent('reach plaza', '')).not.toContain('- 強度');
+        });
+
+        it('returns empty string when both are unset', () => {
+            expect(formatResolverIntent('', '')).toBe('');
+            expect(formatResolverIntent(null, undefined)).toBe('');
         });
     });
 

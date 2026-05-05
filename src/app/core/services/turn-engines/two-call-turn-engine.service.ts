@@ -6,7 +6,7 @@ import { ChatMessage } from '@app/core/models/types';
 import { TurnEngine, TurnRunInput } from './turn-engine.interface';
 import { TwoCallOrchestratorService } from './two-call-orchestrator.service';
 import { truncateAtBreak } from '@app/core/constants/engine-protocol-structured';
-import { formatStructuredAnalysis } from './format-structured-analysis';
+import { formatResolverIntent, formatStructuredAnalysis } from './format-structured-analysis';
 
 /**
  * Two-call turn engine — splits a turn into a resolver call (atomic action
@@ -113,7 +113,12 @@ export class TwoCallTurnEngine implements TurnEngine {
             totalDuration: (resolverResult.usage.totalDuration || 0) + (narratorResult.turnUsage.totalDuration || 0)
         };
 
-        const finalTrace = formatStructuredAnalysis(truncatedAnalysis);
+        const intentHeader = formatResolverIntent(
+            resolverResult.resolverOutput.ideal_outcome,
+            resolverResult.resolverOutput.ideal_strength
+        );
+        const analysisBody = formatStructuredAnalysis(truncatedAnalysis);
+        const finalTrace = [intentHeader, analysisBody].filter(s => s.length > 0).join('\n\n');
 
         // Post-turn KV cache holds only the narrator call's tokens — the resolver
         // call's prefix was overwritten when narrator ran. Sidebar consumes this

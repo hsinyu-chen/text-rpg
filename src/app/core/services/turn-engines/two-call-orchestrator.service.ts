@@ -13,7 +13,7 @@ import {
     interruptedAtStep,
     isInterrupted
 } from '@app/core/constants/engine-protocol-structured';
-import { formatStructuredAnalysis } from './format-structured-analysis';
+import { formatResolverIntent, formatStructuredAnalysis } from './format-structured-analysis';
 import { mergeUsage } from '../llm-usage-merge';
 
 export interface ResolverRunResult {
@@ -104,7 +104,9 @@ export class TwoCallOrchestratorService {
                     }
                     try {
                         const partial = this.parser.bestEffortJsonParser(accumulator) as Partial<ResolverResponse>;
-                        const trace = formatStructuredAnalysis(partial.analysis ?? null);
+                        const intentHeader = formatResolverIntent(partial.ideal_outcome, partial.ideal_strength);
+                        const analysisBody = formatStructuredAnalysis(partial.analysis ?? null);
+                        const trace = [intentHeader, analysisBody].filter(s => s.length > 0).join('\n\n');
                         if (trace && trace !== lastTraceText) {
                             lastTraceText = trace;
                             patchLastModel(last => ({ ...last, analysis: trace, isThinking: true }));

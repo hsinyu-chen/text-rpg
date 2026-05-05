@@ -76,6 +76,23 @@ function formatSnapshot(snap: Partial<SceneSnapshot>): string {
 }
 
 /**
+ * Renders the resolver's intent inference (`ideal_outcome` + `ideal_strength`)
+ * as a short markdown block. Used to prefix the 2-call analysis trace so the
+ * user can see how the resolver judged the player's intent before truncation.
+ * Returns empty string when both fields are unset.
+ */
+export function formatResolverIntent(idealOutcome: string | null | undefined, idealStrength: string | null | undefined): string {
+    const outcome = idealOutcome?.trim();
+    const strength = idealStrength?.trim();
+    if (!outcome && !strength) return '';
+
+    const lines: string[] = ['**[意圖判讀]**'];
+    if (outcome) lines.push(`- 目標: ${outcome}`);
+    if (strength) lines.push(`- 強度: ${strength}`);
+    return lines.join('\n');
+}
+
+/**
  * Builds the bracketed scene-header line `[<date> <time> / <location> / <chars>]`
  * from a (possibly partial) scene_snapshot. Returns empty string when the
  * minimum fields (date_in_world / time_hhmm / location) are not yet populated.
