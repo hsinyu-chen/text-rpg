@@ -17,10 +17,6 @@ const ACTIVE_PROFILE_KEY = 'llm_active_profile_id';
  * A subscription to the storage keeps the in-memory cache fresh whenever
  * the profile list changes — including edits to the active profile made
  * from the profile manager.
- *
- * Seeding of profiles from the pre-monorepo per-key localStorage lives in
- * MigrationService.runMigrations, which must run before this service
- * initializes (see app.component bootstrap).
  */
 @Injectable({ providedIn: 'root' })
 export class LLMConfigService {
@@ -62,9 +58,6 @@ export class LLMConfigService {
   }
 
   private async initialize(): Promise<void> {
-    // Profile seeding (from pre-monorepo per-key localStorage) runs in
-    // MigrationService.runMigrations before this service initializes, so
-    // we can assume storage is already in its post-migration state.
     const initial = await this.storage.getAll();
     this._profiles.set(initial);
 
