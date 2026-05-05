@@ -247,11 +247,12 @@ export class ConfigService {
 
         if (genConfig.exchangeRate !== undefined) localStorage.setItem('app_exchange_rate', genConfig.exchangeRate.toString());
 
+        // Match the every-other-field pattern: only persist when the caller
+        // actually supplied the field. Earlier `else removeItem` branches
+        // here were wiping font settings on every partial update (e.g. the
+        // chat-input's engineMode toggle).
         if (genConfig.fontSize !== undefined) localStorage.setItem('app_font_size', genConfig.fontSize.toString());
-        else localStorage.removeItem('app_font_size');
-
         if (genConfig.fontFamily !== undefined) localStorage.setItem('app_font_family', genConfig.fontFamily);
-        else localStorage.removeItem('app_font_family');
 
         // Spread current first so partial-update callers (e.g. the chat-input's
         // `saveConfig({ engineMode })`) don't wipe unrelated fields, then
