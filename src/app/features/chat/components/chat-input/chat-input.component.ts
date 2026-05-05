@@ -29,6 +29,7 @@ import { PromptProfileRegistryService } from '@app/core/services/prompt-profile-
 import { SystemStatusService } from '@app/core/services/system-status.service';
 import { getUIStrings } from '@app/core/constants/engine-protocol';
 import { getProfileDisplayName } from '@app/core/constants/prompt-profiles';
+import { ContextUsageBarComponent } from '@app/shared/components/context-usage-bar/context-usage-bar.component';
 
 @Component({
     selector: 'app-chat-input',
@@ -44,7 +45,8 @@ import { getProfileDisplayName } from '@app/core/constants/prompt-profiles';
         MatSelectModule,
         MatMenuModule,
         TextFieldModule,
-        MatBadgeModule
+        MatBadgeModule,
+        ContextUsageBarComponent
     ],
     templateUrl: './chat-input.component.html',
     styleUrl: './chat-input.component.scss',
