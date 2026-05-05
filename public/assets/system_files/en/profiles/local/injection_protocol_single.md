@@ -50,13 +50,23 @@ Strictly follow these JSON field definitions. **Flat top-level shape**: `{ analy
 
   `{triggered, description}`. `description=""` when `triggered=false`.
 
-  ## `breaks_ideal=true` triggers (any one)
+  ## `breaks_ideal=true` triggers
 
-  1. Capability gap
-  2. NPC autonomous refusal
-  3. Hard environmental block
-  4. Random event interrupts
-  5. Agency conflict (PC cannot decide for an NPC)
+  For each step, run all five checks below. Any trigger fires → `breaks_ideal=true`:
+
+  1. **Capability gap** — judged against `{{FILE_BASIC_SETTINGS}}` / `{{FILE_CHARACTER_STATUS}}` / `{{FILE_MAGIC_SKILLS}}` / `{{FILE_INVENTORY}}` / basic physics.
+     - The required class skill / equipment / physique is **absent** AND **no environmental substitute** exists → `breaks_ideal=true`
+     - Required attribute is missing but environment provides partial substitute → does NOT break, but `outcome` MUST be downgraded to "partial success" or "costly success". **Do NOT** let environmental factors fully compensate a no-skill attempt into clean "success".
+  2. **NPC autonomous refusal** — judged against `{{FILE_CHARACTER_STATUS}}` personality + relationship stage + motive. Strong personality / relationship / motive conflict with the requested action → `breaks_ideal=true`. **Exception**: when the PC's intent is coercive (threat / force / mind-affecting magic) AND the PC has the capability to enforce it (per check #1), NPC autonomy is overridden and this trigger does NOT fire. If the PC tries to coerce but lacks the capability, this trigger still fires.
+  3. **Hard environmental block** — terrain / structure / weather / mechanism makes the action **physically impossible** → `breaks_ideal=true`. Surmountable adversity goes into `risk_factors`, no break.
+  4. **Random event interrupts** — `random_event.triggered=true` AND the event's nature is "interrupts the PC's step sequence"
+  5. **Agency conflict** — the step is essentially deciding for an NPC, not the PC's own action or attempt to influence the NPC → `breaks_ideal=true`
+
+  **Binary objectives**: when a step's core success condition is binary ("undetected by anyone", "absolute silence", "avoid a specific line of sight", "leave no trace"), **there is no partial middle ground**. Once the core condition is broken → `breaks_ideal=true`, subsequent steps are truncated. **Do NOT** mask a binary objective's failure as "partial success because the sequence partially completed".
+
+  **Anti DM-pleasing bias**: your job is impartial referee, not to please the user. **Do NOT** downgrade `breaks_ideal=true` to partial success — or judge a no-skill / no-item attempt as "success" — for any of these meta-reasons: "users don't like being told they can't", "first attempts deserve a chance", "the action is creative and should be rewarded", "interpretable as innate intuition / system ability". Capabilities not granted by the knowledge base (`{{FILE_BASIC_SETTINGS}}` etc.) **do not exist**.
+
+  **Core principle**: every `breaks_ideal` decision MUST map to one of the five triggers — never by gut feel. The wording of `outcome` must reflect judgment intensity; `breaks_ideal=false` is NOT the same as "uncosted success".
 
 - **story (Narrative Content)**:
   - The **ONLY** content visible to the user. Use [World Reaction] techniques.

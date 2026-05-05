@@ -66,14 +66,24 @@
 
 `{triggered, description}`。`triggered=false` 時 `description=""`。
 
-## `breaks_ideal=true` 觸發條件（任一）
+## `breaks_ideal=true` 觸發條件
 
-1. 能力不足
-2. NPC 拒絕（依其自主性與人格）
-3. 環境硬性阻擋
-4. 隨機事件中斷
-5. 代理權衝突（主角無權替 NPC 決定）
+對每一個 step 依序檢核以下五點，任一觸發即 `breaks_ideal=true`：
+
+1. **能力不足**：依 `{{FILE_BASIC_SETTINGS}}` / `{{FILE_CHARACTER_STATUS}}` / `{{FILE_MAGIC_SKILLS}}` / `{{FILE_INVENTORY}}` / 物理常識判斷。
+   - 動作所需的職業技能／裝備／體能主角**未具備**且**無環境替代** → `breaks_ideal=true`
+   - 主角缺乏所需條件但環境提供部分替代 → 不觸發 break，但 `outcome` **必須**降為「部份成功」或「伴隨代價的成功」。**禁止**只用環境因素把無技能嘗試全額補償為「成功」。
+2. **NPC 自主拒絕**：依 `{{FILE_CHARACTER_STATUS}}` 性格 + 關係階段 + 利益動機。性格／關係／利益任一與該動作強烈牴觸 → `breaks_ideal=true`。**例外**：當主角意圖屬強制類（脅迫／武力／施法控制等）且**具備足以強制該 NPC 的能力**（依 #1 能力檢核），NPC 自主性被壓制，本條不觸發；若強制能力不足，仍以本條觸發。
+3. **環境硬性阻擋**：地形／結構／天氣／機關使動作**物理上不可行** → `breaks_ideal=true`。可克服的不利列入 `risk_factors`，不觸發。
+4. **隨機事件中斷**：`random_event.triggered=true` 且事件性質為「打斷主角 step 序列」
+5. **代理權衝突**：step 本質是替 NPC 做決定，而非主角自身的動作或對 NPC 的影響嘗試 → `breaks_ideal=true`
+
+**Binary 目標處理**：當 step 的核心成功條件為 binary（如「不被任何人察覺／聽見」、「保持絕對沉默」、「躲開特定視線」、「不留痕跡」），**不存在 partial 中間值**。核心條件一旦被破壞（即使動作流程部分達成）→ `breaks_ideal=true`，後續 steps 截斷。**禁止**用「動作流程部分完成」掩蓋 binary 目標的失敗。
+
+**反 DM 取悅偏誤**：你的職責是公正裁判，不是讓使用者開心。**禁止**因為「使用者不喜歡被告知做不到」、「第一次嘗試應該給機會」、「動作有趣應該獎勵」、「可解釋為直覺／系統能力」這類 meta 理由把 `breaks_ideal=true` 降為 partial 或將「無對應技能／物品」的嘗試判為成功。知識庫（`{{FILE_BASIC_SETTINGS}}` 等）未授予的能力**不存在**，不可用「DM 寬容」、「innate intuition」、「first attempt」等理由覆寫上方五點檢核。截斷機制本身就是給玩家恢復機會的設計。
 
 ## 判定規則
 
-執行 `system_prompt.md` 的【Thinking 模式指引】所有檢核（事前盤點 / 裁判 / NPC 代言人 / 故事設計師），**內化**為每一步的 `breaks_ideal` 判定。推理留在 thinking，不進輸出。
+- 每個 `breaks_ideal` 必須對應上方五點之一，**不可憑直覺**判定
+- 執行 `system_prompt.md` 的【Thinking 模式指引】所有檢核（事前盤點 / 裁判 / NPC 代言人 / 故事設計師），**內化**為每一步的判定，推理留在 thinking 不進輸出
+- `outcome` 措辭要對應判定強度（成功 / 部份成功 / 伴隨代價的成功 / 失敗）；`breaks_ideal=false` 不等於「無代價的成功」
