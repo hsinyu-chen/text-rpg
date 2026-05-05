@@ -250,16 +250,17 @@ export class ConfigService {
         else localStorage.removeItem('app_font_family');
 
         // Spread current first so partial-update callers (e.g. the chat-input's
-        // `saveConfig({ engineMode })`) don't wipe unrelated fields. enableCache
-        // is re-applied at the end because importConfig may pass it as explicit
-        // undefined, which would otherwise shadow resolved.enableCache via spread.
+        // `saveConfig({ engineMode })`) don't wipe unrelated fields. resolved
+        // spreads last so provider-bound fields stay authoritative — saveConfig
+        // wrote any enableCache change into localStorage above, which
+        // resolveProviderBoundFields already incorporates as its fallback, so
+        // we don't need an extra override after the spread.
         const resolved = this.resolveProviderBoundFields();
         const current = this.state.config();
         const fullConfig: GameEngineConfig = {
             ...(current || {} as GameEngineConfig),
-            ...resolved,
             ...genConfig,
-            enableCache: genConfig.enableCache ?? resolved.enableCache
+            ...resolved
         };
         this.state.config.set(fullConfig);
 
