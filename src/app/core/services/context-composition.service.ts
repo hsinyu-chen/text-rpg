@@ -1,4 +1,4 @@
-import { Injectable, computed, effect, inject, signal } from '@angular/core';
+import { Injectable, OnDestroy, computed, effect, inject, signal } from '@angular/core';
 import { LLMContent, LLMProviderCapabilities } from '@hcs/llm-core';
 
 import { GameStateService } from './game-state.service';
@@ -43,7 +43,7 @@ import { ChatMessage } from '../models/types';
  * directly avoids the cancellation entirely.
  */
 @Injectable({ providedIn: 'root' })
-export class ContextCompositionService {
+export class ContextCompositionService implements OnDestroy {
     private state = inject(GameStateService);
     private providerRegistry = inject(LLMProviderRegistryService);
     private configService = inject(LLMConfigService);
@@ -194,21 +194,38 @@ export class ContextCompositionService {
         });
     }
 
-    private async countContents(contents: LLMContent[]): Promise<number> {
+    /**
+     * Returns the token count, or `null` when the provider is unavailable or
+     * `countTokens` threw. Callers MUST treat null as "skip update, keep last
+     * good value" — writing 0 on failure would mis-render the bar as nearly
+     * empty and defeat the OAI-400 prediction goal exactly when the provider
+     * is flakiest. Empty input legitimately counts as 0.
+     */
+    ngOnDestroy(): void {
+        // Service is providedIn 'root' so this only fires on explicit module
+        // teardown (e.g. unit tests) — but cleaning up the pending debounce
+        // costs nothing and avoids logic firing on a torn-down service.
+        if (this.historyDebounceHandle !== null) {
+            clearTimeout(this.historyDebounceHandle);
+            this.historyDebounceHandle = null;
+        }
+    }
+
+    private async countContents(contents: LLMContent[]): Promise<number | null> {
         if (contents.length === 0) return 0;
         const provider = this.providerRegistry.activeProvider();
-        if (!provider) return 0;
+        if (!provider) return null;
         const config = this.providerRegistry.getActiveConfig();
         const modelId = this.providerRegistry.getActiveModelId() || '';
         try {
             return await provider.countTokens(config, modelId, contents);
         } catch (err) {
             console.warn('[ContextComposition] countTokens failed:', err);
-            return 0;
+            return null;
         }
     }
 
-    private countText(text: string): Promise<number> {
+    private countText(text: string): Promise<number | null> {
         if (!text) return Promise.resolve(0);
         return this.countContents([{ role: 'user', parts: [{ text }] }]);
     }
@@ -217,6 +234,8 @@ export class ContextCompositionService {
         const seq = ++this.systemComputeSeq;
         const count = await this.countText(text);
         if (seq !== this.systemComputeSeq) return;
+        // null = countTokens failed; preserve last known good value.
+        if (count === null) return;
         this.systemPromptTokens.set(count);
     }
 
@@ -271,6 +290,11 @@ export class ContextCompositionService {
             this.countText(join(filledAction, ctx.dynamicProtocolSingle))
         ]);
         if (seq !== this.injectionComputeSeq) return;
+        // Atomic update: bail if any of the three failed so the bar can't
+        // render a partially-stale composition (e.g. a fresh resolver count
+        // alongside a stale narrator one would silently misrepresent the
+        // 2-call worst case).
+        if (resolverCombined === null || narratorOnly === null || singleCombined === null) return;
         this.injectionResolverTokens.set(resolverCombined);
         this.injectionNarratorTokens.set(narratorOnly);
         this.injectionSingleTokens.set(singleCombined);
@@ -285,6 +309,7 @@ export class ContextCompositionService {
         ]);
 
         if (seq !== this.historyComputeSeq) return;
+        if (compressedCount === null || recentCount === null) return;
         this.historyCompressedTokens.set(compressedCount);
         this.historyRecentTokens.set(recentCount);
     }
