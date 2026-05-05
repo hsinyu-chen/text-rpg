@@ -12,7 +12,12 @@ export class FileUpdateParser {
     static dedent(content: string): string {
         if (!content) return '';
 
-        const lines = content.replace(/^[\r\n]+/, '').replace(/[\r\n]+\s*$/, '').split(/\r?\n/);
+        const lines = content.split(/\r?\n/);
+        // Trim whitespace-only lines from both ends — `^[\r\n]+` alone leaves
+        // a leading "   \n" (whitespace + newline) in place because the regex
+        // only matches CR/LF.
+        while (lines.length > 0 && lines[0].trim().length === 0) lines.shift();
+        while (lines.length > 0 && lines[lines.length - 1].trim().length === 0) lines.pop();
 
         if (lines.length === 0) return '';
 
@@ -47,8 +52,9 @@ export class FileUpdateParser {
         // attribute order (file-then-context vs context-then-file) into the
         // outer pattern.
         const saveBlockRegex = /<save\s+([^>]*?)>([^]*?)<\/save>/gi;
-        const fileAttrRegex = /\bfile="([^"]*)"/i;
-        const contextAttrRegex = /\bcontext="([^"]*)"/i;
+        // Accept both quote styles — LLMs occasionally swap to single quotes.
+        const fileAttrRegex = /\bfile=["']([^"']*)["']/i;
+        const contextAttrRegex = /\bcontext=["']([^"']*)["']/i;
         const updateBlockRegex = /<update\s*>([^]*?)<\/update>/gi;
         const targetTagRegex = /<target\s*>([^]*?)<\/target>/i;
         const replacementTagRegex = /<replacement\s*>([^]*?)<\/replacement>/i;

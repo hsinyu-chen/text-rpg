@@ -17,6 +17,10 @@ describe('FileUpdateParser', () => {
       expect(FileUpdateParser.dedent(input)).toBe('body\nline');
     });
 
+    it('trims leading whitespace-only lines (not just bare newlines)', () => {
+      expect(FileUpdateParser.dedent('   \n  body')).toBe('body');
+    });
+
     it('treats blank lines as empty (no indent contribution)', () => {
       const input = '  a\n\n  b';
       expect(FileUpdateParser.dedent(input)).toBe('a\n\nb');
@@ -78,6 +82,17 @@ describe('FileUpdateParser', () => {
 
     it('accepts attributes in either order (context before file)', () => {
       const input = `<save context="# Top" file="foo.md"><target>x</target></save>`;
+      const result = FileUpdateParser.parse(input);
+      expect(result).toEqual([{
+        filePath: 'foo.md',
+        context: '# Top',
+        targetContent: 'x',
+        replacementContent: undefined,
+      }]);
+    });
+
+    it('accepts single-quoted attributes', () => {
+      const input = `<save file='foo.md' context='# Top'><target>x</target></save>`;
       const result = FileUpdateParser.parse(input);
       expect(result).toEqual([{
         filePath: 'foo.md',
