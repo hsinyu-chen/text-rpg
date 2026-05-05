@@ -10,7 +10,6 @@ import { isSystemMainCompatible, stripSystemMainMarker } from './profile-compat'
  * Configuration for the game engine.
  */
 export interface GameEngineConfig {
-    apiKey?: string;
     modelId?: string;
     fontSize?: number;
     fontFamily?: string;
@@ -22,8 +21,6 @@ export interface GameEngineConfig {
     outputLanguage?: string;
     idleOnBlur?: boolean;
     enableAdultDeclaration?: boolean;
-    thinkingLevelStory?: string;
-    thinkingLevelGeneral?: string;
     smartContextTurns?: number;
     /**
      * Turn engine mode. `'single'` (default) is the legacy single-LLM-call path.

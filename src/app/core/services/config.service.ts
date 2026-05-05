@@ -58,30 +58,28 @@ export class ConfigService {
                 ? s['enableCache'] as boolean
                 : (typeof s['enableCacheSlot'] === 'boolean' ? s['enableCacheSlot'] as boolean : undefined));
         return {
-            enableCache: enableCacheRaw,
-            thinkingLevelStory: typeof s['thinkingLevelStory'] === 'string' ? s['thinkingLevelStory'] as string : undefined,
-            thinkingLevelGeneral: typeof s['thinkingLevelGeneral'] === 'string' ? s['thinkingLevelGeneral'] as string : undefined
+            enableCache: enableCacheRaw
         };
     }
 
     /**
-     * Resolve all GameEngineConfig fields that are bound to the active LLM
-     * profile, applying the same default fallbacks across init(), saveConfig(),
-     * and the profile-swap effect. Centralizing this prevents drift like the
-     * SESSION_EXPIRED bug where a profile swap left a stale modelId behind,
-     * or the previous-profile's `enableCache=true` leaking into a new profile
-     * that didn't explicitly set it.
+     * Resolve provider-bound fields that GameEngineConfig still mirrors from
+     * the active LLM profile. Centralizes the default fallbacks across init(),
+     * saveConfig(), and the profile-swap effect — without this the mirrored
+     * copy drifts on profile swap (the SESSION_EXPIRED bug).
+     *
+     * NOTE: this only exists because GameEngineConfig still duplicates
+     * modelId / enableCache from the LLM profile. The follow-up refactor
+     * (PR-B / PR-C in the planning doc) routes readers through
+     * LLMProviderRegistryService and removes this entirely.
      */
     private resolveProviderBoundFields() {
         const activeProvider = this.providerRegistry.getActive();
         const providerConfig = this.llmConfig.getActiveConfig();
         const providerExtras = this.readProviderSettings(providerConfig);
         return {
-            apiKey: providerConfig.apiKey || '',
             modelId: providerConfig.modelId || activeProvider?.getDefaultModelId() || '',
-            enableCache: providerExtras.enableCache ?? (localStorage.getItem('app_enable_cache') === 'true'),
-            thinkingLevelStory: providerExtras.thinkingLevelStory ?? 'minimal',
-            thinkingLevelGeneral: providerExtras.thinkingLevelGeneral ?? 'high'
+            enableCache: providerExtras.enableCache ?? (localStorage.getItem('app_enable_cache') === 'true')
         };
     }
 
@@ -102,11 +100,10 @@ export class ConfigService {
 
         // Mirror the active LLM profile's provider-bound fields into
         // state.config() so a sidebar profile swap doesn't leave
-        // modelId / apiKey / enableCache / thinking levels pointing at
-        // the previous provider. Without this, ensureCacheValid keeps
-        // sending the old provider's modelId to the new provider's API
-        // (e.g. a llama.cpp .gguf name to gemini's createCachedContent
-        // → 404 → SESSION_EXPIRED on the next turn).
+        // modelId / enableCache pointing at the previous provider.
+        // Without this, ensureCacheValid keeps sending the old provider's
+        // modelId to the new provider's API (e.g. a llama.cpp .gguf name
+        // to gemini's createCachedContent → 404 → SESSION_EXPIRED).
         // Reads of state.config / activeProvider are untracked so the
         // write below doesn't retrigger the effect — the only intended
         // dependency is `llmConfig.activeProfile()`.
@@ -118,11 +115,8 @@ export class ConfigService {
                 if (!current) return; // wait for init() to seed
                 const resolved = this.resolveProviderBoundFields();
                 if (
-                    current.apiKey === resolved.apiKey &&
                     current.modelId === resolved.modelId &&
-                    current.enableCache === resolved.enableCache &&
-                    current.thinkingLevelStory === resolved.thinkingLevelStory &&
-                    current.thinkingLevelGeneral === resolved.thinkingLevelGeneral
+                    current.enableCache === resolved.enableCache
                 ) return;
                 const next = { ...current, ...resolved };
                 this.state.config.set(next);
@@ -221,8 +215,6 @@ export class ConfigService {
         outputLanguage?: string,
         idleOnBlur?: boolean,
         enableAdultDeclaration?: boolean,
-        thinkingLevelStory?: string,
-        thinkingLevelGeneral?: string,
         smartContextTurns?: number,
         engineMode?: 'single' | 'two-call'
     }) {
@@ -300,7 +292,15 @@ export class ConfigService {
             console.error('[ConfigService] Invalid config object provided for import');
             return;
         }
-        const cfg = config as GameEngineConfig;
+        // Permissive shape — pre-refactor exports may carry apiKey / modelId /
+        // thinkingLevels at the top level. We accept those for backward compat
+        // and route them to the active LLM profile instead of GameEngineConfig.
+        const cfg = config as GameEngineConfig & {
+            apiKey?: string;
+            modelId?: string;
+            thinkingLevelStory?: string;
+            thinkingLevelGeneral?: string;
+        };
 
         // Construct the full config object, ensuring sections
         const genConfig = {
@@ -314,8 +314,6 @@ export class ConfigService {
             outputLanguage: typeof cfg.outputLanguage === 'string' ? cfg.outputLanguage : undefined,
             idleOnBlur: typeof cfg.idleOnBlur === 'boolean' ? cfg.idleOnBlur : undefined,
             enableAdultDeclaration: typeof cfg.enableAdultDeclaration === 'boolean' ? cfg.enableAdultDeclaration : undefined,
-            thinkingLevelStory: typeof cfg.thinkingLevelStory === 'string' ? cfg.thinkingLevelStory : undefined,
-            thinkingLevelGeneral: typeof cfg.thinkingLevelGeneral === 'string' ? cfg.thinkingLevelGeneral : undefined,
             smartContextTurns: typeof cfg.smartContextTurns === 'number' ? cfg.smartContextTurns : undefined,
             engineMode: (cfg.engineMode === 'single' || cfg.engineMode === 'two-call') ? cfg.engineMode : undefined
         };
