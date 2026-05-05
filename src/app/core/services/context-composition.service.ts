@@ -281,23 +281,37 @@ export class ContextCompositionService implements OnDestroy {
             return action || filled;
         };
 
-        // Resolver & single carry the action template at the user-message tail
-        // alongside the matching protocol; narrator never sees the action
-        // template because its input is the synthetic narrator message.
-        const [resolverCombined, narratorOnly, singleCombined] = await Promise.all([
-            this.countText(join(filledAction, ctx.dynamicProtocolResolver)),
-            this.countText(fillProtocol(ctx.dynamicProtocolNarrator)),
-            this.countText(join(filledAction, ctx.dynamicProtocolSingle))
-        ]);
-        if (seq !== this.injectionComputeSeq) return;
-        // Atomic update: bail if any of the three failed so the bar can't
-        // render a partially-stale composition (e.g. a fresh resolver count
-        // alongside a stale narrator one would silently misrepresent the
-        // 2-call worst case).
-        if (resolverCombined === null || narratorOnly === null || singleCombined === null) return;
-        this.injectionResolverTokens.set(resolverCombined);
-        this.injectionNarratorTokens.set(narratorOnly);
-        this.injectionSingleTokens.set(singleCombined);
+        // Each `countTokens` is a real provider round-trip — only fire the
+        // ones the active engine mode will actually display via
+        // `effectiveInjectionTokens`. Inactive signals retain their last
+        // value, which is fine: they're only read when the engine flips
+        // back to that mode, at which point this effect refires (engineMode
+        // is a tracked dep via buildLightContext) and recomputes the now-
+        // active counts on the fresh ctx. Brief stale window between the
+        // toggle and the effect's next tick is acceptable.
+        //
+        // Resolver & single carry the action template at the user-message
+        // tail alongside the matching protocol; narrator never sees the
+        // action template because its input is the synthetic narrator
+        // message. Atomic update: bail if any required count failed so the
+        // bar can't render a partial composition (a fresh resolver paired
+        // with a stale narrator would silently misrepresent the 2-call
+        // worst case).
+        if (ctx.engineMode === 'two-call') {
+            const [resolverCombined, narratorOnly] = await Promise.all([
+                this.countText(join(filledAction, ctx.dynamicProtocolResolver)),
+                this.countText(fillProtocol(ctx.dynamicProtocolNarrator))
+            ]);
+            if (seq !== this.injectionComputeSeq) return;
+            if (resolverCombined === null || narratorOnly === null) return;
+            this.injectionResolverTokens.set(resolverCombined);
+            this.injectionNarratorTokens.set(narratorOnly);
+        } else {
+            const singleCombined = await this.countText(join(filledAction, ctx.dynamicProtocolSingle));
+            if (seq !== this.injectionComputeSeq) return;
+            if (singleCombined === null) return;
+            this.injectionSingleTokens.set(singleCombined);
+        }
     }
 
     private async recomputeHistoryTokens(ctx: BuildContext): Promise<void> {
