@@ -230,10 +230,12 @@ export class ConfigService {
 
         // Provider-bound fields go to the active LLM profile, not GameEngineConfig.
         // Trigger if any of the LLM-side fields are present, so a JSON that carries
-        // only enableCache / thinking levels still applies to the profile.
-        const hasProviderFields = !!cfg.apiKey || !!cfg.modelId
+        // only enableCache / thinking levels still applies to the profile. Use
+        // `!== undefined` rather than truthiness so an explicit empty string in
+        // the import can intentionally clear an existing apiKey / modelId override.
+        const hasProviderFields = cfg.apiKey !== undefined || cfg.modelId !== undefined
             || typeof cfg.enableCache === 'boolean'
-            || !!cfg.thinkingLevelStory || !!cfg.thinkingLevelGeneral;
+            || cfg.thinkingLevelStory !== undefined || cfg.thinkingLevelGeneral !== undefined;
         if (hasProviderFields) {
             const existing = this.llmConfig.getActiveConfig();
             const merged = {
@@ -243,8 +245,8 @@ export class ConfigService {
                 additionalSettings: {
                     ...(existing.additionalSettings || {}),
                     ...(typeof cfg.enableCache === 'boolean' ? { enableCache: cfg.enableCache } : {}),
-                    ...(cfg.thinkingLevelStory ? { thinkingLevelStory: cfg.thinkingLevelStory } : {}),
-                    ...(cfg.thinkingLevelGeneral ? { thinkingLevelGeneral: cfg.thinkingLevelGeneral } : {})
+                    ...(cfg.thinkingLevelStory !== undefined ? { thinkingLevelStory: cfg.thinkingLevelStory } : {}),
+                    ...(cfg.thinkingLevelGeneral !== undefined ? { thinkingLevelGeneral: cfg.thinkingLevelGeneral } : {})
                 }
             };
             this.llmConfig.saveActiveConfig(merged);
