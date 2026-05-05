@@ -20,6 +20,7 @@
     <div class="context-usage full" [class]="'level-' + contextUsageLevel()"
             [class.expanded]="breakdownExpanded()"
             role="button" tabindex="0"
+            [attr.aria-expanded]="breakdownExpanded()"
             (click)="toggleBreakdown()"
             (keydown.enter)="toggleBreakdown()"
             (keydown.space)="$event.preventDefault(); toggleBreakdown()"
