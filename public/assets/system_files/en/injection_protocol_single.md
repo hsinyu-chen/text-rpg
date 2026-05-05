@@ -9,7 +9,7 @@ Strictly follow these JSON field definitions. **Flat top-level shape**: `{ analy
     - For other commands (`<System>` general Q&A, `<Save>`): still emit the schema shape, but as a **skeleton** — empty `scene_snapshot` fields, `steps: []`, `random_event.triggered: false`. The skeleton renders to nothing in the UI.
   - **DO NOT** echo analysis text into `story`.
 
-  ## `analysis` structure (mirrors the legacy [Snapshot] / [Action N] / [Full-Scene N] / [Event] markdown)
+  ## `analysis` structure
 
   ### `scene_snapshot`
 
@@ -34,17 +34,17 @@ Strictly follow these JSON field definitions. **Flat top-level shape**: `{ analy
   | `action` | Verb-phrase description (target embedded inline). Do NOT echo input verbatim. |
   | `pc_dialogue` | Verbatim PC line for this step, `""` if none. **No paraphrase / polish**. |
   | `mood` | PC mood mirroring the `[mood]` tag. `""` if none. |
-  | `risk_factors[]` | List of risks. **List even when outcome is success** — drives narrator tension. |
+  | `risk_factors[]` | List of risks. List even when outcome is success. |
   | `outcome` | Single free-text judgment: `"success - barely held footing"` / `"partial success - achieved A but B refused"` / `"costly success - climbed but twisted ankle"` / `"failure - Lifey dodged and counterattacked"`. |
   | `breaks_ideal` | Boolean. `true` ⇒ action did not enter resolution. `false` ⇒ action happened (incl. success / partial / costly). When `true`, `outcome` should start with "failure"; when `false`, with "success / partial success / costly success". |
-  | `npc_reactions[]` | **EVERY `scene_snapshot.present_npcs` entry must appear here** (incl. silent / unconscious / remote-comm). Missing any = serious violation. |
+  | `npc_reactions[]` | **EVERY `scene_snapshot.present_npcs` entry must appear here** (incl. silent / unconscious / remote-comm). |
   | `object_reactions[]` | **EVERY `scene_snapshot.key_objects` entry must appear here** (incl. `"unchanged"`). |
 
   #### `npc_reactions[]` element
 
   - `actor` — must match a `present_npcs[].name`.
   - `physical` — gesture / posture / expression / gaze. Even silent / unconscious NPCs need a status line.
-  - `dialogue` — verbatim NPC line. `""` if NPC says nothing. **When NPC speaks, this MUST be the actual line** — DO NOT substitute action-paraphrases like "responded warmly" / "mocked aloud" in place of dialogue. The `story` quotes this verbatim.
+  - `dialogue` — verbatim NPC line. `""` if NPC says nothing. **When NPC speaks, this MUST be the actual line** — DO NOT substitute action-paraphrases like "responded warmly" / "mocked aloud" in place of dialogue.
   - `motivation` — motivation tag (`"combat instinct + hostility"` / `"fear + flee"` etc.). Empty `""` allowed.
 
   #### `object_reactions[]` element
@@ -65,13 +65,13 @@ Strictly follow these JSON field definitions. **Flat top-level shape**: `{ analy
   5. Agency conflict (PC cannot decide for an NPC)
 
 - **story (Narrative Content)**:
-  - The **ONLY** content visible to user. Use [World Reaction] techniques. Include dialogue, system msgs, GM replies.
-  - **[Full-Scene rendering rule]**: weave `analysis.steps[].npc_reactions[]` and `object_reactions[]` into prose:
+  - The **ONLY** content visible to the user. Use [World Reaction] techniques.
+  - **[Full-Scene rendering]**: weave `analysis.steps[].npc_reactions[]` and `object_reactions[]` into prose:
     - **NPC**: every present NPC must surface in prose, even silent observers (one sentence on posture / expression / gaze). When `dialogue` is non-empty, the prose MUST quote it verbatim. **DO NOT** substitute action-paraphrases like "responded warmly", "mocked aloud", "thanked aloud" for dialogue.
-    - **Objects**: skip when `change == "unchanged"`. Render only on first appearance, change, or interaction. No "still / continued to..." filler endings.
+    - **Objects**: skip when `change == "unchanged"`. Render only on first appearance, change, or interaction.
     - **Random event**: when `random_event.triggered=true`, weave into the current beat.
-  - **Mandatory Marker**: `story`'s first line MUST be `<CREATIVE FICTION CONTEXT>` (its own line), immediately followed by the body. **DO NOT** write the `[Calendar YYYY/MM/DD / Location / Characters]` line yourself — the program assembles it from `scene_snapshot` (`date_in_world` / `time_hhmm` / `location` / `pc_in_header` / `present_npcs[]`) and prepends it before the marker. You only own the marker + body.
-    - **Example `story` opening**:
+  - **Mandatory Marker**: `story`'s first line MUST be `<CREATIVE FICTION CONTEXT>` (its own line), immediately followed by the body. **DO NOT** write the `[Calendar / Location / Characters]` line yourself — the program assembles and prepends it.
+    - **Example**:
       ```
       <CREATIVE FICTION CONTEXT>
       Cheng Yangzong pushed open the tavern's wooden door...

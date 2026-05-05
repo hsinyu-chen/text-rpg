@@ -21,8 +21,6 @@ Top-level fields:
 
 ## `analysis` structure
 
-Mirrors 1-call's Snapshot / Action N / Full-Scene N / Event format.
-
 ### `analysis.scene_snapshot`
 
 The program assembles the scene header `[<date_in_world> <time_hhmm> / <location> / <chars>]` from these fields. **DO NOT** write the `[...]` line yourself in `story`.
@@ -41,16 +39,16 @@ The program assembles the scene header `[<date_in_world> <time_hhmm> / <location
 
 ### `analysis.steps[]`
 
-Atomic breakdown in user-input order. **Do NOT short-circuit** — even if step 1 has `breaks_ideal=true`, list every remaining step. Truncation is the program's job.
+Atomic breakdown in user-input order. **Do NOT short-circuit** — even if step 1 has `breaks_ideal=true`, list every remaining step.
 
 | Field | Content |
 |---|---|
 | `action` | Verb phrase ("walks to plaza center", "tries to attack Lifey"). Target embedded inline. **Do NOT echo the input verbatim**. |
-| `pc_dialogue` | PC's verbatim line for this step, `""` if none. **No paraphrase or polish**. The narrator never sees the original input and depends on this field. |
+| `pc_dialogue` | PC's verbatim line for this step, `""` if none. **No paraphrase or polish**. |
 | `mood` | PC mood (mirrors the `[mood]` tag): `"calm"` / `"tense"` / `"playful"` etc. `""` if none. |
-| `risk_factors[]` | Risks, e.g. `["Lifey can counterattack", "rain affects accuracy"]`. **List even when outcome is success** — drives narrator tension. Empty `[]` only when truly trivial. |
+| `risk_factors[]` | Risks, e.g. `["Lifey can counterattack", "rain affects accuracy"]`. List even when outcome is success. Empty `[]` only when truly trivial. |
 | `outcome` | Single free-text judgment: `"success - barely held footing"` / `"partial success - achieved A but B refused"` / `"costly success - climbed but twisted ankle"` / `"failure - Lifey dodged and counterattacked"`. |
-| `breaks_ideal` | Boolean. **Sole** truncation trigger. `true` ⇒ action did not enter resolution (see triggers). `false` ⇒ action happened (incl. success / partial / costly). When `true`, `outcome` should start with "failure"; when `false`, with "success / partial success / costly success". |
+| `breaks_ideal` | Boolean. `true` ⇒ action did not enter resolution (see triggers). `false` ⇒ action happened (incl. success / partial / costly). When `true`, `outcome` should start with "failure"; when `false`, with "success / partial success / costly success". |
 | `npc_reactions[]` | **EVERY `scene_snapshot.present_npcs` entry must appear here** (incl. silent / unconscious / remote-comm). |
 | `object_reactions[]` | **EVERY `scene_snapshot.key_objects` entry must appear here** (incl. `"unchanged"`). |
 
@@ -60,7 +58,7 @@ Atomic breakdown in user-input order. **Do NOT short-circuit** — even if step 
 |---|---|
 | `actor` | Must match a `present_npcs[].name`. |
 | `physical` | Gesture / posture / expression / gaze. Even silent / unconscious NPCs need a status line ("still slumped in the corner, unconscious"). |
-| `dialogue` | NPC's verbatim line for this step. `""` if NPC says nothing. **When the NPC speaks, this MUST be the actual line** — DO NOT substitute action-paraphrases like "responded warmly" / "mocked aloud" in place of the line. The narrator quotes this verbatim. |
+| `dialogue` | NPC's verbatim line for this step. `""` if NPC says nothing. **When the NPC speaks, this MUST be the actual line** — DO NOT substitute action-paraphrases like "responded warmly" / "mocked aloud" in place of the line. |
 | `motivation` | Motivation tag, e.g. `"combat instinct + hostility"` / `"fear + flee"` / `"duty + reluctance"`. `""` allowed. |
 
 #### `object_reactions[]` element
@@ -68,7 +66,7 @@ Atomic breakdown in user-input order. **Do NOT short-circuit** — even if step 
 | Field | Content |
 |---|---|
 | `name` | Must match a `key_objects[].name`. |
-| `change` | When unchanged AND not interacted with: reserved literal `"unchanged"` (narrator skips it). First appearance: detailed initial state. Change / interaction: concrete change ("battle vibration shifts the shards slightly"). |
+| `change` | When unchanged AND not interacted with: reserved literal `"unchanged"`. First appearance: detailed initial state. Change / interaction: concrete change ("battle vibration shifts the shards slightly"). |
 
 ### `analysis.random_event`
 

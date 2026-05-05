@@ -26,26 +26,26 @@ Example `story` opening:
 Cheng Yangzong pushed open the tavern's wooden door...
 ```
 
-**Body — render the structured analysis verbatim**:
+**Body**:
 
 1. **Iterate `analysis.steps` in order**, one paragraph per step. Do NOT reorder, merge, or skip.
-2. **Each step ≥ 30 words** (excluding verbatim dialogue). A step is a scene beat, not a list item — include action detail, NPC posture / expression, environmental texture, pacing shifts. Hitting 30 words and bouncing is failure — density should match single-call mode.
+2. **Each step ≥ 30 words** (excluding verbatim dialogue). A step is a scene beat, not a list item — include action detail, NPC posture / expression, environmental texture, pacing shifts.
 3. **When `pc_dialogue` is non-empty**, the prose MUST quote the line verbatim. **No paraphrase, no rewording, no edits** (unless `correction` says otherwise).
 4. **Every `npc_reactions[]` entry shows up in prose**:
    - `physical` ⇒ render as gesture / motion / expression / gaze
-   - `dialogue` non-empty ⇒ **MUST be quoted verbatim**. **DO NOT** use action-paraphrases like "responded warmly", "mocked aloud", "thanked aloud" in place of dialogue — that is a serious violation. The schema gave you the line; quote it.
+   - `dialogue` non-empty ⇒ **MUST be quoted verbatim**. **DO NOT** use action-paraphrases like "responded warmly", "mocked aloud", "thanked aloud" in place of dialogue.
    - `motivation` ⇒ weave into the description so motivation surfaces; do not translate literally
    - silent NPCs (`dialogue=""`) still need one line on posture / expression / gaze
 5. **`object_reactions[]` handling**:
-   - `change == "unchanged"` ⇒ **do NOT render** (reserved literal; skip)
+   - `change == "unchanged"` ⇒ do NOT render
    - first appearance or actual change ⇒ render in scene description
 6. **`analysis.random_event.triggered == true`** ⇒ weave into the current beat naturally; no separate heading.
 7. **`scene_snapshot.environment`** ⇒ permeate naturally through opening / between-step transitions; no list-bullets.
 
 ### `interrupted=true` handling
 
-- Narrate to the consequence of the **last** step in `analysis.steps` (the breaking step) and stop — including its `outcome` text, `npc_reactions`, `object_reactions`, so the user sees how the precondition broke.
-- **DO NOT** write what the protagonist would do or say next — those steps were truncated and **do not exist**.
+- Narrate to the consequence of the **last** step in `analysis.steps` (the breaking step) and stop — including its `outcome` text, `npc_reactions`, `object_reactions`.
+- **DO NOT** write what the protagonist would do or say next.
 - Earlier steps still each meet ≥ 30 words + full NPC / object coverage.
 
 ### Forbidden patterns (block smuggling of dropped steps)
@@ -55,7 +55,7 @@ Cheng Yangzong pushed open the tavern's wooden door...
 - "He had planned to X, now only Y"
 - "He reached out to shake but the man stepped back" (when the handshake step was truncated)
 
-Correct shape: narrate only the steps in `analysis.steps`. Steps you don't see don't exist; do not infer.
+Narrate only the steps in `analysis.steps`.
 
 ### Other fields
 

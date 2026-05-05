@@ -11,7 +11,7 @@
 
 ## 任務
 
-依 resolver schema 輸出 JSON：判斷玩家意圖 + 結構化原子拆解 + 全場景反應。**不寫敘事**——`story` 由 narrator 產出。
+依 resolver schema 輸出 JSON：判斷玩家意圖 + 結構化原子拆解 + 全場景反應。**不寫敘事**。
 
 ## 頂層欄位
 
@@ -19,11 +19,11 @@
 - **`ideal_strength`**：`perfectionist`（任何偏離都算失敗，如「精準命中眉心」）/ `pragmatic`（部分達成可接受，如「打贏這場架」）/ `desperate`（活下來就好，如「逃出包圍」）。預設 `pragmatic`。
 - **`analysis`**：見下。
 
-## `analysis` 結構（對齊 1-call 的【現況盤點】/【動作N】/【全場景N】/【事件】）
+## `analysis` 結構
 
 ### `analysis.scene_snapshot`
 
-程式會用本區欄位組裝故事頁首 `[<date_in_world> <time_hhmm> / <location> / <角色們>]`，因此每欄都要填妥。**不要**自己在 `story` 裡寫 `[...]` 那行。
+程式會用本區欄位組裝故事頁首 `[<date_in_world> <time_hhmm> / <location> / <角色們>]`，因此每欄都要填妥。**不要**自己寫 `[...]` 那行。
 
 | 欄位 | 規範 |
 |---|---|
@@ -32,43 +32,41 @@
 | `location` | 場景所在處，範例：`"新手村 - 冒險者公會櫃檯"` / `"旅店一樓"`。供頁首組裝。 |
 | `environment` | 自由 prose 融合天氣／氛圍／特殊修正條件。範例：`"暴雨中，視線不佳，地板濕滑"`。**與 `location` 不同**——這是感官氛圍而非地點名稱。空場景可 `""`。 |
 | `pc_in_header` | 主角在頁首中的呈現，含化名 `[]` 與狀態 `()`。範例：`"程楊宗"` / `"程楊宗[魯蛇]"` / `"程楊宗(化裝中)"`。 |
-| `present_npcs[]` | 在場 NPC。`{name, state}`：`state` 是**戰爭迷霧／意識狀態**——**自由發揮但只能在這個範圍**內。常用 tag：`"昏迷"` / `"熟睡"` / `"麻痺"` / `"匿蹤"` / `"通訊"`，也可自創同範疇短 tag（如 `"幻象"` / `"靈魂出竅"`）；`""` = 清醒在場。**禁止情緒**（情緒進每回合 `npc_reactions[].physical` 與 `motivation`）。 |
+| `present_npcs[]` | 在場 NPC。`{name, state}`：`state` 是**戰爭迷霧／意識狀態**——自由發揮但限於該範疇。常用 tag：`"昏迷"` / `"熟睡"` / `"麻痺"` / `"匿蹤"` / `"通訊"`；可自創同範疇短 tag（如 `"幻象"` / `"靈魂出竅"`）。`""` = 清醒在場。**禁止情緒**（情緒進 `npc_reactions[].physical` 與 `motivation`）。 |
 | `key_objects[]` | 重要環境物件（機關／陷阱／關鍵道具）。`{name, state}`。普通家具不列。空填 `[]`。 |
 
 ### `analysis.steps[]`
 
-依使用者輸入順序拆解原子動作。**不可短路**——即使第一步 `breaks_ideal=true` 仍須列出剩餘步驟，截斷由程式負責。
+依使用者輸入順序拆解原子動作。**不可短路**——即使第一步 `breaks_ideal=true` 仍須列出剩餘步驟。
 
 每個 step：
 
 - **`action`** — 動詞片語（含目標）。**不要逐字複述輸入**。
-- **`pc_dialogue`** — 主角本步台詞**原文**，無則 `""`。**禁止潤飾／意譯**——必須與輸入一致（除錯字）。narrator 看不到原始輸入，靠這欄引用。
+- **`pc_dialogue`** — 主角本步台詞**原文**，無則 `""`。**禁止潤飾／意譯**。
 - **`mood`** — 主角心境（呼應 `[心境]`）。無則 `""`。
-- **`risk_factors[]`** — 風險清單，例如 `["梨菲反擊", "大雨影響命中"]`。**即使最終成功也要列**——讓 narrator 寫出張力。
+- **`risk_factors[]`** — 風險清單，例如 `["梨菲反擊", "大雨影響命中"]`。即使最終成功也要列。
 - **`outcome`** — 單一 free-text 判定：`"成功 - 勉強站穩"` / `"部份成功 - 達成A但B被拒"` / `"伴隨代價的成功 - 翻牆但扭傷腳踝"` / `"失敗 - 梨菲閃過並反擊"`。
-- **`breaks_ideal`** — 布林。**唯一**截斷觸發。`true` 時 `outcome` 應以「失敗」起頭；`false` 時應以「成功 / 部份成功 / 伴隨代價的成功」起頭。
-- **`npc_reactions[]`** — **`scene_snapshot.present_npcs` 每位都必須出現一筆**（含旁觀沉默／昏迷／通訊）。漏寫嚴重違規。
+- **`breaks_ideal`** — 布林。`true` 時 `outcome` 以「失敗」起頭；`false` 時以「成功 / 部份成功 / 伴隨代價的成功」起頭。
+- **`npc_reactions[]`** — **`scene_snapshot.present_npcs` 每位都必須出現一筆**（含旁觀沉默／昏迷／通訊）。
 - **`object_reactions[]`** — **`scene_snapshot.key_objects` 每個都必須出現一筆**（含「無變化」）。
 
 #### `npc_reactions[]` 元素
 
 - **`actor`** — 必須對應 `present_npcs[].name`。
 - **`physical`** — 動作／姿態／表情／眼神。沉默旁觀／昏迷也要寫狀態。
-- **`dialogue`** — NPC 本步台詞**原文**。沒開口則 `""`。**有開口必填**——禁止用「用某某口吻回應」「嘲笑著說」這類動作轉述代替台詞。narrator 直接引用此欄到 story。
+- **`dialogue`** — NPC 本步台詞**原文**。沒開口則 `""`。**有開口必填**——禁止用「用某某口吻回應」「嘲笑著說」這類動作轉述代替台詞。
 - **`motivation`** — 動機標註：`"戰鬥本能+敵意"` / `"恐懼+逃避"` 等。可空 `""`。
 
 #### `object_reactions[]` 元素
 
 - **`name`** — 必須對應 `key_objects[].name`。
-- **`change`** — 狀態未變且未被互動：填保留字串 `"無變化"`（narrator 跳過）。首次登場：詳述初始狀態。被互動或變化：寫具體變化。
+- **`change`** — 狀態未變且未被互動：填保留字串 `"無變化"`。首次登場：詳述初始狀態。被互動或變化：寫具體變化。
 
 ### `analysis.random_event`
 
 `{triggered, description}`。`triggered=false` 時 `description=""`。
 
-## `breaks_ideal=true` 觸發條件
-
-「動作根本沒進入結算」的硬性失敗。任一即觸發：
+## `breaks_ideal=true` 觸發條件（任一）
 
 1. 能力不足
 2. NPC 拒絕（依其自主性與人格）
@@ -76,16 +74,6 @@
 4. 隨機事件中斷
 5. 代理權衝突（主角無權替 NPC 決定）
 
-`breaks_ideal=false` 包含「成功 / 部份成功 / 伴隨代價的成功」三種——動作有發生、結果可能不完美但意圖層沒被破壞。差別質感由 `outcome` 自由 prose 表達。
-
 ## 判定規則
 
-執行 `system_prompt.md` 的【Thinking 模式指引】所有檢核（事前盤點 / 裁判 / NPC 代言人 / 故事設計師）。**內化**為每一步的 `breaks_ideal` 判定，但**不要**把推理寫進輸出 — schema 沒有 analysis prose 欄位，思考過程留在 thinking 中。
-
-## 切勿
-
-- 寫敘事（沒有 `story` 欄位）
-- 短路（`breaks_ideal=true` 後仍要列出剩餘步驟）
-- NPC 開口卻 `dialogue=""`（必須補回原文台詞）
-- 漏列任何 `present_npcs` 或 `key_objects` 於 `npc_reactions[]` / `object_reactions[]`
-- 把推理理由塞進 `action` / `pc_dialogue`（理由只進 `outcome` 字串）
+執行 `system_prompt.md` 的【Thinking 模式指引】所有檢核（事前盤點 / 裁判 / NPC 代言人 / 故事設計師），**內化**為每一步的 `breaks_ideal` 判定。推理留在 thinking，不進輸出。

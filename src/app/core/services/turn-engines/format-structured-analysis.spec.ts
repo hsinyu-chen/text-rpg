@@ -125,7 +125,7 @@ describe('formatStructuredAnalysis', () => {
         it('prepends the bracket line in front of the story (LLM keeps emitting CFC + body)', () => {
             const raw = '<CREATIVE FICTION CONTEXT>\n艾爾走進旅店。';
             const out = assembleStoryWithSceneHeader(raw, fullSnap);
-            expect(out.startsWith('[聖曆 1000年04月02日 週二 18:40 / 旅店一樓 / 程楊宗]\n')).toBe(true);
+            expect(out.startsWith('[聖曆 1000年04月02日 週二 18:40 / 旅店一樓 / 程楊宗]\n\n')).toBe(true);
             expect(out).toContain('<CREATIVE FICTION CONTEXT>');
             expect(out).toContain('艾爾走進旅店');
         });

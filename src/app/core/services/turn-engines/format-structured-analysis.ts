@@ -128,7 +128,7 @@ export function assembleStoryWithSceneHeader(rawStory: string, snap: Partial<Sce
 
     // Strip any LLM-emitted bracketed line that follows the CFC marker — that slot is now owned by the program.
     const cleaned = rawStory.replace(/(<CREATIVE FICTION CONTEXT>\s*)\[[^\]]*\]\s*/i, '$1');
-    return `${inner}\n${cleaned}`;
+    return `${inner}\n\n${cleaned}`;
 }
 
 /** Removes a single trailing period (CJK or ASCII) so the segment-joining `。` doesn't produce `。。`. */

@@ -11,7 +11,7 @@
 
 ## Task
 
-Emit JSON per the resolver schema: read the player's intent + structured atomic breakdown + full-scene reactions. **Do NOT write narrative prose** — that is the narrator's job.
+Emit JSON per the resolver schema: read the player's intent + structured atomic breakdown + full-scene reactions. **Do NOT write narrative prose**.
 
 ## Top-level fields
 
@@ -21,11 +21,9 @@ Emit JSON per the resolver schema: read the player's intent + structured atomic 
 
 ## `analysis` structure
 
-Mirrors the 1-call markdown shape (Snapshot / Action N / Full-Scene N / Event), now schema-shaped.
-
 ### `analysis.scene_snapshot`
 
-The program assembles the user-facing scene header `[<date_in_world> <time_hhmm> / <location> / <chars>]` from these fields, so fill every column. **DO NOT** write the `[...]` line yourself in `story`.
+The program assembles the user-facing scene header `[<date_in_world> <time_hhmm> / <location> / <chars>]` from these fields, so fill every column. **DO NOT** write the `[...]` line yourself.
 
 | Field | Spec |
 |---|---|
@@ -39,38 +37,36 @@ The program assembles the user-facing scene header `[<date_in_world> <time_hhmm>
 
 ### `analysis.steps[]`
 
-Atomic-action breakdown in user-input order. **Do NOT short-circuit** — even if step 1 has `breaks_ideal=true`, list every remaining step the user attempted. Truncation is the program's job.
+Atomic-action breakdown in user-input order. **Do NOT short-circuit** — even if step 1 has `breaks_ideal=true`, list every remaining step the user attempted.
 
 Each step:
 
 - **`action`** — verb-phrase description (target embedded inline). Do NOT echo the user input verbatim — paraphrase the intent objectively.
-- **`pc_dialogue`** — verbatim PC line for this step, `""` if no speech. **No paraphrase or polish** — must match user input exactly (typos aside). The narrator never sees the original input and depends on this field.
+- **`pc_dialogue`** — verbatim PC line for this step, `""` if no speech. **No paraphrase or polish** — must match user input exactly (typos aside).
 - **`mood`** — PC mood mirroring the input's `[mood]` tag. `""` if none.
-- **`risk_factors[]`** — list of risks, e.g. `["Lifey can counterattack", "rain affects accuracy"]`. **List risks even when outcome is success** — drives narrator tension. Empty allowed only when truly trivial.
-- **`outcome`** — single free-text judgment matching 1-call's prose form: `"success - barely held footing"` / `"partial success - achieved A but B refused"` / `"costly success - climbed wall but twisted ankle"` / `"failure - Lifey dodged and counterattacked"`.
-- **`breaks_ideal`** — boolean. **Sole** truncation trigger. `true` means the action did not enter resolution at all (see triggers below). `false` covers "success / partial success / costly success" — the action happened, the result may be imperfect but the intent layer was not violated. When `true`, `outcome` should start with "failure"; when `false`, with "success / partial success / costly success".
-- **`npc_reactions[]`** — **EVERY entry in `scene_snapshot.present_npcs` must appear here**, including silent / unconscious / remote-comm NPCs. Missing any = serious violation.
+- **`risk_factors[]`** — list of risks, e.g. `["Lifey can counterattack", "rain affects accuracy"]`. List even when outcome is success. Empty allowed only when truly trivial.
+- **`outcome`** — single free-text judgment: `"success - barely held footing"` / `"partial success - achieved A but B refused"` / `"costly success - climbed wall but twisted ankle"` / `"failure - Lifey dodged and counterattacked"`.
+- **`breaks_ideal`** — boolean. `true` ⇒ action did not enter resolution (see triggers below). `false` ⇒ action happened (incl. success / partial / costly). When `true`, `outcome` should start with "failure"; when `false`, with "success / partial success / costly success".
+- **`npc_reactions[]`** — **EVERY entry in `scene_snapshot.present_npcs` must appear here**, including silent / unconscious / remote-comm NPCs.
 - **`object_reactions[]`** — **EVERY entry in `scene_snapshot.key_objects` must appear here**, including unchanged ones (use the reserved literal `"unchanged"`).
 
 #### `npc_reactions[]` element
 
 - **`actor`** — must match a `present_npcs[].name`.
 - **`physical`** — physical reaction: gesture, posture, expression, eye movement. Even silent / unconscious / disinterested NPCs must have a status line.
-- **`dialogue`** — verbatim line this NPC speaks during this step, `""` if NPC says nothing. **When the NPC speaks, this MUST be the actual line** — DO NOT substitute action-paraphrases like "responded warmly" / "mocked aloud" in place of dialogue. The narrator quotes this verbatim into story.
+- **`dialogue`** — verbatim line this NPC speaks during this step, `""` if NPC says nothing. **When the NPC speaks, this MUST be the actual line** — DO NOT substitute action-paraphrases like "responded warmly" / "mocked aloud" in place of dialogue.
 - **`motivation`** — motivation tag, e.g. `"combat instinct + hostility"` / `"fear + flee"` / `"duty + reluctance"`. Empty allowed.
 
 #### `object_reactions[]` element
 
 - **`name`** — must match a `key_objects[].name`.
-- **`change`** — when state is unchanged AND not interacted with: use the reserved literal `"unchanged"` (narrator skips it in story). On first appearance: describe initial state in detail. On change/interaction: describe the concrete change.
+- **`change`** — when state is unchanged AND not interacted with: use the reserved literal `"unchanged"`. On first appearance: describe initial state in detail. On change/interaction: describe the concrete change.
 
 ### `analysis.random_event`
 
 `{triggered, description}`. `description=""` when `triggered=false`.
 
-## `breaks_ideal=true` triggers
-
-"The action did not enter resolution" — hard failure. Any one triggers:
+## `breaks_ideal=true` triggers (any one)
 
 1. Capability gap — PC's skill / items / resources can't support it.
 2. NPC autonomous refusal — per the NPC's personality, they will not comply.
@@ -78,11 +74,9 @@ Each step:
 4. Random event interrupts the sequence.
 5. Agency conflict — PC cannot decide for an NPC; that step is the NPC's free choice.
 
-`breaks_ideal=false` covers the three "happened but maybe imperfect" outcomes. The qualitative texture is conveyed via the free-text `outcome`; the schema does not categorize.
-
 ## Judgment process
 
-Run every check from `system_prompt.md` § "Thinking (CoT) Mode Guidelines" (Pre-Check / Referee / NPC Voice / Story Designer). **Internalize** them into each step's `breaks_ideal` decision, but **do not** put the reasoning into the output — there is no analysis-prose field; the chain-of-thought stays in the model's thinking.
+Run every check from `system_prompt.md` § "Thinking (CoT) Mode Guidelines" (Pre-Check / Referee / NPC Voice / Story Designer). **Internalize** them into each step's `breaks_ideal` decision; reasoning stays in thinking, not in output.
 
 ## Don't
 
