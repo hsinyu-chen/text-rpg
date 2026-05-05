@@ -76,6 +76,22 @@ describe('FileUpdateParser', () => {
       expect(FileUpdateParser.parse(input)).toEqual([]);
     });
 
+    it('accepts attributes in either order (context before file)', () => {
+      const input = `<save context="# Top" file="foo.md"><target>x</target></save>`;
+      const result = FileUpdateParser.parse(input);
+      expect(result).toEqual([{
+        filePath: 'foo.md',
+        context: '# Top',
+        targetContent: 'x',
+        replacementContent: undefined,
+      }]);
+    });
+
+    it('skips a <save> block missing the file attribute', () => {
+      const input = `<save context="# Top"><target>x</target></save>`;
+      expect(FileUpdateParser.parse(input)).toEqual([]);
+    });
+
     it('NFC-normalizes filePath and context', () => {
       // A combining-mark form vs precomposed; both should land on the same string.
       const decomposed = 'é'; // é precomposed

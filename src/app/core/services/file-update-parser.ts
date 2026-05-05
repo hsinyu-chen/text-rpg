@@ -42,16 +42,26 @@ export class FileUpdateParser {
         const updates: FileUpdate[] = [];
 
         // [^]*? for non-greedy multi-line match across CR/LF.
-        const saveBlockRegex = /<save\s+file="([^"]*)"(?:\s+context="([^"]*)")?\s*>([^]*?)<\/save>/gi;
+        // Two-step parse: outer regex captures the attribute blob and body
+        // separately, then attributes are extracted by name. Avoids baking
+        // attribute order (file-then-context vs context-then-file) into the
+        // outer pattern.
+        const saveBlockRegex = /<save\s+([^>]*?)>([^]*?)<\/save>/gi;
+        const fileAttrRegex = /\bfile="([^"]*)"/i;
+        const contextAttrRegex = /\bcontext="([^"]*)"/i;
         const updateBlockRegex = /<update\s*>([^]*?)<\/update>/gi;
         const targetTagRegex = /<target\s*>([^]*?)<\/target>/i;
         const replacementTagRegex = /<replacement\s*>([^]*?)<\/replacement>/i;
 
         let saveMatch;
         while ((saveMatch = saveBlockRegex.exec(content)) !== null) {
-            const filePath = saveMatch[1].trim().normalize('NFC');
-            const context = (saveMatch[2] || '').trim().normalize('NFC');
-            const saveContent = saveMatch[3];
+            const attrs = saveMatch[1];
+            const fileMatch = attrs.match(fileAttrRegex);
+            if (!fileMatch) continue; // <save> without `file=` is malformed; skip silently.
+            const filePath = fileMatch[1].trim().normalize('NFC');
+            const contextMatch = attrs.match(contextAttrRegex);
+            const context = (contextMatch?.[1] ?? '').trim().normalize('NFC');
+            const saveContent = saveMatch[2];
 
             let updateMatch;
             updateBlockRegex.lastIndex = 0;
