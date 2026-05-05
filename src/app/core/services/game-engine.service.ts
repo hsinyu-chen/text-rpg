@@ -55,7 +55,7 @@ export class GameEngineService {
      * @returns The calculated cost in USD.
      */
     private calculateTurnCost(turnUsage: { prompt: number, candidates: number, cached?: number }) {
-        return this.cost.calculateTurnCost(turnUsage, this.state.config()?.modelId);
+        return this.cost.calculateTurnCost(turnUsage, this.providerRegistry.getActiveModelId());
     }
 
     constructor() {
@@ -73,22 +73,17 @@ export class GameEngineService {
 
     /**
      * Saves application configuration to localStorage and updates the engine state.
-     * @param apiKey The Gemini API Key.
-     * @param modelId The Gemini Model ID to use.
-     * @param genConfig Generation parameters (temperature, etc.) and UI settings.
+     * @param genConfig UI / engine settings; LLM provider config lives in the active profile.
      */
     async saveConfig(genConfig: {
         fontSize?: number,
         fontFamily?: string,
-        enableCache?: boolean,
         exchangeRate?: number,
         currency?: string,
         enableConversion?: boolean,
         screensaverType?: 'invaders' | 'code',
         outputLanguage?: string,
         idleOnBlur?: boolean,
-        thinkingLevelStory?: string,
-        thinkingLevelGeneral?: string,
         engineMode?: 'single' | 'two-call'
     }) {
         await this.configService.saveConfig(genConfig);
@@ -370,7 +365,7 @@ export class GameEngineService {
             dynamicProtocolSingle: this.state.dynamicProtocolSingleInjection(),
             dynamicCorrection: this.state.dynamicCorrectionInjection(),
             engineMode: config?.engineMode ?? 'single',
-            modelId: config?.modelId,
+            modelId: this.providerRegistry.getActiveModelId() || undefined,
             outputLanguage: config?.outputLanguage,
             provider: provider ?? undefined
         };
@@ -385,12 +380,11 @@ export class GameEngineService {
     private async ensureCacheValid(): Promise<void> {
         const cacheProvider = this.providerRegistry.getActive();
         if (!cacheProvider) throw new Error('No active LLM provider');
-        const cfg = this.state.config();
-        const resolvedModelId = cfg?.modelId || cacheProvider.getDefaultModelId();
+        const resolvedModelId = this.providerRegistry.getActiveModelId();
         const cacheResult = await this.cacheManager.checkCacheAndRefresh({
             provider: cacheProvider,
             providerConfig: this.providerRegistry.getActiveConfig(),
-            enableCache: !!cfg?.enableCache,
+            enableCache: this.providerRegistry.isCacheEnabled(),
             modelId: resolvedModelId,
             systemInstruction: stripSystemMainMarker(this.state.systemInstructionCache()),
             loadedFiles: this.state.loadedFiles(),

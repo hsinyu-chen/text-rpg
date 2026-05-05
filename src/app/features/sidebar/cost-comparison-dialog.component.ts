@@ -170,7 +170,7 @@ export class CostComparisonDialogComponent {
         const exchangeRate = (enabled && currency !== 'USD') ? (config?.exchangeRate || 30) : 1;
 
         // Active Model for Storage Scaling
-        const activeModelId = this.state.config()?.modelId || 'gemini-3-flash-preview';
+        const activeModelId = this.providerRegistry.getActiveModelId() || 'gemini-3-flash-preview';
 
         // Base Storage Costs
         const storageUsage = this.state.storageUsageAccumulated();

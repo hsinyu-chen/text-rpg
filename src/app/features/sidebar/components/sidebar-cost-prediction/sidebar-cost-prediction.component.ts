@@ -30,11 +30,7 @@ export class SidebarCostPredictionComponent {
     public costService = inject(CostService);
 
     // Current Model ID (derived from active provider config; falls back to provider default).
-    currentModelId = computed(() => {
-        const cfg = this.providerRegistry.getActiveConfig();
-        if (cfg.modelId && cfg.modelId.trim()) return cfg.modelId;
-        return this.providerRegistry.getActive()?.getDefaultModelId() || 'Unknown';
-    });
+    currentModelId = computed(() => this.providerRegistry.getActiveModelId() || 'Unknown');
 
     activeProviderName = computed(() => {
         const activeProvider = this.providerRegistry.getActive();
@@ -98,9 +94,7 @@ export class SidebarCostPredictionComponent {
     });
 
     // Explicit Context Caching Status
-    isCacheEnabled = computed(() => {
-        return !!this.state.config()?.enableCache;
-    });
+    isCacheEnabled = computed(() => this.providerRegistry.isCacheEnabled());
 
     // Count model responses as turns
     turnCount = computed(() => {
@@ -158,9 +152,7 @@ export class SidebarCostPredictionComponent {
 
     // Helper to get the correct model ID for cost calculation
     private getModelIdForCost(): string {
-        const cfg = this.providerRegistry.getActiveConfig();
-        if (cfg.modelId && cfg.modelId.trim()) return cfg.modelId;
-        return this.providerRegistry.getActive()?.getDefaultModelId() || 'unknown';
+        return this.providerRegistry.getActiveModelId() || 'unknown';
     }
 
     lastTurnCost = computed(() => {

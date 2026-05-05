@@ -450,8 +450,7 @@ export class BookListComponent {
     }
 
     private activeSessionCost = computed(() => {
-        const activeProvider = this.providerRegistry.getActive();
-        const activeModelId = this.state.config()?.modelId || activeProvider?.getDefaultModelId();
+        const activeModelId = this.providerRegistry.getActiveModelId();
         const model = this.providerRegistry.getActiveModels().find(m => m.id === activeModelId);
         if (!model) return 0;
 

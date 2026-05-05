@@ -10,11 +10,8 @@ import { isSystemMainCompatible, stripSystemMainMarker } from './profile-compat'
  * Configuration for the game engine.
  */
 export interface GameEngineConfig {
-    apiKey?: string;
-    modelId?: string;
     fontSize?: number;
     fontFamily?: string;
-    enableCache?: boolean;
     exchangeRate?: number;
     currency?: string;
     enableConversion?: boolean;
@@ -22,8 +19,6 @@ export interface GameEngineConfig {
     outputLanguage?: string;
     idleOnBlur?: boolean;
     enableAdultDeclaration?: boolean;
-    thinkingLevelStory?: string;
-    thinkingLevelGeneral?: string;
     smartContextTurns?: number;
     /**
      * Turn engine mode. `'single'` (default) is the legacy single-LLM-call path.
@@ -75,7 +70,7 @@ export class GameStateService {
     // the marker, and every boot's loadFiles invalidates a still-valid cache.
     currentKbHash = computed(() => {
         const files = this.loadedFiles();
-        const modelId = this.config()?.modelId || 'gemini-prod';
+        const modelId = this.providerRegistry.getActiveModelId() || 'gemini-prod';
         const systemInstruction = stripSystemMainMarker(this.systemInstructionCache());
 
         const kbText = this.kb.buildKnowledgeBaseText(files);
