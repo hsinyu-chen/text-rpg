@@ -49,12 +49,12 @@ describe('FileUpdateService', () => {
       expect(service.findInsertionPoint(lines, '# Top')).toBe(lines.length);
     });
 
-    it('matches loose crumbs against body text — currentLevel=0 → insertion at EOF', () => {
+    it('inserts right after a loose body-text match instead of falling through to EOF', () => {
       const lines = ['# Real', 'this contains needle', '# After'];
-      // 'needle' is loose (no #) and lands on body line 1. Since the matched line
-      // isn't a header, currentLevel reads 0; no header satisfies `level ≤ 0`
-      // so the boundary scan walks past `# After` to EOF.
-      expect(service.findInsertionPoint(lines, 'needle')).toBe(lines.length);
+      // 'needle' is loose (no #) and lands on body line 1. The landing line
+      // isn't a header so there's no section to find the end of — insert
+      // right after the anchor (line 2) instead of dumping at EOF.
+      expect(service.findInsertionPoint(lines, 'needle')).toBe(2);
     });
 
     // Fence-awareness: the fix this spec was added for.

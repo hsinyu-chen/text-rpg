@@ -61,24 +61,36 @@ export function normalizeForComparison(line: string): string {
 }
 
 /**
- * Maps an index in the normalized string back to the original. Relies on
- * `normalizeForComparison` either dropping a character (matched by `[#\s]`)
- * or keeping it 1:1 — any future multi-char or surrogate-pair replacement in
- * normalizeForComparison would desync this mapping and silently corrupt
- * file edits, so the two MUST evolve together.
+ * Stateful walker that maps indices in the normalized string back to the
+ * original. Resumes from the previous query position so a series of
+ * forward-moving lookups (the typical `findMatchRange` pattern) costs O(N)
+ * total instead of O(N*queries). Backward queries (which happen because
+ * `searchStart = normalizedIndex + 1` permits overlapping matches) reset
+ * the cursor and rescan from the start — correct, and at worst
+ * O(N) per overlap.
+ *
+ * Relies on `normalizeForComparison` either dropping a character (matched
+ * by `[#\s]`) or keeping it 1:1 — any future multi-char or surrogate-pair
+ * replacement in normalizeForComparison would desync this mapping and
+ * silently corrupt file edits, so the two MUST evolve together.
  */
-function mapNormalizedIndexToOriginal(original: string, normalizedIndex: number): number {
+export function createIndexMapper(original: string): (normalizedIndex: number) => number {
+    let pos = 0;
     let normalizedCount = 0;
-    for (let i = 0; i < original.length; i++) {
-        const char = original[i];
-        if (!/[#\s]/.test(char)) {
-            if (normalizedCount === normalizedIndex) {
-                return i;
-            }
-            normalizedCount++;
+    return (normalizedIndex: number): number => {
+        if (normalizedIndex < normalizedCount) {
+            pos = 0;
+            normalizedCount = 0;
         }
-    }
-    return original.length;
+        while (pos < original.length) {
+            if (!/[#\s]/.test(original[pos])) {
+                if (normalizedCount === normalizedIndex) return pos;
+                normalizedCount++;
+            }
+            pos++;
+        }
+        return original.length;
+    };
 }
 
 export function getLineIndexFromCharIndex(content: string, charIndex: number): number {
@@ -153,13 +165,17 @@ export function findMatchRange(content: string, target: string, context?: string
 
     const lines = context ? content.split(/\r?\n/) : null;
     const fencedMask = lines ? computeFencedLineMask(lines) : null;
+    // Both per-iteration calls (start, lastChar) and the next iteration's
+    // searchStart=normalizedIndex+1 advance forward, so the mapper's
+    // monotonic-input contract holds.
+    const mapToOriginal = createIndexMapper(content);
 
     while (true) {
         const normalizedIndex = normalizedContent.indexOf(normalizedTarget, searchStart);
         if (normalizedIndex === -1) break;
 
-        let start = mapNormalizedIndexToOriginal(content, normalizedIndex);
-        const lastCharIndex = mapNormalizedIndexToOriginal(content, normalizedIndex + normalizedTarget.length - 1);
+        let start = mapToOriginal(normalizedIndex);
+        const lastCharIndex = mapToOriginal(normalizedIndex + normalizedTarget.length - 1);
         let end = lastCharIndex + 1;
 
         // If target has leading/trailing horizontal whitespace, swallow the
@@ -243,14 +259,18 @@ export function findInsertionPoint(lines: string[], context?: string): number {
     if (!anyFound) return -1;
 
     // Find end of current section: next header of ≤ landed level.
-    // Uses lenient `^(#+)` count rather than `parseAtxHeading` to stay
-    // consistent with this function's loose-by-design crumb matching — a
-    // crumb that landed on `####### foo` (rejected by strict ATX parse)
-    // would otherwise read currentLevel=0 and let the section run to EOF.
+    // Uses lenient `^(#+)` count rather than `parseAtxHeading` so a crumb
+    // that landed on `####### foo` (rejected by strict ATX parse) still
+    // reports a level instead of degenerating to 0.
     const headerLine = lines[currentLine - 1].trimStart();
     const headerLevelMatch = headerLine.match(/^(#+)/);
-    const currentLevel = headerLevelMatch ? headerLevelMatch[1].length : 0;
 
+    // If the final landing line isn't a header at all (loose body-text
+    // match), insert immediately AFTER the anchor. Falling through to a
+    // boundary scan with currentLevel=0 would silently dump content at EOF.
+    if (!headerLevelMatch) return currentLine;
+
+    const currentLevel = headerLevelMatch[1].length;
     for (let i = currentLine; i < lines.length; i++) {
         if (fencedMask[i]) continue;
         const nextHeaderMatch = lines[i].trimStart().match(/^(#+)/);

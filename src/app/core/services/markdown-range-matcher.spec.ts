@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  createIndexMapper,
   findContextLine,
   findInsertionPoint,
   findMatchRange,
@@ -25,6 +26,40 @@ describe('normalizeForComparison', () => {
     expect(normalizeForComparison('what？')).toBe('what?');
     expect(normalizeForComparison('hi！')).toBe('hi!');
     expect(normalizeForComparison('em—dash')).toBe('em-dash');
+  });
+});
+
+describe('createIndexMapper', () => {
+  it('returns the original index for forward queries', () => {
+    const mapper = createIndexMapper('  abc  def  ');
+    // Normalized: "abcdef". Index 0='a' at original 2; index 3='d' at 7.
+    expect(mapper(0)).toBe(2);
+    expect(mapper(3)).toBe(7);
+    expect(mapper(5)).toBe(9);
+  });
+
+  it('returns original.length when normalizedIndex is past the end', () => {
+    expect(createIndexMapper('abc')(99)).toBe(3);
+  });
+
+  it('handles backward queries by resetting the cursor (overlapping match case)', () => {
+    // Regression: findMatchRange permits overlapping matches via
+    // searchStart=normalizedIndex+1, so the mapper sees backward jumps.
+    // Without reset, the loop would skip past the target and return EOF.
+    const mapper = createIndexMapper('abcdef');
+    expect(mapper(2)).toBe(2); // forward: 'c'
+    expect(mapper(4)).toBe(4); // forward: 'e'
+    expect(mapper(1)).toBe(1); // BACKWARD: must reset and find 'b'
+    expect(mapper(3)).toBe(3); // forward again from reset position
+  });
+
+  it('survives repeated backward jumps without corruption', () => {
+    const mapper = createIndexMapper('xyz xyz xyz');
+    // Normalized: "xyzxyzxyz" — same chars repeat, mapper must rewind cleanly.
+    expect(mapper(5)).toBe(6); // 2nd 'z'
+    expect(mapper(0)).toBe(0); // backward to 1st 'x'
+    expect(mapper(7)).toBe(9); // 3rd 'y'
+    expect(mapper(2)).toBe(2); // backward to 1st 'z'
   });
 });
 
@@ -129,6 +164,14 @@ describe('findInsertionPoint', () => {
   it('boundary scan skips fenced fake-headings of equal level', () => {
     const lines = ['# Top', 'body', '```', '# fake-equal-level', '```', 'more body', '# After'];
     expect(findInsertionPoint(lines, '# Top')).toBe(6);
+  });
+
+  it('inserts right after a loose body-text match instead of falling through to EOF', () => {
+    const lines = ['# Real', 'this contains needle', '# After'];
+    // Latent bug fix: when the landing crumb is a loose body-text match
+    // (not a header), there's no section boundary to find — return the
+    // line right after the anchor rather than scanning past `# After`.
+    expect(findInsertionPoint(lines, 'needle')).toBe(2);
   });
 
   it('skipped-layer tolerance: missing intermediate crumb does not abort', () => {

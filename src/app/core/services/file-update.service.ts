@@ -182,9 +182,14 @@ export class FileUpdateService {
 
                 if (range) {
                     const lineIndex = getLineIndexFromCharIndex(content, range.start);
-                    const targetLineCount = update.targetContent.split(/\r?\n/).length;
+                    // afterStart is derived from the matched range's end, not
+                    // `update.targetContent.split('\n').length` — the
+                    // normalized match can span more lines than the raw
+                    // target string (e.g. extra blank lines inside the
+                    // matched block) which would otherwise drift the
+                    // trailing-context preview.
+                    const afterStart = getLineIndexFromCharIndex(content, range.end) + 1;
                     const before = lines.slice(Math.max(0, lineIndex - contextLinesCount), lineIndex);
-                    const afterStart = lineIndex + targetLineCount;
                     const after = lines.slice(afterStart, Math.min(lines.length, afterStart + contextLinesCount));
 
                     return {
