@@ -1,18 +1,23 @@
-@if (contextSize(); as ctxSize) {
-    @if (variant() === 'compact') {
-        <div class="context-usage compact" [class]="'level-' + contextUsageLevel()"
-            [matTooltip]="compactTooltip()">
-            <div class="ctx-bar">
-                <div class="ctx-segment seg-system" [style.width.%]="systemPct()"></div>
-                <div class="ctx-segment seg-kb" [style.width.%]="kbPct()"></div>
-                <div class="ctx-segment seg-history-compressed" [style.width.%]="historyCompressedPct()"></div>
-                <div class="ctx-segment seg-history-recent" [style.width.%]="historyRecentPct()"></div>
-                <div class="ctx-segment seg-injection" [style.width.%]="injectionPct()"></div>
-                <div class="ctx-segment seg-buffer" [style.width.%]="bufferPct()"></div>
-            </div>
+@if (variant() === 'compact') {
+    <!-- Compact variant always renders so the chip stays in the row even
+         when contextSize is unresolved (early boot / unrecognized model id);
+         segments collapse to 0 width and the tooltip surfaces "limit unknown". -->
+    <div class="context-usage compact" [class]="'level-' + contextUsageLevel()"
+        [matTooltip]="compactTooltip()">
+        <div class="ctx-bar">
+            <div class="ctx-segment seg-system" [style.width.%]="systemPct()"></div>
+            <div class="ctx-segment seg-kb" [style.width.%]="kbPct()"></div>
+            <div class="ctx-segment seg-history-compressed" [style.width.%]="historyCompressedPct()"></div>
+            <div class="ctx-segment seg-history-recent" [style.width.%]="historyRecentPct()"></div>
+            <div class="ctx-segment seg-injection" [style.width.%]="injectionPct()"></div>
+            <div class="ctx-segment seg-buffer" [style.width.%]="bufferPct()"></div>
         </div>
-    } @else {
-        <div class="context-usage full" [class]="'level-' + contextUsageLevel()"
+    </div>
+} @else if (contextSize(); as ctxSize) {
+    <!-- Full variant gates on contextSize because its header + counts row
+         show the literal "X / Y tk" — no point rendering a placeholder
+         "?% / ? tk" at app boot. -->
+    <div class="context-usage full" [class]="'level-' + contextUsageLevel()"
             [class.expanded]="breakdownExpanded()"
             role="button" tabindex="0"
             (click)="toggleBreakdown()"
@@ -91,5 +96,4 @@
             </div>
             }
         </div>
-    }
 }

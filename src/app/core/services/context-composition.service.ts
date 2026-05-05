@@ -162,12 +162,11 @@ export class ContextCompositionService {
         effect(() => {
             // Build the ctx synchronously inside the effect so all the
             // signals it reads (loadedFiles, kbCacheName, dynamic injections,
-            // engineMode, etc.) become tracked dependencies — reads inside
-            // the setTimeout body would not, and getLLMHistorySegments could
-            // silently start ignoring future inputs without anyone noticing.
+            // engineMode, smartContextTurns, contextMode, etc.) become
+            // tracked dependencies — reads inside the setTimeout body
+            // would not, and getLLMHistorySegments could silently start
+            // ignoring future inputs without anyone noticing.
             const messages = this.state.messages();
-            this.appConfig.smartContextTurns();
-            this.state.contextMode();
             this.configService.activeProfile();
             this.providerRegistry.activeProvider();
             const status = this.state.status();
@@ -234,19 +233,30 @@ export class ContextCompositionService {
         const fillRule = (template: string): string =>
             template ? template.split('{{HISTORICAL_CORRECTION_RULE}}').join(correctionRule) : '';
 
+        // Mirror `buildResolverUserMessage`'s `${action}\n\n${protocol}`
+        // join so the count covers boundary-tokenization the same way the
+        // provider sees it. Counting action and protocol independently and
+        // summing under-reports the merged form by the boundary tokens
+        // (typically negligible but not free, esp. on BPE tokenizers that
+        // can fuse newline + leading punctuation).
+        const join = (action: string, protocol: string): string => {
+            const filled = fillRule(protocol);
+            if (action && filled) return `${action}\n\n${filled}`;
+            return action || filled;
+        };
+
         // Resolver & single carry the action template at the user-message tail
         // alongside the matching protocol; narrator never sees the action
         // template because its input is the synthetic narrator message.
-        const [a, r, n, s] = await Promise.all([
-            this.countText(parts.action),
-            this.countText(fillRule(parts.protocolR)),
+        const [resolverCombined, narratorOnly, singleCombined] = await Promise.all([
+            this.countText(join(parts.action, parts.protocolR)),
             this.countText(fillRule(parts.protocolN)),
-            this.countText(fillRule(parts.protocolS))
+            this.countText(join(parts.action, parts.protocolS))
         ]);
         if (seq !== this.injectionComputeSeq) return;
-        this.injectionResolverTokens.set(r + a);
-        this.injectionNarratorTokens.set(n);
-        this.injectionSingleTokens.set(s + a);
+        this.injectionResolverTokens.set(resolverCombined);
+        this.injectionNarratorTokens.set(narratorOnly);
+        this.injectionSingleTokens.set(singleCombined);
     }
 
     private async recomputeHistoryTokens(ctx: BuildContext): Promise<void> {
