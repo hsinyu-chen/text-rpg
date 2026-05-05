@@ -12,12 +12,16 @@ import {
   DEFAULT_LLM_TRANSLATIONS
 } from '@hcs/llm-angular-common';
 import { provideServiceWorker } from '@angular/service-worker';
+import { KVStore } from './core/services/kv/kv-store';
+import { LocalStorageKVStore } from './core/services/kv/local-storage-kv-store';
 
 export const appConfig: ApplicationConfig = {
   providers: [
     provideZonelessChangeDetection(),
     provideHttpClient(),
     provideMarkdown(),
+
+    { provide: KVStore, useClass: LocalStorageKVStore },
 
     // Monorepo wiring — the LLMSettingsComponent profile manager and the
     // stateless provider classes expect these tokens provided at app root.
