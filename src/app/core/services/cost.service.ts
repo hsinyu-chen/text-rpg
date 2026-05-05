@@ -223,7 +223,7 @@ export class CostService {
     }
 
     private loadExchangeRate() {
-        const stored = localStorage.getItem('app_exchange_rate') || localStorage.getItem('gemini_exchange_rate');
+        const stored = localStorage.getItem('app_exchange_rate');
         if (stored) {
             const rate = parseFloat(stored);
             if (!isNaN(rate)) {

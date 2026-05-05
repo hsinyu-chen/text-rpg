@@ -87,13 +87,11 @@ export class LLMProviderRegistryService {
     }
 
     /**
-     * Whether explicit caching should fire for the active provider, applying
-     * the same precedence as the legacy mirror in GameEngineConfig:
+     * Whether explicit caching should fire for the active provider:
      *   1. Local providers that support caching always have it on (cache is
      *      free; the toggle is hidden from their UI).
      *   2. Per-profile `additionalSettings.enableCache` (cloud) /
-     *      `additionalSettings.enableCacheSlot` (llama.cpp) wins next.
-     *   3. Legacy global `app_enable_cache` localStorage as fallback.
+     *      `additionalSettings.enableCacheSlot` (llama.cpp).
      */
     isCacheEnabled(): boolean {
         const cfg = this.configService.getActiveConfig();
@@ -102,7 +100,7 @@ export class LLMProviderRegistryService {
         const s = cfg.additionalSettings || {};
         if (typeof s['enableCache'] === 'boolean') return s['enableCache'] as boolean;
         if (typeof s['enableCacheSlot'] === 'boolean') return s['enableCacheSlot'] as boolean;
-        return localStorage.getItem('app_enable_cache') === 'true';
+        return false;
     }
 
     getActiveBundle(): { provider: LLMProvider; config: LLMProviderConfig } | null {

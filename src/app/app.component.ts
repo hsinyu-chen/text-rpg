@@ -101,8 +101,6 @@ export class AppComponent {
     this.bgFetch.install();
 
     const migrationService = inject(MigrationService);
-    // Migrations must finish BEFORE provider init runs, since migrateLLMProfiles
-    // writes seed profiles that LLMConfigService will read on its first pass.
     this.syncProviderInit.initialize();
     migrationService.runMigrations()
       .then(() => this.providerInit.initialize())
