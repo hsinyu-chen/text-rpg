@@ -323,19 +323,18 @@ export const getResolverSchemaV2 = (lang = 'default'): Schema => {
 
 // ----- program-derived helpers (not in LLM schema) -----
 
-export function isInterrupted(a: StructuredAnalysis | null | undefined): boolean {
-    if (!a || !Array.isArray(a.steps)) return false;
-    return a.steps.some(s => s?.breaks_ideal === true);
-}
-
 /**
  * 1-based index of the first `breaks_ideal=true` step. Returns 0 when not
- * interrupted (or when analysis is absent).
+ * interrupted (or when analysis is absent / steps[] is missing).
  */
-export function interruptedAtStep(a: StructuredAnalysis | null | undefined): number {
+export function interruptedAtStep(a: Partial<StructuredAnalysis> | null | undefined): number {
     if (!a || !Array.isArray(a.steps)) return 0;
     const i = a.steps.findIndex(s => s?.breaks_ideal === true);
     return i >= 0 ? i + 1 : 0;
+}
+
+export function isInterrupted(a: Partial<StructuredAnalysis> | null | undefined): boolean {
+    return interruptedAtStep(a) > 0;
 }
 
 /**
@@ -344,8 +343,7 @@ export function interruptedAtStep(a: StructuredAnalysis | null | undefined): num
  * input unchanged when no break is found. Does NOT mutate input.
  */
 export function truncateAtBreak(a: StructuredAnalysis): StructuredAnalysis {
-    if (!Array.isArray(a.steps)) return a;
-    const idx = a.steps.findIndex(s => s?.breaks_ideal === true);
-    if (idx < 0) return a;
-    return { ...a, steps: a.steps.slice(0, idx + 1) };
+    const breakStep = interruptedAtStep(a);
+    if (breakStep === 0) return a;
+    return { ...a, steps: a.steps.slice(0, breakStep) };
 }

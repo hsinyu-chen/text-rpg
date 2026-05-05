@@ -5,7 +5,8 @@ import {
     ObjectReaction,
     PresentNpc,
     SceneSnapshot,
-    StructuredAnalysis
+    StructuredAnalysis,
+    interruptedAtStep
 } from '@app/core/constants/engine-protocol-structured';
 
 /**
@@ -32,7 +33,7 @@ export function formatStructuredAnalysis(a: Partial<StructuredAnalysis> | null |
     }
 
     const steps = Array.isArray(a.steps) ? a.steps : [];
-    const firstBrokenIdx = steps.findIndex(s => s?.breaks_ideal === true);
+    const firstBrokenIdx = interruptedAtStep(a) - 1;
 
     steps.forEach((step, idx) => {
         const truncated = firstBrokenIdx >= 0 && idx > firstBrokenIdx;
