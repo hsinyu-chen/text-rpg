@@ -22,7 +22,7 @@ Strictly follow these JSON field definitions. **Flat top-level shape**: `{ analy
   - `pc_in_header`: PC representation in header with optional alias / state. e.g. `"Cheng Yangzong"` / `"Cheng Yangzong[Loser]"` / `"Cheng Yangzong(Disguised)"`.
   - `present_npcs[]`: every on-scene NPC. Each `{name, state}`:
     - `name`: aliases use `[]` (`"Lita[Silver Moon]"`); unknown names use `???` (`"Strange Man???"`); generic titles plain (`"Senior Adventurer"`).
-    - `state`: **fog-of-war / consciousness ONLY** — drives whether the narrator may have this NPC speak. Free-form short tag CONSTRAINED to that domain. Common: `"unconscious"` / `"asleep"` / `"paralyzed"` / `"hidden"` / `"comms"`; same-domain inventions like `"illusion"` / `"astral-projecting"` / `"light sleep (wakes on loud noise)"` allowed. `""` = conscious-on-scene (default). **NEVER emotion** — per-turn moods belong in `npc_reactions[].physical` / `motivation`.
+    - `state`: **fog-of-war / consciousness** — gates whether this NPC has the **capacity to react** to the environment / PC actions this turn. Free-form short tag CONSTRAINED to that domain. Common: `"unconscious"` / `"asleep"` / `"paralyzed"` / `"hidden"` / `"comms"`; same-domain inventions like `"illusion"` / `"astral-projecting"` / `"light sleep (wakes on loud noise)"` allowed. `""` = fully reactive (conscious and on-scene; default). **NEVER emotion, current activity, or behavior** — `"observing"` / `"chatting"` / `"holding X"` / `"hostile"` describe a fully-reactive NPC's choices and belong in `npc_reactions[].physical` / `motivation`.
   - `key_objects[]`: important environmental objects (mechanisms / traps / key items). `{name, state}`. Plain furniture excluded. Empty `[]`.
 
   ### `steps[]`

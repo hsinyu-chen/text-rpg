@@ -23,15 +23,16 @@ export type IdealStrength = typeof IDEAL_STRENGTHS[number];
 export interface PresentNpc {
     name: string;
     /**
-     * Fog-of-war / consciousness state — NOT emotion. Drives whether the LLM
-     * may have this NPC speak or react. Free-form short string within that
-     * domain — examples include `"昏迷"` / `"熟睡"` / `"麻痺"` / `"匿蹤"` /
-     * `"通訊"` / `"幻象"` / `"靈魂出竅"` etc., but the model may invent any
-     * short tag that captures a similar consciousness / presence constraint.
-     * `""` = default (conscious and physically on-scene).
+     * Fog-of-war / consciousness state — gates whether this NPC has the
+     * **capacity to react** to the environment / PC actions this turn.
+     * Free-form short string CONSTRAINED to that domain — common tags:
+     * `"昏迷"` / `"熟睡"` / `"麻痺"` / `"匿蹤"` / `"通訊"` (remote, not
+     * physically here); same-domain inventions like `"幻象"` / `"靈魂出竅"`
+     * allowed. `""` = default (fully reactive — conscious and on-scene).
      *
-     * Per-turn moods / emotions / personality cues belong in
-     * `npc_reactions[].physical` / `motivation`, NOT here.
+     * NOT for emotion, current activity, or behavior — `"旁觀"`, `"交談中"`,
+     * `"抱著X"`, `"敵意"` all describe a fully-reactive NPC's choices, which
+     * belong in `npc_reactions[].physical` / `motivation`.
      */
     state: string;
 }
@@ -122,7 +123,7 @@ const presentNpcSchema: Schema = {
         },
         state: {
             type: 'string',
-            description: 'Fog-of-war / consciousness state — NOT emotion. Free-form short string CONSTRAINED TO that domain: tells the narrator whether this NPC is awake, present, and able to react. Common tags: "昏迷" / "熟睡" / "麻痺" / "匿蹤" (hidden) / "通訊" (remote-comm, not physically here). The model may invent other short tags fitting the same domain (e.g. "幻象" / "靈魂出竅" / "睡著但會在巨響時醒來"). Use "" (default) for a conscious-and-on-scene NPC. Per-turn moods, emotions, and personality go in npc_reactions[].physical / motivation, NEVER here.'
+            description: 'Fog-of-war / consciousness state — gates whether this NPC has the CAPACITY TO REACT to the environment / PC actions this turn. Free-form short string CONSTRAINED to that domain. Common tags: "昏迷" / "熟睡" / "麻痺" / "匿蹤" (hidden) / "通訊" (remote, not physically here). Same-domain inventions allowed (e.g. "幻象" / "靈魂出竅" / "淺眠（巨響可醒）"). "" (default) = fully reactive (conscious and on-scene). NOT for emotion, current activity, or behavior — "旁觀" / "交談中" / "抱著X" / "敵意" describe a fully-reactive NPC\'s choices and belong in npc_reactions[].physical / motivation, never here.'
         }
     },
     required: ['name', 'state']
