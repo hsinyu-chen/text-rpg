@@ -5,6 +5,7 @@ import { getLocale, getLangFolder } from '../constants/locales';
 import { StorageService } from './storage.service';
 import { getProfileBasePath, getProfileScopedKey, DEFAULT_PROFILE_ID, PromptProfile } from '../constants/prompt-profiles';
 import { PromptProfileRegistryService } from './prompt-profile-registry.service';
+import { ActiveProfileStore } from './active-profile-store';
 
 export type PromptType = 'action' | 'continue' | 'fastforward' | 'system' | 'save' | 'postprocess' | 'system_main' | 'protocol_single' | 'protocol_resolver' | 'protocol_narrator' | 'correction';
 
@@ -25,6 +26,7 @@ export class InjectionService {
     private state = inject(GameStateService);
     private storage = inject(StorageService);
     private registry = inject(PromptProfileRegistryService);
+    private activeProfileStore = inject(ActiveProfileStore);
     private isSettingsLoading = false;
 
     private readonly ALL_TYPES = ALL_PROMPT_TYPES;
@@ -365,8 +367,7 @@ export class InjectionService {
 
         console.log(`[InjectionService] Switching profile: ${oldProfileId} → ${newProfileId}`);
 
-        this.state.activePromptProfile.set(newProfileId);
-        localStorage.setItem('app_active_prompt_profile', newProfileId);
+        this.activeProfileStore.set(newProfileId);
 
         await this.forceReload();
     }

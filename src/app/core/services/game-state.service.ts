@@ -3,7 +3,7 @@ import { ChatMessage } from '../models/types';
 import { CostService } from './cost.service';
 import { KnowledgeService } from './knowledge.service';
 import { LLMProviderRegistryService } from './llm-provider-registry.service';
-import { DEFAULT_PROFILE_ID } from '../constants/prompt-profiles';
+import { ActiveProfileStore } from './active-profile-store';
 import { isSystemMainCompatible, stripSystemMainMarker } from './profile-compat';
 
 /**
@@ -41,6 +41,7 @@ export class GameStateService {
     private cost = inject(CostService);
     private kb = inject(KnowledgeService);
     private providerRegistry = inject(LLMProviderRegistryService);
+    private activeProfileStore = inject(ActiveProfileStore);
 
     // ==================== Configuration ====================
     config = signal<GameEngineConfig | null>(null);
@@ -114,10 +115,11 @@ export class GameStateService {
     // Flag to prevent effects from saving until after initial load
     injectionSettingsLoaded = signal(false);
 
-    // Active Prompt Profile (e.g., 'cloud', 'local')
-    activePromptProfile = signal<string>(
-        localStorage.getItem('app_active_prompt_profile') || DEFAULT_PROFILE_ID
-    );
+    // Active Prompt Profile (e.g., 'cloud', 'local'). Re-exported as the
+    // store's signal — callers read via state.activePromptProfile() unchanged;
+    // writers must call activeProfileStore.set() directly so persistence stays
+    // in lock-step.
+    activePromptProfile = this.activeProfileStore.id.asReadonly();
 
     // ==================== Prompt Updates ====================
     // Track status of prompt file updates: type -> { hasUpdate: boolean, serverContent: string }

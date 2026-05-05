@@ -9,6 +9,7 @@ import { DEFAULT_PROFILE_ID } from '../constants/prompt-profiles';
 import { CostService } from './cost.service';
 import { LLMProviderRegistryService } from './llm-provider-registry.service';
 import { LLMConfigService } from './llm-config.service';
+import { ActiveProfileStore } from './active-profile-store';
 
 @Injectable({
     providedIn: 'root'
@@ -22,6 +23,7 @@ export class ConfigService {
     private cost = inject(CostService);
     private providerRegistry = inject(LLMProviderRegistryService);
     private llmConfig = inject(LLMConfigService);
+    private activeProfileStore = inject(ActiveProfileStore);
     private readonly doc = inject(DOCUMENT);
     private readonly renderer = inject(RendererFactory2).createRenderer(null, null);
 
@@ -56,8 +58,7 @@ export class ConfigService {
         const activeId = this.state.activePromptProfile();
         if (!this.profileRegistry.get(activeId)) {
             console.warn(`[ConfigService] Active prompt profile '${activeId}' no longer exists — falling back to default.`);
-            this.state.activePromptProfile.set(DEFAULT_PROFILE_ID);
-            localStorage.setItem('app_active_prompt_profile', DEFAULT_PROFILE_ID);
+            this.activeProfileStore.set(DEFAULT_PROFILE_ID);
         }
 
         // Initialize Injection Settings (History is loaded by session.init() → loadBook())
