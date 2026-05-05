@@ -169,7 +169,15 @@ export class ContextCompositionService {
             const messages = this.state.messages();
             this.configService.activeProfile();
             this.providerRegistry.activeProvider();
+            // getLLMHistorySegments embeds the locale's `actHeader` into
+            // either the first summary block or the first recent message.
+            // LanguageService.locale is a computed off `outputLanguage`, so
+            // tracking the latter here registers the chain — without this
+            // read, switching language wouldn't refire the recompute and
+            // historyTokens would carry the previous locale's header until
+            // the next unrelated trigger.
             const status = this.state.status();
+            this.appConfig.outputLanguage();
 
             // While generating, the last model message's `usage` AND `content`
             // are populated piecewise per streaming chunk — `m.usage != null`
