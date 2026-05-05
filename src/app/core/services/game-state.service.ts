@@ -4,6 +4,7 @@ import { CostService } from './cost.service';
 import { KnowledgeService } from './knowledge.service';
 import { LLMProviderRegistryService } from './llm-provider-registry.service';
 import { ActiveProfileStore } from './active-profile-store';
+import { AppConfigStore } from './app-config-store';
 import { isSystemMainCompatible, stripSystemMainMarker } from './profile-compat';
 
 /**
@@ -42,9 +43,14 @@ export class GameStateService {
     private kb = inject(KnowledgeService);
     private providerRegistry = inject(LLMProviderRegistryService);
     private activeProfileStore = inject(ActiveProfileStore);
+    private appConfigStore = inject(AppConfigStore);
 
     // ==================== Configuration ====================
-    config = signal<GameEngineConfig | null>(null);
+    // Derived from AppConfigStore. Kept as `state.config()` for the many
+    // existing consumers (templates, components, services); writes go
+    // through `AppConfigStore.patch()` directly so this signal stays
+    // computed-only.
+    config = computed<GameEngineConfig>(() => this.appConfigStore.snapshot());
     isConfigured = computed(() => {
         const provider = this.providerRegistry.activeProvider();
         if (!provider) return false;
