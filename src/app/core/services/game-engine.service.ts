@@ -73,9 +73,7 @@ export class GameEngineService {
 
     /**
      * Saves application configuration to localStorage and updates the engine state.
-     * @param apiKey The Gemini API Key.
-     * @param modelId The Gemini Model ID to use.
-     * @param genConfig Generation parameters (temperature, etc.) and UI settings.
+     * @param genConfig UI / engine settings; LLM provider config lives in the active profile.
      */
     async saveConfig(genConfig: {
         fontSize?: number,

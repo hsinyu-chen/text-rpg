@@ -3,7 +3,6 @@ import { DOCUMENT } from '@angular/common';
 import { GameStateService, GameEngineConfig } from './game-state.service';
 import { StorageService } from './storage.service';
 import { SessionService } from './session.service';
-import { CacheManagerService } from './cache-manager.service';
 import { InjectionService } from './injection.service';
 import { PromptProfileRegistryService } from './prompt-profile-registry.service';
 import { DEFAULT_PROFILE_ID } from '../constants/prompt-profiles';
@@ -18,7 +17,6 @@ export class ConfigService {
     private state = inject(GameStateService);
     private storage = inject(StorageService);
     private session = inject(SessionService);
-    private cacheManager = inject(CacheManagerService);
     private injection = inject(InjectionService);
     private profileRegistry = inject(PromptProfileRegistryService);
     private cost = inject(CostService);
