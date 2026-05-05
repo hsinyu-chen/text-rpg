@@ -13,14 +13,15 @@ const KEY = 'last_active_book_id';
 export class LastActiveBookStore {
     private kv = inject(KVStore);
 
-    readonly id = signal<string | null>(null);
+    private _id = signal<string | null>(null);
+    readonly id = this._id.asReadonly();
 
     constructor() {
-        this.id.set(this.kv.get(KEY));
+        this._id.set(this.kv.get(KEY));
     }
 
     set(bookId: string | null): void {
-        this.id.set(bookId);
+        this._id.set(bookId);
         if (bookId) this.kv.set(KEY, bookId);
         else this.kv.remove(KEY);
     }

@@ -14,15 +14,16 @@ const KEY = 'app_active_prompt_profile';
 export class ActiveProfileStore {
     private kv = inject(KVStore);
 
-    readonly id = signal<string>(DEFAULT_PROFILE_ID);
+    private _id = signal<string>(DEFAULT_PROFILE_ID);
+    readonly id = this._id.asReadonly();
 
     constructor() {
         const stored = this.kv.get(KEY);
-        if (stored) this.id.set(stored);
+        if (stored) this._id.set(stored);
     }
 
     set(profileId: string): void {
-        this.id.set(profileId);
+        this._id.set(profileId);
         this.kv.set(KEY, profileId);
     }
 }

@@ -121,11 +121,11 @@ export class GameStateService {
     // Flag to prevent effects from saving until after initial load
     injectionSettingsLoaded = signal(false);
 
-    // Active Prompt Profile (e.g., 'cloud', 'local'). Re-exported as the
-    // store's signal — callers read via state.activePromptProfile() unchanged;
-    // writers must call activeProfileStore.set() directly so persistence stays
-    // in lock-step.
-    activePromptProfile = this.activeProfileStore.id.asReadonly();
+    // Active Prompt Profile (e.g., 'cloud', 'local'). Re-exported from the
+    // store — callers read via state.activePromptProfile() unchanged; the
+    // store's id is already readonly so writes must go through
+    // ActiveProfileStore.set() to keep persistence in lock-step.
+    activePromptProfile = this.activeProfileStore.id;
 
     // ==================== Prompt Updates ====================
     // Track status of prompt file updates: type -> { hasUpdate: boolean, serverContent: string }

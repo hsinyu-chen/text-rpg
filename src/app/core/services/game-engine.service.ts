@@ -9,6 +9,7 @@ import { CacheManagerService } from './cache-manager.service';
 import { SessionService } from './session.service';
 import { ContextBuilderService, BuildContext } from './context-builder.service';
 import { ConfigService } from './config.service';
+import { AppConfigShape } from './app-config-store';
 import { LLMProviderRegistryService } from './llm-provider-registry.service';
 import { LLMProviderCapabilities } from '@hcs/llm-core';
 import { stripSystemMainMarker } from './profile-compat';
@@ -75,17 +76,7 @@ export class GameEngineService {
      * Persists a partial app config update through ConfigService → AppConfigStore.
      * @param genConfig UI / engine settings; LLM provider config lives in the active profile.
      */
-    async saveConfig(genConfig: {
-        fontSize?: number,
-        fontFamily?: string,
-        exchangeRate?: number,
-        currency?: string,
-        enableConversion?: boolean,
-        screensaverType?: 'invaders' | 'code',
-        outputLanguage?: string,
-        idleOnBlur?: boolean,
-        engineMode?: 'single' | 'two-call'
-    }) {
+    async saveConfig(genConfig: Partial<AppConfigShape>) {
         await this.configService.saveConfig(genConfig);
     }
 

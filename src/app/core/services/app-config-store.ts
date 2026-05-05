@@ -42,17 +42,32 @@ const KEYS = {
 export class AppConfigStore {
     private kv = inject(KVStore);
 
-    readonly fontSize = signal<number | undefined>(undefined);
-    readonly fontFamily = signal<string | undefined>(undefined);
-    readonly screensaverType = signal<'invaders' | 'code'>('invaders');
-    readonly currency = signal<string>('TWD');
-    readonly enableConversion = signal<boolean>(false);
-    readonly idleOnBlur = signal<boolean>(false);
-    readonly enableAdultDeclaration = signal<boolean>(true);
-    readonly engineMode = signal<'single' | 'two-call'>('single');
-    readonly exchangeRate = signal<number>(30);
-    readonly outputLanguage = signal<string>('default');
-    readonly smartContextTurns = signal<number>(10);
+    // Internal writable signals — only the store's own load/patch can mutate.
+    private _fontSize = signal<number | undefined>(undefined);
+    private _fontFamily = signal<string | undefined>(undefined);
+    private _screensaverType = signal<'invaders' | 'code'>('invaders');
+    private _currency = signal<string>('TWD');
+    private _enableConversion = signal<boolean>(false);
+    private _idleOnBlur = signal<boolean>(false);
+    private _enableAdultDeclaration = signal<boolean>(true);
+    private _engineMode = signal<'single' | 'two-call'>('single');
+    private _exchangeRate = signal<number>(30);
+    private _outputLanguage = signal<string>('default');
+    private _smartContextTurns = signal<number>(10);
+
+    // Public read-only views. Consumers can subscribe / read but cannot
+    // bypass `patch()` to write back without the matching KV sync.
+    readonly fontSize = this._fontSize.asReadonly();
+    readonly fontFamily = this._fontFamily.asReadonly();
+    readonly screensaverType = this._screensaverType.asReadonly();
+    readonly currency = this._currency.asReadonly();
+    readonly enableConversion = this._enableConversion.asReadonly();
+    readonly idleOnBlur = this._idleOnBlur.asReadonly();
+    readonly enableAdultDeclaration = this._enableAdultDeclaration.asReadonly();
+    readonly engineMode = this._engineMode.asReadonly();
+    readonly exchangeRate = this._exchangeRate.asReadonly();
+    readonly outputLanguage = this._outputLanguage.asReadonly();
+    readonly smartContextTurns = this._smartContextTurns.asReadonly();
 
     constructor() {
         this.load();
@@ -62,39 +77,39 @@ export class AppConfigStore {
         const sSize = this.kv.get(KEYS.fontSize);
         if (sSize) {
             const n = parseInt(sSize, 10);
-            if (Number.isFinite(n)) this.fontSize.set(n);
+            if (Number.isFinite(n)) this._fontSize.set(n);
         }
 
         const sFamily = this.kv.get(KEYS.fontFamily);
-        if (sFamily) this.fontFamily.set(sFamily);
+        if (sFamily) this._fontFamily.set(sFamily);
 
         const sst = this.kv.get(KEYS.screensaverType);
-        if (sst === 'invaders' || sst === 'code') this.screensaverType.set(sst);
+        if (sst === 'invaders' || sst === 'code') this._screensaverType.set(sst);
 
         const cur = this.kv.get(KEYS.currency);
-        if (cur) this.currency.set(cur);
+        if (cur) this._currency.set(cur);
 
-        this.enableConversion.set(this.kv.get(KEYS.enableConversion) === 'true');
-        this.idleOnBlur.set(this.kv.get(KEYS.idleOnBlur) === 'true');
+        this._enableConversion.set(this.kv.get(KEYS.enableConversion) === 'true');
+        this._idleOnBlur.set(this.kv.get(KEYS.idleOnBlur) === 'true');
         // Mirrors original: opt-OUT semantics (default true unless explicitly 'false').
-        this.enableAdultDeclaration.set(this.kv.get(KEYS.enableAdultDeclaration) !== 'false');
+        this._enableAdultDeclaration.set(this.kv.get(KEYS.enableAdultDeclaration) !== 'false');
 
         const em = this.kv.get(KEYS.engineMode);
-        this.engineMode.set(em === 'two-call' ? 'two-call' : 'single');
+        this._engineMode.set(em === 'two-call' ? 'two-call' : 'single');
 
         const sRate = this.kv.get(KEYS.exchangeRate);
         if (sRate) {
             const n = parseFloat(sRate);
-            if (Number.isFinite(n)) this.exchangeRate.set(n);
+            if (Number.isFinite(n)) this._exchangeRate.set(n);
         }
 
         const lang = this.kv.get(KEYS.outputLanguage);
-        if (lang) this.outputLanguage.set(lang);
+        if (lang) this._outputLanguage.set(lang);
 
         const sct = this.kv.get(KEYS.smartContextTurns);
         if (sct) {
             const n = parseInt(sct, 10);
-            if (Number.isFinite(n)) this.smartContextTurns.set(n);
+            if (Number.isFinite(n)) this._smartContextTurns.set(n);
         }
     }
 
@@ -106,47 +121,47 @@ export class AppConfigStore {
      */
     patch(partial: Partial<AppConfigShape>): void {
         if (partial.fontSize !== undefined) {
-            this.fontSize.set(partial.fontSize);
+            this._fontSize.set(partial.fontSize);
             this.kv.set(KEYS.fontSize, String(partial.fontSize));
         }
         if (partial.fontFamily !== undefined) {
-            this.fontFamily.set(partial.fontFamily);
+            this._fontFamily.set(partial.fontFamily);
             this.kv.set(KEYS.fontFamily, partial.fontFamily);
         }
         if (partial.screensaverType !== undefined) {
-            this.screensaverType.set(partial.screensaverType);
+            this._screensaverType.set(partial.screensaverType);
             this.kv.set(KEYS.screensaverType, partial.screensaverType);
         }
         if (partial.currency !== undefined) {
-            this.currency.set(partial.currency);
+            this._currency.set(partial.currency);
             this.kv.set(KEYS.currency, partial.currency);
         }
         if (partial.enableConversion !== undefined) {
-            this.enableConversion.set(partial.enableConversion);
+            this._enableConversion.set(partial.enableConversion);
             this.kv.set(KEYS.enableConversion, String(partial.enableConversion));
         }
         if (partial.idleOnBlur !== undefined) {
-            this.idleOnBlur.set(partial.idleOnBlur);
+            this._idleOnBlur.set(partial.idleOnBlur);
             this.kv.set(KEYS.idleOnBlur, String(partial.idleOnBlur));
         }
         if (partial.enableAdultDeclaration !== undefined) {
-            this.enableAdultDeclaration.set(partial.enableAdultDeclaration);
+            this._enableAdultDeclaration.set(partial.enableAdultDeclaration);
             this.kv.set(KEYS.enableAdultDeclaration, String(partial.enableAdultDeclaration));
         }
         if (partial.engineMode !== undefined) {
-            this.engineMode.set(partial.engineMode);
+            this._engineMode.set(partial.engineMode);
             this.kv.set(KEYS.engineMode, partial.engineMode);
         }
         if (partial.exchangeRate !== undefined) {
-            this.exchangeRate.set(partial.exchangeRate);
+            this._exchangeRate.set(partial.exchangeRate);
             this.kv.set(KEYS.exchangeRate, String(partial.exchangeRate));
         }
         if (partial.outputLanguage !== undefined) {
-            this.outputLanguage.set(partial.outputLanguage);
+            this._outputLanguage.set(partial.outputLanguage);
             this.kv.set(KEYS.outputLanguage, partial.outputLanguage);
         }
         if (partial.smartContextTurns !== undefined) {
-            this.smartContextTurns.set(partial.smartContextTurns);
+            this._smartContextTurns.set(partial.smartContextTurns);
             this.kv.set(KEYS.smartContextTurns, String(partial.smartContextTurns));
         }
     }
