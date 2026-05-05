@@ -5,7 +5,7 @@ import {
     buildNarratorUserMessage,
     type IntentTagSet
 } from './build-context-utils';
-import type { ResolverOutput, ResolverStep } from '@app/core/constants/engine-protocol-two-call';
+import type { AnalysisStep, StructuredAnalysis } from '@app/core/constants/engine-protocol-structured';
 
 const TAGS: IntentTagSet = {
     ACTION: '<行動意圖>',
@@ -15,30 +15,33 @@ const TAGS: IntentTagSet = {
     SAVE: '<存檔>'
 };
 
-function step(overrides: Partial<ResolverStep> = {}): ResolverStep {
+function step(overrides: Partial<AnalysisStep> = {}): AnalysisStep {
     return {
+        kind: 'user_intent',
         action: 'walk',
-        action_type: 'movement',
-        target: '',
-        dialogue: '',
-        mood: 'calm',
-        state_changes: [],
-        event_type: 'ambient',
-        ideal_status: 'intact',
-        break_reason: '',
+        pc_dialogue: '',
+        mood: '',
+        risk_factors: [],
+        outcome: '成功',
+        breaks_ideal: false,
         npc_reactions: [],
-        ambient: '',
+        object_reactions: [],
         ...overrides
     };
 }
 
-function resolver(overrides: Partial<ResolverOutput> = {}): ResolverOutput {
+function analysis(overrides: Partial<StructuredAnalysis> = {}): StructuredAnalysis {
     return {
-        ideal_outcome: 'introduce self via handshake',
-        ideal_strength: 'pragmatic',
+        scene_snapshot: {
+            date_in_world: '',
+            time_hhmm: '12:00',
+            location: '',
+            environment: '',
+            pc_in_header: '',
+            present_npcs: [],
+            key_objects: []
+        },
         steps: [],
-        interrupted: false,
-        interrupted_at_step: 0,
         ...overrides
     };
 }
@@ -181,83 +184,95 @@ describe('buildResolverUserMessage', () => {
 describe('buildNarratorUserMessage', () => {
     it('does not include the original user input string', () => {
         const out = buildNarratorUserMessage({
-            resolver: resolver({ ideal_outcome: 'X', interrupted: false }),
-            executedSteps: [step({ action: 'walk', dialogue: 'hi' })],
+            idealOutcome: 'X',
+            idealStrength: 'pragmatic',
+            truncatedAnalysis: analysis({ steps: [step({ action: 'walk', pc_dialogue: 'hi' })] }),
             protocolNarrator: 'NARR',
             correction: ''
         });
-        // The narrator must not see the raw user input; only structured data is present.
         expect(out).toContain('[NARRATOR INPUT]');
         expect(out).toContain('"action": "walk"');
         expect(out).toContain('NARR');
     });
 
-    it('zeros break_reason on intact steps even if the input had one', () => {
+    it('embeds the truncated analysis verbatim into the narrator JSON', () => {
         const out = buildNarratorUserMessage({
-            resolver: resolver({ interrupted: false }),
-            executedSteps: [step({ ideal_status: 'intact', break_reason: 'leaked text' })],
+            idealOutcome: 'X',
+            idealStrength: 'pragmatic',
+            truncatedAnalysis: analysis({
+                steps: [
+                    step({
+                        action: 'greet',
+                        npc_reactions: [{ actor: '梨菲', physical: '揚眉', dialogue: '別過來', motivation: '警戒' }]
+                    })
+                ]
+            }),
             protocolNarrator: '',
             correction: ''
         });
-        expect(out).not.toContain('leaked text');
-        expect(out).toContain('"break_reason": ""');
+        const parsed = JSON.parse(out.split('~~~json\n')[1].split('\n~~~')[0]);
+        expect(parsed.analysis.steps[0].npc_reactions[0].dialogue).toBe('別過來');
     });
 
-    it('derives interrupted + break_reason from the last step (broken), ignoring the resolver flag', () => {
+    it('derives interrupted=true when truncated analysis ends in a breaks_ideal step', () => {
         const out = buildNarratorUserMessage({
-            // Resolver self-reports false; helper must override based on the actual broken step.
-            resolver: resolver({ interrupted: false }),
-            executedSteps: [
-                step({ action: 'a' }),
-                step({ action: 'b', ideal_status: 'broken', break_reason: 'NPC refused' })
-            ],
+            idealOutcome: 'X',
+            idealStrength: 'pragmatic',
+            truncatedAnalysis: analysis({
+                steps: [
+                    step({ action: 'a' }),
+                    step({ action: 'b', breaks_ideal: true, outcome: '失敗 - NPC refused' })
+                ]
+            }),
             protocolNarrator: '',
             correction: ''
         });
         const parsed = JSON.parse(out.split('~~~json\n')[1].split('\n~~~')[0]);
         expect(parsed.interrupted).toBe(true);
-        expect(parsed.break_reason).toBe('NPC refused');
+        expect(parsed.analysis.steps[1].outcome).toContain('NPC refused');
     });
 
-    it('forces interrupted=false when resolver claims true but no step is broken', () => {
+    it('reports interrupted=false when no step is broken', () => {
         const out = buildNarratorUserMessage({
-            resolver: resolver({ interrupted: true }),
-            executedSteps: [step({ action: 'a' })],
+            idealOutcome: 'X',
+            idealStrength: 'pragmatic',
+            truncatedAnalysis: analysis({ steps: [step({ action: 'a' })] }),
             protocolNarrator: '',
             correction: ''
         });
         const parsed = JSON.parse(out.split('~~~json\n')[1].split('\n~~~')[0]);
         expect(parsed.interrupted).toBe(false);
-        expect(parsed.break_reason).toBe('');
     });
 
     it('omits the trailing protocol section when protocolNarrator is empty', () => {
         const out = buildNarratorUserMessage({
-            resolver: resolver(),
-            executedSteps: [step()],
+            idealOutcome: 'X',
+            idealStrength: 'pragmatic',
+            truncatedAnalysis: analysis({ steps: [step()] }),
             protocolNarrator: '',
             correction: ''
         });
         expect(out.endsWith('~~~')).toBe(true);
     });
 
-    it('round-trips ideal_outcome / ideal_strength / interrupted into the JSON block', () => {
+    it('round-trips ideal_outcome / ideal_strength into the JSON block', () => {
         const out = buildNarratorUserMessage({
-            resolver: resolver({ ideal_outcome: 'X', ideal_strength: 'desperate', interrupted: false }),
-            executedSteps: [step()],
+            idealOutcome: 'reach plaza',
+            idealStrength: 'desperate',
+            truncatedAnalysis: analysis({ steps: [step()] }),
             protocolNarrator: '',
             correction: ''
         });
         const parsed = JSON.parse(out.split('~~~json\n')[1].split('\n~~~')[0]);
-        expect(parsed.ideal_outcome).toBe('X');
+        expect(parsed.ideal_outcome).toBe('reach plaza');
         expect(parsed.ideal_strength).toBe('desperate');
-        expect(parsed.interrupted).toBe(false);
     });
 
     it('embeds the correction string into the narrator JSON when supplied', () => {
         const out = buildNarratorUserMessage({
-            resolver: resolver(),
-            executedSteps: [step()],
+            idealOutcome: 'X',
+            idealStrength: 'pragmatic',
+            truncatedAnalysis: analysis({ steps: [step()] }),
             protocolNarrator: '',
             correction: '原劇情誤寫紅色禮服；後續以藍色制服為準。'
         });
@@ -267,8 +282,9 @@ describe('buildNarratorUserMessage', () => {
 
     it('omits the correction field entirely when empty (no leakage as undefined/null)', () => {
         const out = buildNarratorUserMessage({
-            resolver: resolver(),
-            executedSteps: [step()],
+            idealOutcome: 'X',
+            idealStrength: 'pragmatic',
+            truncatedAnalysis: analysis({ steps: [step()] }),
             protocolNarrator: '',
             correction: ''
         });

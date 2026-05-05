@@ -58,6 +58,28 @@ The user has declared ideal_outcome as:
         START_SCENE: '## Start Scene',
         INPUT_FORMAT: '## User Input Format'
     },
+    analysisTrace: {
+        SCENE_HEADING: '[Scene]',
+        TIME: 'Time',
+        LOCATION: 'Location',
+        PROTAGONIST: 'PC',
+        PRESENT_NPCS: 'NPCs',
+        ENVIRONMENT: 'Environment',
+        KEY_OBJECTS: 'Key objects',
+        INTENT_HEADING: '[Intent]',
+        IDEAL_OUTCOME: 'Goal',
+        IDEAL_STRENGTH: 'Strength',
+        STEP_ACTION: 'Action',
+        STEP_EVENT: 'Event',
+        FULL_SCENE: 'Scene',
+        PC_DIALOGUE: 'PC',
+        RISKS: 'Risks',
+        OUTCOME: 'Outcome',
+        TRUNCATED_NOTE: '(truncated after first break)',
+        NO_ACTION: '(no action)',
+        NO_REACTION: '(no reaction)',
+        NO_CHANGE: 'unchanged'
+    },
     intentLabels: {
         ACTION: 'Action',
         FAST_FORWARD: 'Fast Forward',

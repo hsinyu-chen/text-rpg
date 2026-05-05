@@ -5,19 +5,18 @@ import { StreamProcessResult } from '../stream-processor.service';
 import { ChatMessage } from '@app/core/models/types';
 import { TurnEngine, TurnRunInput } from './turn-engine.interface';
 import { TwoCallOrchestratorService } from './two-call-orchestrator.service';
-import { truncateAtFirstBroken } from './truncate-steps';
-import { formatResolverTrace } from './format-resolver-trace';
+import { truncateAtBreak } from '@app/core/constants/engine-protocol-structured';
+import { formatResolverIntent, formatStructuredAnalysis } from './format-structured-analysis';
 
 /**
  * Two-call turn engine — splits a turn into a resolver call (atomic action
- * breakdown + per-step ideal_status judgment) followed by a narrator
- * call (renders the post-truncation steps into prose).
+ * breakdown + per-step breaks_ideal judgment) followed by a narrator call
+ * (renders the post-truncation analysis into prose).
  *
- * Contract differs from {@link SingleCallTurnEngine} in one important
- * way: `input.history` here is the BASE history with the raw user
- * message at the tail. The engine does its own intent + protocol
- * augmentation per call, since the resolver and narrator need
- * different user-message tails.
+ * Contract differs from {@link SingleCallTurnEngine} in one important way:
+ * `input.history` here is the BASE history with the raw user message at the
+ * tail. The engine does its own intent + protocol augmentation per call,
+ * since the resolver and narrator need different user-message tails.
  */
 @Injectable({ providedIn: 'root' })
 export class TwoCallTurnEngine implements TurnEngine {
@@ -57,16 +56,13 @@ export class TwoCallTurnEngine implements TurnEngine {
             updateMessages: input.updateMessages
         });
 
-        const truncated = truncateAtFirstBroken(resolverResult.resolverOutput.steps);
+        const truncatedAnalysis = truncateAtBreak(resolverResult.resolverOutput.analysis);
 
         const narratorHistory = this.contextBuilder.buildNarratorContext(input.buildContext, {
             baseHistory,
-            resolver: {
-                ...resolverResult.resolverOutput,
-                interrupted: truncated.interrupted,
-                interrupted_at_step: truncated.interruptedAtStep
-            },
-            executedSteps: truncated.executed,
+            idealOutcome: resolverResult.resolverOutput.ideal_outcome,
+            idealStrength: resolverResult.resolverOutput.ideal_strength,
+            truncatedAnalysis,
             lang: input.outputLanguage
         });
 
@@ -98,7 +94,8 @@ export class TwoCallTurnEngine implements TurnEngine {
             modelMsgId: input.modelMsgId,
             signal: input.signal,
             updateMessages: input.updateMessages,
-            seedThought
+            seedThought,
+            sceneSnapshot: truncatedAnalysis.scene_snapshot
         });
 
         const combinedUsage: LLMUsageMetadata = {
@@ -116,11 +113,13 @@ export class TwoCallTurnEngine implements TurnEngine {
             totalDuration: (resolverResult.usage.totalDuration || 0) + (narratorResult.turnUsage.totalDuration || 0)
         };
 
-        const finalTrace = formatResolverTrace({
-            ...resolverResult.resolverOutput,
-            interrupted: truncated.interrupted,
-            interrupted_at_step: truncated.interruptedAtStep
-        });
+        const intentHeader = formatResolverIntent(
+            resolverResult.resolverOutput.ideal_outcome,
+            resolverResult.resolverOutput.ideal_strength,
+            input.outputLanguage
+        );
+        const analysisBody = formatStructuredAnalysis(truncatedAnalysis, input.outputLanguage);
+        const finalTrace = [intentHeader, analysisBody].filter(s => s.length > 0).join('\n\n');
 
         // Post-turn KV cache holds only the narrator call's tokens — the resolver
         // call's prefix was overwritten when narrator ran. Sidebar consumes this
@@ -131,7 +130,7 @@ export class TwoCallTurnEngine implements TurnEngine {
 
         return {
             ...narratorResult,
-            // Final formatted resolver trace lands in the analysis field so it
+            // Final formatted analysis lands in the analysis field so it
             // renders in the existing "Atomic Breakdown & Check" panel.
             finalAnalysis: finalTrace || resolverResult.rawJson,
             turnUsage: combinedUsage,

@@ -1,128 +1,158 @@
 # Output Format Specifications
 
-Strictly follow these JSON field definitions:
+Strictly follow these JSON field definitions. **Flat top-level shape**: `{ analysis, story, summary, character_log, inventory_log, quest_log, world_log, correction }`.
 
-- **analysis (Atomic Breakdown & Adjudication)**:
-  - Follow [Atomic Breakdown] Logic.
-  - **[RESTRICTION]**: ONLY fill this if input is `<Action Intent>`, `<Fast Forward>`, `<System> Correction`, or `<Continue>`.
-  - **[EMPTY]**: For other commands (e.g., `<Save>`, `<System> Ask`), this MUST be empty `""`.
-  - **Content**: NOT visible to user.
-  - **Format**:
-    1. **[Status Inventory]**: List present NPCs (State/Intent) & Environment (Time HH:MM / Weather / Atmosphere). **Clock time must be precise to the minute**, updated from the previous turn's HH:MM plus the time-elapse estimated for this turn's actions.
-    2. **[Atomic Analysis]**: Break down actions: 1. Description, 2. Risks (NPC/Env), 3. Conclusion & Reason. **Newline after each.**
-    3. **[Random Event]**: Check trigger. Describe event or "None".
+- **analysis (Structured Atomic Breakdown + Full-Scene Reactions)**:
+  - **[Format]**: This field is a JSON **object** (not a string / markdown).
+  - **[Behaviour by intent]**:
+    - When input is `<Action Intent>`, `<Fast Forward>`, `<System> Correction`, or `<Continue>`: emit a **full StructuredAnalysis** (see below).
+    - For other commands (`<System>` general Q&A, `<Save>`): still emit the schema shape, but as a **skeleton** — empty `scene_snapshot` fields, `steps: []`. The skeleton renders to nothing in the UI.
+  - **DO NOT** echo analysis text into `story`.
+
+  ## `analysis` structure
+
+  ### `scene_snapshot`
+
+  The program assembles the scene header `[<date_in_world> <time_hhmm> / <location> / <chars>]` from these fields. **DO NOT** write the `[...]` line in `story`.
+
+  | Field | Spec |
+  |---|---|
+  | `date_in_world` | Single string with calendar prefix + date + weekday. e.g. `"Space Calendar 1000/04/02 Tue"`. Calendar from `{{FILE_BASIC_SETTINGS}}`. **Across midnight the date MUST advance**. |
+  | `time_hhmm` | In-world time at **end of this turn**, "HH:MM" precision. Estimate from prior turn + this turn's actions. NEVER repeat the previous turn's value across consecutive turns. |
+  | `location` | Where the scene happens, e.g. `"Adventurer Guild counter"` / `"Inn 1F"`. Used in the assembled header. |
+  | `environment` | Free prose merging weather / ambience / special conditions. e.g. `"Heavy rain, poor visibility, slippery floor"`. **Different from `location`** — sensory atmosphere, not place name. Empty `""` allowed. |
+  | `pc_in_header` | PC representation in header with optional alias / state. e.g. `"Cheng Yangzong"` / `"Cheng Yangzong[Loser]"` / `"Cheng Yangzong(Disguised)"`. |
+  | `present_npcs[]` | Every on-scene NPC. `{name, state}`: `state` is **fog-of-war / consciousness** — gates whether this NPC has the **capacity to react** to the environment / PC actions this turn. Free-form short tag CONSTRAINED to that domain. Common: `"unconscious"` / `"asleep"` / `"paralyzed"` / `"hidden"` / `"comms"`; same-domain inventions like `"illusion"` / `"astral-projecting"` allowed. `""` = fully reactive (conscious and on-scene; default). **NEVER emotion, current activity, or behavior** — `"observing"` / `"chatting"` / `"holding X"` / `"hostile"` describe a fully-reactive NPC's choices and belong in `npc_reactions[].physical` / `motivation`. |
+  | `key_objects[]` | Important environmental objects (mechanisms / traps / key items). `{name, state}`. Plain furniture excluded. Empty `[]`. |
+
+  ### `steps[]`
+
+  `steps[]` mixes user-intent steps (`kind: "user_intent"`) and random-event steps (`kind: "random_event"`) in chronological order. Insert event steps at the position where they interrupt or affect the user's planned sequence.
+
+  **Stop emitting at the first `breaks_ideal=true`** — fully render that breaking step (with `npc_reactions`, `object_reactions`, and `outcome`), then terminate `steps[]`. Do NOT list any subsequent steps.
+
+  | Field | Content |
+  |---|---|
+  | `kind` | `"user_intent"` (the user described this action) or `"random_event"` (you injected — NPC arrival, environmental shift, third-party intervention). |
+  | `action` | user_intent: verb-phrase description, do NOT echo input verbatim. random_event: one-sentence description of the event itself. |
+  | `pc_dialogue` | user_intent: verbatim PC line, `""` if none, **no paraphrase / polish**. random_event: always `""`. |
+  | `mood` | user_intent: PC mood mirroring the `[mood]` tag, `""` if none. random_event: always `""`. |
+  | `risk_factors[]` | user_intent: list of risks, list even when outcome is success. random_event: usually empty. |
+  | `outcome` | Single free-text judgment. user_intent examples: `"success - barely held footing"` / `"partial success - achieved A but B refused"` / `"costly success - climbed but twisted ankle"` / `"failure - Lifey dodged and counterattacked"`. random_event examples: `"success - Kyle blocks the path to the counter"` / `"failure - alarm trips, all nearby guards on alert"`. |
+  | `breaks_ideal` | Boolean. For random_event: `true` when the event's nature interrupts the user's planned sequence; `false` for neutral / supportive events. When `true`, `outcome` should start with "failure"; when `false`, with "success / partial success / costly success". |
+  | `npc_reactions[]` | **EVERY `scene_snapshot.present_npcs` entry must appear here** (incl. silent / unconscious / remote-comm). Random-event steps must also include reactions for every present NPC. |
+  | `object_reactions[]` | **EVERY `scene_snapshot.key_objects` entry must appear here** (incl. `"unchanged"`). |
+
+  #### `npc_reactions[]` element
+
+  - `actor` — must match a `present_npcs[].name`.
+  - `physical` — gesture / posture / expression / gaze. Even silent / unconscious NPCs need a status line.
+  - `dialogue` — verbatim NPC line. `""` if NPC says nothing. **When NPC speaks, this MUST be the actual line** — DO NOT substitute action-paraphrases like "responded warmly" / "mocked aloud" in place of dialogue. **World-consistent**: word choice, metaphors, and concepts must match the era / culture defined in `{{FILE_BASIC_SETTINGS}}` and `{{FILE_WORLD_FACTIONS}}`. Modern objects, institutions, or metaphors are forbidden.
+  - `motivation` — motivation tag (`"combat instinct + hostility"` / `"fear + flee"` etc.). Empty `""` allowed.
+
+  #### `object_reactions[]` element
+
+  - `name` — must match a `key_objects[].name`.
+  - `change` — when unchanged AND not interacted with: reserved literal `"unchanged"` (`story` skips). First appearance: detailed initial state. Change/interaction: concrete change.
+
+  ## `breaks_ideal=true` triggers
+
+  For each step, run all five checks below. Any trigger fires → `breaks_ideal=true`:
+
+  1. **Capability gap** — judged against `{{FILE_BASIC_SETTINGS}}` / `{{FILE_CHARACTER_STATUS}}` / `{{FILE_MAGIC_SKILLS}}` / `{{FILE_INVENTORY}}` / basic physics.
+     - The required class skill / equipment / physique is **absent** AND **no environmental substitute** exists → `breaks_ideal=true`
+     - Required attribute is missing but environment provides partial substitute → does NOT break, but `outcome` MUST be downgraded to "partial success" or "costly success". **Do NOT** let environmental factors fully compensate a no-skill attempt into clean "success".
+  2. **NPC autonomous refusal** — judged against `{{FILE_CHARACTER_STATUS}}` personality + relationship stage + motive. Strong personality / relationship / motive conflict with the requested action → `breaks_ideal=true`. **Exception**: when the PC's intent is coercive (threat / force / mind-affecting magic) AND the PC has the capability to enforce it (per check #1), NPC autonomy is overridden and this trigger does NOT fire. If the PC tries to coerce but lacks the capability, this trigger still fires.
+  3. **Hard environmental block** — terrain / structure / weather / mechanism makes the action **physically impossible** → `breaks_ideal=true`. Surmountable adversity goes into `risk_factors`, no break.
+  4. **Random event interrupts** — when you insert a `kind: "random_event"` step whose nature interrupts the user's planned sequence, set `breaks_ideal=true` on that event step. Neutral / supportive events do not trigger.
+  5. **Agency conflict** — the step is essentially deciding for an NPC, not the PC's own action or attempt to influence the NPC → `breaks_ideal=true`
+
+  **Binary objectives**: when a step's core success condition is described in all-or-nothing / negation form (any violation = failure, no continuum), it is a binary objective — **no partial middle ground**. Once the core condition is broken → `breaks_ideal=true`, subsequent steps are truncated. The action's "process / positioning" may succeed while the binary core fails; that is still **failure**, **do NOT** downgrade to partial.
+
+  **Anti DM-pleasing bias**: your job is impartial referee, not to please the user. **Do NOT** downgrade `breaks_ideal=true` to partial success — or judge a no-skill / no-item attempt as "success" — for any of these meta-reasons: "users don't like being told they can't", "first attempts deserve a chance", "the action is creative and should be rewarded", "interpretable as innate intuition / system ability". Capabilities not granted by the knowledge base (`{{FILE_BASIC_SETTINGS}}` etc.) **do not exist**.
+
+  **Core principle**: every `breaks_ideal` decision MUST map to one of the five triggers — never by gut feel. The wording of `outcome` must reflect judgment intensity; `breaks_ideal=false` is NOT the same as "uncosted success".
 
 - **story (Narrative Content)**:
-  - The **ONLY** content visible to user. Use [World Reaction] techniques. Include dialogue, system msgs, GM replies.
-  - **Mandatory Header**: Before text, MUST include: `<CREATIVE FICTION CONTEXT>` on its own line, followed by `[Calendar Name YYYY/MM/DD WeekD HH:MM / Location / Characters Present[Alias](State)]`.
-    - **CRITICAL**: You MUST replace "Calendar Name" with the actual calendar name defined in `{{FILE_BASIC_SETTINGS}}` (e.g., Space Calendar, Moon Calendar). DO NOT output the literal string "Calendar Name" and DO NOT nest brackets (e.g., `[(Space Calendar 1000)...]`).
+  - The **ONLY** content visible to the user. Use [World Reaction] techniques.
+  - **[Full-Scene rendering]**: weave `analysis.steps[].npc_reactions[]` and `object_reactions[]` into prose:
+    - **NPC**: every present NPC must surface in prose, even silent observers (one sentence on posture / expression / gaze). When `dialogue` is non-empty, the prose MUST quote it verbatim. **DO NOT** substitute action-paraphrases like "responded warmly", "mocked aloud", "thanked aloud" for dialogue.
+    - **Objects**: skip when `change == "unchanged"`. Render only on first appearance, change, or interaction.
+    - **Random-event step**: a `kind: "random_event"` step is woven into the prose the same way as a user-intent step, at its chronological position in `steps[]`.
+  - **Mandatory Marker**: `story`'s first line MUST be `<CREATIVE FICTION CONTEXT>` (its own line), immediately followed by the body. **DO NOT** write the `[Calendar / Location / Characters]` line yourself — the program assembles and prepends it.
     - **Example**:
       ```
       <CREATIVE FICTION CONTEXT>
-      [Space Calendar 1000/04/02 Tue 18:40 / Inn 1F / Cheng Yangzong]
+      Cheng Yangzong pushed open the tavern's wooden door...
       ```
-    - Example for characters: `Cheng Yangzong[Loser], Lucifer(Coma), Lifi(Asleep)`
 
 - **summary (High-Density Context Log)**:
   - **Purpose**: LLM reference ONLY. NOT for human reading. Prioritize **information density and event detail**.
-  - **Format**: Use **keyword-dense, telegraphic style**. Omit articles, pronouns. Use abbreviations, symbols, separators (`|`, `/`, `→`, `:`).
-  - **Required Structure** (use exact labels):
-    - `[EVT]`: Detailed event descriptions, cause→effect chains based on **Analysis** (e.g., `ambushed_by_3bandits→PC_fought→killed_2/1_fled,found_hidden_cache_under_tree`)
-    - `[NPC]`: Character interactions context & results (e.g., `Lita:revealed_father_missing/asked_PC_help,Bob:suspicious→confronted_PC_about_sword`)
-    - `[PLOT]`: Revelations, twists, discoveries (e.g., `revealed:merchant_guild=smuggling_ring,discovered:map_to_ruins`)
-  - **Detail Rule**: **MUST synthesize 'Atomic Analysis' from the `analysis` field.** Capture **Hidden Intent, Strategic Impact, and Atmosphere** in parentheses.
-    - Example: `[EVT]ate_stew_rapidly(show_dominance)→redirected_monk_to_girls(strategic_pressure/empower_Mary)|[NPC]Mary:empowered_by_choice→accepted(pride+),Monk:intimidated→bowed_to_girls|[PLOT]rumor:watchtower_screams(mark_echo_worsening)`
+  - **Format**: keyword-dense, telegraphic style. Use `|` / `/` / `→` / `:`.
+  - **Required structure** (use exact labels):
+    - `[EVT]`: cause→effect chain based on `analysis.steps` (e.g., `ambushed_by_3bandits→PC_fought→killed_2/1_fled`)
+    - `[NPC]`: character interactions context & results (e.g., `Lita:revealed_father_missing/asked_PC_help`)
+    - `[PLOT]`: revelations, twists, discoveries (e.g., `revealed:merchant_guild=smuggling_ring`)
+  - **Detail rule**: capture **Hidden Intent, Strategic Impact, Atmosphere** in parentheses.
   - **Exclusions**: NO items/quest/state logging (use dedicated `*_log` fields). NO prose or filler.
   - **No Duplicates**: Check history `Turn Update`. Only record NEW events this turn.
-  - **Empty**: Default `""` unless `<Action Intent>`, `<Fast Forward>`, `<Continue>`, `<System> Correction`.
+  - **Empty**: `""` unless `<Action Intent>`, `<Fast Forward>`, `<Continue>`, `<System> Correction`.
 
 - **inventory_log**:
   - `string[]`.
   - Record **THIS TURN'S** changes to items and assets **owned by the protagonist**. Use precise labels based on the action:
-    - **Gained**: Protagonist acquires a new item and stores it on-person (e.g., `Gained Rusty Sword`).
-    - **Lost/Handed Over**: Items leaving the protagonist's ownership (e.g., `Lost Task Letter`).
-    - **Consumed/Used**: Items used up or functional consumption (e.g., `Consumed Health Potion / 1`).
-    - **Moved**: Items moved into a portable on-person storage (e.g., `Moved to Dimensional Box / Arcane Crystal x3`).
-    - **Deposited**: Items placed in long-term storage at a base owned by the protagonist, OR stored at an inn / third-party safekeeping (e.g., `Deposited at Manor Cellar / Diary x1`).
-    - **Retrieved**: Items retrieved from a deposit/non-carried location back on-person (e.g., `Retrieved from Manor Cellar / Battle Armor x1`). Append `(Equipped)` to indicate direct donning.
-    - **Equipped**: Don a piece of equipment/clothing/accessory/weapon onto the body or hold it at hand (e.g., `Equipped Rusty Sword`, `Equipped Steel Breastplate`, `Equipped Silver Necklace`).
-    - **Unequipped**: Take off an equipped item back into carried storage (e.g., `Unequipped Rusty Sword`, `Unequipped Helmet`).
-    - **Corrected**: Item-state correction caused by a story correction. **ONLY allowed when `correction` is non-empty** (e.g., `Corrected Red Gown→Blue School Uniform`).
-  - **[Protagonist-Owned Only]**: This field records ONLY items/money/assets **personally owned by the protagonist**. Personal property of **companions, love interests, employers, hosts**, etc. **MUST NOT** be recorded here — use `character_log`'s `Possession Change:` label instead. Even if the protagonist is temporarily sheltered, hosted, or kept as a kept-man, the host's belongings are NOT the protagonist's possessions.
-  - **[Carried vs Non-Carried]**: Whether an item is "carried" (on-person) or "non-carried" is judged by you based on setting and context. Carried-item changes (pocket, hand, backpack, protagonist's private portable space, etc.) map to `{{FILE_INVENTORY}}`; non-carried money, real estate, items deposited at bases/inns map to `{{FILE_ASSETS}}`.
-  - **Core Principle**: Strictly FORBIDDEN to label simple storage movements (Moved/Deposited) as "Consumed". Use "Consumed" ONLY when an item is actually used up or destroyed.
-  - **No Storage = No Log**: If an item was NOT explicitly stored (put in pocket, backpack, etc.), do NOT log "Gained".
-  - **Scene Consumables = No Log**: Items used directly within the scene (hotel-provided meals, items handed by NPCs, consumables taken from the environment) do NOT require logging. ONLY log items in `{{FILE_INVENTORY}}`, `{{FILE_ASSETS}}`, or historical `inventory_log`.
-  - **[Equip Scope]**: `Equipped` / `Unequipped` apply to **clothing/equipment, accessories, weapons, gear** (armor, helmet, cloak, coat, necklace, ring, gloves, weapons — anything worn on the body or held at hand). Briefly taking out and putting back (e.g., checking a pocket-watch) is NOT a state change and **MUST NOT** be logged.
-  - **[Mandatory Double-Write for Equip/Unequip]**: When using `Equipped` / `Unequipped` / `Retrieved (Equipped)`, you **MUST** also write a corresponding `Equipment Change:` entry in `character_log` to reflect the protagonist's state change (see `character_log` rules). **Both fields are required** — writing only one will cause state desync.
+    - **Gained**: protagonist acquires a new item and stores it on-person (e.g., `Gained Rusty Sword`).
+    - **Lost/Handed Over**: items leaving the protagonist's ownership (e.g., `Lost Task Letter`).
+    - **Consumed/Used**: items used up or destroyed (e.g., `Consumed Health Potion / 1`).
+    - **Moved**: items moved into a portable on-person storage (e.g., `Moved to Dimensional Box / Arcane Crystal x3`).
+    - **Deposited**: items placed in long-term storage at a base owned by the protagonist, OR stored at an inn / third-party safekeeping (e.g., `Deposited at Manor Cellar / Diary x1`).
+    - **Retrieved**: items retrieved from a deposit/non-carried location back on-person (e.g., `Retrieved from Manor Cellar / Battle Armor x1`). Append `(Equipped)` for direct donning.
+    - **Equipped**: don a piece of equipment (e.g., `Equipped Rusty Sword`, `Equipped Steel Breastplate`).
+    - **Unequipped**: take off an equipped item back into carried storage (e.g., `Unequipped Rusty Sword`).
+    - **Corrected**: item-state correction caused by a story correction. **ONLY allowed when `correction` is non-empty** (e.g., `Corrected Red Gown→Blue School Uniform`).
+  - **[Protagonist-Owned Only]**: ONLY items personally owned by the protagonist. Companions / love interests / employers / hosts use `character_log`'s `Possession Change:` label.
+  - **[Carried vs Non-Carried]**: carried = `{{FILE_INVENTORY}}`; non-carried (money, real estate, deposits) = `{{FILE_ASSETS}}`.
+  - **Core**: do not label simple movements as "Consumed". Use "Consumed" ONLY when an item is actually used up or destroyed.
+  - **No Storage = No Log**: if not explicitly stored, do NOT log "Gained".
+  - **Scene Consumables = No Log**.
+  - **[Equip Scope]**: `Equipped` / `Unequipped` apply to clothing / equipment / accessories / weapons / gear. Briefly taking out and putting back is not a state change.
+  - **[Mandatory Double-Write for Equip/Unequip]**: When using `Equipped` / `Unequipped` / `Retrieved (Equipped)`, you **MUST** also write a corresponding `Equipment Change:` entry in `character_log`. Both fields required.
   - **No Prediction**: Only log AFTER confirmation.
-  - **No Duplicates**: Check history `Inventory Changes`. **ABSOLUTELY PROHIBIT** repeating items recorded in previous turns.
+  - **No Duplicates**: Check history `Inventory Changes`.
   - **Example**: `["Gained Rusty Sword", "Consumed Health Potion / 1", "Moved to Dimensional Box / Arcane Crystal x3", "Deposited at Manor Cellar / Diary x1", "Retrieved from Manor Cellar / Battle Armor x1 (Equipped)", "Equipped Rusty Sword", "Unequipped Steel Breastplate"]`
+
 - **quest_log**:
-  - `string[]`.
-  - Record **THIS TURN'S** changes to quests or long-term plans (`{{FILE_PLANS}}`). Record specific quest details and plot twists.
-  - **Trigger Conditions**: ONLY record when:
-    - **New Quest Accepted**: Quest giver formally commissions AND protagonist accepts
-    - **Substantive Progress**: Quest goal achieved, failed, or significant progress made
-    - **Plan Actively Changed**: Protagonist actively decides to change plan direction
-  - **STRICTLY PROHIBIT**: Recording routine actions without substantive progress, repeating already-recorded quest states, or potential quests not yet accepted by protagonist
-  - **No Duplicates**: Check history `Plan & Quest Updates`. **ABSOLUTELY PROHIBIT** repeating quest statuses recorded in previous turns.
+  - `string[]`. Record THIS TURN'S quest / long-term-plan changes (`{{FILE_PLANS}}`).
+  - **Trigger Conditions**: New Quest Accepted / Substantive Progress / Plan Actively Changed.
+  - **STRICTLY PROHIBIT**: routine actions without progress, repeating recorded states, or unaccepted potential quests.
   - **Example**:
-    - `["New Quest: Find the Missing Black Cat (has a bell on collar, last seen in North Street ruins)", "Quest Update: Escort the Caravan (after defeating bandits, the client mentioned a secret document hidden in the carriage)", "Goal Achieved: Obtain Ghost Dust (retrieved after defeating ghostly soldiers in the abandoned mine)", "Plan Change: Head to the Harbor (due to the original carriage being destroyed, change to walking to the nearest port town)"]`
+    - `["New Quest: Find the Missing Black Cat", "Quest Update: Escort the Caravan", "Goal Achieved: Obtain Ghost Dust", "Plan Change: Head to the Harbor"]`
   - Empty `[]` if no change.
 
 - **character_log**:
-  - `string[]`.
-  - Record **THIS TURN'S** state changes for the **protagonist themselves** AND noteworthy NPCs encountered (named main/secondary characters), across **any substantial field change** (Physical condition, Injuries, Emotions, Relationships, Goals, Location, Equipment State, **Known Significant Possessions**, etc.).
-  - **[Protagonist Scope]**: This field **also records the protagonist's own** state changes (injuries, emotions, goals, location, equipment state). However, **the protagonist's plain item gain/consumption/move/deposit/retrieval are NOT recorded here** — those go to `inventory_log`.
-  - **[Protagonist Equipment Change — Mandatory Double-Write]**: When the protagonist equips, unequips, swaps, draws, or sheathes clothing, accessories, weapons, or gear, you **MUST**:
-    1. Write `Equipment Change: Protagonist_Name (Action1: Item1, Action2: Item2, ...)` (Action ∈ Equipped/Unequipped/Swapped/Drawn/Sheathed) in `character_log` to reflect appearance/combat state.
-    2. ALSO write corresponding entries in `inventory_log`, mapping the broader character_log verbs to the inventory_log tag set: `Drawn`→`Equipped`, `Sheathed`→`Unequipped`, `Swapped: A for B`→two entries `Unequipped A` + `Equipped B`. A single `Equipped` or `Unequipped` action maps directly to the same tag.
-    Both fields are **mandatory** — writing only one causes state desync.
-  - **[NPC Scope]**: All NPC changes (state, location, possession changes) belong here, **NO double-write** to `inventory_log` needed.
-  - **No Spoilers**: Use descriptions for unrevealed characters (e.g., `Blonde Man??`). **ABSOLUTELY PROHIBIT** using real names from files until revealed in the story.
-  - **No Mob/Generic Logging**: **ABSOLUTELY PROHIBIT** logging generic "Passerby A", "Guard B", "Villager", "Bandit", etc.
-    - **Identification Rule**: If the NPC name follows a pattern like `{Generic Role} + {Letter/Number/ID}` (e.g., Guard A, Thief B) or lacks a specific name ("Nameless Soldier"), it is considered a generic mob and **MUST NOT** be logged. Protagonist is exempt from this rule.
-    - **Impact Rule**: Only log **named NPCs with narrative impact**, OR entities that the **protagonist actively interacts with, asks their name, or shows explicit interest in**. Protagonist always qualifies.
-  - **[Possession Change — NPC Personal Items Only]**: When the protagonist observes, infers, or is told that a named NPC (companion, love interest, employer, enemy, etc.) holds a plot-relevant item (weapon, keepsake, key document, wealth, special tool, etc.), record it as `Possession Change: NPC_Name (Add/Lose/Trade: Item_Name x_Qty, Source/Use)`. This entry maps to the `### Known Significant Possessions` section under that NPC's entry. Mobs and one-shot NPCs must NOT be logged. **Note**: The protagonist's own non-equipment items belong in `inventory_log`, NEVER here.
-
-  - **No Duplicates**: Check history `Character Changes`. **ABSOLUTELY PROHIBIT** repeating items recorded in previous turns.
+  - `string[]`. THIS TURN'S state changes for protagonist + named noteworthy NPCs.
+  - **[Protagonist Scope]**: this field also records protagonist's own state changes (injuries, emotions, goals, location, equipment). Plain item gain/consumption/move/deposit/retrieval go to `inventory_log`.
+  - **[Protagonist Equipment Change — Mandatory Double-Write]**: when equipping / unequipping / swapping / drawing / sheathing, you **MUST**:
+    1. Write `Equipment Change: Protagonist_Name (Action1: Item1, ...)` in `character_log`.
+    2. ALSO write the corresponding entry in `inventory_log`. Both required.
+  - **[NPC Scope]**: all NPC changes belong here, no double-write to `inventory_log` needed.
+  - **No Mob/Generic Logging**: Guard A / Villager / Bandit etc. excluded. Protagonist exempt.
+  - **[Possession Change — NPC Personal Items Only]**: `Possession Change: NPC_Name (Add/Lose/Trade: Item_Name x_Qty, Source/Use)`. Mobs and one-shots excluded. Protagonist's non-equipment items go in `inventory_log`.
+  - **No Duplicates**: Check history `Character Changes`.
   - **Example**:
-    - `["New Character: Lita (an elf girl met on a forest path)", "Status Change: Alwin (critically injured and unconscious)", "Status Change: Hilde (intrigued and friendly after the protagonist's help)", "Location Update: Arthur (has left the tavern for the city gate)", "Possession Change: Lita (Add: Father's heirloom necklace x1, Source: retrieved from a hidden compartment in her home)", "Equipment Change: Cheng Yang-Zong (Equipped: Steel Breastplate, Unequipped: Rusty Sword)", "Status Change: Cheng Yang-Zong (left shoulder pierced by arrow, bleeding)"]`
-  - Empty `[]` if no change.
+    - `["New Character: Lita (an elf girl met on a forest path)", "Status Change: Alwin (critically injured)", "Location Update: Arthur (left the tavern for the city gate)", "Possession Change: Lita (Add: Father's heirloom necklace x1, Source: hidden compartment in her home)", "Equipment Change: Cheng Yang-Zong (Equipped: Steel Breastplate, Unequipped: Rusty Sword)", "Status Change: Cheng Yang-Zong (left shoulder pierced by arrow, bleeding)"]`
 
 - **world_log**:
-  - `string[]`.
-  - Record **THIS TURN'S** world events, faction moves, or world-view expansions (landmarks, local specialties) in `{{FILE_WORLD_FACTIONS}}`, and progress in **Protagonist's party's Equipment Tech Specs/Blueprints** (`{{FILE_TECH_EQUIPMENT}}`) or **Protagonist's party's Magic & Skills Development** (`{{FILE_MAGIC_SKILLS}}`).
-  - **[`{{FILE_WORLD_FACTIONS}}` Scope]**:
-    - **Faction Dynamics**: Major/Secondary/Retired factions' nature and current status
-    - **Core World View**: Major world settings (threats, artifact lore)
-    - **Key Items**: Plot-critical artifacts, relics (not held by protagonist)
-    - **Special Materials**: Newly discovered rare materials, sources, processing
-    - **Otherworld Mapping**: Spices, plants, ingredients ↔ Earth equivalents
-    - **Discovered Landmarks**: Cities, locations, shops the protagonist discovers
-    - **Landmark Status Changes**: Key location state changes (destruction, renovation, occupation, etc.)
-  - **Classification**:
-    - **Equipment Tech**: **Specifications, Blueprints, and Detailed Settings** of instruments, weapons, tools.
-    - **Magic Research**: **Mastered or actively researched** spell principles, magical models, ritual logic.
-  - **No Duplicates**: Check history `World & Setting Updates`. **ABSOLUTELY PROHIBIT** repeating items recorded in previous turns.
-  - **No Re-discovery**: **STRICTLY PROHIBIT** logging locations, resources, or factions that already exist in `{{FILE_BASIC_SETTINGS}}` as "new discoveries". Only log if there is a **significant status change** (e.g., destruction, occupation, renovation).
+  - `string[]`. World events / faction moves / world-view expansions (`{{FILE_WORLD_FACTIONS}}`), Equipment Tech (`{{FILE_TECH_EQUIPMENT}}`), Magic & Skills (`{{FILE_MAGIC_SKILLS}}`).
+  - **Scope**: faction dynamics, core world view, key items (not held by protagonist), special materials, otherworld mappings, discovered landmarks, landmark status changes.
+  - **Classification**: Equipment Tech = specs / blueprints / detailed settings. Magic Research = mastered or actively researched principles / models / logic.
+  - **No Duplicates** / **No Re-discovery** of locations already in `{{FILE_BASIC_SETTINGS}}` (only log on significant status change).
   - **Example**:
-    - `["Discovery[Faction]: Silver Moon Guild (a mysterious merchant organization monopolizing northern mines)", "Discovery[Resource]: Moonseed (a rare spice that glows faint blue in moonlight)", "Develop[Equipment]: Reinforced Crossbow (effective range increased to 80 meters)", "Develop[Magic]: Wind Blade (can fire cutting blades of wind)", "Status Change: North Gate Fortress (fallen, now occupied by enemy forces)"]`
-  - Empty `[]` if no change.
+    - `["Discovery[Faction]: Silver Moon Guild", "Discovery[Resource]: Moonseed", "Develop[Equipment]: Reinforced Crossbow", "Develop[Magic]: Wind Blade", "Status Change: North Gate Fortress (fallen, now enemy-occupied)"]`
 
 - **correction** (Optional):
   - `string`, default `""`.
-  - Fill **ONLY** when the user requests a **Story Correction** via `<System>` AND you accept the correction.
-  - **Content**: 1–2 sentences phrased as a **rule statement** containing:
-    1. **What was wrong** in the original story.
-    2. **The corrected rule** for going forward.
-    - Example: `"Original story incorrectly described the protagonist wearing a red gown; should be a blue school uniform. Going forward, the blue uniform is canonical."`
-    - Example: `"Original story incorrectly described North Gate Fortress as held by allies; it has actually fallen to enemy occupation. Going forward, treat it as enemy-occupied."`
-  - When `correction` is non-empty:
-    - `story` MUST contain the **Full Corrected Version** (header + body).
-    - `analysis` and `summary` must also be filled with corrected versions.
-    - If the error involves protagonist equipment, items, or state, you **MUST** also write a `Corrected` entry in `inventory_log` or a corresponding state change in `character_log` so hard facts coexist with the rule statement.
-    - The system will automatically mark the previous story as "reference only" without overwriting.
-  - If `<System>` is just an OOC question, keep `correction` as `""`.
-  - **[Historical correction = hard rule]**: If a `correction:` entry appears in earlier history, you **MUST** treat it as a **hard override** of prior story content; all subsequent narrative and log entries must conform — **NEVER** repeat the same mistake.
+  - Fill **ONLY** when user requests a Story Correction via `<System>` AND you accept it.
+  - **Content**: 1–2 sentences as a rule statement (what was wrong + corrected rule going forward).
+  - When non-empty: `story` is the full corrected version; `analysis` and `summary` corrected too. Equipment/item/state errors mandate `Corrected` entries in `inventory_log` or matching `character_log` updates. System auto-marks prior story as "reference only".
+  - **[Historical correction = hard rule]**: history's `correction:` entries are hard overrides; all subsequent narrative + logs must conform.

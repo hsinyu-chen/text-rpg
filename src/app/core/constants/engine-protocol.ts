@@ -1,6 +1,14 @@
 import { Schema } from '../models/types';
 import { getLocale } from './locales';
+import { structuredAnalysisSchema } from './engine-protocol-structured';
 
+/**
+ * Single-call response schema. Flat shape — `analysis` is now a structured
+ * object (see {@link StructuredAnalysis}), not a markdown string. For
+ * non-action inputs (`<系統>` general Q&A, `<存檔>`) the model emits a
+ * skeleton (empty `steps[]`, empty `scene_snapshot`); the renderer maps that
+ * to an empty string for display.
+ */
 export const getResponseSchema = (lang = 'default'): Schema => {
     const locale = getLocale(lang);
     const { responseSchema } = locale;
@@ -9,26 +17,16 @@ export const getResponseSchema = (lang = 'default'): Schema => {
         type: 'object',
         description: responseSchema.rootDescription,
         properties: {
-            analysis: {
-                type: 'string',
-                description: responseSchema.analysis
-            },
-            response: {
-                type: 'object',
-                description: responseSchema.responseDescription,
-                properties: {
-                    story: { type: 'string', description: "The actual story content, system response, or XML Save data." },
-                    summary: { type: 'string', description: responseSchema.summary },
-                    character_log: { type: 'array', items: { type: 'string' }, description: responseSchema.character },
-                    inventory_log: { type: 'array', items: { type: 'string' }, description: responseSchema.inventory },
-                    quest_log: { type: 'array', items: { type: 'string' }, description: responseSchema.quest },
-                    world_log: { type: 'array', items: { type: 'string' }, description: responseSchema.world },
-                    correction: { type: 'string', description: "Non-empty string ONLY when the user requests a story correction via <系統>. Write 1-2 sentences stating what was wrong AND the corrected rule going forward (e.g., '原劇情誤寫主角穿紅色禮服；實際應為藍色學校制服。後續以藍色制服為準。'). Empty/omitted otherwise." }
-                },
-                required: ['story', 'summary']
-            }
+            analysis: structuredAnalysisSchema,
+            story: { type: 'string', description: 'The actual story content, system response, or XML Save data.' },
+            summary: { type: 'string', description: responseSchema.summary },
+            character_log: { type: 'array', items: { type: 'string' }, description: responseSchema.character },
+            inventory_log: { type: 'array', items: { type: 'string' }, description: responseSchema.inventory },
+            quest_log: { type: 'array', items: { type: 'string' }, description: responseSchema.quest },
+            world_log: { type: 'array', items: { type: 'string' }, description: responseSchema.world },
+            correction: { type: 'string', description: "Non-empty string ONLY when the user requests a story correction via <系統>. Write 1-2 sentences stating what was wrong AND the corrected rule going forward (e.g., '原劇情誤寫主角穿紅色禮服；實際應為藍色學校制服。後續以藍色制服為準。'). Empty/omitted otherwise." }
         },
-        required: ['analysis', 'response']
+        required: ['analysis', 'story', 'summary']
     };
 };
 

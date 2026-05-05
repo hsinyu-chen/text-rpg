@@ -1,166 +1,49 @@
 import { Schema } from '../models/types';
 import { getLocale } from './locales';
+import { getResolverSchemaV2 } from './engine-protocol-structured';
+
+export type {
+    AnalysisStep,
+    IdealStrength,
+    KeyObject,
+    NarratorResponse as NarratorOutput,
+    NpcReaction,
+    ObjectReaction,
+    PresentNpc,
+    ResolverResponse as ResolverOutput,
+    SceneSnapshot,
+    StepKind,
+    StructuredAnalysis
+} from './engine-protocol-structured';
 
 /**
- * Two-call mode schema definitions. (Two-call is one of the two engine
- * modes alongside single-call — not a successor; both are first-class.)
+ * Two-call mode schema definitions. Both calls share the unified
+ * {@link StructuredAnalysis} shape (see `engine-protocol-structured.ts`).
  *
- * Design summary (see TextRPG_Plans/two-call-engine-separation.md):
- *
- * - **Resolver call** does atomic-action breakdown, judges each step, and
- *   tags the first one whose precondition broke. Output is structured
- *   `steps[]` plus an `interrupted` flag the program uses to truncate.
- * - **Narrator call** receives the post-truncation steps + idealOutcome and
- *   writes the user-facing scene. Output mirrors single-call's user-visible
- *   subset (story / summary / *_log) but takes an `interrupted` hint so it
- *   can handle the hard-stop case correctly.
- *
- * The localized field descriptions reuse single-call's `locale.responseSchema`
- * strings where they map cleanly (summary / *_log) since the per-field
- * semantics did not change. Resolver-specific fields use English descriptions
- * inline — the resolver's prompt injection carries the full localized rules;
- * the schema description here is just a one-line type doc for the LLM.
+ * - **Resolver call** outputs `{ ideal_outcome, ideal_strength, analysis }`.
+ *   The program slices `analysis.steps` at the first `breaks_ideal=true` via
+ *   `truncateAtBreak`; everything after is dropped before narrator runs.
+ * - **Narrator call** receives the truncated analysis + ideal_outcome /
+ *   ideal_strength via `buildNarratorUserMessage`, and writes the user-facing
+ *   scene. Output mirrors single-call's user-visible subset (story / summary
+ *   / *_log) plus an `interrupted_acknowledged` flag.
  */
 
-const ACTION_TYPES = ['movement', 'speech', 'physical', 'mental', 'magic', 'item_use', 'social', 'observation', 'wait'] as const;
-const EVENT_TYPES = ['ambient', 'precondition_break', 'urgent', 'random', 'npc_initiative', 'environmental'] as const;
-const IDEAL_STATUS = ['intact', 'broken'] as const;
-const IDEAL_STRENGTHS = ['perfectionist', 'pragmatic', 'desperate'] as const;
-const NPC_REACTION_TYPES = ['comply', 'resist', 'ignore', 'attack', 'flee', 'observe', 'negotiate', 'mock'] as const;
-
-export type ActionType = typeof ACTION_TYPES[number];
-export type EventType = typeof EVENT_TYPES[number];
-export type IdealStatus = typeof IDEAL_STATUS[number];
-export type IdealStrength = typeof IDEAL_STRENGTHS[number];
-export type NpcReactionType = typeof NPC_REACTION_TYPES[number];
-
-export interface NpcReaction {
-    actor: string;
-    reaction: string;
-    type: NpcReactionType;
-}
-
-export interface ResolverStep {
-    action: string;
-    action_type: ActionType;
-    target: string;
-    dialogue: string;
-    mood: string;
-    state_changes: string[];
-    event_type: EventType;
-    ideal_status: IdealStatus;
-    break_reason: string;
-    npc_reactions: NpcReaction[];
-    ambient: string;
-}
-
-export interface ResolverOutput {
-    ideal_outcome: string;
-    ideal_strength: IdealStrength;
-    steps: ResolverStep[];
-    interrupted: boolean;
-    interrupted_at_step: number;
-}
-
-export interface NarratorOutput {
-    story: string;
-    summary: string;
-    character_log?: string[];
-    inventory_log?: string[];
-    quest_log?: string[];
-    world_log?: string[];
-    interrupted_acknowledged: boolean;
-}
-
-const stepSchema: Schema = {
-    type: 'object',
-    description: 'One atomic step in the user character\'s attempted action sequence, judged independently.',
-    properties: {
-        action: { type: 'string', description: 'Verb-phrase description of what the user character attempts in this step.' },
-        action_type: { type: 'string', enum: [...ACTION_TYPES], description: 'Coarse category of the attempt.' },
-        target: { type: 'string', description: 'Target NPC, object, or location of the action. Empty string if none.' },
-        dialogue: { type: 'string', description: 'Verbatim line the user character speaks in this step. Empty string if no speech.' },
-        mood: { type: 'string', description: 'Mood/intent qualifier for the action (e.g., "calm", "tense", "playful"). Mirrors the user input\'s [心境] tag.' },
-        state_changes: {
-            type: 'array',
-            items: { type: 'string' },
-            description: 'Telegraphic state deltas this step would cause if it succeeds (e.g., "PC.location=plaza-center", "NPC.farmer.alertness+1"). Free-form strings; the narrator paraphrases them.'
-        },
-        event_type: { type: 'string', enum: [...EVENT_TYPES], description: 'Classification of the world reaction this step triggers.' },
-        ideal_status: { type: 'string', enum: [...IDEAL_STATUS], description: '"broken" iff the precondition for the user\'s ideal_outcome failed at this step. The program truncates everything after the first broken step.' },
-        break_reason: { type: 'string', description: 'When ideal_status is "broken", a one-sentence reason. Empty otherwise.' },
-        npc_reactions: {
-            type: 'array',
-            description: 'One entry per relevant on-scene NPC. Reactions must be verb phrases ≤ 20 chars; longer prose belongs in the narrator output.',
-            items: {
-                type: 'object',
-                properties: {
-                    actor: { type: 'string', description: 'NPC name or generic role.' },
-                    reaction: { type: 'string', description: 'Short verb phrase, ≤ 20 chars (e.g., "steps back warily").' },
-                    type: { type: 'string', enum: [...NPC_REACTION_TYPES], description: 'Reaction category.' }
-                },
-                required: ['actor', 'reaction', 'type']
-            }
-        },
-        ambient: { type: 'string', description: 'One-sentence environmental note (weather change, object state, ambient sound) tied to this step. Empty if no change.' }
-    },
-    required: ['action', 'action_type', 'target', 'dialogue', 'mood', 'state_changes', 'event_type', 'ideal_status', 'break_reason', 'npc_reactions', 'ambient']
-};
-
-export const getResolverSchema = (lang = 'default'): Schema => {
-    // Resolver fields are structural — the per-step shape is the contract,
-    // not the prose. The localized rules ride in the resolver injection
-    // markdown; the schema here only supplies one-line type docs in English.
-    // `lang` is accepted for API symmetry with getNarratorSchema and is held
-    // open for fields that may want localized descriptions later.
-    void lang;
-    return {
-        type: 'object',
-        description: 'Resolver call output. The LLM atomically breaks down the user character\'s action, judges each step, and flags the first precondition break. The program truncates everything after the first broken step before passing executed_steps to the narrator.',
-        properties: {
-            ideal_outcome: {
-                type: 'string',
-                description: 'One-sentence paraphrase of what the user is hoping the full sequence achieves. The narrator references this when writing the truncated scene.'
-            },
-            ideal_strength: {
-                type: 'string',
-                enum: [...IDEAL_STRENGTHS],
-                description: 'How rigid the user\'s expectation is. "perfectionist" = any deviation breaks; "pragmatic" = partial success acceptable; "desperate" = even bad outcomes count as success if survived.'
-            },
-            steps: {
-                type: 'array',
-                description: 'Atomic steps in user-input order. Each step is judged independently; LLM does NOT short-circuit at the first broken step — list every step the user attempted, with ideal_status set per step.',
-                items: stepSchema
-            },
-            interrupted: {
-                type: 'boolean',
-                description: 'True iff at least one step has ideal_status="broken". Redundant with the steps array but the narrator reads this flag directly.'
-            },
-            interrupted_at_step: {
-                type: 'integer',
-                description: '1-based index of the first broken step, or 0 when interrupted=false. The program uses this for hard-stop truncation.'
-            }
-        },
-        required: ['ideal_outcome', 'ideal_strength', 'steps', 'interrupted', 'interrupted_at_step']
-    };
-};
+export const getResolverSchema = (lang = 'default'): Schema => getResolverSchemaV2(lang);
 
 export const getNarratorSchema = (lang = 'default'): Schema => {
-    // story / summary / *_log share semantics with single-call's response
-    // shape, so the field descriptions reuse single-call's locale strings.
-    // Resolver-side fields and the narrator-only `interrupted_acknowledged`
-    // are English literals — the first because they have no single-call
-    // analogue, the second because it's a
-    // protocol-level flag, not a content field.
+    // story / summary / *_log share semantics with single-call's response shape,
+    // so the field descriptions reuse single-call's locale strings. Resolver-side
+    // fields and the narrator-only `interrupted_acknowledged` are English literals.
     const { responseSchema } = getLocale(lang);
 
     return {
         type: 'object',
-        description: 'Narrator call output. Renders the post-truncation step list + ideal_outcome into a user-facing scene. Does NOT see the original user input string — narration must derive purely from executed_steps and the interrupted hint to prevent smuggling unexecuted dialogue or actions.',
+        description: 'Narrator call output. Renders the post-truncation StructuredAnalysis (provided as narrator input) into a user-facing scene. Does NOT see the original user input string — narration must derive purely from analysis.steps and the ideal_outcome / ideal_strength hints.',
         properties: {
             story: {
                 type: 'string',
-                description: 'User-facing scene prose. Must include the mandatory <CREATIVE FICTION CONTEXT> + bracketed header, then narration of every executed step in order. When interrupted=true, narration stops at the broken step\'s consequence — no "he was about to say X" prose, no smuggling of truncated dialogue.'
+                description: 'User-facing scene prose. Must include the mandatory <CREATIVE FICTION CONTEXT> + bracketed header, then narration of every step in order, quoting NpcReaction.dialogue verbatim wherever non-empty. When the truncated analysis ends in a breaks_ideal=true step, narration stops at that step\'s consequence — no "he was about to say X" prose, no smuggling of dropped steps.'
             },
             summary: { type: 'string', description: responseSchema.summary },
             character_log: { type: 'array', items: { type: 'string' }, description: responseSchema.character },
@@ -169,7 +52,7 @@ export const getNarratorSchema = (lang = 'default'): Schema => {
             world_log: { type: 'array', items: { type: 'string' }, description: responseSchema.world },
             interrupted_acknowledged: {
                 type: 'boolean',
-                description: 'Confirms the narrator received and respected the interrupted flag. Echoes input.interrupted; mismatch is a model error.'
+                description: 'Confirms the narrator received and respected the truncation. True when the input analysis ended in a breaks_ideal=true step.'
             }
         },
         required: ['story', 'summary', 'interrupted_acknowledged']

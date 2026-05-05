@@ -1,11 +1,14 @@
 import { Injectable, inject } from '@angular/core';
 import { ContentParserService } from './content-parser.service';
 import { PostProcessorService, PostProcessFields } from './post-processor.service';
-import { ExtendedPart, ThoughtPart, EngineResponseNested } from '../models/types';
+import { ExtendedPart, ThoughtPart } from '../models/types';
 import { LLMStreamChunk, LLMUsageMetadata } from '@hcs/llm-core';
 import { ChatMessage } from '../models/types';
 import { getUIStrings } from '../constants/engine-protocol';
+import type { SingleCallResponse, StructuredAnalysis } from '../constants/engine-protocol-structured';
 import type { NarratorOutput } from '../constants/engine-protocol-two-call';
+import { assembleStoryWithSceneHeader, formatStructuredAnalysis } from './turn-engines/format-structured-analysis';
+import type { SceneSnapshot } from '../constants/engine-protocol-structured';
 import { mergeUsage } from './llm-usage-merge';
 
 export interface StreamProcessResult {
@@ -121,7 +124,7 @@ export class StreamProcessorService {
 
                     // Streaming Parsers for all fields
                     try {
-                        const partial = this.parser.bestEffortJsonParser(currentJSONAccumulator) as Partial<EngineResponseNested>;
+                        const partial = this.parser.bestEffortJsonParser(currentJSONAccumulator) as Partial<SingleCallResponse>;
 
                         // Real-time Update
                         updateCallback(prev => {
@@ -130,29 +133,32 @@ export class StreamProcessorService {
                             if (last?.role === 'model') {
                                 const next = { ...last, isThinking: true };
 
-                                // Update Fields if they exist in partial
-                                if (partial.analysis) {
-                                    currentAnalysisPreview = this.parser.processModelField(partial.analysis);
-                                    next.analysis = this.postProcessor.applySafeReplacements(currentAnalysisPreview);
+                                let snap: Partial<SceneSnapshot> | null = null;
+                                if (partial.analysis && typeof partial.analysis === 'object') {
+                                    const analysisObj = partial.analysis as Partial<StructuredAnalysis>;
+                                    snap = analysisObj.scene_snapshot ?? null;
+                                    currentAnalysisPreview = formatStructuredAnalysis(analysisObj, outputLanguage);
+                                    if (currentAnalysisPreview) {
+                                        next.analysis = this.postProcessor.applySafeReplacements(currentAnalysisPreview);
+                                    }
                                 }
 
-                                if (partial.response) {
-                                    if (partial.response.story) {
-                                        currentStoryPreview = this.parser.processModelField(partial.response.story);
-                                        next.content = this.postProcessor.applySafeReplacements(currentStoryPreview);
-                                    }
-                                    if (partial.response.summary) {
-                                        next.summary = this.postProcessor.applySafeReplacements(this.parser.processModelField(partial.response.summary));
-                                    }
-                                    const character_log = this.mapLogStream(partial.response.character_log);
-                                    const inventory_log = this.mapLogStream(partial.response.inventory_log);
-                                    const quest_log = this.mapLogStream(partial.response.quest_log);
-                                    const world_log = this.mapLogStream(partial.response.world_log);
-                                    if (character_log) next.character_log = character_log;
-                                    if (inventory_log) next.inventory_log = inventory_log;
-                                    if (quest_log) next.quest_log = quest_log;
-                                    if (world_log) next.world_log = world_log;
+                                if (partial.story) {
+                                    currentStoryPreview = this.parser.processModelField(partial.story);
+                                    const withHeader = assembleStoryWithSceneHeader(currentStoryPreview, snap);
+                                    next.content = this.postProcessor.applySafeReplacements(withHeader);
                                 }
+                                if (partial.summary) {
+                                    next.summary = this.postProcessor.applySafeReplacements(this.parser.processModelField(partial.summary));
+                                }
+                                const character_log = this.mapLogStream(partial.character_log);
+                                const inventory_log = this.mapLogStream(partial.inventory_log);
+                                const quest_log = this.mapLogStream(partial.quest_log);
+                                const world_log = this.mapLogStream(partial.world_log);
+                                if (character_log) next.character_log = character_log;
+                                if (inventory_log) next.inventory_log = inventory_log;
+                                if (quest_log) next.quest_log = quest_log;
+                                if (world_log) next.world_log = world_log;
 
                                 arr[arr.length - 1] = next;
                             }
@@ -193,22 +199,27 @@ export class StreamProcessorService {
         let correction = '';
 
         try {
-            const parsed = this.parser.bestEffortJsonParser(currentJSONAccumulator) as Partial<EngineResponseNested>;
+            const parsed = this.parser.bestEffortJsonParser(currentJSONAccumulator) as Partial<SingleCallResponse>;
 
-            if (parsed.analysis) finalAnalysis = this.parser.processModelField(parsed.analysis);
+            let finalSnap: Partial<SceneSnapshot> | null = null;
+            if (parsed.analysis && typeof parsed.analysis === 'object') {
+                const analysisObj = parsed.analysis as Partial<StructuredAnalysis>;
+                finalSnap = analysisObj.scene_snapshot ?? null;
+                finalAnalysis = formatStructuredAnalysis(analysisObj, outputLanguage);
+            }
 
-            if (parsed.response) {
-                if (parsed.response.story) finalStory = this.parser.processModelField(parsed.response.story);
-                if (parsed.response.summary) finalSummary = this.parser.processModelField(parsed.response.summary);
+            if (parsed.story) {
+                finalStory = assembleStoryWithSceneHeader(this.parser.processModelField(parsed.story), finalSnap);
+            }
+            if (parsed.summary) finalSummary = this.parser.processModelField(parsed.summary);
 
-                finalCharacterLog = this.mapLogFinal(parsed.response.character_log);
-                finalInventoryLog = this.mapLogFinal(parsed.response.inventory_log);
-                finalQuestLog = this.mapLogFinal(parsed.response.quest_log);
-                finalWorldLog = this.mapLogFinal(parsed.response.world_log);
+            finalCharacterLog = this.mapLogFinal(parsed.character_log);
+            finalInventoryLog = this.mapLogFinal(parsed.inventory_log);
+            finalQuestLog = this.mapLogFinal(parsed.quest_log);
+            finalWorldLog = this.mapLogFinal(parsed.world_log);
 
-                if (typeof parsed.response.correction === 'string' && parsed.response.correction.trim()) {
-                    correction = this.parser.processModelField(parsed.response.correction).trim();
-                }
+            if (typeof parsed.correction === 'string' && parsed.correction.trim()) {
+                correction = this.parser.processModelField(parsed.correction).trim();
             }
         } catch (jsonErr) {
             console.error('[StreamProcessor] JSON Parse Failed:', jsonErr);
@@ -262,7 +273,8 @@ export class StreamProcessorService {
         modelMsgId: string,
         outputLanguage: string,
         updateCallback: (updater: (prev: ChatMessage[]) => ChatMessage[]) => void,
-        seedThought = ''
+        seedThought = '',
+        sceneSnapshot: Partial<SceneSnapshot> | null = null
     ): Promise<StreamProcessResult> {
         let currentJSONAccumulator = '';
         let currentStoryPreview = '';
@@ -315,7 +327,8 @@ export class StreamProcessorService {
                             const next: ChatMessage = { ...last, isThinking: true };
                             if (partial.story) {
                                 currentStoryPreview = this.parser.processModelField(partial.story);
-                                next.content = this.postProcessor.applySafeReplacements(currentStoryPreview);
+                                const withHeader = assembleStoryWithSceneHeader(currentStoryPreview, sceneSnapshot);
+                                next.content = this.postProcessor.applySafeReplacements(withHeader);
                             }
                             if (partial.summary) {
                                 next.summary = this.postProcessor.applySafeReplacements(this.parser.processModelField(partial.summary));
@@ -351,7 +364,9 @@ export class StreamProcessorService {
 
         try {
             const parsed = this.parser.bestEffortJsonParser(currentJSONAccumulator) as Partial<NarratorOutput>;
-            if (parsed.story) finalStory = this.parser.processModelField(parsed.story);
+            if (parsed.story) {
+                finalStory = assembleStoryWithSceneHeader(this.parser.processModelField(parsed.story), sceneSnapshot);
+            }
             if (parsed.summary) finalSummary = this.parser.processModelField(parsed.summary);
             finalCharacterLog = this.mapLogFinal(parsed.character_log);
             finalInventoryLog = this.mapLogFinal(parsed.inventory_log);

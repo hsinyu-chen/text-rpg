@@ -1,4 +1,4 @@
-<!-- @system-main-version: 3 -->
+<!-- @system-main-version: 4 -->
 <!-- v3: <系統> 修正流程改為「宣告 + 自動重跑」，啟用 {{CORRECTION_REMINDER}} 注入機制。請勿手動刪除此 marker。 -->
 
 # 核心設定

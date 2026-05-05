@@ -43,6 +43,34 @@ export interface AppLocale {
         START_SCENE: string;
         INPUT_FORMAT: string;
     };
+    /**
+     * Labels rendered into the "Atomic Breakdown & Check" trace panel by
+     * `formatStructuredAnalysis`. Programmatic markdown — pick the locale by
+     * the active `outputLanguage` so en users don't see Chinese headers and
+     * vice versa.
+     */
+    analysisTrace: {
+        SCENE_HEADING: string;
+        TIME: string;
+        LOCATION: string;
+        PROTAGONIST: string;
+        PRESENT_NPCS: string;
+        ENVIRONMENT: string;
+        KEY_OBJECTS: string;
+        INTENT_HEADING: string;
+        IDEAL_OUTCOME: string;
+        IDEAL_STRENGTH: string;
+        STEP_ACTION: string;
+        STEP_EVENT: string;
+        FULL_SCENE: string;
+        PC_DIALOGUE: string;
+        RISKS: string;
+        OUTCOME: string;
+        TRUNCATED_NOTE: string;
+        NO_ACTION: string;
+        NO_REACTION: string;
+        NO_CHANGE: string;
+    };
     intentLabels: {
         ACTION: string;
         FAST_FORWARD: string;

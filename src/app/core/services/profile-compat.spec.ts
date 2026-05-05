@@ -112,7 +112,7 @@ describe('stripSystemMainMarker', () => {
 
     it('strips a leading vN: companion comment for future version bumps', () => {
         const content =
-            '<!-- @system-main-version: 3 -->\n' +
+            '<!-- @system-main-version: 4 -->\n' +
             '<!-- v3: future bump should also be stripped -->\n\n' +
             '# Heading';
         expect(stripSystemMainMarker(content)).toBe('# Heading');

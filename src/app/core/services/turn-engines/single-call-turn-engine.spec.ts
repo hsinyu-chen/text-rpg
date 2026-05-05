@@ -11,7 +11,22 @@ import type { ChatMessage } from '@app/core/models/types';
 import type { BuildContext } from '../context-builder.service';
 
 function turnJson(story: string, summary = 's'): string {
-    return JSON.stringify({ analysis: '', response: { story, summary } });
+    return JSON.stringify({
+        analysis: {
+            scene_snapshot: {
+                date_in_world: '',
+                time_hhmm: '12:00',
+                location: '',
+                environment: '',
+                pc_in_header: '',
+                present_npcs: [],
+                key_objects: []
+            },
+            steps: []
+        },
+        story,
+        summary
+    });
 }
 
 describe('SingleCallTurnEngine.runTurn', () => {

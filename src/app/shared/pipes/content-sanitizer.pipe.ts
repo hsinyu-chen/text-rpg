@@ -14,8 +14,10 @@ import { Pipe, PipeTransform } from '@angular/core';
     standalone: true
 })
 export class ContentSanitizerPipe implements PipeTransform {
-    // Fictional context disclaimer pattern (output by model, stripped before display)
-    private static readonly FICTION_DISCLAIMER_PATTERN = /^<CREATIVE FICTION CONTEXT>\s*/i;
+    // Fictional context disclaimer pattern (jailbreak signal output by model, stripped before display).
+    // Matches the marker either at the very start, or right after a program-prepended bracketed
+    // scene-header line `[date / location / chars]\n` — preserving that bracket via $1.
+    private static readonly FICTION_DISCLAIMER_PATTERN = /^(\[[^\]]*\]\s*)?<CREATIVE FICTION CONTEXT>\s*/i;
 
     // Save point marker pattern
     private static readonly SAVE_POINT_PATTERN = /<possible save point>/gi;
@@ -28,8 +30,8 @@ export class ContentSanitizerPipe implements PipeTransform {
 
         let result = value;
 
-        // Strip fictional context disclaimer (always applied)
-        result = result.replace(ContentSanitizerPipe.FICTION_DISCLAIMER_PATTERN, '');
+        // Strip the CFC jailbreak marker, preserving any program-prepended bracket line ($1).
+        result = result.replace(ContentSanitizerPipe.FICTION_DISCLAIMER_PATTERN, '$1');
 
         // Strip save point markers (always applied)
         result = result.replace(ContentSanitizerPipe.SAVE_POINT_PATTERN, '');

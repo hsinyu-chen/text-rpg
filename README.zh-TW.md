@@ -117,9 +117,9 @@ TextRPG 是一個**本地優先 (Local-First)**、**自帶金鑰 (Bring Your Own
 
 把每回合的故事生成拆成兩次 LLM 呼叫的另一條引擎路徑：
 
-1. **Resolver call** — 產出結構化 JSON `steps[]`（原子拆分動作 + 逐步 `ideal_status: intact | broken`）以及 `ideal_outcome` 摘要。**不產敘事**。
-2. **截斷 (Truncation)** — 程式掃過 `steps`，從第一個 `broken` 步驟之後全部砍掉，這樣未執行的對白／動作就無法滲漏到敘事裡。
-3. **Narrator call** — 只收到截斷後的 steps 與 resolver 的 `ideal_outcome`，由它寫出真正的 `story` 與 `*_log` 更新。
+1. **Resolver call** — 產出結構化 `analysis` 物件（場景快照 + 原子動作 `steps[]`，每步含 `breaks_ideal: boolean` + 全場景 NPC／物件反應，**含 NPC 原文台詞**），加上玩家意圖欄位 `ideal_outcome` / `ideal_strength`。**不產敘事**。Schema 與 1-call 的 `analysis` 完全相同，兩種模式產出同一份結構化 trace。
+2. **截斷 (Truncation)** — 程式掃過 `steps`，從第一個 `breaks_ideal=true` 步驟之後全部砍掉，這樣未執行的對白／動作就無法滲漏到敘事裡。
+3. **Narrator call** — 只收到截斷後的 analysis（所有 NPC 對白皆已綁好）與 resolver 的 `ideal_outcome` / `ideal_strength`，由它寫出真正的 `story` 與 `*_log` 更新。因為每個 NPC 反應都附 verbatim `dialogue` 欄位，narrator 會直接引用台詞原文，不再用「用 XX 口吻回應」這類動作轉述代替。
 
 切換 chip 標示為 **`1 Call`** / **`2 Call`**，位於輸入欄正上方的狀態列；點一下即切換。設定是裝置本地的（存在 localStorage），且**僅作用於 story intent**（`action` / `continue` / `fast_forward`）；`system` 與 `save` 永遠走單次呼叫。預設 `1 Call`。
 

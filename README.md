@@ -114,9 +114,9 @@ Optimized for the long context window of Gemini 3, the engine implements multipl
 
 A second engine path that splits each story turn into two LLM calls:
 
-1. **Resolver call** — emits a structured JSON `steps[]` array (atomic-action breakdown with per-step `ideal_status: intact | broken`) plus an `ideal_outcome` summary. No prose.
-2. **Truncation** — the program walks `steps` and slices off everything after the first `broken` step, so unexecuted dialogue / actions cannot leak into prose.
-3. **Narrator call** — receives only the surviving steps + the resolver's `ideal_outcome`, writes the actual `story` field plus `*_log` updates.
+1. **Resolver call** — emits a structured `analysis` object (scene snapshot + atomic-action `steps[]` with per-step `breaks_ideal: boolean` + full-scene NPC / object reactions including verbatim NPC dialogue) plus the player-intent fields `ideal_outcome` / `ideal_strength`. No prose. The shape is identical to the 1-call `analysis` schema, so both modes produce the same structured trace.
+2. **Truncation** — the program walks `steps` and slices off everything after the first `breaks_ideal=true` step, so unexecuted dialogue / actions cannot leak into prose.
+3. **Narrator call** — receives only the truncated analysis (with all NPC dialogue lines pre-bound) + the resolver's `ideal_outcome` / `ideal_strength`, writes the actual `story` field plus `*_log` updates. Because every NPC reaction includes a verbatim `dialogue` field, narrator quotes them directly instead of paraphrasing into action verbs ("responded warmly").
 
 The toggle is a chip labelled **`1 Call`** / **`2 Call`** in the status row directly above the input bar; click to switch. The setting is per-device (stored in localStorage) and applies only to story intents (`action` / `continue` / `fast_forward`); `system` and `save` always run single-call. Default is `1 Call`.
 

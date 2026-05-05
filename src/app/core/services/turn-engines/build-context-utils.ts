@@ -1,4 +1,4 @@
-import { ResolverOutput, ResolverStep } from '@app/core/constants/engine-protocol-two-call';
+import { IdealStrength, StructuredAnalysis, isInterrupted } from '@app/core/constants/engine-protocol-structured';
 
 export interface IntentTagSet {
     ACTION: string;
@@ -64,43 +64,23 @@ export function buildResolverUserMessage(input: {
  * narrator protocol. Original player input is NOT included — narration
  * must derive purely from the structured input.
  *
- * `interrupted` and `break_reason` are derived from the LAST element of
- * `executedSteps`, not from `input.resolver.interrupted`. This keeps the
- * helper safe when callers pass an unsanitized resolver output: a model
- * that self-reports `interrupted=false` but emits a broken step (or the
- * reverse) cannot leak inconsistent state into the narrator. Truncation
- * upstream guarantees that any broken step is the last one in the array.
+ * `interrupted` is derived from `truncatedAnalysis.steps[].breaks_ideal`
+ * via {@link isInterrupted}, so a model that self-reports an inconsistent
+ * flag cannot leak through. Truncation upstream guarantees that any breaking
+ * step is the LAST step in the array.
  */
 export function buildNarratorUserMessage(input: {
-    resolver: ResolverOutput;
-    executedSteps: ResolverStep[];
+    idealOutcome: string;
+    idealStrength: IdealStrength;
+    truncatedAnalysis: StructuredAnalysis;
     protocolNarrator: string;
     correction: string;
 }): string {
-    const sanitizedSteps = input.executedSteps.map(s => ({
-        action: s.action,
-        action_type: s.action_type,
-        target: s.target,
-        dialogue: s.dialogue,
-        mood: s.mood,
-        state_changes: s.state_changes,
-        event_type: s.event_type,
-        ideal_status: s.ideal_status,
-        break_reason: s.ideal_status === 'broken' ? s.break_reason : '',
-        npc_reactions: s.npc_reactions,
-        ambient: s.ambient
-    }));
-
-    const lastStep = sanitizedSteps[sanitizedSteps.length - 1];
-    const interrupted = lastStep?.ideal_status === 'broken';
-    const breakReason = interrupted ? lastStep.break_reason : '';
-
     const narratorInput: Record<string, unknown> = {
-        ideal_outcome: input.resolver.ideal_outcome,
-        ideal_strength: input.resolver.ideal_strength,
-        interrupted,
-        break_reason: breakReason,
-        executed_steps: sanitizedSteps
+        ideal_outcome: input.idealOutcome,
+        ideal_strength: input.idealStrength,
+        interrupted: isInterrupted(input.truncatedAnalysis),
+        analysis: input.truncatedAnalysis
     };
     if (input.correction) {
         narratorInput['correction'] = input.correction;

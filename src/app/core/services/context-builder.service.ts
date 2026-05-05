@@ -6,7 +6,7 @@ import { LLM_MARKERS, getResponseSchema, getIntentTags } from '../constants/engi
 import { LanguageService } from './language.service';
 import { LOCALES, getLocale } from '../constants/locales';
 import { GAME_INTENTS, STORY_INTENTS } from '../constants/game-intents';
-import { ResolverOutput, ResolverStep } from '../constants/engine-protocol-two-call';
+import { IdealStrength, StructuredAnalysis } from '../constants/engine-protocol-structured';
 import { applyIntentTag, buildResolverUserMessage, buildNarratorUserMessage } from './turn-engines/build-context-utils';
 import { stripSystemMainMarker } from './profile-compat';
 
@@ -555,8 +555,9 @@ export class ContextBuilderService {
      */
     public buildNarratorContext(ctx: BuildContext, options: {
         baseHistory: LLMContent[];
-        resolver: ResolverOutput;
-        executedSteps: ResolverStep[];
+        idealOutcome: string;
+        idealStrength: IdealStrength;
+        truncatedAnalysis: StructuredAnalysis;
         lang: string;
     }): LLMContent[] {
         const history = options.baseHistory.slice();
@@ -566,8 +567,9 @@ export class ContextBuilderService {
             .replace(/\{\{HISTORICAL_CORRECTION_RULE\}\}/g, () => this.getHistoricalCorrectionRule(ctx, options.lang));
 
         const tail = buildNarratorUserMessage({
-            resolver: options.resolver,
-            executedSteps: options.executedSteps,
+            idealOutcome: options.idealOutcome,
+            idealStrength: options.idealStrength,
+            truncatedAnalysis: options.truncatedAnalysis,
             protocolNarrator,
             correction: this.getRecentCorrection(ctx)
         });
