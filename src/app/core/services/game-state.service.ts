@@ -72,7 +72,7 @@ export class GameStateService {
     // the marker, and every boot's loadFiles invalidates a still-valid cache.
     currentKbHash = computed(() => {
         const files = this.loadedFiles();
-        const modelId = this.config()?.modelId || 'gemini-prod';
+        const modelId = this.providerRegistry.getActiveModelId() || 'gemini-prod';
         const systemInstruction = stripSystemMainMarker(this.systemInstructionCache());
 
         const kbText = this.kb.buildKnowledgeBaseText(files);

@@ -5,6 +5,7 @@ import { GameEngineService } from '../game-engine.service';
 import { InjectionService } from '../injection.service';
 import { PromptProfileRegistryService } from '../prompt-profile-registry.service';
 import { ConfigService } from '../config.service';
+import { LLMProviderRegistryService } from '../llm-provider-registry.service';
 import { GAME_INTENTS } from '@app/core/constants/game-intents';
 import { ChatMessage } from '@app/core/models/types';
 import { WINDOW } from '@app/core/tokens/window.token';
@@ -78,6 +79,7 @@ export class BridgeService {
     private injection = inject(InjectionService);
     private registry = inject(PromptProfileRegistryService);
     private config = inject(ConfigService);
+    private providerRegistry = inject(LLMProviderRegistryService);
     private destroyRef = inject(DestroyRef);
     private win = inject(WINDOW);
 
@@ -334,7 +336,7 @@ export class BridgeService {
             requestId,
             engineMode: cfg?.engineMode ?? 'single',
             outputLanguage: cfg?.outputLanguage ?? 'default',
-            modelId: cfg?.modelId ?? null,
+            modelId: this.providerRegistry.getActiveModelId() || null,
         });
     }
 

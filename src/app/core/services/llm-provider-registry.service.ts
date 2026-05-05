@@ -75,6 +75,36 @@ export class LLMProviderRegistryService {
         return this.configService.getActiveConfig();
     }
 
+    /**
+     * Resolves the model id callers should send to the active provider.
+     * Profile.modelId wins; otherwise the provider's own default. Single
+     * source of truth — readers used to pull this from a stale mirror in
+     * GameEngineConfig and break when profiles were swapped mid-session.
+     */
+    getActiveModelId(): string {
+        const cfg = this.configService.getActiveConfig();
+        return cfg.modelId || this.activeProvider()?.getDefaultModelId() || '';
+    }
+
+    /**
+     * Whether explicit caching should fire for the active provider, applying
+     * the same precedence as the legacy mirror in GameEngineConfig:
+     *   1. Local providers that support caching always have it on (cache is
+     *      free; the toggle is hidden from their UI).
+     *   2. Per-profile `additionalSettings.enableCache` (cloud) /
+     *      `additionalSettings.enableCacheSlot` (llama.cpp) wins next.
+     *   3. Legacy global `app_enable_cache` localStorage as fallback.
+     */
+    isCacheEnabled(): boolean {
+        const cfg = this.configService.getActiveConfig();
+        const caps = this.activeProvider()?.getCapabilities(cfg);
+        if (caps?.supportsContextCaching && caps?.isLocalProvider) return true;
+        const s = cfg.additionalSettings || {};
+        if (typeof s['enableCache'] === 'boolean') return s['enableCache'] as boolean;
+        if (typeof s['enableCacheSlot'] === 'boolean') return s['enableCacheSlot'] as boolean;
+        return localStorage.getItem('app_enable_cache') === 'true';
+    }
+
     getActiveBundle(): { provider: LLMProvider; config: LLMProviderConfig } | null {
         const provider = this.activeProvider();
         if (!provider) return null;

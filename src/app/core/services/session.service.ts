@@ -418,8 +418,7 @@ export class SessionService {
         const kbStorageUsageAcc = this.state.storageUsageAccumulated();
 
         // Calculate estimated cost dynamically (same as sidebar-cost-prediction)
-        const activeProvider = this.providerRegistry.getActive();
-        const activeModelId = this.state.config()?.modelId || activeProvider?.getDefaultModelId();
+        const activeModelId = this.providerRegistry.getActiveModelId();
         const model = this.providerRegistry.getActiveModels().find(m => m.id === activeModelId);
         let estimatedCost = 0;
         if (model) {
@@ -566,7 +565,7 @@ export class SessionService {
                 this.cacheManager.startStorageTimer({
                     tokens: stats.kbCacheTokens,
                     expireTime: stats.kbCacheExpireTime ?? null,
-                    modelId: this.state.config()?.modelId || this.provider.getDefaultModelId(),
+                    modelId: this.providerRegistry.getActiveModelId(),
                     cacheName: stats.kbCacheName
                 });
             } else {
@@ -882,7 +881,7 @@ export class SessionService {
             throw new Error('Refused to write system_prompt.md as a file — prompts live in prompt_store now.');
         }
 
-        const modelId = this.state.config()?.modelId || this.provider.getDefaultModelId();
+        const modelId = this.providerRegistry.getActiveModelId();
         const count = await this.provider.countTokens(this.providerConfig, modelId, [{ role: 'user', parts: [{ text: content }] }]);
         await this.storage.saveFile(filePath, content, count);
 
@@ -947,7 +946,7 @@ export class SessionService {
 
 
             // Calculate tokens
-            const modelId = this.state.config()?.modelId || this.provider.getDefaultModelId();
+            const modelId = this.providerRegistry.getActiveModelId();
             const needsCount: { name: string, content: string }[] = [];
 
             files.forEach((meta, name) => {
