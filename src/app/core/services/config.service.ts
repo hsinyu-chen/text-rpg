@@ -1,4 +1,4 @@
-import { Injectable, RendererFactory2, RendererStyleFlags2, effect, inject, untracked } from '@angular/core';
+import { Injectable, RendererFactory2, RendererStyleFlags2, effect, inject } from '@angular/core';
 import { DOCUMENT } from '@angular/common';
 import { GameStateService, GameEngineConfig } from './game-state.service';
 import { StorageService } from './storage.service';
@@ -27,62 +27,6 @@ export class ConfigService {
     private readonly doc = inject(DOCUMENT);
     private readonly renderer = inject(RendererFactory2).createRenderer(null, null);
 
-    private get provider() {
-        return this.providerRegistry.getActive();
-    }
-
-    /**
-     * Extract TextRPG-specific fields (enableCache, thinkingLevelStory/General)
-     * out of a provider config's additionalSettings bucket. Used to bridge the
-     * monorepo's flat LLMProviderConfig shape into the GameEngineConfig shape.
-     *
-     * `enableCacheSlot` is the llama.cpp UI's key for "Persist Slot to Disk" —
-     * semantically the same as `enableCache` for that provider (it's the only
-     * cache concept llama.cpp has). Bridge it here so cache-manager's
-     * `useCache` check picks it up; otherwise the checkbox toggles nothing.
-     *
-     * Local providers (llama.cpp etc.) don't bill for cache storage and
-     * don't surface a toggle in the UI — caching is just "free, always on,
-     * use it when available". Force enableCache=true regardless of any
-     * historical localStorage / additionalSettings value so the slot save
-     * actually fires. Cloud providers (gemini explicit cache, ...) keep
-     * the user-toggle path because their cache costs real money.
-     */
-    private readProviderSettings(config: ReturnType<LLMConfigService['getActiveConfig']>) {
-        const s = config.additionalSettings || {};
-        const caps = this.provider?.getCapabilities(config);
-        const forceCacheAlwaysOn = !!(caps?.supportsContextCaching && caps?.isLocalProvider);
-        const enableCacheRaw = forceCacheAlwaysOn
-            ? true
-            : (typeof s['enableCache'] === 'boolean'
-                ? s['enableCache'] as boolean
-                : (typeof s['enableCacheSlot'] === 'boolean' ? s['enableCacheSlot'] as boolean : undefined));
-        return {
-            enableCache: enableCacheRaw
-        };
-    }
-
-    /**
-     * Resolve provider-bound fields that GameEngineConfig still mirrors from
-     * the active LLM profile. Centralizes the default fallbacks across init(),
-     * saveConfig(), and the profile-swap effect — without this the mirrored
-     * copy drifts on profile swap (the SESSION_EXPIRED bug).
-     *
-     * NOTE: this only exists because GameEngineConfig still duplicates
-     * modelId / enableCache from the LLM profile. The follow-up refactor
-     * (PR-B / PR-C in the planning doc) routes readers through
-     * LLMProviderRegistryService and removes this entirely.
-     */
-    private resolveProviderBoundFields() {
-        const activeProvider = this.providerRegistry.getActive();
-        const providerConfig = this.llmConfig.getActiveConfig();
-        const providerExtras = this.readProviderSettings(providerConfig);
-        return {
-            modelId: providerConfig.modelId || activeProvider?.getDefaultModelId() || '',
-            enableCache: providerExtras.enableCache ?? (localStorage.getItem('app_enable_cache') === 'true')
-        };
-    }
-
     constructor() {
         // ==================== Auto-save Effects ====================
 
@@ -98,33 +42,6 @@ export class ConfigService {
             }
         });
 
-        // Mirror the active LLM profile's provider-bound fields into
-        // state.config() so a sidebar profile swap doesn't leave
-        // modelId / enableCache pointing at the previous provider.
-        // Without this, ensureCacheValid keeps sending the old provider's
-        // modelId to the new provider's API (e.g. a llama.cpp .gguf name
-        // to gemini's createCachedContent → 404 → SESSION_EXPIRED).
-        // Reads of state.config / activeProvider are untracked so the
-        // write below doesn't retrigger the effect — the only intended
-        // dependency is `llmConfig.activeProfile()`.
-        effect(() => {
-            const profile = this.llmConfig.activeProfile();
-            if (!profile) return;
-            untracked(() => {
-                const current = this.state.config();
-                if (!current) return; // wait for init() to seed
-                const resolved = this.resolveProviderBoundFields();
-                if (
-                    current.modelId === resolved.modelId &&
-                    current.enableCache === resolved.enableCache
-                ) return;
-                const next = { ...current, ...resolved };
-                this.state.config.set(next);
-                // Mirror to IDB so the persisted snapshot doesn't carry the
-                // previous profile's keys until the next saveConfig call.
-                this.storage.set('settings', next);
-            });
-        });
     }
 
     /**
@@ -164,7 +81,6 @@ export class ConfigService {
         const engineMode: 'single' | 'two-call' = localStorage.getItem('app_engine_mode') === 'two-call' ? 'two-call' : 'single';
 
         const cfg: GameEngineConfig = {
-            ...this.resolveProviderBoundFields(),
             fontSize,
             fontFamily,
             exchangeRate: parseFloat(localStorage.getItem('app_exchange_rate') || localStorage.getItem('gemini_exchange_rate') || '30'),
@@ -207,7 +123,6 @@ export class ConfigService {
     async saveConfig(genConfig: {
         fontSize?: number,
         fontFamily?: string,
-        enableCache?: boolean,
         exchangeRate?: number,
         currency?: string,
         enableConversion?: boolean,
@@ -218,9 +133,6 @@ export class ConfigService {
         smartContextTurns?: number,
         engineMode?: 'single' | 'two-call'
     }) {
-        // API Key and Model ID handling is now provider-specific via saveConfig, 
-        // but we still update the active config signal.
-
         if (genConfig.screensaverType !== undefined) localStorage.setItem('app_screensaver_type', genConfig.screensaverType);
 
         if (genConfig.currency !== undefined) localStorage.setItem('app_currency', genConfig.currency);
@@ -229,9 +141,6 @@ export class ConfigService {
         if (genConfig.idleOnBlur !== undefined) localStorage.setItem('app_idle_on_blur', genConfig.idleOnBlur.toString());
         if (genConfig.enableAdultDeclaration !== undefined) localStorage.setItem('app_enable_adult_declaration', genConfig.enableAdultDeclaration.toString());
         if (genConfig.engineMode !== undefined) localStorage.setItem('app_engine_mode', genConfig.engineMode);
-
-        // Caching and Thinking levels are mostly provider specific but can be toggled in global config if common
-        if (genConfig.enableCache !== undefined) localStorage.setItem('app_enable_cache', genConfig.enableCache.toString());
 
         if (genConfig.smartContextTurns !== undefined) {
             localStorage.setItem('app_smart_context_turns', genConfig.smartContextTurns.toString());
@@ -247,11 +156,10 @@ export class ConfigService {
         if (genConfig.fontFamily !== undefined) localStorage.setItem('app_font_family', genConfig.fontFamily);
 
         // Spread current first so partial-update callers (e.g. the chat-input's
-        // `saveConfig({ engineMode })`) don't wipe unrelated fields, then
-        // resolved for active-profile defaults, then genConfig last so user
-        // overrides win. genConfig is filtered first because importConfig
-        // builds it with explicit `undefined` values for missing fields, which
-        // would otherwise shadow resolved via spread.
+        // `saveConfig({ engineMode })`) don't wipe unrelated fields. Filter
+        // explicit-undefineds out of genConfig because importConfig builds it
+        // with `undefined` for missing fields, which would otherwise shadow
+        // current via spread.
         const current = this.state.config();
         if (!current) {
             // Refuse to persist if init() hasn't seeded yet — otherwise a
@@ -261,13 +169,11 @@ export class ConfigService {
             console.warn('[ConfigService] saveConfig called before init() seeded state.config — ignoring.');
             return;
         }
-        const resolved = this.resolveProviderBoundFields();
         const overrides = Object.fromEntries(
             Object.entries(genConfig).filter(([, v]) => v !== undefined)
         );
         const fullConfig: GameEngineConfig = {
             ...current,
-            ...resolved,
             ...overrides
         };
         this.state.config.set(fullConfig);
@@ -293,11 +199,13 @@ export class ConfigService {
             return;
         }
         // Permissive shape — pre-refactor exports may carry apiKey / modelId /
-        // thinkingLevels at the top level. We accept those for backward compat
-        // and route them to the active LLM profile instead of GameEngineConfig.
+        // enableCache / thinkingLevels at the top level. We accept those for
+        // backward compat and route them to the active LLM profile instead of
+        // GameEngineConfig.
         const cfg = config as GameEngineConfig & {
             apiKey?: string;
             modelId?: string;
+            enableCache?: boolean;
             thinkingLevelStory?: string;
             thinkingLevelGeneral?: string;
         };
@@ -306,7 +214,6 @@ export class ConfigService {
         const genConfig = {
             fontSize: typeof cfg.fontSize === 'number' ? cfg.fontSize : undefined,
             fontFamily: typeof cfg.fontFamily === 'string' ? cfg.fontFamily : undefined,
-            enableCache: typeof cfg.enableCache === 'boolean' ? cfg.enableCache : undefined,
             exchangeRate: typeof cfg.exchangeRate === 'number' ? cfg.exchangeRate : undefined,
             currency: typeof cfg.currency === 'string' ? cfg.currency : undefined,
             enableConversion: typeof cfg.enableConversion === 'boolean' ? cfg.enableConversion : undefined,
@@ -321,8 +228,13 @@ export class ConfigService {
         // Reuse saveConfig to handle persistence (localStorage + Signal update + Service re-init)
         this.saveConfig(genConfig);
 
-        // Also update the active provider's config if supplied
-        if (cfg.apiKey || cfg.modelId) {
+        // Provider-bound fields go to the active LLM profile, not GameEngineConfig.
+        // Trigger if any of the LLM-side fields are present, so a JSON that carries
+        // only enableCache / thinking levels still applies to the profile.
+        const hasProviderFields = !!cfg.apiKey || !!cfg.modelId
+            || typeof cfg.enableCache === 'boolean'
+            || !!cfg.thinkingLevelStory || !!cfg.thinkingLevelGeneral;
+        if (hasProviderFields) {
             const existing = this.llmConfig.getActiveConfig();
             const merged = {
                 ...existing,

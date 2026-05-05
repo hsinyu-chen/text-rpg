@@ -10,10 +10,8 @@ import { isSystemMainCompatible, stripSystemMainMarker } from './profile-compat'
  * Configuration for the game engine.
  */
 export interface GameEngineConfig {
-    modelId?: string;
     fontSize?: number;
     fontFamily?: string;
-    enableCache?: boolean;
     exchangeRate?: number;
     currency?: string;
     enableConversion?: boolean;
