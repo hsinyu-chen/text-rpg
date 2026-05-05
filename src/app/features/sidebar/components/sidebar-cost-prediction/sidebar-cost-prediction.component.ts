@@ -12,11 +12,12 @@ import { GameStateService } from '@app/core/services/game-state.service';
 import { LLMProviderRegistryService } from '@app/core/services/llm-provider-registry.service';
 import { CostService } from '@app/core/services/cost.service';
 import { CostComparisonDialogComponent } from '@app/features/sidebar/cost-comparison-dialog.component';
+import { ContextUsageBarComponent } from '@app/shared/components/context-usage-bar/context-usage-bar.component';
 
 @Component({
     selector: 'app-sidebar-cost-prediction',
     standalone: true,
-    imports: [CommonModule, MatButtonModule, MatIconModule, MatTooltipModule],
+    imports: [CommonModule, MatButtonModule, MatIconModule, MatTooltipModule, ContextUsageBarComponent],
     templateUrl: './sidebar-cost-prediction.component.html',
     styleUrl: './sidebar-cost-prediction.component.scss'
 })
@@ -35,62 +36,6 @@ export class SidebarCostPredictionComponent {
     activeProviderName = computed(() => {
         const activeProvider = this.providerRegistry.getActive();
         return activeProvider?.providerName || 'Unknown';
-    });
-
-    // Context window (tokens) — static per-model preset for cloud providers,
-    // discovered from /props for llama.cpp via getAvailableModels.
-    contextSize = computed<number | null>(() => {
-        const modelId = this.currentModelId();
-        const models = this.providerRegistry.getActiveModels();
-        if (models.length === 0) return null;
-        // Single-model providers (llama.cpp: whatever's loaded on the
-        // server) report a dynamic id from /props.modelAlias that the
-        // user's saved cfg.modelId can drift away from. Fall back to the
-        // sole entry so the bar still renders instead of disappearing.
-        const match = models.find(m => m.id === modelId)
-            ?? (models.length === 1 ? models[0] : null);
-        return match?.contextSize ?? null;
-    });
-
-    // Tokens currently occupying the KV cache after the most recent turn.
-    //
-    // Preference order on the latest non-ref-only model message:
-    //   1. `contextTokens` — set post-commit. In 2-call mode this is the
-    //      narrator-only view, NOT the cost-billable resolver+narrator sum.
-    //   2. `usage.prompt + usage.candidates` — set in real time during the
-    //      stream. In 2-call this tracks resolver-only running totals during
-    //      the resolver phase, then narrator-only during the narrator phase
-    //      (each phase resets its own accumulator).
-    //   3. Walk further back if neither field is present yet — happens when
-    //      the engine pushed an empty placeholder model message before the
-    //      provider's first usage chunk arrived. Falling back to `kbCacheTokens`
-    //      or to `state.lastTurnUsage` would render the bar at the prior turn's
-    //      COMBINED total during streaming, which looks like the bar doubled.
-    contextUsed = computed<number>(() => {
-        const messages = this.state.messages();
-        for (let i = messages.length - 1; i >= 0; i--) {
-            const m = messages[i];
-            if (m.role !== 'model' || m.isRefOnly) continue;
-            if (m.contextTokens != null) return m.contextTokens;
-            if (m.usage) return (m.usage.prompt || 0) + (m.usage.candidates || 0);
-        }
-        return this.state.kbCacheTokens();
-    });
-
-    contextUsagePercent = computed<number>(() => {
-        const size = this.contextSize();
-        const used = this.contextUsed();
-        if (!size || size <= 0) return 0;
-        return Math.min(100, (used / size) * 100);
-    });
-
-    // Threshold buckets for color-coded safety.
-    contextUsageLevel = computed<'safe' | 'warning' | 'high' | 'critical'>(() => {
-        const pct = this.contextUsagePercent();
-        if (pct >= 95) return 'critical';
-        if (pct >= 80) return 'high';
-        if (pct >= 60) return 'warning';
-        return 'safe';
     });
 
     // Explicit Context Caching Status

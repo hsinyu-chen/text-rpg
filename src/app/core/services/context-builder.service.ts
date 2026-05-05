@@ -170,6 +170,21 @@ export class ContextBuilderService {
      * @returns Array of Content objects.
      */
     public getLLMHistory(ctx: BuildContext, forceFullContext = false, filter?: (m: ChatMessage) => boolean): LLMContent[] {
+        const { compressed, recent } = this.getLLMHistorySegments(ctx, forceFullContext, filter);
+        return [...compressed, ...recent];
+    }
+
+    /**
+     * Same composition as {@link getLLMHistory} but returns the two halves
+     * separately so callers (e.g. the sidebar context-composition view) can
+     * tokenize them independently. `compressed` holds full smart-context
+     * summary blocks; `recent` holds the verbatim recent window with the
+     * leftover (partial) summary block and ACT header fused in.
+     *
+     * `[...compressed, ...recent]` is byte-for-byte identical to
+     * `getLLMHistory`'s output.
+     */
+    public getLLMHistorySegments(ctx: BuildContext, forceFullContext = false, filter?: (m: ChatMessage) => boolean): { compressed: LLMContent[]; recent: LLMContent[] } {
         const all = ctx.messages;
 
         // Use custom filter or default: Filter out RefOnly, but keep tool responses
@@ -352,16 +367,13 @@ export class ContextBuilderService {
             finalActHeaderInserted = true;
         }
 
-        // Unshift stable blocks
-        llmHistory.unshift(...summaryBlocks);
-
         if (summaryBlocks.length > 0) {
             console.log(`[ContextBuilder] Created ${summaryBlocks.length} summary blocks for ${pastMessages.length} past messages.`);
         }
 
         // KB is now handled in systemInstruction for better Implicit Caching stability.
 
-        return llmHistory;
+        return { compressed: summaryBlocks, recent: llmHistory };
     }
 
 

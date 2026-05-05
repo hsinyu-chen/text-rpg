@@ -82,9 +82,10 @@
 
     .status-pill {
         // Time and battery surface system info while fullscreen hides the OS
-        // status bar; not interactive, push to the right so the profile pill
-        // stays the primary actionable element.
-        margin-left: auto;
+        // status bar; not interactive. The context bar between ideal-outcome
+        // and these pills already grows (`flex: 1`) to push them to the
+        // right edge of the row, so no `margin-left: auto` is needed and
+        // would in fact compete for slack and squash the bar to 0 width.
         cursor: default;
 
         &.battery-pill {
