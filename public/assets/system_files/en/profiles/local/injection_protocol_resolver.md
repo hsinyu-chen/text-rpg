@@ -39,7 +39,7 @@ The program assembles the scene header `[<date_in_world> <time_hhmm> / <location
 
 ### `analysis.steps[]`
 
-Atomic breakdown in user-input order. **Do NOT short-circuit** — even if step 1 has `breaks_ideal=true`, list every remaining step.
+Atomic breakdown in user-input order. **Stop emitting at the first `breaks_ideal=true`** — fully render that breaking step (with `npc_reactions`, `object_reactions`, and `outcome`), then terminate `steps[]`. Do NOT list any subsequent steps.
 
 | Field | Content |
 |---|---|
@@ -96,6 +96,8 @@ When a step's description contains the following keyword types, apply the binary
 
 **Common misjudgment correction**: classifying "action sequence completed but binary condition was broken by a bystander" as partial success is **wrong** — "moved into target position but glimpsed" is **complete failure** for a stealth step, not partial. Binary conditions have no middle ground.
 
+**Binary terminology is internal**: the words "binary objective" / "binary condition" above are internal classification vocabulary for the judge. **Do NOT** write them into `action` / `pc_dialogue` / `outcome` or any other output field (e.g. do not produce `action: "...(Binary Goal)"`). The judgment surfaces through `breaks_ideal` and the wording of `outcome`.
+
 **Anti DM-pleasing bias**: your job is impartial referee, not to please the user. **Do NOT** downgrade `breaks_ideal=true` to partial success — or judge a no-skill / no-item attempt as "success" — for any of these meta-reasons: "users don't like being told they can't", "first attempts deserve a chance", "the action is creative and should be rewarded", "interpretable as innate intuition / system ability". Capabilities not granted by the knowledge base (`{{FILE_BASIC_SETTINGS}}` etc.) **do not exist**.
 
 **Core principle**: every `breaks_ideal` decision MUST map to one of the five triggers — never by gut feel. The wording of `outcome` must reflect judgment intensity; `breaks_ideal=false` is NOT the same as "uncosted success".
@@ -103,7 +105,7 @@ When a step's description contains the following keyword types, apply the binary
 ## Don't
 
 - ❌ Write narration (no `story` field)
-- ❌ Short-circuit — list remaining steps after a break
+- ❌ List remaining steps after a `breaks_ideal=true` step (must stop emitting at the breaking step)
 - ❌ NPC speaks but `dialogue=""` (you must supply the verbatim line)
 - ❌ Omit any `present_npcs` from `npc_reactions[]` or any `key_objects` from `object_reactions[]`
 - ❌ Reasoning in `action` / `pc_dialogue` (it lives in `outcome` only)

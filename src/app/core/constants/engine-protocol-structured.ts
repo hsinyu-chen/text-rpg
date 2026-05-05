@@ -7,14 +7,15 @@ import { Schema } from '../models/types';
  * shape:
  * - 1-call: model emits StructuredAnalysis alongside story / summary / *_log.
  * - 2-call: resolver emits StructuredAnalysis (wrapped with ideal_outcome /
- *   ideal_strength); program slices `steps[]` at the first `breaks_ideal=true`
- *   step; narrator renders the truncated analysis into prose.
+ *   ideal_strength); narrator renders it into prose.
  *
- * Field semantics align with `injection_protocol_single.md`'s 1-call markdown
- * format (【現況】/【動作N】/【全場景N】/【事件】). Each {@link AnalysisStep}
- * is one atomic action in the user-character's input sequence; for every step,
- * the model lists every present NPC and key object's reaction (no short-circuit
- * even when an earlier step broke).
+ * Each {@link AnalysisStep} is one atomic action in the user-character's
+ * input sequence; for every step, the model lists every present NPC and key
+ * object's reaction. When a step is judged `breaks_ideal=true`, the model
+ * stops emitting further steps from that turn — the breaking step is the
+ * last element of `steps[]`. {@link truncateAtBreak} is a program-side
+ * safety net that re-applies the same truncation in case the model fails
+ * to short-circuit on its own.
  */
 
 const IDEAL_STRENGTHS = ['perfectionist', 'pragmatic', 'desperate'] as const;
@@ -219,7 +220,7 @@ const objectReactionSchema: Schema = {
 
 const analysisStepSchema: Schema = {
     type: 'object',
-    description: 'One atomic step in the user character\'s action sequence. The model judges each step independently and lists every present NPC + key object\'s reaction; the program (not the model) truncates downstream steps at the first breaks_ideal=true.',
+    description: 'One atomic step in the user character\'s action sequence. The model judges each step independently and lists every present NPC + key object\'s reaction. When a step is judged breaks_ideal=true, the model stops emitting further steps; the program enforces the same truncation as a fallback.',
     properties: {
         action: {
             type: 'string',
@@ -244,7 +245,7 @@ const analysisStepSchema: Schema = {
         },
         breaks_ideal: {
             type: 'boolean',
-            description: 'TRUE iff this step prevents the player\'s ideal_outcome from being attained — the action did not enter resolution at all. Triggers: (1) PC ability insufficient (2) NPC autonomous refusal (3) hard environmental block (4) random event interruption (5) agency conflict (PC has no authority over an NPC\'s decision). FALSE for "成功 / 部份成功 / 伴隨代價的成功" — the action happened, the result may be imperfect but the intent layer was not violated. The program truncates everything AFTER the first breaks_ideal=true; the breaking step itself is kept for narrator. outcome and breaks_ideal must be self-consistent: breaks_ideal=true ⇒ outcome starts with "失敗"; breaks_ideal=false ⇒ outcome starts with "成功 / 部份成功 / 伴隨代價的成功".'
+            description: 'TRUE when (and only when) this step prevents the player\'s ideal_outcome from being attained — the action did not enter resolution at all. Triggers: (1) PC ability insufficient (2) NPC autonomous refusal (3) hard environmental block (4) random event interruption (5) agency conflict (PC has no authority over an NPC\'s decision). FALSE for "成功 / 部份成功 / 伴隨代價的成功" — the action happened, the result may be imperfect but the intent layer was not violated. When a step is breaks_ideal=true, this MUST be the LAST element of steps[]; do not emit any subsequent step the user attempted. outcome and breaks_ideal must be self-consistent: breaks_ideal=true ⇒ outcome starts with "失敗"; breaks_ideal=false ⇒ outcome starts with "成功 / 部份成功 / 伴隨代價的成功".'
         },
         npc_reactions: {
             type: 'array',
@@ -277,7 +278,7 @@ export const structuredAnalysisSchema: Schema = {
         scene_snapshot: sceneSnapshotSchema,
         steps: {
             type: 'array',
-            description: 'Atomic steps in input order. At least 1 element when this object is non-null. Even when an early step has breaks_ideal=true, list all subsequent steps the user attempted — the program (not the model) decides which steps to render.',
+            description: 'Atomic steps in input order. At least 1 element when this object is non-null. The model stops emitting steps after the first breaks_ideal=true (which becomes the last element); subsequent attempted steps are NOT emitted. Program-side truncation is a safety net only.',
             items: analysisStepSchema
         },
         random_event: randomEventSchema

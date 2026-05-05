@@ -37,7 +37,7 @@ The program assembles the user-facing scene header `[<date_in_world> <time_hhmm>
 
 ### `analysis.steps[]`
 
-Atomic-action breakdown in user-input order. **Do NOT short-circuit** — even if step 1 has `breaks_ideal=true`, list every remaining step the user attempted.
+Atomic-action breakdown in user-input order. **Stop emitting at the first `breaks_ideal=true`** — fully render that breaking step (with `npc_reactions`, `object_reactions`, and `outcome`), then terminate `steps[]`. **Do NOT** list any subsequent steps the user attempted; those steps do not exist in this turn's narrative.
 
 Each step:
 
@@ -91,7 +91,7 @@ For each step, run all five checks below. Any trigger fires → `breaks_ideal=tr
 ## Don't
 
 - Write narration (no `story` field)
-- Short-circuit (list remaining steps even after `breaks_ideal=true`)
+- List subsequent steps after a `breaks_ideal=true` step (you must stop emitting at the breaking step)
 - NPC speaks but `dialogue=""` (you must supply the verbatim line)
 - Omit any `present_npcs` from `npc_reactions[]` or any `key_objects` from `object_reactions[]`
 - Embed reasoning in `action` / `pc_dialogue` (reasoning lives only in `outcome`)

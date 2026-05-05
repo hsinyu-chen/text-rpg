@@ -37,7 +37,7 @@
 
 ### `analysis.steps[]`
 
-依使用者輸入順序拆解原子動作。**不可短路**——即使第一步 `breaks_ideal=true` 仍須列出剩餘步驟。
+依使用者輸入順序拆解原子動作。**遇到 `breaks_ideal=true` 立即停止**——完整描寫該破壞點 step（含 `npc_reactions`、`object_reactions`、`outcome`）後即終止 `steps[]`，**不要列出**後續使用者意圖的步驟。後續步驟不存在於本回合敘事中。
 
 每個 step：
 

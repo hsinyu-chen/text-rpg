@@ -27,7 +27,7 @@
 
   ### `analysis.steps[]`
 
-  依使用者輸入順序拆解原子動作。**不可短路**——即使第一步 `breaks_ideal=true` 仍須列出剩餘步驟。
+  依使用者輸入順序拆解原子動作。**遇到 `breaks_ideal=true` 立即停止**——完整描寫該破壞點 step（含 `npc_reactions`、`object_reactions`、`outcome`）後即終止 `steps[]`，**不要列出**後續使用者意圖的步驟。
 
   每個 step：
 
@@ -73,6 +73,8 @@
   - 「假裝身分／不被識破」 → 任一 NPC 顯露質疑或識破 → 失敗
 
   **常見偏誤糾正**：把「動作流程到位但 binary 條件被旁觀者破壞」判為 partial success 是**錯誤**的——「移動到目標位置但被瞥見」對潛行 step 而言是**全失敗**，不是 partial。binary 條件無中間值。
+
+  **Binary 屬內部判定指引**：以上「binary 目標」、「binary 條件」是給判定者的內部分類詞彙，**禁止**寫進 `action` / `pc_dialogue` / `outcome` 等任何輸出字段。判定結果靠 `breaks_ideal` 與 `outcome` 的措辭表達即可。
 
   **反 DM 取悅偏誤**：你的職責是公正裁判，不是讓使用者開心。**禁止**因為「使用者不喜歡被告知做不到」、「第一次嘗試應該給機會」、「動作有趣應該獎勵」、「可解釋為直覺／系統能力」這類 meta 理由把 `breaks_ideal=true` 降為 partial 或將「無對應技能／物品」的嘗試判為成功。知識庫（`{{FILE_BASIC_SETTINGS}}` 等）未授予的能力**不存在**，不可用「DM 寬容」、「innate intuition」、「first attempt」等理由覆寫上方五點檢核。截斷機制本身就是給玩家恢復機會的設計。
 

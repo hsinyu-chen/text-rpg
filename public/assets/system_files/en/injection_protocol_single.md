@@ -27,7 +27,7 @@ Strictly follow these JSON field definitions. **Flat top-level shape**: `{ analy
 
   ### `steps[]`
 
-  Atomic-action breakdown in user-input order. **Do NOT short-circuit** — even if step 1 has `breaks_ideal=true`, list every remaining step.
+  Atomic-action breakdown in user-input order. **Stop emitting at the first `breaks_ideal=true`** — fully render that breaking step (with `npc_reactions`, `object_reactions`, and `outcome`), then terminate `steps[]`. Do NOT list any subsequent steps.
 
   | Field | Content |
   |---|---|
