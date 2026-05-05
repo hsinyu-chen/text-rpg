@@ -6,6 +6,7 @@ import { InjectionService } from '../injection.service';
 import { PromptProfileRegistryService } from '../prompt-profile-registry.service';
 import { ConfigService } from '../config.service';
 import { LLMProviderRegistryService } from '../llm-provider-registry.service';
+import { AppConfigStore } from '../app-config-store';
 import { GAME_INTENTS } from '@app/core/constants/game-intents';
 import { ChatMessage } from '@app/core/models/types';
 import { WINDOW } from '@app/core/tokens/window.token';
@@ -79,6 +80,7 @@ export class BridgeService {
     private injection = inject(InjectionService);
     private registry = inject(PromptProfileRegistryService);
     private config = inject(ConfigService);
+    private appConfig = inject(AppConfigStore);
     private providerRegistry = inject(LLMProviderRegistryService);
     private destroyRef = inject(DestroyRef);
     private win = inject(WINDOW);
@@ -330,12 +332,11 @@ export class BridgeService {
     private handleConfigGet(frame: BridgeFrame): void {
         const { requestId } = frame;
         if (!requestId) return;
-        const cfg = this.state.config();
         this.send({
             type: 'config_get_response',
             requestId,
-            engineMode: cfg?.engineMode ?? 'single',
-            outputLanguage: cfg?.outputLanguage ?? 'default',
+            engineMode: this.appConfig.engineMode(),
+            outputLanguage: this.appConfig.outputLanguage(),
             modelId: this.providerRegistry.getActiveModelId() || null,
         });
     }
@@ -358,12 +359,11 @@ export class BridgeService {
             return;
         }
         await this.config.saveConfig(patch);
-        const cfg = this.state.config();
         this.send({
             type: 'config_set_response',
             requestId,
-            engineMode: cfg?.engineMode ?? 'single',
-            outputLanguage: cfg?.outputLanguage ?? 'default',
+            engineMode: this.appConfig.engineMode(),
+            outputLanguage: this.appConfig.outputLanguage(),
         });
     }
 

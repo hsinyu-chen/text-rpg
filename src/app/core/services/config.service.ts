@@ -32,16 +32,17 @@ export class ConfigService {
     constructor() {
         // ==================== Auto-save Effects ====================
 
-        // Sync CSS Variables with Config. AppConfigStore loads its values
-        // synchronously on first inject, so this effect always sees a
-        // populated cfg — no null guard needed.
+        // Sync CSS Variables with Config. Reads both font signals in one
+        // effect — setStyle is idempotent, so re-applying the unchanged
+        // value when its sibling fires is a no-op.
         effect(() => {
-            const cfg = this.state.config();
-            if (cfg.fontSize) {
-                this.renderer.setStyle(this.doc.body, '--app-font-size', `${cfg.fontSize}px`, RendererStyleFlags2.DashCase);
+            const fs = this.appConfig.fontSize();
+            const ff = this.appConfig.fontFamily();
+            if (fs) {
+                this.renderer.setStyle(this.doc.body, '--app-font-size', `${fs}px`, RendererStyleFlags2.DashCase);
             }
-            if (cfg.fontFamily) {
-                this.renderer.setStyle(this.doc.body, '--app-font-family', cfg.fontFamily, RendererStyleFlags2.DashCase);
+            if (ff) {
+                this.renderer.setStyle(this.doc.body, '--app-font-family', ff, RendererStyleFlags2.DashCase);
             }
         });
     }

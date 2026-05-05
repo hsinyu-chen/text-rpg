@@ -9,7 +9,7 @@ import { CacheManagerService } from './cache-manager.service';
 import { SessionService } from './session.service';
 import { ContextBuilderService, BuildContext } from './context-builder.service';
 import { ConfigService } from './config.service';
-import { AppConfigShape } from './app-config-store';
+import { AppConfigStore, AppConfigShape } from './app-config-store';
 import { LLMProviderRegistryService } from './llm-provider-registry.service';
 import { LLMProviderCapabilities } from '@hcs/llm-core';
 import { stripSystemMainMarker } from './profile-compat';
@@ -47,6 +47,7 @@ export class GameEngineService {
     private twoCallEngine = inject(TwoCallTurnEngine);
     private injection = inject(InjectionService);
     private providerRegistry = inject(LLMProviderRegistryService);
+    private appConfig = inject(AppConfigStore);
 
     private currentAbortController: AbortController | null = null;
 
@@ -214,7 +215,7 @@ export class GameEngineService {
             return;
         }
         if (this.state.messages().length === 0) {
-            const lang = this.state.config()?.outputLanguage || 'default';
+            const lang = this.appConfig.outputLanguage();
             const ui = getUIStrings(lang);
             const introText = ui.INTRO_TEXT;
 
@@ -247,14 +248,14 @@ export class GameEngineService {
 
             // Detect language from file name to ensure Adult Declaration matches scenario language
             const matchedLocale = Object.values(LOCALES).find(l => l.coreFilenames.STORY_OUTLINE === fileName);
-            const langId = matchedLocale ? matchedLocale.id : (this.state.config()?.outputLanguage || 'default');
+            const langId = matchedLocale ? matchedLocale.id : this.appConfig.outputLanguage();
 
             if (lastScene) {
                 console.log('[GameEngine] Local Initialization: Extracted last_scene from', fileName);
                 const userMsgId = crypto.randomUUID();
                 const modelMsgId = crypto.randomUUID();
 
-                const declaration = this.state.config()?.enableAdultDeclaration === false ? '' : getAdultDeclaration(langId);
+                const declaration = this.appConfig.enableAdultDeclaration() === false ? '' : getAdultDeclaration(langId);
 
                 const ui = getUIStrings(langId);
                 this.updateMessages(prev => [
@@ -286,7 +287,7 @@ export class GameEngineService {
                     console.log('[GameEngine] Local Initialization: Extracted start scene from', fileName);
                     const userMsgId = crypto.randomUUID();
                     const modelMsgId = crypto.randomUUID();
-                    const declaration = this.state.config()?.enableAdultDeclaration === false ? '' : getAdultDeclaration(langId);
+                    const declaration = this.appConfig.enableAdultDeclaration() === false ? '' : getAdultDeclaration(langId);
                     const uiStrings = getUIStrings(langId);
                     this.updateMessages(prev => [
                         ...prev,
@@ -329,7 +330,6 @@ export class GameEngineService {
      * (engine path) and `getPreviewPayload` (chat-input live preview).
      */
     private snapshotBuildContext(): BuildContext {
-        const config = this.state.config();
         const provider = this.providerRegistry.getActive();
         // Defensive default for `cacheBakesContent` matches the historical
         // `?? true` fallback in ContextBuilder. The engine path itself
@@ -341,7 +341,7 @@ export class GameEngineService {
             messages: this.state.messages(),
             contextMode: this.state.contextMode(),
             saveContextMode: this.state.saveContextMode(),
-            smartContextTurns: config?.smartContextTurns ?? 10,
+            smartContextTurns: this.appConfig.smartContextTurns(),
             systemInstructionCache: this.state.systemInstructionCache(),
             loadedFiles: this.state.loadedFiles(),
             kbCacheName: this.state.kbCacheName(),
@@ -355,9 +355,9 @@ export class GameEngineService {
             dynamicProtocolNarrator: this.state.dynamicProtocolNarratorInjection(),
             dynamicProtocolSingle: this.state.dynamicProtocolSingleInjection(),
             dynamicCorrection: this.state.dynamicCorrectionInjection(),
-            engineMode: config?.engineMode ?? 'single',
+            engineMode: this.appConfig.engineMode(),
             modelId: this.providerRegistry.getActiveModelId() || undefined,
-            outputLanguage: config?.outputLanguage,
+            outputLanguage: this.appConfig.outputLanguage(),
             provider: provider ?? undefined
         };
     }
@@ -481,7 +481,7 @@ export class GameEngineService {
             // If we just auto-switched profiles, fold that note into the
             // error message so the user understands the silent state change
             // before retrying.
-            const lang = this.state.config()?.outputLanguage;
+            const lang = this.appConfig.outputLanguage();
             const ui = getUIStrings(lang);
             const autoswitchPrefix = switchedFromLegacy ? `${ui.LEGACY_PROFILE_AUTOSWITCH}\n\n` : '';
             if (sessionExpired) {
@@ -591,7 +591,7 @@ export class GameEngineService {
             if (finalFinishReason) {
                 const normalizedReason = finalFinishReason.toLowerCase();
                 if (normalizedReason !== 'stop' && normalizedReason !== 'null') {
-                    const ui = getUIStrings(this.state.config()?.outputLanguage);
+                    const ui = getUIStrings(this.appConfig.outputLanguage());
                     this.snackBar.open(`${ui.STOP_REASON_PREFIX || 'Model Stopped:'} ${finalFinishReason}`, ui.CLOSE, {
                         duration: 8000,
                         panelClass: ['snackbar-warning']
@@ -785,7 +785,7 @@ export class GameEngineService {
             console.error(e);
             this.state.status.set('error');
 
-            const ui = getUIStrings(this.state.config()?.outputLanguage);
+            const ui = getUIStrings(this.appConfig.outputLanguage());
             const errMsg = (e instanceof Error) ? e.message : ui.CONN_ERROR;
             this.updateMessages(prev => {
                 const updated = [...prev];

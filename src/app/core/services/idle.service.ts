@@ -2,13 +2,13 @@ import { Injectable, signal, effect, inject } from '@angular/core';
 import { fromEvent, merge, throttleTime, timer, of, filter } from 'rxjs';
 import { takeUntilDestroyed, toSignal } from '@angular/core/rxjs-interop';
 import { rxResource } from '@angular/core/rxjs-interop';
-import { GameStateService } from './game-state.service';
+import { AppConfigStore } from './app-config-store';
 
 @Injectable({
     providedIn: 'root',
 })
 export class IdleService {
-    private state = inject(GameStateService);
+    private appConfig = inject(AppConfigStore);
     private readonly IDLE_TIME = 5 * 60 * 1000; // 5 minutes
 
     private showScreensaverSignal = signal(false);
@@ -82,7 +82,7 @@ export class IdleService {
         const blurSignal = toSignal(blur$);
 
         effect(() => {
-            if (blurSignal() !== undefined && this.state.config()?.idleOnBlur) {
+            if (blurSignal() !== undefined && this.appConfig.idleOnBlur()) {
                 this.showScreensaverSignal.set(true);
             }
         });
