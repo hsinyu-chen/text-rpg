@@ -1,4 +1,4 @@
-import { Component, inject, signal, effect, untracked, WritableSignal, viewChild } from '@angular/core';
+import { Component, inject, signal, effect, untracked, WritableSignal, viewChild, computed } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { MatDialogModule, MAT_DIALOG_DATA, MatDialogRef, MatDialog } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -94,10 +94,10 @@ export class AutoUpdateDialogComponent {
   // Reference to the Monaco editor component
   private monacoEditor = viewChild(MonacoEditorComponent);
 
-  activeGroup = () => this.groupedUpdates()[this.activeGroupIndex()] || null;
+  activeGroup = computed(() => this.groupedUpdates()[this.activeGroupIndex()] || null);
 
   // Get current locale for i18n
-  locale = () => getLocale(this.appConfig.outputLanguage());
+  locale = computed(() => getLocale(this.appConfig.outputLanguage()));
 
   toggleSidebar() {
     this.isSidebarOpen.update(v => !v);

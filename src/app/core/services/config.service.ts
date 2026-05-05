@@ -151,7 +151,7 @@ export class ConfigService {
 
         this.saveConfig(genConfig);
 
-        // Provider-bound fields go to the active LLM profile, not GameEngineConfig.
+        // Provider-bound fields go to the active LLM profile, not AppConfigStore.
         // Trigger if any of the LLM-side fields are present, so a JSON that carries
         // only enableCache / thinking levels still applies to the profile. Use
         // `!== undefined` rather than truthiness so an explicit empty string in

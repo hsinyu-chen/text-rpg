@@ -10,7 +10,6 @@ import { StorageService } from '@app/core/services/storage.service';
 import { GameEngineService } from '@app/core/services/game-engine.service';
 import { GameStateService } from '@app/core/services/game-state.service';
 import { CostService } from '@app/core/services/cost.service';
-import { AppConfigStore } from '@app/core/services/app-config-store';
 import { LLMProviderRegistryService } from '@app/core/services/llm-provider-registry.service';
 import { Book, Collection, ROOT_COLLECTION_ID } from '@app/core/models/types';
 import { DialogService } from '@app/core/services/dialog.service';
@@ -379,7 +378,6 @@ export class BookListComponent {
     storage = inject(StorageService);
     state = inject(GameStateService);
     costService = inject(CostService);
-    private appConfig = inject(AppConfigStore);
     providerRegistry = inject(LLMProviderRegistryService);
     dialog = inject(DialogService);
     matDialog = inject(MatDialog);
@@ -494,16 +492,8 @@ export class BookListComponent {
         return { bookCount: recentBooks.length, totalCost };
     });
 
-    displayCurrency = computed(() => {
-        return this.appConfig.enableConversion() ? this.appConfig.currency() : 'USD';
-    });
-
-    displayRate = computed(() => {
-        if (this.appConfig.enableConversion() && this.appConfig.currency() !== 'USD') {
-            return this.appConfig.exchangeRate();
-        }
-        return 1;
-    });
+    displayCurrency = this.costService.displayCurrency;
+    displayRate = this.costService.displayRate;
 
     formatCost(cost: number): string {
         const currency = this.displayCurrency();

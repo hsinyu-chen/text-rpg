@@ -7,7 +7,6 @@ import { GameEngineService } from '@app/core/services/game-engine.service';
 import { GameStateService } from '@app/core/services/game-state.service';
 import { LLMProviderRegistryService } from '@app/core/services/llm-provider-registry.service';
 import { CostService } from '@app/core/services/cost.service';
-import { AppConfigStore } from '@app/core/services/app-config-store';
 import { LLMModelDefinition } from '@hcs/llm-core';
 
 interface ModelCostInfo {
@@ -158,17 +157,11 @@ export class CostComparisonDialogComponent {
     private state = inject(GameStateService);
     private providerRegistry = inject(LLMProviderRegistryService);
     private costService = inject(CostService);
-    private appConfig = inject(AppConfigStore);
     private dialogRef = inject(MatDialogRef<CostComparisonDialogComponent>);
 
     modelCosts = computed<ModelCostInfo[]>(() => {
         const lastTurn = this.state.lastTurnUsage();
-
-        const enabled = this.appConfig.enableConversion();
-        // If conversion disabled -> USD. If enabled -> selected currency.
-        const currency = enabled ? this.appConfig.currency() : 'USD';
-        // If conversion enabled AND not USD -> use rate. Else 1.
-        const exchangeRate = (enabled && currency !== 'USD') ? this.appConfig.exchangeRate() : 1;
+        const exchangeRate = this.costService.displayRate();
 
         // Active Model for Storage Scaling
         const activeModelId = this.providerRegistry.getActiveModelId() || 'gemini-3-flash-preview';
@@ -228,8 +221,7 @@ export class CostComparisonDialogComponent {
     });
 
     formatCost(cost: number): string {
-        const enabled = this.appConfig.enableConversion();
-        const currency = enabled ? this.appConfig.currency() : 'USD';
+        const currency = this.costService.displayCurrency();
         const decimals = currency === 'USD' ? 4 : 2;
         return `${currency} $${cost.toFixed(decimals)}`;
     }
