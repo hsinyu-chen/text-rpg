@@ -82,7 +82,7 @@ describe('formatStructuredAnalysis', () => {
         expect(out).toContain('[動作2]** 🔴 reach');
         expect(out).toContain('NPC 拒絕');
         expect(out).toContain('[動作3]** ⏸ shake');
-        expect(out).toContain('truncated after first break');
+        expect(out).toContain('首次中斷後截斷');
     });
 
     describe('buildSceneHeaderLine', () => {
@@ -246,6 +246,43 @@ describe('formatStructuredAnalysis', () => {
         }));
         expect(out).toContain('環境: 室內安靜');
         expect(out).not.toContain('安靜。');
+    });
+
+    it('renders English labels when outputLanguage is English', () => {
+        const out = formatStructuredAnalysis(analysis({
+            scene_snapshot: snap({
+                date_in_world: '1000-04-02',
+                time_hhmm: '18:40',
+                location: 'Tavern',
+                environment: 'rainstorm',
+                pc_in_header: 'Cheng Yangzong',
+                key_objects: [{ name: 'window', state: 'half open' }]
+            }),
+            steps: [
+                step({ kind: 'user_intent', action: 'walk', pc_dialogue: 'hello', risk_factors: ['slip'] }),
+                step({ kind: 'random_event', action: 'lightning', breaks_ideal: true, outcome: 'failed' })
+            ]
+        }), 'English');
+        expect(out).toContain('[Scene]');
+        expect(out).toContain('Time:');
+        expect(out).toContain('Location: Tavern');
+        expect(out).toContain('PC: Cheng Yangzong');
+        expect(out).toContain('Environment: rainstorm');
+        expect(out).toContain('Key objects:');
+        expect(out).toContain('[Action1]** ✅ walk');
+        expect(out).toContain('PC: "hello"');
+        expect(out).toContain('Risks: slip');
+        expect(out).toContain('[Event2]** 🔴 lightning');
+        expect(out).toContain('Outcome: failed');
+        expect(out).not.toContain('[現況]');
+        expect(out).not.toContain('[動作');
+    });
+
+    it('renders English intent header when outputLanguage is English', () => {
+        const out = formatResolverIntent('reach plaza', 'pragmatic', 'English');
+        expect(out).toContain('**[Intent]**');
+        expect(out).toContain('- Goal: reach plaza');
+        expect(out).toContain('- Strength: pragmatic');
     });
 
     it('handles streaming partial input (snapshot only, no steps yet)', () => {

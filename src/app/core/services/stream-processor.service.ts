@@ -137,7 +137,7 @@ export class StreamProcessorService {
                                 if (partial.analysis && typeof partial.analysis === 'object') {
                                     const analysisObj = partial.analysis as Partial<StructuredAnalysis>;
                                     snap = analysisObj.scene_snapshot ?? null;
-                                    currentAnalysisPreview = formatStructuredAnalysis(analysisObj);
+                                    currentAnalysisPreview = formatStructuredAnalysis(analysisObj, outputLanguage);
                                     if (currentAnalysisPreview) {
                                         next.analysis = this.postProcessor.applySafeReplacements(currentAnalysisPreview);
                                     }
@@ -205,7 +205,7 @@ export class StreamProcessorService {
             if (parsed.analysis && typeof parsed.analysis === 'object') {
                 const analysisObj = parsed.analysis as Partial<StructuredAnalysis>;
                 finalSnap = analysisObj.scene_snapshot ?? null;
-                finalAnalysis = formatStructuredAnalysis(analysisObj);
+                finalAnalysis = formatStructuredAnalysis(analysisObj, outputLanguage);
             }
 
             if (parsed.story) {

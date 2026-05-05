@@ -104,8 +104,8 @@ export class TwoCallOrchestratorService {
                     }
                     try {
                         const partial = this.parser.bestEffortJsonParser(accumulator) as Partial<ResolverResponse>;
-                        const intentHeader = formatResolverIntent(partial.ideal_outcome, partial.ideal_strength);
-                        const analysisBody = formatStructuredAnalysis(partial.analysis ?? null);
+                        const intentHeader = formatResolverIntent(partial.ideal_outcome, partial.ideal_strength, input.outputLanguage);
+                        const analysisBody = formatStructuredAnalysis(partial.analysis ?? null, input.outputLanguage);
                         const trace = [intentHeader, analysisBody].filter(s => s.length > 0).join('\n\n');
                         if (trace && trace !== lastTraceText) {
                             lastTraceText = trace;

@@ -115,9 +115,10 @@ export class TwoCallTurnEngine implements TurnEngine {
 
         const intentHeader = formatResolverIntent(
             resolverResult.resolverOutput.ideal_outcome,
-            resolverResult.resolverOutput.ideal_strength
+            resolverResult.resolverOutput.ideal_strength,
+            input.outputLanguage
         );
-        const analysisBody = formatStructuredAnalysis(truncatedAnalysis);
+        const analysisBody = formatStructuredAnalysis(truncatedAnalysis, input.outputLanguage);
         const finalTrace = [intentHeader, analysisBody].filter(s => s.length > 0).join('\n\n');
 
         // Post-turn KV cache holds only the narrator call's tokens — the resolver

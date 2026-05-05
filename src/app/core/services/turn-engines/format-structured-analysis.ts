@@ -8,6 +8,10 @@ import {
     StructuredAnalysis,
     interruptedAtStep
 } from '@app/core/constants/engine-protocol-structured';
+import { AppLocale } from '@app/core/constants/locales/locale.interface';
+import { getLocale } from '@app/core/constants/locales';
+
+type TraceLabels = AppLocale['analysisTrace'];
 
 /**
  * Renders a {@link StructuredAnalysis} (full or partial — streaming-safe) as
@@ -23,12 +27,13 @@ import {
  * can see what the model considered) but tagged as truncated. The actual
  * hard-stop slicing is `truncateAtBreak` upstream of the narrator.
  */
-export function formatStructuredAnalysis(a: Partial<StructuredAnalysis> | null | undefined): string {
+export function formatStructuredAnalysis(a: Partial<StructuredAnalysis> | null | undefined, lang?: string): string {
     if (!a) return '';
+    const labels = getLocale(lang).analysisTrace;
     const lines: string[] = [];
 
     if (a.scene_snapshot) {
-        const snap = formatSnapshot(a.scene_snapshot);
+        const snap = formatSnapshot(a.scene_snapshot, labels);
         if (snap) lines.push(snap);
     }
 
@@ -37,7 +42,7 @@ export function formatStructuredAnalysis(a: Partial<StructuredAnalysis> | null |
 
     steps.forEach((step, idx) => {
         const truncated = firstBrokenIdx >= 0 && idx > firstBrokenIdx;
-        const block = formatStep(step, idx + 1, truncated);
+        const block = formatStep(step, idx + 1, truncated, labels);
         if (block) {
             if (lines.length > 0) lines.push('');
             lines.push(block);
@@ -47,25 +52,25 @@ export function formatStructuredAnalysis(a: Partial<StructuredAnalysis> | null |
     return lines.join('\n');
 }
 
-function formatSnapshot(snap: Partial<SceneSnapshot>): string {
+function formatSnapshot(snap: Partial<SceneSnapshot>, labels: TraceLabels): string {
     const lines: string[] = [];
 
     const dateTime = [snap.date_in_world, snap.time_hhmm].filter(Boolean).join(' ');
-    if (dateTime) lines.push(`- 時間: ${dateTime}`);
-    if (snap.location) lines.push(`- 地點: ${snap.location}`);
-    if (snap.pc_in_header) lines.push(`- 主角: ${snap.pc_in_header}`);
+    if (dateTime) lines.push(`- ${labels.TIME}: ${dateTime}`);
+    if (snap.location) lines.push(`- ${labels.LOCATION}: ${snap.location}`);
+    if (snap.pc_in_header) lines.push(`- ${labels.PROTAGONIST}: ${snap.pc_in_header}`);
     if (Array.isArray(snap.present_npcs) && snap.present_npcs.length > 0) {
-        lines.push(`- 在場NPC: ${snap.present_npcs.map(formatPresentNpc).filter(Boolean).join(', ')}`);
+        lines.push(`- ${labels.PRESENT_NPCS}: ${snap.present_npcs.map(formatPresentNpc).filter(Boolean).join(', ')}`);
     }
     if (snap.environment) {
-        lines.push(`- 環境: ${stripTrailingTerminator(snap.environment)}`);
+        lines.push(`- ${labels.ENVIRONMENT}: ${stripTrailingTerminator(snap.environment)}`);
     }
     if (Array.isArray(snap.key_objects) && snap.key_objects.length > 0) {
-        lines.push(`- 重要物件: ${snap.key_objects.map(formatKeyObject).filter(Boolean).join(', ')}`);
+        lines.push(`- ${labels.KEY_OBJECTS}: ${snap.key_objects.map(formatKeyObject).filter(Boolean).join(', ')}`);
     }
 
     if (lines.length === 0) return '';
-    return ['**[現況]**', ...lines].join('\n');
+    return [`**${labels.SCENE_HEADING}**`, ...lines].join('\n');
 }
 
 /**
@@ -74,14 +79,15 @@ function formatSnapshot(snap: Partial<SceneSnapshot>): string {
  * user can see how the resolver judged the player's intent before truncation.
  * Returns empty string when both fields are unset.
  */
-export function formatResolverIntent(idealOutcome: string | null | undefined, idealStrength: string | null | undefined): string {
+export function formatResolverIntent(idealOutcome: string | null | undefined, idealStrength: string | null | undefined, lang?: string): string {
     const outcome = idealOutcome?.trim();
     const strength = idealStrength?.trim();
     if (!outcome && !strength) return '';
 
-    const lines: string[] = ['**[意圖判讀]**'];
-    if (outcome) lines.push(`- 目標: ${outcome}`);
-    if (strength) lines.push(`- 強度: ${strength}`);
+    const labels = getLocale(lang).analysisTrace;
+    const lines: string[] = [`**${labels.INTENT_HEADING}**`];
+    if (outcome) lines.push(`- ${labels.IDEAL_OUTCOME}: ${outcome}`);
+    if (strength) lines.push(`- ${labels.IDEAL_STRENGTH}: ${strength}`);
     return lines.join('\n');
 }
 
@@ -136,7 +142,6 @@ export function assembleStoryWithSceneHeader(rawStory: string, snap: Partial<Sce
     const inner = buildSceneHeaderLine(snap);
     if (!inner) return rawStory;
 
-    // Strip any LLM-emitted bracketed line that follows the CFC marker — that slot is now owned by the program.
     const cleaned = rawStory.replace(/(<CREATIVE FICTION CONTEXT>\s*)\[[^\]]*\]\s*/i, '$1');
     return `${inner}\n\n${cleaned}`;
 }
@@ -172,7 +177,7 @@ function formatKeyObject(obj: KeyObject | null | undefined): string {
     return obj.state ? `${obj.name}(${obj.state})` : obj.name;
 }
 
-function formatStep(step: AnalysisStep | null | undefined, ordinal: number, truncated: boolean): string {
+function formatStep(step: AnalysisStep | null | undefined, ordinal: number, truncated: boolean, labels: TraceLabels): string {
     if (!step) return '';
 
     let icon: string;
@@ -180,62 +185,63 @@ function formatStep(step: AnalysisStep | null | undefined, ordinal: number, trun
     else if (step.breaks_ideal === true) icon = '🔴';
     else icon = '✅';
 
-    const action = step.action || '(no action)';
+    const action = step.action || labels.NO_ACTION;
     const mood = step.mood ? ` _(${step.mood})_` : '';
     const isEvent = step.kind === 'random_event';
-    const header = isEvent ? `**[事件${ordinal}]**` : `**[動作${ordinal}]**`;
+    const stepLabel = isEvent ? labels.STEP_EVENT : labels.STEP_ACTION;
+    const header = `**[${stepLabel}${ordinal}]**`;
 
     const parts: string[] = [];
     parts.push(`${header} ${icon} ${action}${mood}`);
 
     if (step.pc_dialogue) {
-        parts.push(`   - 主角: "${stripDialogueQuotes(step.pc_dialogue)}"`);
+        parts.push(`   - ${labels.PC_DIALOGUE}: "${stripDialogueQuotes(step.pc_dialogue)}"`);
     }
 
     if (Array.isArray(step.risk_factors) && step.risk_factors.length > 0) {
-        parts.push(`   - 風險: ${step.risk_factors.join('; ')}`);
+        parts.push(`   - ${labels.RISKS}: ${step.risk_factors.join('; ')}`);
     }
 
     if (step.outcome) {
-        parts.push(`   - 判定: ${step.outcome}`);
+        parts.push(`   - ${labels.OUTCOME}: ${step.outcome}`);
     }
 
     if (truncated) {
-        parts.push(`   - _truncated after first break_`);
+        parts.push(`   - _${labels.TRUNCATED_NOTE}_`);
     }
 
     const sceneLines: string[] = [];
     if (Array.isArray(step.npc_reactions)) {
         step.npc_reactions.forEach(r => {
-            const line = formatNpcReaction(r);
+            const line = formatNpcReaction(r, labels);
             if (line) sceneLines.push(line);
         });
     }
     if (Array.isArray(step.object_reactions)) {
         step.object_reactions.forEach(r => {
-            const line = formatObjectReaction(r);
+            const line = formatObjectReaction(r, labels);
             if (line) sceneLines.push(line);
         });
     }
     if (sceneLines.length > 0) {
-        parts.push(`   - **[全場景${ordinal}]**`);
+        parts.push(`   - **[${labels.FULL_SCENE}${ordinal}]**`);
         sceneLines.forEach(l => parts.push(`     - ${l}`));
     }
 
     return parts.join('\n');
 }
 
-function formatNpcReaction(r: NpcReaction | null | undefined): string {
+function formatNpcReaction(r: NpcReaction | null | undefined, labels: TraceLabels): string {
     if (!r?.actor) return '';
     const segments: string[] = [];
     if (r.physical) segments.push(r.physical);
     if (r.dialogue) segments.push(`「${stripDialogueQuotes(r.dialogue)}」`);
     if (r.motivation) segments.push(`（${r.motivation}）`);
-    const body = segments.length > 0 ? segments.join('；') : '(無反應)';
+    const body = segments.length > 0 ? segments.join('；') : labels.NO_REACTION;
     return `${r.actor}: ${body}`;
 }
 
-function formatObjectReaction(r: ObjectReaction | null | undefined): string {
+function formatObjectReaction(r: ObjectReaction | null | undefined, labels: TraceLabels): string {
     if (!r?.name) return '';
-    return `${r.name}: ${r.change || '無變化'}`;
+    return `${r.name}: ${r.change || labels.NO_CHANGE}`;
 }
