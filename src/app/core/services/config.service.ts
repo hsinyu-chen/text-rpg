@@ -1,4 +1,4 @@
-import { Injectable, RendererFactory2, RendererStyleFlags2, effect, inject } from '@angular/core';
+import { Injectable, RendererFactory2, RendererStyleFlags2, effect, inject, untracked } from '@angular/core';
 import { DOCUMENT } from '@angular/common';
 import { GameStateService, GameEngineConfig } from './game-state.service';
 import { StorageService } from './storage.service';
@@ -79,7 +79,47 @@ export class ConfigService {
             }
         });
 
-
+        // Mirror the active LLM profile's provider-bound fields into
+        // state.config() so a sidebar profile swap doesn't leave
+        // modelId / apiKey / enableCache / thinking levels pointing at
+        // the previous provider. Without this, ensureCacheValid keeps
+        // sending the old provider's modelId to the new provider's API
+        // (e.g. a llama.cpp .gguf name to gemini's createCachedContent
+        // → 404 → SESSION_EXPIRED on the next turn).
+        // Reads of state.config / activeProvider are untracked so the
+        // write below doesn't retrigger the effect — the only intended
+        // dependency is `llmConfig.activeProfile()`.
+        effect(() => {
+            const profile = this.llmConfig.activeProfile();
+            if (!profile) return;
+            untracked(() => {
+                const current = this.state.config();
+                if (!current) return; // wait for init() to seed
+                const activeProvider = this.providerRegistry.getActive();
+                const providerConfig = profile.settings;
+                const providerExtras = this.readProviderSettings(providerConfig);
+                const nextModelId = providerConfig.modelId || activeProvider?.getDefaultModelId() || '';
+                const nextApiKey = providerConfig.apiKey || '';
+                const nextEnableCache = providerExtras.enableCache ?? current.enableCache;
+                const nextStory = providerExtras.thinkingLevelStory ?? current.thinkingLevelStory;
+                const nextGeneral = providerExtras.thinkingLevelGeneral ?? current.thinkingLevelGeneral;
+                if (
+                    current.apiKey === nextApiKey &&
+                    current.modelId === nextModelId &&
+                    current.enableCache === nextEnableCache &&
+                    current.thinkingLevelStory === nextStory &&
+                    current.thinkingLevelGeneral === nextGeneral
+                ) return;
+                this.state.config.set({
+                    ...current,
+                    apiKey: nextApiKey,
+                    modelId: nextModelId,
+                    enableCache: nextEnableCache,
+                    thinkingLevelStory: nextStory,
+                    thinkingLevelGeneral: nextGeneral
+                });
+            });
+        });
     }
 
     /**
