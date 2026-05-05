@@ -10,6 +10,7 @@ import { KnowledgeService } from './knowledge.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { SessionSave, Scenario, Book, ROOT_COLLECTION_ID, ChatMessage } from '../models/types';
 import { CollectionService } from './collection.service';
+import { LastActiveBookStore } from './last-active-book-store';
 import { GAME_INTENTS } from '../constants/game-intents';
 import { getCoreFilenames, getSectionHeaders, getUIStrings } from '../constants/engine-protocol';
 import { LOCALES } from '../constants/locales';
@@ -61,12 +62,13 @@ export class SessionService {
     private kb = inject(KnowledgeService);
     private snackBar = inject(MatSnackBar);
     private collections = inject(CollectionService);
+    private lastActiveBook = inject(LastActiveBookStore);
 
     constructor() {
         // Only write — removal is handled explicitly in unloadCurrentSession()
         effect(() => {
             const id = this.currentBookId();
-            if (id) localStorage.setItem('last_active_book_id', id);
+            if (id) this.lastActiveBook.set(id);
         });
     }
 
@@ -85,7 +87,7 @@ export class SessionService {
      * Restores the last active book ID to ensure session continuity.
      */
     async init() {
-        const lastBookId = localStorage.getItem('last_active_book_id');
+        const lastBookId = this.lastActiveBook.id();
         if (lastBookId) {
             try {
                 const book = await this.storage.getBook(lastBookId);
@@ -99,12 +101,12 @@ export class SessionService {
                     return; // loadBook already restored messages
                 } else {
                     console.warn(`[SessionService] Last active book ${lastBookId} not found. Clearing.`);
-                    localStorage.removeItem('last_active_book_id');
+                    this.lastActiveBook.set(null);
                 }
             } catch (error) {
                 console.error('[SessionService] Failed to auto-load last book', error);
                 this.state.status.set('idle');
-                localStorage.removeItem('last_active_book_id');
+                this.lastActiveBook.set(null);
             }
         }
 
@@ -325,7 +327,7 @@ export class SessionService {
 
             // Cache signals are cleared by cacheManager.resetCacheState()
 
-            localStorage.removeItem('last_active_book_id');
+            this.lastActiveBook.set(null);
             this.currentBookId.set(null);
 
             console.log('[SessionService] Session unloaded successfully.');

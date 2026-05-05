@@ -3,7 +3,8 @@ import { ChatMessage } from '../models/types';
 import { CostService } from './cost.service';
 import { KnowledgeService } from './knowledge.service';
 import { LLMProviderRegistryService } from './llm-provider-registry.service';
-import { DEFAULT_PROFILE_ID } from '../constants/prompt-profiles';
+import { ActiveProfileStore } from './active-profile-store';
+import { AppConfigStore } from './app-config-store';
 import { isSystemMainCompatible, stripSystemMainMarker } from './profile-compat';
 
 /**
@@ -41,9 +42,15 @@ export class GameStateService {
     private cost = inject(CostService);
     private kb = inject(KnowledgeService);
     private providerRegistry = inject(LLMProviderRegistryService);
+    private activeProfileStore = inject(ActiveProfileStore);
+    private appConfigStore = inject(AppConfigStore);
 
     // ==================== Configuration ====================
-    config = signal<GameEngineConfig | null>(null);
+    // Derived from AppConfigStore. Kept as `state.config()` for the many
+    // existing consumers (templates, components, services); writes go
+    // through `AppConfigStore.patch()` directly so this signal stays
+    // computed-only.
+    config = computed<GameEngineConfig>(() => this.appConfigStore.snapshot());
     isConfigured = computed(() => {
         const provider = this.providerRegistry.activeProvider();
         if (!provider) return false;
@@ -114,10 +121,11 @@ export class GameStateService {
     // Flag to prevent effects from saving until after initial load
     injectionSettingsLoaded = signal(false);
 
-    // Active Prompt Profile (e.g., 'cloud', 'local')
-    activePromptProfile = signal<string>(
-        localStorage.getItem('app_active_prompt_profile') || DEFAULT_PROFILE_ID
-    );
+    // Active Prompt Profile (e.g., 'cloud', 'local'). Re-exported from the
+    // store — callers read via state.activePromptProfile() unchanged; the
+    // store's id is already readonly so writes must go through
+    // ActiveProfileStore.set() to keep persistence in lock-step.
+    activePromptProfile = this.activeProfileStore.id;
 
     // ==================== Prompt Updates ====================
     // Track status of prompt file updates: type -> { hasUpdate: boolean, serverContent: string }

@@ -6,6 +6,8 @@ import { GameStateService } from './game-state.service';
 import { LLMProviderRegistryService } from './llm-provider-registry.service';
 import { CostService } from './cost.service';
 import { KnowledgeService } from './knowledge.service';
+import { KVStore } from './kv/kv-store';
+import { InMemoryKVStore } from '../testing/in-memory-kv-store';
 import type { LLMCacheInfo, LLMProvider, LLMProviderCapabilities } from '@hcs/llm-core';
 
 interface FakeProviderOpts {
@@ -74,6 +76,7 @@ describe('CacheManagerService.checkCacheAndRefresh', () => {
                 CacheManagerService,
                 CostService,
                 KnowledgeService,
+                { provide: KVStore, useValue: new InMemoryKVStore() },
                 { provide: GameStateService, useValue: fakeState },
                 { provide: LLMProviderRegistryService, useValue: { getActive: () => null, getActiveConfig: () => ({}) } }
             ]

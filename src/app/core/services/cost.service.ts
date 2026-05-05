@@ -1,5 +1,6 @@
 import { Injectable, signal, inject } from '@angular/core';
 import { LLMProviderRegistryService } from './llm-provider-registry.service';
+import { AppConfigStore } from './app-config-store';
 import { LLMModelDefinition } from '@hcs/llm-core';
 import { ChatMessage } from '../models/types';
 
@@ -8,11 +9,15 @@ import { ChatMessage } from '../models/types';
 })
 export class CostService {
     private providerRegistry = inject(LLMProviderRegistryService);
+    private appConfig = inject(AppConfigStore);
 
     // Signals
     storageUsageAccumulated = signal<number>(0);
     cacheCountdown = signal<string | null>(null);
-    exchangeRate = signal<number>(32.5); // Default fallback
+    // Re-exported from AppConfigStore so existing callers
+    // (config.service.init() handoff after the API fetch) keep their
+    // `cost.exchangeRate()` reference.
+    readonly exchangeRate = this.appConfig.exchangeRate;
 
     // Internal state for cost calculation
     private contextState = signal<{
@@ -23,10 +28,6 @@ export class CostService {
     } | null>(null);
 
     private storageTimer: ReturnType<typeof setInterval> | null = null;
-
-    constructor() {
-        this.loadExchangeRate();
-    }
 
     /**
      * Get model definition by ID from the active provider (or search all).
@@ -211,24 +212,13 @@ export class CostService {
                 const rate = data.rates?.TWD;
                 if (rate) {
                     console.log('[CostService] FX Rate Updated:', rate);
-                    this.exchangeRate.set(rate);
-                    localStorage.setItem('app_exchange_rate', rate.toString());
+                    this.appConfig.patch({ exchangeRate: rate });
                 }
             } else {
                 console.error('[CostService] FX API error response:', response.status, response.statusText);
             }
         } catch (err) {
             console.error('[CostService] Failed to fetch exchange rate:', err);
-        }
-    }
-
-    private loadExchangeRate() {
-        const stored = localStorage.getItem('app_exchange_rate');
-        if (stored) {
-            const rate = parseFloat(stored);
-            if (!isNaN(rate)) {
-                this.exchangeRate.set(rate);
-            }
         }
     }
 }
