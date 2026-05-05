@@ -16,6 +16,7 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MessageStateService } from './message-state.service';
 import { GameEngineService } from '@app/core/services/game-engine.service';
 import { GameStateService } from '@app/core/services/game-state.service';
+import { AppConfigStore } from '@app/core/services/app-config-store';
 import { TurnUpdateComponent } from '../turn-update/turn-update.component';
 import { GAME_INTENTS } from '@app/core/constants/game-intents';
 import { getIntentLabels, getUIStrings } from '@app/core/constants/engine-protocol';
@@ -52,6 +53,7 @@ export class ChatMessageComponent {
     state = inject(MessageStateService);
     engine = inject(GameEngineService);
     gameState = inject(GameStateService);
+    private appConfig = inject(AppConfigStore);
 
     protected readonly Intents = GAME_INTENTS;
 
@@ -75,9 +77,9 @@ export class ChatMessageComponent {
     }
 
     // Localized strings
-    locale = computed(() => getLocale(this.gameState.config()?.outputLanguage));
-    intentLabels = computed(() => getIntentLabels(this.gameState.config()?.outputLanguage));
-    idealOutcomeChipPrefix = computed(() => getUIStrings(this.gameState.config()?.outputLanguage).IDEAL_OUTCOME_CHIP_PREFIX);
+    locale = computed(() => getLocale(this.appConfig.outputLanguage()));
+    intentLabels = computed(() => getIntentLabels(this.appConfig.outputLanguage()));
+    idealOutcomeChipPrefix = computed(() => getUIStrings(this.appConfig.outputLanguage()).IDEAL_OUTCOME_CHIP_PREFIX);
 
     // Prefill Metrics
     prefillSpeed = computed(() => {

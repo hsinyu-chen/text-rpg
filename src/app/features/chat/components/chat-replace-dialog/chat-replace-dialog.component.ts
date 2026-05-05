@@ -11,6 +11,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { GameStateService } from '@app/core/services/game-state.service';
+import { AppConfigStore } from '@app/core/services/app-config-store';
 import { GameEngineService } from '@app/core/services/game-engine.service';
 import { ChatHistoryService } from '@app/core/services/chat-history.service';
 import { GAME_INTENTS, GameIntent } from '@app/core/constants/game-intents';
@@ -52,6 +53,7 @@ export interface ChatMatch {
 export class ChatReplaceDialogComponent {
     state = inject(GameStateService);
     engine = inject(GameEngineService);
+    private appConfig = inject(AppConfigStore);
     history = inject(ChatHistoryService);
     lang = inject(LanguageService);
     dialogRef = inject(MatDialogRef<ChatReplaceDialogComponent>);
@@ -73,7 +75,7 @@ export class ChatReplaceDialogComponent {
 
     // Intents list (Localized)
     intents = computed(() => {
-        const labels = getIntentLabels(this.state.config()?.outputLanguage);
+        const labels = getIntentLabels(this.appConfig.outputLanguage());
         return [
             { value: 'all', label: this.lang.t('ALL') },
             { value: GAME_INTENTS.ACTION, label: labels.ACTION },

@@ -3,6 +3,7 @@ import { Clipboard } from '@angular/cdk/clipboard';
 import { firstValueFrom } from 'rxjs';
 import { GameEngineService } from '@app/core/services/game-engine.service';
 import { GameStateService } from '@app/core/services/game-state.service';
+import { AppConfigStore } from '@app/core/services/app-config-store';
 import { DialogService } from '@app/core/services/dialog.service';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -16,6 +17,7 @@ import { getInputPlaceholders } from '@app/core/constants/engine-protocol';
 export class MessageStateService {
     private engine = inject(GameEngineService);
     private gameState = inject(GameStateService);
+    private appConfig = inject(AppConfigStore);
     private dialog = inject(DialogService);
     private matDialog = inject(MatDialog);
     private snackBar = inject(MatSnackBar);
@@ -145,7 +147,7 @@ export class MessageStateService {
      * Triggers the save flow - sends a save intent message like the save button in chat-input
      */
     triggerSaveFlow() {
-        const placeholders = getInputPlaceholders(this.gameState.config()?.outputLanguage);
+        const placeholders = getInputPlaceholders(this.appConfig.outputLanguage());
         this.gameState.contextMode.set('full');
         this.engine.sendMessage(placeholders.SAVE, { intent: GAME_INTENTS.SAVE });
         this.gameState.contextMode.set('smart');
