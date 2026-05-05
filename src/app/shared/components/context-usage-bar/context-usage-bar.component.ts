@@ -25,7 +25,15 @@ import { AppConfigStore } from '@app/core/services/app-config-store';
     standalone: true,
     imports: [CommonModule, MatIconModule, MatTooltipModule],
     templateUrl: './context-usage-bar.component.html',
-    styleUrl: './context-usage-bar.component.scss'
+    styleUrl: './context-usage-bar.component.scss',
+    // Variant becomes a host class so the host element itself can `flex: 1`
+    // in compact mode (it's the flex item — the inner `.compact` div can't
+    // grow on its parent's behalf). Keeps consumers from having to apply a
+    // magic class to opt into row-fill behaviour.
+    host: {
+        '[class.variant-compact]': "variant() === 'compact'",
+        '[class.variant-full]': "variant() === 'full'"
+    }
 })
 export class ContextUsageBarComponent {
     public state = inject(GameStateService);
@@ -88,7 +96,11 @@ export class ContextUsageBarComponent {
     compactTooltip = computed(() => {
         const used = this.contextUsed();
         const size = this.contextSize();
-        if (!size) return '';
+        if (!size) {
+            // Pre-model-load (or unrecognized model id) — keep the chip
+            // discoverable via tooltip even when % can't be computed.
+            return `Context: ${used.toLocaleString()} tk (limit unknown)`;
+        }
         const pct = this.contextUsagePercent();
         return `Context: ${used.toLocaleString()} / ${size.toLocaleString()} tk (${pct.toFixed(1)}%)`;
     });

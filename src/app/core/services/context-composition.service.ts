@@ -3,6 +3,7 @@ import { LLMContent, LLMProviderCapabilities } from '@hcs/llm-core';
 
 import { GameStateService } from './game-state.service';
 import { LLMProviderRegistryService } from './llm-provider-registry.service';
+import { LLMConfigService } from './llm-config.service';
 import { AppConfigStore } from './app-config-store';
 import { ContextBuilderService, BuildContext } from './context-builder.service';
 import { stripSystemMainMarker } from './profile-compat';
@@ -14,29 +15,45 @@ import { ChatMessage } from '../models/types';
  * cached; only the dynamic input/output tail uses an empirical buffer.
  *
  * Recompute triggers (effect-driven, no callsite hooks):
- *   - `systemPromptTokens` — when `dynamicSystemMainInjection` changes
- *   - `injection*Tokens`   — when any dynamic injection / protocol signal changes
- *   - `historyTokens`      — when `messages()` changes (debounced 500ms so a
- *                             streaming chunk burst converges to one count)
+ *   - `systemPromptTokens` — when `systemInstructionCache` (which derives
+ *                             from `dynamicSystemMainInjection`) changes,
+ *                             or the active profile / provider changes
+ *   - `injection*Tokens`   — when any dynamic injection / protocol signal
+ *                             changes, or the active profile / provider
+ *                             changes (different model id ⇒ different
+ *                             tokenizer ⇒ same text, different count)
+ *   - `historyTokens`      — when `messages()` changes (debounced 500ms so
+ *                             a streaming chunk burst converges to one
+ *                             count), or the active profile / provider
+ *                             changes
  *
- * The buffer (user input + CoT thinking + output) is empirically calibrated
- * from the last model message's observed `contextTokens`; falls back to
- * 5000 (covers 2-3K CoT + user input + a normal output) for cold start
- * and any time the subtraction produces a smaller number.
+ * The buffer (next user input + CoT thinking + model output) is empirically
+ * calibrated from the last model message's `usage.candidates` — that field
+ * is the actual output tokens emitted in the previous turn (Gemini /
+ * Claude / OpenAI all roll thinking tokens into candidates), so it
+ * captures both the "thinking budget" the model used and the response
+ * length. A 5,000-token floor handles cold start (no last turn) and
+ * cached-response edge cases where last turn was abnormally cheap.
+ *
+ * Why `candidates + 256` and not `lastContextTokens − knownStatic`: that
+ * subtraction self-cancels because `knownStatic` updates reactively while
+ * `lastContextTokens` is a frozen historical number. Adding a message
+ * grows `knownStatic` and the buffer derived from subtraction shrinks by
+ * the same amount, leaving total unchanged. Using stored `candidates`
+ * directly avoids the cancellation entirely.
  */
 @Injectable({ providedIn: 'root' })
 export class ContextCompositionService {
     private state = inject(GameStateService);
     private providerRegistry = inject(LLMProviderRegistryService);
+    private configService = inject(LLMConfigService);
     private appConfig = inject(AppConfigStore);
     private contextBuilder = inject(ContextBuilderService);
 
     private static readonly BUFFER_FLOOR = 5000;
+    private static readonly USER_INPUT_CUSHION = 256;
     private static readonly HISTORY_DEBOUNCE_MS = 500;
 
-    // Signals — all start at zero; effects fill them in asynchronously after
-    // the first relevant change. Never set from a component; updated only by
-    // the recompute methods below.
     readonly systemPromptTokens = signal(0);
     readonly historyCompressedTokens = signal(0);
     readonly historyRecentTokens = signal(0);
@@ -57,50 +74,56 @@ export class ContextCompositionService {
         return this.injectionSingleTokens();
     });
 
-    // Static (countTokens'd) parts that survive across turns. Buffer is
-    // computed from `lastTotal - knownStatic` so the empirical calibration
-    // refers back to the same number that the bar already shows.
-    private readonly knownStaticTokens = computed(() =>
-        this.systemPromptTokens()
-        + this.state.estimatedKbTokens()
-        + this.historyTokens()
-        + this.effectiveInjectionTokens()
-    );
-
-    /** Last observed post-turn KV occupancy from the most recent committed model message. */
-    private readonly lastObservedTotal = computed<number>(() => {
+    /**
+     * Empirical buffer = last model message's output tokens (incl. CoT
+     * thinking) + a small fixed cushion for the next user input. Floor
+     * BUFFER_FLOOR for cold start / cached-response edge cases.
+     *
+     * In two-call mode `usage.candidates` is the SUM of resolver + narrator
+     * outputs; that's a slight over-estimate vs the actual per-call binding
+     * constraint, which is the right direction for "will I hit 400".
+     */
+    readonly bufferTokens = computed<number>(() => {
         const messages = this.state.messages();
         for (let i = messages.length - 1; i >= 0; i--) {
             const m = messages[i];
             if (m.role !== 'model' || m.isRefOnly) continue;
-            if (m.contextTokens != null) return m.contextTokens;
-            if (m.usage) return (m.usage.prompt || 0) + (m.usage.candidates || 0);
+            const candidates = m.usage?.candidates;
+            if (candidates && candidates > 0) {
+                return Math.max(
+                    ContextCompositionService.BUFFER_FLOOR,
+                    candidates + ContextCompositionService.USER_INPUT_CUSHION
+                );
+            }
         }
-        return 0;
-    });
-
-    readonly bufferTokens = computed<number>(() => {
-        const observed = this.lastObservedTotal();
-        if (observed === 0) return ContextCompositionService.BUFFER_FLOOR;
-        const derived = observed - this.knownStaticTokens();
-        return Math.max(ContextCompositionService.BUFFER_FLOOR, derived);
+        return ContextCompositionService.BUFFER_FLOOR;
     });
 
     readonly totalTokens = computed<number>(() =>
-        this.knownStaticTokens() + this.bufferTokens()
+        this.systemPromptTokens()
+        + this.state.estimatedKbTokens()
+        + this.historyTokens()
+        + this.effectiveInjectionTokens()
+        + this.bufferTokens()
     );
 
-    // History recompute is async and debounced. Track a counter so a stale
-    // in-flight count doesn't overwrite a newer one.
+    // Each async recompute is gated by a sequence number so that an older
+    // in-flight `countTokens` can't overwrite a newer one. This bites on
+    // rapid profile / engineMode toggles where the user-visible signal flips
+    // twice within one round-trip — without the guard, the older reply
+    // resolves last and pins the bar to a stale value until the next change.
     private historyDebounceHandle: ReturnType<typeof setTimeout> | null = null;
     private historyComputeSeq = 0;
+    private systemComputeSeq = 0;
+    private injectionComputeSeq = 0;
 
     constructor() {
         effect(() => {
             const sysText = stripSystemMainMarker(this.state.systemInstructionCache());
-            // Tracking activeProvider() so the count re-runs once a provider
-            // registers (otherwise the first read on app boot can hit a null
-            // provider and silently set 0).
+            // activeProfile() catches both provider swaps AND intra-provider
+            // model swaps (different modelId ⇒ different tokenizer ⇒ same
+            // text counts to a different number of tokens).
+            this.configService.activeProfile();
             this.providerRegistry.activeProvider();
             void this.recomputeSystemTokens(sysText);
         });
@@ -110,18 +133,24 @@ export class ContextCompositionService {
             const protocolR = this.state.dynamicProtocolResolverInjection();
             const protocolN = this.state.dynamicProtocolNarratorInjection();
             const protocolS = this.state.dynamicProtocolSingleInjection();
+            this.configService.activeProfile();
             this.providerRegistry.activeProvider();
             void this.recomputeInjectionTokens({ action, protocolR, protocolN, protocolS });
         });
 
         effect(() => {
-            // Read every input getLLMHistory consumes so the debounce schedules on
-            // any structural change. Streaming touches messages() per chunk;
+            // Read every input getLLMHistory consumes so the debounce schedules
+            // on any structural change. Streaming touches messages() per chunk;
             // the debounce collapses the burst so we tokenize once per stable
-            // history.
+            // history. activeProfile / activeProvider are read here (not just
+            // inside the setTimeout) so Angular's effect tracking actually
+            // sees them — reads inside the timeout callback are outside the
+            // tracking context.
             this.state.messages();
             this.appConfig.smartContextTurns();
             this.state.contextMode();
+            this.configService.activeProfile();
+            this.providerRegistry.activeProvider();
 
             if (this.historyDebounceHandle !== null) {
                 clearTimeout(this.historyDebounceHandle);
@@ -133,20 +162,6 @@ export class ContextCompositionService {
         });
     }
 
-    private async countText(text: string): Promise<number> {
-        if (!text) return 0;
-        const provider = this.providerRegistry.activeProvider();
-        if (!provider) return 0;
-        const config = this.providerRegistry.getActiveConfig();
-        const modelId = this.providerRegistry.getActiveModelId() || '';
-        try {
-            return await provider.countTokens(config, modelId, [{ role: 'user', parts: [{ text }] }]);
-        } catch (err) {
-            console.warn('[ContextComposition] countTokens(text) failed:', err);
-            return 0;
-        }
-    }
-
     private async countContents(contents: LLMContent[]): Promise<number> {
         if (contents.length === 0) return 0;
         const provider = this.providerRegistry.activeProvider();
@@ -156,19 +171,27 @@ export class ContextCompositionService {
         try {
             return await provider.countTokens(config, modelId, contents);
         } catch (err) {
-            console.warn('[ContextComposition] countTokens(contents) failed:', err);
+            console.warn('[ContextComposition] countTokens failed:', err);
             return 0;
         }
     }
 
+    private countText(text: string): Promise<number> {
+        if (!text) return Promise.resolve(0);
+        return this.countContents([{ role: 'user', parts: [{ text }] }]);
+    }
+
     private async recomputeSystemTokens(text: string): Promise<void> {
+        const seq = ++this.systemComputeSeq;
         const count = await this.countText(text);
+        if (seq !== this.systemComputeSeq) return;
         this.systemPromptTokens.set(count);
     }
 
     private async recomputeInjectionTokens(parts: {
         action: string; protocolR: string; protocolN: string; protocolS: string;
     }): Promise<void> {
+        const seq = ++this.injectionComputeSeq;
         // Resolver & single carry the action template at the user-message tail
         // alongside the matching protocol; narrator never sees the action
         // template because its input is the synthetic narrator message.
@@ -178,6 +201,7 @@ export class ContextCompositionService {
             this.countText(parts.protocolN),
             this.countText(parts.protocolS)
         ]);
+        if (seq !== this.injectionComputeSeq) return;
         this.injectionResolverTokens.set(r + a);
         this.injectionNarratorTokens.set(n);
         this.injectionSingleTokens.set(s + a);
@@ -203,17 +227,16 @@ export class ContextCompositionService {
             this.countContents(recent)
         ]);
 
-        // Drop result if a newer recompute has been queued in the meantime.
         if (seq !== this.historyComputeSeq) return;
         this.historyCompressedTokens.set(compressedCount);
         this.historyRecentTokens.set(recentCount);
     }
 
     /**
-     * Minimal BuildContext for `getLLMHistory` — that method only reads
-     * messages / contextMode / smartContextTurns (and ignores the rest for
-     * non-save context flow). Other fields are filled with safe defaults so
-     * we don't have to thread the full snapshot through.
+     * Minimal BuildContext for `getLLMHistorySegments` — that method only
+     * reads messages / contextMode / smartContextTurns. Other fields are
+     * filled with safe defaults so we don't have to thread the full snapshot
+     * through.
      */
     private buildLightContext(messages: ChatMessage[]): BuildContext {
         const provider = this.providerRegistry.activeProvider();

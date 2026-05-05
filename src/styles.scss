@@ -32,12 +32,6 @@ body {
     height: 100%;
 }
 
-*,
-*::after,
-*::before {
-    box-sizing: border-box;
-}
-
 // Override Markdown Blockquote (Disclaimer) styles to be neutral
 blockquote {
     border-left: 4px solid #555 !important;

@@ -1,16 +1,25 @@
 // Host has to declare display so the component element actually participates
-// in the parent's flex layout. Default `display: inline` would let flex:1
-// (declared on `.compact` below) silently no-op — that's the "compact bar
-// only ~140px wide instead of filling the row" bug.
+// in the parent's flex layout. Default `display: inline` would otherwise
+// collapse the host to its content size and ignore flex sizing.
 :host {
     display: block;
+    // Border + padding stay inside the declared height in the compact
+    // variant — a global `box-sizing: border-box` would have wider blast
+    // radius (other components depend on the default content-box).
+    box-sizing: border-box;
+
+    *, *::before, *::after {
+        box-sizing: border-box;
+    }
 }
 
-:host(.status-row-bar) {
+// Compact variant lives in a row-flex parent (chat-input status row); the
+// host itself must be the flex grower, not the inner `.compact` div. Set
+// flex on the host based on variant so consumers don't need to apply a
+// magic class to opt in.
+:host(.variant-compact) {
     flex: 1;
     min-width: 60px;
-    display: flex;
-    align-items: center;
 }
 
 .context-usage {
@@ -179,12 +188,14 @@
     &.compact {
         // Match the .profile-pill geometry from chat-input so it lines up
         // with the surrounding chips: 22px high, 11px radius, 1px #444 border.
+        // (The host carries `flex: 1` for fill-remaining behaviour — see
+        // `:host(.variant-compact)` above.)
+        width: 100%;
         height: 22px;
         border-radius: 11px;
         border: 1px solid #444;
         padding: 4px 6px;
         background: transparent;
-        width: 100%; // host (`:host(.status-row-bar)`) holds the flex:1; this just fills it
         display: flex;
         align-items: center;
 

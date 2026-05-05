@@ -267,7 +267,6 @@ export class ContextBuilderService {
         }
 
         // 2. Build Recent History (Standard Format)
-        // ... (llmHistory building remains mostly same, but we need to inject leftover summaries)
         const leftoverSummary = currentBlockText; // From the closure above
         let finalActHeaderInserted = actHeaderInserted;
         const llmHistory: LLMContent[] = recentMessages.map((m, idx) => {
