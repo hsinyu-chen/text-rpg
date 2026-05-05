@@ -6,6 +6,7 @@ import { StorageService } from './storage.service';
 import { getProfileBasePath, getProfileScopedKey, DEFAULT_PROFILE_ID, PromptProfile } from '../constants/prompt-profiles';
 import { PromptProfileRegistryService } from './prompt-profile-registry.service';
 import { ActiveProfileStore } from './active-profile-store';
+import { AppConfigStore } from './app-config-store';
 
 export type PromptType = 'action' | 'continue' | 'fastforward' | 'system' | 'save' | 'postprocess' | 'system_main' | 'protocol_single' | 'protocol_resolver' | 'protocol_narrator' | 'correction';
 
@@ -27,6 +28,7 @@ export class InjectionService {
     private storage = inject(StorageService);
     private registry = inject(PromptProfileRegistryService);
     private activeProfileStore = inject(ActiveProfileStore);
+    private appConfig = inject(AppConfigStore);
     private isSettingsLoading = false;
 
     private readonly ALL_TYPES = ALL_PROMPT_TYPES;
@@ -206,7 +208,7 @@ export class InjectionService {
         this.isSettingsLoading = true;
 
         try {
-            const lang = localStorage.getItem('app_output_language') || 'default';
+            const lang = this.appConfig.outputLanguage();
             const langFolder = getLangFolder(lang);
             const currentProfile = this.profileId;
             const profile = this.registry.get(currentProfile);
@@ -387,7 +389,7 @@ export class InjectionService {
         const newId = PromptProfileRegistryService.generateId();
         const now = Date.now();
 
-        const lang = this.state.config()?.outputLanguage || localStorage.getItem('app_output_language') || 'default';
+        const lang = this.appConfig.outputLanguage();
         const langFolder = getLangFolder(lang);
 
         for (const type of this.ALL_TYPES) {
@@ -470,9 +472,7 @@ export class InjectionService {
      * loader (custom IDB row → base built-in via seed-on-demand).
      */
     async getResolvedProfilePrompt(type: PromptType, profileId: string): Promise<string> {
-        const lang = this.state.config()?.outputLanguage
-            || localStorage.getItem('app_output_language')
-            || 'default';
+        const lang = this.appConfig.outputLanguage();
         const langFolder = getLangFolder(lang);
         return this.loadUserProfilePrompt(type, profileId, langFolder, lang);
     }
