@@ -64,6 +64,27 @@ export class ConfigService {
         };
     }
 
+    /**
+     * Resolve all GameEngineConfig fields that are bound to the active LLM
+     * profile, applying the same default fallbacks across init(), saveConfig(),
+     * and the profile-swap effect. Centralizing this prevents drift like the
+     * SESSION_EXPIRED bug where a profile swap left a stale modelId behind,
+     * or the previous-profile's `enableCache=true` leaking into a new profile
+     * that didn't explicitly set it.
+     */
+    private resolveProviderBoundFields() {
+        const activeProvider = this.providerRegistry.getActive();
+        const providerConfig = this.llmConfig.getActiveConfig();
+        const providerExtras = this.readProviderSettings(providerConfig);
+        return {
+            apiKey: providerConfig.apiKey || '',
+            modelId: providerConfig.modelId || activeProvider?.getDefaultModelId() || '',
+            enableCache: providerExtras.enableCache ?? (localStorage.getItem('app_enable_cache') === 'true'),
+            thinkingLevelStory: providerExtras.thinkingLevelStory ?? 'minimal',
+            thinkingLevelGeneral: providerExtras.thinkingLevelGeneral ?? 'high'
+        };
+    }
+
     constructor() {
         // ==================== Auto-save Effects ====================
 
@@ -95,29 +116,15 @@ export class ConfigService {
             untracked(() => {
                 const current = this.state.config();
                 if (!current) return; // wait for init() to seed
-                const activeProvider = this.providerRegistry.getActive();
-                const providerConfig = profile.settings;
-                const providerExtras = this.readProviderSettings(providerConfig);
-                const nextModelId = providerConfig.modelId || activeProvider?.getDefaultModelId() || '';
-                const nextApiKey = providerConfig.apiKey || '';
-                const nextEnableCache = providerExtras.enableCache ?? current.enableCache;
-                const nextStory = providerExtras.thinkingLevelStory ?? current.thinkingLevelStory;
-                const nextGeneral = providerExtras.thinkingLevelGeneral ?? current.thinkingLevelGeneral;
+                const resolved = this.resolveProviderBoundFields();
                 if (
-                    current.apiKey === nextApiKey &&
-                    current.modelId === nextModelId &&
-                    current.enableCache === nextEnableCache &&
-                    current.thinkingLevelStory === nextStory &&
-                    current.thinkingLevelGeneral === nextGeneral
+                    current.apiKey === resolved.apiKey &&
+                    current.modelId === resolved.modelId &&
+                    current.enableCache === resolved.enableCache &&
+                    current.thinkingLevelStory === resolved.thinkingLevelStory &&
+                    current.thinkingLevelGeneral === resolved.thinkingLevelGeneral
                 ) return;
-                this.state.config.set({
-                    ...current,
-                    apiKey: nextApiKey,
-                    modelId: nextModelId,
-                    enableCache: nextEnableCache,
-                    thinkingLevelStory: nextStory,
-                    thinkingLevelGeneral: nextGeneral
-                });
+                this.state.config.set({ ...current, ...resolved });
             });
         });
     }
@@ -158,17 +165,10 @@ export class ConfigService {
         // manual edit). Anything other than the known opt-in falls back to single.
         const engineMode: 'single' | 'two-call' = localStorage.getItem('app_engine_mode') === 'two-call' ? 'two-call' : 'single';
 
-        // Get Provider-Specific settings from the active provider's persisted config
-        const activeProvider = this.providerRegistry.getActive();
-        const providerConfig = this.llmConfig.getActiveConfig();
-        const providerExtras = this.readProviderSettings(providerConfig);
-
         const cfg: GameEngineConfig = {
-            apiKey: providerConfig.apiKey || '',
-            modelId: providerConfig.modelId || activeProvider?.getDefaultModelId() || '',
+            ...this.resolveProviderBoundFields(),
             fontSize,
             fontFamily,
-            enableCache: providerExtras.enableCache ?? (localStorage.getItem('app_enable_cache') === 'true'),
             exchangeRate: parseFloat(localStorage.getItem('app_exchange_rate') || localStorage.getItem('gemini_exchange_rate') || '30'),
             currency,
             enableConversion,
@@ -176,8 +176,6 @@ export class ConfigService {
             outputLanguage: localStorage.getItem('app_output_language') || localStorage.getItem('gemini_output_language') || 'default',
             idleOnBlur,
             enableAdultDeclaration,
-            thinkingLevelStory: providerExtras.thinkingLevelStory || 'minimal',
-            thinkingLevelGeneral: providerExtras.thinkingLevelGeneral || 'high',
             smartContextTurns: parseInt(localStorage.getItem('app_smart_context_turns') || localStorage.getItem('gemini_smart_context_turns') || '10', 10),
             engineMode
         };
@@ -251,18 +249,17 @@ export class ConfigService {
         if (genConfig.fontFamily !== undefined) localStorage.setItem('app_font_family', genConfig.fontFamily);
         else localStorage.removeItem('app_font_family');
 
-        // Fetch current provider state for the signal
-        const activeProvider = this.providerRegistry.getActive();
-        const providerConfig = this.llmConfig.getActiveConfig();
-        const providerExtras = this.readProviderSettings(providerConfig);
-
+        // Spread current first so partial-update callers (e.g. the chat-input's
+        // `saveConfig({ engineMode })`) don't wipe unrelated fields. enableCache
+        // is re-applied at the end because importConfig may pass it as explicit
+        // undefined, which would otherwise shadow resolved.enableCache via spread.
+        const resolved = this.resolveProviderBoundFields();
+        const current = this.state.config();
         const fullConfig: GameEngineConfig = {
-            apiKey: providerConfig.apiKey || '',
-            modelId: providerConfig.modelId || activeProvider?.getDefaultModelId() || '',
+            ...(current || {} as GameEngineConfig),
+            ...resolved,
             ...genConfig,
-            // enableCache is provider-specific and may not be in genConfig; pull from providerConfig
-            // so toggling the setting takes effect immediately instead of requiring a reload.
-            enableCache: genConfig.enableCache ?? providerExtras.enableCache ?? (localStorage.getItem('app_enable_cache') === 'true')
+            enableCache: genConfig.enableCache ?? resolved.enableCache
         };
         this.state.config.set(fullConfig);
 
