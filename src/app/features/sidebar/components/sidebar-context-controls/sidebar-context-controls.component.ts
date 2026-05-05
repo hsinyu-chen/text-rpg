@@ -9,7 +9,7 @@ import { NewGameDialogComponent } from '../new-game-dialog/new-game-dialog.compo
 import { CreateSceneDialogComponent } from '../create-scene-dialog/create-scene-dialog.component';
 
 import { GameEngineService } from '@app/core/services/game-engine.service';
-import { GameStateService, GameEngineConfig } from '@app/core/services/game-state.service';
+import { GameStateService } from '@app/core/services/game-state.service';
 import { DialogService } from '@app/core/services/dialog.service';
 import { SessionService } from '@app/core/services/session.service';
 import { FileSystemService } from '@app/core/services/file-system.service';
@@ -136,15 +136,8 @@ export class SidebarContextControlsComponent {
         if (result) {
             const turns = parseInt(result, 10);
             if (!isNaN(turns) && turns > 0) {
-                const cfg = this.state.config();
-                if (cfg) {
-                    const newConfig: GameEngineConfig = {
-                        ...cfg,
-                        smartContextTurns: turns
-                    };
-                    await this.configService.saveConfig(newConfig);
-                    this.snackBar.open(`Smart context set to ${turns} turns.`, 'OK', { duration: 3000 });
-                }
+                await this.configService.saveConfig({ smartContextTurns: turns });
+                this.snackBar.open(`Smart context set to ${turns} turns.`, 'OK', { duration: 3000 });
             } else {
                 this.snackBar.open('Invalid turn count.', 'OK', { duration: 3000 });
             }

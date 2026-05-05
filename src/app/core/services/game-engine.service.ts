@@ -63,7 +63,7 @@ export class GameEngineService {
     }
 
     /**
-     * Initializes the service by loading configuration and usage stats from localStorage.
+     * Bootstraps engine subsystems via ConfigService.
      * Call this AFTER registering LLM Providers.
      */
     public init() {
@@ -72,7 +72,7 @@ export class GameEngineService {
 
 
     /**
-     * Saves application configuration to localStorage and updates the engine state.
+     * Persists a partial app config update through ConfigService → AppConfigStore.
      * @param genConfig UI / engine settings; LLM provider config lives in the active profile.
      */
     async saveConfig(genConfig: {
