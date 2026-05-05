@@ -81,14 +81,14 @@ export class ConfigService {
         const cfg: GameEngineConfig = {
             fontSize,
             fontFamily,
-            exchangeRate: parseFloat(localStorage.getItem('app_exchange_rate') || localStorage.getItem('gemini_exchange_rate') || '30'),
+            exchangeRate: parseFloat(localStorage.getItem('app_exchange_rate') || '30'),
             currency,
             enableConversion,
             screensaverType,
-            outputLanguage: localStorage.getItem('app_output_language') || localStorage.getItem('gemini_output_language') || 'default',
+            outputLanguage: localStorage.getItem('app_output_language') || 'default',
             idleOnBlur,
             enableAdultDeclaration,
-            smartContextTurns: parseInt(localStorage.getItem('app_smart_context_turns') || localStorage.getItem('gemini_smart_context_turns') || '10', 10),
+            smartContextTurns: parseInt(localStorage.getItem('app_smart_context_turns') || '10', 10),
             engineMode
         };
 

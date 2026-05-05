@@ -413,12 +413,6 @@ export class CacheManagerService {
                 }
             }
 
-            // One-time cleanup of legacy localStorage keys
-            localStorage.removeItem('storage_cost_acc');
-            localStorage.removeItem('history_storage_cost_acc');
-            localStorage.removeItem('estimated_cost');
-            localStorage.removeItem('usage_stats');
-
             this.state.status.set('idle');
             return count;
         } catch (e) {

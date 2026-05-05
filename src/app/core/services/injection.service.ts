@@ -204,12 +204,7 @@ export class InjectionService {
         this.isSettingsLoading = true;
 
         try {
-            const savedEnabled = localStorage.getItem('enable_dynamic_injection');
-            if (savedEnabled !== null) {
-                this.state.enableDynamicInjection.set(savedEnabled === 'true');
-            }
-
-            const lang = localStorage.getItem('app_output_language') || localStorage.getItem('gemini_output_language') || 'default';
+            const lang = localStorage.getItem('app_output_language') || 'default';
             const langFolder = getLangFolder(lang);
             const currentProfile = this.profileId;
             const profile = this.registry.get(currentProfile);
@@ -391,7 +386,7 @@ export class InjectionService {
         const newId = PromptProfileRegistryService.generateId();
         const now = Date.now();
 
-        const lang = this.state.config()?.outputLanguage || localStorage.getItem('app_output_language') || localStorage.getItem('gemini_output_language') || 'default';
+        const lang = this.state.config()?.outputLanguage || localStorage.getItem('app_output_language') || 'default';
         const langFolder = getLangFolder(lang);
 
         for (const type of this.ALL_TYPES) {
@@ -476,7 +471,6 @@ export class InjectionService {
     async getResolvedProfilePrompt(type: PromptType, profileId: string): Promise<string> {
         const lang = this.state.config()?.outputLanguage
             || localStorage.getItem('app_output_language')
-            || localStorage.getItem('gemini_output_language')
             || 'default';
         const langFolder = getLangFolder(lang);
         return this.loadUserProfilePrompt(type, profileId, langFolder, lang);

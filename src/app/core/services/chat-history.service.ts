@@ -181,12 +181,6 @@ export class ChatHistoryService {
         this.state.historyStorageUsageAccumulated.set(0);
         this.state.sunkUsageHistory.set([]);
 
-        // One-time cleanup of legacy keys
-        localStorage.removeItem('usage_stats');
-        localStorage.removeItem('storage_cost_acc');
-        localStorage.removeItem('history_storage_cost_acc');
-        localStorage.removeItem('sunk_usage_history');
-
         await this.storage.delete('chat_history');
         await this.storage.delete('sunk_usage_history');
         this.state.status.set('idle');

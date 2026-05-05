@@ -7,9 +7,10 @@ import { WINDOW } from '../tokens/window.token';
 const SNAPSHOT_VERSION = 1;
 
 // Exact keys and prefixes that represent portable user settings.
-// Active provider selection + common app config + each LLM provider's config.
-const SYNC_EXACT_KEYS: ReadonlySet<string> = new Set(['llm_provider']);
-const SYNC_PREFIXES: readonly string[] = ['app_', 'gemini_', 'llama_', 'openai_'];
+// Common app config only — LLM provider config now lives in IndexedDB profiles
+// owned by LLMConfigService and is synced through its own backend.
+const SYNC_EXACT_KEYS: ReadonlySet<string> = new Set();
+const SYNC_PREFIXES: readonly string[] = ['app_'];
 
 // Explicit deny list — keys that match prefixes above but must not be synced
 // (e.g. volatile runtime/session state or device-specific caches).
