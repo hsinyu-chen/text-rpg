@@ -140,7 +140,7 @@ export class FileUpdateService {
         const names = getCoreFilenames(lang);
         // Strip tags and internal headers from story content
         const cleanedContent = storyContent
-            .replace(/^<CREATIVE FICTION CONTEXT>\s*/i, '')
+            .replace(/^(\[[^\]]*\]\s*)?<CREATIVE FICTION CONTEXT>\s*/i, '$1')
             .replace(/<possible save point>/gi, '')
             .trim();
         return {

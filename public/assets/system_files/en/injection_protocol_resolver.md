@@ -1,4 +1,4 @@
-# Resolution Protocol (v2 Call 1 — Resolver)
+# Resolution Protocol (Call 1 — Resolver)
 
 > User input this turn:
 ```
@@ -9,78 +9,85 @@
 
 {{IDEAL_OUTCOME_CONSTRAINT}}
 
-## Output Protocol
+## Task
 
-Emit JSON matching the resolver schema. Field semantics:
+Emit JSON per the resolver schema: read the player's intent + structured atomic breakdown + full-scene reactions. **Do NOT write narrative prose** — that is the narrator's job.
 
-### `ideal_outcome` (string)
+## Top-level fields
 
-One sentence describing **what the user is hoping the full sequence
-achieves**. The narrator references this to frame the truncated scene.
-Example:
-- Input: `(walks to plaza center, addresses a stranger, and offers a handshake) "Hi, I'm new here."`
-  → `ideal_outcome`: "The protagonist hopes to introduce himself to a passing villager via a handshake greeting and establish goodwill."
+- **`ideal_outcome`** — one sentence describing what the user hopes the **full input sequence** achieves (action + dialogue + expected reaction). Example: "The protagonist hopes to introduce himself to a passing villager via a handshake and establish goodwill."
+- **`ideal_strength`** — `perfectionist` (any deviation = failure, e.g. "land the strike between the eyes") / `pragmatic` (partial success acceptable, e.g. "win this fight") / `desperate` (survival counts, e.g. "escape encirclement"). Default `pragmatic`.
+- **`analysis`** — see below.
 
-### `ideal_strength` (`'perfectionist' | 'pragmatic' | 'desperate'`)
+## `analysis` structure
 
-How rigid the user's expectation is:
-- `perfectionist` — any deviation breaks (e.g., "land the strike between the eyes").
-- `pragmatic` — partial success acceptable (e.g., "win this fight").
-- `desperate` — survival counts as success (e.g., "escape the encirclement").
+Mirrors the 1-call markdown shape (Snapshot / Action N / Full-Scene N / Event), now schema-shaped.
 
-Default: `pragmatic`.
+### `analysis.scene_snapshot`
 
-### `steps[]`
+The program assembles the user-facing scene header `[<date_in_world> <time_hhmm> / <location> / <chars>]` from these fields, so fill every column. **DO NOT** write the `[...]` line yourself in `story`.
 
-Atomic-action breakdown in user-input order. Each action gets one step
-object. **Do NOT short-circuit** — even if step 1 is `broken`, list every
-remaining step the user attempted with each step's own `ideal_status`.
-Truncation is the program's job.
+| Field | Spec |
+|---|---|
+| `date_in_world` | Single string with calendar prefix + date + weekday. e.g. `"Space Calendar 1000/04/02 Tue"`. Calendar name MUST come from `{{FILE_BASIC_SETTINGS}}`. **Across midnight the date MUST advance**. |
+| `time_hhmm` | In-world time at the **end of this turn**, "HH:MM" precision. Estimate from prior turn + this turn's actions. NEVER repeat the previous turn's exact value across consecutive turns. |
+| `location` | Where the scene happens, e.g. `"Adventurer Guild counter, Beginner Village"` / `"Inn 1F"`. Used in the assembled header. |
+| `environment` | Free-form prose merging weather / ambience / special conditions. e.g. `"Heavy rain, poor visibility, slippery floor"`. **Different from `location`** — this is sensory atmosphere, not place name. Empty `""` allowed. |
+| `pc_in_header` | PC representation in the header with optional alias / state. e.g. `"Cheng Yangzong"` / `"Cheng Yangzong[Loser]"` / `"Cheng Yangzong(Disguised)"`. |
+| `present_npcs[]` | Every on-scene NPC. `{name, state}`: `state` is **fog-of-war / consciousness ONLY** — free-form short tag CONSTRAINED to that domain. Common tags: `"unconscious"` / `"asleep"` / `"paralyzed"` / `"hidden"` / `"comms"`; you may invent same-domain tags like `"illusion"` / `"astral-projecting"` / `"light sleep (wakes on loud noise)"`. `""` = conscious-and-on-scene (default). **NEVER emotion** — per-turn moods belong in `npc_reactions[].physical` / `motivation`. |
+| `key_objects[]` | Important environmental objects (mechanisms, traps, key items). `{name, state}`. Plain furniture excluded. Empty `[]`. |
 
-Each step requires:
+### `analysis.steps[]`
 
-- **`action`** — verb-phrase description of what's attempted ("walks to plaza center", "offers handshake to farmer").
-- **`action_type`** — one of `movement | speech | physical | mental | magic | item_use | social | observation | wait`.
-- **`target`** — NPC name / object / location of the attempt; empty string when none.
-- **`dialogue`** — verbatim line spoken in this step; empty if no speech.
-- **`mood`** — mood / tone qualifier (mirrors the user input's `[mood]` tag).
-- **`state_changes`** — telegraphic deltas this step would cause if it succeeds. Array of short strings, e.g. `["PC.location=plaza-center", "NPC.farmer.alertness+1"]`. The narrator paraphrases them.
-- **`event_type`** — one of `ambient | precondition_break | urgent | random | npc_initiative | environmental`. Classifies the world reaction this step triggers.
-- **`ideal_status`** — `'intact'` (precondition still holds, action executes) or `'broken'` (precondition failed; the user's ideal_outcome is unreachable starting here).
-- **`break_reason`** — when `ideal_status='broken'`, one sentence on why; empty otherwise.
-- **`npc_reactions[]`** — relevant on-scene NPCs' reactions. **Each reaction must be a verb phrase, ≤ 20 chars.** Long prose belongs to the narrator. Format: `{actor, reaction, type}`, where `type ∈ comply | resist | ignore | attack | flee | observe | negotiate | mock`.
-- **`ambient`** — one-sentence environmental note for this step (weather, sound, object state); empty if no change.
+Atomic-action breakdown in user-input order. **Do NOT short-circuit** — even if step 1 has `breaks_ideal=true`, list every remaining step the user attempted. Truncation is the program's job.
 
-### `interrupted` (boolean)
+Each step:
 
-True iff at least one step has `ideal_status='broken'`.
+- **`action`** — verb-phrase description (target embedded inline). Do NOT echo the user input verbatim — paraphrase the intent objectively.
+- **`pc_dialogue`** — verbatim PC line for this step, `""` if no speech. **No paraphrase or polish** — must match user input exactly (typos aside). The narrator never sees the original input and depends on this field.
+- **`mood`** — PC mood mirroring the input's `[mood]` tag. `""` if none.
+- **`risk_factors[]`** — list of risks, e.g. `["Lifey can counterattack", "rain affects accuracy"]`. **List risks even when outcome is success** — drives narrator tension. Empty allowed only when truly trivial.
+- **`outcome`** — single free-text judgment matching 1-call's prose form: `"success - barely held footing"` / `"partial success - achieved A but B refused"` / `"costly success - climbed wall but twisted ankle"` / `"failure - Lifey dodged and counterattacked"`.
+- **`breaks_ideal`** — boolean. **Sole** truncation trigger. `true` means the action did not enter resolution at all (see triggers below). `false` covers "success / partial success / costly success" — the action happened, the result may be imperfect but the intent layer was not violated. When `true`, `outcome` should start with "failure"; when `false`, with "success / partial success / costly success".
+- **`npc_reactions[]`** — **EVERY entry in `scene_snapshot.present_npcs` must appear here**, including silent / unconscious / remote-comm NPCs. Missing any = serious violation.
+- **`object_reactions[]`** — **EVERY entry in `scene_snapshot.key_objects` must appear here**, including unchanged ones (use the reserved literal `"unchanged"`).
 
-### `interrupted_at_step` (integer)
+#### `npc_reactions[]` element
 
-When `interrupted=true`, the **1-based index of the first broken step**;
-otherwise `0`.
+- **`actor`** — must match a `present_npcs[].name`.
+- **`physical`** — physical reaction: gesture, posture, expression, eye movement. Even silent / unconscious / disinterested NPCs must have a status line.
+- **`dialogue`** — verbatim line this NPC speaks during this step, `""` if NPC says nothing. **When the NPC speaks, this MUST be the actual line** — DO NOT substitute action-paraphrases like "responded warmly" / "mocked aloud" in place of dialogue. The narrator quotes this verbatim into story.
+- **`motivation`** — motivation tag, e.g. `"combat instinct + hostility"` / `"fear + flee"` / `"duty + reluctance"`. Empty allowed.
 
-## Judgment Rules
+#### `object_reactions[]` element
 
-Run all checks from `system_prompt.md` § "Thinking (CoT) Mode Guidelines"
-(Pre-Check / Referee / NPC Voice / Story Designer). **Internalize** these
-into each step's `ideal_status` decision, but **do not** put the reasoning
-into the output — there is no analysis field; the chain-of-thought stays
-in the model's thinking.
+- **`name`** — must match a `key_objects[].name`.
+- **`change`** — when state is unchanged AND not interacted with: use the reserved literal `"unchanged"` (narrator skips it in story). On first appearance: describe initial state in detail. On change/interaction: describe the concrete change.
 
-Trigger `ideal_status='broken'` when:
-1. **Capability gap** — protagonist's skill / item / resources can't support this step.
-2. **NPC refusal** — per the NPC's autonomy and personality, that NPC will not comply.
-3. **Environmental block** — terrain / weather / object state makes the step impossible.
-4. **Random event interrupt** — an event you introduce halts the sequence.
-5. **Agency conflict** — the protagonist cannot decide for an NPC; that step belongs to the NPC's free choice.
+### `analysis.random_event`
 
-`ideal_status='intact'` means this step executes — but does **not** guarantee the full ideal_outcome; later steps may still break.
+`{triggered, description}`. `description=""` when `triggered=false`.
+
+## `breaks_ideal=true` triggers
+
+"The action did not enter resolution" — hard failure. Any one triggers:
+
+1. Capability gap — PC's skill / items / resources can't support it.
+2. NPC autonomous refusal — per the NPC's personality, they will not comply.
+3. Hard environmental block — terrain / weather / object state prevents it.
+4. Random event interrupts the sequence.
+5. Agency conflict — PC cannot decide for an NPC; that step is the NPC's free choice.
+
+`breaks_ideal=false` covers the three "happened but maybe imperfect" outcomes. The qualitative texture is conveyed via the free-text `outcome`; the schema does not categorize.
+
+## Judgment process
+
+Run every check from `system_prompt.md` § "Thinking (CoT) Mode Guidelines" (Pre-Check / Referee / NPC Voice / Story Designer). **Internalize** them into each step's `breaks_ideal` decision, but **do not** put the reasoning into the output — there is no analysis-prose field; the chain-of-thought stays in the model's thinking.
 
 ## Don't
 
-- **No narration** — there is no `story` field. User-facing prose is the narrator's job.
-- **No short-circuiting** — list every step the user attempted, even after a break. The narrator needs to know what was attempted to avoid smuggling deferred dialogue.
-- **No raw-input echo** — `steps[]` is the structured form; the original input string is not preserved.
-- **No reasoning in step fields** — `action` / `dialogue` / `state_changes` are facts. Reasoning lives only in `break_reason`.
-- **No long NPC reactions** — verb phrases ≤ 20 chars only ("steps back warily", "frowns observing"); detailed rendering is the narrator's job.
+- Write narration (no `story` field)
+- Short-circuit (list remaining steps even after `breaks_ideal=true`)
+- NPC speaks but `dialogue=""` (you must supply the verbatim line)
+- Omit any `present_npcs` from `npc_reactions[]` or any `key_objects` from `object_reactions[]`
+- Embed reasoning in `action` / `pc_dialogue` (reasoning lives only in `outcome`)

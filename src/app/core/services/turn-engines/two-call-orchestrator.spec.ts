@@ -12,10 +12,37 @@ import { KnowledgeService } from '../knowledge.service';
 import { CostService } from '../cost.service';
 import { PostProcessorService } from '../post-processor.service';
 import { MockLLMProvider } from '@app/core/testing/mock-llm-provider';
-import type { ResolverOutput } from '@app/core/constants/engine-protocol-two-call';
+import type {
+    AnalysisStep,
+    ResolverResponse,
+    StructuredAnalysis
+} from '@app/core/constants/engine-protocol-structured';
 import type { ChatMessage } from '@app/core/models/types';
 
-function resolverJson(payload: ResolverOutput): string {
+function step(overrides: Partial<AnalysisStep> = {}): AnalysisStep {
+    return {
+        action: 'walk',
+        pc_dialogue: '',
+        mood: '',
+        risk_factors: [],
+        outcome: '成功',
+        breaks_ideal: false,
+        npc_reactions: [],
+        object_reactions: [],
+        ...overrides
+    };
+}
+
+function analysis(overrides: Partial<StructuredAnalysis> = {}): StructuredAnalysis {
+    return {
+        scene_snapshot: { time_hhmm: '12:00', environment: '', present_npcs: [], key_objects: [] },
+        steps: [],
+        random_event: { triggered: false, description: '' },
+        ...overrides
+    };
+}
+
+function resolverJson(payload: ResolverResponse): string {
     return JSON.stringify(payload);
 }
 
@@ -38,9 +65,6 @@ describe('two-call orchestrator integration', () => {
         mockProvider = new MockLLMProvider();
         messages = [];
 
-        // Only LanguageService + PostProcessorService still pull off
-        // GameStateService — locale + post-process script lookups. Everything
-        // else (ContextBuilder, orchestrator, engine) takes BuildContext now.
         const fakeState: Partial<GameStateService> = {
             config: signal({ outputLanguage: 'default' }),
             postProcessScript: signal('')
@@ -116,11 +140,7 @@ describe('two-call orchestrator integration', () => {
         mockProvider.enqueueJsonStream(resolverJson({
             ideal_outcome: 'reach plaza',
             ideal_strength: 'pragmatic',
-            steps: [
-                { action: 'walk', action_type: 'movement', target: '', dialogue: '', mood: 'calm', state_changes: [], event_type: 'ambient', ideal_status: 'intact', break_reason: '', npc_reactions: [], ambient: '' }
-            ],
-            interrupted: false,
-            interrupted_at_step: 0
+            analysis: analysis({ steps: [step({ action: 'walk' })] })
         }));
         mockProvider.enqueueJsonStream(narratorJson('She walked forward.'));
 
@@ -145,13 +165,13 @@ describe('two-call orchestrator integration', () => {
         mockProvider.enqueueJsonStream(resolverJson({
             ideal_outcome: 'shake hands then chat',
             ideal_strength: 'pragmatic',
-            steps: [
-                { action: 'walk to farmer', action_type: 'movement', target: 'farmer', dialogue: '', mood: 'calm', state_changes: [], event_type: 'ambient', ideal_status: 'intact', break_reason: '', npc_reactions: [], ambient: '' },
-                { action: 'reach for handshake', action_type: 'physical', target: 'farmer', dialogue: '', mood: 'friendly', state_changes: [], event_type: 'precondition_break', ideal_status: 'broken', break_reason: 'farmer stepped back', npc_reactions: [], ambient: '' },
-                { action: 'speak greeting', action_type: 'speech', target: 'farmer', dialogue: 'TRUNCATED-LINE-DO-NOT-LEAK', mood: 'friendly', state_changes: [], event_type: 'ambient', ideal_status: 'intact', break_reason: '', npc_reactions: [], ambient: '' }
-            ],
-            interrupted: true,
-            interrupted_at_step: 2
+            analysis: analysis({
+                steps: [
+                    step({ action: 'walk to farmer' }),
+                    step({ action: 'reach for handshake', breaks_ideal: true, outcome: '失敗 - farmer stepped back' }),
+                    step({ action: 'speak greeting', pc_dialogue: 'TRUNCATED-LINE-DO-NOT-LEAK' })
+                ]
+            })
         }));
         mockProvider.enqueueJsonStream(narratorJson('Farmer stepped back.'));
 
@@ -161,9 +181,9 @@ describe('two-call orchestrator integration', () => {
         const narratorCall = mockProvider.calls[1];
         const narratorText = narratorCall.contents[narratorCall.contents.length - 1].parts[0].text!;
 
-        // The truncated dialogue must not survive into the narrator input.
+        // The truncated step's PC dialogue must not survive into the narrator input.
         expect(narratorText).not.toContain('TRUNCATED-LINE-DO-NOT-LEAK');
-        // The break_reason from the broken step DOES propagate.
+        // The breaking step's outcome DOES propagate (it's the last step in truncated_analysis).
         expect(narratorText).toContain('farmer stepped back');
         expect(narratorText).toContain('"interrupted": true');
     });
@@ -173,11 +193,7 @@ describe('two-call orchestrator integration', () => {
         mockProvider.enqueueJsonStream(resolverJson({
             ideal_outcome: 'cast fireball',
             ideal_strength: 'desperate',
-            steps: [
-                { action: 'cast', action_type: 'magic', target: 'goblin', dialogue: '', mood: 'tense', state_changes: [], event_type: 'precondition_break', ideal_status: 'broken', break_reason: 'no mana', npc_reactions: [], ambient: '' }
-            ],
-            interrupted: true,
-            interrupted_at_step: 1
+            analysis: analysis({ steps: [step({ action: 'cast', breaks_ideal: true, outcome: '失敗 - no mana' })] })
         }));
         mockProvider.enqueueJsonStream(narratorJson('No mana.'));
 
@@ -188,17 +204,15 @@ describe('two-call orchestrator integration', () => {
         expect(narratorText).toContain('no mana');
     });
 
-    it('recomputes interrupted from the steps array, ignoring the model-reported flag', async () => {
+    it('derives interrupted from breaks_ideal, not from any model-supplied flag', async () => {
         pushUser('do thing');
-        // Model claims interrupted=false, but step 1 is actually broken.
+        // Note: the new schema has no `interrupted` at the resolver level — the program
+        // computes it. This test confirms a single broken step produces interrupted=true
+        // in the narrator input regardless of any side-channel flag.
         mockProvider.enqueueJsonStream(resolverJson({
             ideal_outcome: 'X',
             ideal_strength: 'pragmatic',
-            steps: [
-                { action: 'a', action_type: 'movement', target: '', dialogue: '', mood: '', state_changes: [], event_type: 'ambient', ideal_status: 'broken', break_reason: 'reason from broken step', npc_reactions: [], ambient: '' }
-            ],
-            interrupted: false,
-            interrupted_at_step: 0
+            analysis: analysis({ steps: [step({ action: 'a', breaks_ideal: true, outcome: '失敗 - reason from broken step' })] })
         }));
         mockProvider.enqueueJsonStream(narratorJson('s'));
 
@@ -213,7 +227,7 @@ describe('two-call orchestrator integration', () => {
     it('uses the resolver schema on call 1 and the narrator schema on call 2', async () => {
         pushUser('x');
         mockProvider.enqueueJsonStream(resolverJson({
-            ideal_outcome: '', ideal_strength: 'pragmatic', steps: [], interrupted: false, interrupted_at_step: 0
+            ideal_outcome: '', ideal_strength: 'pragmatic', analysis: analysis()
         }));
         mockProvider.enqueueJsonStream(narratorJson('s'));
 
@@ -222,9 +236,9 @@ describe('two-call orchestrator integration', () => {
 
         const resolverSchema = mockProvider.calls[0].genConfig.responseSchema as { properties?: Record<string, unknown> };
         const narratorSchema = mockProvider.calls[1].genConfig.responseSchema as { properties?: Record<string, unknown> };
-        expect(Object.keys(resolverSchema.properties ?? {})).toContain('steps');
+        expect(Object.keys(resolverSchema.properties ?? {})).toContain('analysis');
         expect(Object.keys(narratorSchema.properties ?? {})).toContain('story');
-        expect(Object.keys(narratorSchema.properties ?? {})).not.toContain('steps');
+        expect(Object.keys(narratorSchema.properties ?? {})).not.toContain('analysis');
     });
 
     it('injects {{IDEAL_OUTCOME_CONSTRAINT}} into the resolver call when the latest user msg supplied userIdealOutcome', async () => {
@@ -233,11 +247,7 @@ describe('two-call orchestrator integration', () => {
         mockProvider.enqueueJsonStream(resolverJson({
             ideal_outcome: 'reach the plaza unseen',
             ideal_strength: 'pragmatic',
-            steps: [
-                { action: 'walk', action_type: 'movement', target: '', dialogue: '', mood: 'calm', state_changes: [], event_type: 'ambient', ideal_status: 'intact', break_reason: '', npc_reactions: [], ambient: '' }
-            ],
-            interrupted: false,
-            interrupted_at_step: 0
+            analysis: analysis({ steps: [step({ action: 'walk' })] })
         }));
         mockProvider.enqueueJsonStream(narratorJson('Walked.'));
 
@@ -248,9 +258,7 @@ describe('two-call orchestrator integration', () => {
 
         const resolverCall = mockProvider.calls[0];
         const resolverTail = resolverCall.contents[resolverCall.contents.length - 1].parts[0].text!;
-        // The constraint paragraph (with the user-supplied text echoed) must reach the resolver.
         expect(resolverTail).toContain('reach the plaza unseen');
-        // Slot was substituted, not left as a literal placeholder.
         expect(resolverTail).not.toContain('{{IDEAL_OUTCOME_CONSTRAINT}}');
     });
 
@@ -258,7 +266,7 @@ describe('two-call orchestrator integration', () => {
         pushUser('walk forward');
 
         mockProvider.enqueueJsonStream(resolverJson({
-            ideal_outcome: '', ideal_strength: 'pragmatic', steps: [], interrupted: false, interrupted_at_step: 0
+            ideal_outcome: '', ideal_strength: 'pragmatic', analysis: analysis()
         }));
         mockProvider.enqueueJsonStream(narratorJson('s'));
 
@@ -269,7 +277,6 @@ describe('two-call orchestrator integration', () => {
 
         const resolverTail = mockProvider.calls[0].contents[mockProvider.calls[0].contents.length - 1].parts[0].text!;
         expect(resolverTail).not.toContain('{{IDEAL_OUTCOME_CONSTRAINT}}');
-        // No constraint heading is injected.
         expect(resolverTail).not.toContain('User-declared ideal_outcome');
         expect(resolverTail).not.toContain('使用者聲明的 ideal_outcome');
     });
@@ -277,7 +284,7 @@ describe('two-call orchestrator integration', () => {
     it('reports narrator-only contextTokens so the sidebar bar reflects post-turn cache occupancy, not the cost-billable sum', async () => {
         pushUser('go');
         mockProvider.enqueueJsonStream(
-            resolverJson({ ideal_outcome: '', ideal_strength: 'pragmatic', steps: [], interrupted: false, interrupted_at_step: 0 }),
+            resolverJson({ ideal_outcome: '', ideal_strength: 'pragmatic', analysis: analysis() }),
             { usage: { prompt: 100, candidates: 30, cached: 50 } }
         );
         mockProvider.enqueueJsonStream(narratorJson('s'),
@@ -287,9 +294,6 @@ describe('two-call orchestrator integration', () => {
         const engine = getEngine();
         const result = await engine.runTurn(runtime('go'));
 
-        // turnUsage.prompt (300) + candidates (70) = 370 — the cost-billable sum.
-        // contextTokens must be the narrator-only view (200 + 40 = 240) so the
-        // sidebar context bar doesn't double-count both calls.
         expect(result.contextTokens).toBe(240);
         expect(result.turnUsage.prompt).toBe(300);
     });
@@ -297,7 +301,7 @@ describe('two-call orchestrator integration', () => {
     it('combines usage metadata from both calls', async () => {
         pushUser('y');
         mockProvider.enqueueJsonStream(
-            resolverJson({ ideal_outcome: '', ideal_strength: 'pragmatic', steps: [], interrupted: false, interrupted_at_step: 0 }),
+            resolverJson({ ideal_outcome: '', ideal_strength: 'pragmatic', analysis: analysis() }),
             { usage: { prompt: 100, candidates: 30, cached: 50 } }
         );
         mockProvider.enqueueJsonStream(narratorJson('s'),

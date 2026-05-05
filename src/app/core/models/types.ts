@@ -2,19 +2,6 @@ import { LLMPart, LLMUsageMetadata } from '@hcs/llm-core';
 
 export type Schema = object;
 
-export interface EngineResponseNested {
-    analysis: string;
-    response: {
-        story: string;
-        summary: string;
-        character_log?: string[];
-        inventory_log?: string[];
-        quest_log?: string[];
-        world_log?: string[];
-        correction?: string;
-    };
-}
-
 export type ExtendedPart = LLMPart;
 
 export interface ThoughtPart {
