@@ -64,6 +64,16 @@ Strictly follow these JSON field definitions. **Flat top-level shape**: `{ analy
 
   **Binary objectives**: when a step's core success condition is described in all-or-nothing / negation form (any violation = failure, no continuum), it is a binary objective — **no partial middle ground**. Once the core condition is broken → `breaks_ideal=true`, subsequent steps are truncated. The action's "process / positioning" may succeed while the binary core fails; that is still **failure**, **do NOT** downgrade to partial.
 
+  **Binary patterns**:
+
+  When a step's description contains the following keyword types, apply the binary rule:
+  - "undetected / unnoticed / unseen / unheard by anyone", "without drawing attention" → ANY NPC's `npc_reactions[].physical` showing gaze-tracking, head-turn, paused activity, or any catching-reaction → binary failure → `breaks_ideal=true`
+  - "remain silent / soundless" → any NPC reacts to sound → failure
+  - "leave no trace" → any `object_reactions[].change` is non-"unchanged" → failure
+  - "impersonate / not be exposed" → any NPC shows doubt or sees through → failure
+
+  **Common misjudgment correction**: classifying "action sequence completed but binary condition was broken by a bystander" as partial success is **wrong** — "moved into target position but glimpsed" is **complete failure** for a stealth step, not partial. Binary conditions have no middle ground.
+
   **Anti DM-pleasing bias**: your job is impartial referee, not to please the user. **Do NOT** downgrade `breaks_ideal=true` to partial success — or judge a no-skill / no-item attempt as "success" — for any of these meta-reasons: "users don't like being told they can't", "first attempts deserve a chance", "the action is creative and should be rewarded", "interpretable as innate intuition / system ability". Capabilities not granted by the knowledge base (`{{FILE_BASIC_SETTINGS}}` etc.) **do not exist**.
 
   **Core principle**: every `breaks_ideal` decision MUST map to one of the five triggers — never by gut feel. The wording of `outcome` must reflect judgment intensity; `breaks_ideal=false` is NOT the same as "uncosted success".
