@@ -11,7 +11,7 @@
 | `ideal_outcome` | 一句話寫使用者本回合想達成什麼。 |
 | `ideal_strength` | `perfectionist` / `pragmatic` / `desperate`。影響張力處理：完美主義者面對部分成功要寫出落差；務實者寫出滿足；絕望者寫出「至少活下來」的味道。 |
 | `interrupted` | 是否有步驟被截斷。`true` ⇒ `analysis.steps` 最後一筆是 `breaks_ideal=true` 的破壞點。 |
-| `analysis` | 已截斷的結構化分析（`scene_snapshot` + `steps[]` + `random_event`）。 |
+| `analysis` | 已截斷的結構化分析（`scene_snapshot` + `steps[]`）。`steps[]` 元素的 `kind` 為 `"user_intent"` 或 `"random_event"`，兩種以相同方式敘述。 |
 | `correction`（選填） | 歷史劇情修正規則，必須遵守。 |
 
 ## 輸出（依 narrator schema）
@@ -39,7 +39,7 @@
 5. **`object_reactions[]` 處理**：
    - `change == "無變化"` ⇒ 不寫進 story
    - 首次登場或實際變化 ⇒ 寫進場景描寫
-6. **`analysis.random_event.triggered == true`** ⇒ 將事件融入正文當下節奏，不另起標題。
+6. **`kind: "random_event"` 步驟** ⇒ 與 user_intent 步驟相同方式敘述，依其在 `steps[]` 中的時序位置融入正文，不另起標題。
 7. **`scene_snapshot.environment`** ⇒ 在正文開頭或步驟間自然滲入；不要列點羅列。
 
 ### `interrupted=true` 處理

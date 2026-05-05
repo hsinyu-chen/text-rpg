@@ -10,6 +10,7 @@ import {
 
 function step(overrides: Partial<AnalysisStep> = {}): AnalysisStep {
     return {
+        kind: 'user_intent',
         action: 'walk',
         pc_dialogue: '',
         mood: '',
@@ -33,8 +34,7 @@ function analysis(steps: AnalysisStep[]): StructuredAnalysis {
             present_npcs: [],
             key_objects: []
         },
-        steps,
-        random_event: { triggered: false, description: '' }
+        steps
     };
 }
 
@@ -113,7 +113,7 @@ describe('truncateAtBreak', () => {
         expect(a.steps).toHaveLength(before);
     });
 
-    it('preserves scene_snapshot and random_event', () => {
+    it('preserves scene_snapshot', () => {
         const a: StructuredAnalysis = {
             scene_snapshot: {
                 date_in_world: '聖曆 1000年04月02日 週二',
@@ -124,33 +124,44 @@ describe('truncateAtBreak', () => {
                 present_npcs: [{ name: '梨菲', state: '匿蹤' }],
                 key_objects: []
             },
-            steps: [step({ action: 'a', breaks_ideal: true }), step({ action: 'b' })],
-            random_event: { triggered: true, description: '雷劈' }
+            steps: [step({ action: 'a', breaks_ideal: true }), step({ action: 'b' })]
         };
         const result = truncateAtBreak(a);
         expect(result.scene_snapshot).toEqual(a.scene_snapshot);
-        expect(result.random_event).toEqual(a.random_event);
+    });
+
+    it('treats a random_event step the same as user_intent for truncation', () => {
+        const a = analysis([
+            step({ kind: 'user_intent', action: 'a' }),
+            step({ kind: 'random_event', action: 'NPC C bursts in', breaks_ideal: true, outcome: '失敗 - 路徑被截斷' }),
+            step({ kind: 'user_intent', action: 'c (would-be next)' })
+        ]);
+        const result = truncateAtBreak(a);
+        expect(result.steps).toHaveLength(2);
+        expect(result.steps[1].kind).toBe('random_event');
     });
 });
 
 describe('structuredAnalysisSchema', () => {
     it('declares all required top-level fields', () => {
         const schema = structuredAnalysisSchema as { required?: string[] };
-        expect(schema.required).toEqual(expect.arrayContaining(['scene_snapshot', 'steps', 'random_event']));
+        expect(schema.required).toEqual(expect.arrayContaining(['scene_snapshot', 'steps']));
+        expect(schema.required).not.toContain('random_event');
     });
 
-    it('step schema requires breaks_ideal as boolean and lists scene reactions as required', () => {
+    it('step schema requires kind + breaks_ideal as boolean and lists scene reactions as required', () => {
         const schema = structuredAnalysisSchema as {
             properties: {
-                steps: { items: { required?: string[]; properties: Record<string, { type?: string }> } };
+                steps: { items: { required?: string[]; properties: Record<string, { type?: string; enum?: string[] }> } };
             };
         };
         const stepReq = schema.properties.steps.items.required ?? [];
         expect(stepReq).toEqual(expect.arrayContaining([
-            'action', 'pc_dialogue', 'mood', 'risk_factors', 'outcome', 'breaks_ideal',
+            'kind', 'action', 'pc_dialogue', 'mood', 'risk_factors', 'outcome', 'breaks_ideal',
             'npc_reactions', 'object_reactions'
         ]));
         expect(schema.properties.steps.items.properties['breaks_ideal'].type).toBe('boolean');
+        expect(schema.properties.steps.items.properties['kind'].enum).toEqual(['user_intent', 'random_event']);
     });
 
     it('npc_reaction schema includes a verbatim dialogue field (the bug-fix this redesign targets)', () => {

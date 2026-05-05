@@ -9,13 +9,16 @@ import { Schema } from '../models/types';
  * - 2-call: resolver emits StructuredAnalysis (wrapped with ideal_outcome /
  *   ideal_strength); narrator renders it into prose.
  *
- * Each {@link AnalysisStep} is one atomic action in the user-character's
- * input sequence; for every step, the model lists every present NPC and key
- * object's reaction. When a step is judged `breaks_ideal=true`, the model
- * stops emitting further steps from that turn — the breaking step is the
- * last element of `steps[]`. {@link truncateAtBreak} is a program-side
- * safety net that re-applies the same truncation in case the model fails
- * to short-circuit on its own.
+ * Each {@link AnalysisStep} is one atomic step in the turn's sequence — either
+ * a `user_intent` step (an action the user described in their input) or a
+ * `random_event` step (a third-party / environmental occurrence the model
+ * injected at the position where it interrupts). All steps carry the same
+ * NPC + object reaction fields and the same `breaks_ideal` semantics.
+ *
+ * When a step is judged `breaks_ideal=true`, the model stops emitting further
+ * steps from that turn — the breaking step is the last element of `steps[]`.
+ * {@link truncateAtBreak} is a program-side safety net that re-applies the
+ * same truncation in case the model fails to short-circuit on its own.
  */
 
 const IDEAL_STRENGTHS = ['perfectionist', 'pragmatic', 'desperate'] as const;
@@ -65,10 +68,23 @@ export interface ObjectReaction {
     change: string;
 }
 
+const STEP_KINDS = ['user_intent', 'random_event'] as const;
+export type StepKind = typeof STEP_KINDS[number];
+
 export interface AnalysisStep {
+    /**
+     * Discriminator. `user_intent` for actions the user described in their
+     * `<行動意圖>` input; `random_event` for third-party / environmental
+     * occurrences the model inserted at the position where they interrupt
+     * the user's sequence.
+     */
+    kind: StepKind;
     action: string;
+    /** Verbatim PC line. Empty for `random_event` steps. */
     pc_dialogue: string;
+    /** PC mood. Empty for `random_event` steps. */
     mood: string;
+    /** Risks. Empty array allowed for `random_event` steps. */
     risk_factors: string[];
     outcome: string;
     breaks_ideal: boolean;
@@ -76,15 +92,9 @@ export interface AnalysisStep {
     object_reactions: ObjectReaction[];
 }
 
-export interface RandomEvent {
-    triggered: boolean;
-    description: string;
-}
-
 export interface StructuredAnalysis {
     scene_snapshot: SceneSnapshot;
     steps: AnalysisStep[];
-    random_event: RandomEvent;
 }
 
 export interface ResolverResponse {
@@ -220,32 +230,37 @@ const objectReactionSchema: Schema = {
 
 const analysisStepSchema: Schema = {
     type: 'object',
-    description: 'One atomic step in the user character\'s action sequence. The model judges each step independently and lists every present NPC + key object\'s reaction. When a step is judged breaks_ideal=true, the model stops emitting further steps; the program enforces the same truncation as a fallback.',
+    description: 'One atomic step in the turn\'s sequence — either a user_intent step (an action the user described) or a random_event step (a third-party / environmental occurrence YOU inserted at the position where it interrupts). Both kinds carry the same NPC + object reaction fields and the same breaks_ideal semantics.',
     properties: {
+        kind: {
+            type: 'string',
+            enum: [...STEP_KINDS],
+            description: '"user_intent" for steps the user described in their <行動意圖>; "random_event" for an event YOU injected (an NPC arriving, a sudden environmental shift, a third-party intervention). Insert random_event steps at the array position where they interrupt the user\'s planned sequence; if a random_event step is judged breaks_ideal=true, subsequent user_intent steps the user attempted are NOT emitted.'
+        },
         action: {
             type: 'string',
-            description: 'Verb-phrase action description, e.g. "走向廣場中央" / "嘗試攻擊梨菲". NOT a verbatim echo of the user input — an objective rewording of the action intent. Action target (NPC / object / location) is embedded in this prose.'
+            description: 'For user_intent: verb-phrase rewording of the user input action (e.g. "走向廣場中央" / "嘗試攻擊梨菲"). NOT a verbatim echo — paraphrase objectively. For random_event: one-sentence description of the event itself (e.g. "凱爾推門進入並截住艾爾"). Action target is embedded in the prose either way.'
         },
         pc_dialogue: {
             type: 'string',
-            description: 'Verbatim PC line for this step. "" if the PC says nothing this step. MUST match the user input verbatim except for typo fixes — DO NOT paraphrase or polish. The narrator (in 2-call) cannot see the original user input and depends on this field to quote the PC.'
+            description: 'For user_intent: verbatim PC line for this step, "" if PC says nothing. MUST match user input verbatim except for typos. For random_event: always "". The narrator (in 2-call) cannot see the original user input and depends on this field to quote the PC.'
         },
         mood: {
             type: 'string',
-            description: 'PC mood for this step, mirroring the input\'s [心境] tag. e.g. "平靜" / "緊張" / "困惑". "" if none.'
+            description: 'For user_intent: PC mood mirroring the input\'s [心境] tag, e.g. "平靜" / "緊張" / "困惑", "" if none. For random_event: always "".'
         },
         risk_factors: {
             type: 'array',
             items: { type: 'string' },
-            description: 'Risks that could derail this step. e.g. ["梨菲有反擊能力", "大雨影響命中"]. MUST list risks even when outcome is success — drives narrator tension. Empty array allowed only when truly trivial (e.g. PC walks alone in safe room).'
+            description: 'For user_intent: risks that could derail this step (e.g. ["梨菲有反擊能力", "大雨影響命中"]). MUST list risks even when outcome is success. For random_event: usually empty.'
         },
         outcome: {
             type: 'string',
-            description: 'Single free-text judgment matching 1-call\'s 【動作N】判定 segment. e.g. "成功 - 勉強站穩" / "部份成功 - 達成A但B被拒" / "伴隨代價的成功 - 翻牆但扭傷腳踝" / "失敗 - 梨菲閃過並反擊". The narrator quotes this in prose.'
+            description: 'Single free-text judgment. For user_intent: "成功 - 勉強站穩" / "部份成功 - 達成A但B被拒" / "伴隨代價的成功 - 翻牆但扭傷腳踝" / "失敗 - 梨菲閃過並反擊". For random_event: describe the event\'s immediate effect (e.g. "成功 - 凱爾擋在櫃檯前阻斷接近路徑" / "失敗 - 警鈴觸發，附近護衛全數警覺"). The narrator quotes this in prose.'
         },
         breaks_ideal: {
             type: 'boolean',
-            description: 'TRUE when (and only when) this step prevents the player\'s ideal_outcome from being attained — the action did not enter resolution at all. Triggers: (1) PC ability insufficient (2) NPC autonomous refusal (3) hard environmental block (4) random event interruption (5) agency conflict (PC has no authority over an NPC\'s decision). FALSE for "成功 / 部份成功 / 伴隨代價的成功" — the action happened, the result may be imperfect but the intent layer was not violated. When a step is breaks_ideal=true, this MUST be the LAST element of steps[]; do not emit any subsequent step the user attempted. outcome and breaks_ideal must be self-consistent: breaks_ideal=true ⇒ outcome starts with "失敗"; breaks_ideal=false ⇒ outcome starts with "成功 / 部份成功 / 伴隨代價的成功".'
+            description: 'TRUE when (and only when) this step prevents the player\'s ideal_outcome from being attained — the action / event did not enter resolution at all. For user_intent triggers: (1) PC ability insufficient (2) NPC autonomous refusal (3) hard environmental block (4) agency conflict (PC has no authority over an NPC\'s decision). For random_event: TRUE when the event\'s nature interrupts the user\'s planned sequence (a hostile NPC arrives, an alarm triggers, a friend drags the PC away); FALSE when the event is supportive / neutral and does not block subsequent user_intent steps. FALSE for "成功 / 部份成功 / 伴隨代價的成功" — the action happened, the result may be imperfect but the intent layer was not violated. When a step is breaks_ideal=true, this MUST be the LAST element of steps[]; do not emit any subsequent step the user attempted. outcome and breaks_ideal must be self-consistent: breaks_ideal=true ⇒ outcome starts with "失敗"; breaks_ideal=false ⇒ outcome starts with "成功 / 部份成功 / 伴隨代價的成功".'
         },
         npc_reactions: {
             type: 'array',
@@ -258,32 +273,21 @@ const analysisStepSchema: Schema = {
             items: objectReactionSchema
         }
     },
-    required: ['action', 'pc_dialogue', 'mood', 'risk_factors', 'outcome', 'breaks_ideal', 'npc_reactions', 'object_reactions']
-};
-
-const randomEventSchema: Schema = {
-    type: 'object',
-    description: 'Random event check for this turn. Mirrors 1-call markdown\'s 【隨機事件】 block.',
-    properties: {
-        triggered: { type: 'boolean', description: 'Whether a random event fired this turn.' },
-        description: { type: 'string', description: 'When triggered=true, one-sentence event description. Empty string when triggered=false.' }
-    },
-    required: ['triggered', 'description']
+    required: ['kind', 'action', 'pc_dialogue', 'mood', 'risk_factors', 'outcome', 'breaks_ideal', 'npc_reactions', 'object_reactions']
 };
 
 export const structuredAnalysisSchema: Schema = {
     type: 'object',
-    description: 'Structured atomic-action breakdown + judgment. Used by 1-call (alongside story/summary/*_log) and by 2-call resolver (which then hands a truncated copy to the narrator). For non-action inputs (general <系統> Q&A, <存檔>) callers may pass null instead of this object.',
+    description: 'Structured atomic-action breakdown + judgment. Used by 1-call (alongside story/summary/*_log) and by 2-call resolver (which then hands the analysis to the narrator). For non-action inputs (general <系統> Q&A, <存檔>) callers may pass null instead of this object.',
     properties: {
         scene_snapshot: sceneSnapshotSchema,
         steps: {
             type: 'array',
-            description: 'Atomic steps in input order. At least 1 element when this object is non-null. The model stops emitting steps after the first breaks_ideal=true (which becomes the last element); subsequent attempted steps are NOT emitted. Program-side truncation is a safety net only.',
+            description: 'Atomic steps in input order, mixing user_intent and random_event kinds. At least 1 element when this object is non-null. The model stops emitting steps after the first breaks_ideal=true (which becomes the last element); subsequent attempted steps are NOT emitted. Program-side truncation is a safety net only.',
             items: analysisStepSchema
-        },
-        random_event: randomEventSchema
+        }
     },
-    required: ['scene_snapshot', 'steps', 'random_event']
+    required: ['scene_snapshot', 'steps']
 };
 
 /**

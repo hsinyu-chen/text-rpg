@@ -37,17 +37,20 @@ The program assembles the user-facing scene header `[<date_in_world> <time_hhmm>
 
 ### `analysis.steps[]`
 
-Atomic-action breakdown in user-input order. **Stop emitting at the first `breaks_ideal=true`** — fully render that breaking step (with `npc_reactions`, `object_reactions`, and `outcome`), then terminate `steps[]`. **Do NOT** list any subsequent steps the user attempted; those steps do not exist in this turn's narrative.
+`steps[]` mixes two kinds of step: user-intent steps (`kind: "user_intent"`) for actions the user described, and random-event steps (`kind: "random_event"`) you injected for third-party / environmental occurrences. Order chronologically; insert event steps at the position where they interrupt or affect the user's planned sequence.
+
+**Stop emitting at the first `breaks_ideal=true`** — fully render that breaking step (with `npc_reactions`, `object_reactions`, and `outcome`), then terminate `steps[]`. **Do NOT** list any subsequent steps the user attempted; those steps do not exist in this turn's narrative.
 
 Each step:
 
-- **`action`** — verb-phrase description (target embedded inline). Do NOT echo the user input verbatim — paraphrase the intent objectively.
-- **`pc_dialogue`** — verbatim PC line for this step, `""` if no speech. **No paraphrase or polish** — must match user input exactly (typos aside).
-- **`mood`** — PC mood mirroring the input's `[mood]` tag. `""` if none.
-- **`risk_factors[]`** — list of risks, e.g. `["Lifey can counterattack", "rain affects accuracy"]`. List even when outcome is success. Empty allowed only when truly trivial.
-- **`outcome`** — single free-text judgment: `"success - barely held footing"` / `"partial success - achieved A but B refused"` / `"costly success - climbed wall but twisted ankle"` / `"failure - Lifey dodged and counterattacked"`.
-- **`breaks_ideal`** — boolean. `true` ⇒ action did not enter resolution (see triggers below). `false` ⇒ action happened (incl. success / partial / costly). When `true`, `outcome` should start with "failure"; when `false`, with "success / partial success / costly success".
-- **`npc_reactions[]`** — **EVERY entry in `scene_snapshot.present_npcs` must appear here**, including silent / unconscious / remote-comm NPCs.
+- **`kind`** — `"user_intent"` (the user described this action) or `"random_event"` (you injected this — NPC arrival, environmental shift, third-party intervention).
+- **`action`** — user_intent: verb-phrase paraphrase of the user's action (do NOT echo verbatim). random_event: one-sentence description of the event itself.
+- **`pc_dialogue`** — user_intent: verbatim PC line, `""` if no speech, **no paraphrase or polish**. random_event: always `""`.
+- **`mood`** — user_intent: PC mood mirroring the `[mood]` tag, `""` if none. random_event: always `""`.
+- **`risk_factors[]`** — user_intent: list of risks (list even when outcome is success). random_event: usually empty.
+- **`outcome`** — single free-text judgment. user_intent examples: `"success - barely held footing"` / `"partial success - achieved A but B refused"` / `"costly success - climbed wall but twisted ankle"` / `"failure - Lifey dodged and counterattacked"`. random_event examples: `"success - Kyle blocks the path to the counter"` / `"failure - alarm trips, all nearby guards on alert"`.
+- **`breaks_ideal`** — boolean. `true` ⇒ action did not enter resolution. `false` ⇒ action happened (incl. success / partial / costly). For random_event: `true` when the event's nature interrupts the user's planned sequence; `false` for neutral / supportive events. When `true`, `outcome` should start with "failure"; when `false`, with "success / partial success / costly success".
+- **`npc_reactions[]`** — **EVERY entry in `scene_snapshot.present_npcs` must appear here**, including silent / unconscious / remote-comm NPCs. Random-event steps must also include reactions for every present NPC.
 - **`object_reactions[]`** — **EVERY entry in `scene_snapshot.key_objects` must appear here**, including unchanged ones (use the reserved literal `"unchanged"`).
 
 #### `npc_reactions[]` element
@@ -62,10 +65,6 @@ Each step:
 - **`name`** — must match a `key_objects[].name`.
 - **`change`** — when state is unchanged AND not interacted with: use the reserved literal `"unchanged"`. On first appearance: describe initial state in detail. On change/interaction: describe the concrete change.
 
-### `analysis.random_event`
-
-`{triggered, description}`. `description=""` when `triggered=false`.
-
 ## `breaks_ideal=true` triggers
 
 For each step, run all five checks below. Any trigger fires → `breaks_ideal=true`:
@@ -75,7 +74,7 @@ For each step, run all five checks below. Any trigger fires → `breaks_ideal=tr
    - Required attribute is missing but environment provides partial substitute → does NOT break, but `outcome` MUST be downgraded to "partial success" or "costly success". **Do NOT** let environmental factors fully compensate a no-skill attempt into clean "success".
 2. **NPC autonomous refusal** — judged against `{{FILE_CHARACTER_STATUS}}` personality + relationship stage + motive. Strong personality / relationship / motive conflict with the requested action → `breaks_ideal=true`. **Exception**: when the PC's intent is coercive (threat / force / mind-affecting magic) AND the PC has the capability to enforce it (per check #1), NPC autonomy is overridden and this trigger does NOT fire. If the PC tries to coerce but lacks the capability, this trigger still fires.
 3. **Hard environmental block** — terrain / structure / weather / mechanism makes the action **physically impossible** → `breaks_ideal=true`. Surmountable adversity goes into `risk_factors`, no break.
-4. **Random event interrupts** — `random_event.triggered=true` AND the event's nature is "interrupts the PC's step sequence"
+4. **Random event interrupts** — when you insert a `kind: "random_event"` step whose nature interrupts the user's planned sequence, set `breaks_ideal=true` on that event step. Neutral / supportive events do not trigger.
 5. **Agency conflict** — the step is essentially deciding for an NPC, not the PC's own action or attempt to influence the NPC → `breaks_ideal=true`
 
 **Binary objectives**: when a step's core success condition is described in all-or-nothing / negation form (any violation = failure, no continuum), it is a binary objective — **no partial middle ground**. Once the core condition is broken → `breaks_ideal=true`, subsequent steps are truncated. The action's "process / positioning" may succeed while the binary core condition fails; that is still **failure**, **do NOT** downgrade to partial. **`ideal_strength` does NOT affect step-level binary judgment**: pragmatic/desperate tolerates variance on the *overall* outcome, not on a step's binary success condition.

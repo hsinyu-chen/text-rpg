@@ -21,6 +21,7 @@ import type { ChatMessage } from '@app/core/models/types';
 
 function step(overrides: Partial<AnalysisStep> = {}): AnalysisStep {
     return {
+        kind: 'user_intent',
         action: 'walk',
         pc_dialogue: '',
         mood: '',
@@ -35,9 +36,16 @@ function step(overrides: Partial<AnalysisStep> = {}): AnalysisStep {
 
 function analysis(overrides: Partial<StructuredAnalysis> = {}): StructuredAnalysis {
     return {
-        scene_snapshot: { time_hhmm: '12:00', environment: '', present_npcs: [], key_objects: [] },
+        scene_snapshot: {
+            date_in_world: '',
+            time_hhmm: '12:00',
+            location: '',
+            environment: '',
+            pc_in_header: '',
+            present_npcs: [],
+            key_objects: []
+        },
         steps: [],
-        random_event: { triggered: false, description: '' },
         ...overrides
     };
 }

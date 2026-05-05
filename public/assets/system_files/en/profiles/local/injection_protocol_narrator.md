@@ -11,7 +11,7 @@ The `[NARRATOR INPUT]` block contains structured JSON:
 | `ideal_outcome` | What the user hopes the full sequence achieves. |
 | `ideal_strength` | `perfectionist` / `pragmatic` / `desperate`. Tension handling: perfectionist = disappointment on partial success; pragmatist = satisfaction; desperate = "at least I survived". |
 | `interrupted` | `true` ⇒ last entry in `analysis.steps` is the breaking step. |
-| `analysis` | Truncated structured analysis (`scene_snapshot` + `steps[]` + `random_event`). |
+| `analysis` | Truncated structured analysis (`scene_snapshot` + `steps[]`). Each `steps[]` element has `kind` of `"user_intent"` or `"random_event"`; both kinds are narrated the same way. |
 | `correction` (optional) | Story-correction rule from history; must obey. |
 
 ## Output (narrator schema)
@@ -39,7 +39,7 @@ Cheng Yangzong pushed open the tavern's wooden door...
 5. **`object_reactions[]` handling**:
    - `change == "unchanged"` ⇒ do NOT render
    - first appearance or actual change ⇒ render in scene description
-6. **`analysis.random_event.triggered == true`** ⇒ weave into the current beat naturally; no separate heading.
+6. **`kind: "random_event"` steps** ⇒ narrate the same way as user_intent steps, woven into the prose at their chronological position in `steps[]`; no separate heading.
 7. **`scene_snapshot.environment`** ⇒ permeate naturally through opening / between-step transitions; no list-bullets.
 
 ### `interrupted=true` handling

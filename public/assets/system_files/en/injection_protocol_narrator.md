@@ -12,7 +12,7 @@ The `[NARRATOR INPUT]` block contains structured JSON:
 - **`analysis`** — structured analysis:
   - `scene_snapshot` (date_in_world / time_hhmm / location / environment / pc_in_header / present_npcs[] / key_objects[])
   - `steps[]` (each: action / pc_dialogue / mood / risk_factors / outcome / breaks_ideal / npc_reactions / object_reactions)
-  - `random_event` (triggered / description)
+  - each `steps[]` element has `kind` of `"user_intent"` (a user-described action) or `"random_event"` (a resolver-injected event — NPC arrival, alarm, third-party intervention); both kinds are narrated the same way
 - **`correction`** (optional) — historical story-correction rule; must obey.
 
 ## Output (per the narrator schema)
@@ -40,7 +40,7 @@ Cheng Yangzong pushed open the tavern's wooden door...
 5. **`object_reactions[]` handling**:
    - `change == "unchanged"` ⇒ do NOT write to story
    - first appearance or actual change ⇒ render in scene description
-6. **`analysis.random_event.triggered == true`** ⇒ weave the event into the current beat; no separate heading.
+6. **`kind: "random_event"` steps** ⇒ narrate the same way as user_intent steps, woven into the prose at their chronological position in `steps[]`; no separate heading.
 7. **`scene_snapshot.environment`** ⇒ permeate naturally through opening / between-step transitions; do not list-bullet.
 8. Apply every rule from `system_prompt.md` § *World Reaction: Scene Performance* and § *Writing Style*.
 

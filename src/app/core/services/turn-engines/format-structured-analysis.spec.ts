@@ -4,6 +4,7 @@ import { AnalysisStep, SceneSnapshot, StructuredAnalysis } from '@app/core/const
 
 function step(overrides: Partial<AnalysisStep> = {}): AnalysisStep {
     return {
+        kind: 'user_intent',
         action: 'walk',
         pc_dialogue: '',
         mood: '',
@@ -33,7 +34,6 @@ function analysis(overrides: Partial<StructuredAnalysis> = {}): StructuredAnalys
     return {
         scene_snapshot: snap(),
         steps: [],
-        random_event: { triggered: false, description: '' },
         ...overrides
     };
 }
@@ -210,17 +210,16 @@ describe('formatStructuredAnalysis', () => {
         expect(out).toContain('梨菲反擊; 大雨影響');
     });
 
-    it('renders random event line based on triggered flag', () => {
-        const triggered = formatStructuredAnalysis(analysis({
-            random_event: { triggered: true, description: '雷劈附近樹木' }
+    it('renders random_event steps with the [事件N] header instead of [動作N]', () => {
+        const out = formatStructuredAnalysis(analysis({
+            steps: [
+                step({ kind: 'user_intent', action: 'walk to plaza' }),
+                step({ kind: 'random_event', action: '雷劈附近樹木', outcome: '失敗 - 主角被氣浪震退', breaks_ideal: true })
+            ]
         }));
-        expect(triggered).toContain('[事件]');
-        expect(triggered).toContain('雷劈附近樹木');
-
-        const skipped = formatStructuredAnalysis(analysis({
-            random_event: { triggered: false, description: '' }
-        }));
-        expect(skipped).toContain('無隨機事件');
+        expect(out).toContain('[動作1]** ✅ walk to plaza');
+        expect(out).toContain('[事件2]** 🔴 雷劈附近樹木');
+        expect(out).toContain('主角被氣浪震退');
     });
 
     it('strips model-emitted CJK / ASCII quote wrappers so analysis panel does not show 「「...」」', () => {

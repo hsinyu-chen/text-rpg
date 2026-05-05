@@ -10,9 +10,9 @@ export type {
     NpcReaction,
     ObjectReaction,
     PresentNpc,
-    RandomEvent,
     ResolverResponse as ResolverOutput,
     SceneSnapshot,
+    StepKind,
     StructuredAnalysis
 } from './engine-protocol-structured';
 

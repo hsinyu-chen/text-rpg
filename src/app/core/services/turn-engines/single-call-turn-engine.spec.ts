@@ -13,9 +13,16 @@ import type { BuildContext } from '../context-builder.service';
 function turnJson(story: string, summary = 's'): string {
     return JSON.stringify({
         analysis: {
-            scene_snapshot: { time_hhmm: '12:00', environment: '', present_npcs: [], key_objects: [] },
-            steps: [],
-            random_event: { triggered: false, description: '' }
+            scene_snapshot: {
+                date_in_world: '',
+                time_hhmm: '12:00',
+                location: '',
+                environment: '',
+                pc_in_header: '',
+                present_npcs: [],
+                key_objects: []
+            },
+            steps: []
         },
         story,
         summary

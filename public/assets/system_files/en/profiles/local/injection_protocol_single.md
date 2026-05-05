@@ -6,7 +6,7 @@ Strictly follow these JSON field definitions. **Flat top-level shape**: `{ analy
   - **[Format]**: This field is a JSON **object** (not a string / markdown).
   - **[Behaviour by intent]**:
     - When input is `<Action Intent>`, `<Fast Forward>`, `<System> Correction`, or `<Continue>`: emit a **full StructuredAnalysis** (see below).
-    - For other commands (`<System>` general Q&A, `<Save>`): still emit the schema shape, but as a **skeleton** — empty `scene_snapshot` fields, `steps: []`, `random_event.triggered: false`.
+    - For other commands (`<System>` general Q&A, `<Save>`): still emit the schema shape, but as a **skeleton** — empty `scene_snapshot` fields, `steps: []`.
   - **DO NOT** echo analysis text into `story`.
 
   ## `analysis` structure
@@ -27,17 +27,20 @@ Strictly follow these JSON field definitions. **Flat top-level shape**: `{ analy
 
   ### `steps[]`
 
-  Atomic-action breakdown in user-input order. **Stop emitting at the first `breaks_ideal=true`** — fully render that breaking step, then terminate `steps[]`. Do NOT list any subsequent steps.
+  `steps[]` mixes user-intent steps (`kind: "user_intent"`) and random-event steps (`kind: "random_event"`) in chronological order. Insert event steps at the position where they interrupt or affect the user's planned sequence.
+
+  **Stop emitting at the first `breaks_ideal=true`** — fully render that breaking step, then terminate `steps[]`. Do NOT list any subsequent steps.
 
   Each step:
 
-  - **`action`**: verb-phrase description (target embedded). Do NOT echo input verbatim.
-  - **`pc_dialogue`**: verbatim PC line, `""` if none. **No paraphrase / polish**.
-  - **`mood`**: PC mood mirroring the `[mood]` tag. `""` if none.
-  - **`risk_factors[]`**: list of risks. List even when outcome is success.
-  - **`outcome`**: single free-text judgment. `"success - barely held footing"` / `"partial success - achieved A but B refused"` / `"costly success - climbed but twisted ankle"` / `"failure - Lifey dodged and counterattacked"`.
-  - **`breaks_ideal`**: boolean. When `true`, `outcome` should start with "failure"; when `false`, with "success / partial success / costly success".
-  - **`npc_reactions[]`**: **EVERY `scene_snapshot.present_npcs` entry must appear here** (incl. silent / unconscious / remote-comm).
+  - **`kind`**: `"user_intent"` (the user described this action) or `"random_event"` (you injected — NPC arrival, environmental shift, third-party intervention).
+  - **`action`**: user_intent: verb-phrase description, do NOT echo input verbatim. random_event: one-sentence description of the event itself.
+  - **`pc_dialogue`**: user_intent: verbatim PC line, `""` if none, **no paraphrase / polish**. random_event: always `""`.
+  - **`mood`**: user_intent: PC mood, `""` if none. random_event: always `""`.
+  - **`risk_factors[]`**: user_intent: list of risks, list even when outcome is success. random_event: usually empty.
+  - **`outcome`**: single free-text judgment. user_intent examples: `"success - barely held footing"` / `"partial success - achieved A but B refused"` / `"costly success - climbed but twisted ankle"` / `"failure - Lifey dodged and counterattacked"`. random_event examples: `"success - Kyle blocks the path to the counter"` / `"failure - alarm trips, all nearby guards on alert"`.
+  - **`breaks_ideal`**: boolean. For random_event: `true` when the event's nature interrupts the user's planned sequence; `false` for neutral / supportive events. When `true`, `outcome` should start with "failure"; when `false`, with "success / partial success / costly success".
+  - **`npc_reactions[]`**: **EVERY `scene_snapshot.present_npcs` entry must appear here** (incl. silent / unconscious / remote-comm). Random-event steps must also include reactions for every present NPC.
     - `actor`: matches a `present_npcs[].name`.
     - `physical`: gesture / posture / expression / gaze. Even silent / unconscious NPCs need a status line.
     - `dialogue`: NPC verbatim line, `""` if NPC says nothing. **When NPC speaks, this MUST be the actual line** — DO NOT substitute "responded warmly" / "mocked aloud" for dialogue. **World-consistent**: word choice, metaphors, and concepts must match `{{FILE_BASIC_SETTINGS}}` / `{{FILE_WORLD_FACTIONS}}`. Modern objects, institutions, or metaphors are forbidden.
@@ -45,10 +48,6 @@ Strictly follow these JSON field definitions. **Flat top-level shape**: `{ analy
   - **`object_reactions[]`**: **EVERY `scene_snapshot.key_objects` entry must appear here** (incl. `"unchanged"`).
     - `name`: matches a `key_objects[].name`.
     - `change`: when unchanged AND not interacted: reserved literal `"unchanged"` (`story` skips). First appearance: detailed initial state. Change/interaction: concrete change.
-
-  ### `random_event`
-
-  `{triggered, description}`. `description=""` when `triggered=false`.
 
   ## `breaks_ideal=true` triggers
 
@@ -59,7 +58,7 @@ Strictly follow these JSON field definitions. **Flat top-level shape**: `{ analy
      - Required attribute is missing but environment provides partial substitute → does NOT break, but `outcome` MUST be downgraded to "partial success" or "costly success". **Do NOT** let environmental factors fully compensate a no-skill attempt into clean "success".
   2. **NPC autonomous refusal** — judged against `{{FILE_CHARACTER_STATUS}}` personality + relationship stage + motive. Strong personality / relationship / motive conflict with the requested action → `breaks_ideal=true`. **Exception**: when the PC's intent is coercive (threat / force / mind-affecting magic) AND the PC has the capability to enforce it (per check #1), NPC autonomy is overridden and this trigger does NOT fire. If the PC tries to coerce but lacks the capability, this trigger still fires.
   3. **Hard environmental block** — terrain / structure / weather / mechanism makes the action **physically impossible** → `breaks_ideal=true`. Surmountable adversity goes into `risk_factors`, no break.
-  4. **Random event interrupts** — `random_event.triggered=true` AND the event's nature is "interrupts the PC's step sequence"
+  4. **Random event interrupts** — when you insert a `kind: "random_event"` step whose nature interrupts the user's planned sequence, set `breaks_ideal=true` on that event step. Neutral / supportive events do not trigger.
   5. **Agency conflict** — the step is essentially deciding for an NPC, not the PC's own action or attempt to influence the NPC → `breaks_ideal=true`
 
   **Binary objectives**: when a step's core success condition is described in all-or-nothing / negation form (any violation = failure, no continuum), it is a binary objective — **no partial middle ground**. Once the core condition is broken → `breaks_ideal=true`, subsequent steps are truncated. The action's "process / positioning" may succeed while the binary core fails; that is still **failure**, **do NOT** downgrade to partial.
@@ -85,7 +84,7 @@ Strictly follow these JSON field definitions. **Flat top-level shape**: `{ analy
   - **[Full-Scene rendering]**: weave `analysis.steps[].npc_reactions[]` and `object_reactions[]` into prose:
     - **NPC**: every present NPC must surface in prose; even silent observers get one sentence on posture / expression / gaze. When `dialogue` is non-empty, the prose MUST quote it verbatim. **DO NOT** substitute "responded warmly", "mocked aloud", "thanked aloud" for dialogue.
     - **Objects**: skip when `change == "unchanged"`. Render only on first appearance, change, or interaction.
-    - **Random event**: weave naturally when `random_event.triggered=true`.
+    - **Random-event step**: a `kind: "random_event"` step is woven into the prose the same way as a user-intent step, at its chronological position in `steps[]`.
   - **Mandatory Marker**: `story`'s first line MUST be `<CREATIVE FICTION CONTEXT>` (its own line), immediately followed by the body. **DO NOT** write the `[Calendar / Location / Characters]` line yourself — the program assembles and prepends it.
     - Example:
       ```

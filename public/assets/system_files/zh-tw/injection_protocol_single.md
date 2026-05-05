@@ -6,7 +6,7 @@
   - **【格式】**：本欄是 JSON **物件**（不是字串／markdown）。
   - **【依輸入指令而定的形態】**：
     - 使用者輸入為 `<行動意圖>`、`<快轉>`、`<系統>劇情修正` 或 `<繼續>` 時：產出**完整 StructuredAnalysis**。
-    - 其餘指令（如 `<系統>一般詢問`、`<存檔>`）：仍輸出 schema 形狀，但用 skeleton——`scene_snapshot` 各欄位空、`steps: []`、`random_event.triggered: false`。
+    - 其餘指令（如 `<系統>一般詢問`、`<存檔>`）：仍輸出 schema 形狀，但用 skeleton——`scene_snapshot` 各欄位空、`steps: []`。
   - **嚴禁**將分析文字寫進 `story` 內文。
 
   ## `analysis` 結構
@@ -25,19 +25,22 @@
   | `present_npcs[]` | 在場 NPC。`{name, state}`：`state` 是**戰爭迷霧／意識狀態**——用於判定該 NPC 本回合**是否具備對環境／PC 行動的反應能力**。自由發揮但限於該範疇。常用 tag：`"昏迷"` / `"熟睡"` / `"麻痺"` / `"匿蹤"` / `"通訊"`；可自創同範疇短 tag（如 `"幻象"` / `"靈魂出竅"`）。`""` = 清醒在場且具完整反應能力（預設）。**禁止情緒、當下行為或活動**（如 `"旁觀"` / `"交談中"` / `"抱著X"` / `"敵意"` 等屬於 `npc_reactions[].physical` 與 `motivation`）。 |
   | `key_objects[]` | 重要環境物件（機關／陷阱／關鍵道具）。`{name, state}`。普通家具不列。空填 `[]`。 |
 
-  ### `steps[]`（每個原子動作一筆）
+  ### `steps[]`
 
-  依使用者輸入順序拆解原子動作。**遇到 `breaks_ideal=true` 立即停止**——完整描寫該破壞點 step（含 `npc_reactions`、`object_reactions`、`outcome`）後即終止 `steps[]`，**不要列出**後續使用者意圖的步驟。
+  `steps[]` 混合兩種 step：使用者輸入意圖步驟（`kind: "user_intent"`）與你判定該回合應插入的隨機事件步驟（`kind: "random_event"`）。依時序排列，事件步驟插入於它打斷或影響的 user_intent 步驟之間。
+
+  **遇到 `breaks_ideal=true` 立即停止**——完整描寫該破壞點 step（含 `npc_reactions`、`object_reactions`、`outcome`）後即終止 `steps[]`，**不要列出**後續使用者意圖的步驟。
 
   | 欄位 | 規範 |
   |---|---|
-  | `action` | 動詞片語（含目標）。**不要逐字複述輸入**。 |
-  | `pc_dialogue` | 主角本步台詞**原文**，無則 `""`。**禁止潤飾／意譯**。 |
-  | `mood` | 主角心境（呼應 `[心境]`）。無則 `""`。 |
-  | `risk_factors[]` | 風險清單，例如 `["梨菲反擊", "大雨影響命中"]`。即使最終成功也要列。 |
-  | `outcome` | 單一 free-text 判定：`"成功 - 勉強站穩"` / `"部份成功 - 達成A但B被拒"` / `"伴隨代價的成功 - 翻牆但扭傷腳踝"` / `"失敗 - 梨菲閃過並反擊"`。 |
-  | `breaks_ideal` | 布林。`true` ⇒ 動作根本沒進入結算（觸發條件見下）。`false` ⇒ 動作有發生（含成功／部份成功／伴隨代價的成功）。`true` 時 `outcome` 以「失敗」起頭；`false` 時以「成功 / 部份成功 / 伴隨代價的成功」起頭。 |
-  | `npc_reactions[]` | **`scene_snapshot.present_npcs` 每位都必須出現一筆**（含旁觀沉默／昏迷／通訊）。 |
+  | `kind` | `"user_intent"`（使用者輸入的動作）或 `"random_event"`（你判定插入的事件，如 NPC 闖入、警鈴觸發、第三方介入）。 |
+  | `action` | user_intent: 動詞片語（含目標），**不要逐字複述輸入**。random_event: 事件本身的一句描述。 |
+  | `pc_dialogue` | user_intent: 主角本步台詞**原文**，無則 `""`，**禁止潤飾／意譯**。random_event: 一律 `""`。 |
+  | `mood` | user_intent: 主角心境（呼應 `[心境]`），無則 `""`。random_event: 一律 `""`。 |
+  | `risk_factors[]` | user_intent: 風險清單，即使最終成功也要列。random_event: 通常空陣列。 |
+  | `outcome` | 單一 free-text 判定。user_intent 範例：`"成功 - 勉強站穩"` / `"部份成功 - 達成A但B被拒"` / `"伴隨代價的成功 - 翻牆但扭傷腳踝"` / `"失敗 - 梨菲閃過並反擊"`。random_event 範例：`"成功 - 凱爾擋在櫃檯前阻斷接近路徑"` / `"失敗 - 警鈴觸發，附近護衛全數警覺"`。 |
+  | `breaks_ideal` | 布林。`true` ⇒ 動作根本沒進入結算（觸發條件見下）；`false` ⇒ 動作有發生（含成功／部份成功／伴隨代價的成功）。random_event 性質為「打斷主角 step 序列」時 `true`；中性／支援性事件 `false`。`true` 時 `outcome` 以「失敗」起頭；`false` 時以「成功 / 部份成功 / 伴隨代價的成功」起頭。 |
+  | `npc_reactions[]` | **`scene_snapshot.present_npcs` 每位都必須出現一筆**（含旁觀沉默／昏迷／通訊）。random_event 步驟也要寫所有在場 NPC 的反應。 |
   | `object_reactions[]` | **`scene_snapshot.key_objects` 每個都必須出現一筆**（含「無變化」）。 |
 
   #### `npc_reactions[]` 元素
@@ -52,10 +55,6 @@
   - **`name`** — 必須對應 `key_objects[].name`。
   - **`change`** — 狀態未變且未被互動：填保留字串 `"無變化"`（`story` 跳過）。首次登場：詳述初始狀態。被互動或變化：寫具體變化。
 
-  ### `random_event`
-
-  `{triggered, description}`。`triggered=false` 時 `description=""`。
-
   ## `breaks_ideal=true` 觸發條件
 
   對每一個 step 依序檢核以下五點，任一觸發即 `breaks_ideal=true`：
@@ -65,7 +64,7 @@
      - 主角缺乏所需條件但環境提供部分替代 → 不觸發 break，但 `outcome` **必須**降為「部份成功」或「伴隨代價的成功」。**禁止**只用環境因素把無技能嘗試全額補償為「成功」。
   2. **NPC 自主拒絕**：依 `{{FILE_CHARACTER_STATUS}}` 性格 + 關係階段 + 利益動機。性格／關係／利益任一與該動作強烈牴觸 → `breaks_ideal=true`。**例外**：當主角意圖屬強制類（脅迫／武力／施法控制等）且**具備足以強制該 NPC 的能力**（依 #1 能力檢核），NPC 自主性被壓制，本條不觸發；若強制能力不足，仍以本條觸發。
   3. **環境硬性阻擋**：地形／結構／天氣／機關使動作**物理上不可行** → `breaks_ideal=true`。可克服的不利列入 `risk_factors`，不觸發。
-  4. **隨機事件中斷**：`random_event.triggered=true` 且事件性質為「打斷主角 step 序列」
+  4. **隨機事件中斷**：當你插入 `kind: "random_event"` 步驟且該事件性質為「打斷主角 step 序列」時，於該事件 step 標 `breaks_ideal=true`。中性／支援性事件不觸發。
   5. **代理權衝突**：step 本質是替 NPC 做決定，而非主角自身的動作或對 NPC 的影響嘗試 → `breaks_ideal=true`
 
   **Binary 目標處理**：當 step 的核心成功條件以「全有／全無」否定形式描述（任何違反即為失敗，無程度連續譜），即為 binary 目標，**不存在 partial 中間值**。核心條件一旦被破壞 → `breaks_ideal=true`，後續 steps 截斷。動作的「過程／位置」可能達成但「核心 binary 條件」失敗時，仍為失敗，**禁止**降為 partial。
@@ -79,7 +78,7 @@
   - **【全場景反應描寫】**：將 `analysis.steps[].npc_reactions[]` 與 `object_reactions[]` 融入 `story`：
     - **NPC**：所有在場 NPC 的反應都必須出現於正文，即便僅是旁觀／沉默亦須以一句帶出姿態、表情或眼神。`dialogue` 非空時必須以引號完整引用原文，**禁止**改寫、意譯或用「用某某口吻回應」「嘲笑著說」這類動作轉述代替。
     - **物件**：`change == "無變化"` 不寫進 `story`。首次登場、狀態變化、被互動才寫。
-    - **隨機事件**：`random_event.triggered=true` 時融入正文當下節奏。
+    - **隨機事件 step**：`kind: "random_event"` 的 step 與一般動作 step 相同方式融入正文，依 `steps[]` 中的時序位置敘述。
   - **強制標記**：`story` 第一行**必須**是 `<CREATIVE FICTION CONTEXT>`（獨立一行），緊接劇情正文。**禁止**自己寫 `[曆法 年月日 / 地點 / 角色們]` 那行——程式會自動組裝並 prepend。
     - **範例**：
       ```

@@ -12,7 +12,7 @@
 - **`analysis`** — 結構化分析：
   - `scene_snapshot`（date_in_world / time_hhmm / location / environment / pc_in_header / present_npcs[] / key_objects[]）
   - `steps[]`（每筆含 action / pc_dialogue / mood / risk_factors / outcome / breaks_ideal / npc_reactions / object_reactions）
-  - `random_event`（triggered / description）
+  - `steps[]` 元素的 `kind` 可能為 `"user_intent"`（使用者動作）或 `"random_event"`（resolver 插入的事件，如 NPC 闖入、警鈴觸發）；兩種以相同方式敘述，差別只在 step 的來源
 - **`correction`**（選填）— 歷史劇情修正規則，必須遵守。
 
 ## 輸出（依 narrator schema）
@@ -40,7 +40,7 @@
 5. **`object_reactions[]` 處理**：
    - `change == "無變化"` ⇒ 不寫進 story
    - 首次登場或實際變化 ⇒ 寫進場景描寫
-6. **`analysis.random_event.triggered == true`** ⇒ 將事件融入正文當下節奏，不另起標題。
+6. **`kind: "random_event"` 步驟** ⇒ 與 user_intent 步驟相同方式敘述，依其在 `steps[]` 中的時序位置融入正文，不另起標題。
 7. **`scene_snapshot.environment`** ⇒ 在正文開頭或步驟間自然滲入；不要列點羅列。
 8. 套用 `system_prompt.md` 的【世界反應：劇情演出】與【寫作風格】所有規則。
 

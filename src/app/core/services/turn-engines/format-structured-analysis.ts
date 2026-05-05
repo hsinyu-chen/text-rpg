@@ -13,10 +13,10 @@ import {
  * markdown for the "Atomic Breakdown & Check" UI panel. Used by both engine
  * modes once they emit StructuredAnalysis.
  *
- * Layout aligns with `injection_protocol_single.md`'s 1-call markdown:
+ * Layout:
  * - 【現況】 line summarizing scene snapshot
- * - 【動作N】 + 【全場景N】 paired sections per step
- * - 【事件】 line at the bottom
+ * - 【動作N】 / 【事件N】 + 【全場景N】 paired sections per step
+ *   (action vs event marker depends on `step.kind`)
  *
  * Steps after the first `breaks_ideal=true` are still rendered (so the user
  * can see what the model considered) but tagged as truncated. The actual
@@ -42,14 +42,6 @@ export function formatStructuredAnalysis(a: Partial<StructuredAnalysis> | null |
             lines.push(block);
         }
     });
-
-    if (a.random_event) {
-        const ev = formatRandomEvent(a.random_event);
-        if (ev) {
-            if (lines.length > 0) lines.push('');
-            lines.push(ev);
-        }
-    }
 
     return lines.join('\n');
 }
@@ -189,9 +181,11 @@ function formatStep(step: AnalysisStep | null | undefined, ordinal: number, trun
 
     const action = step.action || '(no action)';
     const mood = step.mood ? ` _(${step.mood})_` : '';
+    const isEvent = step.kind === 'random_event';
+    const header = isEvent ? `**[事件${ordinal}]**` : `**[動作${ordinal}]**`;
 
     const parts: string[] = [];
-    parts.push(`**[動作${ordinal}]** ${icon} ${action}${mood}`);
+    parts.push(`${header} ${icon} ${action}${mood}`);
 
     if (step.pc_dialogue) {
         parts.push(`   - 主角: "${stripDialogueQuotes(step.pc_dialogue)}"`);
@@ -243,14 +237,4 @@ function formatNpcReaction(r: NpcReaction | null | undefined): string {
 function formatObjectReaction(r: ObjectReaction | null | undefined): string {
     if (!r?.name) return '';
     return `${r.name}: ${r.change || '無變化'}`;
-}
-
-function formatRandomEvent(ev: { triggered?: boolean; description?: string }): string {
-    if (ev.triggered === true) {
-        return `**[事件]** ${ev.description || '(未說明)'}`;
-    }
-    if (ev.triggered === false) {
-        return `**[事件]** 無隨機事件`;
-    }
-    return '';
 }

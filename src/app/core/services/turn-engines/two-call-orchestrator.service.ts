@@ -196,11 +196,7 @@ export class TwoCallOrchestratorService {
         const a = (raw && typeof raw === 'object' ? raw : {}) as Partial<StructuredAnalysis>;
         return {
             scene_snapshot: this.normalizeScene(a.scene_snapshot),
-            steps: Array.isArray(a.steps) ? a.steps.map(s => this.normalizeStep(s)) : [],
-            random_event: {
-                triggered: a.random_event?.triggered === true,
-                description: a.random_event?.description ?? ''
-            }
+            steps: Array.isArray(a.steps) ? a.steps.map(s => this.normalizeStep(s)) : []
         };
     }
 
@@ -222,6 +218,7 @@ export class TwoCallOrchestratorService {
 
     private normalizeStep(raw: Partial<AnalysisStep> | undefined): AnalysisStep {
         return {
+            kind: raw?.kind === 'random_event' ? 'random_event' : 'user_intent',
             action: raw?.action ?? '',
             pc_dialogue: raw?.pc_dialogue ?? '',
             mood: raw?.mood ?? '',
