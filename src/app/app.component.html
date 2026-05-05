@@ -47,7 +47,7 @@
 </mat-sidenav-container>
 
 @if (idleService.showScreensaver()) {
-@if (state.config()?.screensaverType === 'code') {
+@if (appConfig.screensaverType() === 'code') {
 <app-code-screensaver />
 } @else {
 <app-space-invaders />

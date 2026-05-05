@@ -84,8 +84,8 @@ export class ConfigService {
 
     /**
      * Triggers the FX API fetch. CostService writes the result back into
-     * AppConfigStore, so `state.config()` (a computed over the store) sees
-     * the new rate without any explicit signal update here.
+     * AppConfigStore directly; nothing for ConfigService to do beyond the
+     * await.
      */
     private async updateExchangeRateFromApi() {
         await this.cost.updateExchangeRateFromApi();

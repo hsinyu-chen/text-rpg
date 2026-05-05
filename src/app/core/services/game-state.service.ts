@@ -4,36 +4,16 @@ import { CostService } from './cost.service';
 import { KnowledgeService } from './knowledge.service';
 import { LLMProviderRegistryService } from './llm-provider-registry.service';
 import { ActiveProfileStore } from './active-profile-store';
-import { AppConfigStore } from './app-config-store';
 import { isSystemMainCompatible, stripSystemMainMarker } from './profile-compat';
-
-/**
- * Configuration for the game engine.
- */
-export interface GameEngineConfig {
-    fontSize?: number;
-    fontFamily?: string;
-    exchangeRate?: number;
-    currency?: string;
-    enableConversion?: boolean;
-    screensaverType?: 'invaders' | 'code';
-    outputLanguage?: string;
-    idleOnBlur?: boolean;
-    enableAdultDeclaration?: boolean;
-    smartContextTurns?: number;
-    /**
-     * Turn engine mode. `'single'` (default) is the legacy single-LLM-call path.
-     * `'two-call'` splits a turn into a resolver + narrator pair; not yet wired
-     * end-to-end (see PR3) — selecting it here currently throws.
-     */
-    engineMode?: 'single' | 'two-call';
-}
 
 /**
  * Centralized state service for the game engine.
  * This service holds all signals (reactive state) and computed values.
  * Domain services inject this to read/write state.
  * Components can inject this directly to read state.
+ *
+ * General app preferences (font, currency, output language, engine mode,
+ * etc.) live on AppConfigStore — consumers depend on it directly.
  */
 @Injectable({
     providedIn: 'root'
@@ -43,14 +23,8 @@ export class GameStateService {
     private kb = inject(KnowledgeService);
     private providerRegistry = inject(LLMProviderRegistryService);
     private activeProfileStore = inject(ActiveProfileStore);
-    private appConfigStore = inject(AppConfigStore);
 
     // ==================== Configuration ====================
-    // Derived from AppConfigStore. Kept as `state.config()` for the many
-    // existing consumers (templates, components, services); writes go
-    // through `AppConfigStore.patch()` directly so this signal stays
-    // computed-only.
-    config = computed<GameEngineConfig>(() => this.appConfigStore.snapshot());
     isConfigured = computed(() => {
         const provider = this.providerRegistry.activeProvider();
         if (!provider) return false;

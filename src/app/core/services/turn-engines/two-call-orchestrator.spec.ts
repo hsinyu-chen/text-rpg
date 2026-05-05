@@ -7,6 +7,8 @@ import { ContextBuilderService, BuildContext } from '../context-builder.service'
 import { ContentParserService } from '../content-parser.service';
 import { StreamProcessorService } from '../stream-processor.service';
 import { GameStateService } from '../game-state.service';
+import { KVStore } from '../kv/kv-store';
+import { InMemoryKVStore } from '../../testing/in-memory-kv-store';
 import { LanguageService } from '../language.service';
 import { KnowledgeService } from '../knowledge.service';
 import { CostService } from '../cost.service';
@@ -74,7 +76,6 @@ describe('two-call orchestrator integration', () => {
         messages = [];
 
         const fakeState: Partial<GameStateService> = {
-            config: signal({ outputLanguage: 'default' }),
             postProcessScript: signal('')
         } as unknown as Partial<GameStateService>;
 
@@ -89,6 +90,7 @@ describe('two-call orchestrator integration', () => {
                 LanguageService,
                 CostService,
                 KnowledgeService,
+                { provide: KVStore, useValue: new InMemoryKVStore() },
                 { provide: GameStateService, useValue: fakeState }
             ]
         });

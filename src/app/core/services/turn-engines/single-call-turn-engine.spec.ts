@@ -6,6 +6,8 @@ import { StreamProcessorService } from '../stream-processor.service';
 import { ContentParserService } from '../content-parser.service';
 import { PostProcessorService } from '../post-processor.service';
 import { GameStateService } from '../game-state.service';
+import { KVStore } from '../kv/kv-store';
+import { InMemoryKVStore } from '../../testing/in-memory-kv-store';
 import { MockLLMProvider } from '@app/core/testing/mock-llm-provider';
 import type { ChatMessage } from '@app/core/models/types';
 import type { BuildContext } from '../context-builder.service';
@@ -40,12 +42,11 @@ describe('SingleCallTurnEngine.runTurn', () => {
         mockProvider = new MockLLMProvider();
         messages = [];
 
-        // PostProcessorService reads `postProcessScript` off GameStateService.
-        // The engine itself no longer touches state, but its delegate
-        // (StreamProcessorService → PostProcessorService) still does.
+        // PostProcessorService reads `postProcessScript` off GameStateService
+        // and `outputLanguage` off AppConfigStore. Provide minimal fakes for
+        // both so the engine's delegate chain resolves.
         const fakeState: Partial<GameStateService> = {
-            postProcessScript: signal(''),
-            config: signal({ outputLanguage: 'default' })
+            postProcessScript: signal('')
         } as unknown as Partial<GameStateService>;
 
         TestBed.configureTestingModule({
@@ -54,6 +55,7 @@ describe('SingleCallTurnEngine.runTurn', () => {
                 StreamProcessorService,
                 ContentParserService,
                 PostProcessorService,
+                { provide: KVStore, useValue: new InMemoryKVStore() },
                 { provide: GameStateService, useValue: fakeState }
             ]
         });

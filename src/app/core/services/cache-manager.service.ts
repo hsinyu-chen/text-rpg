@@ -9,9 +9,8 @@ import type { LLMPart } from '@hcs/llm-core';
 /**
  * Per-call input for {@link CacheManagerService.checkCacheAndRefresh}.
  *
- * Caller-resolved snapshot of `state.config()` / provider / files /
- * current cache metadata. Lets the method run without touching
- * `GameStateService` for these reads.
+ * Caller-resolved snapshot of provider / files / current cache metadata.
+ * Lets the method run without touching `GameStateService` for these reads.
  */
 export interface CacheCheckInput {
     provider: LLMProvider;
