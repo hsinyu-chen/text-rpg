@@ -11,6 +11,7 @@ import { GameEngineService } from '@app/core/services/game-engine.service';
 import { GameStateService } from '@app/core/services/game-state.service';
 import { LLMProviderRegistryService } from '@app/core/services/llm-provider-registry.service';
 import { CostService } from '@app/core/services/cost.service';
+import { AppConfigStore } from '@app/core/services/app-config-store';
 import { CostComparisonDialogComponent } from '@app/features/sidebar/cost-comparison-dialog.component';
 
 @Component({
@@ -28,6 +29,7 @@ export class SidebarCostPredictionComponent {
     private clipboard = inject(Clipboard);
     public providerRegistry = inject(LLMProviderRegistryService);
     public costService = inject(CostService);
+    private appConfig = inject(AppConfigStore);
 
     // Current Model ID (derived from active provider config; falls back to provider default).
     currentModelId = computed(() => this.providerRegistry.getActiveModelId() || 'Unknown');
@@ -203,14 +205,12 @@ export class SidebarCostPredictionComponent {
     });
 
     displayCurrency = computed(() => {
-        const cfg = this.state.config();
-        return (cfg?.enableConversion && cfg?.currency) ? cfg.currency : 'USD';
+        return this.appConfig.enableConversion() ? this.appConfig.currency() : 'USD';
     });
 
     displayRate = computed(() => {
-        const cfg = this.state.config();
-        if (cfg?.enableConversion && cfg?.currency !== 'USD') {
-            return cfg.exchangeRate || 30;
+        if (this.appConfig.enableConversion() && this.appConfig.currency() !== 'USD') {
+            return this.appConfig.exchangeRate();
         }
         return 1;
     });

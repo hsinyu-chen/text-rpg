@@ -10,6 +10,7 @@ import { CreateSceneDialogComponent } from '../create-scene-dialog/create-scene-
 
 import { GameEngineService } from '@app/core/services/game-engine.service';
 import { GameStateService } from '@app/core/services/game-state.service';
+import { AppConfigStore } from '@app/core/services/app-config-store';
 import { DialogService } from '@app/core/services/dialog.service';
 import { SessionService } from '@app/core/services/session.service';
 import { FileSystemService } from '@app/core/services/file-system.service';
@@ -29,6 +30,7 @@ import { ConfigService } from '@app/core/services/config.service';
 export class SidebarContextControlsComponent {
     engine = inject(GameEngineService);
     state = inject(GameStateService);
+    protected appConfig = inject(AppConfigStore);
     dialog = inject(DialogService);
     session = inject(SessionService);
     fileSystem = inject(FileSystemService);
@@ -120,7 +122,7 @@ export class SidebarContextControlsComponent {
     }
 
     async editSmartContextTurns() {
-        const currentTurns = this.state.config()?.smartContextTurns ?? 10;
+        const currentTurns = this.appConfig.smartContextTurns();
         const dialogRef = this.matDialog.open(SaveNameDialogComponent, {
             width: '400px',
             data: {
