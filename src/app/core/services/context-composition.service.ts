@@ -129,35 +129,65 @@ export class ContextCompositionService {
         });
 
         effect(() => {
+            // All signal reads are synchronous so Angular's effect tracking
+            // sees them. Anything read only inside the async tail (countTokens
+            // resolution) wouldn't establish a dep.
             const action = this.state.dynamicActionInjection();
             const protocolR = this.state.dynamicProtocolResolverInjection();
             const protocolN = this.state.dynamicProtocolNarratorInjection();
             const protocolS = this.state.dynamicProtocolSingleInjection();
+            // Status + messages are tracked because the protocol templates
+            // carry a `{{HISTORICAL_CORRECTION_RULE}}` slot whose substitution
+            // depends on whether history holds an active correction. The
+            // game-side rendering happens at call time via ContextBuilder;
+            // we mirror just that one substitution here so the count reflects
+            // what would actually be sent on the next turn (a fresh
+            // correction-declaration adds ~hundreds of tokens to the rule
+            // text from the locale).
+            const messages = this.state.messages();
+            const lang = this.appConfig.outputLanguage();
+            const status = this.state.status();
             this.configService.activeProfile();
             this.providerRegistry.activeProvider();
-            void this.recomputeInjectionTokens({ action, protocolR, protocolN, protocolS });
+
+            // Skip during generation: messages() also fires per streaming
+            // chunk, and re-counting the same templates per chunk is pure
+            // waste. Effect re-runs once status flips back to idle.
+            if (status === 'generating') return;
+
+            const renderCtx = this.buildLightContext(messages);
+            void this.recomputeInjectionTokens({ action, protocolR, protocolN, protocolS }, renderCtx, lang);
         });
 
         effect(() => {
-            // Read every input getLLMHistory consumes so the debounce schedules
-            // on any structural change. Streaming touches messages() per chunk;
-            // the debounce collapses the burst so we tokenize once per stable
-            // history. activeProfile / activeProvider are read here (not just
-            // inside the setTimeout) so Angular's effect tracking actually
-            // sees them — reads inside the timeout callback are outside the
-            // tracking context.
-            this.state.messages();
+            // Build the ctx synchronously inside the effect so all the
+            // signals it reads (loadedFiles, kbCacheName, dynamic injections,
+            // engineMode, etc.) become tracked dependencies — reads inside
+            // the setTimeout body would not, and getLLMHistorySegments could
+            // silently start ignoring future inputs without anyone noticing.
+            const messages = this.state.messages();
             this.appConfig.smartContextTurns();
             this.state.contextMode();
             this.configService.activeProfile();
             this.providerRegistry.activeProvider();
+            const status = this.state.status();
+
+            // While generating, the last model message's `usage` AND `content`
+            // are populated piecewise per streaming chunk — `m.usage != null`
+            // can't distinguish "fully committed" from "mid-stream". Skip
+            // the whole recompute path until status returns to idle. The
+            // effect refires on the status flip and queues exactly one
+            // post-stream recompute.
+            if (status === 'generating') return;
+
+            const ctx = this.buildLightContext(messages);
 
             if (this.historyDebounceHandle !== null) {
                 clearTimeout(this.historyDebounceHandle);
             }
             this.historyDebounceHandle = setTimeout(() => {
                 this.historyDebounceHandle = null;
-                void this.recomputeHistoryTokens();
+                void this.recomputeHistoryTokens(ctx);
             }, ContextCompositionService.HISTORY_DEBOUNCE_MS);
         });
     }
@@ -188,18 +218,30 @@ export class ContextCompositionService {
         this.systemPromptTokens.set(count);
     }
 
-    private async recomputeInjectionTokens(parts: {
-        action: string; protocolR: string; protocolN: string; protocolS: string;
-    }): Promise<void> {
+    private async recomputeInjectionTokens(
+        parts: { action: string; protocolR: string; protocolN: string; protocolS: string; },
+        ctx: BuildContext,
+        lang: string
+    ): Promise<void> {
         const seq = ++this.injectionComputeSeq;
+        // Render the same `{{HISTORICAL_CORRECTION_RULE}}` slot the engine
+        // will substitute at call time, so the count tracks what's actually
+        // sent. Other tail slots ({{USER_INPUT}}, {{CORRECTION_REMINDER}},
+        // {{IDEAL_OUTCOME_CONSTRAINT}}) carry user-input-bound text that
+        // can't be predicted ahead of the user typing — left alone, with
+        // the buffer floor absorbing the residual.
+        const correctionRule = this.contextBuilder.getHistoricalCorrectionRule(ctx, lang);
+        const fillRule = (template: string): string =>
+            template ? template.split('{{HISTORICAL_CORRECTION_RULE}}').join(correctionRule) : '';
+
         // Resolver & single carry the action template at the user-message tail
         // alongside the matching protocol; narrator never sees the action
         // template because its input is the synthetic narrator message.
         const [a, r, n, s] = await Promise.all([
             this.countText(parts.action),
-            this.countText(parts.protocolR),
-            this.countText(parts.protocolN),
-            this.countText(parts.protocolS)
+            this.countText(fillRule(parts.protocolR)),
+            this.countText(fillRule(parts.protocolN)),
+            this.countText(fillRule(parts.protocolS))
         ]);
         if (seq !== this.injectionComputeSeq) return;
         this.injectionResolverTokens.set(r + a);
@@ -207,20 +249,8 @@ export class ContextCompositionService {
         this.injectionSingleTokens.set(s + a);
     }
 
-    private async recomputeHistoryTokens(): Promise<void> {
+    private async recomputeHistoryTokens(ctx: BuildContext): Promise<void> {
         const seq = ++this.historyComputeSeq;
-        const messages = this.state.messages();
-        // Exclude in-progress streaming message (no usage yet, content
-        // shifting per chunk). The debounce already absorbs streaming bursts,
-        // but a final tokenize on a half-built model message would still
-        // give a misleading mid-flight number.
-        const stableMessages = messages.filter((m, idx) => {
-            if (idx !== messages.length - 1) return true;
-            if (m.role !== 'model') return true;
-            return !m.isThinking && m.usage != null;
-        });
-
-        const ctx = this.buildLightContext(stableMessages);
         const { compressed, recent } = this.contextBuilder.getLLMHistorySegments(ctx);
         const [compressedCount, recentCount] = await Promise.all([
             this.countContents(compressed),
