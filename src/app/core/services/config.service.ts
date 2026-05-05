@@ -124,7 +124,11 @@ export class ConfigService {
                     current.thinkingLevelStory === resolved.thinkingLevelStory &&
                     current.thinkingLevelGeneral === resolved.thinkingLevelGeneral
                 ) return;
-                this.state.config.set({ ...current, ...resolved });
+                const next = { ...current, ...resolved };
+                this.state.config.set(next);
+                // Mirror to IDB so the persisted snapshot doesn't carry the
+                // previous profile's keys until the next saveConfig call.
+                this.storage.set('settings', next);
             });
         });
     }
