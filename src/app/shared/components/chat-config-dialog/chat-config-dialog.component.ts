@@ -18,7 +18,7 @@ import { getUIStrings, getIntentLabels } from '@app/core/constants/engine-protoc
 import { PostProcessorService } from '@app/core/services/post-processor.service';
 import { InjectionService, PromptType } from '@app/core/services/injection.service';
 import { PromptProfileRegistryService } from '@app/core/services/prompt-profile-registry.service';
-import { SyncService } from '@app/core/services/sync/sync.service';
+import { PromptCloudSyncService } from '@app/core/services/sync/prompt-cloud-sync.service';
 import { DiskProfileSyncService } from '@app/core/services/sync/disk-profile-sync.service';
 import { LoadingService } from '@app/core/services/loading.service';
 import { DialogService } from '@app/core/services/dialog.service';
@@ -67,7 +67,7 @@ export class ChatConfigDialogComponent {
     private postProcessor = inject(PostProcessorService);
     private injection = inject(InjectionService);
     private registry = inject(PromptProfileRegistryService);
-    private sync = inject(SyncService);
+    private promptCloudSync = inject(PromptCloudSyncService);
     private diskSync = inject(DiskProfileSyncService);
     loading = inject(LoadingService);
     private dialogService = inject(DialogService);
@@ -417,7 +417,7 @@ export class ChatConfigDialogComponent {
     async pushPromptsToCloud(): Promise<void> {
         this.loading.show(this.ui().PROMPT_SYNC_UPLOADING);
         try {
-            const { exported } = await this.sync.uploadPrompts();
+            const { exported } = await this.promptCloudSync.uploadPrompts();
             this.snackBar.open(this.ui().PROMPT_SYNC_UPLOADED.replace('{count}', String(exported)), this.ui().CLOSE, { duration: 3000 });
         } catch (err) {
             console.error('[ChatConfig] uploadPrompts failed', err);
@@ -436,7 +436,7 @@ export class ChatConfigDialogComponent {
 
         this.loading.show(this.ui().PROMPT_SYNC_DOWNLOADING);
         try {
-            const { imported } = await this.sync.downloadPrompts();
+            const { imported } = await this.promptCloudSync.downloadPrompts();
             // forceReload — switchProfile(sameId) would early-return and skip the re-read.
             await this.injection.forceReload();
             this.refreshAllEditorContent();
@@ -458,7 +458,7 @@ export class ChatConfigDialogComponent {
         const active = this.activeProfile();
         if (!active) return;
         try {
-            const json = await this.sync.exportSingleProfile(active.id);
+            const json = await this.promptCloudSync.exportSingleProfile(active.id);
             const safeName = (this.getProfileLabel(active) || active.id).replace(/[^\w-]+/g, '_');
             const blob = new Blob([json], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
@@ -483,7 +483,7 @@ export class ChatConfigDialogComponent {
             try {
                 const text = await file.text();
                 const before = new Set(this.registry.userProfiles().map(p => p.id));
-                const { imported } = await this.sync.importSingleProfile(text);
+                const { imported } = await this.promptCloudSync.importSingleProfile(text);
                 if (imported === 0) {
                     this.snackBar.open(this.ui().PROFILE_IMPORT_EMPTY, this.ui().CLOSE, { duration: 3000 });
                     return;

@@ -16,43 +16,7 @@ import {
     SnapshotTrigger
 } from './sync.types';
 import { cleanBookForSync, cleanCollectionForSync } from './clean.util';
-import { BUILT_IN_PROFILES, getProfileScopedKey, USER_PROFILE_ID_PREFIX } from '@app/core/constants/prompt-profiles';
-import { PromptProfileRegistryService } from '../prompt-profile-registry.service';
-import { ALL_PROMPT_TYPES, type PromptType } from '../injection.service';
-
-const PROMPT_TYPES = ALL_PROMPT_TYPES;
-
-interface PromptsV2 {
-    version: 2;
-    profiles: {
-        id: string;
-        displayName: string;
-        baseProfileId: string;
-        createdAt: number;
-        updatedAt: number;
-    }[];
-    prompts: Record<string, { content: string; tokens?: number }>;
-}
-
-function isPromptsV2(x: unknown): x is PromptsV2 {
-    if (!x || typeof x !== 'object') return false;
-    const v = (x as { version?: unknown }).version;
-    return v === 2;
-}
-
-function importSuffix(): string {
-    if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-        return crypto.randomUUID().replace(/-/g, '').slice(0, 8);
-    }
-    return Math.random().toString(36).slice(2, 10);
-}
-
-function isValidUserProfileId(id: unknown): id is string {
-    // Untrimmed regex — id is used as an IDB key verbatim, whitespace must fail outright.
-    return typeof id === 'string'
-        && id.startsWith(USER_PROFILE_ID_PREFIX)
-        && /^[A-Za-z0-9_-]{3,}$/.test(id);
-}
+import { PromptCloudSyncService } from './prompt-cloud-sync.service';
 
 async function loadS3Module() {
     return import('./s3-sync-backend');
@@ -144,11 +108,11 @@ export class SyncService {
     private gdrive = inject(GDriveSyncBackend);
     private file = inject(FileSyncBackend);
     private state = inject(GameStateService);
-    private profileRegistry = inject(PromptProfileRegistryService);
     private snackBar = inject(MatSnackBar);
     private readonly doc = inject(DOCUMENT);
     private readonly win = inject(WINDOW);
     private readonly destroyRef = inject(DestroyRef);
+    private readonly promptCloudSync = inject(PromptCloudSyncService);
 
     activeBackendId = signal<SyncBackendId>(this.loadBackendId());
     s3Config = signal<S3Config | null>(this.loadS3Config());
@@ -199,6 +163,10 @@ export class SyncService {
     private isInitialSync = false;
 
     constructor() {
+        // PromptCloudSyncService stays out of the SyncService DI graph so it
+        // doesn't form a circular dep — wire the backend resolver here.
+        this.promptCloudSync.registerBackendResolver(() => this.getActiveBackend());
+
         // React to every successful book save → schedule debounced auto-sync.
         effect(() => {
             const ts = this.session.lastSavedAt();
@@ -960,184 +928,6 @@ export class SyncService {
         const backend = await this.getActiveBackend();
         await backend.authenticate();
         return backend.readSettings();
-    }
-
-    /**
-     * Built-ins ship only their user-modified rows. User profiles ship in
-     * full — receiving device has no shipped asset to fall back on.
-     */
-    async uploadPrompts(): Promise<{ exported: number }> {
-        const backend = await this.getActiveBackend();
-        await backend.authenticate();
-
-        const prompts: Record<string, { content: string; tokens?: number }> = {};
-        const profilesOut: PromptsV2['profiles'] = [];
-        let exported = 0;
-
-        for (const profile of this.profileRegistry.list()) {
-            if (profile.isBuiltIn) {
-                for (const type of PROMPT_TYPES) {
-                    const scopedFlagKey = getProfileScopedKey(`prompt_user_modified_${type}`, profile.id);
-                    if (localStorage.getItem(scopedFlagKey) !== 'true') continue;
-                    const rec = await this.storage.getProfilePrompt(type, profile.id);
-                    if (!rec) continue;
-                    prompts[`${profile.id}:${type}`] = { content: rec.content, tokens: rec.tokens };
-                    exported++;
-                }
-            } else {
-                profilesOut.push({
-                    id: profile.id,
-                    displayName: profile.displayName ?? profile.id,
-                    baseProfileId: profile.baseProfileId ?? 'cloud',
-                    createdAt: profile.createdAt ?? Date.now(),
-                    updatedAt: profile.updatedAt ?? Date.now()
-                });
-                for (const type of PROMPT_TYPES) {
-                    const rec = await this.storage.getProfilePrompt(type, profile.id);
-                    if (!rec) continue;
-                    prompts[`${profile.id}:${type}`] = { content: rec.content, tokens: rec.tokens };
-                    exported++;
-                }
-            }
-        }
-
-        const payload: PromptsV2 = { version: 2, profiles: profilesOut, prompts };
-        await backend.writePrompts(JSON.stringify(payload));
-        return { exported };
-    }
-
-    /** v1 payloads have no profile metadata, so user-prefixed entries in v1 are dropped as orphans. */
-    async downloadPrompts(): Promise<{ imported: number }> {
-        const backend = await this.getActiveBackend();
-        await backend.authenticate();
-        const json = await backend.readPrompts();
-        if (!json) return { imported: 0 };
-
-        const parsed = JSON.parse(json) as Partial<PromptsV2> | Record<string, { content: string; tokens?: number }>;
-        if (isPromptsV2(parsed)) {
-            return this.applyPromptsV2(parsed);
-        }
-        return this.applyPromptsV1Legacy(parsed as Record<string, { content: string; tokens?: number }>);
-    }
-
-    private async applyPromptsV2(payload: PromptsV2): Promise<{ imported: number }> {
-        const idRemap = new Map<string, string>();
-        for (const incoming of payload.profiles ?? []) {
-            if (!isValidUserProfileId(incoming.id)) {
-                console.warn('[SyncService] applyPromptsV2: dropping profile with invalid id', incoming);
-                continue;
-            }
-
-            // Hand-edited / partial exports can carry undefined fields; meta store requires them populated.
-            const incomingName = incoming.displayName || incoming.id;
-            const incomingBase = incoming.baseProfileId || 'cloud';
-            const incomingCreatedAt = incoming.createdAt || Date.now();
-            const incomingUpdatedAt = incoming.updatedAt || incomingCreatedAt;
-
-            const existing = this.profileRegistry.get(incoming.id);
-            const collidesDifferent = existing && !existing.isBuiltIn &&
-                (existing.displayName !== incomingName || existing.baseProfileId !== incomingBase);
-
-            // Loop the suffix lottery until unused — guards against a future weakening of importSuffix().
-            let targetId = incoming.id;
-            if (collidesDifferent) {
-                do {
-                    targetId = `${incoming.id}_imported_${importSuffix()}`;
-                } while (this.profileRegistry.get(targetId));
-            }
-            if (targetId !== incoming.id) idRemap.set(incoming.id, targetId);
-
-            const meta = {
-                id: targetId,
-                displayName: incomingName,
-                baseProfileId: incomingBase,
-                createdAt: incomingCreatedAt,
-                updatedAt: incomingUpdatedAt
-            };
-            await this.storage.putProfileMeta(meta);
-            const existingTarget = this.profileRegistry.get(targetId);
-            if (existingTarget) {
-                this.profileRegistry.update(targetId, { displayName: incomingName, baseProfileId: incomingBase, updatedAt: incomingUpdatedAt });
-            } else {
-                this.profileRegistry.add({
-                    id: targetId,
-                    isBuiltIn: false,
-                    subDir: null,
-                    displayName: incomingName,
-                    baseProfileId: incomingBase,
-                    createdAt: incomingCreatedAt,
-                    updatedAt: incomingUpdatedAt
-                });
-            }
-        }
-
-        let imported = 0;
-        for (const [key, value] of Object.entries(payload.prompts ?? {})) {
-            if (!value || typeof value.content !== 'string') continue;
-            const colon = key.indexOf(':');
-            if (colon <= 0) continue;
-            const incomingId = key.slice(0, colon);
-            const type = key.slice(colon + 1);
-            if (!PROMPT_TYPES.includes(type as PromptType)) continue;
-
-            const profileId = idRemap.get(incomingId) ?? incomingId;
-            const profile = this.profileRegistry.get(profileId);
-            // Drop rows whose profile entry never made it into the registry (orphan).
-            if (!profile) continue;
-
-            await this.storage.saveProfilePrompt(type, profileId, value.content, value.tokens);
-            if (profile.isBuiltIn) {
-                localStorage.setItem(getProfileScopedKey(`prompt_user_modified_${type}`, profileId), 'true');
-            }
-            imported++;
-        }
-        return { imported };
-    }
-
-    private async applyPromptsV1Legacy(parsed: Record<string, { content: string; tokens?: number }>): Promise<{ imported: number }> {
-        let imported = 0;
-        for (const [key, value] of Object.entries(parsed)) {
-            if (!value || typeof value.content !== 'string') continue;
-            const colon = key.indexOf(':');
-            if (colon <= 0) continue;
-            const profileId = key.slice(0, colon);
-            const type = key.slice(colon + 1);
-            if (!BUILT_IN_PROFILES.some(p => p.id === profileId)) continue;
-            if (!PROMPT_TYPES.includes(type as PromptType)) continue;
-            await this.storage.saveProfilePrompt(type, profileId, value.content, value.tokens);
-            localStorage.setItem(getProfileScopedKey(`prompt_user_modified_${type}`, profileId), 'true');
-            imported++;
-        }
-        return { imported };
-    }
-
-    async exportSingleProfile(profileId: string): Promise<string> {
-        const profile = this.profileRegistry.get(profileId);
-        if (!profile) throw new Error(`Unknown profile: ${profileId}`);
-
-        const prompts: Record<string, { content: string; tokens?: number }> = {};
-        for (const type of PROMPT_TYPES) {
-            const rec = await this.storage.getProfilePrompt(type, profileId);
-            if (!rec) continue;
-            prompts[`${profileId}:${type}`] = { content: rec.content, tokens: rec.tokens };
-        }
-
-        const profilesOut: PromptsV2['profiles'] = profile.isBuiltIn ? [] : [{
-            id: profile.id,
-            displayName: profile.displayName ?? profile.id,
-            baseProfileId: profile.baseProfileId ?? 'cloud',
-            createdAt: profile.createdAt ?? Date.now(),
-            updatedAt: profile.updatedAt ?? Date.now()
-        }];
-
-        const payload: PromptsV2 = { version: 2, profiles: profilesOut, prompts };
-        return JSON.stringify(payload, null, 2);
-    }
-
-    async importSingleProfile(json: string): Promise<{ imported: number }> {
-        const parsed = JSON.parse(json) as unknown;
-        if (!isPromptsV2(parsed)) throw new Error('Not a v2 prompt profile export');
-        return this.applyPromptsV2(parsed);
     }
 
     // ===== Snapshots ======================================================
