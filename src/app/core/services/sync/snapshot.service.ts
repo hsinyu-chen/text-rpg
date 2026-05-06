@@ -192,20 +192,15 @@ export class SnapshotService {
             .sort((a, b) => b.createdAt - a.createdAt);
         const excess = auto.slice(SNAPSHOT_AUTO_RETENTION);
         if (excess.length === 0) return;
-        let cursor = 0;
-        const runners = Array.from(
-            { length: Math.min(RETENTION_DELETE_CONCURRENCY, excess.length) },
-            async () => {
-                while (cursor < excess.length) {
-                    const i = cursor++;
-                    try {
-                        await backend.deleteSnapshot(excess[i].id);
-                    } catch (e) {
-                        console.warn(`[SnapshotService] Retention: failed to delete ${excess[i].id}`, e);
-                    }
+        while (excess.length) {
+            const batch = excess.splice(0, RETENTION_DELETE_CONCURRENCY);
+            await Promise.all(batch.map(async s => {
+                try {
+                    await backend.deleteSnapshot(s.id);
+                } catch (e) {
+                    console.warn(`[SnapshotService] Retention: failed to delete ${s.id}`, e);
                 }
-            }
-        );
-        await Promise.all(runners);
+            }));
+        }
     }
 }
