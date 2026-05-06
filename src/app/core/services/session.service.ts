@@ -857,11 +857,23 @@ export class SessionService {
      * the startNewGame path where currentBookId may not be set yet. Callers
      * that re-read files without a real content change (e.g. language
      * toggle) pass bumpTimestamp=false so sync isn't woken up for nothing.
+     *
+     * The try/catch here is load-bearing: it preserves the original
+     * swallow-and-set-error-status contract callers depend on (app.component,
+     * config.service, message-state.service don't try/catch this call), AND
+     * it gates the Book persistence on a successful load so a half-loaded
+     * state never ships to cloud sync.
      */
     async loadFiles(pickFolder = true, bumpTimestamp = false) {
-        await this.sessionFile.loadFilesIntoState(pickFolder);
-        if (this.currentBookId()) {
-            await this.saveCurrentSessionToBook({ bumpTimestamp });
+        try {
+            await this.sessionFile.loadFilesIntoState(pickFolder);
+            if (this.currentBookId()) {
+                await this.saveCurrentSessionToBook({ bumpTimestamp });
+            }
+            this.state.status.set('idle');
+        } catch (e) {
+            console.error(e);
+            this.state.status.set('error');
         }
     }
 
