@@ -17,7 +17,7 @@ import { cleanBookForSync, cleanCollectionForSync } from './clean.util';
 import { errMsg } from './error.util';
 import { PromptCloudSyncService } from './prompt-cloud-sync.service';
 import { SnapshotService } from './snapshot.service';
-import { SyncTombstoneTracker } from './tombstone-tracker.service';
+import { PendingDeletion, SyncTombstoneTracker } from './tombstone-tracker.service';
 
 async function loadS3Module() {
     return import('./s3-sync-backend');
@@ -436,7 +436,7 @@ export class SyncService {
         // retry doesn't advance the timestamp and clobber a legitimate
         // post-delete edit on another device.
         const pending = this.tombstones.read(resource);
-        const remaining: { id: string; deletedAt: number }[] = [];
+        const remaining: PendingDeletion[] = [];
         const justDeletedIds = new Set<string>();
         for (const entry of pending) {
             let tombstoneWritten = false;
@@ -732,9 +732,7 @@ export class SyncService {
         }
 
         // Pending deletions are now redundant — anything we wanted gone is gone.
-        for (const r of ['collection', 'book'] as const) {
-            this.tombstones.clear(r);
-        }
+        this.tombstones.clearAll();
 
         this.lastSyncAt = Date.now();
         return report;
@@ -811,9 +809,7 @@ export class SyncService {
         }
 
         // Pending deletions are obsolete after a force pull.
-        for (const r of ['collection', 'book'] as const) {
-            this.tombstones.clear(r);
-        }
+        this.tombstones.clearAll();
 
         await this.collections.load();
 

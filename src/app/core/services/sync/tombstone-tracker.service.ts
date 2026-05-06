@@ -85,4 +85,12 @@ export class SyncTombstoneTracker {
     clear(resource: SyncResource): void {
         this.write(resource, []);
     }
+
+    /**
+     * Drop pending lists for every resource. Convenience wrapper for the
+     * force-push / force-pull / restore flows that always wipe both.
+     */
+    clearAll(): void {
+        for (const r of ['book', 'collection'] as const) this.clear(r);
+    }
 }

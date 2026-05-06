@@ -637,8 +637,8 @@ export class BookListComponent {
         event.stopPropagation();
         try {
             if (!await this.dialog.confirm(`Delete empty collection "${collection.name}"?`)) return;
-            await this.collectionService.remove(collection.id);
             this.tombstoneTracker.track('collection', collection.id);
+            await this.collectionService.remove(collection.id);
         } catch (e) {
             await this.dialog.alert((e as Error).message);
         }
