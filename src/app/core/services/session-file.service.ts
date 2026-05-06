@@ -89,22 +89,23 @@ export class SessionFileService {
 
         this.state.fileTokenCounts.set(tokenMap);
 
-        const partsForCount = this.kb.buildKnowledgeBaseParts(contentMap);
         const storedHash = this.state.kbCacheHash();
-        const currentHashTmp = this.state.currentKbHash();
+        const currentHash = this.state.currentKbHash();
 
         let totalTokenCount = 0;
-        if (storedHash === currentHashTmp && this.state.estimatedKbTokens() > 0) {
+        if (storedHash === currentHash && this.state.estimatedKbTokens() > 0) {
             totalTokenCount = this.state.estimatedKbTokens();
             console.log('[SessionFileService] Reusing cached total KB tokens (Est):', totalTokenCount);
         } else {
+            // Lazy: building parts is only needed on the cache-miss path;
+            // skip the work when we'll reuse the cached estimate.
+            const partsForCount = this.kb.buildKnowledgeBaseParts(contentMap);
             totalTokenCount = await this.provider.countTokens(this.providerConfig, modelId, [{ role: 'user', parts: partsForCount }]);
             console.log('[SessionFileService] Counted new total KB tokens (Est):', totalTokenCount);
         }
 
         this.state.estimatedKbTokens.set(totalTokenCount);
 
-        const currentHash = this.state.currentKbHash();
         const hasKbContent = Array.from(contentMap.keys()).some(path => !path.startsWith('system_files/') && path !== 'system_prompt.md');
 
         if (hasKbContent) {
@@ -166,6 +167,11 @@ export class SessionFileService {
             // for the rest of its TTL while we generate a fresh one next turn.
             await this.cacheManager.cleanupCache();
             this.state.kbCacheHash.set(currentHash);
+            // Match loadFilesIntoState's KB-changed branch: reset so the next
+            // turn re-injects the updated context. Pre-refactor updateSingleFile
+            // omitted this — when cache is disabled the engine would otherwise
+            // keep using the previously injected context referencing stale KB.
+            this.state.isContextInjected = false;
 
             const contentMap = this.state.loadedFiles();
             const partsForCount = this.kb.buildKnowledgeBaseParts(contentMap);
