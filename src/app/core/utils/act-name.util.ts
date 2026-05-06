@@ -11,10 +11,10 @@ export function extractActName(messages: ChatMessage[]): string | null {
         if (msg.role !== 'model' || !msg.content) continue;
 
         const actMatch = msg.content.match(/## Act\.(\d+)/i);
-        if (actMatch) return `Act.${actMatch[1]} `;
+        if (actMatch) return `Act.${actMatch[1]}`;
 
         const zhMatch = msg.content.match(/第\s*(\d+)\s*章/);
-        if (zhMatch) return `第${zhMatch[1]} 章`;
+        if (zhMatch) return `第${zhMatch[1]}章`;
     }
     return null;
 }

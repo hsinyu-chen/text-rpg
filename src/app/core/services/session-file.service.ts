@@ -56,6 +56,17 @@ export class SessionFileService {
     }
 
     /**
+     * Build KB parts and count tokens. Returns 0 when there's nothing to
+     * count (countTokens errors on empty parts in most providers, e.g.
+     * Gemini requires ≥ 1 part). Shared by the load + single-write paths.
+     */
+    private async recountKbTokens(contentMap: Map<string, string>, modelId: string): Promise<number> {
+        const parts = this.kb.buildKnowledgeBaseParts(contentMap);
+        if (parts.length === 0) return 0;
+        return this.provider.countTokens(this.providerConfig, modelId, [{ role: 'user', parts }]);
+    }
+
+    /**
      * Loads files from disk (or just rehydrates in-memory state when
      * `pickFolder=false`) and re-establishes KB token counts. Cleans up the
      * remote cache if the KB hash has changed since last save.
@@ -111,14 +122,7 @@ export class SessionFileService {
             totalTokenCount = this.state.estimatedKbTokens();
             console.log('[SessionFileService] Reusing cached total KB tokens (Est):', totalTokenCount);
         } else {
-            // Lazy: building parts is only needed on the cache-miss path;
-            // skip the work when we'll reuse the cached estimate.
-            const partsForCount = this.kb.buildKnowledgeBaseParts(contentMap);
-            // Guard: countTokens with an empty parts array errors on most
-            // providers (Gemini requires ≥ 1 part). Empty KB → totalCount stays 0.
-            if (partsForCount.length > 0) {
-                totalTokenCount = await this.provider.countTokens(this.providerConfig, modelId, [{ role: 'user', parts: partsForCount }]);
-            }
+            totalTokenCount = await this.recountKbTokens(contentMap, modelId);
             console.log('[SessionFileService] Counted new total KB tokens (Est):', totalTokenCount);
         }
 
@@ -179,15 +183,7 @@ export class SessionFileService {
         const currentHash = this.state.currentKbHash();
         if (this.state.kbCacheHash() !== currentHash) {
             await this.invalidateKbCache(currentHash, 'single update');
-
-            const contentMap = this.state.loadedFiles();
-            const partsForCount = this.kb.buildKnowledgeBaseParts(contentMap);
-            // Same empty-parts guard as loadFilesIntoState — countTokens errors
-            // on empty parts in most providers.
-            let totalTokenCount = 0;
-            if (partsForCount.length > 0) {
-                totalTokenCount = await this.provider.countTokens(this.providerConfig, modelId, [{ role: 'user', parts: partsForCount }]);
-            }
+            const totalTokenCount = await this.recountKbTokens(this.state.loadedFiles(), modelId);
             this.state.estimatedKbTokens.set(totalTokenCount);
         }
     }

@@ -19,11 +19,11 @@ describe('extractActName', () => {
   });
 
   it('matches `## Act.N` in a model message', () => {
-    expect(extractActName([m('model', 'intro\n\n## Act.3\n\nbody')])).toBe('Act.3 ');
+    expect(extractActName([m('model', 'intro\n\n## Act.3\n\nbody')])).toBe('Act.3');
   });
 
   it('matches `第N章` (Traditional Chinese) in a model message', () => {
-    expect(extractActName([m('model', '第 7 章\n\n內文')])).toBe('第7 章');
+    expect(extractActName([m('model', '第 7 章\n\n內文')])).toBe('第7章');
   });
 
   it('walks backward — picks the latest matching message', () => {
@@ -33,18 +33,18 @@ describe('extractActName', () => {
       m('user', '## Act.99'), // user messages ignored
       m('model', '## Act.5'),
     ];
-    expect(extractActName(messages)).toBe('Act.5 ');
+    expect(extractActName(messages)).toBe('Act.5');
   });
 
   it('prefers Act marker over zh marker when both appear in the same message', () => {
-    expect(extractActName([m('model', '## Act.2 / 第3章')])).toBe('Act.2 ');
+    expect(extractActName([m('model', '## Act.2 / 第3章')])).toBe('Act.2');
   });
 
   it('skips model messages with empty content', () => {
-    expect(extractActName([m('model', '## Act.1'), m('model', '')])).toBe('Act.1 ');
+    expect(extractActName([m('model', '## Act.1'), m('model', '')])).toBe('Act.1');
   });
 
   it('case-insensitive on the Act keyword', () => {
-    expect(extractActName([m('model', '## ACT.4')])).toBe('Act.4 ');
+    expect(extractActName([m('model', '## ACT.4')])).toBe('Act.4');
   });
 });
