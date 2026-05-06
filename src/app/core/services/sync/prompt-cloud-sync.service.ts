@@ -236,43 +236,45 @@ export class PromptCloudSyncService {
             }
         }
 
-        let imported = 0;
-        for (const [key, value] of Object.entries(payload.prompts ?? {})) {
-            if (!value || typeof value.content !== 'string') continue;
+        // Parallel: per-row IDB writes are independent. Counts come from
+        // filtering the resolved promises rather than mutating a closure
+        // counter — avoids subtle race assumptions even though JS is
+        // single-threaded.
+        const v2Results = await Promise.all(Object.entries(payload.prompts ?? {}).map(async ([key, value]) => {
+            if (!value || typeof value.content !== 'string') return false;
             const colon = key.indexOf(':');
-            if (colon <= 0) continue;
+            if (colon <= 0) return false;
             const incomingId = key.slice(0, colon);
             const type = key.slice(colon + 1);
-            if (!PROMPT_TYPES.includes(type as PromptType)) continue;
+            if (!PROMPT_TYPES.includes(type as PromptType)) return false;
 
             const profileId = idRemap.get(incomingId) ?? incomingId;
             const profile = this.profileRegistry.get(profileId);
             // Drop rows whose profile entry never made it into the registry (orphan).
-            if (!profile) continue;
+            if (!profile) return false;
 
             await this.storage.saveProfilePrompt(type, profileId, value.content, value.tokens);
             if (profile.isBuiltIn) {
                 localStorage.setItem(getProfileScopedKey(`prompt_user_modified_${type}`, profileId), 'true');
             }
-            imported++;
-        }
-        return { imported };
+            return true;
+        }));
+        return { imported: v2Results.filter(Boolean).length };
     }
 
     private async applyPromptsV1Legacy(parsed: Record<string, { content: string; tokens?: number }>): Promise<{ imported: number }> {
-        let imported = 0;
-        for (const [key, value] of Object.entries(parsed)) {
-            if (!value || typeof value.content !== 'string') continue;
+        const results = await Promise.all(Object.entries(parsed).map(async ([key, value]) => {
+            if (!value || typeof value.content !== 'string') return false;
             const colon = key.indexOf(':');
-            if (colon <= 0) continue;
+            if (colon <= 0) return false;
             const profileId = key.slice(0, colon);
             const type = key.slice(colon + 1);
-            if (!BUILT_IN_PROFILES.some(p => p.id === profileId)) continue;
-            if (!PROMPT_TYPES.includes(type as PromptType)) continue;
+            if (!BUILT_IN_PROFILES.some(p => p.id === profileId)) return false;
+            if (!PROMPT_TYPES.includes(type as PromptType)) return false;
             await this.storage.saveProfilePrompt(type, profileId, value.content, value.tokens);
             localStorage.setItem(getProfileScopedKey(`prompt_user_modified_${type}`, profileId), 'true');
-            imported++;
-        }
-        return { imported };
+            return true;
+        }));
+        return { imported: results.filter(Boolean).length };
     }
 }
