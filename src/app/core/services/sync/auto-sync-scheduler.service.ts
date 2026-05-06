@@ -7,7 +7,12 @@ import { SessionService } from '../session.service';
 import { SyncBackendResolver } from './sync-backend-resolver.service';
 import { S3ConfigService } from './s3-config.service';
 
-const LS_DIRTY = 'sync_dirty';
+/**
+ * localStorage flag set on pagehide if a debounced sync was pending,
+ * read on next boot to force an initial sync. Exported so SyncService
+ * can clear it after a successful bootSync — single source of truth.
+ */
+export const LS_SYNC_DIRTY = 'sync_dirty';
 const DEBOUNCE_MS = 60_000;
 const VISIBILITY_COOLDOWN_MS = 30_000;
 const MAX_FAILURES = 3;
@@ -167,7 +172,7 @@ export class AutoSyncScheduler {
         };
         const onPageHide = () => {
             if (this.timer) {
-                localStorage.setItem(LS_DIRTY, '1');
+                localStorage.setItem(LS_SYNC_DIRTY, '1');
             }
         };
         this.doc.addEventListener('visibilitychange', onVisibilityChange);

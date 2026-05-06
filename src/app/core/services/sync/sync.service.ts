@@ -12,9 +12,7 @@ import { PromptCloudSyncService } from './prompt-cloud-sync.service';
 import { SnapshotService } from './snapshot.service';
 import { PendingDeletion, SyncTombstoneTracker } from './tombstone-tracker.service';
 import { SyncBackendResolver } from './sync-backend-resolver.service';
-import { AutoSyncScheduler } from './auto-sync-scheduler.service';
-
-const LS_DIRTY = 'sync_dirty';
+import { AutoSyncScheduler, LS_SYNC_DIRTY } from './auto-sync-scheduler.service';
 
 export interface SyncError {
     resource: SyncResource;
@@ -138,7 +136,7 @@ export class SyncService {
     async bootSync(): Promise<void> {
         this.dropLegacyBaselines();
         if (!this.scheduler.isActive()) {
-            localStorage.removeItem(LS_DIRTY);
+            localStorage.removeItem(LS_SYNC_DIRTY);
             return;
         }
         this.isInitialSync = true;
@@ -147,7 +145,7 @@ export class SyncService {
             // syncAll already calls scheduler.notifySyncCompleted; explicit
             // success notification is for the circuit breaker only.
             this.scheduler.recordRun(true);
-            localStorage.removeItem(LS_DIRTY);
+            localStorage.removeItem(LS_SYNC_DIRTY);
         } catch (e) {
             this.scheduler.recordRun(false);
             console.warn('[SyncService] Boot sync failed', e);
