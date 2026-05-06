@@ -1,4 +1,4 @@
-import { Injectable, DestroyRef, inject, signal, computed, effect } from '@angular/core';
+import { Injectable, DestroyRef, inject, signal, effect } from '@angular/core';
 import { DOCUMENT } from '@angular/common';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { WINDOW } from '@app/core/tokens/window.token';
@@ -7,34 +7,18 @@ import { SessionService } from '../session.service';
 import { CollectionService } from '../collection.service';
 import { GameStateService } from '../game-state.service';
 import { Book, Collection, ROOT_COLLECTION_ID } from '@app/core/models/types';
-import { GDriveSyncBackend } from './gdrive-sync-backend';
-import type { S3SyncBackend } from './s3-sync-backend';
-import { FileSyncBackend } from './file-sync-backend';
 import {
-    SyncBackend, SyncBackendId, SyncResource, S3Config, SnapshotLocalPayload
+    SyncBackend, SyncBackendId, SyncResource, SnapshotLocalPayload
 } from './sync.types';
 import { cleanBookForSync, cleanCollectionForSync } from './clean.util';
 import { errMsg } from './error.util';
 import { PromptCloudSyncService } from './prompt-cloud-sync.service';
 import { SnapshotService } from './snapshot.service';
 import { PendingDeletion, SyncTombstoneTracker } from './tombstone-tracker.service';
+import { SyncBackendResolver } from './sync-backend-resolver.service';
+import { S3ConfigService } from './s3-config.service';
 
-async function loadS3Module() {
-    return import('./s3-sync-backend');
-}
-
-const LS_BACKEND = 'sync_backend';
-const LS_AUTO_PREFIX = 'sync_auto_';
 const LS_DIRTY = 'sync_dirty';
-const LS_S3 = {
-    endpoint: 'sync_s3_endpoint',
-    region: 'sync_s3_region',
-    bucket: 'sync_s3_bucket',
-    accessKeyId: 'sync_s3_access_key',
-    secretAccessKey: 'sync_s3_secret_key',
-    prefix: 'sync_s3_prefix',
-    forcePathStyle: 'sync_s3_path_style'
-} as const;
 
 const DEBOUNCE_MS = 60_000;
 const VISIBILITY_COOLDOWN_MS = 30_000;
@@ -67,8 +51,6 @@ export class SyncService {
     private storage = inject(StorageService);
     private session = inject(SessionService);
     private collections = inject(CollectionService);
-    private gdrive = inject(GDriveSyncBackend);
-    private file = inject(FileSyncBackend);
     private state = inject(GameStateService);
     private snackBar = inject(MatSnackBar);
     private readonly doc = inject(DOCUMENT);
@@ -77,20 +59,8 @@ export class SyncService {
     private readonly promptCloudSync = inject(PromptCloudSyncService);
     private readonly snapshot = inject(SnapshotService);
     private readonly tombstones = inject(SyncTombstoneTracker);
-
-    activeBackendId = signal<SyncBackendId>(this.loadBackendId());
-    s3Config = signal<S3Config | null>(this.loadS3Config());
-
-    isS3Configured = computed(() => {
-        const c = this.s3Config();
-        return !!(c && c.endpoint && c.bucket && c.accessKeyId && c.secretAccessKey);
-    });
-
-    /**
-     * Per-backend auto-sync preference. Only meaningful for backends with
-     * supportsBackgroundSync = true.
-     */
-    autoSyncEnabled = signal<Record<SyncBackendId, boolean>>(this.loadAutoFlags());
+    private readonly backends = inject(SyncBackendResolver);
+    private readonly s3Cfg = inject(S3ConfigService);
 
     /**
      * Set when a non-boot sync downloaded a newer version of the active book.
@@ -98,9 +68,6 @@ export class SyncService {
      * the user might be mid-typing.
      */
     remoteUpdateAvailable = signal<RemoteUpdateAvailable | null>(null);
-
-    private s3Instance: S3SyncBackend | null = null;
-    private s3InstanceFingerprint = '';
 
     private debounceTimer: ReturnType<typeof setTimeout> | null = null;
     private inFlight: { kind: 'sync' | 'forcePush' | 'forcePull' | 'restore'; promise: Promise<unknown> } | null = null;
@@ -130,13 +97,28 @@ export class SyncService {
         // PromptCloudSyncService and SnapshotService both stay out of the
         // SyncService DI graph so they don't form a circular dep — wire the
         // backend resolvers here.
-        this.promptCloudSync.registerBackendResolver(() => this.getActiveBackend());
-        this.snapshot.registerBackendResolver(() => this.getActiveBackend());
+        this.promptCloudSync.registerBackendResolver(() => this.backends.getActiveBackend());
+        this.snapshot.registerBackendResolver(() => this.backends.getActiveBackend());
 
         // React to every successful book save → schedule debounced auto-sync.
         effect(() => {
             const ts = this.session.lastSavedAt();
             if (ts > 0) this.scheduleAutoSync();
+        });
+
+        // Reset the auto-sync circuit breaker when the user changes the S3
+        // config — the previous failures were against the OLD creds, so
+        // they shouldn't keep auto-sync disabled for the new ones. Tracks
+        // both first-load (`config()` flips from null to set) and edits
+        // (fingerprint changes via signal mutation in S3ConfigService.save).
+        let lastS3Fingerprint = '';
+        effect(() => {
+            const c = this.s3Cfg.config();
+            const fp = c ? JSON.stringify(c) : '';
+            if (fp !== lastS3Fingerprint) {
+                lastS3Fingerprint = fp;
+                this.failureCount = 0;
+            }
         });
 
         // Listeners are kept alive for the entire app lifetime in production
@@ -164,87 +146,30 @@ export class SyncService {
         });
     }
 
+    /**
+     * Thin wrappers over `SyncBackendResolver` that also reset scheduler
+     * state (`cancelDebounce` / `failureCount`). When `AutoSyncScheduler`
+     * is extracted (Phase 5), these wrappers collapse and callers go
+     * straight to the resolver.
+     */
     setActiveBackend(id: SyncBackendId): void {
-        this.activeBackendId.set(id);
-        localStorage.setItem(LS_BACKEND, id);
+        this.backends.setActiveBackend(id);
         this.cancelDebounce();
         this.failureCount = 0;
     }
 
     setAutoSyncEnabled(id: SyncBackendId, on: boolean): void {
-        const next = { ...this.autoSyncEnabled(), [id]: on };
-        this.autoSyncEnabled.set(next);
-        localStorage.setItem(LS_AUTO_PREFIX + id, on ? '1' : '0');
+        this.backends.setAutoSyncEnabled(id, on);
         this.failureCount = 0;
         if (!on) this.cancelDebounce();
     }
 
-    saveS3Config(config: S3Config | null): void {
-        if (config) {
-            localStorage.setItem(LS_S3.endpoint, config.endpoint);
-            localStorage.setItem(LS_S3.region, config.region);
-            localStorage.setItem(LS_S3.bucket, config.bucket);
-            localStorage.setItem(LS_S3.accessKeyId, config.accessKeyId);
-            localStorage.setItem(LS_S3.secretAccessKey, config.secretAccessKey);
-            if (config.prefix) localStorage.setItem(LS_S3.prefix, config.prefix);
-            else localStorage.removeItem(LS_S3.prefix);
-            localStorage.setItem(LS_S3.forcePathStyle, String(config.forcePathStyle ?? true));
-        } else {
-            for (const k of Object.values(LS_S3)) localStorage.removeItem(k);
-        }
-        this.s3Config.set(config);
-        this.s3Instance = null;
-        this.s3InstanceFingerprint = '';
-        this.failureCount = 0;
-    }
-
-    async getActiveBackend(): Promise<SyncBackend> {
-        const id = this.activeBackendId();
-        if (id === 's3') return this.getS3Backend();
-        if (id === 'file') return this.file;
-        return this.gdrive;
-    }
-
-    getFileBackend(): FileSyncBackend {
-        return this.file;
-    }
-
-    isFileBackendBound(): boolean {
-        return this.file.permission.handle() !== null;
-    }
-
-    getGDriveBackend(): SyncBackend {
-        return this.gdrive;
-    }
-
-    async getS3Backend(): Promise<S3SyncBackend> {
-        const cfg = this.s3Config();
-        if (!cfg || !this.isS3Configured()) {
-            throw new Error('S3 backend is not configured.');
-        }
-        const fp = JSON.stringify(cfg);
-        if (!this.s3Instance || this.s3InstanceFingerprint !== fp) {
-            const { S3SyncBackend } = await loadS3Module();
-            this.s3Instance = new S3SyncBackend(cfg, this.win.location.origin);
-            this.s3InstanceFingerprint = fp;
-        }
-        return this.s3Instance;
-    }
-
-    async testS3Connection(config: S3Config): Promise<void> {
-        const { S3SyncBackend } = await loadS3Module();
-        const backend = new S3SyncBackend(config, this.win.location.origin);
-        await backend.testConnection();
-    }
-
     isAutoSyncActive(): boolean {
         if (this.restoreInProgress) return false;
-        const id = this.activeBackendId();
-        const flag = this.autoSyncEnabled()[id];
-        if (!flag) return false;
-        if (id === 'gdrive') return false;
-        if (id === 's3') return this.isS3Configured();
-        return false;
+        const id = this.backends.activeBackendId();
+        if (!this.backends.autoSyncEnabled()[id]) return false;
+        const backend = this.backends.get(id);
+        return !!backend?.supportsBackgroundSync && backend.isReady();
     }
 
     scheduleAutoSync(immediate = false): void {
@@ -280,7 +205,7 @@ export class SyncService {
             this.failureCount++;
             console.warn(`[SyncService] Auto-sync failed (${this.failureCount}/${MAX_FAILURES})`, e);
             if (this.failureCount >= MAX_FAILURES) {
-                const id = this.activeBackendId();
+                const id = this.backends.activeBackendId();
                 this.setAutoSyncEnabled(id, false);
                 this.snackBar.open(
                     `Auto-sync disabled after ${MAX_FAILURES} failures. Re-enable in Settings once fixed.`,
@@ -365,7 +290,7 @@ export class SyncService {
     }
 
     private async doSyncAll(): Promise<SyncReport> {
-        const backend = await this.getActiveBackend();
+        const backend = await this.backends.getActiveBackend();
         await backend.authenticate();
 
         const totals: SyncReport = { uploaded: 0, downloaded: 0, deleted: 0, errors: [] };
@@ -678,7 +603,7 @@ export class SyncService {
     }
 
     private async doForcePushAll(): Promise<ForcePushReport> {
-        const backend = await this.getActiveBackend();
+        const backend = await this.backends.getActiveBackend();
         await backend.authenticate();
         const report: ForcePushReport = { uploaded: 0, deletedRemote: 0, errors: [] };
 
@@ -760,7 +685,7 @@ export class SyncService {
     }
 
     private async doForcePullAll(): Promise<ForcePullReport> {
-        const backend = await this.getActiveBackend();
+        const backend = await this.backends.getActiveBackend();
         await backend.authenticate();
         const report: ForcePullReport = { downloaded: 0, deletedLocal: 0, errors: [] };
 
@@ -838,7 +763,7 @@ export class SyncService {
      * Pushes a settings JSON snapshot to the active backend.
      */
     async uploadSettings(content: string): Promise<void> {
-        const backend = await this.getActiveBackend();
+        const backend = await this.backends.getActiveBackend();
         await backend.authenticate();
         await backend.writeSettings(content);
     }
@@ -847,7 +772,7 @@ export class SyncService {
      * Pulls the settings JSON snapshot from the active backend, or null if none.
      */
     async downloadSettings(): Promise<string | null> {
-        const backend = await this.getActiveBackend();
+        const backend = await this.backends.getActiveBackend();
         await backend.authenticate();
         return backend.readSettings();
     }
@@ -910,7 +835,7 @@ export class SyncService {
                     await this.snapshot.createPreOpSnapshot('preRestore', 'cloud');
                 }
 
-                const backend = await this.getActiveBackend();
+                const backend = await this.backends.getActiveBackend();
                 await backend.authenticate();
 
                 await backend.restoreSnapshot(snapshotId);
@@ -938,36 +863,4 @@ export class SyncService {
         });
     }
 
-    private loadBackendId(): SyncBackendId {
-        const v = localStorage.getItem(LS_BACKEND);
-        if (v === 's3') return 's3';
-        if (v === 'file') return 'file';
-        return 'gdrive';
-    }
-
-    private loadAutoFlags(): Record<SyncBackendId, boolean> {
-        return {
-            gdrive: localStorage.getItem(LS_AUTO_PREFIX + 'gdrive') === '1',
-            s3: localStorage.getItem(LS_AUTO_PREFIX + 's3') === '1',
-            // file backend deliberately does not support auto-sync — see plan/file-sync-backend.md §四
-            file: false
-        };
-    }
-
-    private loadS3Config(): S3Config | null {
-        const endpoint = localStorage.getItem(LS_S3.endpoint);
-        const bucket = localStorage.getItem(LS_S3.bucket);
-        const accessKeyId = localStorage.getItem(LS_S3.accessKeyId);
-        const secretAccessKey = localStorage.getItem(LS_S3.secretAccessKey);
-        if (!endpoint || !bucket || !accessKeyId || !secretAccessKey) return null;
-        return {
-            endpoint,
-            region: localStorage.getItem(LS_S3.region) || 'us-east-1',
-            bucket,
-            accessKeyId,
-            secretAccessKey,
-            prefix: localStorage.getItem(LS_S3.prefix) || undefined,
-            forcePathStyle: localStorage.getItem(LS_S3.forcePathStyle) !== 'false'
-        };
-    }
 }

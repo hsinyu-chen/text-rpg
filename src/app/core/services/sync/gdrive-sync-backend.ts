@@ -56,8 +56,14 @@ export class GDriveSyncBackend implements SyncBackend {
     private settingsFileId: string | null = null;
     private promptsFileId: string | null = null;
 
-    get isConfigured(): boolean {
+    isReady(): boolean {
         return this.drive.isConfigured;
+    }
+
+    async initAsync(): Promise<void> {
+        // GoogleDriveService loads its own SDK lazily on first use; backend
+        // has no per-init state to build, so this is a no-op. authenticate()
+        // (called by SyncService.runExclusive) handles token refresh.
     }
 
     isAuthenticated(): boolean {

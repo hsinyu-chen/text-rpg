@@ -58,7 +58,6 @@ function isConflictName(name: string): boolean {
 export class FileSyncBackend implements SyncBackend {
     readonly id: SyncBackendId = 'file';
     readonly label = 'Local Folder';
-    readonly isConfigured = true;
     /**
      * Forced false because re-acquiring File System Access permission after
      * a page reload requires a user gesture (`requestPermission` only
@@ -68,6 +67,16 @@ export class FileSyncBackend implements SyncBackend {
     readonly supportsBackgroundSync = false;
 
     readonly permission = inject(FileBackendPermissionService);
+
+    isReady(): boolean {
+        return this.permission.handle() !== null;
+    }
+
+    async initAsync(): Promise<void> {
+        // No lazy module to load; FSA handle is already in memory after
+        // the user picked the folder. authenticate() handles permission
+        // re-grant inside a user gesture.
+    }
 
     isAuthenticated(): boolean {
         return this.permission.permissionState() === 'granted';

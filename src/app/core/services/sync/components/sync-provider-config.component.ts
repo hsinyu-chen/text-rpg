@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { MatRadioModule } from '@angular/material/radio';
 import { SyncService } from '../sync.service';
 import { SyncBackendRegistry } from '../sync-backend-registry.service';
+import { SyncBackendResolver } from '../sync-backend-resolver.service';
 import { SyncBackendId } from '../sync.types';
 
 @Component({
@@ -17,9 +18,10 @@ import { SyncBackendId } from '../sync.types';
 export class SyncProviderConfigComponent {
     private sync = inject(SyncService);
     private registry = inject(SyncBackendRegistry);
+    private resolver = inject(SyncBackendResolver);
 
     backends = computed(() => this.registry.list());
-    selectedId = this.sync.activeBackendId;
+    selectedId = this.resolver.activeBackendId;
 
     activeConfigComponent = computed<Type<unknown> | null>(() =>
         this.registry.getConfigComponent(this.selectedId())

@@ -13,6 +13,9 @@ import { MatDialog } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
 import { SyncService } from '../sync.service';
 import { S3Config } from '../sync.types';
+import { S3ConfigService } from '../s3-config.service';
+import { S3SyncBackend } from '../s3-sync-backend';
+import { SyncBackendResolver } from '../sync-backend-resolver.service';
 import {
     S3ConfigJsonDialogComponent,
     S3ConfigJsonDialogData
@@ -39,6 +42,9 @@ import { S3FileViewerDialogComponent } from './s3-file-viewer-dialog.component';
 })
 export class S3ConfigComponent {
     private sync = inject(SyncService);
+    private s3Cfg = inject(S3ConfigService);
+    private s3Backend = inject(S3SyncBackend);
+    private backends = inject(SyncBackendResolver);
     private snackBar = inject(MatSnackBar);
     private matDialog = inject(MatDialog);
 
@@ -51,8 +57,8 @@ export class S3ConfigComponent {
     forcePathStyle = signal(true);
     testing = signal(false);
 
-    autoSync = computed(() => this.sync.autoSyncEnabled().s3);
-    s3Configured = computed(() => this.sync.isS3Configured());
+    autoSync = computed(() => this.backends.autoSyncEnabled().s3);
+    s3Configured = computed(() => this.s3Cfg.isConfigured());
 
     isValid = computed(() => !!(
         this.endpoint().trim() &&
@@ -62,7 +68,7 @@ export class S3ConfigComponent {
     ));
 
     constructor() {
-        const cfg = this.sync.s3Config();
+        const cfg = this.s3Cfg.config();
         if (cfg) {
             this.endpoint.set(cfg.endpoint);
             this.region.set(cfg.region || 'us-east-1');
@@ -91,7 +97,7 @@ export class S3ConfigComponent {
             this.snackBar.open('Please fill in all required S3 fields.', 'Close', { duration: 3000 });
             return;
         }
-        this.sync.saveS3Config(this.buildConfig());
+        this.s3Cfg.save(this.buildConfig());
         this.snackBar.open('S3 configuration saved.', 'OK', { duration: 2000 });
     }
 
@@ -131,7 +137,7 @@ export class S3ConfigComponent {
         if (typeof parsed.forcePathStyle === 'boolean') this.forcePathStyle.set(parsed.forcePathStyle);
         // Auto-persist: the import dialog's Save means "apply", not "fill the form for me to save again".
         if (this.isValid()) {
-            this.sync.saveS3Config(this.buildConfig());
+            this.s3Cfg.save(this.buildConfig());
             this.snackBar.open('Imported and saved.', 'OK', { duration: 2500 });
         } else {
             this.snackBar.open('Imported. Some required fields are empty — fill them and click Save.', 'Close', { duration: 4000 });
@@ -148,7 +154,7 @@ export class S3ConfigComponent {
             }
             this.testing.set(true);
             try {
-                await this.sync.testS3Connection(this.buildConfig());
+                await this.s3Backend.testConfig(this.buildConfig());
             } catch (e) {
                 this.snackBar.open(
                     'Cannot enable auto-sync: ' + ((e as { message?: string })?.message || 'connection failed'),
@@ -181,7 +187,7 @@ export class S3ConfigComponent {
         }
         this.testing.set(true);
         try {
-            await this.sync.testS3Connection(this.buildConfig());
+            await this.s3Backend.testConfig(this.buildConfig());
             this.snackBar.open('S3 connection OK.', 'OK', { duration: 3000 });
         } catch (e) {
             console.error('[S3Config] Test failed', e);

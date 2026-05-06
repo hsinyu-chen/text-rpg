@@ -33,12 +33,33 @@ export interface RemoteEntry {
 export interface SyncBackend {
     readonly id: SyncBackendId;
     readonly label: string;
-    readonly isConfigured: boolean;
     /**
      * True if the backend can run sync without user interaction (no auth popups,
      * no token refresh prompts). Auto-sync UI should only expose backends with this set.
      */
     readonly supportsBackgroundSync: boolean;
+
+    /**
+     * Idempotent setup. Resolver calls this before every `getActiveBackend`
+     * use; lazy backends (S3) do their dynamic import + client construction
+     * here, eager ones (GDrive / File) early-return.
+     *
+     * May throw if the backend has hard prerequisites that can be checked
+     * synchronously at init time (e.g. S3 needs persisted config). Backends
+     * whose readiness is gesture-bound (File needs a fresh user gesture,
+     * Drive needs an OAuth popup) early-return here and surface failure
+     * later from `authenticate()`.
+     *
+     * Implementations must tolerate being called repeatedly with the same
+     * inputs (no-op) and rebuild internal state when inputs change.
+     */
+    initAsync(): Promise<void>;
+    /**
+     * True iff this backend currently has the prerequisites to run
+     * (config persisted / handle bound / etc). UI uses this to gate
+     * "switch to this backend" actions.
+     */
+    isReady(): boolean;
 
     isAuthenticated(): boolean;
     authenticate(): Promise<void>;
