@@ -67,6 +67,17 @@ export class SessionFileService {
     }
 
     /**
+     * Count tokens for a single file's content, returning 0 for empty /
+     * whitespace-only content (countTokens errors on empty parts in most
+     * providers). Shared so the per-file load and per-file write paths
+     * can't drift on the empty-content contract.
+     */
+    private async countFileTokens(content: string, modelId: string): Promise<number> {
+        if (!content.trim()) return 0;
+        return this.provider.countTokens(this.providerConfig, modelId, [{ role: 'user', parts: [{ text: content }] }]);
+    }
+
+    /**
      * Loads files from disk (or just rehydrates in-memory state when
      * `pickFolder=false`) and re-establishes KB token counts. Cleans up the
      * remote cache if the KB hash has changed since last save.
@@ -106,7 +117,7 @@ export class SessionFileService {
         if (needsCount.length > 0) {
             console.log(`[SessionFileService] Counting tokens for ${needsCount.length} new/updated files...`);
             await Promise.all(needsCount.map(async (item) => {
-                const count = await this.provider.countTokens(this.providerConfig, modelId, [{ role: 'user', parts: [{ text: item.content }] }]);
+                const count = await this.countFileTokens(item.content, modelId);
                 tokenMap.set(item.name, count);
                 await this.storage.saveFile(item.name, item.content, count);
             }));
@@ -143,14 +154,14 @@ export class SessionFileService {
      */
     async writeFilesToStorage(files: Map<string, string>): Promise<void> {
         await this.storage.clearFiles();
-        for (const [name, content] of files.entries()) {
-            // Block both paths to match writeSingleFile's guard. Prompts live
-            // in prompt_store; bulk import was previously only filtering the
-            // `system_files/` path which let a root `system_prompt.md` slip
-            // into file_store.
-            if (name === 'system_files/system_prompt.md' || name === 'system_prompt.md') continue;
-            await this.storage.saveFile(name, content);
-        }
+        // IDB writes have no remote rate limit (unlike LLM countTokens), so
+        // parallel is safe and meaningfully faster on bulk imports. Both
+        // path-suffixes are blocked to match writeSingleFile's guard —
+        // prompts live in prompt_store, not file_store.
+        const writes = Array.from(files.entries())
+            .filter(([name]) => name !== 'system_files/system_prompt.md' && name !== 'system_prompt.md')
+            .map(([name, content]) => this.storage.saveFile(name, content));
+        await Promise.all(writes);
     }
 
     /**
@@ -165,7 +176,7 @@ export class SessionFileService {
         }
 
         const modelId = this.providerRegistry.getActiveModelId();
-        const count = await this.provider.countTokens(this.providerConfig, modelId, [{ role: 'user', parts: [{ text: content }] }]);
+        const count = await this.countFileTokens(content, modelId);
         await this.storage.saveFile(filePath, content, count);
 
         this.state.loadedFiles.update(map => {
