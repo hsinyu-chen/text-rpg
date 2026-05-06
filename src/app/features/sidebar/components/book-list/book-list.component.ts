@@ -16,6 +16,7 @@ import { DialogService } from '@app/core/services/dialog.service';
 import { LoadingService } from '@app/core/services/loading.service';
 import { CollectionService } from '@app/core/services/collection.service';
 import { SyncService } from '@app/core/services/sync/sync.service';
+import { SyncTombstoneTracker } from '@app/core/services/sync/tombstone-tracker.service';
 import { SaveNameDialogComponent, SaveNameDialogData } from '@app/shared/components/save-name-dialog/save-name-dialog.component';
 import { MoveBookDialogComponent, MoveBookDialogData } from '@app/shared/components/move-book-dialog/move-book-dialog.component';
 import { firstValueFrom } from 'rxjs';
@@ -385,6 +386,7 @@ export class BookListComponent {
     snackBar = inject(MatSnackBar);
     collectionService = inject(CollectionService);
     syncService = inject(SyncService);
+    tombstoneTracker = inject(SyncTombstoneTracker);
 
     readonly rootId = ROOT_COLLECTION_ID;
 
@@ -534,7 +536,7 @@ export class BookListComponent {
 
         if (!await this.dialog.confirm(confirmMsg)) return;
 
-        this.syncService.trackDeletion('book', book.id);
+        this.tombstoneTracker.track('book', book.id);
 
         if (book.stats.kbCacheName) {
             if (await this.dialog.confirm('This book has an associated Cloud Cache active. Do you want to remove it from the server to avoid costs?')) {
@@ -636,7 +638,7 @@ export class BookListComponent {
         try {
             if (!await this.dialog.confirm(`Delete empty collection "${collection.name}"?`)) return;
             await this.collectionService.remove(collection.id);
-            this.syncService.trackDeletion('collection', collection.id);
+            this.tombstoneTracker.track('collection', collection.id);
         } catch (e) {
             await this.dialog.alert((e as Error).message);
         }
