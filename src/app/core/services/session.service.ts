@@ -3,19 +3,19 @@ import { GameStateService } from './game-state.service';
 import { StorageService } from './storage.service';
 import { FileSystemService } from './file-system.service';
 import { LLMProviderRegistryService } from './llm-provider-registry.service';
-import { LLMProvider, LLMProviderConfig } from '@hcs/llm-core';
 import { CacheManagerService } from './cache-manager.service';
 import { CostService } from './cost.service';
-import { KnowledgeService } from './knowledge.service';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { SessionSave, Scenario, Book, ROOT_COLLECTION_ID, ChatMessage } from '../models/types';
 import { CollectionService } from './collection.service';
 import { LastActiveBookStore } from './last-active-book-store';
 import { AppConfigStore } from './app-config-store';
+import { SessionFileService } from './session-file.service';
 import { GAME_INTENTS } from '../constants/game-intents';
 import { getCoreFilenames, getSectionHeaders, getUIStrings } from '../constants/engine-protocol';
 import { LOCALES } from '../constants/locales';
 import { convertLatexToSymbols, repairCorruptedLatex } from '../utils/latex.util';
+import { extractActName } from '../utils/act-name.util';
 
 // Pre-feat/correction-string saves stored intent as the raw <XXX> tag and used
 // boolean isCorrection. Normalize on load so downstream code only sees the
@@ -60,11 +60,11 @@ export class SessionService {
     private providerRegistry = inject(LLMProviderRegistryService);
     private cacheManager = inject(CacheManagerService);
     private costService = inject(CostService);
-    private kb = inject(KnowledgeService);
     private snackBar = inject(MatSnackBar);
     private collections = inject(CollectionService);
     private lastActiveBook = inject(LastActiveBookStore);
     private appConfig = inject(AppConfigStore);
+    private sessionFile = inject(SessionFileService);
 
     constructor() {
         // Only write — removal is handled explicitly in unloadCurrentSession()
@@ -116,17 +116,6 @@ export class SessionService {
         await this.loadHistoryFromStorage();
     }
 
-    private get provider(): LLMProvider {
-        const p = this.providerRegistry.getActive();
-        if (!p) throw new Error('No active LLM provider');
-        return p;
-    }
-
-    private get providerConfig(): LLMProviderConfig {
-        return this.providerRegistry.getActiveConfig();
-    }
-
-    private get systemInstructionCache() { return this.state.systemInstructionCache(); }
     private set isContextInjected(v: boolean) { this.state.isContextInjected = v; }
 
     /**
@@ -826,30 +815,11 @@ export class SessionService {
 
     /**
      * Extracts the act/chapter name from the chat history for naming save slots.
-     * Follows logic inspired by chat-input.component.ts exportToMarkdown.
+     * Re-exposed on SessionService since callers (book-list, etc.) reach for it via
+     * the session injection.
      */
     extractActName(): string | null {
-        const messages = this.state.messages();
-
-        // Search backwards for the most recent model message that contains an act/chapter marker
-        for (let i = messages.length - 1; i >= 0; i--) {
-            const msg = messages[i];
-            if (msg.role === 'model' && msg.content) {
-                // Primary pattern: ## Act.1
-                const actMatch = msg.content.match(/## Act\.(\d+)/i);
-                if (actMatch) {
-                    return `Act.${actMatch[1]} `;
-                }
-
-                // Fallback: 第N章
-                const zhMatch = msg.content.match(/第\s*(\d+)\s*章/);
-                if (zhMatch) {
-                    return `第${zhMatch[1]} 章`;
-                }
-            }
-        }
-
-        return null;
+        return extractActName(this.state.messages());
     }
 
     /**
@@ -858,12 +828,7 @@ export class SessionService {
     async importFiles(files: Map<string, string>) {
         this.state.status.set('loading');
         try {
-            await this.storage.clearFiles();
-            for (const [name, content] of files.entries()) {
-                if (name !== 'system_files/system_prompt.md') {
-                    await this.storage.saveFile(name, content);
-                }
-            }
+            await this.sessionFile.writeFilesToStorage(files);
             await this.loadFiles(false, true);
         } catch (err) {
             console.error('[SessionService] Import failed', err);
@@ -875,145 +840,28 @@ export class SessionService {
 
     /**
      * Updates a single file in storage and refreshes the loadedFiles signal.
+     * Persists KB change into the active Book LAST so the saved book carries
+     * fresh kbCacheHash + nulled kbCacheName + recomputed estimatedKbTokens —
+     * otherwise the cloud copy would advertise a cache keyed to the previous
+     * content.
      */
     async updateSingleFile(filePath: string, content: string): Promise<void> {
-        // Prompts live in prompt_store, not file_store. No production caller
-        // routes system_prompt.md through here anymore; refuse loudly so a
-        // stray legacy caller can't leave the UI showing "saved" while the
-        // write was silently dropped.
-        if (filePath === 'system_files/system_prompt.md' || filePath === 'system_prompt.md') {
-            throw new Error('Refused to write system_prompt.md as a file — prompts live in prompt_store now.');
-        }
-
-        const modelId = this.providerRegistry.getActiveModelId();
-        const count = await this.provider.countTokens(this.providerConfig, modelId, [{ role: 'user', parts: [{ text: content }] }]);
-        await this.storage.saveFile(filePath, content, count);
-
-        this.state.loadedFiles.update(map => {
-            const newMap = new Map(map);
-            newMap.set(filePath, content);
-            return newMap;
-        });
-
-        this.state.fileTokenCounts.update(map => {
-            const newMap = new Map(map);
-            newMap.set(filePath, count);
-            return newMap;
-        });
-
+        await this.sessionFile.writeSingleFile(filePath, content);
         console.log('[SessionService] Updated file:', filePath);
-
-        // Invalidate cache if KB hash changes (immediate UI feedback)
-        const currentHash = this.state.currentKbHash();
-        if (this.state.kbCacheHash() !== currentHash) {
-            console.log('[SessionService] KB Content changed through single update. Invalidating remote state.');
-            // cleanupCache (not resetCacheState) so the now-stale cache is
-            // also deleted server-side. Otherwise the orphan keeps billing
-            // for the rest of its TTL while we generate a fresh one next turn.
-            await this.cacheManager.cleanupCache();
-            this.state.kbCacheHash.set(currentHash);
-
-            // Also re-calculate total estimated tokens
-            const contentMap = this.state.loadedFiles();
-            const partsForCount = this.kb.buildKnowledgeBaseParts(contentMap);
-            const totalTokenCount = await this.provider.countTokens(this.providerConfig, modelId, [{ role: 'user', parts: partsForCount }]);
-            this.state.estimatedKbTokens.set(totalTokenCount);
-        }
-
-        // Persist KB change into the active Book so cloud sync sees it.
-        // Done last so the saved book carries fresh kbCacheHash + nulled
-        // kbCacheName + recomputed estimatedKbTokens — otherwise the cloud
-        // copy would advertise a cache that was keyed to the previous content.
         await this.saveCurrentSessionToBook();
     }
 
     /**
-     * Loads files from a directory and initializes the Knowledge Base.
+     * Loads files from a directory and initializes the Knowledge Base, then
+     * persists into the active Book so cloud sync sees the load. Guarded for
+     * the startNewGame path where currentBookId may not be set yet. Callers
+     * that re-read files without a real content change (e.g. language
+     * toggle) pass bumpTimestamp=false so sync isn't woken up for nothing.
      */
     async loadFiles(pickFolder = true, bumpTimestamp = false) {
-        try {
-            if (pickFolder) {
-                await this.fileSystem.selectDirectory();
-                await this.fileSystem.syncDiskToDb();
-            }
-            this.state.status.set('loading');
-
-
-            const files = await this.fileSystem.loadInitialFiles();
-            const contentMap = new Map<string, string>();
-            const tokenMap = new Map<string, number>();
-
-            files.forEach((meta, name) => {
-                contentMap.set(name, meta.content);
-            });
-            this.state.loadedFiles.set(contentMap);
-
-
-            // Calculate tokens
-            const modelId = this.providerRegistry.getActiveModelId();
-            const needsCount: { name: string, content: string }[] = [];
-
-            files.forEach((meta, name) => {
-                if (meta.tokens !== undefined) {
-                    tokenMap.set(name, meta.tokens);
-                } else {
-                    needsCount.push({ name, content: meta.content });
-                }
-            });
-
-            if (needsCount.length > 0) {
-                console.log(`[SessionService] Counting tokens for ${needsCount.length} new/updated files...`);
-                await Promise.all(needsCount.map(async (item) => {
-                    const count = await this.provider.countTokens(this.providerConfig, modelId, [{ role: 'user', parts: [{ text: item.content }] }]);
-                    tokenMap.set(item.name, count);
-                    await this.storage.saveFile(item.name, item.content, count);
-                }));
-            }
-
-            this.state.fileTokenCounts.set(tokenMap);
-            const partsForCount = this.kb.buildKnowledgeBaseParts(contentMap);
-
-            const storedHash = this.state.kbCacheHash();
-            const currentHashTmp = this.state.currentKbHash();
-
-            let totalTokenCount = 0;
-            if (storedHash === currentHashTmp && this.state.estimatedKbTokens() > 0) {
-                totalTokenCount = this.state.estimatedKbTokens();
-                console.log('[SessionService] Reusing cached total KB tokens (Est):', totalTokenCount);
-            } else {
-                totalTokenCount = await this.provider.countTokens(this.providerConfig, modelId, [{ role: 'user', parts: partsForCount }]);
-                console.log('[SessionService] Counted new total KB tokens (Est):', totalTokenCount);
-            }
-
-            this.state.estimatedKbTokens.set(totalTokenCount);
-            console.log('[SessionService] Estimated KB Tokens:', totalTokenCount);
-
-            const currentHash = this.state.currentKbHash();
-
-            const hasKbContent = Array.from(contentMap.keys()).some(path => !path.startsWith('system_files/') && path !== 'system_prompt.md');
-
-            if (hasKbContent) {
-                if (this.state.kbCacheHash() !== currentHash) {
-                    console.log('[SessionService] KB Content changed. Invalidating remote state.');
-                    await this.cacheManager.cleanupCache();
-                    this.state.kbCacheHash.set(currentHash);
-                }
-
-                this.isContextInjected = false;
-            }
-
-            // Persist into the active Book so cloud sync sees the load.
-            // Guarded for the startNewGame path where currentBookId may not be set yet.
-            // Callers that re-read files without a real content change (e.g. language
-            // toggle) pass bumpTimestamp=false so sync isn't woken up for nothing.
-            if (this.currentBookId()) {
-                await this.saveCurrentSessionToBook({ bumpTimestamp });
-            }
-
-            this.state.status.set('idle');
-        } catch (e) {
-            console.error(e);
-            this.state.status.set('error');
+        await this.sessionFile.loadFilesIntoState(pickFolder);
+        if (this.currentBookId()) {
+            await this.saveCurrentSessionToBook({ bumpTimestamp });
         }
     }
 
