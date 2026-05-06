@@ -41,6 +41,7 @@ export class AutoSyncScheduler {
     private timer: ReturnType<typeof setTimeout> | null = null;
     private lastSyncAt = 0;
     private failureCount = 0;
+    private runInFlight: Promise<void> | null = null;
 
     /** Set by `register` so this service doesn't have to inject SyncService (circular). */
     private runner: (() => Promise<unknown>) | null = null;
@@ -215,13 +216,24 @@ export class AutoSyncScheduler {
         });
     }
 
-    private async run(): Promise<void> {
+    private run(): Promise<void> {
+        // Single-flight: if a run is already in flight (the previous
+        // setTimeout's promise hasn't resolved yet), share it instead
+        // of queuing a second one behind SyncService's own inFlight
+        // mutex. Without this, overlapping schedule() + flush() can
+        // pile up redundant runs that re-do already-completed work.
+        if (this.runInFlight) return this.runInFlight;
         this.timer = null;
-        if (!this.isActive()) return;
-        if (this.state.status() === 'generating') return;
-        if (!this.runner) return;
+        if (!this.isActive()) return Promise.resolve();
+        if (this.state.status() === 'generating') return Promise.resolve();
+        if (!this.runner) return Promise.resolve();
+        this.runInFlight = this.doRun().finally(() => { this.runInFlight = null; });
+        return this.runInFlight;
+    }
+
+    private async doRun(): Promise<void> {
         try {
-            await this.runner();
+            await this.runner!();
             // syncAll already called notifySyncCompleted on the success
             // branch; recordRun is for the failure-counter only.
             this.recordRun(true);
