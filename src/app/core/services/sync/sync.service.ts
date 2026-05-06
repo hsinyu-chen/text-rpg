@@ -17,6 +17,7 @@ import { cleanBookForSync, cleanCollectionForSync } from './clean.util';
 import { errMsg } from './error.util';
 import { PromptCloudSyncService } from './prompt-cloud-sync.service';
 import { SnapshotService } from './snapshot.service';
+import { PendingDeletion, SyncTombstoneTracker } from './tombstone-tracker.service';
 
 async function loadS3Module() {
     return import('./s3-sync-backend');
@@ -34,11 +35,6 @@ const LS_S3 = {
     prefix: 'sync_s3_prefix',
     forcePathStyle: 'sync_s3_path_style'
 } as const;
-
-const PENDING_DELETIONS_KEY: Record<SyncResource, string> = {
-    book: 'pending_book_deletions',
-    collection: 'pending_collection_deletions'
-};
 
 const DEBOUNCE_MS = 60_000;
 const VISIBILITY_COOLDOWN_MS = 30_000;
@@ -80,6 +76,7 @@ export class SyncService {
     private readonly destroyRef = inject(DestroyRef);
     private readonly promptCloudSync = inject(PromptCloudSyncService);
     private readonly snapshot = inject(SnapshotService);
+    private readonly tombstones = inject(SyncTombstoneTracker);
 
     activeBackendId = signal<SyncBackendId>(this.loadBackendId());
     s3Config = signal<S3Config | null>(this.loadS3Config());
@@ -238,45 +235,6 @@ export class SyncService {
         const { S3SyncBackend } = await loadS3Module();
         const backend = new S3SyncBackend(config, this.win.location.origin);
         await backend.testConnection();
-    }
-
-    /**
-     * Records a pending deletion so it can be propagated on the next sync.
-     */
-    trackDeletion(resource: SyncResource, id: string): void {
-        const key = PENDING_DELETIONS_KEY[resource];
-        const list = this.readPendingList(key);
-        // Capture deletedAt at delete-time, not at sync-time. If sync fails
-        // and retries, the timestamp must NOT advance — otherwise a retry
-        // could later clobber a legitimate post-delete edit on another
-        // device. Same id deleted twice (re-add then delete) updates the
-        // timestamp; that's the correct latest-delete semantics.
-        const idx = list.findIndex(e => e.id === id);
-        const entry = { id, deletedAt: Date.now() };
-        if (idx === -1) list.push(entry);
-        else list[idx] = entry;
-        localStorage.setItem(key, JSON.stringify(list));
-    }
-
-    private readPendingList(key: string): { id: string; deletedAt: number }[] {
-        const raw = localStorage.getItem(key);
-        if (!raw) return [];
-        try {
-            const parsed = JSON.parse(raw);
-            if (!Array.isArray(parsed)) return [];
-            const now = Date.now();
-            return parsed.flatMap(x => {
-                if (typeof x === 'string') return [{ id: x, deletedAt: now }];
-                if (x && typeof x === 'object' && typeof x.id === 'string') {
-                    return [{ id: x.id, deletedAt: Number(x.deletedAt) || now }];
-                }
-                return [];
-            });
-        } catch {
-            console.warn(`[SyncService] Corrupted pending list at ${key}, resetting.`);
-            localStorage.removeItem(key);
-            return [];
-        }
     }
 
     isAutoSyncActive(): boolean {
@@ -477,9 +435,8 @@ export class SyncService {
         // Use the deletedAt captured at delete-time — NOT Date.now() — so a
         // retry doesn't advance the timestamp and clobber a legitimate
         // post-delete edit on another device.
-        const deletionKey = PENDING_DELETIONS_KEY[resource];
-        const pending = this.readPendingList(deletionKey);
-        const remaining: { id: string; deletedAt: number }[] = [];
+        const pending = this.tombstones.read(resource);
+        const remaining: PendingDeletion[] = [];
         const justDeletedIds = new Set<string>();
         for (const entry of pending) {
             let tombstoneWritten = false;
@@ -516,7 +473,7 @@ export class SyncService {
                 remaining.push(entry);
             }
         }
-        localStorage.setItem(deletionKey, JSON.stringify(remaining));
+        this.tombstones.write(resource, remaining);
 
         // Apply remote tombstones. For each tombstone, compute the newest
         // surviving timestamp on either side — if NEITHER side beat the
@@ -775,9 +732,7 @@ export class SyncService {
         }
 
         // Pending deletions are now redundant — anything we wanted gone is gone.
-        for (const r of ['collection', 'book'] as const) {
-            localStorage.setItem(PENDING_DELETIONS_KEY[r], JSON.stringify([]));
-        }
+        this.tombstones.clearAll();
 
         this.lastSyncAt = Date.now();
         return report;
@@ -854,9 +809,7 @@ export class SyncService {
         }
 
         // Pending deletions are obsolete after a force pull.
-        for (const r of ['collection', 'book'] as const) {
-            localStorage.setItem(PENDING_DELETIONS_KEY[r], JSON.stringify([]));
-        }
+        this.tombstones.clearAll();
 
         await this.collections.load();
 
@@ -904,7 +857,7 @@ export class SyncService {
     /**
      * Reads local IDB books / collections (cleaned for sync) and pending
      * deletions, packaged for `createSnapshotFromLocal`. Stays here because
-     * it depends on sync internals (`localTimestamp`, `readPendingList`)
+     * it depends on sync internals (`localTimestamp` + tombstone tracker)
      * that have no business escaping into `SnapshotService`.
      */
     private async collectLocalSnapshotPayload(): Promise<SnapshotLocalPayload> {
@@ -928,14 +881,11 @@ export class SyncService {
                 json: JSON.stringify(cleaned)
             };
         });
-        const tombstones: SnapshotLocalPayload['tombstones'] = [];
-        for (const r of ['book', 'collection'] as const) {
-            const pending = this.readPendingList(PENDING_DELETIONS_KEY[r]);
-            for (const e of pending) {
-                tombstones.push({ resource: r, id: e.id, deletedAt: e.deletedAt });
-            }
-        }
-        return { books: bookEntries, collections: collectionEntries, tombstones };
+        return {
+            books: bookEntries,
+            collections: collectionEntries,
+            tombstones: this.tombstones.readAll()
+        };
     }
 
     /**
@@ -970,9 +920,7 @@ export class SyncService {
                 // Date.now() on cloud, and any local pending delete predates
                 // that timestamp, so they'd no-op anyway. Wipe to keep state
                 // tidy.
-                for (const r of ['collection', 'book'] as const) {
-                    localStorage.setItem(PENDING_DELETIONS_KEY[r], JSON.stringify([]));
-                }
+                this.tombstones.clearAll();
 
                 const report = await this.doForcePullAll();
                 this.snapshot.runRetentionInBackground();

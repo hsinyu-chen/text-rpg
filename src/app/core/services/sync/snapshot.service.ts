@@ -191,7 +191,6 @@ export class SnapshotService {
         const auto = all.filter(s => s.trigger !== 'manual')
             .sort((a, b) => b.createdAt - a.createdAt);
         const excess = auto.slice(SNAPSHOT_AUTO_RETENTION);
-        if (excess.length === 0) return;
         while (excess.length) {
             const batch = excess.splice(0, RETENTION_DELETE_CONCURRENCY);
             await Promise.all(batch.map(async s => {
