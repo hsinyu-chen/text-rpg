@@ -230,13 +230,22 @@ export class AutoSyncScheduler {
     }
 
     private run(): Promise<void> {
-        // Single-flight: if a run is already in flight (the previous
-        // setTimeout's promise hasn't resolved yet), share it instead
-        // of queuing a second one behind SyncService's own inFlight
-        // mutex. Without this, overlapping schedule() + flush() can
-        // pile up redundant runs that re-do already-completed work.
-        if (this.runInFlight) return this.runInFlight;
+        // Clear the timer FIRST regardless of in-flight state. Otherwise
+        // a stale timeout id sticks around after the setTimeout fired,
+        // and pagehide / flush / cancel would mis-detect "a debounced
+        // sync is pending" and (e.g.) set LS_SYNC_DIRTY incorrectly.
         this.timer = null;
+        if (this.runInFlight) {
+            // Single-flight: don't queue a second run behind SyncService's
+            // own inFlight mutex. But we DO need to ensure changes that
+            // arrived during the in-flight window get synced — the active
+            // run captured a snapshot of state from before this trigger,
+            // so re-arm a debounced follow-up once it completes. Without
+            // the follow-up, returning the shared promise silently drops
+            // any change that fired schedule() while a sync was running.
+            void this.runInFlight.finally(() => this.schedule());
+            return this.runInFlight;
+        }
         if (!this.isActive()) return Promise.resolve();
         if (!this.runner) return Promise.resolve();
         this.runInFlight = this.doRun().finally(() => { this.runInFlight = null; });

@@ -144,9 +144,9 @@ export class SyncService {
         this.isInitialSync = true;
         try {
             await this.syncAll();
-            // syncAll already calls scheduler.notifySyncCompleted; explicit
-            // success notification is for the circuit breaker only.
-            this.scheduler.recordRun(true);
+            // syncAll already calls scheduler.notifySyncCompleted on
+            // success, which resets the circuit breaker — no explicit
+            // recordRun(true) needed here.
             this.scheduler.clearDirtyFlag();
         } catch (e) {
             this.scheduler.recordRun(false);
