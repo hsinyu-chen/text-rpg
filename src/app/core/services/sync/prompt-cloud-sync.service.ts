@@ -28,8 +28,11 @@ interface PromptsV2 {
 
 function isPromptsV2(x: unknown): x is PromptsV2 {
     if (!x || typeof x !== 'object') return false;
-    const v = (x as { version?: unknown }).version;
-    return v === 2;
+    const obj = x as Partial<PromptsV2>;
+    return obj.version === 2
+        && Array.isArray(obj.profiles)
+        && typeof obj.prompts === 'object'
+        && obj.prompts !== null;
 }
 
 function importSuffix(): string {
@@ -92,15 +95,20 @@ export class PromptCloudSyncService {
         profileId: string,
         opts: { onlyUserModified: boolean }
     ): Promise<Record<string, { content: string; tokens?: number }>> {
-        const out: Record<string, { content: string; tokens?: number }> = {};
-        for (const type of PROMPT_TYPES) {
+        // Parallel: storage.getProfilePrompt is a local IDB read with no
+        // remote rate limit, and the per-type fetches are independent.
+        const results = await Promise.all(PROMPT_TYPES.map(async type => {
             if (opts.onlyUserModified) {
                 const flagKey = getProfileScopedKey(`prompt_user_modified_${type}`, profileId);
-                if (localStorage.getItem(flagKey) !== 'true') continue;
+                if (localStorage.getItem(flagKey) !== 'true') return null;
             }
             const rec = await this.storage.getProfilePrompt(type, profileId);
-            if (!rec) continue;
-            out[`${profileId}:${type}`] = { content: rec.content, tokens: rec.tokens };
+            return rec ? { type, rec } : null;
+        }));
+
+        const out: Record<string, { content: string; tokens?: number }> = {};
+        for (const res of results) {
+            if (res) out[`${profileId}:${res.type}`] = { content: res.rec.content, tokens: res.rec.tokens };
         }
         return out;
     }
