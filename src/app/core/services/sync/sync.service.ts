@@ -11,24 +11,15 @@ import { GDriveSyncBackend } from './gdrive-sync-backend';
 import type { S3SyncBackend } from './s3-sync-backend';
 import { FileSyncBackend } from './file-sync-backend';
 import {
-    SyncBackend, SyncBackendId, SyncResource, S3Config,
-    SnapshotMeta, SnapshotManifest, SnapshotMetaInput, SnapshotLocalPayload,
-    SnapshotTrigger
+    SyncBackend, SyncBackendId, SyncResource, S3Config, SnapshotLocalPayload
 } from './sync.types';
 import { cleanBookForSync, cleanCollectionForSync } from './clean.util';
+import { errMsg } from './error.util';
 import { PromptCloudSyncService } from './prompt-cloud-sync.service';
+import { SnapshotService } from './snapshot.service';
 
 async function loadS3Module() {
     return import('./s3-sync-backend');
-}
-
-function errMsg(e: unknown): string {
-    if (e instanceof Error) return e.message;
-    if (typeof e === 'string') return e;
-    if (e && typeof e === 'object' && 'message' in e && typeof (e as { message: unknown }).message === 'string') {
-        return (e as { message: string }).message;
-    }
-    return String(e);
 }
 
 const LS_BACKEND = 'sync_backend';
@@ -53,16 +44,6 @@ const DEBOUNCE_MS = 60_000;
 const VISIBILITY_COOLDOWN_MS = 30_000;
 const MAX_FAILURES = 3;
 
-const LS_DEVICE_ID = 'sync_device_id';
-/**
- * Cap on the number of auto-trigger snapshots kept on the cloud. Manual
- * snapshots are always preserved (the user pressed a button on purpose).
- * Anything beyond this cap, sorted oldest-first, is deleted on the next
- * createSnapshot success.
- */
-const SNAPSHOT_AUTO_RETENTION = 20;
-const RETENTION_DELETE_CONCURRENCY = 4;
-
 export interface SyncError {
     resource: SyncResource;
     id: string;
@@ -85,21 +66,6 @@ export interface RemoteUpdateAvailable {
     remoteModifiedAt: number;
 }
 
-/**
- * Thrown when the pre-op safety snapshot for forcePush / forcePull /
- * restore fails. The UI catches this to ask "snapshot failed — continue
- * anyway?", then re-invokes the same op with `skipSnapshot: true` /
- * `skipPreRestoreSnapshot: true`.
- */
-export class SnapshotPreOpError extends Error {
-    readonly trigger: 'forcePush' | 'forcePull' | 'preRestore';
-    constructor(trigger: 'forcePush' | 'forcePull' | 'preRestore', message: string) {
-        super(`Pre-${trigger} snapshot failed: ${message}`);
-        this.name = 'SnapshotPreOpError';
-        this.trigger = trigger;
-    }
-}
-
 @Injectable({ providedIn: 'root' })
 export class SyncService {
     private storage = inject(StorageService);
@@ -113,6 +79,7 @@ export class SyncService {
     private readonly win = inject(WINDOW);
     private readonly destroyRef = inject(DestroyRef);
     private readonly promptCloudSync = inject(PromptCloudSyncService);
+    private readonly snapshot = inject(SnapshotService);
 
     activeBackendId = signal<SyncBackendId>(this.loadBackendId());
     s3Config = signal<S3Config | null>(this.loadS3Config());
@@ -163,9 +130,11 @@ export class SyncService {
     private isInitialSync = false;
 
     constructor() {
-        // PromptCloudSyncService stays out of the SyncService DI graph so it
-        // doesn't form a circular dep — wire the backend resolver here.
+        // PromptCloudSyncService and SnapshotService both stay out of the
+        // SyncService DI graph so they don't form a circular dep — wire the
+        // backend resolvers here.
         this.promptCloudSync.registerBackendResolver(() => this.getActiveBackend());
+        this.snapshot.registerBackendResolver(() => this.getActiveBackend());
 
         // React to every successful book save → schedule debounced auto-sync.
         effect(() => {
@@ -743,10 +712,10 @@ export class SyncService {
     async forcePushAll(opts: { skipSnapshot?: boolean } = {}): Promise<ForcePushReport> {
         return this.runExclusive('forcePush', async () => {
             if (!opts.skipSnapshot) {
-                await this.createPreOpSnapshotOrThrow('forcePush', 'cloud');
+                await this.snapshot.createPreOpSnapshot('forcePush', 'cloud');
             }
             const report = await this.doForcePushAll();
-            this.runRetentionInBackground();
+            this.snapshot.runRetentionInBackground();
             return report;
         });
     }
@@ -827,10 +796,10 @@ export class SyncService {
     async forcePullAll(opts: { skipSnapshot?: boolean } = {}): Promise<ForcePullReport> {
         return this.runExclusive('forcePull', async () => {
             if (!opts.skipSnapshot) {
-                await this.createPreOpSnapshotOrThrow('forcePull', 'local');
+                await this.snapshot.createPreOpSnapshot('forcePull', 'local', () => this.collectLocalSnapshotPayload());
             }
             const report = await this.doForcePullAll();
-            this.runRetentionInBackground();
+            this.snapshot.runRetentionInBackground();
             return report;
         });
     }
@@ -933,48 +902,10 @@ export class SyncService {
     // ===== Snapshots ======================================================
 
     /**
-     * Stable per-installation device id, surfaced into snapshot manifests so
-     * the UI can label "this device" vs another. Generated lazily on first
-     * use and persisted to localStorage; clearing storage rotates the id,
-     * which is fine — older manifests just show the previous value verbatim.
-     */
-    getDeviceId(): string {
-        let id = localStorage.getItem(LS_DEVICE_ID);
-        if (!id) {
-            id = (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
-                ? crypto.randomUUID()
-                : 'd-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
-            localStorage.setItem(LS_DEVICE_ID, id);
-        }
-        return id;
-    }
-
-    /**
-     * `<ISO>-<4hex>` where the ISO has `:` and `.` swapped to `-` so the id
-     * is path-safe on both S3 keys and Drive folder names. The 4-char hex
-     * tail is collision protection at the same millisecond (~1/65536).
-     * Backends only validate shape via assertSnapshotId; the format chosen
-     * here is also lex-sortable, which keeps listSnapshots ordering cheap.
-     */
-    generateSnapshotId(): string {
-        const iso = new Date().toISOString().replace(/[:.]/g, '-');
-        const rand = Math.floor(Math.random() * 0x10000).toString(16).padStart(4, '0');
-        return `${iso}-${rand}`;
-    }
-
-    private buildSnapshotMeta(trigger: SnapshotTrigger, note?: string): SnapshotMetaInput {
-        return {
-            createdAt: Date.now(),
-            trigger,
-            note,
-            deviceId: this.getDeviceId()
-        };
-    }
-
-    /**
      * Reads local IDB books / collections (cleaned for sync) and pending
-     * deletions, packaged for `createSnapshotFromLocal`. Used by force pull
-     * (rescue local before cloud overwrites it).
+     * deletions, packaged for `createSnapshotFromLocal`. Stays here because
+     * it depends on sync internals (`localTimestamp`, `readPendingList`)
+     * that have no business escaping into `SnapshotService`.
      */
     private async collectLocalSnapshotPayload(): Promise<SnapshotLocalPayload> {
         const [books, collections] = await Promise.all([
@@ -1007,65 +938,6 @@ export class SyncService {
         return { books: bookEntries, collections: collectionEntries, tombstones };
     }
 
-    private async createPreOpSnapshotOrThrow(
-        trigger: 'forcePush' | 'forcePull' | 'preRestore',
-        source: 'cloud' | 'local'
-    ): Promise<SnapshotManifest> {
-        try {
-            const backend = await this.getActiveBackend();
-            await backend.authenticate();
-            const id = this.generateSnapshotId();
-            const meta = this.buildSnapshotMeta(trigger);
-            if (source === 'cloud') {
-                return await backend.createSnapshotFromCloud(id, meta);
-            }
-            const payload = await this.collectLocalSnapshotPayload();
-            return await backend.createSnapshotFromLocal(id, meta, payload);
-        } catch (e) {
-            throw new SnapshotPreOpError(trigger, errMsg(e));
-        }
-    }
-
-    /**
-     * Manual snapshot: captures cloud (the shared state). If local has
-     * unsynced changes the caller should sync first — surfaced in the UI
-     * confirm dialog, not enforced here.
-     *
-     * Deliberately does NOT run inside `runExclusive`: a queued auto-sync
-     * could otherwise wait minutes behind a slow CopyObject sweep and time
-     * out the user. The cost is that an in-flight upload can race the
-     * server-side copy, producing a snapshot whose objects are a mix of
-     * pre- and post-upload state. Acceptable here because manual is a
-     * convenience capture, not the rescue point for a destructive op
-     * (those go through createPreOpSnapshotOrThrow under the relevant lock).
-     */
-    async manualSnapshot(note?: string): Promise<SnapshotManifest> {
-        const backend = await this.getActiveBackend();
-        await backend.authenticate();
-        const id = this.generateSnapshotId();
-        const manifest = await backend.createSnapshotFromCloud(id, this.buildSnapshotMeta('manual', note));
-        this.runRetentionInBackground();
-        return manifest;
-    }
-
-    async listSnapshots(): Promise<SnapshotMeta[]> {
-        const backend = await this.getActiveBackend();
-        await backend.authenticate();
-        return backend.listSnapshots();
-    }
-
-    async deleteSnapshot(snapshotId: string): Promise<void> {
-        const backend = await this.getActiveBackend();
-        await backend.authenticate();
-        await backend.deleteSnapshot(snapshotId);
-    }
-
-    async updateSnapshotNote(snapshotId: string, note: string): Promise<void> {
-        const backend = await this.getActiveBackend();
-        await backend.authenticate();
-        await backend.updateSnapshotNote(snapshotId, note);
-    }
-
     /**
      * Restore live cloud state from a snapshot, then resync local IDB to
      * match. Quiesces auto-sync for the duration; *other devices* are not
@@ -1085,7 +957,7 @@ export class SyncService {
             this.restoreInProgress = true;
             try {
                 if (!opts.skipPreRestoreSnapshot) {
-                    await this.createPreOpSnapshotOrThrow('preRestore', 'cloud');
+                    await this.snapshot.createPreOpSnapshot('preRestore', 'cloud');
                 }
 
                 const backend = await this.getActiveBackend();
@@ -1103,7 +975,7 @@ export class SyncService {
                 }
 
                 const report = await this.doForcePullAll();
-                this.runRetentionInBackground();
+                this.snapshot.runRetentionInBackground();
 
                 // doForcePullAll already handled active-book reload via its
                 // activeBookGone / activeBookOverwritten branches. Nothing
@@ -1116,42 +988,6 @@ export class SyncService {
                 this.failureCount = 0;
             }
         });
-    }
-
-    /**
-     * Runs in the background (fire-and-forget) after every snapshot create.
-     * Auto-trigger snapshots beyond `SNAPSHOT_AUTO_RETENTION` are deleted
-     * oldest-first. Manual snapshots are excluded — the user explicitly
-     * pressed a button on those, retention shouldn't surprise-delete them.
-     */
-    private runRetentionInBackground(): void {
-        void this.runRetention().catch(e => {
-            console.warn('[SyncService] Retention sweep failed (non-fatal)', e);
-        });
-    }
-
-    private async runRetention(): Promise<void> {
-        const backend = await this.getActiveBackend();
-        const all = await backend.listSnapshots();
-        const auto = all.filter(s => s.trigger !== 'manual')
-            .sort((a, b) => b.createdAt - a.createdAt);
-        const excess = auto.slice(SNAPSHOT_AUTO_RETENTION);
-        if (excess.length === 0) return;
-        let cursor = 0;
-        const runners = Array.from(
-            { length: Math.min(RETENTION_DELETE_CONCURRENCY, excess.length) },
-            async () => {
-                while (cursor < excess.length) {
-                    const i = cursor++;
-                    try {
-                        await backend.deleteSnapshot(excess[i].id);
-                    } catch (e) {
-                        console.warn(`[SyncService] Retention: failed to delete ${excess[i].id}`, e);
-                    }
-                }
-            }
-        );
-        await Promise.all(runners);
     }
 
     private loadBackendId(): SyncBackendId {

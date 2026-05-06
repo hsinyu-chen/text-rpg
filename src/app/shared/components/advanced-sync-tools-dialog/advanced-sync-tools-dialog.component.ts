@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -11,7 +11,8 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { firstValueFrom } from 'rxjs';
 
-import { SyncService, SnapshotPreOpError } from '@app/core/services/sync/sync.service';
+import { SyncService } from '@app/core/services/sync/sync.service';
+import { SnapshotService, SnapshotPreOpError } from '@app/core/services/sync/snapshot.service';
 import { SnapshotMeta } from '@app/core/services/sync/sync.types';
 import { DialogService } from '@app/core/services/dialog.service';
 import { LoadingService } from '@app/core/services/loading.service';
@@ -339,6 +340,7 @@ import { SaveNameDialogComponent, SaveNameDialogData } from '../save-name-dialog
 export class AdvancedSyncToolsDialogComponent {
     dialogRef = inject(MatDialogRef<AdvancedSyncToolsDialogComponent>);
     syncService = inject(SyncService);
+    private snapshotService = inject(SnapshotService);
     state = inject(GameStateService);
     private dialog = inject(DialogService);
     private matDialog = inject(MatDialog);
@@ -349,7 +351,9 @@ export class AdvancedSyncToolsDialogComponent {
     snapshots = signal<SnapshotMeta[]>([]);
     loadingList = signal(false);
     busy = signal(false);
-    deviceId = computed(() => this.syncService.getDeviceId());
+    // computed() would imply reactivity, but getDeviceId() reads localStorage
+    // once and never changes within a session — a plain field is the right shape.
+    readonly deviceId = this.snapshotService.getDeviceId();
     /**
      * Per-snapshot guard: which ids currently have a note PUT in flight.
      * Prevents the rare keystroke pattern (Enter → blur → re-focus → blur)
@@ -366,7 +370,7 @@ export class AdvancedSyncToolsDialogComponent {
 
     deviceLabel(s: SnapshotMeta): string {
         if (!s.deviceId) return '—';
-        const isThis = s.deviceId === this.deviceId();
+        const isThis = s.deviceId === this.deviceId;
         const short = s.deviceId.slice(0, 6);
         return isThis ? `${short} (this)` : short;
     }
@@ -381,7 +385,7 @@ export class AdvancedSyncToolsDialogComponent {
     async refreshSnapshots() {
         this.loadingList.set(true);
         try {
-            const list = await this.syncService.listSnapshots();
+            const list = await this.snapshotService.listSnapshots();
             list.sort((a, b) => b.createdAt - a.createdAt);
             this.snapshots.set(list);
         } catch (e) {
@@ -411,7 +415,7 @@ export class AdvancedSyncToolsDialogComponent {
         this.busy.set(true);
         this.loading.show('Creating snapshot…');
         try {
-            await this.syncService.manualSnapshot(note || undefined);
+            await this.snapshotService.manualSnapshot(note || undefined);
             this.snackBar.open('Snapshot created.', 'OK', { duration: 3000 });
             await this.refreshSnapshots();
         } catch (e) {
@@ -604,7 +608,7 @@ export class AdvancedSyncToolsDialogComponent {
 
         this.busy.set(true);
         try {
-            await this.syncService.deleteSnapshot(s.id);
+            await this.snapshotService.deleteSnapshot(s.id);
             this.snapshots.set(this.snapshots().filter(x => x.id !== s.id));
             this.snackBar.open('Snapshot deleted.', 'OK', { duration: 3000 });
         } catch (e) {
@@ -625,7 +629,7 @@ export class AdvancedSyncToolsDialogComponent {
         if (this.notesInFlight.has(s.id)) return;
         this.notesInFlight.add(s.id);
         try {
-            await this.syncService.updateSnapshotNote(s.id, next);
+            await this.snapshotService.updateSnapshotNote(s.id, next);
             // Update in-place; avoid full refresh to preserve scroll position.
             this.snapshots.set(this.snapshots().map(x =>
                 x.id === s.id ? { ...x, note: next } : x
