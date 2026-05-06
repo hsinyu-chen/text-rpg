@@ -56,18 +56,23 @@ export class SyncBackendResolver {
     }
 
     private loadBackendId(): SyncBackendId {
-        const v = localStorage.getItem(LS_BACKEND);
-        if (v === 's3') return 's3';
-        if (v === 'file') return 'file';
-        return 'gdrive';
+        const stored = localStorage.getItem(LS_BACKEND);
+        const match = this.backends.find(b => b.id === stored);
+        return match?.id ?? 'gdrive';
     }
 
+    /**
+     * Per-backend auto-sync preference. Backends with
+     * `supportsBackgroundSync = false` (currently File and GDrive)
+     * always read as false regardless of any stale localStorage value —
+     * the UI never offers the toggle for them.
+     */
     private loadAutoFlags(): Record<SyncBackendId, boolean> {
-        return {
-            gdrive: localStorage.getItem(LS_AUTO_PREFIX + 'gdrive') === '1',
-            s3: localStorage.getItem(LS_AUTO_PREFIX + 's3') === '1',
-            // file backend deliberately does not support auto-sync — see plan/file-sync-backend.md §四
-            file: false
-        };
+        const flags = {} as Record<SyncBackendId, boolean>;
+        for (const b of this.backends) {
+            flags[b.id] = b.supportsBackgroundSync
+                && localStorage.getItem(LS_AUTO_PREFIX + b.id) === '1';
+        }
+        return flags;
     }
 }
