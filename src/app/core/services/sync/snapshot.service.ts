@@ -27,6 +27,7 @@ export class SnapshotPreOpError extends Error {
         super(`Pre-${trigger} snapshot failed: ${message}`);
         this.name = 'SnapshotPreOpError';
         this.trigger = trigger;
+        Object.setPrototypeOf(this, SnapshotPreOpError.prototype);
     }
 }
 
