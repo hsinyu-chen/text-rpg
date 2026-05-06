@@ -1,22 +1,17 @@
-import {
+import { Injectable, inject } from '@angular/core';
+import { WINDOW } from '@app/core/tokens/window.token';
+import type {
     S3Client,
-    ListObjectsV2Command,
-    GetObjectCommand,
-    PutObjectCommand,
-    DeleteObjectCommand,
-    HeadObjectCommand,
-    HeadBucketCommand,
-    GetBucketCorsCommand,
-    PutBucketCorsCommand,
-    CopyObjectCommand,
-    S3ServiceException,
-    type GetBucketCorsCommandOutput
+    GetBucketCorsCommandOutput
 } from '@aws-sdk/client-s3';
 import {
     SyncBackend, SyncResource, RemoteEntry, Tombstone, SyncBackendId, S3Config,
     SnapshotMeta, SnapshotManifest, SnapshotMetaInput, SnapshotEntryRef,
     SnapshotTombstoneRef, SnapshotSkipped, SnapshotLocalPayload, assertSnapshotId
 } from './sync.types';
+import { S3ConfigService } from './s3-config.service';
+
+type AwsSdk = typeof import('@aws-sdk/client-s3');
 
 const RESOURCE_DIR: Record<SyncResource, string> = {
     book: 'books',
@@ -36,24 +31,69 @@ const SNAPSHOT_CONCURRENCY = 8;
 // outright. AWS S3 itself tolerates underscores; hyphen works on both.
 const META_LAST_ACTIVE = 'last-active';
 
+@Injectable({ providedIn: 'root' })
 export class S3SyncBackend implements SyncBackend {
     readonly id: SyncBackendId = 's3';
     readonly label = 'S3-compatible';
-    readonly isConfigured = true;
     readonly supportsBackgroundSync = true;
 
-    private client: S3Client;
-    private bucket: string;
-    private prefix: string;
+    private readonly cfg = inject(S3ConfigService);
+    private readonly win = inject(WINDOW);
+
+    /**
+     * Lazily-imported AWS SDK module. Static imports are deliberately
+     * `import type` only so this file can be statically loaded (and DI-
+     * registered) without pulling the SDK chunk. `initAsync` does the
+     * runtime `import()` on first use.
+     */
+    private sdk: AwsSdk | null = null;
+    private client: S3Client | null = null;
+    private bucket = '';
+    private prefix = '';
     private corsAttempted = false;
     private corsOk = false;
-    private readonly origin: string;
+    private fingerprint = '';
 
-    constructor(config: S3Config, origin = '*') {
-        this.origin = origin;
-        this.bucket = config.bucket;
-        this.prefix = config.prefix ? config.prefix.replace(/^\/+|\/+$/g, '') + '/' : '';
-        this.client = new S3Client({
+    isReady(): boolean {
+        return this.cfg.isConfigured();
+    }
+
+    /**
+     * Idempotent. First call dynamically imports the AWS SDK and builds
+     * an S3Client; subsequent calls no-op unless the config fingerprint
+     * changed (then rebuild + reset CORS-attempt cache).
+     */
+    async initAsync(): Promise<void> {
+        const c = this.cfg.config();
+        if (!c) throw new Error('S3 backend is not configured.');
+        const fp = JSON.stringify(c);
+        if (this.client && this.fingerprint === fp) return;
+        if (!this.sdk) this.sdk = await import('@aws-sdk/client-s3');
+        this.bucket = c.bucket;
+        this.prefix = c.prefix ? c.prefix.replace(/^\/+|\/+$/g, '') + '/' : '';
+        this.client = new this.sdk.S3Client({
+            endpoint: c.endpoint,
+            region: c.region || 'us-east-1',
+            credentials: {
+                accessKeyId: c.accessKeyId,
+                secretAccessKey: c.secretAccessKey
+            },
+            forcePathStyle: c.forcePathStyle ?? true
+        });
+        this.fingerprint = fp;
+        this.corsAttempted = false;
+        this.corsOk = false;
+    }
+
+    /**
+     * Test arbitrary config without binding the singleton. Used by the
+     * settings UI's "Test connection" button before saving. Builds a
+     * throwaway client with the candidate config; doesn't touch instance
+     * state.
+     */
+    async testConfig(config: S3Config): Promise<void> {
+        const sdk = this.sdk ?? (this.sdk = await import('@aws-sdk/client-s3'));
+        const client = new sdk.S3Client({
             endpoint: config.endpoint,
             region: config.region || 'us-east-1',
             credentials: {
@@ -62,6 +102,7 @@ export class S3SyncBackend implements SyncBackend {
             },
             forcePathStyle: config.forcePathStyle ?? true
         });
+        await client.send(new sdk.HeadBucketCommand({ Bucket: config.bucket }));
     }
 
     isAuthenticated(): boolean {
@@ -70,28 +111,6 @@ export class S3SyncBackend implements SyncBackend {
 
     async authenticate(): Promise<void> {
         // No-op; AWS SDK signs each request with provided creds.
-    }
-
-    /**
-     * Reachability check used by the settings UI's Test button. The actual
-     * gating signal is whether `HeadBucket` succeeds — that proves SigV4
-     * creds + bucket existence + network path. CORS auto-apply is a
-     * best-effort optimisation; if it fails (no `s3:PutBucketCors`
-     * permission, server rejects, etc.) sync still works via the slower
-     * GET-body fallback in `list()`, so we don't fail the test on it —
-     * just log so the user can investigate if curious.
-     */
-    async testConnection(): Promise<void> {
-        await this.client.send(new HeadBucketCommand({ Bucket: this.bucket }));
-        const ok = await this.ensureCorsApplied();
-        if (!ok) {
-            console.warn(
-                '[S3] Bucket reachable, but CORS auto-apply failed. Sync ' +
-                'will use the slower GET-body fallback for last-active ' +
-                'recovery. To enable the fast path, manually add ' +
-                '`x-amz-meta-last-active` to the bucket\'s CORS ExposeHeaders.'
-            );
-        }
     }
 
     /**
@@ -125,7 +144,7 @@ export class S3SyncBackend implements SyncBackend {
         // is configured — treat that as "needs default rule".
         let existingRules: NonNullable<GetBucketCorsCommandOutput['CORSRules']> = [];
         try {
-            const got = await this.client.send(new GetBucketCorsCommand({
+            const got = await this.client!.send(new this.sdk!.GetBucketCorsCommand({
                 Bucket: this.bucket
             }));
             existingRules = got.CORSRules ?? [];
@@ -163,7 +182,7 @@ export class S3SyncBackend implements SyncBackend {
                 // bucket's CORS surface to any site the user visits. The
                 // actual security barrier is still SigV4 signing, but
                 // there's no reason to be looser than necessary.
-                AllowedOrigins: [this.origin],
+                AllowedOrigins: [this.win.location.origin],
                 AllowedMethods: ['GET', 'PUT', 'POST', 'HEAD', 'DELETE'],
                 AllowedHeaders: ['*'],
                 ExposeHeaders: [
@@ -178,7 +197,7 @@ export class S3SyncBackend implements SyncBackend {
             }];
 
         try {
-            await this.client.send(new PutBucketCorsCommand({
+            await this.client!.send(new this.sdk!.PutBucketCorsCommand({
                 Bucket: this.bucket,
                 CORSConfiguration: { CORSRules: mergedRules }
             }));
@@ -224,7 +243,7 @@ export class S3SyncBackend implements SyncBackend {
         let continuationToken: string | undefined;
 
         do {
-            const res = await this.client.send(new ListObjectsV2Command({
+            const res = await this.client!.send(new this.sdk!.ListObjectsV2Command({
                 Bucket: this.bucket,
                 Prefix: dirPrefix,
                 ContinuationToken: continuationToken
@@ -292,7 +311,7 @@ export class S3SyncBackend implements SyncBackend {
         // blip, CORS edge case) doesn't skip the GET-body fallback below.
         let metaValue: string | undefined;
         try {
-            const head = await this.client.send(new HeadObjectCommand({
+            const head = await this.client!.send(new this.sdk!.HeadObjectCommand({
                 Bucket: this.bucket,
                 Key: p.key
             }));
@@ -310,7 +329,7 @@ export class S3SyncBackend implements SyncBackend {
         // on subsequent GETs (heuristic freshness off Last-Modified would
         // otherwise mask post-PUT updates inside the cache window).
         try {
-            const get = await this.client.send(new GetObjectCommand({
+            const get = await this.client!.send(new this.sdk!.GetObjectCommand({
                 Bucket: this.bucket,
                 Key: p.key,
                 ResponseCacheControl: 'no-store'
@@ -326,7 +345,7 @@ export class S3SyncBackend implements SyncBackend {
     }
 
     async read(resource: SyncResource, id: string): Promise<string> {
-        const res = await this.client.send(new GetObjectCommand({
+        const res = await this.client!.send(new this.sdk!.GetObjectCommand({
             Bucket: this.bucket,
             Key: this.keyFor(resource, id),
             ResponseCacheControl: 'no-store'
@@ -337,7 +356,7 @@ export class S3SyncBackend implements SyncBackend {
 
     async write(resource: SyncResource, id: string, json: string, lastActiveAt: number): Promise<void> {
         const key = this.keyFor(resource, id);
-        await this.client.send(new PutObjectCommand({
+        await this.client!.send(new this.sdk!.PutObjectCommand({
             Bucket: this.bucket,
             Key: key,
             Body: json,
@@ -347,7 +366,7 @@ export class S3SyncBackend implements SyncBackend {
     }
 
     async remove(resource: SyncResource, id: string): Promise<void> {
-        await this.client.send(new DeleteObjectCommand({
+        await this.client!.send(new this.sdk!.DeleteObjectCommand({
             Bucket: this.bucket,
             Key: this.keyFor(resource, id)
         }));
@@ -377,7 +396,7 @@ export class S3SyncBackend implements SyncBackend {
         let continuationToken: string | undefined;
 
         do {
-            const res = await this.client.send(new ListObjectsV2Command({
+            const res = await this.client!.send(new this.sdk!.ListObjectsV2Command({
                 Bucket: this.bucket,
                 Prefix: dirPrefix,
                 ContinuationToken: continuationToken
@@ -406,7 +425,7 @@ export class S3SyncBackend implements SyncBackend {
     }
 
     async writeTombstone(resource: SyncResource, id: string, deletedAt: number): Promise<void> {
-        await this.client.send(new PutObjectCommand({
+        await this.client!.send(new this.sdk!.PutObjectCommand({
             Bucket: this.bucket,
             Key: this.tombstoneKey(resource, id, deletedAt),
             Body: '',
@@ -418,7 +437,7 @@ export class S3SyncBackend implements SyncBackend {
         const dirPrefix = `${this.prefix}${TOMBSTONE_DIR[resource]}/`;
         let continuationToken: string | undefined;
         do {
-            const res = await this.client.send(new ListObjectsV2Command({
+            const res = await this.client!.send(new this.sdk!.ListObjectsV2Command({
                 Bucket: this.bucket,
                 Prefix: dirPrefix,
                 ContinuationToken: continuationToken
@@ -428,7 +447,7 @@ export class S3SyncBackend implements SyncBackend {
             // supported on S3-compatible servers, and the tombstone count
             // here is small (one per ever-deleted entity).
             for (const key of keys) {
-                await this.client.send(new DeleteObjectCommand({
+                await this.client!.send(new this.sdk!.DeleteObjectCommand({
                     Bucket: this.bucket,
                     Key: key
                 }));
@@ -439,7 +458,7 @@ export class S3SyncBackend implements SyncBackend {
 
     async readSettings(): Promise<string | null> {
         try {
-            const res = await this.client.send(new GetObjectCommand({
+            const res = await this.client!.send(new this.sdk!.GetObjectCommand({
                 Bucket: this.bucket,
                 Key: this.settingsKey(),
                 ResponseCacheControl: 'no-store'
@@ -453,7 +472,7 @@ export class S3SyncBackend implements SyncBackend {
     }
 
     async writeSettings(content: string): Promise<void> {
-        await this.client.send(new PutObjectCommand({
+        await this.client!.send(new this.sdk!.PutObjectCommand({
             Bucket: this.bucket,
             Key: this.settingsKey(),
             Body: content,
@@ -463,7 +482,7 @@ export class S3SyncBackend implements SyncBackend {
 
     async readPrompts(): Promise<string | null> {
         try {
-            const res = await this.client.send(new GetObjectCommand({
+            const res = await this.client!.send(new this.sdk!.GetObjectCommand({
                 Bucket: this.bucket,
                 Key: this.promptsKey(),
                 ResponseCacheControl: 'no-store'
@@ -477,7 +496,7 @@ export class S3SyncBackend implements SyncBackend {
     }
 
     async writePrompts(content: string): Promise<void> {
-        await this.client.send(new PutObjectCommand({
+        await this.client!.send(new this.sdk!.PutObjectCommand({
             Bucket: this.bucket,
             Key: this.promptsKey(),
             Body: content,
@@ -486,7 +505,7 @@ export class S3SyncBackend implements SyncBackend {
     }
 
     private isNotFound(err: unknown): boolean {
-        if (err instanceof S3ServiceException) {
+        if (this.sdk && err instanceof this.sdk.S3ServiceException) {
             return err.name === 'NoSuchKey' || err.$metadata?.httpStatusCode === 404;
         }
         return false;
@@ -573,7 +592,7 @@ export class S3SyncBackend implements SyncBackend {
         const snapshotIds: string[] = [];
         let continuationToken: string | undefined;
         do {
-            const res = await this.client.send(new ListObjectsV2Command({
+            const res = await this.client!.send(new this.sdk!.ListObjectsV2Command({
                 Bucket: this.bucket,
                 Prefix: dirPrefix,
                 Delimiter: '/',
@@ -609,7 +628,7 @@ export class S3SyncBackend implements SyncBackend {
 
     async readSnapshotManifest(snapshotId: string): Promise<SnapshotManifest> {
         assertSnapshotId(snapshotId);
-        const res = await this.client.send(new GetObjectCommand({
+        const res = await this.client!.send(new this.sdk!.GetObjectCommand({
             Bucket: this.bucket,
             Key: this.snapshotManifestKey(snapshotId),
             ResponseCacheControl: 'no-store'
@@ -648,7 +667,7 @@ export class S3SyncBackend implements SyncBackend {
             const src = this.keyFor('book', b.id);
             const dst = this.snapshotBookKey(snapshotId, b.id);
             try {
-                await this.client.send(new CopyObjectCommand({
+                await this.client!.send(new this.sdk!.CopyObjectCommand({
                     Bucket: this.bucket,
                     CopySource: this.encodeCopySource(src),
                     Key: dst,
@@ -669,7 +688,7 @@ export class S3SyncBackend implements SyncBackend {
             const src = this.keyFor('collection', c.id);
             const dst = this.snapshotCollectionKey(snapshotId, c.id);
             try {
-                await this.client.send(new CopyObjectCommand({
+                await this.client!.send(new this.sdk!.CopyObjectCommand({
                     Bucket: this.bucket,
                     CopySource: this.encodeCopySource(src),
                     Key: dst,
@@ -697,7 +716,7 @@ export class S3SyncBackend implements SyncBackend {
             const src = this.tombstoneKey(resource, t.id, t.deletedAt);
             const dst = this.snapshotTombstoneKey(snapshotId, resource, t.id, t.deletedAt);
             try {
-                await this.client.send(new CopyObjectCommand({
+                await this.client!.send(new this.sdk!.CopyObjectCommand({
                     Bucket: this.bucket,
                     CopySource: this.encodeCopySource(src),
                     Key: dst,
@@ -736,7 +755,7 @@ export class S3SyncBackend implements SyncBackend {
             }
         };
 
-        await this.client.send(new PutObjectCommand({
+        await this.client!.send(new this.sdk!.PutObjectCommand({
             Bucket: this.bucket,
             Key: this.snapshotManifestKey(snapshotId),
             Body: JSON.stringify(manifest),
@@ -769,7 +788,7 @@ export class S3SyncBackend implements SyncBackend {
         await this.parallelPool(payload.books, async (b) => {
             const dst = this.snapshotBookKey(snapshotId, b.id);
             try {
-                await this.client.send(new PutObjectCommand({
+                await this.client!.send(new this.sdk!.PutObjectCommand({
                     Bucket: this.bucket,
                     Key: dst,
                     Body: b.json,
@@ -790,7 +809,7 @@ export class S3SyncBackend implements SyncBackend {
         await this.parallelPool(payload.collections, async (c) => {
             const dst = this.snapshotCollectionKey(snapshotId, c.id);
             try {
-                await this.client.send(new PutObjectCommand({
+                await this.client!.send(new this.sdk!.PutObjectCommand({
                     Bucket: this.bucket,
                     Key: dst,
                     Body: c.json,
@@ -811,7 +830,7 @@ export class S3SyncBackend implements SyncBackend {
         await this.parallelPool(filteredTombs, async (t) => {
             const dst = this.snapshotTombstoneKey(snapshotId, t.resource, t.id, t.deletedAt);
             try {
-                await this.client.send(new PutObjectCommand({
+                await this.client!.send(new this.sdk!.PutObjectCommand({
                     Bucket: this.bucket,
                     Key: dst,
                     Body: '',
@@ -843,7 +862,7 @@ export class S3SyncBackend implements SyncBackend {
             }
         };
 
-        await this.client.send(new PutObjectCommand({
+        await this.client!.send(new this.sdk!.PutObjectCommand({
             Bucket: this.bucket,
             Key: this.snapshotManifestKey(snapshotId),
             Body: JSON.stringify(manifest),
@@ -857,7 +876,7 @@ export class S3SyncBackend implements SyncBackend {
         assertSnapshotId(snapshotId);
         const manifest = await this.readSnapshotManifest(snapshotId);
         manifest.note = note;
-        await this.client.send(new PutObjectCommand({
+        await this.client!.send(new this.sdk!.PutObjectCommand({
             Bucket: this.bucket,
             Key: this.snapshotManifestKey(snapshotId),
             Body: JSON.stringify(manifest),
@@ -899,7 +918,7 @@ export class S3SyncBackend implements SyncBackend {
             dstResource: 'collection' as const
         }));
         await this.parallelPool([...bookRestoreSrc, ...collRestoreSrc], async (item) => {
-            const get = await this.client.send(new GetObjectCommand({
+            const get = await this.client!.send(new this.sdk!.GetObjectCommand({
                 Bucket: this.bucket,
                 Key: item.srcKey,
                 ResponseCacheControl: 'no-store'
@@ -939,7 +958,7 @@ export class S3SyncBackend implements SyncBackend {
         // newly-written `<now>` keys are not in this list.
         const allOldTombKeys = [...liveBookTombs, ...liveCollTombs];
         await this.parallelPool(allOldTombKeys, async (key) => {
-            await this.client.send(new DeleteObjectCommand({
+            await this.client!.send(new this.sdk!.DeleteObjectCommand({
                 Bucket: this.bucket,
                 Key: key
             }));
@@ -952,7 +971,7 @@ export class S3SyncBackend implements SyncBackend {
         const keys: string[] = [];
         let continuationToken: string | undefined;
         do {
-            const res = await this.client.send(new ListObjectsV2Command({
+            const res = await this.client!.send(new this.sdk!.ListObjectsV2Command({
                 Bucket: this.bucket,
                 Prefix: dirPrefix,
                 ContinuationToken: continuationToken
@@ -964,7 +983,7 @@ export class S3SyncBackend implements SyncBackend {
         } while (continuationToken);
 
         await this.parallelPool(keys, async (key) => {
-            await this.client.send(new DeleteObjectCommand({
+            await this.client!.send(new this.sdk!.DeleteObjectCommand({
                 Bucket: this.bucket,
                 Key: key
             }));
@@ -982,7 +1001,7 @@ export class S3SyncBackend implements SyncBackend {
         const keys: string[] = [];
         let continuationToken: string | undefined;
         do {
-            const res = await this.client.send(new ListObjectsV2Command({
+            const res = await this.client!.send(new this.sdk!.ListObjectsV2Command({
                 Bucket: this.bucket,
                 Prefix: dirPrefix,
                 ContinuationToken: continuationToken

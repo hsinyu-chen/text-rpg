@@ -12,6 +12,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { firstValueFrom } from 'rxjs';
 
 import { SyncService } from '@app/core/services/sync/sync.service';
+import { SyncBackendResolver } from '@app/core/services/sync/sync-backend-resolver.service';
 import { SnapshotService, SnapshotPreOpError } from '@app/core/services/sync/snapshot.service';
 import { SnapshotMeta } from '@app/core/services/sync/sync.types';
 import { DialogService } from '@app/core/services/dialog.service';
@@ -38,7 +39,7 @@ import { SaveNameDialogComponent, SaveNameDialogData } from '../save-name-dialog
     <h2 mat-dialog-title>
       <mat-icon class="title-icon">build</mat-icon>
       Advanced Sync Tools
-      <span class="backend-tag">{{ syncService.activeBackendId() === 's3' ? 'S3' : 'Drive' }}</span>
+      <span class="backend-tag">{{ syncBackends.activeBackendId() === 's3' ? 'S3' : 'Drive' }}</span>
     </h2>
 
     <mat-dialog-content>
@@ -340,6 +341,7 @@ import { SaveNameDialogComponent, SaveNameDialogData } from '../save-name-dialog
 export class AdvancedSyncToolsDialogComponent {
     dialogRef = inject(MatDialogRef<AdvancedSyncToolsDialogComponent>);
     syncService = inject(SyncService);
+    syncBackends = inject(SyncBackendResolver);
     private snapshotService = inject(SnapshotService);
     state = inject(GameStateService);
     private dialog = inject(DialogService);

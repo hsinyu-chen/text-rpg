@@ -11,7 +11,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ScrollingModule } from '@angular/cdk/scrolling';
-import { SyncService } from '../sync.service';
+import { S3SyncBackend } from '../s3-sync-backend';
 import { RemoteEntry, SyncResource } from '../sync.types';
 
 type ViewerTab = 'book' | 'collection' | 'settings' | 'prompts';
@@ -41,7 +41,7 @@ interface DisplayEntry extends RemoteEntry {
     changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class S3FileViewerDialogComponent {
-    private sync = inject(SyncService);
+    private s3 = inject(S3SyncBackend);
     private snackBar = inject(MatSnackBar);
     private clipboard = inject(Clipboard);
     dialogRef = inject(MatDialogRef<S3FileViewerDialogComponent>);
@@ -157,7 +157,8 @@ export class S3FileViewerDialogComponent {
     private async loadList(resource: SyncResource): Promise<void> {
         this.listLoading.set(true);
         try {
-            const backend = await this.sync.getS3Backend();
+            await this.s3.initAsync();
+            const backend = this.s3;
             const entries = await backend.list(resource);
             entries.sort((a, b) => b.modifiedAt - a.modifiedAt);
             if (resource === 'book') this.bookEntries.set(entries);
@@ -218,7 +219,8 @@ export class S3FileViewerDialogComponent {
 
     private async fetchOneName(resource: SyncResource, id: string): Promise<void> {
         try {
-            const backend = await this.sync.getS3Backend();
+            await this.s3.initAsync();
+            const backend = this.s3;
             const json = await backend.read(resource, id);
             const parsed = JSON.parse(json) as { name?: string };
             if (!parsed?.name) return;
@@ -244,7 +246,8 @@ export class S3FileViewerDialogComponent {
         this.detailError.set(null);
         this.detailLoading.set(true);
         try {
-            const backend = await this.sync.getS3Backend();
+            await this.s3.initAsync();
+            const backend = this.s3;
             const raw = await backend.read(tab, entry.id);
             this.detailRaw.set(raw);
         } catch (e) {
@@ -258,7 +261,8 @@ export class S3FileViewerDialogComponent {
         this.detailLoading.set(true);
         this.detailError.set(null);
         try {
-            const backend = await this.sync.getS3Backend();
+            await this.s3.initAsync();
+            const backend = this.s3;
             const content = await backend.readSettings();
             this.settingsContent.set(content);
         } catch (e) {
@@ -272,7 +276,8 @@ export class S3FileViewerDialogComponent {
         this.detailLoading.set(true);
         this.detailError.set(null);
         try {
-            const backend = await this.sync.getS3Backend();
+            await this.s3.initAsync();
+            const backend = this.s3;
             const content = await backend.readPrompts();
             this.promptsContent.set(content);
         } catch (e) {

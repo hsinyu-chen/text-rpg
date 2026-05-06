@@ -16,6 +16,8 @@ import { DialogService } from '@app/core/services/dialog.service';
 import { LoadingService } from '@app/core/services/loading.service';
 import { CollectionService } from '@app/core/services/collection.service';
 import { SyncService } from '@app/core/services/sync/sync.service';
+import { SyncBackendResolver } from '@app/core/services/sync/sync-backend-resolver.service';
+import { S3ConfigService } from '@app/core/services/sync/s3-config.service';
 import { SyncTombstoneTracker } from '@app/core/services/sync/tombstone-tracker.service';
 import { SaveNameDialogComponent, SaveNameDialogData } from '@app/shared/components/save-name-dialog/save-name-dialog.component';
 import { MoveBookDialogComponent, MoveBookDialogData } from '@app/shared/components/move-book-dialog/move-book-dialog.component';
@@ -171,7 +173,7 @@ interface BookGroup {
       <div class="footer-actions">
             <button mat-stroked-button class="sync-btn" (click)="syncAllToCloud()" [disabled]="state.isBusy()">
                 <mat-icon>cloud_sync</mat-icon>
-                Sync All ({{ syncService.activeBackendId() === 's3' ? 'S3' : 'Drive' }})
+                Sync All ({{ syncBackends.activeBackendId() === 's3' ? 'S3' : 'Drive' }})
             </button>
 
             <button mat-stroked-button color="warn" class="nuke-btn" (click)="nukeCaches()">
@@ -386,6 +388,8 @@ export class BookListComponent {
     snackBar = inject(MatSnackBar);
     collectionService = inject(CollectionService);
     syncService = inject(SyncService);
+    syncBackends = inject(SyncBackendResolver);
+    s3Cfg = inject(S3ConfigService);
     tombstoneTracker = inject(SyncTombstoneTracker);
 
     readonly rootId = ROOT_COLLECTION_ID;
@@ -653,8 +657,8 @@ export class BookListComponent {
     }
 
     async openAdvancedSyncTools() {
-        const backendId = this.syncService.activeBackendId();
-        if (backendId === 's3' && !this.syncService.isS3Configured()) {
+        const backendId = this.syncBackends.activeBackendId();
+        if (backendId === 's3' && !this.s3Cfg.isConfigured()) {
             await this.dialog.alert('S3 sync is selected but not configured. Open Settings to configure it.');
             return;
         }
@@ -673,8 +677,8 @@ export class BookListComponent {
     }
 
     async syncAllToCloud() {
-        const backendId = this.syncService.activeBackendId();
-        if (backendId === 's3' && !this.syncService.isS3Configured()) {
+        const backendId = this.syncBackends.activeBackendId();
+        if (backendId === 's3' && !this.s3Cfg.isConfigured()) {
             await this.dialog.alert('S3 sync is selected but not configured. Open Settings to configure it.');
             return;
         }
