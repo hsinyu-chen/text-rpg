@@ -1,11 +1,7 @@
-import { Injectable, DestroyRef, inject, signal, effect } from '@angular/core';
-import { DOCUMENT } from '@angular/common';
-import { MatSnackBar } from '@angular/material/snack-bar';
-import { WINDOW } from '@app/core/tokens/window.token';
+import { Injectable, inject, signal } from '@angular/core';
 import { StorageService } from '../storage.service';
 import { SessionService } from '../session.service';
 import { CollectionService } from '../collection.service';
-import { GameStateService } from '../game-state.service';
 import { Book, Collection, ROOT_COLLECTION_ID } from '@app/core/models/types';
 import {
     SyncBackend, SyncBackendId, SyncResource, SnapshotLocalPayload
@@ -16,13 +12,9 @@ import { PromptCloudSyncService } from './prompt-cloud-sync.service';
 import { SnapshotService } from './snapshot.service';
 import { PendingDeletion, SyncTombstoneTracker } from './tombstone-tracker.service';
 import { SyncBackendResolver } from './sync-backend-resolver.service';
-import { S3ConfigService } from './s3-config.service';
+import { AutoSyncScheduler } from './auto-sync-scheduler.service';
 
 const LS_DIRTY = 'sync_dirty';
-
-const DEBOUNCE_MS = 60_000;
-const VISIBILITY_COOLDOWN_MS = 30_000;
-const MAX_FAILURES = 3;
 
 export interface SyncError {
     resource: SyncResource;
@@ -51,16 +43,11 @@ export class SyncService {
     private storage = inject(StorageService);
     private session = inject(SessionService);
     private collections = inject(CollectionService);
-    private state = inject(GameStateService);
-    private snackBar = inject(MatSnackBar);
-    private readonly doc = inject(DOCUMENT);
-    private readonly win = inject(WINDOW);
-    private readonly destroyRef = inject(DestroyRef);
     private readonly promptCloudSync = inject(PromptCloudSyncService);
     private readonly snapshot = inject(SnapshotService);
     private readonly tombstones = inject(SyncTombstoneTracker);
     private readonly backends = inject(SyncBackendResolver);
-    private readonly s3Cfg = inject(S3ConfigService);
+    private readonly scheduler = inject(AutoSyncScheduler);
 
     /**
      * Set when a non-boot sync downloaded a newer version of the active book.
@@ -69,14 +56,13 @@ export class SyncService {
      */
     remoteUpdateAvailable = signal<RemoteUpdateAvailable | null>(null);
 
-    private debounceTimer: ReturnType<typeof setTimeout> | null = null;
     private inFlight: { kind: 'sync' | 'forcePush' | 'forcePull' | 'restore'; promise: Promise<unknown> } | null = null;
     /**
      * Set true while restoreSnapshot is rewriting state. Auto-sync would
      * race with the restore (its in-flight reads / writes get mixed in,
      * potentially propagating mid-restore garbage to other devices), so we
-     * gate `isAutoSyncActive()` on this flag and refuse to schedule new
-     * runs until restore is done.
+     * gate scheduling on this flag and refuse to schedule new runs until
+     * restore is done.
      */
     private restoreInProgress = false;
     /**
@@ -89,8 +75,6 @@ export class SyncService {
      * the regular newer-wins path on the next process restart.
      */
     private selfHealedIds = new Set<string>();
-    private lastSyncAt = 0;
-    private failureCount = 0;
     private isInitialSync = false;
 
     constructor() {
@@ -100,120 +84,31 @@ export class SyncService {
         this.promptCloudSync.registerBackendResolver(() => this.backends.getActiveBackend());
         this.snapshot.registerBackendResolver(() => this.backends.getActiveBackend());
 
-        // React to every successful book save → schedule debounced auto-sync.
-        effect(() => {
-            const ts = this.session.lastSavedAt();
-            if (ts > 0) this.scheduleAutoSync();
-        });
-
-        // Reset the auto-sync circuit breaker when the user changes the S3
-        // config — the previous failures were against the OLD creds, so
-        // they shouldn't keep auto-sync disabled for the new ones. Tracks
-        // both first-load (`config()` flips from null to set) and edits
-        // (fingerprint changes via signal mutation in S3ConfigService.save).
-        let lastS3Fingerprint = '';
-        effect(() => {
-            const c = this.s3Cfg.config();
-            const fp = c ? JSON.stringify(c) : '';
-            if (fp !== lastS3Fingerprint) {
-                lastS3Fingerprint = fp;
-                this.failureCount = 0;
-            }
-        });
-
-        // Listeners are kept alive for the entire app lifetime in production
-        // (the service is providedIn: 'root'), but tests recreate the service
-        // and would otherwise leak listeners onto the shared document/window.
-        const onVisibilityChange = () => {
-            if (this.doc.visibilityState === 'hidden') {
-                void this.flushAutoSync();
-            } else if (this.doc.visibilityState === 'visible') {
-                if (Date.now() - this.lastSyncAt > VISIBILITY_COOLDOWN_MS) {
-                    this.scheduleAutoSync(true);
-                }
-            }
-        };
-        const onPageHide = () => {
-            if (this.debounceTimer) {
-                localStorage.setItem(LS_DIRTY, '1');
-            }
-        };
-        this.doc.addEventListener('visibilitychange', onVisibilityChange);
-        this.win.addEventListener('pagehide', onPageHide);
-        this.destroyRef.onDestroy(() => {
-            this.doc.removeEventListener('visibilitychange', onVisibilityChange);
-            this.win.removeEventListener('pagehide', onPageHide);
-        });
+        // Auto-sync scheduling lives in AutoSyncScheduler. It owns the
+        // visibility / pagehide listeners and the debounce timer; we hand
+        // it our `syncAll` runner + a `restoreInProgress` precondition
+        // probe (the scheduler is providedIn: 'root' too, so injecting
+        // SyncService back into it would form a circular dep).
+        this.scheduler.register(
+            () => this.syncAll(),
+            () => !this.restoreInProgress
+        );
     }
 
     /**
-     * Thin wrappers over `SyncBackendResolver` that also reset scheduler
-     * state (`cancelDebounce` / `failureCount`). When `AutoSyncScheduler`
-     * is extracted (Phase 5), these wrappers collapse and callers go
-     * straight to the resolver.
+     * Thin wrappers over `SyncBackendResolver` that also notify the
+     * scheduler so it can reset its circuit breaker / cancel a pending
+     * debounce. Kept as wrappers so UI callers continue to go through
+     * SyncService (single public surface for sync ops).
      */
     setActiveBackend(id: SyncBackendId): void {
         this.backends.setActiveBackend(id);
-        this.cancelDebounce();
-        this.failureCount = 0;
+        this.scheduler.onBackendChanged();
     }
 
     setAutoSyncEnabled(id: SyncBackendId, on: boolean): void {
         this.backends.setAutoSyncEnabled(id, on);
-        this.failureCount = 0;
-        if (!on) this.cancelDebounce();
-    }
-
-    isAutoSyncActive(): boolean {
-        if (this.restoreInProgress) return false;
-        const id = this.backends.activeBackendId();
-        if (!this.backends.autoSyncEnabled()[id]) return false;
-        const backend = this.backends.get(id);
-        return !!backend?.supportsBackgroundSync && backend.isReady();
-    }
-
-    scheduleAutoSync(immediate = false): void {
-        if (!this.isAutoSyncActive()) return;
-        if (this.failureCount >= MAX_FAILURES) return;
-        if (this.debounceTimer) clearTimeout(this.debounceTimer);
-        const delay = immediate ? 0 : DEBOUNCE_MS;
-        this.debounceTimer = setTimeout(() => this.runAutoSync(), delay);
-    }
-
-    async flushAutoSync(): Promise<void> {
-        if (!this.debounceTimer) return;
-        clearTimeout(this.debounceTimer);
-        this.debounceTimer = null;
-        await this.runAutoSync();
-    }
-
-    private cancelDebounce(): void {
-        if (this.debounceTimer) {
-            clearTimeout(this.debounceTimer);
-            this.debounceTimer = null;
-        }
-    }
-
-    private async runAutoSync(): Promise<void> {
-        this.debounceTimer = null;
-        if (!this.isAutoSyncActive()) return;
-        if (this.state.status() === 'generating') return;
-        try {
-            await this.syncAll();
-            this.failureCount = 0;
-        } catch (e) {
-            this.failureCount++;
-            console.warn(`[SyncService] Auto-sync failed (${this.failureCount}/${MAX_FAILURES})`, e);
-            if (this.failureCount >= MAX_FAILURES) {
-                const id = this.backends.activeBackendId();
-                this.setAutoSyncEnabled(id, false);
-                this.snackBar.open(
-                    `Auto-sync disabled after ${MAX_FAILURES} failures. Re-enable in Settings once fixed.`,
-                    'Close',
-                    { duration: 8000 }
-                );
-            }
-        }
+        this.scheduler.onAutoToggle(on);
     }
 
     /**
@@ -242,17 +137,19 @@ export class SyncService {
      */
     async bootSync(): Promise<void> {
         this.dropLegacyBaselines();
-        if (!this.isAutoSyncActive()) {
+        if (!this.scheduler.isActive()) {
             localStorage.removeItem(LS_DIRTY);
             return;
         }
         this.isInitialSync = true;
         try {
             await this.syncAll();
-            this.failureCount = 0;
+            // syncAll already calls scheduler.notifySyncCompleted; explicit
+            // success notification is for the circuit breaker only.
+            this.scheduler.recordRun(true);
             localStorage.removeItem(LS_DIRTY);
         } catch (e) {
-            this.failureCount++;
+            this.scheduler.recordRun(false);
             console.warn('[SyncService] Boot sync failed', e);
         } finally {
             this.isInitialSync = false;
@@ -335,7 +232,7 @@ export class SyncService {
             }
         }
 
-        this.lastSyncAt = Date.now();
+        this.scheduler.notifySyncCompleted();
         return totals;
     }
 
@@ -659,7 +556,7 @@ export class SyncService {
         // Pending deletions are now redundant — anything we wanted gone is gone.
         this.tombstones.clearAll();
 
-        this.lastSyncAt = Date.now();
+        this.scheduler.notifySyncCompleted();
         return report;
     }
 
@@ -755,7 +652,7 @@ export class SyncService {
             await this.session.loadBook(activeBookId, false);
         }
 
-        this.lastSyncAt = Date.now();
+        this.scheduler.notifySyncCompleted();
         return report;
     }
 
@@ -828,7 +725,7 @@ export class SyncService {
         opts: { skipPreRestoreSnapshot?: boolean } = {}
     ): Promise<void> {
         return this.runExclusive('restore', async () => {
-            this.cancelDebounce();
+            this.scheduler.cancel();
             this.restoreInProgress = true;
             try {
                 if (!opts.skipPreRestoreSnapshot) {
@@ -858,7 +755,7 @@ export class SyncService {
                 }
             } finally {
                 this.restoreInProgress = false;
-                this.failureCount = 0;
+                this.scheduler.recordRun(true); // restore counts as a fresh start for the breaker
             }
         });
     }
