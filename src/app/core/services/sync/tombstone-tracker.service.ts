@@ -47,6 +47,12 @@ export class SyncTombstoneTracker {
      * shape (`['id1', 'id2']`) by upgrading entries to `{id, deletedAt:
      * Date.now()}` on read; the bumped timestamp is acceptable since the
      * old shape predates the timestamp tracking.
+     *
+     * **Side effect on corruption:** if the JSON parse throws, the entry
+     * is treated as unrecoverable and cleared from localStorage on this
+     * call — without it the same warning would fire on every subsequent
+     * read. This is the only mutation `read` performs and only triggers
+     * on broken data.
      */
     read(resource: SyncResource): PendingDeletion[] {
         const key = PENDING_DELETIONS_KEY[resource];
