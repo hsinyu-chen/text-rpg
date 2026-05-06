@@ -41,6 +41,11 @@ export class SyncBackendResolver {
         return this.backends.find(b => b.id === id) ?? null;
     }
 
+    /** All registered backends in provider-declaration order. */
+    list(): readonly SyncBackend[] {
+        return this.backends;
+    }
+
     isReady(id: SyncBackendId): boolean {
         return this.get(id)?.isReady() ?? false;
     }

@@ -60,6 +60,12 @@ export class GDriveSyncBackend implements SyncBackend {
         return this.drive.isConfigured;
     }
 
+    configFingerprint(): string {
+        // OAuth state — auth boundary is the only meaningful change for
+        // the breaker (re-OAuth after token revocation should reset).
+        return this.drive.isAuthenticated() ? 'auth' : '';
+    }
+
     async initAsync(): Promise<void> {
         // GoogleDriveService loads its own SDK lazily on first use; backend
         // has no per-init state to build, so this is a no-op. authenticate()

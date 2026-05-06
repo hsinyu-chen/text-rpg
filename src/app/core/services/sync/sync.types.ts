@@ -61,6 +61,17 @@ export interface SyncBackend {
      */
     isReady(): boolean;
 
+    /**
+     * Opaque fingerprint of the backend's configuration. Bumps whenever
+     * something that would invalidate prior auth attempts changes (S3
+     * creds, OAuth tokens, FSA handle bind). Read inside an effect by
+     * AutoSyncScheduler to reset the failure circuit breaker on config
+     * change — old failures shouldn't keep auto-sync disabled against
+     * new credentials. Implementations must read from signals so the
+     * effect rebuilds the dependency graph correctly.
+     */
+    configFingerprint(): string;
+
     isAuthenticated(): boolean;
     authenticate(): Promise<void>;
 

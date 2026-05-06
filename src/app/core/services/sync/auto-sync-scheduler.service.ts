@@ -7,7 +7,6 @@ import { EMPTY, Subject, from, of, timer } from 'rxjs';
 import { catchError, concatMap, debounce, filter, tap } from 'rxjs/operators';
 import { SessionService } from '../session.service';
 import { SyncBackendResolver } from './sync-backend-resolver.service';
-import { S3ConfigService } from './s3-config.service';
 
 /**
  * localStorage flag set on pagehide if a debounced sync was pending,
@@ -42,7 +41,6 @@ export class AutoSyncScheduler {
     private readonly destroyRef = inject(DestroyRef);
     private readonly session = inject(SessionService);
     private readonly backends = inject(SyncBackendResolver);
-    private readonly s3Cfg = inject(S3ConfigService);
     private readonly snackBar = inject(MatSnackBar);
 
     private readonly trigger$ = new Subject<Trigger>();
@@ -203,19 +201,32 @@ export class AutoSyncScheduler {
                 debounce((t: Trigger) => t.force ? of(0) : timer(DEBOUNCE_MS)),
                 tap(() => { this.pendingDebounce = false; }),
                 filter(() => this.runner !== null && this.isActive()),
-                concatMap(() => from(this.runner!()).pipe(
-                    tap({
-                        next: () => this.recordRun(true),
-                        error: e => {
-                            console.warn(
-                                `[AutoSyncScheduler] Auto-sync failed (${this.failureCount + 1}/${MAX_FAILURES})`,
-                                e
-                            );
-                            this.recordRun(false);
-                        }
-                    }),
-                    catchError(() => EMPTY)
-                )),
+                concatMap(() => {
+                    // Defensive: an async runner converts throws to
+                    // rejected promises, but `this.runner!()` itself
+                    // could synchronously throw (e.g. null-deref on a
+                    // future refactor). Catching here prevents the
+                    // outer subscription from terminating permanently.
+                    try {
+                        return from(this.runner!()).pipe(
+                            tap({
+                                next: () => this.recordRun(true),
+                                error: e => {
+                                    console.warn(
+                                        `[AutoSyncScheduler] Auto-sync failed (${this.failureCount + 1}/${MAX_FAILURES})`,
+                                        e
+                                    );
+                                    this.recordRun(false);
+                                }
+                            }),
+                            catchError(() => EMPTY)
+                        );
+                    } catch (e) {
+                        console.error('[AutoSyncScheduler] Runner threw synchronously', e);
+                        this.recordRun(false);
+                        return EMPTY;
+                    }
+                }),
                 takeUntilDestroyed(this.destroyRef)
             )
              
@@ -255,18 +266,21 @@ export class AutoSyncScheduler {
             if (ts > 0) this.schedule();
         });
 
-        // Reset the circuit breaker when the user changes the S3 config —
-        // the previous failures were against the OLD creds, so they
-        // shouldn't keep auto-sync disabled for the new ones. Tracks
-        // both first-load (`config()` flips from null to set) and edits
-        // (fingerprint changes via signal mutation in S3ConfigService.save).
-        let lastS3Fingerprint = '';
+        // Reset the circuit breaker when ANY backend's config changes —
+        // the previous failures were against the OLD config (creds /
+        // OAuth tokens / FSA handle), so they shouldn't keep auto-sync
+        // disabled for the new one. Routed through SyncBackend.
+        // configFingerprint() so the scheduler doesn't have to know
+        // backend-specific config services.
+        const lastFingerprints = new Map<string, string>();
         effect(() => {
-            const c = this.s3Cfg.config();
-            const fp = c ? JSON.stringify(c) : '';
-            if (fp !== lastS3Fingerprint) {
-                lastS3Fingerprint = fp;
-                this.failureCount = 0;
+            for (const b of this.backends.list()) {
+                const fp = b.configFingerprint();
+                const prev = lastFingerprints.get(b.id);
+                lastFingerprints.set(b.id, fp);
+                if (prev !== undefined && prev !== fp) {
+                    this.failureCount = 0;
+                }
             }
         });
     }
