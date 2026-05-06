@@ -2,7 +2,6 @@ import { DestroyRef, Injectable, effect, inject } from '@angular/core';
 import { DOCUMENT } from '@angular/common';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { WINDOW } from '@app/core/tokens/window.token';
-import { GameStateService } from '../game-state.service';
 import { SessionService } from '../session.service';
 import { SyncBackendResolver } from './sync-backend-resolver.service';
 import { S3ConfigService } from './s3-config.service';
@@ -33,7 +32,6 @@ export class AutoSyncScheduler {
     private readonly win = inject(WINDOW);
     private readonly destroyRef = inject(DestroyRef);
     private readonly session = inject(SessionService);
-    private readonly state = inject(GameStateService);
     private readonly backends = inject(SyncBackendResolver);
     private readonly s3Cfg = inject(S3ConfigService);
     private readonly snackBar = inject(MatSnackBar);
@@ -117,9 +115,14 @@ export class AutoSyncScheduler {
      * `doForcePushAll` / `doForcePullAll`) finishes successfully. The
      * timestamp gates the visibility-cooldown re-trigger; failures
      * don't update it (we want the next visible-tab to retry promptly).
+     *
+     * Also resets the failure-count circuit breaker — a successful
+     * manual sync proves the backend is reachable, so any prior
+     * auto-sync failures shouldn't keep the breaker tripped.
      */
     notifySyncCompleted(): void {
         this.lastSyncAt = Date.now();
+        this.failureCount = 0;
     }
 
     /** SyncService.setActiveBackend wrapper hook: backend choice changed. */
@@ -225,7 +228,6 @@ export class AutoSyncScheduler {
         if (this.runInFlight) return this.runInFlight;
         this.timer = null;
         if (!this.isActive()) return Promise.resolve();
-        if (this.state.status() === 'generating') return Promise.resolve();
         if (!this.runner) return Promise.resolve();
         this.runInFlight = this.doRun().finally(() => { this.runInFlight = null; });
         return this.runInFlight;

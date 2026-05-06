@@ -2,6 +2,7 @@ import { Injectable, inject, signal } from '@angular/core';
 import { StorageService } from '../storage.service';
 import { SessionService } from '../session.service';
 import { CollectionService } from '../collection.service';
+import { GameStateService } from '../game-state.service';
 import { Book, Collection, ROOT_COLLECTION_ID } from '@app/core/models/types';
 import {
     SyncBackend, SyncBackendId, SyncResource, SnapshotLocalPayload
@@ -41,6 +42,7 @@ export class SyncService {
     private storage = inject(StorageService);
     private session = inject(SessionService);
     private collections = inject(CollectionService);
+    private state = inject(GameStateService);
     private readonly promptCloudSync = inject(PromptCloudSyncService);
     private readonly snapshot = inject(SnapshotService);
     private readonly tombstones = inject(SyncTombstoneTracker);
@@ -89,7 +91,7 @@ export class SyncService {
         // SyncService back into it would form a circular dep).
         this.scheduler.register(
             () => this.syncAll(),
-            () => !this.restoreInProgress
+            () => !this.restoreInProgress && this.state.status() !== 'generating'
         );
     }
 
