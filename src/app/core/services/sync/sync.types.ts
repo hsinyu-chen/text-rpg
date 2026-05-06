@@ -42,11 +42,16 @@ export interface SyncBackend {
     /**
      * Idempotent setup. Resolver calls this before every `getActiveBackend`
      * use; lazy backends (S3) do their dynamic import + client construction
-     * here, eager ones (GDrive / File) early-return. Throws if the backend
-     * isn't usable (missing config / unbound handle / etc).
+     * here, eager ones (GDrive / File) early-return.
+     *
+     * May throw if the backend has hard prerequisites that can be checked
+     * synchronously at init time (e.g. S3 needs persisted config). Backends
+     * whose readiness is gesture-bound (File needs a fresh user gesture,
+     * Drive needs an OAuth popup) early-return here and surface failure
+     * later from `authenticate()`.
      *
      * Implementations must tolerate being called repeatedly with the same
-     * config (no-op) and rebuild internal state when config changes.
+     * inputs (no-op) and rebuild internal state when inputs change.
      */
     initAsync(): Promise<void>;
     /**

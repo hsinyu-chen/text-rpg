@@ -158,8 +158,7 @@ export class S3FileViewerDialogComponent {
         this.listLoading.set(true);
         try {
             await this.s3.initAsync();
-            const backend = this.s3;
-            const entries = await backend.list(resource);
+            const entries = await this.s3.list(resource);
             entries.sort((a, b) => b.modifiedAt - a.modifiedAt);
             if (resource === 'book') this.bookEntries.set(entries);
             else this.collectionEntries.set(entries);
@@ -220,8 +219,7 @@ export class S3FileViewerDialogComponent {
     private async fetchOneName(resource: SyncResource, id: string): Promise<void> {
         try {
             await this.s3.initAsync();
-            const backend = this.s3;
-            const json = await backend.read(resource, id);
+            const json = await this.s3.read(resource, id);
             const parsed = JSON.parse(json) as { name?: string };
             if (!parsed?.name) return;
             const target = resource === 'book' ? this.bookEntries : this.collectionEntries;
@@ -247,8 +245,7 @@ export class S3FileViewerDialogComponent {
         this.detailLoading.set(true);
         try {
             await this.s3.initAsync();
-            const backend = this.s3;
-            const raw = await backend.read(tab, entry.id);
+            const raw = await this.s3.read(tab, entry.id);
             this.detailRaw.set(raw);
         } catch (e) {
             this.detailError.set((e as { message?: string })?.message || 'Read failed');
@@ -262,8 +259,7 @@ export class S3FileViewerDialogComponent {
         this.detailError.set(null);
         try {
             await this.s3.initAsync();
-            const backend = this.s3;
-            const content = await backend.readSettings();
+            const content = await this.s3.readSettings();
             this.settingsContent.set(content);
         } catch (e) {
             this.detailError.set((e as { message?: string })?.message || 'Read failed');
@@ -277,8 +273,7 @@ export class S3FileViewerDialogComponent {
         this.detailError.set(null);
         try {
             await this.s3.initAsync();
-            const backend = this.s3;
-            const content = await backend.readPrompts();
+            const content = await this.s3.readPrompts();
             this.promptsContent.set(content);
         } catch (e) {
             this.detailError.set((e as { message?: string })?.message || 'Read failed');

@@ -106,6 +106,21 @@ export class SyncService {
             if (ts > 0) this.scheduleAutoSync();
         });
 
+        // Reset the auto-sync circuit breaker when the user changes the S3
+        // config — the previous failures were against the OLD creds, so
+        // they shouldn't keep auto-sync disabled for the new ones. Tracks
+        // both first-load (`config()` flips from null to set) and edits
+        // (fingerprint changes via signal mutation in S3ConfigService.save).
+        let lastS3Fingerprint = '';
+        effect(() => {
+            const c = this.s3Cfg.config();
+            const fp = c ? JSON.stringify(c) : '';
+            if (fp !== lastS3Fingerprint) {
+                lastS3Fingerprint = fp;
+                this.failureCount = 0;
+            }
+        });
+
         // Listeners are kept alive for the entire app lifetime in production
         // (the service is providedIn: 'root'), but tests recreate the service
         // and would otherwise leak listeners onto the shared document/window.
@@ -152,11 +167,9 @@ export class SyncService {
     isAutoSyncActive(): boolean {
         if (this.restoreInProgress) return false;
         const id = this.backends.activeBackendId();
-        const flag = this.backends.autoSyncEnabled()[id];
-        if (!flag) return false;
-        if (id === 'gdrive') return false;
-        if (id === 's3') return this.s3Cfg.isConfigured();
-        return false;
+        if (!this.backends.autoSyncEnabled()[id]) return false;
+        const backend = this.backends.get(id);
+        return !!backend?.supportsBackgroundSync && backend.isReady();
     }
 
     scheduleAutoSync(immediate = false): void {

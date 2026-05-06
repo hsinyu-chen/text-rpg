@@ -90,6 +90,9 @@ export class S3SyncBackend implements SyncBackend {
      * settings UI's "Test connection" button before saving. Builds a
      * throwaway client with the candidate config; doesn't touch instance
      * state.
+     *
+     * Also runs the CORS auto-apply step (best-effort) so the user gets
+     * the manual-fix hint at Test time, not silently on the first sync.
      */
     async testConfig(config: S3Config): Promise<void> {
         const sdk = this.sdk ?? (this.sdk = await import('@aws-sdk/client-s3'));
@@ -103,6 +106,15 @@ export class S3SyncBackend implements SyncBackend {
             forcePathStyle: config.forcePathStyle ?? true
         });
         await client.send(new sdk.HeadBucketCommand({ Bucket: config.bucket }));
+        const ok = await this.applyCorsToBucket(sdk, client, config.bucket);
+        if (!ok) {
+            console.warn(
+                '[S3] Bucket reachable, but CORS auto-apply failed. Sync ' +
+                'will use the slower GET-body fallback for last-active ' +
+                'recovery. To enable the fast path, manually add ' +
+                '`x-amz-meta-last-active` to the bucket\'s CORS ExposeHeaders.'
+            );
+        }
     }
 
     isAuthenticated(): boolean {
@@ -136,7 +148,18 @@ export class S3SyncBackend implements SyncBackend {
     private async ensureCorsApplied(): Promise<boolean> {
         if (this.corsAttempted) return this.corsOk;
         this.corsAttempted = true;
+        this.corsOk = await this.applyCorsToBucket(this.sdk!, this.client!, this.bucket);
+        return this.corsOk;
+    }
 
+    /**
+     * Pure form of the CORS auto-apply: takes an explicit (sdk, client,
+     * bucket), no instance-cache writes. Used by both `ensureCorsApplied`
+     * (instance, with caching) and `testConfig` (throwaway client). Returns
+     * true if the bucket is in a usable state at the end (already-correct
+     * or successfully written), false if neither GET nor PUT succeeded.
+     */
+    private async applyCorsToBucket(sdk: AwsSdk, client: S3Client, bucket: string): Promise<boolean> {
         const targetHeader = 'x-amz-meta-' + META_LAST_ACTIVE;
         const targetLower = targetHeader.toLowerCase();
 
@@ -144,12 +167,10 @@ export class S3SyncBackend implements SyncBackend {
         // is configured — treat that as "needs default rule".
         let existingRules: NonNullable<GetBucketCorsCommandOutput['CORSRules']> = [];
         try {
-            const got = await this.client!.send(new this.sdk!.GetBucketCorsCommand({
-                Bucket: this.bucket
-            }));
+            const got = await client.send(new sdk.GetBucketCorsCommand({ Bucket: bucket }));
             existingRules = got.CORSRules ?? [];
         } catch (e) {
-            if (!this.isNotFound(e)) {
+            if (!(e instanceof sdk.S3ServiceException && (e.name === 'NoSuchCORSConfiguration' || e.$metadata?.httpStatusCode === 404))) {
                 // Surfaceable error other than NoSuchCORSConfiguration.
                 console.warn('[S3] GetBucketCors unexpected error; will try PUT anyway.', e);
             }
@@ -162,10 +183,7 @@ export class S3SyncBackend implements SyncBackend {
         const allCovered = existingRules.length > 0 && existingRules.every(r =>
             (r.ExposeHeaders ?? []).some(h => h.toLowerCase() === targetLower)
         );
-        if (allCovered) {
-            this.corsOk = true;
-            return true;
-        }
+        if (allCovered) return true;
 
         // Step 2: build merged rules. Existing rules: append our header to
         // ExposeHeaders if missing, preserve everything else. No existing
@@ -197,11 +215,10 @@ export class S3SyncBackend implements SyncBackend {
             }];
 
         try {
-            await this.client!.send(new this.sdk!.PutBucketCorsCommand({
-                Bucket: this.bucket,
+            await client.send(new sdk.PutBucketCorsCommand({
+                Bucket: bucket,
                 CORSConfiguration: { CORSRules: mergedRules }
             }));
-            this.corsOk = true;
             return true;
         } catch (e) {
             console.error(
@@ -210,7 +227,6 @@ export class S3SyncBackend implements SyncBackend {
                 'GET-body for each entry (correct but slower).',
                 e
             );
-            this.corsOk = false;
             return false;
         }
     }
