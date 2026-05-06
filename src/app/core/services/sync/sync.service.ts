@@ -881,13 +881,11 @@ export class SyncService {
                 json: JSON.stringify(cleaned)
             };
         });
-        const tombstones: SnapshotLocalPayload['tombstones'] = [];
-        for (const r of ['book', 'collection'] as const) {
-            for (const e of this.tombstones.read(r)) {
-                tombstones.push({ resource: r, id: e.id, deletedAt: e.deletedAt });
-            }
-        }
-        return { books: bookEntries, collections: collectionEntries, tombstones };
+        return {
+            books: bookEntries,
+            collections: collectionEntries,
+            tombstones: this.tombstones.readAll()
+        };
     }
 
     /**
@@ -922,9 +920,7 @@ export class SyncService {
                 // Date.now() on cloud, and any local pending delete predates
                 // that timestamp, so they'd no-op anyway. Wipe to keep state
                 // tidy.
-                for (const r of ['collection', 'book'] as const) {
-                    this.tombstones.clear(r);
-                }
+                this.tombstones.clearAll();
 
                 const report = await this.doForcePullAll();
                 this.snapshot.runRetentionInBackground();

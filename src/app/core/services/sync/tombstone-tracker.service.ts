@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { SyncResource } from './sync.types';
+import { SnapshotLocalTombstone, SyncResource } from './sync.types';
 
 export interface PendingDeletion {
     id: string;
@@ -10,6 +10,8 @@ const PENDING_DELETIONS_KEY: Record<SyncResource, string> = {
     book: 'pending_book_deletions',
     collection: 'pending_collection_deletions'
 };
+
+const ALL_RESOURCES = Object.keys(PENDING_DELETIONS_KEY) as SyncResource[];
 
 /**
  * Local pending-deletion list per resource. A deletion is staged here at
@@ -91,6 +93,21 @@ export class SyncTombstoneTracker {
      * force-push / force-pull / restore flows that always wipe both.
      */
     clearAll(): void {
-        for (const r of ['book', 'collection'] as const) this.clear(r);
+        for (const r of ALL_RESOURCES) this.clear(r);
+    }
+
+    /**
+     * Flatten all pending deletions across resources into the snapshot
+     * payload shape. Used by the local snapshot builder so it doesn't have
+     * to know which resources exist.
+     */
+    readAll(): SnapshotLocalTombstone[] {
+        const all: SnapshotLocalTombstone[] = [];
+        for (const r of ALL_RESOURCES) {
+            for (const e of this.read(r)) {
+                all.push({ resource: r, id: e.id, deletedAt: e.deletedAt });
+            }
+        }
+        return all;
     }
 }
