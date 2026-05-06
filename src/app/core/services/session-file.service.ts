@@ -89,10 +89,16 @@ export class SessionFileService {
      */
     async loadFilesIntoState(pickFolder = true): Promise<void> {
         if (pickFolder) {
+            // selectDirectory pops the OS picker — keep status idle so the
+            // dialog isn't competing with a loading indicator. Once the user
+            // picks, the disk-sync can be slow, so flip to loading before it
+            // runs rather than after.
             await this.fileSystem.selectDirectory();
+            this.state.status.set('loading');
             await this.fileSystem.syncDiskToDb();
+        } else {
+            this.state.status.set('loading');
         }
-        this.state.status.set('loading');
 
         const files = await this.fileSystem.loadInitialFiles();
         const contentMap = new Map<string, string>();
