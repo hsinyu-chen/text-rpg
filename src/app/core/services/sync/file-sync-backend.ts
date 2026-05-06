@@ -72,6 +72,13 @@ export class FileSyncBackend implements SyncBackend {
         return this.permission.handle() !== null;
     }
 
+    configFingerprint(): string {
+        // FSA handles aren't structurally comparable across reloads (the
+        // browser opaque-keys them), but identity is stable within a tab —
+        // bump on bind/unbind transitions only.
+        return this.permission.handle() ? 'bound' : '';
+    }
+
     async initAsync(): Promise<void> {
         // No lazy module to load; FSA handle is already in memory after
         // the user picked the folder. authenticate() handles permission

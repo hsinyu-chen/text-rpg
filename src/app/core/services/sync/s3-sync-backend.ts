@@ -59,6 +59,11 @@ export class S3SyncBackend implements SyncBackend {
         return this.cfg.isConfigured();
     }
 
+    configFingerprint(): string {
+        const c = this.cfg.config();
+        return c ? JSON.stringify(c) : '';
+    }
+
     /**
      * Idempotent. First call dynamically imports the AWS SDK and builds
      * an S3Client; subsequent calls no-op unless the config fingerprint

@@ -1,0 +1,282 @@
+import { DestroyRef, Injectable, effect, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { DOCUMENT } from '@angular/common';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { EMPTY, Subject, from, of, timer } from 'rxjs';
+import { catchError, concatMap, debounce, filter, tap } from 'rxjs/operators';
+import { SessionService } from '../session.service';
+import { SyncBackendResolver } from './sync-backend-resolver.service';
+
+const DEBOUNCE_MS = 60_000;
+const VISIBILITY_COOLDOWN_MS = 30_000;
+const MAX_FAILURES = 3;
+
+interface Trigger {
+    /** True for visibility-cooldown / flush — bypass the debounce wait. */
+    force: boolean;
+}
+
+/**
+ * Auto-sync scheduling: rxjs-pipelined debounce + visibility-change hook
+ * + failure-count circuit breaker. The pipeline is the entire flow;
+ * `cancel()` is intentionally a no-op because state changes (autoSync
+ * toggled off, backend swapped, restore in progress) are picked up by
+ * the `filter()` at emission time.
+ *
+ * Lives separate from SyncService so the scheduling concern is testable
+ * independent of the sync state machine, and so the visibility listener
+ * isn't entangled with the public SyncService API.
+ */
+@Injectable({ providedIn: 'root' })
+export class AutoSyncScheduler {
+    private readonly doc = inject(DOCUMENT);
+    private readonly destroyRef = inject(DestroyRef);
+    private readonly session = inject(SessionService);
+    private readonly backends = inject(SyncBackendResolver);
+    private readonly snackBar = inject(MatSnackBar);
+
+    private readonly trigger$ = new Subject<Trigger>();
+    private lastSyncAt = 0;
+    private failureCount = 0;
+    /**
+     * True between the moment a debounce-eligible trigger fires and the
+     * moment the pipeline actually emits (i.e. the silence window has
+     * elapsed). Gates `flush()` so a visibility-hidden event doesn't
+     * force a sync when nothing's actually queued.
+     */
+    private pendingDebounce = false;
+    /**
+     * Set by `cancel()`, cleared on the next trigger. Read by the
+     * pipeline's filter() to drop any debounce-pending emission whose
+     * trigger predates a cancel call. Without this, the rxjs
+     * `debounce(timer)` would still fire after a `restoreSnapshot`
+     * completes and trigger a redundant syncAll against the freshly
+     * restored state.
+     */
+    private cancelled = false;
+
+    /** Set by `register` so this service doesn't have to inject SyncService (circular). */
+    private runner: (() => Promise<unknown>) | null = null;
+    /**
+     * Returns false to skip a scheduled run — owned by SyncService since
+     * it knows about `restoreInProgress` and the game-engine generating
+     * status. Without it, an auto-sync could race a destructive op and
+     * leak mid-restore garbage cross-device.
+     */
+    private precondition: () => boolean = () => true;
+
+    constructor() {
+        this.installListeners();
+        this.installEffects();
+        this.installPipeline();
+    }
+
+    /**
+     * Wire SyncService's `syncAll` runner + `restoreInProgress` /
+     * `generating` precondition. Called once at SyncService construction.
+     * Until then the pipeline filter() will drop emissions on the
+     * `!this.runner` check.
+     */
+    register(runner: () => Promise<unknown>, precondition: () => boolean): void {
+        if (this.runner) {
+            // Idempotent — second call would be a wiring mistake. In
+            // practice only SyncService calls this, exactly once.
+            return;
+        }
+        this.runner = runner;
+        this.precondition = precondition;
+    }
+
+    /**
+     * True iff the active backend supports background sync, is ready,
+     * and SyncService's precondition allows it. Used by both UI ("is
+     * auto-sync currently effective?") and the pipeline filter.
+     */
+    isActive(): boolean {
+        if (!this.precondition()) return false;
+        const id = this.backends.activeBackendId();
+        if (!this.backends.autoSyncEnabled()[id]) return false;
+        const b = this.backends.get(id);
+        return !!b?.supportsBackgroundSync && b.isReady();
+    }
+
+    schedule(immediate = false): void {
+        if (this.failureCount >= MAX_FAILURES) return;
+        this.trigger$.next({ force: immediate });
+    }
+
+    flush(): void {
+        // Only force a run if we actually have a debounce window open.
+        // Without this guard, every visibility-hidden would kick a sync
+        // even when nothing changed since the last one.
+        if (!this.pendingDebounce) return;
+        this.trigger$.next({ force: true });
+    }
+
+    /**
+     * Cancel any pending debounced emission. Called by SyncService.
+     * restoreSnapshot before its destructive op so the 60s timer that
+     * was set by a save BEFORE the restore doesn't fire AFTER the
+     * restore completes (`restoreInProgress` flips back to false in
+     * the finally block; without this flag the late emission would
+     * pass the filter and run a redundant syncAll against the freshly
+     * restored state).
+     *
+     * The next `trigger$.next()` clears the flag — cancellation is
+     * one-shot, doesn't suppress future schedules.
+     */
+    cancel(): void {
+        this.cancelled = true;
+    }
+
+    /**
+     * SyncService calls this after a public sync op (`doSyncAll` /
+     * `doForcePushAll` / `doForcePullAll`) finishes successfully. The
+     * timestamp gates the visibility-cooldown re-trigger; failures
+     * don't update it (we want the next visible-tab to retry promptly).
+     *
+     * Also resets the failure-count circuit breaker — a successful
+     * manual sync proves the backend is reachable, so any prior
+     * auto-sync failures shouldn't keep the breaker tripped.
+     */
+    notifySyncCompleted(): void {
+        this.lastSyncAt = Date.now();
+        this.failureCount = 0;
+    }
+
+    /** SyncService.setActiveBackend wrapper hook: backend choice changed. */
+    onBackendChanged(): void {
+        this.failureCount = 0;
+        // No timer to clear — the pipeline's filter() drops in-debounce
+        // emissions when the new backend doesn't satisfy isActive().
+    }
+
+    /**
+     * SyncService.setAutoSyncEnabled wrapper hook: user toggled the flag.
+     * The toggle direction (`on`) is irrelevant here — the pipeline's
+     * filter() drops in-flight emissions when the resolver flag flipped
+     * to false. We only need to reset the breaker either way so the
+     * next user-driven re-enable starts clean.
+     */
+    onAutoToggle(): void {
+        this.failureCount = 0;
+    }
+
+    /**
+     * Feed the circuit breaker from a sync run that ran *outside* the
+     * scheduler's own pipeline (currently `bootSync`). Success resets
+     * the counter; failure increments and may disable auto-sync + toast
+     * on hitting `MAX_FAILURES`.
+     */
+    recordRun(success: boolean): void {
+        if (success) {
+            this.failureCount = 0;
+            return;
+        }
+        this.failureCount++;
+        if (this.failureCount >= MAX_FAILURES) {
+            const id = this.backends.activeBackendId();
+            this.backends.setAutoSyncEnabled(id, false);
+            this.snackBar.open(
+                `Auto-sync disabled after ${MAX_FAILURES} failures. Re-enable in Settings once fixed.`,
+                'Close',
+                { duration: 8000 }
+            );
+        }
+    }
+
+    private installPipeline(): void {
+        this.trigger$
+            .pipe(
+                tap(() => {
+                    this.pendingDebounce = true;
+                    this.cancelled = false;
+                }),
+                // `force` triggers (visibility flush, schedule(immediate))
+                // bypass the debounce wait. Otherwise wait for 60s of
+                // silence before emitting. concatMap below serializes —
+                // emissions during an in-flight run queue and play out
+                // afterward, so changes that arrived mid-sync don't get
+                // dropped.
+                debounce((t: Trigger) => t.force ? of(0) : timer(DEBOUNCE_MS)),
+                tap(() => { this.pendingDebounce = false; }),
+                filter(() => !this.cancelled && this.runner !== null && this.isActive()),
+                concatMap(() => {
+                    // Defensive: an async runner converts throws to
+                    // rejected promises, but `this.runner!()` itself
+                    // could synchronously throw (e.g. null-deref on a
+                    // future refactor). Catching here prevents the
+                    // outer subscription from terminating permanently.
+                    try {
+                        return from(this.runner!()).pipe(
+                            // No tap-success: the runner is syncAll which
+                            // already calls notifySyncCompleted on success
+                            // (which resets failureCount). Recording again
+                            // here would be redundant.
+                            tap({
+                                error: e => {
+                                    console.warn(
+                                        `[AutoSyncScheduler] Auto-sync failed (${this.failureCount + 1}/${MAX_FAILURES})`,
+                                        e
+                                    );
+                                    this.recordRun(false);
+                                }
+                            }),
+                            catchError(() => EMPTY)
+                        );
+                    } catch (e) {
+                        console.error('[AutoSyncScheduler] Runner threw synchronously', e);
+                        this.recordRun(false);
+                        return EMPTY;
+                    }
+                }),
+                takeUntilDestroyed(this.destroyRef)
+            )
+            .subscribe();
+    }
+
+    private installListeners(): void {
+        // Listeners are kept alive for the entire app lifetime in production
+        // (the service is providedIn: 'root'), but tests recreate the service
+        // and would otherwise leak listeners onto the shared document/window.
+        const onVisibilityChange = () => {
+            if (this.doc.visibilityState === 'hidden') {
+                this.flush();
+            } else if (this.doc.visibilityState === 'visible') {
+                if (Date.now() - this.lastSyncAt > VISIBILITY_COOLDOWN_MS) {
+                    this.schedule(true);
+                }
+            }
+        };
+        this.doc.addEventListener('visibilitychange', onVisibilityChange);
+        this.destroyRef.onDestroy(() => {
+            this.doc.removeEventListener('visibilitychange', onVisibilityChange);
+        });
+    }
+
+    private installEffects(): void {
+        // React to every successful book save → schedule debounced auto-sync.
+        effect(() => {
+            const ts = this.session.lastSavedAt();
+            if (ts > 0) this.schedule();
+        });
+
+        // Reset the circuit breaker when ANY backend's config changes —
+        // the previous failures were against the OLD config (creds /
+        // OAuth tokens / FSA handle), so they shouldn't keep auto-sync
+        // disabled for the new one. Routed through SyncBackend.
+        // configFingerprint() so the scheduler doesn't have to know
+        // backend-specific config services.
+        const lastFingerprints = new Map<string, string>();
+        effect(() => {
+            for (const b of this.backends.list()) {
+                const fp = b.configFingerprint();
+                const prev = lastFingerprints.get(b.id);
+                lastFingerprints.set(b.id, fp);
+                if (prev !== undefined && prev !== fp) {
+                    this.failureCount = 0;
+                }
+            }
+        });
+    }
+}

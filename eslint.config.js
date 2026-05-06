@@ -66,8 +66,12 @@ module.exports = defineConfig([
       "no-restricted-syntax": [
         "error",
         {
-          "selector": "CallExpression[callee.property.name='subscribe']",
-          "message": "Manual .subscribe() is banned. Use resource(), rxResource(), httpResource(), or toSignal() instead."
+          "selector": "CallExpression[callee.object.property.name=/^(queryParams|params|paramMap|queryParamMap|url|fragment|data|events|valueChanges|statusChanges)$/][callee.property.name='subscribe']",
+          "message": "Don't .subscribe() to router / form observables. Use input() with withComponentInputBinding, toSignal(), or signal-based equivalents. (Legit Subject pipelines inside services are allowed.)"
+        },
+        {
+          "selector": "CallExpression[callee.object.callee.property.name=/^(get|post|put|patch|delete|head|options|request)$/][callee.property.name='subscribe']",
+          "message": "Don't .subscribe() to HttpClient calls. Use httpResource(), resource(), or rxResource() instead."
         },
         {
           "selector": "MethodDefinition[key.name=/^ng(OnChanges|OnInit|DoCheck|AfterContentInit|AfterContentChecked|AfterViewInit|AfterViewChecked)$/]",
