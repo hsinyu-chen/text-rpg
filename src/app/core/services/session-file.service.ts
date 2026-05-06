@@ -42,6 +42,20 @@ export class SessionFileService {
     }
 
     /**
+     * Common KB-cache-invalidation step: drop the remote cache (the orphan
+     * keeps billing for its TTL otherwise), pin the new hash, and force the
+     * next turn to re-inject context. Both load and single-write paths call
+     * this — keeping the three steps together is correctness-critical because
+     * any drift here surfaces as stale-context bugs in the engine.
+     */
+    private async invalidateKbCache(currentHash: string, source: string): Promise<void> {
+        console.log(`[SessionFileService] KB content changed (${source}). Invalidating remote cache.`);
+        await this.cacheManager.cleanupCache();
+        this.state.kbCacheHash.set(currentHash);
+        this.state.isContextInjected = false;
+    }
+
+    /**
      * Loads files from disk (or just rehydrates in-memory state when
      * `pickFolder=false`) and re-establishes KB token counts. Cleans up the
      * remote cache if the KB hash has changed since last save.
@@ -110,16 +124,11 @@ export class SessionFileService {
 
         this.state.estimatedKbTokens.set(totalTokenCount);
 
-        // Cache invalidation runs on any hash change — including KB→empty —
-        // so the orphan remote cache doesn't keep billing for content the
-        // user just removed. isContextInjected reset lives in the same
-        // branch (matches writeSingleFile) — when the hash is unchanged
-        // there's no reason to force the next turn to re-inject.
+        // Runs on any hash change — including KB→empty — so the orphan
+        // remote cache doesn't keep billing for content the user just removed.
+        // When the hash is unchanged there's no reason to force re-injection.
         if (this.state.kbCacheHash() !== currentHash) {
-            console.log('[SessionFileService] KB content changed. Invalidating remote cache.');
-            await this.cacheManager.cleanupCache();
-            this.state.kbCacheHash.set(currentHash);
-            this.state.isContextInjected = false;
+            await this.invalidateKbCache(currentHash, 'load');
         }
     }
 
@@ -169,17 +178,7 @@ export class SessionFileService {
 
         const currentHash = this.state.currentKbHash();
         if (this.state.kbCacheHash() !== currentHash) {
-            console.log('[SessionFileService] KB content changed via single update. Invalidating remote cache.');
-            // cleanupCache (not resetCacheState) so the now-stale cache is
-            // also deleted server-side. Otherwise the orphan keeps billing
-            // for the rest of its TTL while we generate a fresh one next turn.
-            await this.cacheManager.cleanupCache();
-            this.state.kbCacheHash.set(currentHash);
-            // Match loadFilesIntoState's KB-changed branch: reset so the next
-            // turn re-injects the updated context. Pre-refactor updateSingleFile
-            // omitted this — when cache is disabled the engine would otherwise
-            // keep using the previously injected context referencing stale KB.
-            this.state.isContextInjected = false;
+            await this.invalidateKbCache(currentHash, 'single update');
 
             const contentMap = this.state.loadedFiles();
             const partsForCount = this.kb.buildKnowledgeBaseParts(contentMap);
