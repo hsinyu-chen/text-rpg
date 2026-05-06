@@ -100,20 +100,27 @@ export class SessionFileService {
             // Lazy: building parts is only needed on the cache-miss path;
             // skip the work when we'll reuse the cached estimate.
             const partsForCount = this.kb.buildKnowledgeBaseParts(contentMap);
-            totalTokenCount = await this.provider.countTokens(this.providerConfig, modelId, [{ role: 'user', parts: partsForCount }]);
+            // Guard: countTokens with an empty parts array errors on most
+            // providers (Gemini requires ≥ 1 part). Empty KB → totalCount stays 0.
+            if (partsForCount.length > 0) {
+                totalTokenCount = await this.provider.countTokens(this.providerConfig, modelId, [{ role: 'user', parts: partsForCount }]);
+            }
             console.log('[SessionFileService] Counted new total KB tokens (Est):', totalTokenCount);
         }
 
         this.state.estimatedKbTokens.set(totalTokenCount);
 
-        const hasKbContent = Array.from(contentMap.keys()).some(path => !path.startsWith('system_files/') && path !== 'system_prompt.md');
+        // Cache invalidation runs on any hash change — including KB→empty —
+        // so the orphan remote cache doesn't keep billing for content the
+        // user just removed.
+        if (this.state.kbCacheHash() !== currentHash) {
+            console.log('[SessionFileService] KB content changed. Invalidating remote cache.');
+            await this.cacheManager.cleanupCache();
+            this.state.kbCacheHash.set(currentHash);
+        }
 
+        const hasKbContent = Array.from(contentMap.keys()).some(path => !path.startsWith('system_files/') && path !== 'system_prompt.md');
         if (hasKbContent) {
-            if (this.state.kbCacheHash() !== currentHash) {
-                console.log('[SessionFileService] KB content changed. Invalidating remote cache.');
-                await this.cacheManager.cleanupCache();
-                this.state.kbCacheHash.set(currentHash);
-            }
             this.state.isContextInjected = false;
         }
     }
@@ -175,7 +182,12 @@ export class SessionFileService {
 
             const contentMap = this.state.loadedFiles();
             const partsForCount = this.kb.buildKnowledgeBaseParts(contentMap);
-            const totalTokenCount = await this.provider.countTokens(this.providerConfig, modelId, [{ role: 'user', parts: partsForCount }]);
+            // Same empty-parts guard as loadFilesIntoState — countTokens errors
+            // on empty parts in most providers.
+            let totalTokenCount = 0;
+            if (partsForCount.length > 0) {
+                totalTokenCount = await this.provider.countTokens(this.providerConfig, modelId, [{ role: 'user', parts: partsForCount }]);
+            }
             this.state.estimatedKbTokens.set(totalTokenCount);
         }
     }
