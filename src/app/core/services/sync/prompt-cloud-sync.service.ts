@@ -82,6 +82,30 @@ export class PromptCloudSyncService {
     }
 
     /**
+     * Collect a profile's per-type prompt rows into the v2 payload shape.
+     * `onlyUserModified=true` (built-in profiles in `uploadPrompts`): skip
+     * rows whose `prompt_user_modified_<type>` flag isn't set, since
+     * receivers already have the same shipped asset. User profiles and
+     * `exportSingleProfile` always ship everything they've got.
+     */
+    private async collectProfilePrompts(
+        profileId: string,
+        opts: { onlyUserModified: boolean }
+    ): Promise<Record<string, { content: string; tokens?: number }>> {
+        const out: Record<string, { content: string; tokens?: number }> = {};
+        for (const type of PROMPT_TYPES) {
+            if (opts.onlyUserModified) {
+                const flagKey = getProfileScopedKey(`prompt_user_modified_${type}`, profileId);
+                if (localStorage.getItem(flagKey) !== 'true') continue;
+            }
+            const rec = await this.storage.getProfilePrompt(type, profileId);
+            if (!rec) continue;
+            out[`${profileId}:${type}`] = { content: rec.content, tokens: rec.tokens };
+        }
+        return out;
+    }
+
+    /**
      * Built-ins ship only their user-modified rows. User profiles ship in
      * full — receiving device has no shipped asset to fall back on.
      */
@@ -90,19 +114,10 @@ export class PromptCloudSyncService {
 
         const prompts: Record<string, { content: string; tokens?: number }> = {};
         const profilesOut: PromptsV2['profiles'] = [];
-        let exported = 0;
 
         for (const profile of this.profileRegistry.list()) {
-            if (profile.isBuiltIn) {
-                for (const type of PROMPT_TYPES) {
-                    const scopedFlagKey = getProfileScopedKey(`prompt_user_modified_${type}`, profile.id);
-                    if (localStorage.getItem(scopedFlagKey) !== 'true') continue;
-                    const rec = await this.storage.getProfilePrompt(type, profile.id);
-                    if (!rec) continue;
-                    prompts[`${profile.id}:${type}`] = { content: rec.content, tokens: rec.tokens };
-                    exported++;
-                }
-            } else {
+            const onlyUserModified = profile.isBuiltIn;
+            if (!profile.isBuiltIn) {
                 profilesOut.push({
                     id: profile.id,
                     displayName: profile.displayName ?? profile.id,
@@ -110,18 +125,14 @@ export class PromptCloudSyncService {
                     createdAt: profile.createdAt ?? Date.now(),
                     updatedAt: profile.updatedAt ?? Date.now()
                 });
-                for (const type of PROMPT_TYPES) {
-                    const rec = await this.storage.getProfilePrompt(type, profile.id);
-                    if (!rec) continue;
-                    prompts[`${profile.id}:${type}`] = { content: rec.content, tokens: rec.tokens };
-                    exported++;
-                }
             }
+            const profilePrompts = await this.collectProfilePrompts(profile.id, { onlyUserModified });
+            Object.assign(prompts, profilePrompts);
         }
 
         const payload: PromptsV2 = { version: 2, profiles: profilesOut, prompts };
         await backend.writePrompts(JSON.stringify(payload));
-        return { exported };
+        return { exported: Object.keys(prompts).length };
     }
 
     /** v1 payloads have no profile metadata, so user-prefixed entries in v1 are dropped as orphans. */
@@ -141,12 +152,12 @@ export class PromptCloudSyncService {
         const profile = this.profileRegistry.get(profileId);
         if (!profile) throw new Error(`Unknown profile: ${profileId}`);
 
-        const prompts: Record<string, { content: string; tokens?: number }> = {};
-        for (const type of PROMPT_TYPES) {
-            const rec = await this.storage.getProfilePrompt(type, profileId);
-            if (!rec) continue;
-            prompts[`${profileId}:${type}`] = { content: rec.content, tokens: rec.tokens };
-        }
+        // Built-in profiles preserve original behavior here: ship every row
+        // we've got, not just user-modified ones. Diverges from uploadPrompts
+        // because the user explicitly clicked Export on this specific profile,
+        // so they want a complete dump rather than a diff against the shipped
+        // baseline.
+        const prompts = await this.collectProfilePrompts(profileId, { onlyUserModified: false });
 
         const profilesOut: PromptsV2['profiles'] = profile.isBuiltIn ? [] : [{
             id: profile.id,
@@ -177,8 +188,8 @@ export class PromptCloudSyncService {
             // Hand-edited / partial exports can carry undefined fields; meta store requires them populated.
             const incomingName = incoming.displayName || incoming.id;
             const incomingBase = incoming.baseProfileId || 'cloud';
-            const incomingCreatedAt = incoming.createdAt || Date.now();
-            const incomingUpdatedAt = incoming.updatedAt || incomingCreatedAt;
+            const incomingCreatedAt = incoming.createdAt ?? Date.now();
+            const incomingUpdatedAt = incoming.updatedAt ?? incomingCreatedAt;
 
             const existing = this.profileRegistry.get(incoming.id);
             const collidesDifferent = existing && !existing.isBuiltIn &&
