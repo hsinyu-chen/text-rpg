@@ -124,11 +124,14 @@ export class SnapshotService {
             if (source === 'cloud') {
                 return await backend.createSnapshotFromCloud(id, meta);
             }
-            if (!localPayloadBuilder) {
-                throw new Error('source=local requires a payload builder');
+            if (source === 'local') {
+                if (!localPayloadBuilder) {
+                    throw new Error('source=local requires a payload builder');
+                }
+                const payload = await localPayloadBuilder();
+                return await backend.createSnapshotFromLocal(id, meta, payload);
             }
-            const payload = await localPayloadBuilder();
-            return await backend.createSnapshotFromLocal(id, meta, payload);
+            throw new Error(`Unsupported snapshot source: ${source}`);
         } catch (e) {
             throw new SnapshotPreOpError(trigger, errMsg(e));
         }
