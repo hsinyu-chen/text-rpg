@@ -80,8 +80,9 @@ export class SyncTombstoneTracker {
                     return [{ id: x, deletedAt: now }];
                 }
                 if (x && typeof x === 'object' && typeof x.id === 'string') {
-                    if (typeof x.deletedAt !== 'number') migrated = true;
-                    return [{ id: x.id, deletedAt: Number(x.deletedAt) || now }];
+                    const ts = Number(x.deletedAt) || now;
+                    if (typeof x.deletedAt !== 'number' || x.deletedAt !== ts) migrated = true;
+                    return [{ id: x.id, deletedAt: ts }];
                 }
                 return [];
             });
