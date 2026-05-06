@@ -69,6 +69,11 @@ export class S3SyncBackend implements SyncBackend {
         const fp = JSON.stringify(c);
         if (this.client && this.fingerprint === fp) return;
         if (!this.sdk) this.sdk = await import('@aws-sdk/client-s3');
+        // Tear down the previous client (releases keep-alive HTTP handler
+        // + aborts pending requests) before swapping in one bound to new
+        // creds; otherwise the old socket pool can leak across config
+        // changes.
+        this.client?.destroy();
         this.bucket = c.bucket;
         this.prefix = c.prefix ? c.prefix.replace(/^\/+|\/+$/g, '') + '/' : '';
         this.client = new this.sdk.S3Client({
