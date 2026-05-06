@@ -148,7 +148,12 @@ export class AutoSyncScheduler {
         this.failureCount++;
         if (this.failureCount >= MAX_FAILURES) {
             const id = this.backends.activeBackendId();
+            // We bypass SyncService's thin setAutoSyncEnabled wrapper
+            // here (calling resolver directly), which means our own
+            // onAutoToggle hook doesn't fire — clear the pending timer
+            // explicitly so a debounced run isn't left to no-op later.
             this.backends.setAutoSyncEnabled(id, false);
+            this.cancel();
             this.snackBar.open(
                 `Auto-sync disabled after ${MAX_FAILURES} failures. Re-enable in Settings once fixed.`,
                 'Close',
