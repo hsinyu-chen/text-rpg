@@ -120,11 +120,21 @@ export class PromptCloudSyncService {
     async uploadPrompts(): Promise<{ exported: number }> {
         const backend = await this.getBackend();
 
+        // Profiles collected in parallel — each profile's collectProfilePrompts
+        // already parallelizes its own per-type reads, so this fans out
+        // (profiles × types) independent IDB reads. Profile metadata
+        // assembly happens in the resolved-results loop where ordering
+        // doesn't matter.
+        const profileResults = await Promise.all(
+            this.profileRegistry.list().map(async profile => ({
+                profile,
+                profilePrompts: await this.collectProfilePrompts(profile.id, { onlyUserModified: profile.isBuiltIn })
+            }))
+        );
+
         const prompts: Record<string, { content: string; tokens?: number }> = {};
         const profilesOut: PromptsV2['profiles'] = [];
-
-        for (const profile of this.profileRegistry.list()) {
-            const onlyUserModified = profile.isBuiltIn;
+        for (const { profile, profilePrompts } of profileResults) {
             if (!profile.isBuiltIn) {
                 profilesOut.push({
                     id: profile.id,
@@ -134,7 +144,6 @@ export class PromptCloudSyncService {
                     updatedAt: profile.updatedAt ?? Date.now()
                 });
             }
-            const profilePrompts = await this.collectProfilePrompts(profile.id, { onlyUserModified });
             Object.assign(prompts, profilePrompts);
         }
 
@@ -187,6 +196,10 @@ export class PromptCloudSyncService {
 
     private async applyPromptsV2(payload: PromptsV2): Promise<{ imported: number }> {
         const idRemap = new Map<string, string>();
+        // Tracks every id we've assigned in this batch (existing registry +
+        // newly-minted suffix variants) so two incoming collisions can't both
+        // generate the same fresh id within a single import.
+        const assignedIds = new Set<string>(this.profileRegistry.list().map(p => p.id));
         for (const incoming of payload.profiles ?? []) {
             if (!isValidUserProfileId(incoming.id)) {
                 console.warn('[PromptCloudSync] applyPromptsV2: dropping profile with invalid id', incoming);
@@ -203,13 +216,16 @@ export class PromptCloudSyncService {
             const collidesDifferent = existing && !existing.isBuiltIn &&
                 (existing.displayName !== incomingName || existing.baseProfileId !== incomingBase);
 
-            // Loop the suffix lottery until unused — guards against a future weakening of importSuffix().
+            // Loop the suffix lottery until unused — guards against a future
+            // weakening of importSuffix() AND against intra-batch collisions
+            // between two incoming profiles that happen to draw the same suffix.
             let targetId = incoming.id;
             if (collidesDifferent) {
                 do {
                     targetId = `${incoming.id}_imported_${importSuffix()}`;
-                } while (this.profileRegistry.get(targetId));
+                } while (assignedIds.has(targetId));
             }
+            assignedIds.add(targetId);
             if (targetId !== incoming.id) idRemap.set(incoming.id, targetId);
 
             const meta = {
