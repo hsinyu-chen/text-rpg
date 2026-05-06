@@ -17,15 +17,15 @@ interface Trigger {
 }
 
 /**
- * Auto-sync scheduling: rxjs-pipelined debounce + visibility / pagehide
- * hooks + failure-count circuit breaker. The pipeline is the entire flow;
+ * Auto-sync scheduling: rxjs-pipelined debounce + visibility-change hook
+ * + failure-count circuit breaker. The pipeline is the entire flow;
  * `cancel()` is intentionally a no-op because state changes (autoSync
  * toggled off, backend swapped, restore in progress) are picked up by
  * the `filter()` at emission time.
  *
  * Lives separate from SyncService so the scheduling concern is testable
- * independent of the sync state machine, and so the visibility / pagehide
- * listeners aren't entangled with the public SyncService API.
+ * independent of the sync state machine, and so the visibility listener
+ * isn't entangled with the public SyncService API.
  */
 @Injectable({ providedIn: 'root' })
 export class AutoSyncScheduler {
@@ -41,8 +41,8 @@ export class AutoSyncScheduler {
     /**
      * True between the moment a debounce-eligible trigger fires and the
      * moment the pipeline actually emits (i.e. the silence window has
-     * elapsed). Read by `pagehide` to set LS_SYNC_DIRTY only when there's
-     * actually a queued sync to recover on next boot.
+     * elapsed). Gates `flush()` so a visibility-hidden event doesn't
+     * force a sync when nothing's actually queued.
      */
     private pendingDebounce = false;
 

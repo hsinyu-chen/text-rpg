@@ -85,7 +85,7 @@ export class SyncService {
         this.snapshot.registerBackendResolver(() => this.backends.getActiveBackend());
 
         // Auto-sync scheduling lives in AutoSyncScheduler. It owns the
-        // visibility / pagehide listeners and the debounce timer; we hand
+        // visibility-change listener and the debounce pipeline; we hand
         // it our `syncAll` runner + a `restoreInProgress` precondition
         // probe (the scheduler is providedIn: 'root' too, so injecting
         // SyncService back into it would form a circular dep).
