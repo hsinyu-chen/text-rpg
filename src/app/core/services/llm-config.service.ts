@@ -48,7 +48,6 @@ export class LLMConfigService {
 
   constructor() {
     this.ready = this.initialize();
-     
     const unsubscribe = this.storage.subscribe(list => this._profiles.set(list));
     this.destroyRef.onDestroy(() => unsubscribe());
   }

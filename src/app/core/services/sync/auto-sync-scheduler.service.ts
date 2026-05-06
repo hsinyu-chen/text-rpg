@@ -45,6 +45,15 @@ export class AutoSyncScheduler {
      * force a sync when nothing's actually queued.
      */
     private pendingDebounce = false;
+    /**
+     * Set by `cancel()`, cleared on the next trigger. Read by the
+     * pipeline's filter() to drop any debounce-pending emission whose
+     * trigger predates a cancel call. Without this, the rxjs
+     * `debounce(timer)` would still fire after a `restoreSnapshot`
+     * completes and trigger a redundant syncAll against the freshly
+     * restored state.
+     */
+    private cancelled = false;
 
     /** Set by `register` so this service doesn't have to inject SyncService (circular). */
     private runner: (() => Promise<unknown>) | null = null;
@@ -105,13 +114,19 @@ export class AutoSyncScheduler {
     }
 
     /**
-     * No-op by design. The pipeline's `filter()` re-evaluates state at
-     * emission time; cancellation is implicit when state changes
-     * (autoSyncEnabled toggled off, restoreInProgress true, etc).
-     * Kept on the API so SyncService callers don't have to know.
+     * Cancel any pending debounced emission. Called by SyncService.
+     * restoreSnapshot before its destructive op so the 60s timer that
+     * was set by a save BEFORE the restore doesn't fire AFTER the
+     * restore completes (`restoreInProgress` flips back to false in
+     * the finally block; without this flag the late emission would
+     * pass the filter and run a redundant syncAll against the freshly
+     * restored state).
+     *
+     * The next `trigger$.next()` clears the flag — cancellation is
+     * one-shot, doesn't suppress future schedules.
      */
     cancel(): void {
-        // intentionally empty
+        this.cancelled = true;
     }
 
     /**
@@ -173,7 +188,10 @@ export class AutoSyncScheduler {
     private installPipeline(): void {
         this.trigger$
             .pipe(
-                tap(() => { this.pendingDebounce = true; }),
+                tap(() => {
+                    this.pendingDebounce = true;
+                    this.cancelled = false;
+                }),
                 // `force` triggers (visibility flush, schedule(immediate))
                 // bypass the debounce wait. Otherwise wait for 60s of
                 // silence before emitting. concatMap below serializes —
@@ -182,7 +200,7 @@ export class AutoSyncScheduler {
                 // dropped.
                 debounce((t: Trigger) => t.force ? of(0) : timer(DEBOUNCE_MS)),
                 tap(() => { this.pendingDebounce = false; }),
-                filter(() => this.runner !== null && this.isActive()),
+                filter(() => !this.cancelled && this.runner !== null && this.isActive()),
                 concatMap(() => {
                     // Defensive: an async runner converts throws to
                     // rejected promises, but `this.runner!()` itself
@@ -191,8 +209,11 @@ export class AutoSyncScheduler {
                     // outer subscription from terminating permanently.
                     try {
                         return from(this.runner!()).pipe(
+                            // No tap-success: the runner is syncAll which
+                            // already calls notifySyncCompleted on success
+                            // (which resets failureCount). Recording again
+                            // here would be redundant.
                             tap({
-                                next: () => this.recordRun(true),
                                 error: e => {
                                     console.warn(
                                         `[AutoSyncScheduler] Auto-sync failed (${this.failureCount + 1}/${MAX_FAILURES})`,
@@ -211,7 +232,6 @@ export class AutoSyncScheduler {
                 }),
                 takeUntilDestroyed(this.destroyRef)
             )
-             
             .subscribe();
     }
 

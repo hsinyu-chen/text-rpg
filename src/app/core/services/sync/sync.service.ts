@@ -90,7 +90,7 @@ export class SyncService {
         // probe (the scheduler is providedIn: 'root' too, so injecting
         // SyncService back into it would form a circular dep).
         this.scheduler.register(
-            () => this.syncAll(),
+            () => this.queueSync(),
             () => !this.restoreInProgress && this.state.status() !== 'generating'
         );
     }
@@ -162,6 +162,18 @@ export class SyncService {
         // corrupt the caller's view.
         const cur = this.inFlight;
         if (cur?.kind === 'sync') return cur.promise as Promise<SyncReport>;
+        return this.runExclusive('sync', () => this.doSyncAll());
+    }
+
+    /**
+     * Scheduler-only entry point: never coalesces with an in-flight
+     * sync. The scheduler's `concatMap` relies on a happen-after
+     * guarantee — if a save fires schedule() during a manual sync,
+     * the auto-sync trigger that follows MUST run a fresh sync to
+     * include that save. Plain `syncAll()` would return the manual
+     * sync's promise and the save would be silently dropped.
+     */
+    queueSync(): Promise<SyncReport> {
         return this.runExclusive('sync', () => this.doSyncAll());
     }
 
