@@ -3,6 +3,7 @@ import {
     SyncBackend, SnapshotMeta, SnapshotManifest, SnapshotMetaInput,
     SnapshotLocalPayload, SnapshotTrigger
 } from './sync.types';
+import { errMsg } from './error.util';
 
 const LS_DEVICE_ID = 'sync_device_id';
 /**
@@ -13,15 +14,6 @@ const LS_DEVICE_ID = 'sync_device_id';
  */
 const SNAPSHOT_AUTO_RETENTION = 20;
 const RETENTION_DELETE_CONCURRENCY = 4;
-
-function errMsg(e: unknown): string {
-    if (e instanceof Error) return e.message;
-    if (typeof e === 'string') return e;
-    if (e && typeof e === 'object' && 'message' in e && typeof (e as { message: unknown }).message === 'string') {
-        return (e as { message: string }).message;
-    }
-    return String(e);
-}
 
 /**
  * Thrown when the pre-op safety snapshot for forcePush / forcePull /

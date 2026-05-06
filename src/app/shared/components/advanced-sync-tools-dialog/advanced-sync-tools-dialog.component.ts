@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -351,7 +351,9 @@ export class AdvancedSyncToolsDialogComponent {
     snapshots = signal<SnapshotMeta[]>([]);
     loadingList = signal(false);
     busy = signal(false);
-    deviceId = computed(() => this.snapshotService.getDeviceId());
+    // computed() would imply reactivity, but getDeviceId() reads localStorage
+    // once and never changes within a session — a plain field is the right shape.
+    readonly deviceId = this.snapshotService.getDeviceId();
     /**
      * Per-snapshot guard: which ids currently have a note PUT in flight.
      * Prevents the rare keystroke pattern (Enter → blur → re-focus → blur)
@@ -368,7 +370,7 @@ export class AdvancedSyncToolsDialogComponent {
 
     deviceLabel(s: SnapshotMeta): string {
         if (!s.deviceId) return '—';
-        const isThis = s.deviceId === this.deviceId();
+        const isThis = s.deviceId === this.deviceId;
         const short = s.deviceId.slice(0, 6);
         return isThis ? `${short} (this)` : short;
     }

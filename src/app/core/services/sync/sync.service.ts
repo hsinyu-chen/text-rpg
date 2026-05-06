@@ -14,24 +14,12 @@ import {
     SyncBackend, SyncBackendId, SyncResource, S3Config, SnapshotLocalPayload
 } from './sync.types';
 import { cleanBookForSync, cleanCollectionForSync } from './clean.util';
+import { errMsg } from './error.util';
 import { PromptCloudSyncService } from './prompt-cloud-sync.service';
 import { SnapshotService } from './snapshot.service';
 
-// Re-exported so existing imports of `SnapshotPreOpError` from sync.service
-// keep working — class moved to snapshot.service.ts in this refactor.
-export { SnapshotPreOpError } from './snapshot.service';
-
 async function loadS3Module() {
     return import('./s3-sync-backend');
-}
-
-function errMsg(e: unknown): string {
-    if (e instanceof Error) return e.message;
-    if (typeof e === 'string') return e;
-    if (e && typeof e === 'object' && 'message' in e && typeof (e as { message: unknown }).message === 'string') {
-        return (e as { message: string }).message;
-    }
-    return String(e);
 }
 
 const LS_BACKEND = 'sync_backend';
@@ -954,11 +942,6 @@ export class SyncService {
      * Restore live cloud state from a snapshot, then resync local IDB to
      * match. Quiesces auto-sync for the duration; *other devices* are not
      * blocked, so the UI must warn the user to pause auto-sync there.
-     *
-     * Stays in SyncService rather than SnapshotService because it spans the
-     * sync state machine (`runExclusive`, `cancelDebounce`,
-     * `restoreInProgress`, `doForcePullAll`, `failureCount`) — pushing it
-     * to SnapshotService would just reverse the callback dependency.
      *
      * @param opts.skipPreRestoreSnapshot Skip the pre-restore safety
      * snapshot. Default false; pass true after the user confirmed via UI
