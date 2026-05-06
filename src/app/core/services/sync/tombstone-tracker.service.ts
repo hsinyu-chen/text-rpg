@@ -48,11 +48,18 @@ export class SyncTombstoneTracker {
      * Date.now()}` on read; the bumped timestamp is acceptable since the
      * old shape predates the timestamp tracking.
      *
-     * **Side effect on corruption:** if the JSON parse throws, the entry
-     * is treated as unrecoverable and cleared from localStorage on this
-     * call — without it the same warning would fire on every subsequent
-     * read. This is the only mutation `read` performs and only triggers
-     * on broken data.
+     * **Side effect on legacy migration:** if any entry is the legacy
+     * shape (or `deletedAt` is missing / non-numeric), the upgraded list
+     * is persisted back on the same call. Without this, every subsequent
+     * read would reassign `Date.now()` and drift the timestamp forward —
+     * violating the "deletedAt must not advance after capture" invariant
+     * sync depends on (a retry could otherwise clobber a legitimate
+     * post-delete edit on another device).
+     *
+     * **Side effect on corruption:** if the JSON parse throws or the
+     * stored value isn't an array, the entry is treated as unrecoverable
+     * and cleared from localStorage. Without it the same warning would
+     * fire on every subsequent read.
      */
     read(resource: SyncResource): PendingDeletion[] {
         const key = PENDING_DELETIONS_KEY[resource];
@@ -66,13 +73,20 @@ export class SyncTombstoneTracker {
                 return [];
             }
             const now = Date.now();
-            return parsed.flatMap(x => {
-                if (typeof x === 'string') return [{ id: x, deletedAt: now }];
+            let migrated = false;
+            const upgraded = parsed.flatMap(x => {
+                if (typeof x === 'string') {
+                    migrated = true;
+                    return [{ id: x, deletedAt: now }];
+                }
                 if (x && typeof x === 'object' && typeof x.id === 'string') {
+                    if (typeof x.deletedAt !== 'number') migrated = true;
                     return [{ id: x.id, deletedAt: Number(x.deletedAt) || now }];
                 }
                 return [];
             });
+            if (migrated) this.write(resource, upgraded);
+            return upgraded;
         } catch {
             console.warn(`[SyncTombstoneTracker] Corrupted pending list at ${key}, resetting.`);
             localStorage.removeItem(key);
