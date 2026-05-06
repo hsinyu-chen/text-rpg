@@ -46,16 +46,30 @@ export class AutoSyncScheduler {
      */
     private precondition: () => boolean = () => true;
 
+    constructor() {
+        // Listeners + effects MUST be installed in an injection context.
+        // We can't defer them to register() because tests (or any caller
+        // outside a DI scope) would hit `NG0203: effect() can only be
+        // used within an injection context`. The early-effect firings
+        // before the runner is wired are safe — `run()` bails on the
+        // `!this.runner` guard.
+        this.installListeners();
+        this.installEffects();
+    }
+
     /**
      * Wire SyncService's `syncAll` runner + `restoreInProgress` guard.
      * Called once at SyncService construction. Until then `schedule` is
      * a no-op (defensive — UI signal effects can fire before wiring).
      */
     register(runner: () => Promise<unknown>, precondition: () => boolean): void {
+        if (this.runner) {
+            // Idempotent — second call would double-handle every event.
+            // In practice only SyncService calls this, exactly once.
+            return;
+        }
         this.runner = runner;
         this.precondition = precondition;
-        this.installListeners();
-        this.installEffects();
     }
 
     /**
@@ -92,7 +106,12 @@ export class AutoSyncScheduler {
         }
     }
 
-    /** SyncService calls this after every public sync op completes (success or failure). */
+    /**
+     * SyncService calls this after a public sync op (`doSyncAll` /
+     * `doForcePushAll` / `doForcePullAll`) finishes successfully. The
+     * timestamp gates the visibility-cooldown re-trigger; failures
+     * don't update it (we want the next visible-tab to retry promptly).
+     */
     notifySyncCompleted(): void {
         this.lastSyncAt = Date.now();
     }
@@ -189,8 +208,9 @@ export class AutoSyncScheduler {
         if (!this.runner) return;
         try {
             await this.runner();
+            // syncAll already called notifySyncCompleted on the success
+            // branch; recordRun is for the failure-counter only.
             this.recordRun(true);
-            this.lastSyncAt = Date.now();
         } catch (e) {
             console.warn(`[AutoSyncScheduler] Auto-sync failed (${this.failureCount + 1}/${MAX_FAILURES})`, e);
             this.recordRun(false);

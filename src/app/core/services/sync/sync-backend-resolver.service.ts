@@ -10,10 +10,11 @@ const LS_AUTO_PREFIX = 'sync_auto_';
  * thin facade over the multi-provider `SYNC_BACKENDS` array — there's no
  * id ladder here; `getActiveBackend` is `find + initAsync`.
  *
- * Auto-sync side effects (debounce cancel / failure-counter reset) on
- * `setActiveBackend` / `setAutoSyncEnabled` live in SyncService thin
- * wrappers — they belong with the scheduler state and will collapse
- * when AutoSyncScheduler is extracted.
+ * `setActiveBackend` / `setAutoSyncEnabled` are pure persisters; the
+ * AutoSyncScheduler-coupled side effects (debounce cancel / failure-
+ * counter reset) live on SyncService thin wrappers that fan out to both
+ * here and the scheduler. UI calls go through SyncService for that
+ * single public surface; calling here directly skips the scheduler hook.
  */
 @Injectable({ providedIn: 'root' })
 export class SyncBackendResolver {
