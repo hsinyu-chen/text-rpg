@@ -112,15 +112,13 @@ export class SessionFileService {
 
         // Cache invalidation runs on any hash change — including KB→empty —
         // so the orphan remote cache doesn't keep billing for content the
-        // user just removed.
+        // user just removed. isContextInjected reset lives in the same
+        // branch (matches writeSingleFile) — when the hash is unchanged
+        // there's no reason to force the next turn to re-inject.
         if (this.state.kbCacheHash() !== currentHash) {
             console.log('[SessionFileService] KB content changed. Invalidating remote cache.');
             await this.cacheManager.cleanupCache();
             this.state.kbCacheHash.set(currentHash);
-        }
-
-        const hasKbContent = Array.from(contentMap.keys()).some(path => !path.startsWith('system_files/') && path !== 'system_prompt.md');
-        if (hasKbContent) {
             this.state.isContextInjected = false;
         }
     }
@@ -133,9 +131,12 @@ export class SessionFileService {
     async writeFilesToStorage(files: Map<string, string>): Promise<void> {
         await this.storage.clearFiles();
         for (const [name, content] of files.entries()) {
-            if (name !== 'system_files/system_prompt.md') {
-                await this.storage.saveFile(name, content);
-            }
+            // Block both paths to match writeSingleFile's guard. Prompts live
+            // in prompt_store; bulk import was previously only filtering the
+            // `system_files/` path which let a root `system_prompt.md` slip
+            // into file_store.
+            if (name === 'system_files/system_prompt.md' || name === 'system_prompt.md') continue;
+            await this.storage.saveFile(name, content);
         }
     }
 
