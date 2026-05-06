@@ -53,6 +53,7 @@ export class S3SyncBackend implements SyncBackend {
     private corsAttempted = false;
     private corsOk = false;
     private fingerprint = '';
+    private initPromise: Promise<void> | null = null;
 
     isReady(): boolean {
         return this.cfg.isConfigured();
@@ -62,8 +63,21 @@ export class S3SyncBackend implements SyncBackend {
      * Idempotent. First call dynamically imports the AWS SDK and builds
      * an S3Client; subsequent calls no-op unless the config fingerprint
      * changed (then rebuild + reset CORS-attempt cache).
+     *
+     * Single-flight: concurrent callers share the same in-flight init
+     * promise. Without this, the second caller could destroy the client
+     * the first caller just constructed (a `this.client?.destroy()` in
+     * the body races against the other branch). This is the realistic
+     * code path — UI dialogs that spin up multiple resource reads in
+     * rapid succession all hit `initAsync` before any of them returns.
      */
-    async initAsync(): Promise<void> {
+    initAsync(): Promise<void> {
+        if (this.initPromise) return this.initPromise;
+        this.initPromise = this.doInit().finally(() => { this.initPromise = null; });
+        return this.initPromise;
+    }
+
+    private async doInit(): Promise<void> {
         const c = this.cfg.config();
         if (!c) throw new Error('S3 backend is not configured.');
         const fp = JSON.stringify(c);
@@ -110,15 +124,21 @@ export class S3SyncBackend implements SyncBackend {
             },
             forcePathStyle: config.forcePathStyle ?? true
         });
-        await client.send(new sdk.HeadBucketCommand({ Bucket: config.bucket }));
-        const ok = await this.applyCorsToBucket(sdk, client, config.bucket);
-        if (!ok) {
-            console.warn(
-                '[S3] Bucket reachable, but CORS auto-apply failed. Sync ' +
-                'will use the slower GET-body fallback for last-active ' +
-                'recovery. To enable the fast path, manually add ' +
-                '`x-amz-meta-last-active` to the bucket\'s CORS ExposeHeaders.'
-            );
+        try {
+            await client.send(new sdk.HeadBucketCommand({ Bucket: config.bucket }));
+            const ok = await this.applyCorsToBucket(sdk, client, config.bucket);
+            if (!ok) {
+                console.warn(
+                    '[S3] Bucket reachable, but CORS auto-apply failed. Sync ' +
+                    'will use the slower GET-body fallback for last-active ' +
+                    'recovery. To enable the fast path, manually add ' +
+                    '`x-amz-meta-last-active` to the bucket\'s CORS ExposeHeaders.'
+                );
+            }
+        } finally {
+            // Throwaway client owns its own socket pool; release it
+            // regardless of whether HeadBucket / CORS apply succeeded.
+            client.destroy();
         }
     }
 
