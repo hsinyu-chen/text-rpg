@@ -108,7 +108,7 @@ export class SyncService {
 
     setAutoSyncEnabled(id: SyncBackendId, on: boolean): void {
         this.backends.setAutoSyncEnabled(id, on);
-        this.scheduler.onAutoToggle(on);
+        this.scheduler.onAutoToggle();
     }
 
     /**

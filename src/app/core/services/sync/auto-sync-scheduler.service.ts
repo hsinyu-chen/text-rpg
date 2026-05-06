@@ -1,7 +1,10 @@
 import { DestroyRef, Injectable, effect, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DOCUMENT } from '@angular/common';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { WINDOW } from '@app/core/tokens/window.token';
+import { EMPTY, Subject, from, of, timer } from 'rxjs';
+import { catchError, concatMap, debounce, filter, tap } from 'rxjs/operators';
 import { SessionService } from '../session.service';
 import { SyncBackendResolver } from './sync-backend-resolver.service';
 import { S3ConfigService } from './s3-config.service';
@@ -16,11 +19,17 @@ const DEBOUNCE_MS = 60_000;
 const VISIBILITY_COOLDOWN_MS = 30_000;
 const MAX_FAILURES = 3;
 
+interface Trigger {
+    /** True for visibility-cooldown / flush — bypass the debounce wait. */
+    force: boolean;
+}
+
 /**
- * Auto-sync scheduling: debounce timer + visibility / pagehide hooks +
- * failure-count circuit breaker. Owns all timing state; SyncService
- * supplies the actual sync runner and a precondition probe (restore in
- * progress, etc).
+ * Auto-sync scheduling: rxjs-pipelined debounce + visibility / pagehide
+ * hooks + failure-count circuit breaker. The pipeline is the entire flow;
+ * `cancel()` is intentionally a no-op because state changes (autoSync
+ * toggled off, backend swapped, restore in progress) are picked up by
+ * the `filter()` at emission time.
  *
  * Lives separate from SyncService so the scheduling concern is testable
  * independent of the sync state machine, and so the visibility / pagehide
@@ -36,40 +45,43 @@ export class AutoSyncScheduler {
     private readonly s3Cfg = inject(S3ConfigService);
     private readonly snackBar = inject(MatSnackBar);
 
-    private timer: ReturnType<typeof setTimeout> | null = null;
+    private readonly trigger$ = new Subject<Trigger>();
     private lastSyncAt = 0;
     private failureCount = 0;
-    private runInFlight: Promise<void> | null = null;
+    /**
+     * True between the moment a debounce-eligible trigger fires and the
+     * moment the pipeline actually emits (i.e. the silence window has
+     * elapsed). Read by `pagehide` to set LS_SYNC_DIRTY only when there's
+     * actually a queued sync to recover on next boot.
+     */
+    private pendingDebounce = false;
 
     /** Set by `register` so this service doesn't have to inject SyncService (circular). */
     private runner: (() => Promise<unknown>) | null = null;
     /**
      * Returns false to skip a scheduled run — owned by SyncService since
-     * it knows about `restoreInProgress`. Without it, an auto-sync could
-     * race a destructive op and leak mid-restore garbage cross-device.
+     * it knows about `restoreInProgress` and the game-engine generating
+     * status. Without it, an auto-sync could race a destructive op and
+     * leak mid-restore garbage cross-device.
      */
     private precondition: () => boolean = () => true;
 
     constructor() {
-        // Listeners + effects MUST be installed in an injection context.
-        // We can't defer them to register() because tests (or any caller
-        // outside a DI scope) would hit `NG0203: effect() can only be
-        // used within an injection context`. The early-effect firings
-        // before the runner is wired are safe — `run()` bails on the
-        // `!this.runner` guard.
         this.installListeners();
         this.installEffects();
+        this.installPipeline();
     }
 
     /**
-     * Wire SyncService's `syncAll` runner + `restoreInProgress` guard.
-     * Called once at SyncService construction. Until then `schedule` is
-     * a no-op (defensive — UI signal effects can fire before wiring).
+     * Wire SyncService's `syncAll` runner + `restoreInProgress` /
+     * `generating` precondition. Called once at SyncService construction.
+     * Until then the pipeline filter() will drop emissions on the
+     * `!this.runner` check.
      */
     register(runner: () => Promise<unknown>, precondition: () => boolean): void {
         if (this.runner) {
-            // Idempotent — second call would double-handle every event.
-            // In practice only SyncService calls this, exactly once.
+            // Idempotent — second call would be a wiring mistake. In
+            // practice only SyncService calls this, exactly once.
             return;
         }
         this.runner = runner;
@@ -79,7 +91,7 @@ export class AutoSyncScheduler {
     /**
      * True iff the active backend supports background sync, is ready,
      * and SyncService's precondition allows it. Used by both UI ("is
-     * auto-sync currently effective?") and internal scheduling.
+     * auto-sync currently effective?") and the pipeline filter.
      */
     isActive(): boolean {
         if (!this.precondition()) return false;
@@ -90,24 +102,26 @@ export class AutoSyncScheduler {
     }
 
     schedule(immediate = false): void {
-        if (!this.isActive()) return;
         if (this.failureCount >= MAX_FAILURES) return;
-        if (this.timer) clearTimeout(this.timer);
-        this.timer = setTimeout(() => this.run(), immediate ? 0 : DEBOUNCE_MS);
+        this.trigger$.next({ force: immediate });
     }
 
-    async flush(): Promise<void> {
-        if (!this.timer) return;
-        clearTimeout(this.timer);
-        this.timer = null;
-        await this.run();
+    flush(): void {
+        // Only force a run if we actually have a debounce window open.
+        // Without this guard, every visibility-hidden would kick a sync
+        // even when nothing changed since the last one.
+        if (!this.pendingDebounce) return;
+        this.trigger$.next({ force: true });
     }
 
+    /**
+     * No-op by design. The pipeline's `filter()` re-evaluates state at
+     * emission time; cancellation is implicit when state changes
+     * (autoSyncEnabled toggled off, restoreInProgress true, etc).
+     * Kept on the API so SyncService callers don't have to know.
+     */
     cancel(): void {
-        if (this.timer) {
-            clearTimeout(this.timer);
-            this.timer = null;
-        }
+        // intentionally empty
     }
 
     /**
@@ -128,13 +142,42 @@ export class AutoSyncScheduler {
     /** SyncService.setActiveBackend wrapper hook: backend choice changed. */
     onBackendChanged(): void {
         this.failureCount = 0;
-        this.cancel();
+        // No timer to clear — the pipeline's filter() drops in-debounce
+        // emissions when the new backend doesn't satisfy isActive().
     }
 
-    /** SyncService.setAutoSyncEnabled wrapper hook: user toggled the flag. */
-    onAutoToggle(on: boolean): void {
+    /**
+     * SyncService.setAutoSyncEnabled wrapper hook: user toggled the flag.
+     * The toggle direction (`on`) is irrelevant here — the pipeline's
+     * filter() drops in-flight emissions when the resolver flag flipped
+     * to false. We only need to reset the breaker either way so the
+     * next user-driven re-enable starts clean.
+     */
+    onAutoToggle(): void {
         this.failureCount = 0;
-        if (!on) this.cancel();
+    }
+
+    /**
+     * Feed the circuit breaker from a sync run that ran *outside* the
+     * scheduler's own pipeline (currently `bootSync`). Success resets
+     * the counter; failure increments and may disable auto-sync + toast
+     * on hitting `MAX_FAILURES`.
+     */
+    recordRun(success: boolean): void {
+        if (success) {
+            this.failureCount = 0;
+            return;
+        }
+        this.failureCount++;
+        if (this.failureCount >= MAX_FAILURES) {
+            const id = this.backends.activeBackendId();
+            this.backends.setAutoSyncEnabled(id, false);
+            this.snackBar.open(
+                `Auto-sync disabled after ${MAX_FAILURES} failures. Re-enable in Settings once fixed.`,
+                'Close',
+                { duration: 8000 }
+            );
+        }
     }
 
     /**
@@ -147,33 +190,36 @@ export class AutoSyncScheduler {
         localStorage.removeItem(LS_SYNC_DIRTY);
     }
 
-    /**
-     * Feed the circuit breaker from a sync run that ran *outside* the
-     * scheduler's own debounce timer (currently `bootSync`). Success
-     * resets the counter; failure increments and may disable auto-sync
-     * + toast on hitting `MAX_FAILURES`. Mirrors the in-scheduler `run`
-     * accounting so any caller-driven sync attempt feeds the same brake.
-     */
-    recordRun(success: boolean): void {
-        if (success) {
-            this.failureCount = 0;
-            return;
-        }
-        this.failureCount++;
-        if (this.failureCount >= MAX_FAILURES) {
-            const id = this.backends.activeBackendId();
-            // We bypass SyncService's thin setAutoSyncEnabled wrapper
-            // here (calling resolver directly), which means our own
-            // onAutoToggle hook doesn't fire — clear the pending timer
-            // explicitly so a debounced run isn't left to no-op later.
-            this.backends.setAutoSyncEnabled(id, false);
-            this.cancel();
-            this.snackBar.open(
-                `Auto-sync disabled after ${MAX_FAILURES} failures. Re-enable in Settings once fixed.`,
-                'Close',
-                { duration: 8000 }
-            );
-        }
+    private installPipeline(): void {
+        this.trigger$
+            .pipe(
+                tap(() => { this.pendingDebounce = true; }),
+                // `force` triggers (visibility flush, schedule(immediate))
+                // bypass the debounce wait. Otherwise wait for 60s of
+                // silence before emitting. concatMap below serializes —
+                // emissions during an in-flight run queue and play out
+                // afterward, so changes that arrived mid-sync don't get
+                // dropped.
+                debounce((t: Trigger) => t.force ? of(0) : timer(DEBOUNCE_MS)),
+                tap(() => { this.pendingDebounce = false; }),
+                filter(() => this.runner !== null && this.isActive()),
+                concatMap(() => from(this.runner!()).pipe(
+                    tap({
+                        next: () => this.recordRun(true),
+                        error: e => {
+                            console.warn(
+                                `[AutoSyncScheduler] Auto-sync failed (${this.failureCount + 1}/${MAX_FAILURES})`,
+                                e
+                            );
+                            this.recordRun(false);
+                        }
+                    }),
+                    catchError(() => EMPTY)
+                )),
+                takeUntilDestroyed(this.destroyRef)
+            )
+             
+            .subscribe();
     }
 
     private installListeners(): void {
@@ -182,7 +228,7 @@ export class AutoSyncScheduler {
         // and would otherwise leak listeners onto the shared document/window.
         const onVisibilityChange = () => {
             if (this.doc.visibilityState === 'hidden') {
-                void this.flush();
+                this.flush();
             } else if (this.doc.visibilityState === 'visible') {
                 if (Date.now() - this.lastSyncAt > VISIBILITY_COOLDOWN_MS) {
                     this.schedule(true);
@@ -190,17 +236,13 @@ export class AutoSyncScheduler {
             }
         };
         const onPageHide = () => {
-            if (this.timer) {
+            if (this.pendingDebounce) {
                 localStorage.setItem(LS_SYNC_DIRTY, '1');
             }
         };
         this.doc.addEventListener('visibilitychange', onVisibilityChange);
         this.win.addEventListener('pagehide', onPageHide);
         this.destroyRef.onDestroy(() => {
-            // Clear any in-flight debounce so a test that recreates the
-            // service doesn't leave a dangling setTimeout that fires
-            // against a torn-down DI graph.
-            this.cancel();
             this.doc.removeEventListener('visibilitychange', onVisibilityChange);
             this.win.removeEventListener('pagehide', onPageHide);
         });
@@ -227,40 +269,5 @@ export class AutoSyncScheduler {
                 this.failureCount = 0;
             }
         });
-    }
-
-    private run(): Promise<void> {
-        // Clear the timer FIRST regardless of in-flight state. Otherwise
-        // a stale timeout id sticks around after the setTimeout fired,
-        // and pagehide / flush / cancel would mis-detect "a debounced
-        // sync is pending" and (e.g.) set LS_SYNC_DIRTY incorrectly.
-        this.timer = null;
-        if (this.runInFlight) {
-            // Single-flight: don't queue a second run behind SyncService's
-            // own inFlight mutex. But we DO need to ensure changes that
-            // arrived during the in-flight window get synced — the active
-            // run captured a snapshot of state from before this trigger,
-            // so re-arm a debounced follow-up once it completes. Without
-            // the follow-up, returning the shared promise silently drops
-            // any change that fired schedule() while a sync was running.
-            void this.runInFlight.finally(() => this.schedule());
-            return this.runInFlight;
-        }
-        if (!this.isActive()) return Promise.resolve();
-        if (!this.runner) return Promise.resolve();
-        this.runInFlight = this.doRun().finally(() => { this.runInFlight = null; });
-        return this.runInFlight;
-    }
-
-    private async doRun(): Promise<void> {
-        try {
-            await this.runner!();
-            // syncAll already called notifySyncCompleted on the success
-            // branch; recordRun is for the failure-counter only.
-            this.recordRun(true);
-        } catch (e) {
-            console.warn(`[AutoSyncScheduler] Auto-sync failed (${this.failureCount + 1}/${MAX_FAILURES})`, e);
-            this.recordRun(false);
-        }
     }
 }
