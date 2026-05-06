@@ -8,10 +8,10 @@ import { S3ConfigService } from './s3-config.service';
 
 /**
  * localStorage flag set on pagehide if a debounced sync was pending,
- * read on next boot to force an initial sync. Exported so SyncService
- * can clear it after a successful bootSync — single source of truth.
+ * read on next boot to force an initial sync. Internal to the scheduler;
+ * SyncService clears it via `clearDirtyFlag()`.
  */
-export const LS_SYNC_DIRTY = 'sync_dirty';
+const LS_SYNC_DIRTY = 'sync_dirty';
 const DEBOUNCE_MS = 60_000;
 const VISIBILITY_COOLDOWN_MS = 30_000;
 const MAX_FAILURES = 3;
@@ -135,6 +135,16 @@ export class AutoSyncScheduler {
     onAutoToggle(on: boolean): void {
         this.failureCount = 0;
         if (!on) this.cancel();
+    }
+
+    /**
+     * Clear the dirty flag. SyncService calls this after a successful
+     * bootSync (or when there's no auto-sync to drain). Encapsulates the
+     * LS_SYNC_DIRTY key inside the scheduler so SyncService doesn't have
+     * to know it exists.
+     */
+    clearDirtyFlag(): void {
+        localStorage.removeItem(LS_SYNC_DIRTY);
     }
 
     /**
