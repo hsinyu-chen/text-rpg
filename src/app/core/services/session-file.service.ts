@@ -45,77 +45,75 @@ export class SessionFileService {
      * Loads files from disk (or just rehydrates in-memory state when
      * `pickFolder=false`) and re-establishes KB token counts. Cleans up the
      * remote cache if the KB hash has changed since last save.
+     *
+     * Propagates errors instead of swallowing them — the SessionService
+     * wrapper owns final status handling AND gates the post-load Book save
+     * on success. Catching here would let the wrapper persist a half-loaded
+     * state to the Book (and via cloud sync, to remote storage).
      */
     async loadFilesIntoState(pickFolder = true): Promise<void> {
-        try {
-            if (pickFolder) {
-                await this.fileSystem.selectDirectory();
-                await this.fileSystem.syncDiskToDb();
-            }
-            this.state.status.set('loading');
+        if (pickFolder) {
+            await this.fileSystem.selectDirectory();
+            await this.fileSystem.syncDiskToDb();
+        }
+        this.state.status.set('loading');
 
-            const files = await this.fileSystem.loadInitialFiles();
-            const contentMap = new Map<string, string>();
-            const tokenMap = new Map<string, number>();
+        const files = await this.fileSystem.loadInitialFiles();
+        const contentMap = new Map<string, string>();
+        const tokenMap = new Map<string, number>();
 
-            files.forEach((meta, name) => {
-                contentMap.set(name, meta.content);
-            });
-            this.state.loadedFiles.set(contentMap);
+        files.forEach((meta, name) => {
+            contentMap.set(name, meta.content);
+        });
+        this.state.loadedFiles.set(contentMap);
 
-            const modelId = this.providerRegistry.getActiveModelId();
-            const needsCount: { name: string, content: string }[] = [];
+        const modelId = this.providerRegistry.getActiveModelId();
+        const needsCount: { name: string, content: string }[] = [];
 
-            files.forEach((meta, name) => {
-                if (meta.tokens !== undefined) {
-                    tokenMap.set(name, meta.tokens);
-                } else {
-                    needsCount.push({ name, content: meta.content });
-                }
-            });
-
-            if (needsCount.length > 0) {
-                console.log(`[SessionFileService] Counting tokens for ${needsCount.length} new/updated files...`);
-                await Promise.all(needsCount.map(async (item) => {
-                    const count = await this.provider.countTokens(this.providerConfig, modelId, [{ role: 'user', parts: [{ text: item.content }] }]);
-                    tokenMap.set(item.name, count);
-                    await this.storage.saveFile(item.name, item.content, count);
-                }));
-            }
-
-            this.state.fileTokenCounts.set(tokenMap);
-
-            const partsForCount = this.kb.buildKnowledgeBaseParts(contentMap);
-            const storedHash = this.state.kbCacheHash();
-            const currentHashTmp = this.state.currentKbHash();
-
-            let totalTokenCount = 0;
-            if (storedHash === currentHashTmp && this.state.estimatedKbTokens() > 0) {
-                totalTokenCount = this.state.estimatedKbTokens();
-                console.log('[SessionFileService] Reusing cached total KB tokens (Est):', totalTokenCount);
+        files.forEach((meta, name) => {
+            if (meta.tokens !== undefined) {
+                tokenMap.set(name, meta.tokens);
             } else {
-                totalTokenCount = await this.provider.countTokens(this.providerConfig, modelId, [{ role: 'user', parts: partsForCount }]);
-                console.log('[SessionFileService] Counted new total KB tokens (Est):', totalTokenCount);
+                needsCount.push({ name, content: meta.content });
             }
+        });
 
-            this.state.estimatedKbTokens.set(totalTokenCount);
+        if (needsCount.length > 0) {
+            console.log(`[SessionFileService] Counting tokens for ${needsCount.length} new/updated files...`);
+            await Promise.all(needsCount.map(async (item) => {
+                const count = await this.provider.countTokens(this.providerConfig, modelId, [{ role: 'user', parts: [{ text: item.content }] }]);
+                tokenMap.set(item.name, count);
+                await this.storage.saveFile(item.name, item.content, count);
+            }));
+        }
 
-            const currentHash = this.state.currentKbHash();
-            const hasKbContent = Array.from(contentMap.keys()).some(path => !path.startsWith('system_files/') && path !== 'system_prompt.md');
+        this.state.fileTokenCounts.set(tokenMap);
 
-            if (hasKbContent) {
-                if (this.state.kbCacheHash() !== currentHash) {
-                    console.log('[SessionFileService] KB content changed. Invalidating remote cache.');
-                    await this.cacheManager.cleanupCache();
-                    this.state.kbCacheHash.set(currentHash);
-                }
-                this.state.isContextInjected = false;
+        const partsForCount = this.kb.buildKnowledgeBaseParts(contentMap);
+        const storedHash = this.state.kbCacheHash();
+        const currentHashTmp = this.state.currentKbHash();
+
+        let totalTokenCount = 0;
+        if (storedHash === currentHashTmp && this.state.estimatedKbTokens() > 0) {
+            totalTokenCount = this.state.estimatedKbTokens();
+            console.log('[SessionFileService] Reusing cached total KB tokens (Est):', totalTokenCount);
+        } else {
+            totalTokenCount = await this.provider.countTokens(this.providerConfig, modelId, [{ role: 'user', parts: partsForCount }]);
+            console.log('[SessionFileService] Counted new total KB tokens (Est):', totalTokenCount);
+        }
+
+        this.state.estimatedKbTokens.set(totalTokenCount);
+
+        const currentHash = this.state.currentKbHash();
+        const hasKbContent = Array.from(contentMap.keys()).some(path => !path.startsWith('system_files/') && path !== 'system_prompt.md');
+
+        if (hasKbContent) {
+            if (this.state.kbCacheHash() !== currentHash) {
+                console.log('[SessionFileService] KB content changed. Invalidating remote cache.');
+                await this.cacheManager.cleanupCache();
+                this.state.kbCacheHash.set(currentHash);
             }
-
-            this.state.status.set('idle');
-        } catch (e) {
-            console.error('[SessionFileService] loadFilesIntoState failed', e);
-            this.state.status.set('error');
+            this.state.isContextInjected = false;
         }
     }
 
