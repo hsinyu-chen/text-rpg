@@ -132,22 +132,17 @@ export class SyncService {
 
     /**
      * Boot-time sync. Runs syncAll with the "initial" flag so newer remote
-     * versions are silently reloaded into the active session. Also drains the
-     * dirty flag from a previous tab close.
+     * versions are silently reloaded into the active session.
      */
     async bootSync(): Promise<void> {
         this.dropLegacyBaselines();
-        if (!this.scheduler.isActive()) {
-            this.scheduler.clearDirtyFlag();
-            return;
-        }
+        if (!this.scheduler.isActive()) return;
         this.isInitialSync = true;
         try {
             await this.syncAll();
             // syncAll already calls scheduler.notifySyncCompleted on
             // success, which resets the circuit breaker — no explicit
             // recordRun(true) needed here.
-            this.scheduler.clearDirtyFlag();
         } catch (e) {
             this.scheduler.recordRun(false);
             console.warn('[SyncService] Boot sync failed', e);

@@ -2,18 +2,11 @@ import { DestroyRef, Injectable, effect, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DOCUMENT } from '@angular/common';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { WINDOW } from '@app/core/tokens/window.token';
 import { EMPTY, Subject, from, of, timer } from 'rxjs';
 import { catchError, concatMap, debounce, filter, tap } from 'rxjs/operators';
 import { SessionService } from '../session.service';
 import { SyncBackendResolver } from './sync-backend-resolver.service';
 
-/**
- * localStorage flag set on pagehide if a debounced sync was pending,
- * read on next boot to force an initial sync. Internal to the scheduler;
- * SyncService clears it via `clearDirtyFlag()`.
- */
-const LS_SYNC_DIRTY = 'sync_dirty';
 const DEBOUNCE_MS = 60_000;
 const VISIBILITY_COOLDOWN_MS = 30_000;
 const MAX_FAILURES = 3;
@@ -37,7 +30,6 @@ interface Trigger {
 @Injectable({ providedIn: 'root' })
 export class AutoSyncScheduler {
     private readonly doc = inject(DOCUMENT);
-    private readonly win = inject(WINDOW);
     private readonly destroyRef = inject(DestroyRef);
     private readonly session = inject(SessionService);
     private readonly backends = inject(SyncBackendResolver);
@@ -178,16 +170,6 @@ export class AutoSyncScheduler {
         }
     }
 
-    /**
-     * Clear the dirty flag. SyncService calls this after a successful
-     * bootSync (or when there's no auto-sync to drain). Encapsulates the
-     * LS_SYNC_DIRTY key inside the scheduler so SyncService doesn't have
-     * to know it exists.
-     */
-    clearDirtyFlag(): void {
-        localStorage.removeItem(LS_SYNC_DIRTY);
-    }
-
     private installPipeline(): void {
         this.trigger$
             .pipe(
@@ -246,16 +228,9 @@ export class AutoSyncScheduler {
                 }
             }
         };
-        const onPageHide = () => {
-            if (this.pendingDebounce) {
-                localStorage.setItem(LS_SYNC_DIRTY, '1');
-            }
-        };
         this.doc.addEventListener('visibilitychange', onVisibilityChange);
-        this.win.addEventListener('pagehide', onPageHide);
         this.destroyRef.onDestroy(() => {
             this.doc.removeEventListener('visibilitychange', onVisibilityChange);
-            this.win.removeEventListener('pagehide', onPageHide);
         });
     }
 
