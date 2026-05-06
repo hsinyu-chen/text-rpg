@@ -60,7 +60,11 @@ export class SyncTombstoneTracker {
         if (!raw) return [];
         try {
             const parsed = JSON.parse(raw);
-            if (!Array.isArray(parsed)) return [];
+            if (!Array.isArray(parsed)) {
+                console.warn(`[SyncTombstoneTracker] Corrupted pending list at ${key} (not an array), resetting.`);
+                localStorage.removeItem(key);
+                return [];
+            }
             const now = Date.now();
             return parsed.flatMap(x => {
                 if (typeof x === 'string') return [{ id: x, deletedAt: now }];
