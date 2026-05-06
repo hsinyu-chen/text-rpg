@@ -183,6 +183,10 @@ export class AutoSyncScheduler {
         this.doc.addEventListener('visibilitychange', onVisibilityChange);
         this.win.addEventListener('pagehide', onPageHide);
         this.destroyRef.onDestroy(() => {
+            // Clear any in-flight debounce so a test that recreates the
+            // service doesn't leave a dangling setTimeout that fires
+            // against a torn-down DI graph.
+            this.cancel();
             this.doc.removeEventListener('visibilitychange', onVisibilityChange);
             this.win.removeEventListener('pagehide', onPageHide);
         });
