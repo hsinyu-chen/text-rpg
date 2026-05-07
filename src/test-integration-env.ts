@@ -19,8 +19,8 @@ if (existsSync(envPath)) {
         if (!m) continue;
         const [, key, rawValue] = m;
         if (process.env[key] !== undefined) continue;
-        // Strip surrounding quotes if present.
-        let value = rawValue;
+        // Trim trailing whitespace then strip surrounding quotes if present.
+        let value = rawValue.replace(/\s+$/, '');
         if ((value.startsWith('"') && value.endsWith('"')) ||
             (value.startsWith("'") && value.endsWith("'"))) {
             value = value.slice(1, -1);

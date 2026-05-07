@@ -2,7 +2,8 @@
  * Integration spec for {@link S3SyncBackend} against a real S3-compatible
  * endpoint (default target: SeaweedFS at `s3.dynameis.app`).
  *
- * **Skipped** unless the `.env.test.local` file is present and provides:
+ * **Skipped** unless every `S3_TEST_*` env var below is set — typically via
+ * `.env.test.local` (gitignored), but shell env works too:
  *   - `S3_TEST_ENDPOINT`
  *   - `S3_TEST_REGION`
  *   - `S3_TEST_BUCKET`
@@ -37,13 +38,13 @@ type AwsSdk = typeof import('@aws-sdk/client-s3');
 
 function makeBaseConfig(prefix: string): S3Config {
     return {
-        endpoint: process.env.S3_TEST_ENDPOINT!,
-        region: process.env.S3_TEST_REGION!,
-        bucket: process.env.S3_TEST_BUCKET!,
-        accessKeyId: process.env.S3_TEST_ACCESS_KEY_ID!,
-        secretAccessKey: process.env.S3_TEST_SECRET_ACCESS_KEY!,
+        endpoint: process.env['S3_TEST_ENDPOINT']!,
+        region: process.env['S3_TEST_REGION']!,
+        bucket: process.env['S3_TEST_BUCKET']!,
+        accessKeyId: process.env['S3_TEST_ACCESS_KEY_ID']!,
+        secretAccessKey: process.env['S3_TEST_SECRET_ACCESS_KEY']!,
         prefix,
-        forcePathStyle: process.env.S3_TEST_FORCE_PATH_STYLE !== 'false'
+        forcePathStyle: process.env['S3_TEST_FORCE_PATH_STYLE'] !== 'false'
     };
 }
 
@@ -113,6 +114,11 @@ function makeCollectionJson(id: string, updatedAt: number, name = `coll-${id}`):
     return JSON.stringify({ id, name, updatedAt, members: [] });
 }
 
+// Fixed (and `assertSnapshotId`-valid) id used by every snapshot-touching
+// test. Each test runs under its own bucket prefix so collisions across
+// tests aren't a concern; reusing the same id keeps assertions readable.
+const SAMPLE_SNAPSHOT_ID = '20260508T010203-abcd1234';
+
 describe.skipIf(!HAVE_CREDS)('S3SyncBackend integration', () => {
     let backend: S3SyncBackend;
     let cfgSvc: S3ConfigService;
@@ -154,7 +160,7 @@ describe.skipIf(!HAVE_CREDS)('S3SyncBackend integration', () => {
 
     afterEach(async () => {
         // Keep cleanup per-prefix so a failing test doesn't pollute the next run.
-        await wipePrefix(cleanupClient, sdk, process.env.S3_TEST_BUCKET!, prefix);
+        await wipePrefix(cleanupClient, sdk, process.env['S3_TEST_BUCKET']!, prefix);
     });
 
     // ===== entries: list / read / write / remove =========================
@@ -197,7 +203,7 @@ describe.skipIf(!HAVE_CREDS)('S3SyncBackend integration', () => {
             const otherPrefix = uniquePrefix();
             try {
                 await cleanupClient.send(new sdk.PutObjectCommand({
-                    Bucket: process.env.S3_TEST_BUCKET!,
+                    Bucket: process.env['S3_TEST_BUCKET']!,
                     Key: `${otherPrefix}/books/out-of-scope.json`,
                     Body: '{}',
                     ContentType: 'application/json'
@@ -205,7 +211,7 @@ describe.skipIf(!HAVE_CREDS)('S3SyncBackend integration', () => {
                 const entries = await backend.list('book');
                 expect(entries.map(e => e.id)).toEqual(['in-scope']);
             } finally {
-                await wipePrefix(cleanupClient, sdk, process.env.S3_TEST_BUCKET!, otherPrefix);
+                await wipePrefix(cleanupClient, sdk, process.env['S3_TEST_BUCKET']!, otherPrefix);
             }
         });
 
@@ -304,8 +310,6 @@ describe.skipIf(!HAVE_CREDS)('S3SyncBackend integration', () => {
     // ===== snapshots ======================================================
 
     describe('snapshots', () => {
-        const MIN_SNAPSHOT_ID = '20260508T010203-abcd1234'; // matches assertSnapshotId
-
         it('listSnapshots returns empty initially', async () => {
             await expect(backend.listSnapshots()).resolves.toEqual([]);
         });
@@ -317,11 +321,11 @@ describe.skipIf(!HAVE_CREDS)('S3SyncBackend integration', () => {
             await backend.write('collection', 'c1', makeCollectionJson('c1', 3000), 3000);
             await backend.writeTombstone('book', 'gone-1', 4000);
 
-            const manifest = await backend.createSnapshotFromCloud(MIN_SNAPSHOT_ID, {
+            const manifest = await backend.createSnapshotFromCloud(SAMPLE_SNAPSHOT_ID, {
                 createdAt: 5000, trigger: 'manual', note: 'first'
             });
 
-            expect(manifest.id).toBe(MIN_SNAPSHOT_ID);
+            expect(manifest.id).toBe(SAMPLE_SNAPSHOT_ID);
             expect(manifest.bookCount).toBe(2);
             expect(manifest.collectionCount).toBe(1);
             expect(manifest.tombstoneCount).toBe(1);
@@ -332,7 +336,7 @@ describe.skipIf(!HAVE_CREDS)('S3SyncBackend integration', () => {
             // listSnapshots reflects it.
             const list = await backend.listSnapshots();
             expect(list).toHaveLength(1);
-            expect(list[0].id).toBe(MIN_SNAPSHOT_ID);
+            expect(list[0].id).toBe(SAMPLE_SNAPSHOT_ID);
             expect(list[0].note).toBe('first');
         });
 
@@ -342,7 +346,7 @@ describe.skipIf(!HAVE_CREDS)('S3SyncBackend integration', () => {
             await backend.write('book', 'shared-id', makeBookJson('shared-id', 1000), 1000);
             await backend.writeTombstone('book', 'shared-id', 2000);
 
-            const manifest = await backend.createSnapshotFromCloud(MIN_SNAPSHOT_ID, {
+            const manifest = await backend.createSnapshotFromCloud(SAMPLE_SNAPSHOT_ID, {
                 createdAt: 3000, trigger: 'manual'
             });
             expect(manifest.entries.book.map(e => e.id)).toEqual(['shared-id']);
@@ -362,7 +366,7 @@ describe.skipIf(!HAVE_CREDS)('S3SyncBackend integration', () => {
                     { resource: 'book' as SyncResource, id: 'lgone', deletedAt: 400 }
                 ]
             };
-            const manifest = await backend.createSnapshotFromLocal(MIN_SNAPSHOT_ID, {
+            const manifest = await backend.createSnapshotFromLocal(SAMPLE_SNAPSHOT_ID, {
                 createdAt: 500, trigger: 'forcePull'
             }, payload);
 
@@ -375,20 +379,20 @@ describe.skipIf(!HAVE_CREDS)('S3SyncBackend integration', () => {
 
         it('readSnapshotManifest matches createSnapshot return', async () => {
             await backend.write('book', 'b1', makeBookJson('b1', 1000), 1000);
-            const created = await backend.createSnapshotFromCloud(MIN_SNAPSHOT_ID, {
+            const created = await backend.createSnapshotFromCloud(SAMPLE_SNAPSHOT_ID, {
                 createdAt: 2000, trigger: 'manual'
             });
-            const read = await backend.readSnapshotManifest(MIN_SNAPSHOT_ID);
+            const read = await backend.readSnapshotManifest(SAMPLE_SNAPSHOT_ID);
             expect(read).toEqual(created);
         });
 
         it('updateSnapshotNote rewrites manifest note', async () => {
-            await backend.createSnapshotFromCloud(MIN_SNAPSHOT_ID, {
+            await backend.createSnapshotFromCloud(SAMPLE_SNAPSHOT_ID, {
                 createdAt: 1000, trigger: 'manual', note: 'before'
             });
-            await backend.updateSnapshotNote(MIN_SNAPSHOT_ID, 'after');
+            await backend.updateSnapshotNote(SAMPLE_SNAPSHOT_ID, 'after');
 
-            const read = await backend.readSnapshotManifest(MIN_SNAPSHOT_ID);
+            const read = await backend.readSnapshotManifest(SAMPLE_SNAPSHOT_ID);
             expect(read.note).toBe('after');
 
             const list = await backend.listSnapshots();
@@ -403,12 +407,12 @@ describe.skipIf(!HAVE_CREDS)('S3SyncBackend integration', () => {
                 collections: [],
                 tombstones: []
             };
-            await backend.createSnapshotFromLocal(MIN_SNAPSHOT_ID, {
+            await backend.createSnapshotFromLocal(SAMPLE_SNAPSHOT_ID, {
                 createdAt: 1, trigger: 'forcePull'
             }, payload);
 
             const before = Date.now();
-            await backend.restoreSnapshot(MIN_SNAPSHOT_ID);
+            await backend.restoreSnapshot(SAMPLE_SNAPSHOT_ID);
             const after = Date.now();
 
             // The restored entry exists in live with restamped lastActiveAt.
@@ -423,12 +427,12 @@ describe.skipIf(!HAVE_CREDS)('S3SyncBackend integration', () => {
         it('restoreSnapshot diff-deletes live entries not in manifest', async () => {
             // Snapshot only has b1; live has b1 + b2 → b2 must go.
             await backend.write('book', 'b1', makeBookJson('b1', 1000), 1000);
-            await backend.createSnapshotFromCloud(MIN_SNAPSHOT_ID, {
+            await backend.createSnapshotFromCloud(SAMPLE_SNAPSHOT_ID, {
                 createdAt: 2000, trigger: 'manual'
             });
             await backend.write('book', 'b2', makeBookJson('b2', 3000), 3000);
 
-            await backend.restoreSnapshot(MIN_SNAPSHOT_ID);
+            await backend.restoreSnapshot(SAMPLE_SNAPSHOT_ID);
 
             const live = await backend.list('book');
             expect(live.map(e => e.id)).toEqual(['b1']);
@@ -436,7 +440,7 @@ describe.skipIf(!HAVE_CREDS)('S3SyncBackend integration', () => {
 
         it('restoreSnapshot rewrites tombstones with new deletedAt', async () => {
             await backend.writeTombstone('book', 'tb1', 1000);
-            await backend.createSnapshotFromCloud(MIN_SNAPSHOT_ID, {
+            await backend.createSnapshotFromCloud(SAMPLE_SNAPSHOT_ID, {
                 createdAt: 2000, trigger: 'manual'
             });
             // Mutate live tombstones between snapshot and restore.
@@ -444,7 +448,7 @@ describe.skipIf(!HAVE_CREDS)('S3SyncBackend integration', () => {
             await backend.writeTombstone('book', 'tb-extra', 6000);
 
             const before = Date.now();
-            await backend.restoreSnapshot(MIN_SNAPSHOT_ID);
+            await backend.restoreSnapshot(SAMPLE_SNAPSHOT_ID);
             const after = Date.now();
 
             const tombs = await backend.listTombstones('book');
@@ -457,12 +461,12 @@ describe.skipIf(!HAVE_CREDS)('S3SyncBackend integration', () => {
 
         it('deleteSnapshot removes the entire snapshot tree', async () => {
             await backend.write('book', 'b1', makeBookJson('b1', 1), 1);
-            await backend.createSnapshotFromCloud(MIN_SNAPSHOT_ID, { createdAt: 2, trigger: 'manual' });
+            await backend.createSnapshotFromCloud(SAMPLE_SNAPSHOT_ID, { createdAt: 2, trigger: 'manual' });
 
-            await backend.deleteSnapshot(MIN_SNAPSHOT_ID);
+            await backend.deleteSnapshot(SAMPLE_SNAPSHOT_ID);
 
             await expect(backend.listSnapshots()).resolves.toEqual([]);
-            await expect(backend.readSnapshotManifest(MIN_SNAPSHOT_ID)).rejects.toThrow();
+            await expect(backend.readSnapshotManifest(SAMPLE_SNAPSHOT_ID)).rejects.toThrow();
         });
     });
 
@@ -475,8 +479,6 @@ describe.skipIf(!HAVE_CREDS)('S3SyncBackend integration', () => {
     // (or vice versa) since they share the same cloud storage.
 
     describe('on-disk shape', () => {
-        const MIN_SNAPSHOT_ID = '20260508T010203-abcd1234';
-
         const fullKey = (sub: string) => `${prefix}/${sub}`;
 
         it('write book → key=<prefix>/books/<id>.json with metadata last-active', async () => {
@@ -485,7 +487,7 @@ describe.skipIf(!HAVE_CREDS)('S3SyncBackend integration', () => {
             await backend.write('book', 'shape-b1', body, ts);
 
             const obj = await inspectObject(
-                cleanupClient, sdk, process.env.S3_TEST_BUCKET!,
+                cleanupClient, sdk, process.env['S3_TEST_BUCKET']!,
                 fullKey('books/shape-b1.json')
             );
             expect(obj.body).toBe(body);
@@ -499,7 +501,7 @@ describe.skipIf(!HAVE_CREDS)('S3SyncBackend integration', () => {
             await backend.write('collection', 'shape-c1', body, ts);
 
             const obj = await inspectObject(
-                cleanupClient, sdk, process.env.S3_TEST_BUCKET!,
+                cleanupClient, sdk, process.env['S3_TEST_BUCKET']!,
                 fullKey('collections/shape-c1.json')
             );
             expect(obj.body).toBe(body);
@@ -512,7 +514,7 @@ describe.skipIf(!HAVE_CREDS)('S3SyncBackend integration', () => {
             await backend.writeTombstone('collection', 'shape-tc1', 1_700_000_444_000);
 
             const allKeys = await listAllKeys(
-                cleanupClient, sdk, process.env.S3_TEST_BUCKET!, `${prefix}/tombstones/`
+                cleanupClient, sdk, process.env['S3_TEST_BUCKET']!, `${prefix}/tombstones/`
             );
             expect(allKeys).toEqual([
                 fullKey('tombstones/books/shape-tb1/1700000333000'),
@@ -520,7 +522,7 @@ describe.skipIf(!HAVE_CREDS)('S3SyncBackend integration', () => {
             ]);
 
             const tombObj = await inspectObject(
-                cleanupClient, sdk, process.env.S3_TEST_BUCKET!,
+                cleanupClient, sdk, process.env['S3_TEST_BUCKET']!,
                 fullKey('tombstones/books/shape-tb1/1700000333000')
             );
             expect(tombObj.body).toBe('');
@@ -531,7 +533,7 @@ describe.skipIf(!HAVE_CREDS)('S3SyncBackend integration', () => {
             await backend.writeSettings(content);
 
             const obj = await inspectObject(
-                cleanupClient, sdk, process.env.S3_TEST_BUCKET!,
+                cleanupClient, sdk, process.env['S3_TEST_BUCKET']!,
                 fullKey('settings.json')
             );
             expect(obj.body).toBe(content);
@@ -543,7 +545,7 @@ describe.skipIf(!HAVE_CREDS)('S3SyncBackend integration', () => {
             await backend.writePrompts(content);
 
             const obj = await inspectObject(
-                cleanupClient, sdk, process.env.S3_TEST_BUCKET!,
+                cleanupClient, sdk, process.env['S3_TEST_BUCKET']!,
                 fullKey('prompts.json')
             );
             expect(obj.body).toBe(content);
@@ -555,20 +557,20 @@ describe.skipIf(!HAVE_CREDS)('S3SyncBackend integration', () => {
             await backend.write('collection', 'sc1', makeCollectionJson('sc1', 2000), 2000);
             await backend.writeTombstone('book', 'sgone', 3000);
 
-            await backend.createSnapshotFromCloud(MIN_SNAPSHOT_ID, {
+            await backend.createSnapshotFromCloud(SAMPLE_SNAPSHOT_ID, {
                 createdAt: 4000, trigger: 'manual', note: 'shape-test'
             });
 
             const snapKeys = await listAllKeys(
-                cleanupClient, sdk, process.env.S3_TEST_BUCKET!, `${prefix}/snapshots/${MIN_SNAPSHOT_ID}/`
+                cleanupClient, sdk, process.env['S3_TEST_BUCKET']!, `${prefix}/snapshots/${SAMPLE_SNAPSHOT_ID}/`
             );
             // Note: ordering matches sort by string. Manifest is at the top
             // of the snapshot folder; entries follow.
             expect(snapKeys).toEqual([
-                fullKey(`snapshots/${MIN_SNAPSHOT_ID}/books/sb1.json`),
-                fullKey(`snapshots/${MIN_SNAPSHOT_ID}/collections/sc1.json`),
-                fullKey(`snapshots/${MIN_SNAPSHOT_ID}/manifest.json`),
-                fullKey(`snapshots/${MIN_SNAPSHOT_ID}/tombstones/books/sgone/3000`)
+                fullKey(`snapshots/${SAMPLE_SNAPSHOT_ID}/books/sb1.json`),
+                fullKey(`snapshots/${SAMPLE_SNAPSHOT_ID}/collections/sc1.json`),
+                fullKey(`snapshots/${SAMPLE_SNAPSHOT_ID}/manifest.json`),
+                fullKey(`snapshots/${SAMPLE_SNAPSHOT_ID}/tombstones/books/sgone/3000`)
             ]);
 
             // Snapshot copies MUST preserve original last-active metadata
@@ -577,14 +579,14 @@ describe.skipIf(!HAVE_CREDS)('S3SyncBackend integration', () => {
             // artefact" — restore re-stamps to now, but the snapshot
             // itself keeps the original timestamps.
             const sb1Snap = await inspectObject(
-                cleanupClient, sdk, process.env.S3_TEST_BUCKET!,
-                fullKey(`snapshots/${MIN_SNAPSHOT_ID}/books/sb1.json`)
+                cleanupClient, sdk, process.env['S3_TEST_BUCKET']!,
+                fullKey(`snapshots/${SAMPLE_SNAPSHOT_ID}/books/sb1.json`)
             );
             expect(sb1Snap.metadata['last-active']).toBe('1000');
 
             const sc1Snap = await inspectObject(
-                cleanupClient, sdk, process.env.S3_TEST_BUCKET!,
-                fullKey(`snapshots/${MIN_SNAPSHOT_ID}/collections/sc1.json`)
+                cleanupClient, sdk, process.env['S3_TEST_BUCKET']!,
+                fullKey(`snapshots/${SAMPLE_SNAPSHOT_ID}/collections/sc1.json`)
             );
             expect(sc1Snap.metadata['last-active']).toBe('2000');
 
@@ -594,11 +596,11 @@ describe.skipIf(!HAVE_CREDS)('S3SyncBackend integration', () => {
             // is stable but the field set may evolve), just the load-
             // bearing ones.
             const manifestObj = await inspectObject(
-                cleanupClient, sdk, process.env.S3_TEST_BUCKET!,
-                fullKey(`snapshots/${MIN_SNAPSHOT_ID}/manifest.json`)
+                cleanupClient, sdk, process.env['S3_TEST_BUCKET']!,
+                fullKey(`snapshots/${SAMPLE_SNAPSHOT_ID}/manifest.json`)
             );
             const manifest = JSON.parse(manifestObj.body);
-            expect(manifest.id).toBe(MIN_SNAPSHOT_ID);
+            expect(manifest.id).toBe(SAMPLE_SNAPSHOT_ID);
             expect(manifest.version).toBe(1);
             expect(manifest.bookCount).toBe(1);
             expect(manifest.collectionCount).toBe(1);
@@ -613,37 +615,37 @@ describe.skipIf(!HAVE_CREDS)('S3SyncBackend integration', () => {
                 collections: [{ id: 'plc1', lastActiveAt: 5678, json: makeCollectionJson('plc1', 5678) }],
                 tombstones: [{ resource: 'book' as SyncResource, id: 'pgone', deletedAt: 9999 }]
             };
-            await backend.createSnapshotFromLocal(MIN_SNAPSHOT_ID, {
+            await backend.createSnapshotFromLocal(SAMPLE_SNAPSHOT_ID, {
                 createdAt: 1, trigger: 'forcePull'
             }, payload);
 
             const bookSnap = await inspectObject(
-                cleanupClient, sdk, process.env.S3_TEST_BUCKET!,
-                fullKey(`snapshots/${MIN_SNAPSHOT_ID}/books/plb1.json`)
+                cleanupClient, sdk, process.env['S3_TEST_BUCKET']!,
+                fullKey(`snapshots/${SAMPLE_SNAPSHOT_ID}/books/plb1.json`)
             );
             expect(bookSnap.body).toBe(payload.books[0].json);
             expect(bookSnap.metadata['last-active']).toBe('1234');
 
             const collSnap = await inspectObject(
-                cleanupClient, sdk, process.env.S3_TEST_BUCKET!,
-                fullKey(`snapshots/${MIN_SNAPSHOT_ID}/collections/plc1.json`)
+                cleanupClient, sdk, process.env['S3_TEST_BUCKET']!,
+                fullKey(`snapshots/${SAMPLE_SNAPSHOT_ID}/collections/plc1.json`)
             );
             expect(collSnap.body).toBe(payload.collections[0].json);
             expect(collSnap.metadata['last-active']).toBe('5678');
 
             // Tombstone path includes deletedAt verbatim.
             const tombKeys = await listAllKeys(
-                cleanupClient, sdk, process.env.S3_TEST_BUCKET!,
-                `${prefix}/snapshots/${MIN_SNAPSHOT_ID}/tombstones/`
+                cleanupClient, sdk, process.env['S3_TEST_BUCKET']!,
+                `${prefix}/snapshots/${SAMPLE_SNAPSHOT_ID}/tombstones/`
             );
             expect(tombKeys).toEqual([
-                fullKey(`snapshots/${MIN_SNAPSHOT_ID}/tombstones/books/pgone/9999`)
+                fullKey(`snapshots/${SAMPLE_SNAPSHOT_ID}/tombstones/books/pgone/9999`)
             ]);
         });
 
         it('restoreSnapshot → live entries get metadata last-active = now (NOT snapshot value)', async () => {
             const originalTs = 1_000_000_000;
-            await backend.createSnapshotFromLocal(MIN_SNAPSHOT_ID, {
+            await backend.createSnapshotFromLocal(SAMPLE_SNAPSHOT_ID, {
                 createdAt: 1, trigger: 'forcePull'
             }, {
                 books: [{ id: 'rb1', lastActiveAt: originalTs, json: makeBookJson('rb1', originalTs) }],
@@ -652,11 +654,11 @@ describe.skipIf(!HAVE_CREDS)('S3SyncBackend integration', () => {
             });
 
             const before = Date.now();
-            await backend.restoreSnapshot(MIN_SNAPSHOT_ID);
+            await backend.restoreSnapshot(SAMPLE_SNAPSHOT_ID);
             const after = Date.now();
 
             const liveBook = await inspectObject(
-                cleanupClient, sdk, process.env.S3_TEST_BUCKET!,
+                cleanupClient, sdk, process.env['S3_TEST_BUCKET']!,
                 fullKey('books/rb1.json')
             );
             const liveTs = Number(liveBook.metadata['last-active']);
@@ -666,8 +668,8 @@ describe.skipIf(!HAVE_CREDS)('S3SyncBackend integration', () => {
 
             // Snapshot's copy MUST still hold the original.
             const snapBook = await inspectObject(
-                cleanupClient, sdk, process.env.S3_TEST_BUCKET!,
-                fullKey(`snapshots/${MIN_SNAPSHOT_ID}/books/rb1.json`)
+                cleanupClient, sdk, process.env['S3_TEST_BUCKET']!,
+                fullKey(`snapshots/${SAMPLE_SNAPSHOT_ID}/books/rb1.json`)
             );
             expect(snapBook.metadata['last-active']).toBe(String(originalTs));
         });
@@ -680,7 +682,7 @@ describe.skipIf(!HAVE_CREDS)('S3SyncBackend integration', () => {
             await backend.clearTombstones('book');
 
             const remaining = await listAllKeys(
-                cleanupClient, sdk, process.env.S3_TEST_BUCKET!, `${prefix}/tombstones/`
+                cleanupClient, sdk, process.env['S3_TEST_BUCKET']!, `${prefix}/tombstones/`
             );
             // Only the collection tombstone survives.
             expect(remaining).toEqual([
@@ -691,14 +693,14 @@ describe.skipIf(!HAVE_CREDS)('S3SyncBackend integration', () => {
         it('remove → key gone from bucket', async () => {
             await backend.write('book', 'gone', makeBookJson('gone', 1), 1);
             const before = await listAllKeys(
-                cleanupClient, sdk, process.env.S3_TEST_BUCKET!, `${prefix}/books/`
+                cleanupClient, sdk, process.env['S3_TEST_BUCKET']!, `${prefix}/books/`
             );
             expect(before).toEqual([fullKey('books/gone.json')]);
 
             await backend.remove('book', 'gone');
 
             const after = await listAllKeys(
-                cleanupClient, sdk, process.env.S3_TEST_BUCKET!, `${prefix}/books/`
+                cleanupClient, sdk, process.env['S3_TEST_BUCKET']!, `${prefix}/books/`
             );
             expect(after).toEqual([]);
         });
