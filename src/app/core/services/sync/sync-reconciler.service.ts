@@ -112,9 +112,8 @@ export class SyncReconciler {
 
             for (const local of localList) {
                 try {
-                    const cleaned = adapter.clean(local);
-                    const lastActiveAt = adapter.timestampOf(cleaned);
-                    await backend.write(resource, local.id, JSON.stringify(cleaned), lastActiveAt);
+                    const { json, lastActiveAt } = adapter.serialize(local);
+                    await backend.write(resource, local.id, json, lastActiveAt);
                     report.uploaded++;
                 } catch (e) {
                     console.error(`[Sync] forcePush: failed to upload ${resource} ${local.id}`, e);
@@ -185,14 +184,7 @@ export class SyncReconciler {
         const buildEntries = async (resource: SyncResource) => {
             const adapter = this.adapters.get(resource);
             const items = await adapter.list();
-            return items.map(item => {
-                const cleaned = adapter.clean(item);
-                return {
-                    id: item.id,
-                    lastActiveAt: adapter.timestampOf(cleaned),
-                    json: JSON.stringify(cleaned)
-                };
-            });
+            return items.map(item => ({ id: item.id, ...adapter.serialize(item) }));
         };
         const [bookEntries, collectionEntries] = await Promise.all([
             buildEntries('book'),
@@ -367,10 +359,8 @@ export class SyncReconciler {
         report: SyncReport
     ): Promise<void> {
         try {
-            const adapter = this.adapters.get(resource);
-            const cleaned = adapter.clean(local);
-            const lastActiveAt = adapter.timestampOf(cleaned);
-            await backend.write(resource, local.id, JSON.stringify(cleaned), lastActiveAt);
+            const { json, lastActiveAt } = this.adapters.get(resource).serialize(local);
+            await backend.write(resource, local.id, json, lastActiveAt);
             report.uploaded++;
         } catch (e) {
             console.error(`[Sync] Failed to upload ${resource} ${local.id}`, e);
