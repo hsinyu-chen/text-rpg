@@ -1,4 +1,7 @@
 import { Injectable, inject } from '@angular/core';
+import { GameStateService } from './game-state.service';
+import { LLMProviderRegistryService } from './llm-provider-registry.service';
+import { AppConfigStore } from './app-config-store';
 import { KnowledgeService } from './knowledge.service';
 import { ChatMessage, ExtendedPart } from '../models/types';
 import { LLMContent, LLMPart, LLMGenerateConfig, LLMProvider, LLMProviderCapabilities } from '@hcs/llm-core';
@@ -73,6 +76,9 @@ export interface BuildContext {
 export class ContextBuilderService {
     private kb = inject(KnowledgeService);
     private lang = inject(LanguageService);
+    private state = inject(GameStateService);
+    private providerRegistry = inject(LLMProviderRegistryService);
+    private appConfig = inject(AppConfigStore);
 
     /**
      * Gets the effective system instruction, replacing placeholders and adding language overrides.
@@ -585,6 +591,93 @@ export class ContextBuilderService {
             correction: this.getRecentCorrection(ctx)
         });
         const finalContent = this.wrapUserMessage(tail, history);
+
+        history.push({ role: 'user', parts: [{ text: finalContent }] });
+        return history;
+    }
+
+    /**
+     * Captures every signal the context builder reads, in one shot. The
+     * returned object is what each ContextBuilder method now operates on
+     * — caller never re-enters state mid-call. Used by both the engine path
+     * (sendMessage) and the live preview path (chat-input).
+     */
+    snapshotForTurn(): BuildContext {
+        const provider = this.providerRegistry.getActive();
+        // Defensive default for `cacheBakesContent` matches the historical
+        // `?? true` fallback. The engine path itself throws on a null provider
+        // before constructing TurnRunInput, so this default only fires on the
+        // preview path's edge case.
+        const providerCapabilities = provider?.getCapabilities()
+            ?? ({ cacheBakesContent: true } as LLMProviderCapabilities);
+        return {
+            messages: this.state.messages(),
+            contextMode: this.state.contextMode(),
+            saveContextMode: this.state.saveContextMode(),
+            smartContextTurns: this.appConfig.smartContextTurns(),
+            systemInstructionCache: this.state.systemInstructionCache(),
+            loadedFiles: this.state.loadedFiles(),
+            kbCacheName: this.state.kbCacheName(),
+            providerCapabilities,
+            dynamicAction: this.state.dynamicActionInjection(),
+            dynamicContinue: this.state.dynamicContinueInjection(),
+            dynamicFastforward: this.state.dynamicFastforwardInjection(),
+            dynamicSystem: this.state.dynamicSystemInjection(),
+            dynamicSave: this.state.dynamicSaveInjection(),
+            dynamicProtocolResolver: this.state.dynamicProtocolResolverInjection(),
+            dynamicProtocolNarrator: this.state.dynamicProtocolNarratorInjection(),
+            dynamicProtocolSingle: this.state.dynamicProtocolSingleInjection(),
+            dynamicCorrection: this.state.dynamicCorrectionInjection(),
+            engineMode: this.appConfig.engineMode(),
+            modelId: this.providerRegistry.getActiveModelId() || undefined,
+            outputLanguage: this.appConfig.outputLanguage(),
+            provider: provider ?? undefined
+        };
+    }
+
+    /**
+     * Single-call sibling to `buildResolverContext` / `buildNarratorContext`:
+     * augments the base history's last user message with intent injection +
+     * protocol_single (both with `{{USER_INPUT}}` substituted).
+     */
+    augmentSingleCallHistory(ctx: BuildContext, baseHistory: LLMContent[], currentIntent: string, lang: string): LLMContent[] {
+        const history = baseHistory.slice();
+
+        const injectionContent = this.intentInjection(ctx, currentIntent);
+        if (!injectionContent || history.length === 0) return history;
+
+        const lastMsg = history.pop();
+        if (!lastMsg || !lastMsg.parts || typeof lastMsg.parts[0]?.text !== 'string') {
+            if (lastMsg) history.push(lastMsg);
+            return history;
+        }
+
+        const tags = getIntentTags(lang);
+        let userInput = lastMsg.parts[0].text;
+        let tag = '';
+        switch (currentIntent) {
+            case GAME_INTENTS.ACTION: tag = tags.ACTION; break;
+            case GAME_INTENTS.CONTINUE: tag = tags.CONTINUE; break;
+            case GAME_INTENTS.FAST_FORWARD: tag = tags.FAST_FORWARD; break;
+            case GAME_INTENTS.SYSTEM: tag = tags.SYSTEM; break;
+            case GAME_INTENTS.SAVE: tag = tags.SAVE; break;
+        }
+        if (tag && !userInput.trim().startsWith(tag)) {
+            userInput = tag + userInput;
+        }
+
+        console.log(`[ContextBuilder] Injecting Dynamic Prompt for ${currentIntent}`);
+        // Function-form replace so a literal `$&` / `$1` in userInput is not
+        // interpreted as a backreference pattern. Correction reminder fills
+        // first so its rendered text can itself contain `{{USER_INPUT}}`-like
+        // sequences without bleeding into the next pass.
+        const correctionReminder = this.renderCorrectionReminder(ctx, this.getRecentCorrection(ctx));
+        const mergedContent = injectionContent
+            .replace(/\{\{CORRECTION_REMINDER\}\}/g, () => correctionReminder)
+            .replace(/\{\{USER_INPUT\}\}/g, () => userInput);
+        const protocolSingle = ctx.dynamicProtocolSingle.replace(/\{\{USER_INPUT\}\}/g, () => userInput);
+        const withProtocol = protocolSingle ? `${mergedContent}\n\n${protocolSingle}` : mergedContent;
+        const finalContent = this.wrapUserMessage(withProtocol, history);
 
         history.push({ role: 'user', parts: [{ text: finalContent }] });
         return history;

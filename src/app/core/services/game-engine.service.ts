@@ -1,49 +1,143 @@
 import { Injectable, inject } from '@angular/core';
+import { LLMContent, LLMProvider, LLMProviderConfig } from '@hcs/llm-core';
+import { MatSnackBar } from '@angular/material/snack-bar';
 
 import { GameStateService } from './game-state.service';
 import { ChatHistoryService } from './chat-history.service';
 import { CacheManagerService } from './cache-manager.service';
 import { SessionService } from './session.service';
+import { ContextBuilderService, BuildContext } from './context-builder.service';
 import { ConfigService } from './config.service';
-import { AppConfigShape } from './app-config-store';
-import { SessionSave, Scenario } from '../models/types';
+import { AppConfigStore, AppConfigShape } from './app-config-store';
+import { LLMProviderRegistryService } from './llm-provider-registry.service';
+import { stripSystemMainMarker } from './profile-compat';
+import { SingleCallTurnEngine } from './turn-engines/single-call-turn-engine.service';
+import { TwoCallTurnEngine } from './turn-engines/two-call-turn-engine.service';
+import type { TurnEngine } from './turn-engines/turn-engine.interface';
+import { InjectionService } from './injection.service';
+import { StreamProcessResult } from './stream-processor.service';
+
+import { ChatMessage, SessionSave, Scenario } from '../models/types';
+import { GAME_INTENTS, STORY_INTENTS } from '../constants/game-intents';
+import { getUIStrings } from '../constants/engine-protocol';
+import { DEFAULT_PROFILE_ID } from '../constants/prompt-profiles';
 
 import { SceneBootService } from './scene-boot.service';
-import { TurnPipelineService, RunTurnOptions } from './turn-pipeline.service';
+import { TurnCommitService, TurnContext, RunTurnOptions } from './turn-commit.service';
+
+export type { RunTurnOptions } from './turn-commit.service';
+
+interface ComposedRequest {
+    buildCtx: BuildContext;
+    history: LLMContent[];
+    engine: TurnEngine;
+    lang: string;
+    provider: LLMProvider;
+    providerConfig: LLMProviderConfig;
+    cachedContentName: string | undefined;
+    systemInstruction: string;
+    abortSignal: AbortSignal;
+}
 
 /**
- * Top-level entry point that fronts the per-turn pipeline, scene boot, and
- * the session / config / cache / chat-history facades. Logic lives in the
- * dedicated services below; this class is a single injection point so
- * components don't need to wire four separate services for one user action.
+ * Orchestrator: owns runTurn's 8-phase pipeline + scene boot + facades.
+ * The phase responsibilities are spread across collaborators:
+ *   - phases 0-5 (validate / start / cache / compose / execute / finishReason) live here
+ *   - context snapshot + single-call history augmentation → ContextBuilderService
+ *   - phases 6-8 (correction / commit / persist / auto-resend payload) → TurnCommitService
+ *
+ * GameEngineService remains the single injection point components reach for —
+ * facade methods proxy to ConfigService / SessionService / CacheManagerService /
+ * ChatHistoryService so callsites don't need to wire four services.
  */
 @Injectable({ providedIn: 'root' })
 export class GameEngineService {
+    private snackBar = inject(MatSnackBar);
     private state = inject(GameStateService);
     private chatHistory = inject(ChatHistoryService);
     private cacheManager = inject(CacheManagerService);
     private session = inject(SessionService);
+    private contextBuilder = inject(ContextBuilderService);
     private configService = inject(ConfigService);
+    private singleCallEngine = inject(SingleCallTurnEngine);
+    private twoCallEngine = inject(TwoCallTurnEngine);
+    private injection = inject(InjectionService);
+    private providerRegistry = inject(LLMProviderRegistryService);
+    private appConfig = inject(AppConfigStore);
     private sceneBoot = inject(SceneBootService);
-    private turnPipeline = inject(TurnPipelineService);
+    private commitService = inject(TurnCommitService);
+
+    private currentAbortController: AbortController | null = null;
 
     /** Bootstraps engine subsystems via ConfigService. Call AFTER registering LLM Providers. */
     init() {
         this.configService.init();
     }
 
-    // ===== Turn pipeline (delegated) =========================================
+    // ===== Turn pipeline =====================================================
 
-    sendMessage(userText: string, options?: RunTurnOptions) {
-        return this.turnPipeline.runTurn(userText, options);
-    }
-
-    stopGeneration() {
-        this.turnPipeline.stopGeneration();
-    }
-
+    /** Live preview payload — mirrors what runTurn would send. */
     getPreviewPayload(userText: string, options?: { intent?: string }) {
-        return this.turnPipeline.getPreviewPayload(userText, options);
+        return this.contextBuilder.getPreviewPayload(this.contextBuilder.snapshotForTurn(), userText, options);
+    }
+
+    /**
+     * Sends a message to the LLM. Phases:
+     *   0 validateRunTurnArgs → 1 startTurn → 2 prepareCacheOrAbort →
+     *   3 composeRequest → 4 executeTurn → 5 surfaceFinishReason →
+     *   6 commitService.applyCorrection → 7 commitService.commitModelMessage →
+     *   8 commitService.recordUsageAndPersist → tail: auto-resend microtask
+     */
+    async sendMessage(userText: string, options?: RunTurnOptions): Promise<void> {
+        console.log('[GameEngine] sendMessage received with intent:', options?.intent);
+        if (!this.validateRunTurnArgs(userText, options)) return;
+
+        const turn = await this.startTurn(userText, options);
+        if (!(await this.prepareCacheOrAbort(turn))) return;
+
+        try {
+            const req = this.composeRequest(turn);
+            const result = await this.executeTurn(req, turn);
+            this.surfaceFinishReason(result);
+
+            const correction = this.commitService.applyCorrection(result);
+            this.commitService.commitModelMessage(turn, result, correction);
+            await this.commitService.recordUsageAndPersist(result);
+            this.currentAbortController = null;
+
+            const resend = this.commitService.buildAutoResendPayload(turn, result, correction);
+            if (resend) {
+                // Microtask placement guarantees the new sendMessage doesn't
+                // see itself as re-entrant — the current turn's status flip to
+                // 'idle' has already committed. The resend goes through the
+                // normal pipeline, so two-call mode produces the corrected
+                // story via resolver+narrator (the whole point of the auto-
+                // resend pattern).
+                queueMicrotask(() => {
+                    this.sendMessage(resend.userText, resend.options).catch(err => {
+                        // sendMessage has its own try/catch and surfaces user-
+                        // facing errors via snackbar + status='error'. Anything
+                        // that escapes that net (e.g. push of the empty user
+                        // msg failing) lands here. Logging keeps it visible
+                        // instead of becoming a silent unhandled rejection;
+                        // the system pair stays non-ref-only on failure so the
+                        // user can manually retry or delete it.
+                        console.error('[GameEngine] Auto-resend after correction failed:', err);
+                    });
+                });
+            }
+        } catch (e: unknown) {
+            this.handleTurnError(e);
+        }
+    }
+
+    /** Aborts the current generation process. */
+    stopGeneration() {
+        if (this.currentAbortController) {
+            this.currentAbortController.abort();
+            this.currentAbortController = null;
+        }
+        this.state.status.set('idle');
     }
 
     /**
@@ -61,6 +155,269 @@ export class GameEngineService {
         if (!result.bootedLocally) {
             this.sendMessage(result.fallbackText, { isHidden: true });
         }
+    }
+
+    // ===== Phase helpers (orchestrator-local) ================================
+
+    /** Phase 0: reject empty text on intents that demand input. */
+    private validateRunTurnArgs(userText: string, options?: RunTurnOptions): boolean {
+        const isActionOrSystem = !options?.intent
+            || options.intent === GAME_INTENTS.ACTION
+            || options.intent === GAME_INTENTS.SYSTEM
+            || options.intent === GAME_INTENTS.FAST_FORWARD;
+        return !(isActionOrSystem && !userText.trim());
+    }
+
+    /** Phase 1: legacy-fork autoswitch + push the user message + flip status to generating. */
+    private async startTurn(userText: string, options?: RunTurnOptions): Promise<TurnContext> {
+        const switchedFromLegacy = await this.autoSwitchIfLegacyProfile();
+        const userMsgId = crypto.randomUUID();
+        const modelMsgId = crypto.randomUUID();
+        const userIdealOutcome = options?.userIdealOutcome?.trim() || undefined;
+
+        this.chatHistory.updateMessages(prev => [...prev, {
+            id: userMsgId,
+            role: 'user',
+            content: userText,
+            parts: [{ text: userText }],
+            isRefOnly: false,
+            isHidden: options?.isHidden,
+            intent: options?.intent,
+            userIdealOutcome
+        }]);
+
+        this.state.status.set('generating');
+
+        return {
+            userText,
+            options,
+            currentIntent: options?.intent || GAME_INTENTS.ACTION,
+            // <存檔> intent forces full context regardless of UI setting.
+            forceFullContext: options?.intent === GAME_INTENTS.SAVE,
+            switchedFromLegacy,
+            userMsgId,
+            modelMsgId
+        };
+    }
+
+    /**
+     * Phase 2: ensureCacheValid; on failure surfaces a snackbar (with the legacy-
+     * autoswitch note prepended when applicable) and returns false.
+     */
+    private async prepareCacheOrAbort(turn: TurnContext): Promise<boolean> {
+        try {
+            await this.ensureCacheValid();
+            return true;
+        } catch (e: unknown) {
+            const sessionExpired = e instanceof Error && e.message === 'SESSION_EXPIRED';
+            if (sessionExpired) {
+                // Service threw without committing a result. resetCacheState
+                // clears all four kbCache signals AND stops the storage timer —
+                // otherwise we'd keep accumulating cost against a cache that's
+                // gone server-side.
+                this.cacheManager.resetCacheState();
+            }
+            const ui = getUIStrings(this.appConfig.outputLanguage());
+            const autoswitchPrefix = turn.switchedFromLegacy ? `${ui.LEGACY_PROFILE_AUTOSWITCH}\n\n` : '';
+            const message = sessionExpired
+                ? autoswitchPrefix + 'Session Expired: Please reload your Knowledge Base folder to continue.'
+                : autoswitchPrefix + `Error: ${e instanceof Error ? e.message : 'Unknown error during cache refresh'}`;
+            this.snackBar.open(message, 'Close', {
+                duration: sessionExpired ? 10000 : 5000,
+                panelClass: ['snackbar-error']
+            });
+            this.state.status.set('idle');
+            return false;
+        }
+    }
+
+    /**
+     * Phase 3: snapshot every state signal once; build base history; choose
+     * single-vs-two-call engine and augment history accordingly; resolve
+     * provider / cached-content / system-instruction; arm the abort controller.
+     * Also surfaces the (post-cache-success) legacy-autoswitch warning here so
+     * a cache error snackbar from phase 2 doesn't replace it.
+     */
+    private composeRequest(turn: TurnContext): ComposedRequest {
+        const buildCtx = this.contextBuilder.snapshotForTurn();
+        const baseHistory = this.contextBuilder.getLLMHistory(buildCtx, turn.forceFullContext);
+        const lang = buildCtx.outputLanguage || 'default';
+
+        if (turn.switchedFromLegacy) {
+            const ui = getUIStrings(lang);
+            this.snackBar.open(ui.LEGACY_PROFILE_AUTOSWITCH, ui.CLOSE, {
+                duration: 8000,
+                panelClass: ['snackbar-warning']
+            });
+        }
+
+        // Two-call only applies to story intents — SYSTEM/SAVE bypass the
+        // resolver/narrator split (they have no atomic-action semantics).
+        const useTwoCall = buildCtx.engineMode === 'two-call' && (STORY_INTENTS as string[]).includes(turn.currentIntent);
+        let history: LLMContent[];
+        let engine: TurnEngine;
+        if (useTwoCall) {
+            history = baseHistory;
+            engine = this.twoCallEngine;
+            console.log(`[GameEngine] Dispatching two-call engine for intent ${turn.currentIntent}`);
+        } else {
+            history = this.contextBuilder.augmentSingleCallHistory(buildCtx, baseHistory, turn.currentIntent, lang);
+            engine = this.singleCallEngine;
+        }
+
+        this.currentAbortController = new AbortController();
+        const provider = buildCtx.provider;
+        if (!provider) throw new Error('No active LLM provider');
+        // The engine never inspects provider capabilities or cache state for
+        // the include/omit-KB decision; that's done here.
+        const omitKB = this.contextBuilder.shouldOmitKbFromSystemInstruction(buildCtx);
+
+        return {
+            buildCtx,
+            history,
+            engine,
+            lang,
+            provider,
+            providerConfig: this.providerRegistry.getActiveConfig(),
+            cachedContentName: buildCtx.kbCacheName || undefined,
+            systemInstruction: this.contextBuilder.getEffectiveSystemInstruction(buildCtx, !omitKB),
+            abortSignal: this.currentAbortController.signal
+        };
+    }
+
+    /** Phase 4: dispatch to the chosen engine. */
+    private executeTurn(req: ComposedRequest, turn: TurnContext): Promise<StreamProcessResult> {
+        return req.engine.runTurn({
+            history: req.history,
+            intent: turn.currentIntent,
+            outputLanguage: req.lang,
+            modelMsgId: turn.modelMsgId,
+            signal: req.abortSignal,
+            updateMessages: (updater) => this.chatHistory.updateMessages(updater),
+            provider: req.provider,
+            providerConfig: req.providerConfig,
+            cachedContentName: req.cachedContentName,
+            systemInstruction: req.systemInstruction,
+            buildContext: req.buildCtx
+        });
+    }
+
+    /** Phase 5: a non-stop / non-null finish reason → warning snackbar. */
+    private surfaceFinishReason(result: StreamProcessResult): void {
+        const reason = result.finalFinishReason;
+        if (!reason) return;
+        const normalized = reason.toLowerCase();
+        if (normalized === 'stop' || normalized === 'null') return;
+        const ui = getUIStrings(this.appConfig.outputLanguage());
+        this.snackBar.open(`${ui.STOP_REASON_PREFIX || 'Model Stopped:'} ${reason}`, ui.CLOSE, {
+            duration: 8000,
+            panelClass: ['snackbar-warning']
+        });
+    }
+
+    /** Catches errors thrown anywhere in phases 3-tail. AbortError is the silent path. */
+    private handleTurnError(e: unknown): void {
+        this.currentAbortController = null;
+        if (e instanceof Error && e.name === 'AbortError') {
+            console.log('[GameEngine] Generation aborted.');
+            // Reset status — without this, an abort that didn't come from
+            // stopGeneration() (e.g. external signal cancellation when a
+            // bridge HTTP read times out mid-stream) leaves state.status
+            // stuck on 'generating' and every subsequent sendMessage is
+            // rejected as 'busy' until a full page reload.
+            this.state.status.set('idle');
+            return;
+        }
+        console.error(e);
+        this.state.status.set('error');
+
+        const ui = getUIStrings(this.appConfig.outputLanguage());
+        const errMsg = (e instanceof Error) ? e.message : ui.CONN_ERROR;
+        this.chatHistory.updateMessages(prev => {
+            const updated = [...prev];
+            const last = updated[updated.length - 1];
+            if (last && last.role === 'model') {
+                last.isThinking = false;
+                last.content = ui.ERR_PREFIX.replace('{error}', errMsg);
+                last.parts = [{ text: last.content }];
+            } else {
+                updated.push({ id: crypto.randomUUID(), role: 'model', content: ui.ERR_PREFIX.replace('{error}', errMsg), isRefOnly: true });
+            }
+            this.snackBar.open(ui.GEN_FAILED.replace('{error}', errMsg), ui.CLOSE, {
+                duration: 5000,
+                panelClass: ['snackbar-error']
+            });
+            return updated;
+        });
+    }
+
+    /**
+     * Resolves the per-turn cache state — validates / refreshes / recreates
+     * via CacheManager, then commits the result back to the kbCacheXxx
+     * signals and arms the storage timer. Throws SESSION_EXPIRED if the KB
+     * is unrecoverable; phase 2's catch block surfaces that to the user.
+     */
+    private async ensureCacheValid(): Promise<void> {
+        const cacheProvider = this.providerRegistry.getActive();
+        if (!cacheProvider) throw new Error('No active LLM provider');
+        const resolvedModelId = this.providerRegistry.getActiveModelId();
+        const cacheResult = await this.cacheManager.checkCacheAndRefresh({
+            provider: cacheProvider,
+            providerConfig: this.providerRegistry.getActiveConfig(),
+            enableCache: this.providerRegistry.isCacheEnabled(),
+            modelId: resolvedModelId,
+            systemInstruction: stripSystemMainMarker(this.state.systemInstructionCache()),
+            loadedFiles: this.state.loadedFiles(),
+            // Pre-computed via the memoized currentKbHash signal — service
+            // would otherwise re-walk loadedFiles on every turn just to
+            // hash. The signal already invalidates correctly on KB / model
+            // / system-instruction changes.
+            targetHash: this.state.currentKbHash(),
+            currentCacheName: this.state.kbCacheName(),
+            currentCacheHash: this.state.kbCacheHash(),
+            currentCacheTokens: this.state.kbCacheTokens(),
+            currentCacheExpireTime: this.state.kbCacheExpireTime()
+        });
+
+        this.state.kbCacheName.set(cacheResult.cacheName);
+        this.state.kbCacheExpireTime.set(cacheResult.expireTime);
+        this.state.kbCacheHash.set(cacheResult.hash);
+        this.state.kbCacheTokens.set(cacheResult.tokens);
+
+        if (cacheResult.sunkUsageTokens > 0) {
+            this.chatHistory.recordSunkUsage(cacheResult.sunkUsageTokens, 0, 0);
+        }
+
+        if (cacheResult.cacheName) {
+            this.cacheManager.startStorageTimer({
+                tokens: cacheResult.tokens,
+                expireTime: cacheResult.expireTime,
+                modelId: resolvedModelId,
+                cacheName: cacheResult.cacheName
+            });
+        } else {
+            this.cacheManager.stopStorageTimer();
+        }
+    }
+
+    /**
+     * Switches off a legacy-fork profile (system_main missing the current
+     * version marker) before composing a turn. Returns true when a switch
+     * happened so the caller can sequence the user-facing notification
+     * after other in-flight side effects (e.g. cache refresh) settle.
+     * The user's custom IDB content is left untouched.
+     */
+    private async autoSwitchIfLegacyProfile(): Promise<boolean> {
+        if (this.state.activeProfileCompat() !== 'legacy') return false;
+        if (this.state.activePromptProfile() === DEFAULT_PROFILE_ID) {
+            // Built-in default should always carry the marker; bail rather
+            // than loop if the shipped asset is somehow malformed.
+            console.warn('[GameEngine] Default profile reports legacy compat; check shipped system_prompt.md marker.');
+            return false;
+        }
+        console.warn('[GameEngine] Active profile is legacy — auto-switching to default.');
+        await this.injection.switchProfile(DEFAULT_PROFILE_ID);
+        return true;
     }
 
     // ===== Config facades ====================================================
@@ -122,4 +479,7 @@ export class GameEngineService {
     rewindTo(messageId: string) { return this.chatHistory.rewindTo(messageId); }
     toggleRefOnly(id: string) { return this.chatHistory.toggleRefOnly(id); }
     clearHistory() { return this.chatHistory.clearHistory(); }
+
+    /** Internal use by callers that need the raw chat-history mutator (e.g. test bridges). */
+    updateMessages(updater: (prev: ChatMessage[]) => ChatMessage[]) { this.chatHistory.updateMessages(updater); }
 }
