@@ -212,10 +212,11 @@ export class ChatInputComponent {
             this.state.contextMode.set('full');
         }
 
-        // Handle Rewind & Resend
+        // Handle Rewind & Resend — await so the rewind's book save completes
+        // before the new sendMessage's phase 1 pushes a user message.
         const editId = this.editingMessageId();
         if (editId) {
-            this.engine.rewindTo(editId);
+            await this.engine.rewindTo(editId);
             this.editingMessageId.set(null);
             this.originalIntentBeforeEdit = null;
         }
