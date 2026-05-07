@@ -11,11 +11,11 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatDialog } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
-import { SyncService } from '../sync.service';
-import { S3Config } from '../sync.types';
+import { SyncService } from '../../sync.service';
+import { S3Config } from '../../sync.types';
 import { S3ConfigService } from '../s3-config.service';
 import { S3SyncBackend } from '../s3-sync-backend';
-import { SyncBackendResolver } from '../sync-backend-resolver.service';
+import { SyncBackendResolver } from '../../sync-backend-resolver.service';
 import {
     S3ConfigJsonDialogComponent,
     S3ConfigJsonDialogData

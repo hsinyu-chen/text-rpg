@@ -7,11 +7,11 @@ import type {
 import {
     SyncBackend, SyncResource, RemoteEntry, Tombstone, SyncBackendId, S3Config,
     SnapshotMeta, SnapshotManifest, SnapshotMetaInput, SnapshotLocalPayload
-} from './sync.types';
+} from '../sync.types';
 import { S3ConfigService } from './s3-config.service';
 import { S3SnapshotStore } from './s3-snapshot-store';
 import { createParallelPool } from '@app/core/utils/async.util';
-import { SNAPSHOT_CONCURRENCY } from './sync-snapshot-utils';
+import { SNAPSHOT_CONCURRENCY } from '../sync-snapshot-utils';
 
 type AwsSdk = typeof import('@aws-sdk/client-s3');
 

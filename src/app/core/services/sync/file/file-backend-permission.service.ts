@@ -4,7 +4,7 @@ import {
     FolderHandleNoHandleError,
     FolderHandlePermissionDeniedError,
     FolderHandlePermissionState
-} from './folder-handle-base.service';
+} from '../folder-handle-base.service';
 
 export type FileBackendPermissionState = FolderHandlePermissionState;
 

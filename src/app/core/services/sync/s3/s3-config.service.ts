@@ -1,5 +1,5 @@
 import { Injectable, computed, signal } from '@angular/core';
-import { S3Config } from './sync.types';
+import { S3Config } from '../sync.types';
 
 const LS_S3 = {
     endpoint: 'sync_s3_endpoint',

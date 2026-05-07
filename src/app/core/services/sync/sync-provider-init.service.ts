@@ -1,9 +1,9 @@
 import { Injectable, inject } from '@angular/core';
 import { SyncBackendRegistry } from './sync-backend-registry.service';
 import { GoogleOAuthService } from '../google-oauth.service';
-import { GDriveConfigComponent } from './components/gdrive-config.component';
-import { S3ConfigComponent } from './components/s3-config.component';
-import { FileBackendConfigComponent } from './components/file-backend-config.component';
+import { GDriveConfigComponent } from './gdrive/components/gdrive-config.component';
+import { S3ConfigComponent } from './s3/components/s3-config.component';
+import { FileBackendConfigComponent } from './file/components/file-backend-config.component';
 import { WINDOW } from '@app/core/tokens/window.token';
 
 @Injectable({ providedIn: 'root' })

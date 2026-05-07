@@ -1,11 +1,11 @@
 import { Injectable, inject } from '@angular/core';
-import { GoogleDriveService } from '../google-drive.service';
-import { GoogleOAuthService } from '../google-oauth.service';
+import { GoogleDriveService } from '../../google-drive.service';
+import { GoogleOAuthService } from '../../google-oauth.service';
 import {
     SyncBackend, SyncResource, RemoteEntry, Tombstone, SyncBackendId,
     SnapshotMeta, SnapshotManifest, SnapshotMetaInput, SnapshotLocalPayload
-} from './sync.types';
-import { KVStore } from '../kv/kv-store';
+} from '../sync.types';
+import { KVStore } from '../../kv/kv-store';
 import { GDriveSnapshotStore } from './gdrive-snapshot-store';
 
 const APPDATA_ROOT = 'appDataFolder';

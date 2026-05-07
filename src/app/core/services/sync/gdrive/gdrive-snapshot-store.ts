@@ -1,17 +1,17 @@
-import { GoogleDriveService, DriveFile } from '../google-drive.service';
-import { KVStore } from '../kv/kv-store';
+import { GoogleDriveService, DriveFile } from '../../google-drive.service';
+import { KVStore } from '../../kv/kv-store';
 import {
     SnapshotMeta, SnapshotManifest, SnapshotMetaInput, SnapshotEntryRef,
     SnapshotTombstoneRef, SnapshotSkipped, SnapshotLocalPayload, SyncResource,
     Tombstone, assertSnapshotId
-} from './sync.types';
+} from '../sync.types';
 import {
     SNAPSHOT_CONCURRENCY, SNAPSHOT_MANIFEST_NAME,
     byteLength, restampBodyLastActive, dedupeTombstoneArrays,
     dedupeLocalTombstones, diffDeleteTargets,
     buildManifest, manifestToMeta,
     SnapshotStoreBackendOps
-} from './sync-snapshot-utils';
+} from '../sync-snapshot-utils';
 import { createParallelPool } from '@app/core/utils/async.util';
 
 const parallelPool = createParallelPool(SNAPSHOT_CONCURRENCY);

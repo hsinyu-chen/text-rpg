@@ -2,12 +2,12 @@ import { Injectable, inject } from '@angular/core';
 import {
     SyncBackend, SyncResource, RemoteEntry, Tombstone, SyncBackendId,
     SnapshotMeta, SnapshotManifest, SnapshotMetaInput, SnapshotLocalPayload
-} from './sync.types';
+} from '../sync.types';
 import { FileBackendPermissionService } from './file-backend-permission.service';
-import { ensureDir, getDirIfExists, isNotFound, readFileText, splitDir, writeFileText } from './fsa-utils';
+import { ensureDir, getDirIfExists, isNotFound, readFileText, splitDir, writeFileText } from '../fsa-utils';
 import { createParallelPool } from '@app/core/utils/async.util';
 import { FileSnapshotStore } from './file-snapshot-store';
-import { SNAPSHOT_CONCURRENCY } from './sync-snapshot-utils';
+import { SNAPSHOT_CONCURRENCY } from '../sync-snapshot-utils';
 
 const RESOURCE_DIR: Record<SyncResource, string> = {
     book: 'books',

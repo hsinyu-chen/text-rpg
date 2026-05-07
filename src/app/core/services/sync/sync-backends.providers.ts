@@ -1,8 +1,8 @@
 import { InjectionToken, Provider } from '@angular/core';
 import { SyncBackend } from './sync.types';
-import { GDriveSyncBackend } from './gdrive-sync-backend';
-import { FileSyncBackend } from './file-sync-backend';
-import { S3SyncBackend } from './s3-sync-backend';
+import { GDriveSyncBackend } from './gdrive/gdrive-sync-backend';
+import { FileSyncBackend } from './file/file-sync-backend';
+import { S3SyncBackend } from './s3/s3-sync-backend';
 
 /**
  * Multi-provider list of every backend the app knows about. The

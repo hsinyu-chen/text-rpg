@@ -12,7 +12,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ScrollingModule } from '@angular/cdk/scrolling';
 import { S3SyncBackend } from '../s3-sync-backend';
-import { RemoteEntry, SyncResource } from '../sync.types';
+import { RemoteEntry, SyncResource } from '../../sync.types';
 
 type ViewerTab = 'book' | 'collection' | 'settings' | 'prompts';
 

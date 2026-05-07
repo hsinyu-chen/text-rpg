@@ -2,15 +2,15 @@ import {
     SnapshotMeta, SnapshotManifest, SnapshotMetaInput, SnapshotEntryRef,
     SnapshotTombstoneRef, SnapshotSkipped, SnapshotLocalPayload, SyncResource,
     assertSnapshotId
-} from './sync.types';
+} from '../sync.types';
 import {
     SNAPSHOT_CONCURRENCY, SNAPSHOT_MANIFEST_NAME,
     byteLength, restampBodyLastActive, dedupeTombstoneArrays,
     dedupeLocalTombstones, diffDeleteTargets,
     buildManifest, manifestToMeta,
     SnapshotStoreBackendOps
-} from './sync-snapshot-utils';
-import { ensureDir, getDirIfExists, isNotFound, readFileText, splitDir, writeFileText } from './fsa-utils';
+} from '../sync-snapshot-utils';
+import { ensureDir, getDirIfExists, isNotFound, readFileText, splitDir, writeFileText } from '../fsa-utils';
 import { createParallelPool } from '@app/core/utils/async.util';
 
 const parallelPool = createParallelPool(SNAPSHOT_CONCURRENCY);
