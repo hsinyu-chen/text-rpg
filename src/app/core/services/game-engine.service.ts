@@ -479,10 +479,11 @@ export class GameEngineService {
     rewindTo(messageId: string) { return this.chatHistory.rewindTo(messageId); }
     toggleRefOnly(id: string) { return this.chatHistory.toggleRefOnly(id); }
     async clearHistory() {
+        // Abort any in-flight generation first; otherwise the stream keeps
+        // running, consumes tokens, and may write to the freshly-cleared
+        // history. stopGeneration also sets status='idle' as a side effect.
+        this.stopGeneration();
         await this.chatHistory.clearHistory();
-        // Engine status flip belongs at the orchestration layer, not in
-        // ChatHistoryService — this rescues a clear-during-generation race.
-        this.state.status.set('idle');
     }
 
     /** Internal use by callers that need the raw chat-history mutator (e.g. test bridges). */
