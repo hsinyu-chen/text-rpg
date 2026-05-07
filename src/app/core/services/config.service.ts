@@ -55,7 +55,7 @@ export class ConfigService {
      * Call this AFTER LLM providers are registered.
      */
     public async init() {
-        this.updateExchangeRateFromApi();
+        void this.updateExchangeRateFromApi();
 
         // Registry must finish before injection load — the active id may resolve to a user profile from IDB.
         await this.profileRegistry.init();
@@ -102,21 +102,21 @@ export class ConfigService {
 
         // Persist to IndexedDB for other services (e.g. Google Drive sync /
         // settings JSON export) to consume the full snapshot.
-        this.storage.set('settings', this.appConfig.snapshot());
+        await this.storage.set('settings', this.appConfig.snapshot());
 
         // If language changed, re-process system files for the UI.
         // bumpTimestamp=false: language is a UI concern, not a KB content
         // change, so sync should not treat it as a reason to re-upload the book.
         if (genConfig.outputLanguage !== undefined) {
-            this.session.loadFiles(false, false);
-            this.injection.loadDynamicInjectionSettings();
+            await this.session.loadFiles(false, false);
+            await this.injection.loadDynamicInjectionSettings();
         }
     }
 
     /**
      * Imports configuration from a plain object (e.g. from JSON).
      */
-    importConfig(config: unknown) {
+    async importConfig(config: unknown) {
         if (!config || typeof config !== 'object') {
             console.error('[ConfigService] Invalid config object provided for import');
             return;
@@ -149,7 +149,7 @@ export class ConfigService {
         if (typeof cfg.smartContextTurns === 'number') genConfig.smartContextTurns = cfg.smartContextTurns;
         if (cfg.engineMode === 'single' || cfg.engineMode === 'two-call') genConfig.engineMode = cfg.engineMode;
 
-        this.saveConfig(genConfig);
+        await this.saveConfig(genConfig);
 
         // Provider-bound fields go to the active LLM profile, not AppConfigStore.
         // Trigger if any of the LLM-side fields are present, so a JSON that carries
@@ -172,7 +172,7 @@ export class ConfigService {
                     ...(cfg.thinkingLevelGeneral !== undefined ? { thinkingLevelGeneral: cfg.thinkingLevelGeneral } : {})
                 }
             };
-            this.llmConfig.saveActiveConfig(merged);
+            await this.llmConfig.saveActiveConfig(merged);
         }
         console.log('[ConfigService] Configuration imported successfully.');
     }

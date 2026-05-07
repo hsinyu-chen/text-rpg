@@ -106,7 +106,7 @@ export class StorageService {
    * @param val The value to store.
    */
   async set(key: string, val: StorageValue): Promise<void> {
-    (await this.dbPromise).put('chat_store', val, key);
+    await (await this.dbPromise).put('chat_store', val, key);
   }
 
   /**
@@ -114,14 +114,14 @@ export class StorageService {
    * @param key The storage key.
    */
   async delete(key: string): Promise<void> {
-    (await this.dbPromise).delete('chat_store', key);
+    await (await this.dbPromise).delete('chat_store', key);
   }
 
   /**
    * Clears all data from the IndexedDB chat store.
    */
   async clear(): Promise<void> {
-    (await this.dbPromise).clear('chat_store');
+    await (await this.dbPromise).clear('chat_store');
   }
 
   /**

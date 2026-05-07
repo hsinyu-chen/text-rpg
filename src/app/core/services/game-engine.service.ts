@@ -70,8 +70,8 @@ export class GameEngineService {
     private currentAbortController: AbortController | null = null;
 
     /** Bootstraps engine subsystems via ConfigService. Call AFTER registering LLM Providers. */
-    init() {
-        this.configService.init();
+    async init() {
+        await this.configService.init();
     }
 
     // ===== Turn pipeline =====================================================
@@ -443,7 +443,7 @@ export class GameEngineService {
     // ===== Config facades ====================================================
 
     saveConfig(genConfig: Partial<AppConfigShape>) { return this.configService.saveConfig(genConfig); }
-    importConfig(config: unknown) { this.configService.importConfig(config); }
+    importConfig(config: unknown) { return this.configService.importConfig(config); }
 
     // ===== Session facades ===================================================
 

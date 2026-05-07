@@ -127,7 +127,7 @@ export class AutoUpdateDialogComponent {
       const currentUpdates = this.updates();
       if (currentUpdates.length > 0) {
         untracked(() => {
-          this.groupUpdates(currentUpdates);
+          void this.groupUpdates(currentUpdates);
         });
       }
     });
@@ -136,7 +136,7 @@ export class AutoUpdateDialogComponent {
     effect(() => {
       if (this.filesLoaded()) {
         untracked(() => {
-          this.validateAll();
+          void this.validateAll();
         });
       }
     });
@@ -516,7 +516,7 @@ export class AutoUpdateDialogComponent {
     }
 
     // Send message and close dialog
-    this.engine.sendMessage(message, { intent: GAME_INTENTS.SAVE });
+    void this.engine.sendMessage(message, { intent: GAME_INTENTS.SAVE });
     this.dialogRef.close();
   }
 
@@ -716,6 +716,6 @@ export class AutoUpdateDialogComponent {
     }
 
     // Debounce revalidation? For now just trigger it
-    this.revalidateUpdate(update, group);
+    void this.revalidateUpdate(update, group);
   }
 }

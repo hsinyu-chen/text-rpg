@@ -166,7 +166,7 @@ export class SyncService {
         const promise = fn();
         const slot = { kind, promise };
         this.inFlight = slot;
-        promise.finally(() => {
+        void promise.finally(() => {
             if (this.inFlight === slot) this.inFlight = null;
         });
         return promise;

@@ -132,7 +132,7 @@ export class AgentConsoleComponent implements OnDestroy {
         // Tracked so a fast close doesn't fire an orphan request.
         this.initialPromptTimeoutId = setTimeout(() => {
           this.initialPromptTimeoutId = null;
-          this.runAgent();
+          void this.runAgent();
         }, 200);
       }
     });

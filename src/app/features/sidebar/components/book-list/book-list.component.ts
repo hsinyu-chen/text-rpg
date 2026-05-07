@@ -508,7 +508,7 @@ export class BookListComponent {
     }
 
     constructor() {
-        this.loadBooks();
+        void this.loadBooks();
     }
 
     async loadBooks() {
@@ -605,7 +605,7 @@ export class BookListComponent {
     async startNewSession() {
         await this.session.startEmptySession();
         await this.loadBooks();
-        this.engine.startSession();
+        await this.engine.startSession();
         this.closePanel.emit();
     }
 
@@ -613,7 +613,7 @@ export class BookListComponent {
         event.stopPropagation();
         await this.session.startEmptySession(collectionId);
         await this.loadBooks();
-        this.engine.startSession();
+        await this.engine.startSession();
         this.closePanel.emit();
     }
 

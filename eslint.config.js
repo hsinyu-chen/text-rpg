@@ -13,8 +13,15 @@ module.exports = defineConfig([
       tseslint.configs.stylistic,
       angular.configs.tsRecommended,
     ],
+    languageOptions: {
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: __dirname,
+      },
+    },
     processor: angular.processInlineTemplates,
     rules: {
+      "@typescript-eslint/no-floating-promises": "error",
       "@angular-eslint/directive-selector": [
         "error",
         {
