@@ -420,6 +420,11 @@ export class FileAgentService {
             this.generatedChunkCount.set(ev.chunkCount);
             if (ev.tokenCount !== undefined) this.generatedTokenCount.set(ev.tokenCount);
             if (ev.promptProgress !== undefined) this.promptProgress.set(ev.promptProgress);
+            // Mirror inline pre-refactor: text/functionCall chunks always
+            // wipe prompt-progress, even if the same chunk also reported a
+            // promptProgress value above. The order matters when both arrive
+            // together — clear wins.
+            if (ev.clearPromptProgress) this.promptProgress.set(undefined);
             break;
           case 'thought':
             this.promptProgress.set(undefined);

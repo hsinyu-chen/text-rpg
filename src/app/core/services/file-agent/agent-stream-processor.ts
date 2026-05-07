@@ -1,23 +1,14 @@
-import { LLMFunctionCall, LLMPart } from '@hcs/llm-core';
+import { LLMFunctionCall, LLMPart, LLMStreamChunk, LLMUsageMetadata } from '@hcs/llm-core';
 
 /**
- * Streamed chunk shape consumed by the processor. Mirrors the
- * `provider.generateContentStream` contract from llm-core, narrowed to
- * just the fields we read here.
+ * Stream chunk consumed by the processor. Same shape as the canonical
+ * `LLMStreamChunk` from llm-core, with `usageMetadata` widened to also
+ * accept the legacy `candidatesTokenCount` field still emitted by some
+ * older providers (the modern field is `candidates`).
  */
-export interface AgentStreamChunk {
-    text?: string;
-    thought?: boolean;
-    functionCall?: LLMFunctionCall;
-    thoughtSignature?: string;
-    usageMetadata?: {
-        promptProgress?: number;
-        candidates?: number;
-    } & {
-        // Legacy field name still emitted by older providers.
-        candidatesTokenCount?: number;
-    };
-}
+export type AgentStreamChunk = Omit<LLMStreamChunk, 'usageMetadata'> & {
+    usageMetadata?: LLMUsageMetadata & { candidatesTokenCount?: number };
+};
 
 export interface ProcessAgentStreamOptions {
     /**
@@ -42,6 +33,14 @@ export interface ProgressEvent {
     tokenCount?: number;
     /** Set when the chunk reported prompt-progress (0..1). */
     promptProgress?: number;
+    /**
+     * True when this chunk also carried text or a functionCall — caller
+     * should reset its prompt-progress display because the stream has
+     * moved past the prompt phase. Mirrors the inline pre-refactor
+     * version which `set(undefined)` on every text/functionCall chunk
+     * regardless of heartbeat throttle.
+     */
+    clearPromptProgress?: boolean;
 }
 
 /** Thought delta yielded after appending to the accumulated thought. */
@@ -153,11 +152,13 @@ export async function* processAgentStream(
         }
         if (chunkTokenCount !== undefined) tokenCount = chunkTokenCount;
 
+        const clearPromptProgress = !!chunk.functionCall || !!chunk.text;
         yield {
             kind: 'progress',
             chunkCount,
             tokenCount: chunkTokenCount,
-            promptProgress: usage?.promptProgress
+            promptProgress: usage?.promptProgress,
+            clearPromptProgress
         };
 
         if (chunk.functionCall) {
