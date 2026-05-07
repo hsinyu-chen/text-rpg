@@ -18,18 +18,16 @@ import { ChatMessage, SessionSave, ExtendedPart, Scenario } from '../models/type
 
 import { GAME_INTENTS } from '../constants/game-intents';
 import {
-    getAdultDeclaration,
     getIntentTags,
-    getSectionHeaders,
     getUIStrings
 } from '../constants/engine-protocol';
-import { LOCALES } from '../constants/locales';
 import { SingleCallTurnEngine } from './turn-engines/single-call-turn-engine.service';
 import { TwoCallTurnEngine } from './turn-engines/two-call-turn-engine.service';
 import { STORY_INTENTS } from '../constants/game-intents';
 import type { TurnEngine } from './turn-engines/turn-engine.interface';
 import { InjectionService } from './injection.service';
 import { DEFAULT_PROFILE_ID } from '../constants/prompt-profiles';
+import { SceneBootService } from './scene-boot.service';
 
 @Injectable({
     providedIn: 'root'
@@ -48,6 +46,7 @@ export class GameEngineService {
     private injection = inject(InjectionService);
     private providerRegistry = inject(LLMProviderRegistryService);
     private appConfig = inject(AppConfigStore);
+    private sceneBoot = inject(SceneBootService);
 
     private currentAbortController: AbortController | null = null;
 
@@ -206,103 +205,19 @@ export class GameEngineService {
     }
 
     /**
-     * Initializes the story session by either extracting the last scene from '2.劇情綱要.md'
-     * or prompting the AI to start the story.
+     * Initializes the story session via local fast-path scene extraction;
+     * falls back to LLM generation when no marker is found.
      */
     async startSession() {
         if (!this.state.isConfigured() || this.state.loadedFiles().size === 0) {
             console.log('[GameEngine] startSession aborted: Engine not configured or Knowledge Base is empty.');
             return;
         }
-        if (this.state.messages().length === 0) {
-            const lang = this.appConfig.outputLanguage();
-            const ui = getUIStrings(lang);
-            const introText = ui.INTRO_TEXT;
+        if (this.state.messages().length > 0) return;
 
-            // Optimization: Try to extract last scene locally to save API call and tokens
-            // Optimization: Try to extract last scene locally to save API call and tokens
-            // Find the loaded Story Outline file (checking all known locale variants)
-            const potentialOutlineNames = new Set(Object.values(LOCALES).map(l => l.coreFilenames.STORY_OUTLINE));
-            let fileName = '';
-            let content: string | undefined;
-
-            for (const name of potentialOutlineNames) {
-                if (this.state.loadedFiles().has(name)) {
-                    fileName = name;
-                    content = this.state.loadedFiles().get(name);
-                    break;
-                }
-            }
-
-            let lastScene = '';
-
-            if (content) {
-                // Support flexible markers: # last_scene, **last_scene**:, last_scene: etc.
-                // Regex looks for variations of 'last_scene' followed by optional punctuation and then captures everything to EOF
-                const regex = /(?:^|\n)(?:[#*_\s]*last[_-]?scene[#*_\s]*[:：]?\s*)([\s\S]*)$/i;
-                const match = content.match(regex);
-                if (match && match[1]) {
-                    lastScene = match[1].trim();
-                }
-            }
-
-            // Detect language from file name to ensure Adult Declaration matches scenario language
-            const matchedLocale = Object.values(LOCALES).find(l => l.coreFilenames.STORY_OUTLINE === fileName);
-            const langId = matchedLocale ? matchedLocale.id : this.appConfig.outputLanguage();
-
-            if (lastScene) {
-                console.log('[GameEngine] Local Initialization: Extracted last_scene from', fileName);
-                const userMsgId = crypto.randomUUID();
-                const modelMsgId = crypto.randomUUID();
-
-                const declaration = this.appConfig.enableAdultDeclaration() === false ? '' : getAdultDeclaration(langId);
-
-                const ui = getUIStrings(langId);
-                this.updateMessages(prev => [
-                    ...prev,
-                    {
-                        id: userMsgId,
-                        role: 'user',
-                        content: introText,
-                        parts: [{ text: introText }],
-                        isHidden: true
-                    },
-                    {
-                        id: modelMsgId,
-                        role: 'model',
-                        content: declaration + lastScene,
-                        parts: [{ text: declaration + lastScene }],
-                        analysis: ui.LOCAL_INIT_ANALYSIS
-                    }
-                ]);
-                await this.session.saveCurrentSessionToBook();
-            } else if (content) {
-                // No last_scene marker — try extracting ## 開始場景 / ## Start Scene (generated world files)
-                const startSceneHeader = getSectionHeaders(langId).START_SCENE;
-                if (content.includes(startSceneHeader)) {
-                    lastScene = content.split(startSceneHeader)[1].split(/\n---|\n##/)[0].trim();
-                }
-
-                if (lastScene) {
-                    console.log('[GameEngine] Local Initialization: Extracted start scene from', fileName);
-                    const userMsgId = crypto.randomUUID();
-                    const modelMsgId = crypto.randomUUID();
-                    const declaration = this.appConfig.enableAdultDeclaration() === false ? '' : getAdultDeclaration(langId);
-                    const uiStrings = getUIStrings(langId);
-                    this.updateMessages(prev => [
-                        ...prev,
-                        { id: userMsgId, role: 'user', content: introText, parts: [{ text: introText }], isHidden: true },
-                        { id: modelMsgId, role: 'model', content: declaration + lastScene, parts: [{ text: declaration + lastScene }], analysis: uiStrings.LOCAL_INIT_ANALYSIS }
-                    ]);
-                    await this.session.saveCurrentSessionToBook();
-                } else {
-                    console.log('[GameEngine] Local Initialization Failed: No marker found or file empty. Falling back to LLM generation.');
-                    this.sendMessage(introText, { isHidden: true });
-                }
-            } else {
-                console.log('[GameEngine] Local Initialization Failed: No marker found or file empty. Falling back to LLM generation.');
-                this.sendMessage(introText, { isHidden: true });
-            }
+        const result = await this.sceneBoot.tryLocalBoot();
+        if (!result.bootedLocally) {
+            this.sendMessage(result.fallbackText, { isHidden: true });
         }
     }
 
