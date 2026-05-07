@@ -31,8 +31,9 @@ export class SceneBootService {
         const lang = this.appConfig.outputLanguage();
         const introText = getUIStrings(lang).INTRO_TEXT;
 
-        const { fileName, content } = this.findStoryOutline();
-        if (!content) return { bootedLocally: false, fallbackText: introText };
+        const outline = this.findStoryOutline();
+        if (!outline) return { bootedLocally: false, fallbackText: introText };
+        const { fileName, content } = outline;
 
         const matchedLocale = Object.values(LOCALES).find(l => l.coreFilenames.STORY_OUTLINE === fileName);
         const langId = matchedLocale ? matchedLocale.id : lang;
@@ -40,7 +41,7 @@ export class SceneBootService {
         const lastScene = this.extractLastScene(content);
         if (lastScene) {
             console.log('[SceneBoot] Local Initialization: Extracted last_scene from', fileName);
-            this.commitBootMessages(introText, lastScene, langId);
+            await this.commitBootMessages(introText, lastScene, langId);
             await this.session.saveCurrentSessionToBook();
             return { bootedLocally: true };
         }
@@ -48,7 +49,7 @@ export class SceneBootService {
         const startScene = this.extractStartScene(content, langId);
         if (startScene) {
             console.log('[SceneBoot] Local Initialization: Extracted start scene from', fileName);
-            this.commitBootMessages(introText, startScene, langId);
+            await this.commitBootMessages(introText, startScene, langId);
             await this.session.saveCurrentSessionToBook();
             return { bootedLocally: true };
         }
@@ -57,13 +58,14 @@ export class SceneBootService {
         return { bootedLocally: false, fallbackText: introText };
     }
 
-    private findStoryOutline(): { fileName: string; content: string | undefined } {
+    private findStoryOutline(): { fileName: string; content: string } | null {
         const candidates = new Set(Object.values(LOCALES).map(l => l.coreFilenames.STORY_OUTLINE));
         const files = this.state.loadedFiles();
         for (const name of candidates) {
-            if (files.has(name)) return { fileName: name, content: files.get(name) };
+            const content = files.get(name);
+            if (content !== undefined) return { fileName: name, content };
         }
-        return { fileName: '', content: undefined };
+        return null;
     }
 
     /** Tolerant of decoration: `# last_scene`, `**last_scene**:`, `last_scene:` etc. */
@@ -79,10 +81,10 @@ export class SceneBootService {
         return content.split(header)[1].split(/\n---|\n##/)[0].trim();
     }
 
-    private commitBootMessages(introText: string, scene: string, langId: string): void {
+    private async commitBootMessages(introText: string, scene: string, langId: string): Promise<void> {
         const declaration = this.appConfig.enableAdultDeclaration() === false ? '' : getAdultDeclaration(langId);
         const ui = getUIStrings(langId);
-        this.chatHistory.updateMessages(prev => [
+        await this.chatHistory.updateMessages(prev => [
             ...prev,
             {
                 id: crypto.randomUUID(),

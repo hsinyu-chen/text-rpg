@@ -348,11 +348,11 @@ export class GameEngineService {
             } else {
                 updated.push({ id: crypto.randomUUID(), role: 'model', content: ui.ERR_PREFIX.replace('{error}', errMsg), isRefOnly: true });
             }
-            this.snackBar.open(ui.GEN_FAILED.replace('{error}', errMsg), ui.CLOSE, {
-                duration: 5000,
-                panelClass: ['snackbar-error']
-            });
             return updated;
+        });
+        this.snackBar.open(ui.GEN_FAILED.replace('{error}', errMsg), ui.CLOSE, {
+            duration: 5000,
+            panelClass: ['snackbar-error']
         });
         // Persist the error message to the Book so it survives reload — the
         // chat-history IDB store alone isn't the source of truth on session

@@ -107,16 +107,23 @@ export class ChatHistoryService {
         return index === -1 ? null : { messages, index };
     }
 
+    /**
+     * Lockstep persistence tail shared by every delete-style mutation:
+     *   updateMessages → accumulateSunkUsage → saveCurrentSessionToBook.
+     */
+    private async commitDeletion(remaining: ChatMessage[], removed: ChatMessage[]): Promise<void> {
+        await this.updateMessages(() => remaining);
+        await this.accumulateSunkUsage(this.calculateSunkUsage(removed));
+        await this.session.saveCurrentSessionToBook();
+    }
+
     /** Deletes a specific message from the chat history. */
     async deleteMessage(id: string) {
         const found = this.locateMessage(id);
         if (!found) return;
         const { messages, index } = found;
-        const removed = messages[index];
         const remaining = [...messages.slice(0, index), ...messages.slice(index + 1)];
-        await this.updateMessages(() => remaining);
-        await this.accumulateSunkUsage(this.calculateSunkUsage([removed]));
-        await this.session.saveCurrentSessionToBook();
+        await this.commitDeletion(remaining, [messages[index]]);
     }
 
     /** Batch delete; single pass + one book save at the end instead of N. */
@@ -130,9 +137,7 @@ export class ChatHistoryService {
             (idSet.has(m.id) ? removed : remaining).push(m);
         }
         if (removed.length === 0) return;
-        await this.updateMessages(() => remaining);
-        await this.accumulateSunkUsage(this.calculateSunkUsage(removed));
-        await this.session.saveCurrentSessionToBook();
+        await this.commitDeletion(remaining, removed);
     }
 
     /** Deletes all messages from a specific message onwards (inclusive). */
@@ -140,11 +145,7 @@ export class ChatHistoryService {
         const found = this.locateMessage(id);
         if (!found) return;
         const { messages, index } = found;
-        const removed = messages.slice(index);
-        const remaining = messages.slice(0, index);
-        await this.updateMessages(() => remaining);
-        await this.accumulateSunkUsage(this.calculateSunkUsage(removed));
-        await this.session.saveCurrentSessionToBook();
+        await this.commitDeletion(messages.slice(0, index), messages.slice(index));
     }
 
     /** Rewinds the story history to just before a specific message. */
@@ -154,13 +155,10 @@ export class ChatHistoryService {
         const { messages, index } = found;
         const removed = messages.slice(index);
         const remaining = messages.slice(0, index);
-        const usages = this.calculateSunkUsage(removed);
-        await this.updateMessages(() => remaining);
-        await this.accumulateSunkUsage(usages);
         console.log(
-            `[ChatHistory] Rewound history to before message ${messageId} (Deleted ${removed.length} messages, Sunk Items: ${usages.length})`
+            `[ChatHistory] Rewound history to before message ${messageId} (Deleted ${removed.length} messages)`
         );
-        await this.session.saveCurrentSessionToBook();
+        await this.commitDeletion(remaining, removed);
     }
 
     /** Toggles a message's 'Reference Only' status. */
