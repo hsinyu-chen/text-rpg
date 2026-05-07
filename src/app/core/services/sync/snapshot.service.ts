@@ -1,10 +1,11 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import {
     SyncBackend, SnapshotMeta, SnapshotManifest, SnapshotMetaInput,
     SnapshotLocalPayload, SnapshotTrigger
 } from './sync.types';
 import { errMsg } from './error.util';
 import { createParallelPool } from '@app/core/utils/async.util';
+import { KVStore } from '../kv/kv-store';
 
 const LS_DEVICE_ID = 'sync_device_id';
 /**
@@ -46,6 +47,7 @@ export class SnapshotPreOpError extends Error {
  */
 @Injectable({ providedIn: 'root' })
 export class SnapshotService {
+    private readonly kv = inject(KVStore);
     private backendResolver: (() => Promise<SyncBackend>) | null = null;
 
     /**
@@ -69,16 +71,16 @@ export class SnapshotService {
     /**
      * Stable per-installation device id, surfaced into snapshot manifests so
      * the UI can label "this device" vs another. Generated lazily on first
-     * use and persisted to localStorage; clearing storage rotates the id,
-     * which is fine — older manifests just show the previous value verbatim.
+     * use and persisted; clearing storage rotates the id, which is fine —
+     * older manifests just show the previous value verbatim.
      */
     getDeviceId(): string {
-        let id = localStorage.getItem(LS_DEVICE_ID);
+        let id = this.kv.get(LS_DEVICE_ID);
         if (!id) {
             id = (typeof crypto !== 'undefined' && 'randomUUID' in crypto)
                 ? crypto.randomUUID()
                 : 'd-' + Math.random().toString(36).slice(2) + Date.now().toString(36);
-            localStorage.setItem(LS_DEVICE_ID, id);
+            this.kv.set(LS_DEVICE_ID, id);
         }
         return id;
     }

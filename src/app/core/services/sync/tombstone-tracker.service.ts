@@ -1,4 +1,5 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
+import { KVStore } from '../kv/kv-store';
 import { SnapshotLocalTombstone, SyncResource } from './sync.types';
 
 export interface PendingDeletion {
@@ -18,7 +19,7 @@ const ALL_RESOURCES = Object.keys(PENDING_DELETIONS_KEY) as SyncResource[];
  * the moment the user removes a book / collection on this device, then
  * propagated to cloud on the next sync as a tombstone + remote remove.
  *
- * Persisted to localStorage so the queue survives reload before sync runs.
+ * Persisted via KVStore so the queue survives reload before sync runs.
  *
  * Distinct from the `Tombstone` type in sync.types.ts: that's the
  * cloud-confirmed tombstone other devices read; this is the local-only
@@ -26,6 +27,8 @@ const ALL_RESOURCES = Object.keys(PENDING_DELETIONS_KEY) as SyncResource[];
  */
 @Injectable({ providedIn: 'root' })
 export class SyncTombstoneTracker {
+    private readonly kv = inject(KVStore);
+
     /**
      * Stage a pending deletion. Same id deleted twice (re-add then delete)
      * updates the timestamp to the latest delete — that's the correct
@@ -58,18 +61,18 @@ export class SyncTombstoneTracker {
      *
      * **Side effect on corruption:** if the JSON parse throws or the
      * stored value isn't an array, the entry is treated as unrecoverable
-     * and cleared from localStorage. Without it the same warning would
+     * and cleared from storage. Without it the same warning would
      * fire on every subsequent read.
      */
     read(resource: SyncResource): PendingDeletion[] {
         const key = PENDING_DELETIONS_KEY[resource];
-        const raw = localStorage.getItem(key);
+        const raw = this.kv.get(key);
         if (!raw) return [];
         try {
             const parsed = JSON.parse(raw);
             if (!Array.isArray(parsed)) {
                 console.warn(`[SyncTombstoneTracker] Corrupted pending list at ${key} (not an array), resetting.`);
-                localStorage.removeItem(key);
+                this.kv.remove(key);
                 return [];
             }
             const now = Date.now();
@@ -90,7 +93,7 @@ export class SyncTombstoneTracker {
             return upgraded;
         } catch {
             console.warn(`[SyncTombstoneTracker] Corrupted pending list at ${key}, resetting.`);
-            localStorage.removeItem(key);
+            this.kv.remove(key);
             return [];
         }
     }
@@ -101,7 +104,7 @@ export class SyncTombstoneTracker {
      * retry (tombstone write or remote remove failed).
      */
     write(resource: SyncResource, entries: PendingDeletion[]): void {
-        localStorage.setItem(PENDING_DELETIONS_KEY[resource], JSON.stringify(entries));
+        this.kv.set(PENDING_DELETIONS_KEY[resource], JSON.stringify(entries));
     }
 
     /**
