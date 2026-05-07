@@ -1,11 +1,17 @@
 import { Injectable, inject } from '@angular/core';
 import { GameStateService } from './game-state.service';
 import { StorageService } from './storage.service';
+import { SessionService } from './session.service';
 import { ChatMessage, ExtendedPart } from '../models/types';
 
 /**
  * Service responsible for chat history CRUD operations.
  * All state is stored in GameStateService; this service handles mutations.
+ *
+ * Edit-style methods (`updateMessageContent`, `deleteMessage`, etc.) persist
+ * the chat to local storage AND save the active book — the two stores must
+ * stay in lockstep for the book list / sync to see edits, so the book write
+ * is part of the method contract, not a caller responsibility.
  */
 @Injectable({
     providedIn: 'root'
@@ -13,6 +19,7 @@ import { ChatMessage, ExtendedPart } from '../models/types';
 export class ChatHistoryService {
     private state = inject(GameStateService);
     private storage = inject(StorageService);
+    private session = inject(SessionService);
 
     /**
      * Updates the chat history state and persists it to local storage.
@@ -29,7 +36,7 @@ export class ChatHistoryService {
      * non-thought text part so the LLM history view (which prefers `parts`
      * over `content` when both exist) reflects the edit.
      */
-    updateMessageContent(id: string, newContent: string) {
+    async updateMessageContent(id: string, newContent: string) {
         this.state.messages.update(msgs =>
             msgs.map(m => {
                 if (m.id !== id) return m;
@@ -37,6 +44,7 @@ export class ChatHistoryService {
             })
         );
         this.storage.set('chat_history', this.state.messages());
+        await this.session.saveCurrentSessionToBook();
     }
 
     private replaceLastTextPart(parts: ExtendedPart[] | undefined, newText: string): ExtendedPart[] {
@@ -58,7 +66,7 @@ export class ChatHistoryService {
     /**
      * Updates the logs (inventory, quest, world or character) of a specific message by ID.
      */
-    updateMessageLogs(id: string, type: 'inventory' | 'quest' | 'world' | 'character', logs: string[]) {
+    async updateMessageLogs(id: string, type: 'inventory' | 'quest' | 'world' | 'character', logs: string[]) {
         this.state.messages.update(msgs =>
             msgs.map(m => {
                 if (m.id === id) {
@@ -73,32 +81,35 @@ export class ChatHistoryService {
             })
         );
         this.storage.set('chat_history', this.state.messages());
+        await this.session.saveCurrentSessionToBook();
     }
 
     /**
      * Updates the narrative summary of a specific message by ID.
      */
-    updateMessageSummary(id: string, summary: string) {
+    async updateMessageSummary(id: string, summary: string) {
         this.state.messages.update(msgs =>
             msgs.map(m => (m.id === id ? { ...m, summary } : m))
         );
         this.storage.set('chat_history', this.state.messages());
+        await this.session.saveCurrentSessionToBook();
     }
 
     /**
      * Updates the correction note of a specific message by ID.
      */
-    updateMessageCorrection(id: string, correction: string) {
+    async updateMessageCorrection(id: string, correction: string) {
         this.state.messages.update(msgs =>
             msgs.map(m => (m.id === id ? { ...m, correction } : m))
         );
         this.storage.set('chat_history', this.state.messages());
+        await this.session.saveCurrentSessionToBook();
     }
 
     /**
      * Deletes a specific message from the chat history.
      */
-    deleteMessage(id: string) {
+    async deleteMessage(id: string) {
         this.updateMessages(prev => {
             const arr = [...prev];
             const index = arr.findIndex(m => m.id === id);
@@ -110,12 +121,27 @@ export class ChatHistoryService {
             }
             return arr;
         });
+        await this.session.saveCurrentSessionToBook();
+    }
+
+    /** Batch delete; one book save at the end instead of N. */
+    async deleteMessages(ids: string[]) {
+        if (ids.length === 0) return;
+        const idSet = new Set(ids);
+        this.updateMessages(prev => {
+            const removed = prev.filter(m => idSet.has(m.id));
+            if (removed.length > 0) {
+                this.accumulateSunkUsage(this.calculateSunkUsage(removed));
+            }
+            return prev.filter(m => !idSet.has(m.id));
+        });
+        await this.session.saveCurrentSessionToBook();
     }
 
     /**
      * Deletes all messages from a specific message onwards (inclusive).
      */
-    deleteFrom(id: string) {
+    async deleteFrom(id: string) {
         this.updateMessages(prev => {
             const arr = [...prev];
             const index = arr.findIndex(m => m.id === id);
@@ -128,12 +154,13 @@ export class ChatHistoryService {
             }
             return arr;
         });
+        await this.session.saveCurrentSessionToBook();
     }
 
     /**
      * Rewinds the story history to just before a specific message.
      */
-    rewindTo(messageId: string) {
+    async rewindTo(messageId: string) {
         this.updateMessages(prev => {
             const arr = [...prev];
             const index = arr.findIndex(m => m.id === messageId);
@@ -150,12 +177,13 @@ export class ChatHistoryService {
             }
             return arr;
         });
+        await this.session.saveCurrentSessionToBook();
     }
 
     /**
      * Toggles a message's 'Reference Only' status.
      */
-    toggleRefOnly(id: string) {
+    async toggleRefOnly(id: string) {
         this.updateMessages(prev => {
             const arr = [...prev];
             const index = arr.findIndex(m => m.id === id);
@@ -168,6 +196,7 @@ export class ChatHistoryService {
             }
             return arr;
         });
+        await this.session.saveCurrentSessionToBook();
     }
 
     /**
@@ -184,6 +213,7 @@ export class ChatHistoryService {
         await this.storage.delete('chat_history');
         await this.storage.delete('sunk_usage_history');
         this.state.status.set('idle');
+        await this.session.saveCurrentSessionToBook();
     }
 
     /**

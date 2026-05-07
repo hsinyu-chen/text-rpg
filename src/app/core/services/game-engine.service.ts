@@ -725,61 +725,21 @@ export class GameEngineService {
 
 
     /**
-     * @category Chat History Delegates
+     * @category Chat History Delegates — ChatHistoryService persists the
+     * book itself; these are 1-line proxies so callsites keep a single
+     * injection point (GameEngineService).
      */
 
-    async updateMessageContent(id: string, newContent: string) {
-        this.chatHistory.updateMessageContent(id, newContent);
-        await this.session.saveCurrentSessionToBook();
-    }
-
-    async updateMessageLogs(id: string, type: 'inventory' | 'quest' | 'world' | 'character', logs: string[]) {
-        this.chatHistory.updateMessageLogs(id, type, logs);
-        await this.session.saveCurrentSessionToBook();
-    }
-
-    async updateMessageSummary(id: string, summary: string) {
-        this.chatHistory.updateMessageSummary(id, summary);
-        await this.session.saveCurrentSessionToBook();
-    }
-
-    async updateMessageCorrection(id: string, correction: string) {
-        this.chatHistory.updateMessageCorrection(id, correction);
-        await this.session.saveCurrentSessionToBook();
-    }
-
-    async deleteMessage(id: string) {
-        this.chatHistory.deleteMessage(id);
-        await this.session.saveCurrentSessionToBook();
-    }
-
-    async deleteMessages(ids: string[]) {
-        if (ids.length === 0) return;
-        for (const id of ids) {
-            this.chatHistory.deleteMessage(id);
-        }
-        await this.session.saveCurrentSessionToBook();
-    }
-
-    async deleteFrom(id: string) {
-        this.chatHistory.deleteFrom(id);
-        await this.session.saveCurrentSessionToBook();
-    }
-
-    async rewindTo(messageId: string) {
-        this.chatHistory.rewindTo(messageId);
-        await this.session.saveCurrentSessionToBook();
-    }
-
-    async toggleRefOnly(id: string) {
-        this.chatHistory.toggleRefOnly(id);
-        await this.session.saveCurrentSessionToBook();
-    }
-
-    async clearHistory() {
-        await this.chatHistory.clearHistory();
-        await this.session.saveCurrentSessionToBook();
-    }
+    updateMessageContent(id: string, newContent: string) { return this.chatHistory.updateMessageContent(id, newContent); }
+    updateMessageLogs(id: string, type: 'inventory' | 'quest' | 'world' | 'character', logs: string[]) { return this.chatHistory.updateMessageLogs(id, type, logs); }
+    updateMessageSummary(id: string, summary: string) { return this.chatHistory.updateMessageSummary(id, summary); }
+    updateMessageCorrection(id: string, correction: string) { return this.chatHistory.updateMessageCorrection(id, correction); }
+    deleteMessage(id: string) { return this.chatHistory.deleteMessage(id); }
+    deleteMessages(ids: string[]) { return this.chatHistory.deleteMessages(ids); }
+    deleteFrom(id: string) { return this.chatHistory.deleteFrom(id); }
+    rewindTo(messageId: string) { return this.chatHistory.rewindTo(messageId); }
+    toggleRefOnly(id: string) { return this.chatHistory.toggleRefOnly(id); }
+    clearHistory() { return this.chatHistory.clearHistory(); }
 
     private updateMessages(updater: (prev: ChatMessage[]) => ChatMessage[]) {
         this.chatHistory.updateMessages(updater);
