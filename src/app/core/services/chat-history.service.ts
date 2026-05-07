@@ -37,13 +37,12 @@ export class ChatHistoryService {
      * over `content` when both exist) reflects the edit.
      */
     async updateMessageContent(id: string, newContent: string) {
-        this.state.messages.update(msgs =>
+        this.updateMessages(msgs =>
             msgs.map(m => {
                 if (m.id !== id) return m;
                 return { ...m, content: newContent, parts: this.replaceLastTextPart(m.parts, newContent) };
             })
         );
-        this.storage.set('chat_history', this.state.messages());
         await this.session.saveCurrentSessionToBook();
     }
 
@@ -67,7 +66,7 @@ export class ChatHistoryService {
      * Updates the logs (inventory, quest, world or character) of a specific message by ID.
      */
     async updateMessageLogs(id: string, type: 'inventory' | 'quest' | 'world' | 'character', logs: string[]) {
-        this.state.messages.update(msgs =>
+        this.updateMessages(msgs =>
             msgs.map(m => {
                 if (m.id === id) {
                     const updates: Partial<ChatMessage> = {};
@@ -80,7 +79,6 @@ export class ChatHistoryService {
                 return m;
             })
         );
-        this.storage.set('chat_history', this.state.messages());
         await this.session.saveCurrentSessionToBook();
     }
 
@@ -88,10 +86,9 @@ export class ChatHistoryService {
      * Updates the narrative summary of a specific message by ID.
      */
     async updateMessageSummary(id: string, summary: string) {
-        this.state.messages.update(msgs =>
+        this.updateMessages(msgs =>
             msgs.map(m => (m.id === id ? { ...m, summary } : m))
         );
-        this.storage.set('chat_history', this.state.messages());
         await this.session.saveCurrentSessionToBook();
     }
 
@@ -99,10 +96,9 @@ export class ChatHistoryService {
      * Updates the correction note of a specific message by ID.
      */
     async updateMessageCorrection(id: string, correction: string) {
-        this.state.messages.update(msgs =>
+        this.updateMessages(msgs =>
             msgs.map(m => (m.id === id ? { ...m, correction } : m))
         );
-        this.storage.set('chat_history', this.state.messages());
         await this.session.saveCurrentSessionToBook();
     }
 
