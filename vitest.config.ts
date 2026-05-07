@@ -50,6 +50,10 @@ export default defineConfig({
   test: {
     environment: 'happy-dom',
     include: ['src/**/*.spec.ts', 'src/**/*.test.ts'],
-    setupFiles: ['src/test-setup.ts'],
+    setupFiles: ['src/test-integration-env.ts', 'src/test-setup.ts'],
+    // Integration specs hit a real S3-compatible endpoint. Default timeout
+    // is 5s; bump for slower wall-clock RTT (especially restoreSnapshot
+    // which does N round-trips serially).
+    testTimeout: 30000,
   },
 });
