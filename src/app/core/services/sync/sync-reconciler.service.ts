@@ -48,6 +48,12 @@ export class SyncReconciler {
      */
     private selfHealedIds = new Set<string>();
 
+    private getLocalList(resource: SyncResource): Promise<(Book | Collection)[]> {
+        return resource === 'book'
+            ? this.storage.getBooks()
+            : this.storage.getCollections();
+    }
+
     async reconcileAll(backend: SyncBackend): Promise<ReconcileResult> {
         const totals: SyncReport = { uploaded: 0, downloaded: 0, deleted: 0, errors: [] };
         const downloadedBookIds = new Set<string>();
@@ -68,9 +74,7 @@ export class SyncReconciler {
         const report: ForcePushReport = { uploaded: 0, deletedRemote: 0, errors: [] };
 
         for (const resource of ['collection', 'book'] as const) {
-            const localList: (Book | Collection)[] = resource === 'book'
-                ? await this.storage.getBooks()
-                : await this.storage.getCollections();
+            const localList = await this.getLocalList(resource);
             const localIds = new Set(localList.map(l => l.id));
             const remoteList = await backend.list(resource);
             const now = Date.now();
@@ -83,7 +87,7 @@ export class SyncReconciler {
             try {
                 await backend.clearTombstones(resource);
             } catch (e) {
-                console.error(`[SyncReconciler] forcePush: failed to clear tombstones for ${resource}`, e);
+                console.error(`[Sync] forcePush: failed to clear tombstones for ${resource}`, e);
                 report.errors.push({ resource, id: '', op: 'delete', message: errMsg(e) });
             }
 
@@ -96,7 +100,7 @@ export class SyncReconciler {
                     await backend.writeTombstone(resource, remote.id, now);
                     report.deletedRemote++;
                 } catch (e) {
-                    console.error(`[SyncReconciler] forcePush: failed to delete remote ${resource} ${remote.id}`, e);
+                    console.error(`[Sync] forcePush: failed to delete remote ${resource} ${remote.id}`, e);
                     report.errors.push({ resource, id: remote.id, op: 'delete', message: errMsg(e) });
                 }
             }
@@ -110,7 +114,7 @@ export class SyncReconciler {
                     await backend.write(resource, local.id, JSON.stringify(cleaned), lastActiveAt);
                     report.uploaded++;
                 } catch (e) {
-                    console.error(`[SyncReconciler] forcePush: failed to upload ${resource} ${local.id}`, e);
+                    console.error(`[Sync] forcePush: failed to upload ${resource} ${local.id}`, e);
                     report.errors.push({ resource, id: local.id, op: 'upload', message: errMsg(e) });
                 }
             }
@@ -130,9 +134,7 @@ export class SyncReconciler {
         for (const resource of ['collection', 'book'] as const) {
             const remoteList = await backend.list(resource);
             const remoteIds = new Set(remoteList.map(r => r.id));
-            const localList: (Book | Collection)[] = resource === 'book'
-                ? await this.storage.getBooks()
-                : await this.storage.getCollections();
+            const localList = await this.getLocalList(resource);
 
             // Wipe local entries not on cloud (root collection is special — keep
             // it; it's rebuilt by ensureRoot if missing on cloud).
@@ -148,7 +150,7 @@ export class SyncReconciler {
                     }
                     report.deletedLocal++;
                 } catch (e) {
-                    console.error(`[SyncReconciler] forcePull: failed to delete local ${resource} ${local.id}`, e);
+                    console.error(`[Sync] forcePull: failed to delete local ${resource} ${local.id}`, e);
                     report.errors.push({ resource, id: local.id, op: 'delete', message: errMsg(e) });
                 }
             }
@@ -161,7 +163,7 @@ export class SyncReconciler {
                     if (resource === 'book' && remote.id === activeBookId) activeBookOverwritten = true;
                     report.downloaded++;
                 } catch (e) {
-                    console.error(`[SyncReconciler] forcePull: failed to download ${resource} ${remote.id}`, e);
+                    console.error(`[Sync] forcePull: failed to download ${resource} ${remote.id}`, e);
                     report.errors.push({ resource, id: remote.id, op: 'download', message: errMsg(e) });
                 }
             }
@@ -215,9 +217,7 @@ export class SyncReconciler {
     ): Promise<SyncReport> {
         const report: SyncReport = { uploaded: 0, downloaded: 0, deleted: 0, errors: [] };
 
-        let localList: (Book | Collection)[] = resource === 'book'
-            ? await this.storage.getBooks()
-            : await this.storage.getCollections();
+        let localList: (Book | Collection)[] = await this.getLocalList(resource);
         const remoteList = await backend.list(resource);
         const remoteById = new Map(remoteList.map(r => [r.id, r]));
         const localById = new Map(localList.map(l => [l.id, l]));
@@ -245,7 +245,7 @@ export class SyncReconciler {
                 // retry on this device cleans up the live object.
                 justDeletedIds.add(entry.id);
             } catch (e) {
-                console.error(`[SyncReconciler] Failed to write tombstone for ${resource} ${entry.id}, will retry`, e);
+                console.error(`[Sync] Failed to write tombstone for ${resource} ${entry.id}, will retry`, e);
                 report.errors.push({ resource, id: entry.id, op: 'delete', message: errMsg(e) });
             }
 
@@ -256,7 +256,7 @@ export class SyncReconciler {
                     remoteById.delete(entry.id);
                     report.deleted++;
                 } catch (e) {
-                    console.error(`[SyncReconciler] Failed to remove remote ${resource} ${entry.id}, will retry`, e);
+                    console.error(`[Sync] Failed to remove remote ${resource} ${entry.id}, will retry`, e);
                     report.errors.push({ resource, id: entry.id, op: 'delete', message: errMsg(e) });
                     removeOk = false;
                 }
@@ -303,12 +303,12 @@ export class SyncReconciler {
                     justDeletedIds.add(tomb.id);
                     console.log(`[Sync ${resource} ${tomb.id.slice(0, 8)}] tombstone wins → delete (local=${localTime}, remote=${remoteTime}, deletedAt=${tomb.deletedAt})`);
                 } catch (e) {
-                    console.error(`[SyncReconciler] Failed to apply tombstone for ${resource} ${tomb.id}`, e);
+                    console.error(`[Sync] Failed to apply tombstone for ${resource} ${tomb.id}`, e);
                     report.errors.push({ resource, id: tomb.id, op: 'delete', message: errMsg(e) });
                 }
             }
         } catch (e) {
-            console.error(`[SyncReconciler] Failed to list tombstones for ${resource}`, e);
+            console.error(`[Sync] Failed to list tombstones for ${resource}`, e);
             report.errors.push({ resource, id: '', op: 'list', message: errMsg(e) });
         }
 
@@ -371,7 +371,7 @@ export class SyncReconciler {
             await backend.write(resource, local.id, JSON.stringify(cleaned), lastActiveAt);
             report.uploaded++;
         } catch (e) {
-            console.error(`[SyncReconciler] Failed to upload ${resource} ${local.id}`, e);
+            console.error(`[Sync] Failed to upload ${resource} ${local.id}`, e);
             report.errors.push({ resource, id: local.id, op: 'upload', message: errMsg(e) });
         }
     }
@@ -419,7 +419,7 @@ export class SyncReconciler {
                 }
             }
         } catch (e) {
-            console.error(`[SyncReconciler] Failed to download ${resource} ${id}`, e);
+            console.error(`[Sync] Failed to download ${resource} ${id}`, e);
             report.errors.push({ resource, id, op: 'download', message: errMsg(e) });
         }
     }

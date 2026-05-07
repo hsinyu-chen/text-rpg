@@ -130,10 +130,10 @@ export class AutoSyncScheduler {
     }
 
     /**
-     * SyncService calls this after a public sync op (`doSyncAll` /
-     * `doForcePushAll` / `doForcePullAll`) finishes successfully. The
-     * timestamp gates the visibility-cooldown re-trigger; failures
-     * don't update it (we want the next visible-tab to retry promptly).
+     * SyncService calls this after a public sync op (`syncAll` /
+     * `forcePushAll` / `forcePullAll` / `restoreSnapshot`) finishes
+     * successfully. The timestamp gates the visibility-cooldown re-trigger;
+     * failures don't update it (we want the next visible-tab to retry promptly).
      *
      * Also resets the failure-count circuit breaker — a successful
      * manual sync proves the backend is reachable, so any prior

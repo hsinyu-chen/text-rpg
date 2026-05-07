@@ -9,7 +9,6 @@ import {
 } from './sync.types';
 import { PromptCloudSyncService } from './prompt-cloud-sync.service';
 import { SnapshotService } from './snapshot.service';
-import { SyncTombstoneTracker } from './tombstone-tracker.service';
 import { SyncBackendResolver } from './sync-backend-resolver.service';
 import { AutoSyncScheduler } from './auto-sync-scheduler.service';
 import { SyncReconciler } from './sync-reconciler.service';
@@ -37,7 +36,6 @@ export class SyncService {
     private state = inject(GameStateService);
     private readonly promptCloudSync = inject(PromptCloudSyncService);
     private readonly snapshot = inject(SnapshotService);
-    private readonly tombstones = inject(SyncTombstoneTracker);
     private readonly backends = inject(SyncBackendResolver);
     private readonly scheduler = inject(AutoSyncScheduler);
     private readonly reconciler = inject(SyncReconciler);
@@ -204,13 +202,7 @@ export class SyncService {
         if (!currentId) return;
 
         if (deletedBookIds.has(currentId)) {
-            const remaining = await this.storage.getBooks();
-            if (remaining.length > 0) {
-                const sorted = [...remaining].sort((a, b) => b.lastActiveAt - a.lastActiveAt);
-                await this.session.loadBook(sorted[0].id, false);
-            } else {
-                await this.session.unloadCurrentSession(false);
-            }
+            await this.fallbackToNextAvailableBook();
             return;
         }
 
@@ -285,22 +277,28 @@ export class SyncService {
         await this.collections.load();
 
         if (activeBookGone) {
-            const remaining = await this.storage.getBooks();
-            if (remaining.length > 0) {
-                const sorted = [...remaining].sort((a, b) => b.lastActiveAt - a.lastActiveAt);
-                await this.session.loadBook(sorted[0].id, false);
-            } else {
-                // No books left — must clear the in-memory session signals
-                // (messages, files, stats) or the UI keeps showing data for
-                // the book IDB no longer has. `false` skips the auto-save
-                // that would otherwise re-create the deleted book.
-                await this.session.unloadCurrentSession(false);
-            }
+            await this.fallbackToNextAvailableBook();
         } else if (activeBookOverwritten && activeBookId) {
             await this.session.loadBook(activeBookId, false);
         }
 
         return report;
+    }
+
+    /**
+     * Active book disappeared (deleted by another device, or wiped by force-pull):
+     * switch to the most-recently-active remaining book, or clear the in-memory
+     * session signals if nothing's left. `false` on unloadCurrentSession skips
+     * the auto-save that would otherwise re-create the deleted book.
+     */
+    private async fallbackToNextAvailableBook(): Promise<void> {
+        const remaining = await this.storage.getBooks();
+        if (remaining.length > 0) {
+            const sorted = [...remaining].sort((a, b) => b.lastActiveAt - a.lastActiveAt);
+            await this.session.loadBook(sorted[0].id, false);
+        } else {
+            await this.session.unloadCurrentSession(false);
+        }
     }
 
     /**
@@ -361,12 +359,9 @@ export class SyncService {
 
                 await backend.restoreSnapshot(snapshotId);
 
-                // Pending deletions are stale — restore wrote tombstones at
-                // Date.now() on cloud, and any local pending delete predates
-                // that timestamp, so they'd no-op anyway. Wipe to keep state
-                // tidy.
-                this.tombstones.clearAll();
-
+                // runForcePull → reconciler.forcePullAll already wipes
+                // tombstones (they're stale: restore wrote fresh tombstones
+                // at Date.now() on cloud, predating any local pending).
                 const report = await this.runForcePull();
                 this.snapshot.runRetentionInBackground();
 
@@ -376,9 +371,13 @@ export class SyncService {
                 if (report.errors.length > 0) {
                     console.warn('[SyncService] restoreSnapshot: forcePull surfaced errors', report.errors);
                 }
+
+                // Stamp lastSyncAt + clear failure counter together. Without
+                // this the visibility-cooldown re-trigger fires an immediate
+                // redundant sync against just-restored state.
+                this.scheduler.notifySyncCompleted();
             } finally {
                 this.restoreInProgress = false;
-                this.scheduler.recordRun(true); // restore counts as a fresh start for the breaker
             }
         });
     }

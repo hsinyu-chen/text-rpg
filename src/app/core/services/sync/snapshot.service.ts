@@ -40,9 +40,9 @@ export class SnapshotPreOpError extends Error {
  * stays out of the SyncService DI graph.
  *
  * The `restoreSnapshot` orchestrator stays on SyncService — it spans the
- * snapshot subsystem AND the sync state machine (cancelDebounce,
- * restoreInProgress, doForcePullAll), so splitting it here would just
- * push the entanglement back via callbacks.
+ * snapshot subsystem AND the sync state machine (scheduler.cancel,
+ * restoreInProgress, post-restore force-pull), so splitting it here would
+ * just push the entanglement back via callbacks.
  */
 @Injectable({ providedIn: 'root' })
 export class SnapshotService {
