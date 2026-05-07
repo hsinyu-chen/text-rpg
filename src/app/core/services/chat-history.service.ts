@@ -100,13 +100,20 @@ export class ChatHistoryService {
         await this.session.saveCurrentSessionToBook();
     }
 
+    /** Returns the current messages array + the index of `id`, or null if not present. */
+    private locateMessage(id: string): { messages: ChatMessage[]; index: number } | null {
+        const messages = this.state.messages();
+        const index = messages.findIndex(m => m.id === id);
+        return index === -1 ? null : { messages, index };
+    }
+
     /** Deletes a specific message from the chat history. */
     async deleteMessage(id: string) {
-        const current = this.state.messages();
-        const index = current.findIndex(m => m.id === id);
-        if (index === -1) return;
-        const removed = current[index];
-        const remaining = [...current.slice(0, index), ...current.slice(index + 1)];
+        const found = this.locateMessage(id);
+        if (!found) return;
+        const { messages, index } = found;
+        const removed = messages[index];
+        const remaining = [...messages.slice(0, index), ...messages.slice(index + 1)];
         await this.updateMessages(() => remaining);
         await this.accumulateSunkUsage(this.calculateSunkUsage([removed]));
         await this.session.saveCurrentSessionToBook();
@@ -130,11 +137,11 @@ export class ChatHistoryService {
 
     /** Deletes all messages from a specific message onwards (inclusive). */
     async deleteFrom(id: string) {
-        const current = this.state.messages();
-        const index = current.findIndex(m => m.id === id);
-        if (index === -1) return;
-        const removed = current.slice(index);
-        const remaining = current.slice(0, index);
+        const found = this.locateMessage(id);
+        if (!found) return;
+        const { messages, index } = found;
+        const removed = messages.slice(index);
+        const remaining = messages.slice(0, index);
         await this.updateMessages(() => remaining);
         await this.accumulateSunkUsage(this.calculateSunkUsage(removed));
         await this.session.saveCurrentSessionToBook();
@@ -142,11 +149,11 @@ export class ChatHistoryService {
 
     /** Rewinds the story history to just before a specific message. */
     async rewindTo(messageId: string) {
-        const current = this.state.messages();
-        const index = current.findIndex(m => m.id === messageId);
-        if (index === -1) return;
-        const removed = current.slice(index);
-        const remaining = current.slice(0, index);
+        const found = this.locateMessage(messageId);
+        if (!found) return;
+        const { messages, index } = found;
+        const removed = messages.slice(index);
+        const remaining = messages.slice(0, index);
         const usages = this.calculateSunkUsage(removed);
         await this.updateMessages(() => remaining);
         await this.accumulateSunkUsage(usages);
@@ -158,10 +165,10 @@ export class ChatHistoryService {
 
     /** Toggles a message's 'Reference Only' status. */
     async toggleRefOnly(id: string) {
-        const current = this.state.messages();
-        const index = current.findIndex(m => m.id === id);
-        if (index === -1) return;
-        const next = [...current];
+        const found = this.locateMessage(id);
+        if (!found) return;
+        const { messages, index } = found;
+        const next = [...messages];
         next[index] = {
             ...next[index],
             isRefOnly: !next[index].isRefOnly,

@@ -224,10 +224,10 @@ export class GameEngineService {
             }
             const ui = getUIStrings(this.appConfig.outputLanguage());
             const autoswitchPrefix = turn.switchedFromLegacy ? `${ui.LEGACY_PROFILE_AUTOSWITCH}\n\n` : '';
-            const message = sessionExpired
-                ? autoswitchPrefix + 'Session Expired: Please reload your Knowledge Base folder to continue.'
-                : autoswitchPrefix + `Error: ${e instanceof Error ? e.message : 'Unknown error during cache refresh'}`;
-            this.snackBar.open(message, 'Close', {
+            const errorCore = sessionExpired
+                ? 'Session Expired: Please reload your Knowledge Base folder to continue.'
+                : `Error: ${e instanceof Error ? e.message : 'Unknown error during cache refresh'}`;
+            this.snackBar.open(autoswitchPrefix + errorCore, 'Close', {
                 duration: sessionExpired ? 10000 : 5000,
                 panelClass: ['snackbar-error']
             });
