@@ -180,7 +180,7 @@ export class GameEngineService {
         const modelMsgId = crypto.randomUUID();
         const userIdealOutcome = options?.userIdealOutcome?.trim() || undefined;
 
-        this.chatHistory.updateMessages(prev => [...prev, {
+        await this.chatHistory.updateMessages(prev => [...prev, {
             id: userMsgId,
             role: 'user',
             content: userText,

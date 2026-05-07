@@ -38,14 +38,23 @@ export class ChatHistoryService {
      * non-thought text part so the LLM history view (which prefers `parts`
      * over `content` when both exist) reflects the edit.
      */
+    /**
+     * Lockstep persistence tail shared by every field-update mutation:
+     *   updateMessages → saveCurrentSessionToBook.
+     * Mirrors `commitDeletion` so adding a 6th update method can't drift.
+     */
+    private async commitFieldUpdate(updater: (prev: ChatMessage[]) => ChatMessage[]): Promise<void> {
+        await this.updateMessages(updater);
+        await this.session.saveCurrentSessionToBook();
+    }
+
     async updateMessageContent(id: string, newContent: string) {
-        await this.updateMessages(msgs =>
+        await this.commitFieldUpdate(msgs =>
             msgs.map(m => {
                 if (m.id !== id) return m;
                 return { ...m, content: newContent, parts: this.replaceLastTextPart(m.parts, newContent) };
             })
         );
-        await this.session.saveCurrentSessionToBook();
     }
 
     private replaceLastTextPart(parts: ExtendedPart[] | undefined, newText: string): ExtendedPart[] {
@@ -68,7 +77,7 @@ export class ChatHistoryService {
      * Updates the logs (inventory, quest, world or character) of a specific message by ID.
      */
     async updateMessageLogs(id: string, type: 'inventory' | 'quest' | 'world' | 'character', logs: string[]) {
-        await this.updateMessages(msgs =>
+        await this.commitFieldUpdate(msgs =>
             msgs.map(m => {
                 if (m.id === id) {
                     const updates: Partial<ChatMessage> = {};
@@ -81,23 +90,20 @@ export class ChatHistoryService {
                 return m;
             })
         );
-        await this.session.saveCurrentSessionToBook();
     }
 
     /** Updates the narrative summary of a specific message by ID. */
     async updateMessageSummary(id: string, summary: string) {
-        await this.updateMessages(msgs =>
+        await this.commitFieldUpdate(msgs =>
             msgs.map(m => (m.id === id ? { ...m, summary } : m))
         );
-        await this.session.saveCurrentSessionToBook();
     }
 
     /** Updates the correction note of a specific message by ID. */
     async updateMessageCorrection(id: string, correction: string) {
-        await this.updateMessages(msgs =>
+        await this.commitFieldUpdate(msgs =>
             msgs.map(m => (m.id === id ? { ...m, correction } : m))
         );
-        await this.session.saveCurrentSessionToBook();
     }
 
     /** Returns the current messages array + the index of `id`, or null if not present. */
@@ -172,8 +178,7 @@ export class ChatHistoryService {
             isRefOnly: !next[index].isRefOnly,
             isManualRefOnly: true
         };
-        await this.updateMessages(() => next);
-        await this.session.saveCurrentSessionToBook();
+        await this.commitFieldUpdate(() => next);
     }
 
     /**
