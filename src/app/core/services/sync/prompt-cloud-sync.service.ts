@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
-import { StorageService } from '../storage.service';
+import { PromptRepository } from '../storage/prompt.repository';
+import { ProfileMetaRepository } from '../storage/profile-meta.repository';
 import { PromptProfileRegistryService } from '../prompt-profile-registry.service';
 import { ALL_PROMPT_TYPES, type PromptType } from '../injection.service';
 import { BUILT_IN_PROFILES, getProfileScopedKey, USER_PROFILE_ID_PREFIX } from '@app/core/constants/prompt-profiles';
@@ -61,7 +62,8 @@ function isValidUserProfileId(id: unknown): id is string {
  */
 @Injectable({ providedIn: 'root' })
 export class PromptCloudSyncService {
-    private storage = inject(StorageService);
+    private prompts = inject(PromptRepository);
+    private profileMeta = inject(ProfileMetaRepository);
     private profileRegistry = inject(PromptProfileRegistryService);
 
     private backendResolver: (() => Promise<SyncBackend>) | null = null;
@@ -102,7 +104,7 @@ export class PromptCloudSyncService {
                 const flagKey = getProfileScopedKey(`prompt_user_modified_${type}`, profileId);
                 if (localStorage.getItem(flagKey) !== 'true') return null;
             }
-            const rec = await this.storage.getProfilePrompt(type, profileId);
+            const rec = await this.prompts.getProfilePrompt(type, profileId);
             return rec ? { type, rec } : null;
         }));
 
@@ -235,7 +237,7 @@ export class PromptCloudSyncService {
                 createdAt: incomingCreatedAt,
                 updatedAt: incomingUpdatedAt
             };
-            await this.storage.putProfileMeta(meta);
+            await this.profileMeta.put(meta);
             const existingTarget = this.profileRegistry.get(targetId);
             if (existingTarget) {
                 this.profileRegistry.update(targetId, { displayName: incomingName, baseProfileId: incomingBase, updatedAt: incomingUpdatedAt });
@@ -269,7 +271,7 @@ export class PromptCloudSyncService {
             // Drop rows whose profile entry never made it into the registry (orphan).
             if (!profile) return false;
 
-            await this.storage.saveProfilePrompt(type, profileId, value.content, value.tokens);
+            await this.prompts.saveProfilePrompt(type, profileId, value.content, value.tokens);
             if (profile.isBuiltIn) {
                 localStorage.setItem(getProfileScopedKey(`prompt_user_modified_${type}`, profileId), 'true');
             }
@@ -287,7 +289,7 @@ export class PromptCloudSyncService {
             const type = key.slice(colon + 1);
             if (!BUILT_IN_PROFILES.some(p => p.id === profileId)) return false;
             if (!PROMPT_TYPES.includes(type as PromptType)) return false;
-            await this.storage.saveProfilePrompt(type, profileId, value.content, value.tokens);
+            await this.prompts.saveProfilePrompt(type, profileId, value.content, value.tokens);
             localStorage.setItem(getProfileScopedKey(`prompt_user_modified_${type}`, profileId), 'true');
             return true;
         }));

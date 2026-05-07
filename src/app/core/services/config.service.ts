@@ -1,7 +1,7 @@
 import { Injectable, RendererFactory2, RendererStyleFlags2, effect, inject } from '@angular/core';
 import { DOCUMENT } from '@angular/common';
 import { GameStateService } from './game-state.service';
-import { StorageService } from './storage.service';
+import { SettingsRepository } from './storage/settings.repository';
 import { SessionService } from './session.service';
 import { InjectionService } from './injection.service';
 import { PromptProfileRegistryService } from './prompt-profile-registry.service';
@@ -17,7 +17,7 @@ import { AppConfigStore, AppConfigShape } from './app-config-store';
 })
 export class ConfigService {
     private state = inject(GameStateService);
-    private storage = inject(StorageService);
+    private settings = inject(SettingsRepository);
     private session = inject(SessionService);
     private injection = inject(InjectionService);
     private profileRegistry = inject(PromptProfileRegistryService);
@@ -108,7 +108,7 @@ export class ConfigService {
 
         // Persist to IndexedDB for other services (e.g. Google Drive sync /
         // settings JSON export) to consume the full snapshot.
-        await this.storage.set('settings', this.appConfig.snapshot());
+        await this.settings.save(this.appConfig.snapshot());
 
         // If language changed, re-process system files for the UI.
         // bumpTimestamp=false: language is a UI concern, not a KB content

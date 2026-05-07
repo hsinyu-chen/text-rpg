@@ -1,11 +1,12 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { BUILT_IN_PROFILES, PromptProfile, USER_PROFILE_ID_PREFIX } from '../constants/prompt-profiles';
-import { StorageService, StoredProfileMeta } from './storage.service';
+import { ProfileMetaRepository } from './storage/profile-meta.repository';
+import { StoredProfileMeta } from './storage/idb-bootstrap.service';
 
 /** init() must complete before any consumer that resolves a profile by id. */
 @Injectable({ providedIn: 'root' })
 export class PromptProfileRegistryService {
-    private storage = inject(StorageService);
+    private repo = inject(ProfileMetaRepository);
 
     private _profiles = signal<PromptProfile[]>([...BUILT_IN_PROFILES]);
     readonly profiles = this._profiles.asReadonly();
@@ -17,7 +18,7 @@ export class PromptProfileRegistryService {
     async init(): Promise<void> {
         if (this.initialized) return;
         try {
-            const metas = await this.storage.listProfileMeta();
+            const metas = await this.repo.list();
             const userProfiles = metas.map(metaToProfile);
             this._profiles.set([...BUILT_IN_PROFILES, ...userProfiles]);
         } catch (err) {

@@ -1,6 +1,8 @@
 import { Injectable, inject, signal, effect } from '@angular/core';
 import { GameStateService } from './game-state.service';
-import { StorageService } from './storage.service';
+import { BookRepository } from './storage/book.repository';
+import { FileRepository } from './storage/file.repository';
+import { ChatHistoryRepository } from './storage/chat-history.repository';
 import { FileSystemService } from './file-system.service';
 import { LLMProviderRegistryService } from './llm-provider-registry.service';
 import { CacheManagerService } from './cache-manager.service';
@@ -55,7 +57,9 @@ function migrateLegacyCorrection(raw: ChatMessage & { isCorrection?: boolean }):
 })
 export class SessionService {
     private state = inject(GameStateService);
-    private storage = inject(StorageService);
+    private books = inject(BookRepository);
+    private files = inject(FileRepository);
+    private chatRepo = inject(ChatHistoryRepository);
     private fileSystem = inject(FileSystemService);
     private providerRegistry = inject(LLMProviderRegistryService);
     private cacheManager = inject(CacheManagerService);
@@ -92,7 +96,7 @@ export class SessionService {
         const lastBookId = this.lastActiveBook.id();
         if (lastBookId) {
             try {
-                const book = await this.storage.getBook(lastBookId);
+                const book = await this.books.get(lastBookId);
                 if (book) {
                     console.log(`[SessionService] Auto-loading last book: ${book.name} (${lastBookId})`);
                     // autoSave=false: boot has no prior active book to save —
@@ -171,7 +175,7 @@ export class SessionService {
                     kbStorageUsageAcc: 0
                 }
             };
-            await this.storage.saveBook(newBook);
+            await this.books.save(newBook);
 
             console.log(`[SessionService] Storage cleared for new game (${scenarioId})`);
 
@@ -238,7 +242,7 @@ export class SessionService {
                 }
 
                 // Save to IndexedDB using the ACTUAL filename found
-                await this.storage.saveFile(filename, content);
+                await this.files.save(filename, content);
                 loadedMap.set(filename, content);
             }
 
@@ -246,8 +250,8 @@ export class SessionService {
             this.state.loadedFiles.set(loadedMap);
             this.state.messages.set([]);
             this.state.sunkUsageHistory.set([]); // Reset sunk usage history
-            await this.storage.set('chat_history', []);
-            await this.storage.set('sunk_usage_history', []); // Clear from IDB
+            await this.chatRepo.saveMessages([]);
+            await this.chatRepo.saveSunkUsage([]); // Clear from IDB
             this.isContextInjected = false;
 
             // Sync state
@@ -296,8 +300,8 @@ export class SessionService {
 
             // 1. Clear active-session IDB stores. prompt_store is intentionally
             // NOT cleared — prompts are app-global across book switches.
-            await this.storage.clear(); // chat_store
-            await this.storage.clearFiles(); // file_store
+            await this.chatRepo.deleteAll(); // chat_store
+            await this.files.clear(); // file_store
 
             // 2. Reset all signals and local state
             this.state.messages.set([]);
@@ -374,7 +378,7 @@ export class SessionService {
             }
         };
 
-        await this.storage.saveBook(book);
+        await this.books.save(book);
         console.log('[SessionService] Started empty session:', bookId);
     }
     async saveCurrentSessionToBook(opts?: { bumpTimestamp?: boolean }) {
@@ -431,7 +435,7 @@ export class SessionService {
         const lastParams = [...this.state.messages()].reverse().find(m => m.role === 'model')?.content?.substring(0, 100) || '...';
 
         // Read existing first so we can preserve identity fields (name, createdAt, collectionId)
-        const existing = await this.storage.getBook(bookId);
+        const existing = await this.books.get(bookId);
 
         const book: Book = {
             id: bookId,
@@ -468,7 +472,7 @@ export class SessionService {
             book.createdAt = existing.createdAt;
         }
 
-        await this.storage.saveBook(book);
+        await this.books.save(book);
         this.lastSavedAt.set(Date.now());
         console.log(`[SessionService] Book ${bookId} saved.`);
     }
@@ -487,7 +491,7 @@ export class SessionService {
         }
 
         // 2. Fetch target Book
-        const book = await this.storage.getBook(id);
+        const book = await this.books.get(id);
         if (!book) {
             throw new Error(`Book ${id} not found!`);
         }
@@ -498,12 +502,12 @@ export class SessionService {
             this.currentBookId.set(book.id);
 
             // Restore Files
-            await this.storage.clearFiles();
+            await this.files.clear();
             const filesMap = new Map<string, string>();
             const tokensMap = new Map<string, number>();
 
             for (const f of book.files) {
-                await this.storage.saveFile(f.name, f.content, f.tokens);
+                await this.files.save(f.name, f.content, f.tokens);
                 filesMap.set(f.name, f.content);
                 if (f.tokens) tokensMap.set(f.name, f.tokens);
             }
@@ -514,7 +518,7 @@ export class SessionService {
             // book switches and are no longer carried in the Book payload.
 
             // Restore Messages
-            await this.storage.clear(); // chat_store
+            await this.chatRepo.deleteAll(); // chat_store
             // Repair corrupted LaTeX in existing messages from older sessions
             const repairedMessages = book.messages.map(raw => {
                 const m = migrateLegacyCorrection(migrateIntent(raw));
@@ -534,7 +538,7 @@ export class SessionService {
                     })) || []
                 };
             });
-            await this.storage.set('chat_history', repairedMessages);
+            await this.chatRepo.saveMessages(repairedMessages);
             this.state.messages.set(repairedMessages);
             if (repairedMessages.length > 0) this.isContextInjected = true;
 
@@ -577,7 +581,7 @@ export class SessionService {
 
     async renameBook(id: string, newName: string) {
         if (!newName || !newName.trim()) return;
-        const book = await this.storage.getBook(id);
+        const book = await this.books.get(id);
         if (book) {
             book.name = newName.trim();
             // Bump lastActiveAt so cloud sync detects this as a newer record.
@@ -585,7 +589,7 @@ export class SessionService {
             // the upload phase (localTime stays equal to the previously synced
             // baseline, so the cross-clock newer-than check stays false).
             book.lastActiveAt = Date.now();
-            await this.storage.saveBook(book);
+            await this.books.save(book);
         }
     }
 
@@ -610,7 +614,7 @@ export class SessionService {
         await this.unloadCurrentSession(true);
 
         // 3. Update Old Book Name
-        const oldBook = await this.storage.getBook(currentId);
+        const oldBook = await this.books.get(currentId);
         if (!oldBook) return;
 
         oldBook.name = newNameForOldBook;
@@ -624,7 +628,7 @@ export class SessionService {
             // If really empty, we can't do much but warn.
         }
 
-        await this.storage.saveBook(oldBook);
+        await this.books.save(oldBook);
 
         // 4. Create NEW Book
         const newBookId = crypto.randomUUID();
@@ -666,7 +670,7 @@ export class SessionService {
             }
         };
 
-        await this.storage.saveBook(newBook);
+        await this.books.save(newBook);
 
         // Load the new book (rehydrate files)
         await this.loadBook(newBookId);
@@ -685,7 +689,7 @@ export class SessionService {
     async createSceneBook(name: string, files: Map<string, string>): Promise<string> {
         // Capture the active book's collection BEFORE unloading clears state.
         const sourceId = this.currentBookId();
-        const sourceBook = sourceId ? await this.storage.getBook(sourceId) : null;
+        const sourceBook = sourceId ? await this.books.get(sourceId) : null;
         const collectionId = sourceBook?.collectionId || ROOT_COLLECTION_ID;
 
         if (this.currentBookId()) {
@@ -723,7 +727,7 @@ export class SessionService {
             }
         };
 
-        await this.storage.saveBook(newBook);
+        await this.books.save(newBook);
         await this.loadBook(newBookId);
 
         // Files were saved without token counts; recount now so `Est. Cache Size`
@@ -740,14 +744,14 @@ export class SessionService {
         if (this.currentBookId() === id) {
             await this.unloadCurrentSession(false);
         }
-        await this.storage.deleteBook(id);
+        await this.books.delete(id);
     }
 
     async nukeAllCaches() {
         const count = await this.cacheManager.clearAllServerCaches();
         // Wipe stale cache metadata from every stored book so the active-cache
         // UI badge stops lying about books whose remote cache is now gone.
-        const books = await this.storage.getBooks();
+        const books = await this.books.list();
         for (const book of books) {
             const s = book.stats;
             if (s.kbCacheName || s.kbCacheExpireTime || s.kbCacheTokens || s.kbCacheHash) {
@@ -755,7 +759,7 @@ export class SessionService {
                 s.kbCacheExpireTime = null;
                 s.kbCacheTokens = 0;
                 s.kbCacheHash = null;
-                await this.storage.saveBook(book);
+                await this.books.save(book);
             }
         }
         return count;
@@ -796,7 +800,7 @@ export class SessionService {
         // Restore messages (apply same legacy migrations as the other load paths)
         const migrated = save.messages.map(m => migrateLegacyCorrection(migrateIntent(m)));
         this.state.messages.set(migrated);
-        await this.storage.set('chat_history', migrated);
+        await this.chatRepo.saveMessages(migrated);
 
         // Restore usage stats
         this.state.tokenUsage.set(save.tokenUsage);
@@ -881,7 +885,7 @@ export class SessionService {
      * Loads chat history from local persistent storage.
      */
     async loadHistoryFromStorage() {
-        const saved = await this.storage.get('chat_history');
+        const saved = await this.chatRepo.getMessages();
         if (saved && Array.isArray(saved)) {
             const migrated = saved.map(m => migrateLegacyCorrection(migrateIntent(m)));
             this.state.messages.set(migrated);
@@ -891,7 +895,7 @@ export class SessionService {
         }
 
         // Restore sunk usage history
-        const sunk = await this.storage.get('sunk_usage_history');
+        const sunk = await this.chatRepo.getSunkUsage();
         if (Array.isArray(sunk)) {
             this.state.sunkUsageHistory.set(sunk);
         }

@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { GameStateService } from './game-state.service';
-import { StorageService } from './storage.service';
+import { ChatHistoryRepository } from './storage/chat-history.repository';
 import { SessionService } from './session.service';
 import { ChatMessage, ExtendedPart } from '../models/types';
 
@@ -18,7 +18,7 @@ import { ChatMessage, ExtendedPart } from '../models/types';
 })
 export class ChatHistoryService {
     private state = inject(GameStateService);
-    private storage = inject(StorageService);
+    private repo = inject(ChatHistoryRepository);
     private session = inject(SessionService);
 
     /**
@@ -30,7 +30,7 @@ export class ChatHistoryService {
     updateMessages(updater: (prev: ChatMessage[]) => ChatMessage[]): Promise<void> {
         const newVal = updater(this.state.messages());
         this.state.messages.set(newVal);
-        return this.storage.set('chat_history', newVal);
+        return this.repo.saveMessages(newVal);
     }
 
     /**
@@ -202,8 +202,8 @@ export class ChatHistoryService {
         this.state.historyStorageUsageAccumulated.set(0);
         this.state.sunkUsageHistory.set([]);
 
-        await this.storage.delete('chat_history');
-        await this.storage.delete('sunk_usage_history');
+        await this.repo.deleteMessages();
+        await this.repo.deleteSunkUsage();
         await this.session.saveCurrentSessionToBook();
     }
 
@@ -238,7 +238,7 @@ export class ChatHistoryService {
         const newVal = [...this.state.sunkUsageHistory(), ...newUsages];
         this.state.sunkUsageHistory.set(newVal);
         try {
-            await this.storage.set('sunk_usage_history', newVal);
+            await this.repo.saveSunkUsage(newVal);
         } catch (e) {
             console.error('Failed to save sunk usage history to IDB', e);
         }

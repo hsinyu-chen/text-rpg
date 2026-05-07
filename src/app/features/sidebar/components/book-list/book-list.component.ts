@@ -6,7 +6,7 @@ import { MatListModule } from '@angular/material/list';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialog } from '@angular/material/dialog';
 import { SessionService } from '@app/core/services/session.service';
-import { StorageService } from '@app/core/services/storage.service';
+import { BookRepository } from '@app/core/services/storage/book.repository';
 import { GameEngineService } from '@app/core/services/game-engine.service';
 import { GameStateService } from '@app/core/services/game-state.service';
 import { CostService } from '@app/core/services/cost.service';
@@ -377,7 +377,7 @@ interface BookGroup {
 export class BookListComponent {
     engine = inject(GameEngineService);
     session = inject(SessionService);
-    storage = inject(StorageService);
+    bookRepo = inject(BookRepository);
     state = inject(GameStateService);
     costService = inject(CostService);
     providerRegistry = inject(LLMProviderRegistryService);
@@ -513,7 +513,7 @@ export class BookListComponent {
 
     async loadBooks() {
         await this.collectionService.load();
-        const list = await this.storage.getBooks();
+        const list = await this.bookRepo.list();
         console.log('[BookList] Loaded books:', list.length);
         this.books.set(list);
     }

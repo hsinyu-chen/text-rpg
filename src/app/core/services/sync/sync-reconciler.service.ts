@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
-import { StorageService } from '../storage.service';
+import { BookRepository } from '../storage/book.repository';
+import { CollectionRepository } from '../storage/collection.repository';
 import { Book, Collection, ROOT_COLLECTION_ID } from '@app/core/models/types';
 import {
     SyncBackend, SyncResource, SnapshotLocalPayload,
@@ -34,7 +35,8 @@ export interface ForcePullResult {
  */
 @Injectable({ providedIn: 'root' })
 export class SyncReconciler {
-    private storage = inject(StorageService);
+    private books = inject(BookRepository);
+    private collections = inject(CollectionRepository);
     private tombstones = inject(SyncTombstoneTracker);
 
     /**
@@ -50,8 +52,8 @@ export class SyncReconciler {
 
     private getLocalList(resource: SyncResource): Promise<(Book | Collection)[]> {
         return resource === 'book'
-            ? this.storage.getBooks()
-            : this.storage.getCollections();
+            ? this.books.list()
+            : this.collections.list();
     }
 
     async reconcileAll(backend: SyncBackend): Promise<ReconcileResult> {
@@ -153,9 +155,9 @@ export class SyncReconciler {
                 try {
                     if (resource === 'book') {
                         if (local.id === activeBookId) activeBookGone = true;
-                        await this.storage.deleteBook(local.id);
+                        await this.books.delete(local.id);
                     } else {
-                        await this.storage.deleteCollection(local.id);
+                        await this.collections.delete(local.id);
                     }
                     report.deletedLocal++;
                 } catch (e) {
@@ -192,8 +194,8 @@ export class SyncReconciler {
      */
     async collectLocalSnapshotPayload(): Promise<SnapshotLocalPayload> {
         const [books, collections] = await Promise.all([
-            this.storage.getBooks(),
-            this.storage.getCollections()
+            this.books.list(),
+            this.collections.list()
         ]);
         const bookEntries = books.map(b => {
             const cleaned = cleanBookForSync(b);
@@ -311,10 +313,10 @@ export class SyncReconciler {
             try {
                 if (local) {
                     if (resource === 'book') {
-                        await this.storage.deleteBook(tomb.id);
+                        await this.books.delete(tomb.id);
                         deletedBookIds.add(tomb.id);
                     } else {
-                        await this.storage.deleteCollection(tomb.id);
+                        await this.collections.delete(tomb.id);
                     }
                     localById.delete(tomb.id);
                     report.deleted++;
@@ -452,11 +454,11 @@ export class SyncReconciler {
     private async applyRemote(resource: SyncResource, json: string): Promise<Book | Collection> {
         if (resource === 'book') {
             const book = cleanBookForSync(JSON.parse(json));
-            await this.storage.saveBook(book);
+            await this.books.save(book);
             return book;
         }
         const collection = cleanCollectionForSync(JSON.parse(json));
-        await this.storage.saveCollection(collection);
+        await this.collections.save(collection);
         return collection;
     }
 }
