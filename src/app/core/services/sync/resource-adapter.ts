@@ -102,8 +102,10 @@ export class ResourceAdapterRegistry {
 export function groupByResource<T extends { resource: SyncResource }>(
     items: readonly T[]
 ): Record<SyncResource, T[]> {
-    return {
-        book: items.filter(t => t.resource === 'book'),
-        collection: items.filter(t => t.resource === 'collection')
+    const result: Record<SyncResource, T[]> = {
+        book: [],
+        collection: []
     };
+    for (const item of items) result[item.resource].push(item);
+    return result;
 }
