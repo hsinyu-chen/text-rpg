@@ -281,9 +281,10 @@ export class FileAgentService {
   }
 
   /**
-   * Orchestrator: setup → stream consume → parse → dispatch. Each phase
-   * is its own helper. Recurses on JSON parse retry, validator-driven
-   * submitResponse rejection, reportProgress, and tool-call execution.
+   * Orchestrator: setup → stream consume → parse → dispatch. Phase
+   * helpers (handleJsonParseError, handleSubmitResponse, executeSingleAction,
+   * executeBatchActions) re-enter via processAgentTurn for retries, validator
+   * rejection, reportProgress, and tool-call follow-up turns.
    */
   private async processAgentTurn(context: FileAgentContext, retryCount = 0): Promise<void> {
     const setup = this.setupTurn(context);
@@ -377,11 +378,7 @@ export class FileAgentService {
     return { profile, provider, mode, allowParallel, systemInstruction, genConfig };
   }
 
-  /**
-   * Append a fresh streaming model entry to the log and return the
-   * mutable per-turn context the stream consumer + dispatch helpers
-   * thread through.
-   */
+  /** Append a fresh streaming model entry; return the per-turn context. */
   private openTurnLogEntry(): TurnContext {
     let currentLogIndex = -1;
     this.agentLogs.update(logs => {
@@ -414,8 +411,6 @@ export class FileAgentService {
       let next: IteratorResult<AgentStreamEvent, AgentStreamResult> = await events.next();
       while (!next.done) {
         const ev = next.value;
-        // Single dispatch: handler map is keyed by event kind. Cast loses
-        // narrowing only at the call site; each handler narrows internally.
         (this.streamEventHandlers[ev.kind] as (e: AgentStreamEvent, c: TurnContext) => void)(ev, ctx);
         next = await events.next();
       }

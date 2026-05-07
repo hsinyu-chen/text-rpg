@@ -36,6 +36,11 @@ export class AgentCapabilityResolver {
         );
     }
 
+    private readonly activeProfile = computed<LLMConfig | null>(() => {
+        const id = this.deps.selectedProfileId();
+        return id ? this.deps.agentProfiles().find(p => p.id === id) ?? null : null;
+    });
+
     /** True iff 'auto' would resolve to native for the selected profile. */
     readonly effectiveToolCallModeIsNative = computed<boolean>(() => {
         const setting = this.toolCallMode();
@@ -56,14 +61,13 @@ export class AgentCapabilityResolver {
     /** True iff the selected profile is allowed to issue multiple tool calls per turn. */
     readonly effectiveSupportsParallelToolCalls = computed<boolean>(() => {
         if (!this.effectiveToolCallModeIsNative()) return false;
-        const id = this.deps.selectedProfileId();
-        const profile = id ? this.deps.agentProfiles().find(p => p.id === id) : null;
-        if (!profile || !id) return false;
+        const profile = this.activeProfile();
+        if (!profile) return false;
 
         const explicit = profile.settings.additionalSettings?.['supportsParallelToolCalls'];
         if (typeof explicit === 'boolean') return explicit;
 
-        const probed = this.parallelProbeResults()[id];
+        const probed = this.parallelProbeResults()[profile.id];
         if (typeof probed === 'boolean') return probed;
 
         const cap = this.deps.llmProviderRegistry.getProvider(profile.provider)?.getCapabilities(profile.settings);
@@ -78,14 +82,13 @@ export class AgentCapabilityResolver {
      *   no profile — nothing selected
      */
     private readonly resolvedAutoIsNative = computed<{ result: boolean; source: 'explicit' | 'probed' | 'default' | 'no profile' }>(() => {
-        const id = this.deps.selectedProfileId();
-        const profile = id ? this.deps.agentProfiles().find(p => p.id === id) : null;
-        if (!profile || !id) return { result: false, source: 'no profile' };
+        const profile = this.activeProfile();
+        if (!profile) return { result: false, source: 'no profile' };
 
         const explicit = readExplicitNativeFlag(profile.settings);
         if (explicit !== undefined) return { result: explicit, source: 'explicit' };
 
-        const probed = this.probeResults()[id];
+        const probed = this.probeResults()[profile.id];
         if (typeof probed === 'boolean') return { result: probed, source: 'probed' };
 
         const cap = this.deps.llmProviderRegistry.getProvider(profile.provider)?.getCapabilities(profile.settings);
@@ -120,9 +123,7 @@ export class AgentCapabilityResolver {
         if (readExplicitNativeFlag(profile.settings) === undefined && provider.probeNativeToolSupport) {
             try {
                 const result = await provider.probeNativeToolSupport(profile.settings);
-                if (this.deps.selectedProfileId() === profileId) {
-                    this.probeResults.update(r => ({ ...r, [profileId]: result }));
-                }
+                this.probeResults.update(r => ({ ...r, [profileId]: result }));
             } catch {
                 // Probe failures are non-fatal; fall back to defaults.
             }
@@ -132,9 +133,7 @@ export class AgentCapabilityResolver {
         if (typeof parallelExplicit !== 'boolean' && provider.probeParallelToolSupport) {
             try {
                 const result = await provider.probeParallelToolSupport(profile.settings);
-                if (this.deps.selectedProfileId() === profileId) {
-                    this.parallelProbeResults.update(r => ({ ...r, [profileId]: result }));
-                }
+                this.parallelProbeResults.update(r => ({ ...r, [profileId]: result }));
             } catch {
                 // Probe failures are non-fatal; fall back to defaults.
             }
