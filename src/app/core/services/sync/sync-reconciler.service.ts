@@ -84,11 +84,20 @@ export class SyncReconciler {
             // shouldn't keep haunting our entities. Then write fresh
             // tombstones below for entities we're deleting from the cloud
             // so other devices receive the message.
+            //
+            // Abort the resource if cleanup fails. Stale tombstones from
+            // other devices typically lose to our fresh upload's lastActiveAt
+            // (newer-wins), but if the user is force-pushing a restored-from-
+            // snapshot entity its lastActiveAt may be older than the stale
+            // tombstone's deletedAt — in which case other devices would
+            // delete it on next sync. Force-push is destructive on intent;
+            // failing loudly beats silent cross-device data loss.
             try {
                 await backend.clearTombstones(resource);
             } catch (e) {
-                console.error(`[Sync] forcePush: failed to clear tombstones for ${resource}`, e);
+                console.error(`[Sync] forcePush: failed to clear tombstones for ${resource}, aborting resource`, e);
                 report.errors.push({ resource, id: '', op: 'delete', message: errMsg(e) });
+                continue;
             }
 
             for (const remote of remoteList) {
