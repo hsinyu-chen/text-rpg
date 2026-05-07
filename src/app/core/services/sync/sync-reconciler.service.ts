@@ -22,6 +22,16 @@ export interface ForcePullResult {
 
 const RESOURCES: readonly SyncResource[] = ['collection', 'book'] as const;
 
+// Compile-time exhaustiveness: adding a new SyncResource forces this
+// Record literal to grow, which is a signal to update RESOURCES too.
+// Order in RESOURCES still matters (collection before book — root-collection
+// rebuild guard depends on it), so we keep them as separate declarations.
+const _RESOURCES_EXHAUSTIVE: Record<SyncResource, true> = {
+    book: true,
+    collection: true
+};
+void _RESOURCES_EXHAUSTIVE;
+
 /**
  * Pure sync reconciliation engine. Owns the newer-wins decision tree, the
  * tombstone two-phase apply, the drift self-heal loop, and the local ↔
