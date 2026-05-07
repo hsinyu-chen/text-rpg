@@ -321,6 +321,11 @@ export class FileSnapshotStore {
  * Reads a live entry body via FSA, returning null on file-not-found so the
  * snapshot pipeline can record a `source 404 mid-snapshot` skip rather than
  * aborting. Other read errors propagate.
+ *
+ * The "resource dir missing" branch (null from getDirIfExists) is
+ * unreachable from createSnapshotFromCloud because the immediately-
+ * preceding `ops.list(resource)` succeeded; included for defence-in-depth
+ * if a future caller invokes this without that precondition.
  */
 async function readLiveBody(
     deps: FileSnapshotStoreDeps, resource: SyncResource, id: string
