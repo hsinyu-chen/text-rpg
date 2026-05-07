@@ -300,7 +300,8 @@ export class SessionService {
 
             // 1. Clear active-session IDB stores. prompt_store is intentionally
             // NOT cleared — prompts are app-global across book switches.
-            await this.chatRepo.deleteAll(); // chat_store
+            await this.chatRepo.deleteMessages();
+            await this.chatRepo.deleteSunkUsage();
             await this.files.clear(); // file_store
 
             // 2. Reset all signals and local state
@@ -518,7 +519,8 @@ export class SessionService {
             // book switches and are no longer carried in the Book payload.
 
             // Restore Messages
-            await this.chatRepo.deleteAll(); // chat_store
+            await this.chatRepo.deleteMessages();
+            await this.chatRepo.deleteSunkUsage();
             // Repair corrupted LaTeX in existing messages from older sessions
             const repairedMessages = book.messages.map(raw => {
                 const m = migrateLegacyCorrection(migrateIntent(raw));

@@ -58,7 +58,7 @@ export class SyncDialogComponent {
         name: string;
         localContent: WritableSignal<string>;
         remoteContent: string;
-        status: string;
+        status: SyncItem['status'];
         selected: WritableSignal<boolean>;
     }[]>([]);
     isSyncing = signal(false);

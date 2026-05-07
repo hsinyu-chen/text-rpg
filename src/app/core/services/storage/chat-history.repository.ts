@@ -3,14 +3,10 @@ import { IdbBootstrap, IdbStore } from './idb-bootstrap.service';
 import { ChatMessage, StorageValue } from '../../models/types';
 
 /**
- * chat_store is a small KV bag. Two of its keys are chat-state:
- * `chat_history` (turn log) and `sunk_usage_history` (sunk usage stream).
- * The third key (`settings`) is owned by SettingsRepository so consumers
- * don't see chat / settings as the same domain.
- *
- * `deleteAll()` wipes the whole chat_store and is the safe path for
- * "clear chat" — settings live alongside but are re-snapshotted on the
- * next saveConfig.
+ * Two chat_store keys: `chat_history` (turn log) and `sunk_usage_history`
+ * (sunk usage stream). Callers that need to wipe both call `deleteMessages`
+ * and `deleteSunkUsage` explicitly — there is intentionally no `deleteAll`,
+ * because chat_store also holds rows owned by other domains.
  */
 @Injectable({ providedIn: 'root' })
 export class ChatHistoryRepository {
@@ -35,8 +31,4 @@ export class ChatHistoryRepository {
     }
 
     deleteSunkUsage(): Promise<void> { return this.store.delete('sunk_usage_history'); }
-
-    /** Wipes the whole chat_store — also clears the settings snapshot, which
-     * is fine because it gets re-written from AppConfigStore on the next save. */
-    deleteAll(): Promise<void> { return this.store.clear(); }
 }

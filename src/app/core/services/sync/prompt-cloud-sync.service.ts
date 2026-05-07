@@ -97,7 +97,7 @@ export class PromptCloudSyncService {
         profileId: string,
         opts: { onlyUserModified: boolean }
     ): Promise<Record<string, { content: string; tokens?: number }>> {
-        // Parallel: storage.getProfilePrompt is a local IDB read with no
+        // Parallel: prompts.getProfilePrompt is a local IDB read with no
         // remote rate limit, and the per-type fetches are independent.
         const results = await Promise.all(PROMPT_TYPES.map(async type => {
             if (opts.onlyUserModified) {
