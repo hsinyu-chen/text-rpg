@@ -133,7 +133,7 @@ export class NewGameDialogComponent {
     });
 
     constructor() {
-        this.init();
+        void this.init();
     }
 
     async init() {

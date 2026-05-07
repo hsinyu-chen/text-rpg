@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
-import { StorageService } from '../storage.service';
+import { PromptRepository } from '../storage/prompt.repository';
+import { ProfileMetaRepository } from '../storage/profile-meta.repository';
 import { ALL_PROMPT_TYPES, InjectionService, type PromptType } from '../injection.service';
 import { GameStateService } from '../game-state.service';
 import { PromptProfileRegistryService } from '../prompt-profile-registry.service';
@@ -38,7 +39,8 @@ const TYPE_FILENAME: Record<PromptType, string> = {
  */
 @Injectable({ providedIn: 'root' })
 export class DiskProfileSyncService {
-    private storage = inject(StorageService);
+    private prompts = inject(PromptRepository);
+    private profileMeta = inject(ProfileMetaRepository);
     private injection = inject(InjectionService);
     private state = inject(GameStateService);
     private registry = inject(PromptProfileRegistryService);
@@ -71,7 +73,7 @@ export class DiskProfileSyncService {
         await writeFileText(dir, ENVELOPE_FILENAME, JSON.stringify(envelope, null, 2));
 
         for (const type of ALL_PROMPT_TYPES) {
-            const row = await this.storage.getProfilePrompt(type, profile.id);
+            const row = await this.prompts.getProfilePrompt(type, profile.id);
             const content = row?.content ?? '';
             await writeFileText(dir, TYPE_FILENAME[type], content);
         }
@@ -99,7 +101,7 @@ export class DiskProfileSyncService {
                         createdAt: parsed.profile.createdAt || profile.createdAt || Date.now(),
                         updatedAt: Date.now()
                     };
-                    await this.storage.putProfileMeta(meta);
+                    await this.profileMeta.put(meta);
                     this.registry.update(profile.id, {
                         displayName: meta.displayName,
                         baseProfileId: meta.baseProfileId,
@@ -116,7 +118,7 @@ export class DiskProfileSyncService {
         for (const type of ALL_PROMPT_TYPES) {
             const text = await readFileText(dir, TYPE_FILENAME[type]);
             if (text === null) continue;
-            await this.storage.saveProfilePrompt(type, profile.id, text);
+            await this.prompts.saveProfilePrompt(type, profile.id, text);
             updatedTypes++;
         }
 

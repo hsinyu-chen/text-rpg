@@ -1,6 +1,6 @@
 import { inject, signal } from '@angular/core';
 import { WINDOW } from '@app/core/tokens/window.token';
-import { StorageService } from '../storage.service';
+import { DirHandleRepository } from '../storage/dir-handle.repository';
 
 export type FolderHandlePermissionState = 'unknown' | 'granted' | 'prompt' | 'denied';
 
@@ -25,7 +25,7 @@ export class FolderHandlePermissionDeniedError extends Error {
  * `requestPermission` can surface the prompt.
  */
 export abstract class FolderHandleBaseService {
-    protected readonly storage = inject(StorageService);
+    protected readonly handles = inject(DirHandleRepository);
     protected readonly win = inject(WINDOW);
     protected readonly handleKey: string;
 
@@ -41,7 +41,7 @@ export abstract class FolderHandleBaseService {
 
     private async restore(): Promise<void> {
         try {
-            const stored = await this.storage.getDirHandle(this.handleKey);
+            const stored = await this.handles.get(this.handleKey);
             if (!stored) {
                 this.handle.set(null);
                 this.permissionState.set('unknown');
@@ -65,7 +65,7 @@ export abstract class FolderHandleBaseService {
             );
         }
         const picked = await this.win.showDirectoryPicker({ mode: 'readwrite' });
-        await this.storage.setDirHandle(this.handleKey, picked);
+        await this.handles.set(this.handleKey, picked);
         this.handle.set(picked);
         this.permissionState.set('granted');
         return picked;
@@ -93,7 +93,7 @@ export abstract class FolderHandleBaseService {
 
     async clear(): Promise<void> {
         await this.restoredOnce;
-        await this.storage.clearDirHandle(this.handleKey);
+        await this.handles.delete(this.handleKey);
         this.handle.set(null);
         this.permissionState.set('unknown');
     }

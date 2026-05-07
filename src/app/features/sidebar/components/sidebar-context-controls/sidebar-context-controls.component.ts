@@ -40,7 +40,7 @@ export class SidebarContextControlsComponent {
     private matDialog = inject(MatDialog);
 
     startSession() {
-        this.engine.startSession();
+        void this.engine.startSession();
     }
 
     /**
@@ -65,7 +65,7 @@ export class SidebarContextControlsComponent {
             this.snackBar.open('Created next Act successfully.', 'OK', { duration: 3000 });
 
             // Initialize the story for the new act
-            this.engine.startSession();
+            await this.engine.startSession();
 
         } catch (e) {
             console.error('Failed to create next Act', e);
@@ -94,7 +94,7 @@ export class SidebarContextControlsComponent {
 
     async clearHistory() {
         if (await this.dialog.confirm('Are you sure you want to delete all chat history and restart?')) {
-            this.engine.clearHistory();
+            await this.engine.clearHistory();
         }
     }
 

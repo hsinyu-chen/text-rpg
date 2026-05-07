@@ -2,7 +2,7 @@ import { Injectable, inject, signal, computed } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { FileSystemWindow } from '../models/types';
-import { StorageService } from './storage.service';
+import { FileRepository } from './storage/file.repository';
 import { LOCALES } from '../constants/locales';
 import { FILENAME_MIGRATIONS } from '../constants/migrations';
 
@@ -15,7 +15,7 @@ export class FileSystemService {
     hasHandle = computed(() => !!this.directoryHandle());
 
     private http = inject(HttpClient);
-    private storage = inject(StorageService);
+    private files = inject(FileRepository);
 
 
     /**
@@ -56,7 +56,7 @@ export class FileSystemService {
             });
         });
 
-        await this.storage.clearFiles();
+        await this.files.clear();
         for (const filename of storyFiles) {
             // //MIGRATION CODE START - Try new filename first, fallback to legacy
             let fileHandle: FileSystemFileHandle | null = null;
@@ -81,7 +81,7 @@ export class FileSystemService {
                 const rawContent = await file.text();
                 const content = this.normalizeContent(rawContent);
                 // Always save with NEW filename
-                await this.storage.saveFile(filename, content);
+                await this.files.save(filename, content);
             } else {
                 console.warn(`Initial sync: ${filename} not found (checked legacy names too).`);
             }
@@ -135,7 +135,7 @@ export class FileSystemService {
         const files = new Map<string, { content: string, tokens?: number }>();
 
         // Load story files from DB
-        const dbFiles = await this.storage.getAllFiles();
+        const dbFiles = await this.files.list();
         if (dbFiles && dbFiles.length > 0) {
             dbFiles.forEach(f => {
                 files.set(f.name, { content: f.content, tokens: f.tokens });
@@ -159,7 +159,7 @@ export class FileSystemService {
      * @returns A list of files and their difference status.
      */
     async compareStorageToDisk(handle: FileSystemDirectoryHandle): Promise<{ name: string, dbContent: string, diskContent: string, status: 'changed' | 'identical' | 'new_in_db' | 'new_on_disk' }[]> {
-        const dbFiles = await this.storage.getAllFiles();
+        const dbFiles = await this.files.list();
         const results: { name: string, dbContent: string, diskContent: string, status: 'changed' | 'identical' | 'new_in_db' | 'new_on_disk' }[] = [];
 
         // Aggregate known story files from all locales
@@ -204,7 +204,7 @@ export class FileSystemService {
      * Reads a file. Strictly from DB.
      */
     async readTextFile(filename: string): Promise<string> {
-        const fromDb = await this.storage.getFile(filename);
+        const fromDb = await this.files.get(filename);
         if (fromDb) return fromDb.content;
         throw new Error(`File ${filename} not found in database.`);
     }
@@ -213,7 +213,7 @@ export class FileSystemService {
      * Writes content to a file. Strictly to DB.
      */
     async writeTextFile(filename: string, content: string): Promise<void> {
-        await this.storage.saveFile(filename, content);
+        await this.files.save(filename, content);
     }
 
     /**

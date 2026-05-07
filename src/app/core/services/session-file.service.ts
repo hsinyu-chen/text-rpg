@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { GameStateService } from './game-state.service';
-import { StorageService } from './storage.service';
+import { FileRepository } from './storage/file.repository';
 import { FileSystemService } from './file-system.service';
 import { LLMProviderRegistryService } from './llm-provider-registry.service';
 import { LLMProvider, LLMProviderConfig } from '@hcs/llm-core';
@@ -25,7 +25,7 @@ import { KnowledgeService } from './knowledge.service';
 })
 export class SessionFileService {
     private state = inject(GameStateService);
-    private storage = inject(StorageService);
+    private files = inject(FileRepository);
     private fileSystem = inject(FileSystemService);
     private providerRegistry = inject(LLMProviderRegistryService);
     private cacheManager = inject(CacheManagerService);
@@ -125,7 +125,7 @@ export class SessionFileService {
             await Promise.all(needsCount.map(async (item) => {
                 const count = await this.countFileTokens(item.content, modelId);
                 tokenMap.set(item.name, count);
-                await this.storage.saveFile(item.name, item.content, count);
+                await this.files.save(item.name, item.content, count);
             }));
         }
 
@@ -159,14 +159,14 @@ export class SessionFileService {
      * Caller is responsible for re-running `loadFilesIntoState` after.
      */
     async writeFilesToStorage(files: Map<string, string>): Promise<void> {
-        await this.storage.clearFiles();
+        await this.files.clear();
         // IDB writes have no remote rate limit (unlike LLM countTokens), so
         // parallel is safe and meaningfully faster on bulk imports. Both
         // path-suffixes are blocked to match writeSingleFile's guard —
         // prompts live in prompt_store, not file_store.
         const writes = Array.from(files.entries())
             .filter(([name]) => name !== 'system_files/system_prompt.md' && name !== 'system_prompt.md')
-            .map(([name, content]) => this.storage.saveFile(name, content));
+            .map(([name, content]) => this.files.save(name, content));
         await Promise.all(writes);
     }
 
@@ -183,7 +183,7 @@ export class SessionFileService {
 
         const modelId = this.providerRegistry.getActiveModelId();
         const count = await this.countFileTokens(content, modelId);
-        await this.storage.saveFile(filePath, content, count);
+        await this.files.save(filePath, content, count);
 
         this.state.loadedFiles.update(map => {
             const newMap = new Map(map);

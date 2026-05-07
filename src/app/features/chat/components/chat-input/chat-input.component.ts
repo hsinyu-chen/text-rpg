@@ -175,7 +175,7 @@ export class ChatInputComponent {
         const kEv = event as KeyboardEvent;
         if (kEv.key === 'Enter' && (kEv.ctrlKey || kEv.metaKey)) {
             kEv.preventDefault();
-            this.sendMessage();
+            void this.sendMessage();
         }
     }
 
@@ -226,7 +226,7 @@ export class ChatInputComponent {
             ? this.userIdealOutcome().trim() || undefined
             : undefined;
         console.log('[ChatInput] Calling engine.sendMessage with intent:', intent, 'content:', msgContent.substring(0, 50));
-        this.engine.sendMessage(msgContent, { intent, userIdealOutcome: idealOutcome });
+        void this.engine.sendMessage(msgContent, { intent, userIdealOutcome: idealOutcome });
         console.log('[ChatInput] engine.sendMessage called, intent was:', intent);
 
         // Reset

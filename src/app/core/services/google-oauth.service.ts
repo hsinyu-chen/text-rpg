@@ -269,7 +269,7 @@ export class GoogleOAuthService {
         }
 
         if (!localStorage.getItem('gdrive_user_email')) {
-            this.fetchAndSaveUserEmail(token);
+            void this.fetchAndSaveUserEmail(token);
         }
 
         this.scheduleAutoRefresh(expiresInSeconds);
@@ -440,20 +440,20 @@ export class GoogleOAuthService {
                 };
 
                 // Standard Tauri v2 event
-                listen<string>('oauth://url', (event) => {
+                void listen<string>('oauth://url', (event) => {
                     console.log('[GoogleOAuth] Received oauth://url:', event.payload);
                     cleanup();
                     resolve(event.payload);
                 }).then(u => unlistenUrl = u);
 
                 // Custom / legacy event names
-                listen<string>('oauth://payload', (event) => {
+                void listen<string>('oauth://payload', (event) => {
                     console.log('[GoogleOAuth] Received oauth://payload:', event.payload);
                     cleanup();
                     resolve(event.payload);
                 }).then(u => unlistenPayload = u);
 
-                listen<string>('oauth-response', (event) => {
+                void listen<string>('oauth-response', (event) => {
                     console.log('[GoogleOAuth] Received oauth-response:', event.payload);
                     cleanup();
                     resolve(event.payload);

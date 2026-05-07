@@ -1,20 +1,22 @@
 import { Injectable, inject, signal } from '@angular/core';
-import { StorageService } from './storage.service';
+import { BookRepository } from './storage/book.repository';
+import { CollectionRepository } from './storage/collection.repository';
 import { Collection, ROOT_COLLECTION_ID, Scenario } from '../models/types';
 
 @Injectable({ providedIn: 'root' })
 export class CollectionService {
-    private storage = inject(StorageService);
+    private books = inject(BookRepository);
+    private repo = inject(CollectionRepository);
 
     collections = signal<Collection[]>([]);
 
     async load(): Promise<void> {
-        const list = await this.storage.getCollections();
+        const list = await this.repo.list();
         this.collections.set(list.sort((a, b) => a.createdAt - b.createdAt));
     }
 
     async ensureRoot(): Promise<Collection> {
-        const existing = await this.storage.getCollection(ROOT_COLLECTION_ID);
+        const existing = await this.repo.get(ROOT_COLLECTION_ID);
         if (existing) return existing;
         const root: Collection = {
             id: ROOT_COLLECTION_ID,
@@ -22,7 +24,7 @@ export class CollectionService {
             createdAt: Date.now(),
             updatedAt: Date.now()
         };
-        await this.storage.saveCollection(root);
+        await this.repo.save(root);
         return root;
     }
 
@@ -33,7 +35,7 @@ export class CollectionService {
             createdAt: Date.now(),
             updatedAt: Date.now()
         };
-        await this.storage.saveCollection(c);
+        await this.repo.save(c);
         await this.load();
         return c;
     }
@@ -42,11 +44,11 @@ export class CollectionService {
         if (id === ROOT_COLLECTION_ID) {
             throw new Error('Root collection cannot be renamed.');
         }
-        const c = await this.storage.getCollection(id);
+        const c = await this.repo.get(id);
         if (!c) return;
         c.name = newName.trim() || c.name;
         c.updatedAt = Date.now();
-        await this.storage.saveCollection(c);
+        await this.repo.save(c);
         await this.load();
     }
 
@@ -58,12 +60,12 @@ export class CollectionService {
         if (id === ROOT_COLLECTION_ID) {
             throw new Error('Root collection cannot be deleted.');
         }
-        const books = await this.storage.getBooks();
+        const books = await this.books.list();
         const occupied = books.some(b => b.collectionId === id);
         if (occupied) {
             throw new Error('Collection is not empty. Move or delete its books first.');
         }
-        await this.storage.deleteCollection(id);
+        await this.repo.delete(id);
         await this.load();
     }
 
@@ -85,14 +87,14 @@ export class CollectionService {
      * Reassigns a book to another collection. The target must exist.
      */
     async moveBook(bookId: string, targetCollectionId: string): Promise<void> {
-        const target = await this.storage.getCollection(targetCollectionId);
+        const target = await this.repo.get(targetCollectionId);
         if (!target) throw new Error('Target collection does not exist.');
-        const book = await this.storage.getBook(bookId);
+        const book = await this.books.get(bookId);
         if (!book) throw new Error(`Book ${bookId} not found.`);
         if (book.collectionId === targetCollectionId) return;
         book.collectionId = targetCollectionId;
         // Bump lastActiveAt so cloud sync detects this as a newer record.
         book.lastActiveAt = Date.now();
-        await this.storage.saveBook(book);
+        await this.books.save(book);
     }
 }

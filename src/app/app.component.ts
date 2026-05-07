@@ -104,15 +104,15 @@ export class AppComponent {
 
     const migrationService = inject(MigrationService);
     this.syncProviderInit.initialize();
-    migrationService.runMigrations()
+    void migrationService.runMigrations()
       .then(() => this.providerInit.initialize())
-      .then(() => {
-        this.engine.init();
+      .then(async () => {
+        await this.engine.init();
         // Boot sync runs in parallel with session.init: first paint stays fast,
         // and SyncService internally silent-reloads the active book if remote was newer.
         // Failures are logged inside bootSync; we don't block startup on them.
         void this.sync.bootSync();
-        return this.session.init();
+        await this.session.init();
       })
       // loadFiles must run AFTER session.init() resolves — it reads file_store
       // and writes state.loadedFiles + saves the active book. Running it in
@@ -195,7 +195,7 @@ export class AppComponent {
         this.win.location.reload();
       }
     }).catch(() => { /* dismissed without action */ });
-    firstValueFrom(ref.afterDismissed()).then(() => {
+    void firstValueFrom(ref.afterDismissed()).then(() => {
       if (this.appUpdateSnackRef === ref) this.appUpdateSnackRef = null;
     });
   }
@@ -215,7 +215,7 @@ export class AppComponent {
         this.sync.remoteUpdateAvailable.set(null);
       }
     }).catch(() => { /* dismissed without action */ });
-    firstValueFrom(ref.afterDismissed()).then(() => {
+    void firstValueFrom(ref.afterDismissed()).then(() => {
       if (this.remoteUpdateSnackRef === ref) this.remoteUpdateSnackRef = null;
       this.sync.remoteUpdateAvailable.set(null);
     });
@@ -240,7 +240,7 @@ export class AppComponent {
   toggleBookList() {
     this.bookListOpen.update(v => !v);
     if (this.bookListOpen() && this.bookList()) {
-      this.bookList()!.loadBooks();
+      void this.bookList()!.loadBooks();
     }
   }
 

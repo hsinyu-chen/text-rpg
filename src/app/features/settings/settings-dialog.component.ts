@@ -162,7 +162,7 @@ export class SettingsDialogComponent {
     });
   }
 
-  save(): void {
+  async save(): Promise<void> {
     const pickedId = this.selectedProfileId();
     if (pickedId && pickedId !== this.llmConfig.activeProfileId()) {
       this.providerRegistry.setActiveProfile(pickedId);
@@ -181,7 +181,7 @@ export class SettingsDialogComponent {
       outputLanguage: this.outputLanguage() === 'custom' ? this.customOutputLanguage() : this.outputLanguage()
     };
 
-    this.engine.saveConfig(commonConfig);
+    await this.engine.saveConfig(commonConfig);
 
     if (this.isDev) {
       this.bridge.setUrl(this.debugBridgeUrl().trim());

@@ -1,5 +1,5 @@
 import { Injectable, inject, signal } from '@angular/core';
-import { StorageService } from '../storage.service';
+import { BookRepository } from '../storage/book.repository';
 import { SessionService } from '../session.service';
 import { CollectionService } from '../collection.service';
 import { GameStateService } from '../game-state.service';
@@ -28,7 +28,7 @@ export interface RemoteUpdateAvailable {
  */
 @Injectable({ providedIn: 'root' })
 export class SyncService {
-    private storage = inject(StorageService);
+    private books = inject(BookRepository);
     private session = inject(SessionService);
     private collections = inject(CollectionService);
     private state = inject(GameStateService);
@@ -166,7 +166,7 @@ export class SyncService {
         const promise = fn();
         const slot = { kind, promise };
         this.inFlight = slot;
-        promise.finally(() => {
+        void promise.finally(() => {
             if (this.inFlight === slot) this.inFlight = null;
         });
         return promise;
@@ -209,7 +209,7 @@ export class SyncService {
                 console.log(`[SyncService] Post-sync: silent reload of active book ${currentId}`);
                 await this.session.loadBook(currentId, false);
             } else {
-                const remote = await this.storage.getBook(currentId);
+                const remote = await this.books.get(currentId);
                 this.remoteUpdateAvailable.set({
                     bookId: currentId,
                     remoteModifiedAt: remote?.lastActiveAt ?? Date.now()
@@ -290,7 +290,7 @@ export class SyncService {
      * the auto-save that would otherwise re-create the deleted book.
      */
     private async fallbackToNextAvailableBook(): Promise<void> {
-        const remaining = await this.storage.getBooks();
+        const remaining = await this.books.list();
         if (remaining.length > 0) {
             const sorted = [...remaining].sort((a, b) => b.lastActiveAt - a.lastActiveAt);
             await this.session.loadBook(sorted[0].id, false);

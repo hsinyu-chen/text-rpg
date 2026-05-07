@@ -2,7 +2,8 @@ import { Injectable, inject } from '@angular/core';
 import { GameStateService } from './game-state.service';
 import { INJECTION_FILE_PATHS } from '../constants/engine-protocol';
 import { getLocale, getLangFolder } from '../constants/locales';
-import { StorageService } from './storage.service';
+import { PromptRepository } from './storage/prompt.repository';
+import { ProfileMetaRepository } from './storage/profile-meta.repository';
 import { getProfileBasePath, getProfileScopedKey, DEFAULT_PROFILE_ID, PromptProfile } from '../constants/prompt-profiles';
 import { PromptProfileRegistryService } from './prompt-profile-registry.service';
 import { ActiveProfileStore } from './active-profile-store';
@@ -25,7 +26,8 @@ const OPTIONAL_PROMPT_TYPES: ReadonlySet<PromptType> = new Set(['protocol_single
 })
 export class InjectionService {
     private state = inject(GameStateService);
-    private storage = inject(StorageService);
+    private prompts = inject(PromptRepository);
+    private profileMeta = inject(ProfileMetaRepository);
     private registry = inject(PromptProfileRegistryService);
     private activeProfileStore = inject(ActiveProfileStore);
     private appConfig = inject(AppConfigStore);
@@ -127,17 +129,17 @@ export class InjectionService {
                 const seeded = await this.seedBuiltInAssetToIdb(type, langFolder, lang, current.id);
                 if (seeded !== null) return seeded;
                 // disk fetch failed — fall back to the (possibly stale) IDB row
-                const row = await this.storage.getProfilePrompt(type, current.id);
+                const row = await this.prompts.getProfilePrompt(type, current.id);
                 if (row?.content !== undefined) return row.content;
             } else {
-                const row = await this.storage.getProfilePrompt(type, current.id);
+                const row = await this.prompts.getProfilePrompt(type, current.id);
                 if (row?.content !== undefined) return row.content;
             }
 
             if (!current.baseProfileId) break;
             current = this.registry.get(current.baseProfileId);
         }
-        const cloudRow = await this.storage.getProfilePrompt(type, DEFAULT_PROFILE_ID);
+        const cloudRow = await this.prompts.getProfilePrompt(type, DEFAULT_PROFILE_ID);
         return cloudRow?.content ?? '';
     }
 
@@ -152,9 +154,9 @@ export class InjectionService {
             // Skip the IDB write when content matches — without this guard,
             // every read-side caller (compat checks, profile listing) would
             // perform a write on every invocation.
-            const existing = await this.storage.getProfilePrompt(type, profileId);
+            const existing = await this.prompts.getProfilePrompt(type, profileId);
             if (!existing || existing.content !== processed) {
-                await this.storage.saveProfilePrompt(type, profileId, processed);
+                await this.prompts.saveProfilePrompt(type, profileId, processed);
             }
             return processed;
         } catch (err) {
@@ -173,7 +175,7 @@ export class InjectionService {
         if (profile?.isBuiltIn) {
             throw new Error('Cannot save to a built-in profile. Clone it first.');
         }
-        await this.storage.saveProfilePrompt(type, this.profileId, content);
+        await this.prompts.saveProfilePrompt(type, this.profileId, content);
         this.markAsModified(type);
 
         this.setSignalContent(type, content);
@@ -190,7 +192,7 @@ export class InjectionService {
         if (applyUpdate) {
             this.setSignalContent(type, status.serverContent);
             localStorage.setItem(this.lsKey(`prompt_user_modified_${type}`), 'false');
-            await this.storage.saveProfilePrompt(type, this.profileId, status.serverContent);
+            await this.prompts.saveProfilePrompt(type, this.profileId, status.serverContent);
         }
 
         const newHash = this.hashString(this.normalizeLineEndings(status.serverContent));
@@ -296,14 +298,14 @@ export class InjectionService {
 
             updateStatusMap.set(type.id, { hasUpdate, serverContent: processedServerContent });
 
-            let dbRecord = await this.storage.getProfilePrompt(type.id, currentProfile);
+            let dbRecord = await this.prompts.getProfilePrompt(type.id, currentProfile);
 
             // Pre-IDB customizations were stored in localStorage; migrate on read.
             if (!dbRecord && type.legacyKey && currentProfile === DEFAULT_PROFILE_ID) {
                 const legacyContent = localStorage.getItem(type.legacyKey);
                 if (legacyContent) {
                     console.log(`[InjectionService] Migrating ${type.id} from localStorage to IndexedDB`);
-                    await this.storage.saveProfilePrompt(type.id, currentProfile, legacyContent);
+                    await this.prompts.saveProfilePrompt(type.id, currentProfile, legacyContent);
                     dbRecord = { content: legacyContent, lastModified: Date.now() };
                     localStorage.removeItem(type.legacyKey);
                 }
@@ -322,7 +324,7 @@ export class InjectionService {
                 // surface stale content — which broke per-profile compat checks
                 // after the @system-main-version marker was added).
                 if (!dbRecord || dbRecord.content !== processedServerContent) {
-                    await this.storage.saveProfilePrompt(type.id, currentProfile, processedServerContent);
+                    await this.prompts.saveProfilePrompt(type.id, currentProfile, processedServerContent);
                 }
             }
         }
@@ -393,7 +395,7 @@ export class InjectionService {
         const langFolder = getLangFolder(lang);
 
         for (const type of this.ALL_TYPES) {
-            let row = await this.storage.getProfilePrompt(type, sourceId);
+            let row = await this.prompts.getProfilePrompt(type, sourceId);
 
             // Non-active built-ins haven't been seeded to IDB; pull the asset on demand.
             if (!row && source.isBuiltIn) {
@@ -402,7 +404,7 @@ export class InjectionService {
             }
 
             if (row) {
-                await this.storage.saveProfilePrompt(type, newId, row.content, row.tokens);
+                await this.prompts.saveProfilePrompt(type, newId, row.content, row.tokens);
             }
         }
 
@@ -423,7 +425,7 @@ export class InjectionService {
             createdAt: now,
             updatedAt: now
         };
-        await this.storage.putProfileMeta(meta);
+        await this.profileMeta.put(meta);
         this.registry.add({
             id: newId,
             isBuiltIn: false,
@@ -442,10 +444,10 @@ export class InjectionService {
         if (!profile) throw new Error(`Unknown profile: ${id}`);
         if (profile.isBuiltIn) throw new Error('Cannot rename a built-in profile');
 
-        const meta = await this.storage.getProfileMeta(id);
+        const meta = await this.profileMeta.get(id);
         if (!meta) throw new Error(`Missing meta for profile: ${id}`);
         const updated = { ...meta, displayName, updatedAt: Date.now() };
-        await this.storage.putProfileMeta(updated);
+        await this.profileMeta.put(updated);
         this.registry.update(id, { displayName, updatedAt: updated.updatedAt });
     }
 
@@ -455,13 +457,13 @@ export class InjectionService {
         if (!profile) return;
         if (profile.isBuiltIn) throw new Error('Cannot delete a built-in profile');
 
-        await this.storage.deleteAllProfilePrompts(id);
+        await this.prompts.deleteAllForProfile(id);
         for (const type of this.ALL_TYPES) {
             for (const baseKey of [`prompt_user_modified_${type}`, `prompt_last_server_hash_${type}`]) {
                 localStorage.removeItem(getProfileScopedKey(baseKey, id));
             }
         }
-        await this.storage.deleteProfileMeta(id);
+        await this.profileMeta.delete(id);
         this.registry.remove(id);
     }
 

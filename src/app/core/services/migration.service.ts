@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
-import { StorageService } from './storage.service';
+import { BookRepository } from './storage/book.repository';
+import { FileRepository } from './storage/file.repository';
 import { CollectionService } from './collection.service';
 import { ROOT_COLLECTION_ID } from '../models/types';
 import { FILENAME_MIGRATIONS } from '../constants/migrations';
@@ -12,7 +13,8 @@ import { FILENAME_MIGRATIONS } from '../constants/migrations';
     providedIn: 'root'
 })
 export class MigrationService {
-    private storage = inject(StorageService);
+    private books = inject(BookRepository);
+    private files = inject(FileRepository);
     private collections = inject(CollectionService);
 
     async runMigrations(): Promise<void> {
@@ -77,12 +79,12 @@ export class MigrationService {
     private async migrateBookCollections(): Promise<void> {
         await this.collections.ensureRoot();
 
-        const books = await this.storage.getBooks();
+        const books = await this.books.list();
         let updated = 0;
         for (const book of books) {
             if (!book.collectionId) {
                 book.collectionId = ROOT_COLLECTION_ID;
-                await this.storage.saveBook(book);
+                await this.books.save(book);
                 updated++;
             }
         }
@@ -101,17 +103,17 @@ export class MigrationService {
      */
     private async migrateFilenames(): Promise<void> {
         for (const [oldName, newName] of Object.entries(FILENAME_MIGRATIONS)) {
-            const oldFile = await this.storage.getFile(oldName);
+            const oldFile = await this.files.get(oldName);
             if (oldFile) {
                 // Check if new file already exists
-                const newFile = await this.storage.getFile(newName);
+                const newFile = await this.files.get(newName);
                 if (!newFile) {
                     // Migrate: save with new name, delete old
-                    await this.storage.saveFile(newName, oldFile.content, oldFile.tokens);
+                    await this.files.save(newName, oldFile.content, oldFile.tokens);
                     console.log(`[MigrationService] Renamed: ${oldName} → ${newName}`);
                 }
                 // Always delete old file after migration attempt
-                await this.storage.deleteFile(oldName);
+                await this.files.delete(oldName);
             }
         }
     }

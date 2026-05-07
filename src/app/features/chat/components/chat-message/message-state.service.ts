@@ -92,17 +92,17 @@ export class MessageStateService {
     toggleRefExpanded() { this.isRefExpanded.update(v => !v); }
 
     toggleRefOnly() {
-        this.engine.toggleRefOnly(this.message().id);
+        void this.engine.toggleRefOnly(this.message().id);
     }
 
     async deleteMessage() {
         const ok = await this.dialog.confirm('Delete this message?');
-        if (ok) this.engine.deleteMessage(this.message().id);
+        if (ok) await this.engine.deleteMessage(this.message().id);
     }
 
     async deleteMessageAndFollowing() {
         const ok = await this.dialog.confirm('Delete this and ALL following messages? (Irreversible)');
-        if (ok) this.engine.deleteFrom(this.message().id);
+        if (ok) await this.engine.deleteFrom(this.message().id);
     }
 
     enterEditMode() {
@@ -125,7 +125,7 @@ export class MessageStateService {
 
         const updates = this.updateService.parseUpdates(msg.content);
         if (updates.length === 0) {
-            this.dialog.alert('No file updates found in this message.');
+            await this.dialog.alert('No file updates found in this message.');
             return;
         }
 
@@ -149,7 +149,7 @@ export class MessageStateService {
     triggerSaveFlow() {
         const placeholders = getInputPlaceholders(this.appConfig.outputLanguage());
         this.gameState.contextMode.set('full');
-        this.engine.sendMessage(placeholders.SAVE, { intent: GAME_INTENTS.SAVE });
+        void this.engine.sendMessage(placeholders.SAVE, { intent: GAME_INTENTS.SAVE });
         this.gameState.contextMode.set('smart');
     }
 
@@ -189,7 +189,7 @@ export class MessageStateService {
 
         items.push('New Item');
         const engineType = type === 'inv' ? 'inventory' : type === 'quest' ? 'quest' : type === 'world' ? 'world' : 'character';
-        this.engine.updateMessageLogs(this.message().id, engineType, items);
+        void this.engine.updateMessageLogs(this.message().id, engineType, items);
 
         const idx = items.length - 1;
         this.startLogEdit(type, idx, 'New Item', true);
@@ -223,7 +223,7 @@ export class MessageStateService {
                 const parts = currentKey.split('|');
                 const type = parts[1] as 'inv' | 'quest' | 'world' | 'char';
                 const index = parseInt(parts[2], 10);
-                this.deleteLogItem(type, index);
+                void this.deleteLogItem(type, index);
             }
             this.isAddingNew = false;
         }
