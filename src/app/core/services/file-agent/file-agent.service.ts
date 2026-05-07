@@ -420,14 +420,12 @@ export class FileAgentService {
             this.generatedChunkCount.set(ev.chunkCount);
             if (ev.tokenCount !== undefined) this.generatedTokenCount.set(ev.tokenCount);
             if (ev.promptProgress !== undefined) this.promptProgress.set(ev.promptProgress);
-            // Mirror inline pre-refactor: text/functionCall chunks always
-            // wipe prompt-progress, even if the same chunk also reported a
-            // promptProgress value above. The order matters when both arrive
-            // together — clear wins.
+            // When promptProgress AND text/functionCall arrive in the same
+            // chunk, the clear wins — keeps the prompt bar from lingering
+            // during tool-call streaming on throttled-heartbeat chunks.
             if (ev.clearPromptProgress) this.promptProgress.set(undefined);
             break;
           case 'thought':
-            this.promptProgress.set(undefined);
             accumulatedThought = ev.accumulatedThought;
             this.agentLogs.update(logs => {
               const out = [...logs];
@@ -438,7 +436,6 @@ export class FileAgentService {
             });
             break;
           case 'text':
-            this.promptProgress.set(undefined);
             accumulatedText = ev.accumulatedText;
             this.agentLogs.update(logs => {
               const out = [...logs];
@@ -452,7 +449,6 @@ export class FileAgentService {
             if (ev.collapseThought) hasCollapsedThought = true;
             break;
           case 'tool-heartbeat': {
-            this.promptProgress.set(undefined);
             const names = ev.toolNames.join(', ');
             const countStr = ev.tokenCount > 0
               ? `${ev.tokenCount} tokens`
@@ -476,10 +472,10 @@ export class FileAgentService {
         next = await events.next();
       }
 
+      // accumulatedText / accumulatedThought / hasCollapsedThought are
+      // already in sync via the per-event mirror above; only the tool-call
+      // arrays need pulling from the generator's return value.
       const result = next.value;
-      accumulatedText = result.accumulatedText;
-      accumulatedThought = result.accumulatedThought;
-      hasCollapsedThought = result.hasCollapsedThought;
       nativeFunctionCalls = result.nativeFunctionCalls;
       nativeFunctionCallParts = result.nativeFunctionCallParts;
 
