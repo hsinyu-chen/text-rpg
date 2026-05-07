@@ -17,7 +17,7 @@ import type { TurnEngine } from './turn-engines/turn-engine.interface';
 import { InjectionService } from './injection.service';
 import { StreamProcessResult } from './stream-processor.service';
 
-import { ChatMessage, SessionSave, Scenario } from '../models/types';
+import { SessionSave, Scenario } from '../models/types';
 import { GAME_INTENTS, STORY_INTENTS } from '../constants/game-intents';
 import { getUIStrings } from '../constants/engine-protocol';
 import { DEFAULT_PROFILE_ID } from '../constants/prompt-profiles';
@@ -489,7 +489,4 @@ export class GameEngineService {
         this.stopGeneration();
         await this.chatHistory.clearHistory();
     }
-
-    /** Internal use by callers that need the raw chat-history mutator (e.g. test bridges). */
-    updateMessages(updater: (prev: ChatMessage[]) => ChatMessage[]) { this.chatHistory.updateMessages(updater); }
 }

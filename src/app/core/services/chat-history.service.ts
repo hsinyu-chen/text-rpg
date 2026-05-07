@@ -128,8 +128,8 @@ export class ChatHistoryService {
     async deleteMessages(ids: string[]) {
         if (ids.length === 0) return;
         const idSet = new Set(ids);
+        const removed: ChatMessage[] = [];
         this.updateMessages(prev => {
-            const removed: ChatMessage[] = [];
             const remaining = prev.filter(m => {
                 if (idSet.has(m.id)) {
                     removed.push(m);
@@ -137,11 +137,11 @@ export class ChatHistoryService {
                 }
                 return true;
             });
-            if (removed.length > 0) {
-                this.accumulateSunkUsage(this.calculateSunkUsage(removed));
-            }
             return remaining;
         });
+        if (removed.length > 0) {
+            this.accumulateSunkUsage(this.calculateSunkUsage(removed));
+        }
         await this.session.saveCurrentSessionToBook();
     }
 
