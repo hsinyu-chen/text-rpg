@@ -1,10 +1,10 @@
-<h2 mat-dialog-title class="dialog-title" [class.cloud-mode]="data.mode === 'CLOUD'">
-    <mat-icon>{{ icon }}</mat-icon>
-    {{ title }}
+<h2 mat-dialog-title class="dialog-title">
+    <mat-icon>sync</mat-icon>
+    Sync to Local Folder
 </h2>
 <mat-dialog-content>
     <div class="description">
-        Review changes between your local session and {{ targetName }}.
+        Review changes between your local session and Disk.
     </div>
 
     @if (syncItems().length > 0) {
@@ -44,7 +44,7 @@
     @if (isSyncing()) {
     <div class="loading-overlay">
         <mat-progress-spinner mode="indeterminate" diameter="48"></mat-progress-spinner>
-        <span>Syncing to {{ targetName }}...</span>
+        <span>Syncing to Disk...</span>
     </div>
     }
 </mat-dialog-content>

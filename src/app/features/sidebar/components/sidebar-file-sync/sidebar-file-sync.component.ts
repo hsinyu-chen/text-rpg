@@ -90,7 +90,6 @@ export class SidebarFileSyncComponent {
             }));
 
             const dialogData: SyncDialogData = {
-                mode: 'DISK',
                 items,
                 diskHandle: handle
             };

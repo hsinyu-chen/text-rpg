@@ -9,28 +9,22 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { FormsModule } from '@angular/forms';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { FileSystemService } from '@app/core/services/file-system.service';
-import { GoogleDriveService } from '@app/core/services/google-drive.service';
 import { GameEngineService } from '@app/core/services/game-engine.service';
 
 import { CacheManagerService } from '@app/core/services/cache-manager.service';
 import { MonacoEditorComponent } from '../monaco-editor/monaco-editor.component';
 
-export type SyncMode = 'DISK' | 'CLOUD';
-
 export interface SyncItem {
     name: string;
     localContent: string;
     remoteContent: string;
-    status: 'changed' | 'identical' | 'new_in_db' | 'new_on_disk' | 'new_in_cloud' | 'upload' | 'download' | 'conflict';
+    status: 'changed' | 'identical' | 'new_in_db' | 'new_on_disk';
     selected: boolean;
-    fileId?: string;
 }
 
 export interface SyncDialogData {
-    mode: SyncMode;
     items: SyncItem[];
-    diskHandle?: FileSystemDirectoryHandle;
-    parentId?: string;
+    diskHandle: FileSystemDirectoryHandle;
 }
 
 @Component({
@@ -56,7 +50,6 @@ export class SyncDialogComponent {
 
     private snackBar = inject(MatSnackBar);
     private fileSystem = inject(FileSystemService);
-    private driveService = inject(GoogleDriveService);
     private cacheManager = inject(CacheManagerService);
 
     private engine = inject(GameEngineService);
@@ -67,12 +60,9 @@ export class SyncDialogComponent {
         remoteContent: string;
         status: string;
         selected: WritableSignal<boolean>;
-        fileId?: string;
     }[]>([]);
     isSyncing = signal(false);
     currentTabIndex = signal(0);
-
-
 
     constructor() {
         this.syncItems.set(this.data.items.map(i => ({
@@ -80,20 +70,6 @@ export class SyncDialogComponent {
             localContent: signal(i.localContent),
             selected: signal(i.status !== 'identical')
         })));
-    }
-
-
-
-    get title(): string {
-        return this.data.mode === 'DISK' ? 'Sync to Local Folder' : 'Sync to Google Drive';
-    }
-
-    get icon(): string {
-        return this.data.mode === 'DISK' ? 'sync' : 'cloud_sync';
-    }
-
-    get targetName(): string {
-        return this.data.mode === 'DISK' ? 'Disk' : 'Drive';
     }
 
     currentItem = computed(() => this.syncItems()[this.currentTabIndex()]);
@@ -122,28 +98,11 @@ export class SyncDialogComponent {
                 await this.engine.updateSingleFile(item.name, item.localContent());
             }
 
-            // 2. Update Target (Disk or Cloud)
-            if (this.data.mode === 'DISK') {
-                if (!this.data.diskHandle) throw new Error('No disk handle provided');
-
-                for (const item of selectedItems) {
-                    await this.fileSystem.writeToDiskHandle(this.data.diskHandle, item.name, item.localContent());
-                }
-                this.snackBar.open(`Successfully synced ${selectedItems.length} files to Disk and DB.`, 'OK', { duration: 3000 });
-            } else { // CLOUD
-                if (!this.data.parentId) throw new Error('No parent ID provided');
-
-                let count = 0;
-                for (const item of selectedItems) {
-                    if (item.fileId) {
-                        await this.driveService.updateFile(item.fileId, item.localContent());
-                    } else {
-                        await this.driveService.createFile(this.data.parentId, item.name, item.localContent());
-                    }
-                    count++;
-                }
-                this.snackBar.open(`Successfully synced ${count} files to Drive and DB.`, 'OK', { duration: 3000 });
+            // 2. Mirror to Disk
+            for (const item of selectedItems) {
+                await this.fileSystem.writeToDiskHandle(this.data.diskHandle, item.name, item.localContent());
             }
+            this.snackBar.open(`Successfully synced ${selectedItems.length} files to Disk and DB.`, 'OK', { duration: 3000 });
 
             // [Added] Clear remote cache since files have changed
             await this.cacheManager.clearAllServerCaches();
