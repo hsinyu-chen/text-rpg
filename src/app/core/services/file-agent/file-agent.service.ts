@@ -8,6 +8,7 @@ import { buildSystemInstruction } from './file-agent-prompts';
 import { executeFileTool } from './file-agent-tool-executor';
 import { WorldCompletionValidator } from './world-completion-validator';
 import { sanitizeLatexToUnicode } from '@app/core/utils/latex.util';
+import { processAgentStream, AgentStreamEvent, AgentStreamResult } from './agent-stream-processor';
 
 export type { FileAgentContext, ToolCallMode } from './file-agent.types';
 
@@ -404,105 +405,86 @@ export class FileAgentService {
     let accumulatedText = '';
     let accumulatedThought = '';
     let hasCollapsedThought = false;
-    const nativeFunctionCalls: LLMFunctionCall[] = [];
-    const nativeFunctionCallParts: LLMPart[] = [];
-
-    // Native-mode tool-call streaming heartbeat. Without this the user sees a
-    // blank streaming entry while the provider assembles the functionCall
-    // (which can take several seconds for large content writes). Show the
-    // tool name on the first functionCall chunk, then throttle subsequent
-    // updates so a chunk-count "heartbeat" reassures the user the model is
-    // still progressing — provider-agnostic since we only count chunks.
-    let firstFunctionCallSeen = false;
-    let lastToolCallRenderAt = 0;
-    const TOOL_CALL_HEARTBEAT_INTERVAL_MS = 100;
+    let nativeFunctionCalls: LLMFunctionCall[] = [];
+    let nativeFunctionCallParts: LLMPart[] = [];
 
     this.promptProgress.set(undefined);
 
     try {
-      for await (const chunk of stream) {
-        this.generatedChunkCount.update(c => c + 1);
-        if (chunk.usageMetadata?.promptProgress !== undefined) {
-          this.promptProgress.set(chunk.usageMetadata.promptProgress);
-        }
-        if (chunk.usageMetadata?.candidates !== undefined) {
-          this.generatedTokenCount.set(chunk.usageMetadata.candidates);
-        } else {
-          const legacyMetadata = chunk.usageMetadata as { candidatesTokenCount?: number } | undefined;
-          if (legacyMetadata?.candidatesTokenCount !== undefined) {
-            this.generatedTokenCount.set(legacyMetadata.candidatesTokenCount);
-          }
-        }
-        if (chunk.functionCall) {
-          this.promptProgress.set(undefined);
-          // Collect every tool call when the model supports parallel calls;
-          // otherwise keep only the first to preserve single-tool semantics.
-          if (allowParallel || nativeFunctionCalls.length === 0) {
-            nativeFunctionCalls.push(chunk.functionCall);
-            // Store as LLMPart to preserve all stream metadata (e.g. thoughtSignature)
-            nativeFunctionCallParts.push({ functionCall: chunk.functionCall, thoughtSignature: chunk.thoughtSignature });
-          }
-          const isFirst = !firstFunctionCallSeen;
-          const now = Date.now();
-          if (isFirst || now - lastToolCallRenderAt >= TOOL_CALL_HEARTBEAT_INTERVAL_MS) {
-            firstFunctionCallSeen = true;
-            lastToolCallRenderAt = now;
-            const names = nativeFunctionCalls.map(fc => fc.name).join(', ');
-            const countStr = this.generatedTokenCount() > 0 
-              ? `${this.generatedTokenCount()} tokens` 
-              : `${this.generatedChunkCount()} chunks`;
-            const heartbeat = isFirst
+      const events = processAgentStream(stream, { allowParallel });
+      let next: IteratorResult<AgentStreamEvent, AgentStreamResult> = await events.next();
+      while (!next.done) {
+        const ev = next.value;
+        switch (ev.kind) {
+          case 'progress':
+            this.generatedChunkCount.set(ev.chunkCount);
+            if (ev.tokenCount !== undefined) this.generatedTokenCount.set(ev.tokenCount);
+            if (ev.promptProgress !== undefined) this.promptProgress.set(ev.promptProgress);
+            break;
+          case 'thought':
+            this.promptProgress.set(undefined);
+            accumulatedThought = ev.accumulatedThought;
+            this.agentLogs.update(logs => {
+              const out = [...logs];
+              if (out[currentLogIndex]) {
+                out[currentLogIndex] = { ...out[currentLogIndex], thought: accumulatedThought };
+              }
+              return out;
+            });
+            break;
+          case 'text':
+            this.promptProgress.set(undefined);
+            accumulatedText = ev.accumulatedText;
+            this.agentLogs.update(logs => {
+              const out = [...logs];
+              if (out[currentLogIndex]) {
+                const entry = { ...out[currentLogIndex], text: accumulatedText };
+                if (ev.collapseThought) entry.isThoughtCollapsed = true;
+                out[currentLogIndex] = entry;
+              }
+              return out;
+            });
+            if (ev.collapseThought) hasCollapsedThought = true;
+            break;
+          case 'tool-heartbeat': {
+            this.promptProgress.set(undefined);
+            const names = ev.toolNames.join(', ');
+            const countStr = ev.tokenCount > 0
+              ? `${ev.tokenCount} tokens`
+              : `${ev.chunkCount} chunks`;
+            const heartbeat = ev.isFirst
               ? `Preparing tool: ${names}…`
               : `Preparing tool: ${names}… (${countStr} received)`;
             this.agentLogs.update(logs => {
-              const next = [...logs];
-              if (next[currentLogIndex]) {
-                const text = accumulatedText.trim() 
-                  ? `${accumulatedText.trim()}\n\n${heartbeat}` 
+              const out = [...logs];
+              if (out[currentLogIndex]) {
+                const text = accumulatedText.trim()
+                  ? `${accumulatedText.trim()}\n\n${heartbeat}`
                   : heartbeat;
-                next[currentLogIndex] = { ...next[currentLogIndex], text };
+                out[currentLogIndex] = { ...out[currentLogIndex], text };
               }
-              return next;
+              return out;
             });
-          }
-          continue;
-        }
-        if (chunk.text) {
-          this.promptProgress.set(undefined);
-          if (chunk.thought) {
-            accumulatedThought += chunk.text;
-            this.agentLogs.update(logs => {
-              const next = [...logs];
-              if (next[currentLogIndex]) {
-                next[currentLogIndex] = { ...next[currentLogIndex], thought: accumulatedThought };
-              }
-              return next;
-            });
-          } else {
-            accumulatedText += chunk.text;
-            this.agentLogs.update(logs => {
-              const next = [...logs];
-              if (next[currentLogIndex]) {
-                const entry = { ...next[currentLogIndex], text: accumulatedText };
-                if (accumulatedThought && !hasCollapsedThought) {
-                  entry.isThoughtCollapsed = true;
-                }
-                next[currentLogIndex] = entry;
-              }
-              return next;
-            });
-            hasCollapsedThought = true;
+            break;
           }
         }
+        next = await events.next();
       }
+
+      const result = next.value;
+      accumulatedText = result.accumulatedText;
+      accumulatedThought = result.accumulatedThought;
+      hasCollapsedThought = result.hasCollapsedThought;
+      nativeFunctionCalls = result.nativeFunctionCalls;
+      nativeFunctionCallParts = result.nativeFunctionCallParts;
 
       if (accumulatedThought && !hasCollapsedThought) {
         this.agentLogs.update(logs => {
-          const next = [...logs];
-          if (next[currentLogIndex]) {
-            next[currentLogIndex] = { ...next[currentLogIndex], isThoughtCollapsed: true };
+          const out = [...logs];
+          if (out[currentLogIndex]) {
+            out[currentLogIndex] = { ...out[currentLogIndex], isThoughtCollapsed: true };
           }
-          return next;
+          return out;
         });
       }
     } catch (e) {
