@@ -72,7 +72,7 @@ export class SyncBackendResolver {
     /**
      * Per-backend auto-sync preference. Backends with
      * `supportsBackgroundSync = false` (currently File and GDrive)
-     * always read as false regardless of any stale localStorage value —
+     * always read as false regardless of any stale KVStore value —
      * the UI never offers the toggle for them.
      */
     private loadAutoFlags(): Record<SyncBackendId, boolean> {
