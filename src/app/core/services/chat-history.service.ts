@@ -124,20 +124,15 @@ export class ChatHistoryService {
     async deleteMessages(ids: string[]) {
         if (ids.length === 0) return;
         const idSet = new Set(ids);
+        const current = this.state.messages();
         const removed: ChatMessage[] = [];
-        this.updateMessages(prev => {
-            const remaining = prev.filter(m => {
-                if (idSet.has(m.id)) {
-                    removed.push(m);
-                    return false;
-                }
-                return true;
-            });
-            return remaining;
-        });
-        if (removed.length > 0) {
-            this.accumulateSunkUsage(this.calculateSunkUsage(removed));
+        const remaining: ChatMessage[] = [];
+        for (const m of current) {
+            (idSet.has(m.id) ? removed : remaining).push(m);
         }
+        if (removed.length === 0) return;
+        this.updateMessages(() => remaining);
+        this.accumulateSunkUsage(this.calculateSunkUsage(removed));
         await this.session.saveCurrentSessionToBook();
     }
 

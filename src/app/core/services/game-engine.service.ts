@@ -356,8 +356,11 @@ export class GameEngineService {
         });
         // Persist the error message to the Book so it survives reload — the
         // chat-history IDB store alone isn't the source of truth on session
-        // load. Fire-and-forget; save failures here are non-fatal.
-        void this.session.saveCurrentSessionToBook();
+        // load. Fire-and-forget; log on failure so silent IDB / quota errors
+        // are at least visible in the console.
+        this.session.saveCurrentSessionToBook().catch(err => {
+            console.error('[GameEngine] saveCurrentSessionToBook in error path failed:', err);
+        });
     }
 
     /**
