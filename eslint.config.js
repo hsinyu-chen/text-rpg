@@ -71,7 +71,7 @@ module.exports = defineConfig([
         },
         {
           "name": "localStorage",
-          "message": "Inject KVStore (from app/core/services/kv/kv-store) instead of using the localStorage global. The only allowed exceptions are LocalStorageKVStore itself and one-shot legacy migrations that iterate by length/key — those require an inline eslint-disable with justification."
+          "message": "Inject KVStore (from app/core/services/kv/kv-store) instead of using the localStorage global. The only allowed exceptions are LocalStorageKVStore itself and pre-KVStore legacy-key migrations (e.g. MigrationService.purgeLegacyLocalStorageKeys) — those require an inline eslint-disable with justification."
         }
       ],
       "no-restricted-syntax": [

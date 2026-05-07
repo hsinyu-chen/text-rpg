@@ -302,14 +302,19 @@ export class InjectionService {
 
             let dbRecord = await this.prompts.getProfilePrompt(type.id, currentProfile);
 
-            // Pre-IDB customizations were stored under the legacy key; migrate on read.
+            // Pre-IDB customizations were stored in raw localStorage; migrate on read.
+            // Talks to localStorage directly, matching MigrationService.purgeLegacyLocalStorageKeys —
+            // these keys pre-date KVStore, and if KVStore's backend ever moves off localStorage
+            // the read must still hit the raw global or the migration silently misses old user data.
             if (!dbRecord && type.legacyKey && currentProfile === DEFAULT_PROFILE_ID) {
-                const legacyContent = this.kv.get(type.legacyKey);
+                // eslint-disable-next-line no-restricted-globals -- see comment above
+                const legacyContent = localStorage.getItem(type.legacyKey);
                 if (legacyContent) {
-                    console.log(`[InjectionService] Migrating ${type.id} from KV to IndexedDB`);
+                    console.log(`[InjectionService] Migrating ${type.id} from localStorage to IndexedDB`);
                     await this.prompts.saveProfilePrompt(type.id, currentProfile, legacyContent);
                     dbRecord = { content: legacyContent, lastModified: Date.now() };
-                    this.kv.remove(type.legacyKey);
+                    // eslint-disable-next-line no-restricted-globals
+                    localStorage.removeItem(type.legacyKey);
                 }
             }
 
