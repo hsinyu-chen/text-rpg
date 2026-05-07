@@ -238,7 +238,7 @@ export class ChatReplaceDialogComponent {
         return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     }
 
-    replaceAll() {
+    async replaceAll() {
         const matches = this.searchResource.value();
         if (!matches || matches.length === 0) return;
 
@@ -279,7 +279,7 @@ export class ChatReplaceDialogComponent {
             updatedMessages[idx] = msg;
         });
 
-        this.history.updateMessages(() => updatedMessages);
+        await this.history.commitMessages(updatedMessages);
         this.snackBar.open(this.lang.t('REPLACE_COUNT', { count: matches.length.toString() }), 'OK', { duration: 3000 });
         this.searchResource.reload();
     }

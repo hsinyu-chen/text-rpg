@@ -57,6 +57,16 @@ export class ChatHistoryService {
         );
     }
 
+    /**
+     * Replace the chat history with a freshly-prepared array (e.g. find-and-
+     * replace dialog). Goes through the lockstep tail so chat_history IDB
+     * AND Book stay in sync — direct callers of `updateMessages` would only
+     * write the IDB store and lose the changes on reload.
+     */
+    async commitMessages(messages: ChatMessage[]): Promise<void> {
+        await this.commitFieldUpdate(() => messages);
+    }
+
     private replaceLastTextPart(parts: ExtendedPart[] | undefined, newText: string): ExtendedPart[] {
         if (!parts || parts.length === 0) return [{ text: newText }];
         // Walk from the end for the last visible text part — thought parts and
