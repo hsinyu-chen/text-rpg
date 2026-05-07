@@ -8,7 +8,9 @@ import { buildSystemInstruction } from './file-agent-prompts';
 import { executeFileTool } from './file-agent-tool-executor';
 import { WorldCompletionValidator } from './world-completion-validator';
 import { sanitizeLatexToUnicode } from '@app/core/utils/latex.util';
-import { processAgentStream, AgentStreamEvent, AgentStreamResult } from './agent-stream-processor';
+import {
+  processAgentStream, AgentStreamEvent, AgentStreamResult, AgentStreamChunk
+} from './agent-stream-processor';
 import { AgentCapabilityResolver } from './agent-capability-resolver';
 
 /**
@@ -403,7 +405,7 @@ export class FileAgentService {
    * threw (in which case the error has already been logged).
    */
   private async consumeStream(
-    stream: AsyncIterable<Parameters<typeof processAgentStream>[0] extends AsyncIterable<infer C> ? C : never>,
+    stream: AsyncIterable<AgentStreamChunk>,
     allowParallel: boolean,
     ctx: TurnContext
   ): Promise<AgentStreamResult | null> {
@@ -460,12 +462,9 @@ export class FileAgentService {
   private async handleJsonParseError(
     context: FileAgentContext, retryCount: number, ctx: TurnContext
   ): Promise<void> {
-    const modelParts: LLMPart[] = [];
-    if (ctx.accumulatedThought) modelParts.push({ text: ctx.accumulatedThought, thought: true });
-    if (ctx.accumulatedText) modelParts.push({ text: ctx.accumulatedText });
-    if (modelParts.length > 0) {
-      this.agentHistory.update(h => [...h, { role: 'model', parts: modelParts }]);
-    }
+    // Persist what the model wrote so the retry sees its own output. JSON
+    // mode has no native function-call parts, so this delegates cleanly.
+    this.appendModelTurnToHistory('json', ctx);
 
     if (retryCount >= 3) {
       this.agentLogs.update(logs => [...logs, { role: 'system', text: 'Error parsing JSON response from model after 3 retries. Agent stopped.', type: 'error' }]);
@@ -503,7 +502,8 @@ export class FileAgentService {
       }
     }
 
-    const toolMsg = ((finishCall.args as unknown as Record<string, unknown>)['message'] as string) || '';
+    // finishCall.action === 'submitResponse' narrows args to SubmitResponseArgs.
+    const toolMsg = (finishCall.action === 'submitResponse' ? (finishCall.args.message ?? '') : '');
     // Merge commentary and tool message when both exist and differ.
     const finalMsg = (ctx.accumulatedText.trim() && toolMsg.trim() && ctx.accumulatedText.trim() !== toolMsg.trim())
       ? `${ctx.accumulatedText.trim()}\n\n${toolMsg.trim()}`
@@ -523,7 +523,7 @@ export class FileAgentService {
     a: ParsedAction, context: FileAgentContext, mode: 'native' | 'json', ctx: TurnContext
   ): Promise<void> {
     if (a.action === 'reportProgress') {
-      const message = (a.args as unknown as { message?: string }).message || '';
+      const message = a.args.message || '';
       this.updateLogAt(ctx.currentLogIndex, e => ({ ...e, text: message, isToolCall: false }));
       this.appendToolResults([{ action: a, response: { status: 'acknowledged' } }], mode);
       await this.processAgentTurn(context);
@@ -573,7 +573,7 @@ export class FileAgentService {
 
     for (const a of actions) {
       if (a.action === 'reportProgress') {
-        const message = (a.args as unknown as { message?: string }).message || '';
+        const message = a.args.message || '';
         this.agentLogs.update(logs => [...logs, { role: 'model', text: message, type: 'model' as const }]);
         executed.push({ action: a, response: { status: 'acknowledged' } });
         continue;
