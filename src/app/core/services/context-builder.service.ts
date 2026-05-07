@@ -653,15 +653,15 @@ export class ContextBuilderService {
         }
 
         const tags = getIntentTags(lang);
+        const intentTagMap: Record<string, string> = {
+            [GAME_INTENTS.ACTION]: tags.ACTION,
+            [GAME_INTENTS.CONTINUE]: tags.CONTINUE,
+            [GAME_INTENTS.FAST_FORWARD]: tags.FAST_FORWARD,
+            [GAME_INTENTS.SYSTEM]: tags.SYSTEM,
+            [GAME_INTENTS.SAVE]: tags.SAVE,
+        };
         let userInput = lastMsg.parts[0].text;
-        let tag = '';
-        switch (currentIntent) {
-            case GAME_INTENTS.ACTION: tag = tags.ACTION; break;
-            case GAME_INTENTS.CONTINUE: tag = tags.CONTINUE; break;
-            case GAME_INTENTS.FAST_FORWARD: tag = tags.FAST_FORWARD; break;
-            case GAME_INTENTS.SYSTEM: tag = tags.SYSTEM; break;
-            case GAME_INTENTS.SAVE: tag = tags.SAVE; break;
-        }
+        const tag = intentTagMap[currentIntent] ?? '';
         if (tag && !userInput.trim().startsWith(tag)) {
             userInput = tag + userInput;
         }
