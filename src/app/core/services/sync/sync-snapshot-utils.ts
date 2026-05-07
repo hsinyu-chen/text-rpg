@@ -107,6 +107,21 @@ export interface BuildManifestArgs {
 
 export function buildManifest(args: BuildManifestArgs): SnapshotManifest {
     const { snapshotId, meta, bookEntries, collectionEntries, tombstoneEntries, skipped } = args;
+
+    // Entries arrive in completion order from the parallel pool, which means
+    // the same input set produces a different manifest each run. Sort by id
+    // (resource+id for tombstones / skipped) so snapshots are reproducible
+    // and byte-comparable across devices for debugging.
+    const sortById = (a: { id: string }, b: { id: string }) => a.id.localeCompare(b.id);
+    const sortByResId = (
+        a: { resource: SyncResource; id: string },
+        b: { resource: SyncResource; id: string }
+    ) => (a.resource + '/' + a.id).localeCompare(b.resource + '/' + b.id);
+    bookEntries.sort(sortById);
+    collectionEntries.sort(sortById);
+    tombstoneEntries.sort(sortByResId);
+    skipped.sort(sortByResId);
+
     const sizeBytes = sumSizes(bookEntries) + sumSizes(collectionEntries);
     return {
         id: snapshotId,
