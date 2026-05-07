@@ -2,6 +2,23 @@ export type SyncBackendId = 'gdrive' | 's3' | 'file';
 
 export type SyncResource = 'book' | 'collection';
 
+export interface SyncError {
+    resource: SyncResource;
+    id: string;
+    op: 'upload' | 'download' | 'delete' | 'list';
+    message: string;
+}
+
+export interface SyncReport {
+    uploaded: number;
+    downloaded: number;
+    deleted: number;
+    errors: SyncError[];
+}
+
+export interface ForcePushReport { uploaded: number; deletedRemote: number; errors: SyncError[]; }
+export interface ForcePullReport { downloaded: number; deletedLocal: number; errors: SyncError[]; }
+
 export interface Tombstone {
     id: string;
     /**
