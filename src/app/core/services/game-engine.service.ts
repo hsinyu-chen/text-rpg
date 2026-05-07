@@ -478,7 +478,12 @@ export class GameEngineService {
     deleteFrom(id: string) { return this.chatHistory.deleteFrom(id); }
     rewindTo(messageId: string) { return this.chatHistory.rewindTo(messageId); }
     toggleRefOnly(id: string) { return this.chatHistory.toggleRefOnly(id); }
-    clearHistory() { return this.chatHistory.clearHistory(); }
+    async clearHistory() {
+        await this.chatHistory.clearHistory();
+        // Engine status flip belongs at the orchestration layer, not in
+        // ChatHistoryService — this rescues a clear-during-generation race.
+        this.state.status.set('idle');
+    }
 
     /** Internal use by callers that need the raw chat-history mutator (e.g. test bridges). */
     updateMessages(updater: (prev: ChatMessage[]) => ChatMessage[]) { this.chatHistory.updateMessages(updater); }

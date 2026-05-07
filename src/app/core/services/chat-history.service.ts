@@ -219,7 +219,6 @@ export class ChatHistoryService {
 
         await this.storage.delete('chat_history');
         await this.storage.delete('sunk_usage_history');
-        this.state.status.set('idle');
         await this.session.saveCurrentSessionToBook();
     }
 
