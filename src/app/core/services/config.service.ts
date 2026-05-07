@@ -34,15 +34,21 @@ export class ConfigService {
 
         // Sync CSS Variables with Config. Reads both font signals in one
         // effect — setStyle is idempotent, so re-applying the unchanged
-        // value when its sibling fires is a no-op.
+        // value when its sibling fires is a no-op. Falsy → removeStyle so a
+        // user clearing the override actually reverts to the stylesheet
+        // default instead of stranding the last value on body.
         effect(() => {
             const fs = this.appConfig.fontSize();
             const ff = this.appConfig.fontFamily();
             if (fs) {
                 this.renderer.setStyle(this.doc.body, '--app-font-size', `${fs}px`, RendererStyleFlags2.DashCase);
+            } else {
+                this.renderer.removeStyle(this.doc.body, '--app-font-size', RendererStyleFlags2.DashCase);
             }
             if (ff) {
                 this.renderer.setStyle(this.doc.body, '--app-font-family', ff, RendererStyleFlags2.DashCase);
+            } else {
+                this.renderer.removeStyle(this.doc.body, '--app-font-family', RendererStyleFlags2.DashCase);
             }
         });
     }
