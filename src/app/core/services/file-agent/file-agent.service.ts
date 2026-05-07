@@ -227,7 +227,6 @@ export class FileAgentService {
   selectProfile(profileId: string): void {
     this.selectedProfileId.set(profileId);
     this.capability.syncToolCallModeForProfile(profileId);
-    void this.capability.kickToolSupportProbe(profileId);
   }
 
   clearHistory(): void {
