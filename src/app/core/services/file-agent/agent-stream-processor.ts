@@ -106,7 +106,7 @@ export async function* processAgentStream(
             chunkCount,
             tokenCount: chunkTokenCount,
             promptProgress: usage?.promptProgress,
-            clearPromptProgress: !!chunk.functionCall || !!chunk.text
+            clearPromptProgress: !!chunk.functionCall || chunk.text !== undefined
         };
 
         if (chunk.functionCall) {
