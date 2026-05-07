@@ -122,9 +122,9 @@ export class TurnCommitService {
      *      corrective story model so Layer 1 stateUpdates keeps propagating
      *      the rule going forward.
      */
-    commitModelMessage(turn: TurnContext, result: StreamProcessResult, correction: CorrectionState): void {
+    async commitModelMessage(turn: TurnContext, result: StreamProcessResult, correction: CorrectionState): Promise<void> {
         const resendOpts = !correction.isCorrection ? turn.options?.isCorrectionResend : undefined;
-        this.chatHistory.updateMessages(prev => prev.map((m, i) => {
+        await this.chatHistory.updateMessages(prev => prev.map((m, i) => {
             const isLast = i === prev.length - 1;
             if (isLast && m.role === 'model') {
                 return this.buildCommittedModelMessage(m, turn, result, correction, resendOpts);

@@ -23,12 +23,14 @@ export class ChatHistoryService {
 
     /**
      * Updates the chat history state and persists it to local storage.
-     * @param updater Functional update to the message list.
+     * Returns the persistence promise so callers that need lockstep with the
+     * subsequent book save can await it. Fire-and-forget callers (e.g. the
+     * engine's stream-chunk updater) may ignore the return value.
      */
-    updateMessages(updater: (prev: ChatMessage[]) => ChatMessage[]) {
+    updateMessages(updater: (prev: ChatMessage[]) => ChatMessage[]): Promise<void> {
         const newVal = updater(this.state.messages());
         this.state.messages.set(newVal);
-        this.storage.set('chat_history', newVal);
+        return this.storage.set('chat_history', newVal);
     }
 
     /**
@@ -37,7 +39,7 @@ export class ChatHistoryService {
      * over `content` when both exist) reflects the edit.
      */
     async updateMessageContent(id: string, newContent: string) {
-        this.updateMessages(msgs =>
+        await this.updateMessages(msgs =>
             msgs.map(m => {
                 if (m.id !== id) return m;
                 return { ...m, content: newContent, parts: this.replaceLastTextPart(m.parts, newContent) };
@@ -66,7 +68,7 @@ export class ChatHistoryService {
      * Updates the logs (inventory, quest, world or character) of a specific message by ID.
      */
     async updateMessageLogs(id: string, type: 'inventory' | 'quest' | 'world' | 'character', logs: string[]) {
-        this.updateMessages(msgs =>
+        await this.updateMessages(msgs =>
             msgs.map(m => {
                 if (m.id === id) {
                     const updates: Partial<ChatMessage> = {};
@@ -82,41 +84,31 @@ export class ChatHistoryService {
         await this.session.saveCurrentSessionToBook();
     }
 
-    /**
-     * Updates the narrative summary of a specific message by ID.
-     */
+    /** Updates the narrative summary of a specific message by ID. */
     async updateMessageSummary(id: string, summary: string) {
-        this.updateMessages(msgs =>
+        await this.updateMessages(msgs =>
             msgs.map(m => (m.id === id ? { ...m, summary } : m))
         );
         await this.session.saveCurrentSessionToBook();
     }
 
-    /**
-     * Updates the correction note of a specific message by ID.
-     */
+    /** Updates the correction note of a specific message by ID. */
     async updateMessageCorrection(id: string, correction: string) {
-        this.updateMessages(msgs =>
+        await this.updateMessages(msgs =>
             msgs.map(m => (m.id === id ? { ...m, correction } : m))
         );
         await this.session.saveCurrentSessionToBook();
     }
 
-    /**
-     * Deletes a specific message from the chat history.
-     */
+    /** Deletes a specific message from the chat history. */
     async deleteMessage(id: string) {
-        this.updateMessages(prev => {
-            const arr = [...prev];
-            const index = arr.findIndex(m => m.id === id);
-            if (index !== -1) {
-                // Accumulate sunk usage history
-                const usages = this.calculateSunkUsage([arr[index]]);
-                this.accumulateSunkUsage(usages);
-                arr.splice(index, 1);
-            }
-            return arr;
-        });
+        const current = this.state.messages();
+        const index = current.findIndex(m => m.id === id);
+        if (index === -1) return;
+        const removed = current[index];
+        const remaining = [...current.slice(0, index), ...current.slice(index + 1)];
+        await this.updateMessages(() => remaining);
+        await this.accumulateSunkUsage(this.calculateSunkUsage([removed]));
         await this.session.saveCurrentSessionToBook();
     }
 
@@ -131,69 +123,51 @@ export class ChatHistoryService {
             (idSet.has(m.id) ? removed : remaining).push(m);
         }
         if (removed.length === 0) return;
-        this.updateMessages(() => remaining);
-        this.accumulateSunkUsage(this.calculateSunkUsage(removed));
+        await this.updateMessages(() => remaining);
+        await this.accumulateSunkUsage(this.calculateSunkUsage(removed));
         await this.session.saveCurrentSessionToBook();
     }
 
-    /**
-     * Deletes all messages from a specific message onwards (inclusive).
-     */
+    /** Deletes all messages from a specific message onwards (inclusive). */
     async deleteFrom(id: string) {
-        this.updateMessages(prev => {
-            const arr = [...prev];
-            const index = arr.findIndex(m => m.id === id);
-            if (index !== -1) {
-                // Accumulate sunk usage history for ALL removed messages
-                const removedMessages = arr.slice(index);
-                const usages = this.calculateSunkUsage(removedMessages);
-                this.accumulateSunkUsage(usages);
-                arr.splice(index);
-            }
-            return arr;
-        });
+        const current = this.state.messages();
+        const index = current.findIndex(m => m.id === id);
+        if (index === -1) return;
+        const removed = current.slice(index);
+        const remaining = current.slice(0, index);
+        await this.updateMessages(() => remaining);
+        await this.accumulateSunkUsage(this.calculateSunkUsage(removed));
         await this.session.saveCurrentSessionToBook();
     }
 
-    /**
-     * Rewinds the story history to just before a specific message.
-     */
+    /** Rewinds the story history to just before a specific message. */
     async rewindTo(messageId: string) {
-        this.updateMessages(prev => {
-            const arr = [...prev];
-            const index = arr.findIndex(m => m.id === messageId);
-            if (index !== -1) {
-                // Accumulate sunk usage history: everything AFTER `index`
-                const removedMessages = arr.slice(index);
-                const usages = this.calculateSunkUsage(removedMessages);
-                this.accumulateSunkUsage(usages);
-
-                arr.splice(index);
-                console.log(
-                    `[ChatHistory] Rewound history to before message ${messageId} (Deleted ${removedMessages.length} messages, Sunk Items: ${usages.length})`
-                );
-            }
-            return arr;
-        });
+        const current = this.state.messages();
+        const index = current.findIndex(m => m.id === messageId);
+        if (index === -1) return;
+        const removed = current.slice(index);
+        const remaining = current.slice(0, index);
+        const usages = this.calculateSunkUsage(removed);
+        await this.updateMessages(() => remaining);
+        await this.accumulateSunkUsage(usages);
+        console.log(
+            `[ChatHistory] Rewound history to before message ${messageId} (Deleted ${removed.length} messages, Sunk Items: ${usages.length})`
+        );
         await this.session.saveCurrentSessionToBook();
     }
 
-    /**
-     * Toggles a message's 'Reference Only' status.
-     */
+    /** Toggles a message's 'Reference Only' status. */
     async toggleRefOnly(id: string) {
-        this.updateMessages(prev => {
-            const arr = [...prev];
-            const index = arr.findIndex(m => m.id === id);
-            if (index !== -1) {
-                arr[index] = {
-                    ...arr[index],
-                    isRefOnly: !arr[index].isRefOnly,
-                    isManualRefOnly: true
-                };
-            }
-            return arr;
-        });
+        const current = this.state.messages();
+        const index = current.findIndex(m => m.id === id);
+        if (index === -1) return;
+        const next = [...current];
+        next[index] = {
+            ...next[index],
+            isRefOnly: !next[index].isRefOnly,
+            isManualRefOnly: true
+        };
+        await this.updateMessages(() => next);
         await this.session.saveCurrentSessionToBook();
     }
 
@@ -216,8 +190,8 @@ export class ChatHistoryService {
     /**
      * Public method to manually record sunk usage (e.g., for cache creation).
      */
-    public recordSunkUsage(prompt: number, cached: number, candidates: number) {
-        this.accumulateSunkUsage([{ prompt, cached, candidates }]);
+    public recordSunkUsage(prompt: number, cached: number, candidates: number): Promise<void> {
+        return this.accumulateSunkUsage([{ prompt, cached, candidates }]);
     }
 
     /**
@@ -238,16 +212,15 @@ export class ChatHistoryService {
         return history;
     }
 
-    /**
-     * Appends to the sunk usage history and persists it.
-     */
-    private accumulateSunkUsage(newUsages: { prompt: number, cached: number, candidates: number }[]) {
-        if (newUsages.length > 0) {
-            this.state.sunkUsageHistory.update(v => {
-                const newVal = [...v, ...newUsages];
-                this.storage.set('sunk_usage_history', newVal).catch(e => console.error('Failed to save sunk usage history to IDB', e));
-                return newVal;
-            });
+    /** Appends to the sunk usage history and persists it. */
+    private async accumulateSunkUsage(newUsages: { prompt: number, cached: number, candidates: number }[]): Promise<void> {
+        if (newUsages.length === 0) return;
+        const newVal = [...this.state.sunkUsageHistory(), ...newUsages];
+        this.state.sunkUsageHistory.set(newVal);
+        try {
+            await this.storage.set('sunk_usage_history', newVal);
+        } catch (e) {
+            console.error('Failed to save sunk usage history to IDB', e);
         }
     }
 }

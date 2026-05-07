@@ -106,7 +106,7 @@ export class GameEngineService {
             this.surfaceFinishReason(result);
 
             const correction = this.commitService.applyCorrection(result);
-            this.commitService.commitModelMessage(turn, result, correction);
+            await this.commitService.commitModelMessage(turn, result, correction);
             await this.commitService.recordUsageAndPersist(result);
             this.currentAbortController = null;
 
