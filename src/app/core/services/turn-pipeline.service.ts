@@ -1,6 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import type { LLMContent } from '@hcs/llm-core';
-import { LLMProviderCapabilities } from '@hcs/llm-core';
+import { LLMContent, LLMProvider, LLMProviderCapabilities, LLMProviderConfig } from '@hcs/llm-core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 
 import { CostService } from './cost.service';
@@ -16,6 +15,7 @@ import { SingleCallTurnEngine } from './turn-engines/single-call-turn-engine.ser
 import { TwoCallTurnEngine } from './turn-engines/two-call-turn-engine.service';
 import type { TurnEngine } from './turn-engines/turn-engine.interface';
 import { InjectionService } from './injection.service';
+import { StreamProcessResult } from './stream-processor.service';
 
 import { ChatMessage, ExtendedPart } from '../models/types';
 import { GAME_INTENTS, STORY_INTENTS } from '../constants/game-intents';
@@ -47,13 +47,47 @@ export interface RunTurnOptions {
     };
 }
 
+/** Per-turn state that survives across phase helpers. */
+interface TurnContext {
+    userText: string;
+    options?: RunTurnOptions;
+    currentIntent: string;
+    forceFullContext: boolean;
+    switchedFromLegacy: boolean;
+    userMsgId: string;
+    modelMsgId: string;
+}
+
+interface ComposedRequest {
+    buildCtx: BuildContext;
+    history: LLMContent[];
+    engine: TurnEngine;
+    lang: string;
+    provider: LLMProvider;
+    providerConfig: LLMProviderConfig;
+    cachedContentName: string | undefined;
+    systemInstruction: string;
+    abortSignal: AbortSignal;
+}
+
+interface CorrectionState {
+    isCorrection: boolean;
+    correction: string;
+    correctedIntent?: string;
+    oldStoryUserId?: string;
+    oldStoryUserContent?: string;
+    oldStoryUserIdealOutcome?: string;
+}
+
 /**
  * Owns the per-turn pipeline: cache validation, engine dispatch, model-message
  * commit, usage bookkeeping, and `<系統>` auto-resend. Extracted from
- * GameEngineService so that hot path is readable on its own.
+ * GameEngineService so the hot path is readable on its own.
  *
- * GameEngineService still owns init/scene-boot/facades and proxies its public
- * `sendMessage` / `stopGeneration` / `getPreviewPayload` here.
+ * `runTurn` is an 8-phase orchestrator; each phase is a private helper
+ * threaded through `TurnContext` (per-turn state), `ComposedRequest` (frozen
+ * snapshot of context + provider + history), and `StreamProcessResult` (the
+ * engine's reply).
  */
 @Injectable({ providedIn: 'root' })
 export class TurnPipelineService {
@@ -72,39 +106,71 @@ export class TurnPipelineService {
 
     private currentAbortController: AbortController | null = null;
 
-    /**
-     * Constructs the JSON payload that will be sent to the LLM API for preview.
-     */
+    /** Constructs the JSON payload that will be sent to the LLM API for preview. */
     getPreviewPayload(userText: string, options?: { intent?: string }) {
         return this.contextBuilder.getPreviewPayload(this.snapshotBuildContext(), userText, options);
     }
 
     /**
      * Sends a message to the LLM and updates the chat history in real-time.
-     * Handles streaming responses, JSON parsing, and `<系統>` auto-resend.
+     * Phases:
+     *   0 validateRunTurnArgs → 1 startTurn → 2 prepareCacheOrAbort →
+     *   3 composeRequest → 4 executeTurn → 5 surfaceFinishReason →
+     *   6 applyCorrection → 7 commitModelMessage → 8 recordUsageAndPersist →
+     *   tail: scheduleAutoResendIfNeeded
      */
     async runTurn(userText: string, options?: RunTurnOptions): Promise<void> {
         console.log('[TurnPipeline] runTurn received with intent:', options?.intent);
-        // Allow empty text for CONTINUE and SAVE intents
-        const isActionOrSystem = !options?.intent || options.intent === GAME_INTENTS.ACTION || options.intent === GAME_INTENTS.SYSTEM || options.intent === GAME_INTENTS.FAST_FORWARD;
-        if (!userText.trim() && isActionOrSystem) return;
+        if (!this.validateRunTurnArgs(userText, options)) return;
 
-        // Force full context for <存檔> intent regardless of UI setting
-        const forceFullContext = options?.intent === GAME_INTENTS.SAVE;
+        const turn = await this.startTurn(userText, options);
+        if (!(await this.prepareCacheOrAbort(turn))) return;
 
-        // Switch off any legacy-fork profile before composing a turn.
+        try {
+            const req = this.composeRequest(turn);
+            const result = await this.executeTurn(req, turn);
+            this.surfaceFinishReason(result);
+            const correction = this.applyCorrection(result);
+            this.commitModelMessage(turn, result, correction);
+            await this.recordUsageAndPersist(result);
+            this.scheduleAutoResendIfNeeded(turn, result, correction);
+        } catch (e: unknown) {
+            this.handleTurnError(e);
+        }
+    }
+
+    /** Aborts the current generation process. */
+    stopGeneration() {
+        if (this.currentAbortController) {
+            this.currentAbortController.abort();
+            this.currentAbortController = null;
+        }
+        this.state.status.set('idle');
+    }
+
+    // ===== Phase helpers =====================================================
+
+    /** Phase 0: reject empty text on intents that demand input (ACTION/SYSTEM/FAST_FORWARD or default). */
+    private validateRunTurnArgs(userText: string, options?: RunTurnOptions): boolean {
+        const isActionOrSystem = !options?.intent
+            || options.intent === GAME_INTENTS.ACTION
+            || options.intent === GAME_INTENTS.SYSTEM
+            || options.intent === GAME_INTENTS.FAST_FORWARD;
+        return !(isActionOrSystem && !userText.trim());
+    }
+
+    /** Phase 1: legacy-fork autoswitch + push the user message + flip status to generating. */
+    private async startTurn(userText: string, options?: RunTurnOptions): Promise<TurnContext> {
         const switchedFromLegacy = await this.autoSwitchIfLegacyProfile();
-
-        const parts: ExtendedPart[] = [{ text: userText }];
         const userMsgId = crypto.randomUUID();
-
-        // 1. Immediately update UI & Storage
+        const modelMsgId = crypto.randomUUID();
         const userIdealOutcome = options?.userIdealOutcome?.trim() || undefined;
+
         this.updateMessages(prev => [...prev, {
             id: userMsgId,
             role: 'user',
             content: userText,
-            parts,
+            parts: [{ text: userText }],
             isRefOnly: false,
             isHidden: options?.isHidden,
             intent: options?.intent,
@@ -113,9 +179,27 @@ export class TurnPipelineService {
 
         this.state.status.set('generating');
 
-        // 2. Ensure cache is valid before generating
+        return {
+            userText,
+            options,
+            currentIntent: options?.intent || GAME_INTENTS.ACTION,
+            // <存檔> intent forces full context regardless of UI setting.
+            forceFullContext: options?.intent === GAME_INTENTS.SAVE,
+            switchedFromLegacy,
+            userMsgId,
+            modelMsgId
+        };
+    }
+
+    /**
+     * Phase 2: ensureCacheValid; on failure surfaces a snackbar (with the legacy-
+     * autoswitch note prepended when applicable) and returns false. Returns true
+     * to continue.
+     */
+    private async prepareCacheOrAbort(turn: TurnContext): Promise<boolean> {
         try {
             await this.ensureCacheValid();
+            return true;
         } catch (e: unknown) {
             const sessionExpired = e instanceof Error && e.message === 'SESSION_EXPIRED';
             if (sessionExpired) {
@@ -125,342 +209,336 @@ export class TurnPipelineService {
                 // gone server-side.
                 this.cacheManager.resetCacheState();
             }
-            // If we just auto-switched profiles, fold that note into the
-            // error message so the user understands the silent state change
-            // before retrying.
-            const lang = this.appConfig.outputLanguage();
-            const ui = getUIStrings(lang);
-            const autoswitchPrefix = switchedFromLegacy ? `${ui.LEGACY_PROFILE_AUTOSWITCH}\n\n` : '';
-            if (sessionExpired) {
-                this.snackBar.open(autoswitchPrefix + 'Session Expired: Please reload your Knowledge Base folder to continue.', 'Close', {
-                    duration: 10000,
-                    panelClass: ['snackbar-error']
-                });
-            } else {
-                this.snackBar.open(autoswitchPrefix + `Error: ${e instanceof Error ? e.message : 'Unknown error during cache refresh'}`, 'Close', {
-                    duration: 5000,
-                    panelClass: ['snackbar-error']
-                });
-            }
+            const ui = getUIStrings(this.appConfig.outputLanguage());
+            const autoswitchPrefix = turn.switchedFromLegacy ? `${ui.LEGACY_PROFILE_AUTOSWITCH}\n\n` : '';
+            const message = sessionExpired
+                ? autoswitchPrefix + 'Session Expired: Please reload your Knowledge Base folder to continue.'
+                : autoswitchPrefix + `Error: ${e instanceof Error ? e.message : 'Unknown error during cache refresh'}`;
+            this.snackBar.open(message, 'Close', {
+                duration: sessionExpired ? 10000 : 5000,
+                panelClass: ['snackbar-error']
+            });
             this.state.status.set('idle');
-            return;
+            return false;
+        }
+    }
+
+    /**
+     * Phase 3: snapshot every state signal once; build base history; choose
+     * single-vs-two-call engine and augment history accordingly; resolve
+     * provider / cached-content / system-instruction; arm the abort controller.
+     * Also surfaces the (post-cache-success) legacy-autoswitch warning here so
+     * a cache error snackbar from phase 2 doesn't replace it.
+     */
+    private composeRequest(turn: TurnContext): ComposedRequest {
+        // Snapshot once. Every signal read for the rest of this turn — both
+        // the context builder calls below and the engine's downstream
+        // resolver/narrator calls — operates on this frozen view, so a
+        // mid-turn config edit / profile switch / message append cannot
+        // cause two halves of the same turn to disagree.
+        const buildCtx = this.snapshotBuildContext();
+        const baseHistory = this.contextBuilder.getLLMHistory(buildCtx, turn.forceFullContext);
+        const lang = buildCtx.outputLanguage || 'default';
+
+        if (turn.switchedFromLegacy) {
+            const ui = getUIStrings(lang);
+            this.snackBar.open(ui.LEGACY_PROFILE_AUTOSWITCH, ui.CLOSE, {
+                duration: 8000,
+                panelClass: ['snackbar-warning']
+            });
         }
 
-        try {
-            // Snapshot once. Every signal read for the rest of this turn — both
-            // the context builder calls below and the engine's downstream
-            // resolver/narrator calls — operates on this frozen view, so a
-            // mid-turn config edit / profile switch / message append cannot
-            // cause two halves of the same turn to disagree.
-            const buildCtx = this.snapshotBuildContext();
+        // Two-call only applies to story intents — SYSTEM/SAVE bypass the
+        // resolver/narrator split (they have no atomic-action semantics).
+        const useTwoCall = buildCtx.engineMode === 'two-call' && (STORY_INTENTS as string[]).includes(turn.currentIntent);
+        let history: LLMContent[];
+        let engine: TurnEngine;
+        if (useTwoCall) {
+            history = baseHistory;
+            engine = this.twoCallEngine;
+            console.log(`[TurnPipeline] Dispatching two-call engine for intent ${turn.currentIntent}`);
+        } else {
+            history = this.augmentSingleCallHistory(buildCtx, baseHistory, turn.currentIntent, lang);
+            engine = this.singleCallEngine;
+        }
 
-            const baseHistory = this.contextBuilder.getLLMHistory(buildCtx, forceFullContext);
+        this.currentAbortController = new AbortController();
+        const provider = buildCtx.provider;
+        if (!provider) throw new Error('No active LLM provider');
+        // The engine never inspects provider capabilities or cache state for
+        // the include/omit-KB decision; that's done here.
+        const omitKB = this.contextBuilder.shouldOmitKbFromSystemInstruction(buildCtx);
 
-            const currentIntent = options?.intent || GAME_INTENTS.ACTION;
-            const lang = buildCtx.outputLanguage || 'default';
-            const engineMode = buildCtx.engineMode;
+        return {
+            buildCtx,
+            history,
+            engine,
+            lang,
+            provider,
+            providerConfig: this.providerRegistry.getActiveConfig(),
+            cachedContentName: buildCtx.kbCacheName || undefined,
+            systemInstruction: this.contextBuilder.getEffectiveSystemInstruction(buildCtx, !omitKB),
+            abortSignal: this.currentAbortController.signal
+        };
+    }
 
-            // Notify the user about a legacy-profile auto-switch only once
-            // the cache refresh has succeeded — otherwise a cache error
-            // snackbar would replace this one before they read it.
-            if (switchedFromLegacy) {
-                const ui = getUIStrings(lang);
-                this.snackBar.open(ui.LEGACY_PROFILE_AUTOSWITCH, ui.CLOSE, {
-                    duration: 8000,
-                    panelClass: ['snackbar-warning']
-                });
-            }
+    /** Phase 4: dispatch to the chosen engine. */
+    private executeTurn(req: ComposedRequest, turn: TurnContext): Promise<StreamProcessResult> {
+        return req.engine.runTurn({
+            history: req.history,
+            intent: turn.currentIntent,
+            outputLanguage: req.lang,
+            modelMsgId: turn.modelMsgId,
+            signal: req.abortSignal,
+            updateMessages: (updater) => this.updateMessages(updater),
+            provider: req.provider,
+            providerConfig: req.providerConfig,
+            cachedContentName: req.cachedContentName,
+            systemInstruction: req.systemInstruction,
+            buildContext: req.buildCtx
+        });
+    }
 
-            // Two-call only applies to story intents — SYSTEM/SAVE bypass the
-            // resolver/narrator split (they have no atomic-action semantics).
-            const useTwoCall = engineMode === 'two-call' && (STORY_INTENTS as string[]).includes(currentIntent);
+    /** Phase 5: a non-stop / non-null finish reason → warning snackbar. */
+    private surfaceFinishReason(result: StreamProcessResult): void {
+        const reason = result.finalFinishReason;
+        if (!reason) return;
+        const normalized = reason.toLowerCase();
+        if (normalized === 'stop' || normalized === 'null') return;
+        const ui = getUIStrings(this.appConfig.outputLanguage());
+        this.snackBar.open(`${ui.STOP_REASON_PREFIX || 'Model Stopped:'} ${reason}`, ui.CLOSE, {
+            duration: 8000,
+            panelClass: ['snackbar-warning']
+        });
+    }
 
-            let history: LLMContent[];
-            let engine: TurnEngine;
+    /**
+     * Phase 6: if the engine returned a `<系統>` correction, walk back to the
+     * last non-ref-only story-intent model message, mark it ref-only, and
+     * capture the paired user message so the auto-resend (phase tail) can
+     * replay the original action.
+     */
+    private applyCorrection(result: StreamProcessResult): CorrectionState {
+        if (!result.correction) return { isCorrection: false, correction: '' };
+        const storyIntents: string[] = [GAME_INTENTS.ACTION, GAME_INTENTS.CONTINUE, GAME_INTENTS.FAST_FORWARD];
+        console.log('[TurnPipeline] Correction detected:', result.correction);
 
-            if (useTwoCall) {
-                history = baseHistory;
-                engine = this.twoCallEngine;
-                console.log(`[TurnPipeline] Dispatching two-call engine for intent ${currentIntent}`);
-            } else {
-                history = this.augmentSingleCallHistory(buildCtx, baseHistory, currentIntent, lang);
-                engine = this.singleCallEngine;
-            }
-
-            this.currentAbortController = new AbortController();
-            const abortSignal = this.currentAbortController.signal;
-
-            const modelMsgId = crypto.randomUUID();
-
-            // Resolve the four engine-runtime fields off the same snapshot.
-            // The engine never inspects provider capabilities or cache state
-            // for the include/omit-KB decision; that's done here.
-            const provider = buildCtx.provider;
-            if (!provider) throw new Error('No active LLM provider');
-            const providerConfig = this.providerRegistry.getActiveConfig();
-            const cachedContentName = buildCtx.kbCacheName || undefined;
-            const omitKB = this.contextBuilder.shouldOmitKbFromSystemInstruction(buildCtx);
-            const systemInstruction = this.contextBuilder.getEffectiveSystemInstruction(buildCtx, !omitKB);
-
-            const result = await engine.runTurn({
-                history,
-                intent: currentIntent,
-                outputLanguage: lang,
-                modelMsgId,
-                signal: abortSignal,
-                updateMessages: (updater) => this.updateMessages(updater),
-                provider,
-                providerConfig,
-                cachedContentName,
-                systemInstruction,
-                buildContext: buildCtx
-            });
-
-            const {
-                finalAnalysis,
-                finalStory,
-                finalSummary,
-                finalCharacterLog,
-                finalInventoryLog,
-                finalQuestLog,
-                finalWorldLog,
-                correction,
-                turnUsage,
-                capturedFCs,
-                capturedThoughtSignature,
-                finalThought,
-                finalFinishReason,
-                contextTokens
-            } = result;
-
-            // Show stop reason notification if not normal
-            if (finalFinishReason) {
-                const normalizedReason = finalFinishReason.toLowerCase();
-                if (normalizedReason !== 'stop' && normalizedReason !== 'null') {
-                    const ui = getUIStrings(this.appConfig.outputLanguage());
-                    this.snackBar.open(`${ui.STOP_REASON_PREFIX || 'Model Stopped:'} ${finalFinishReason}`, ui.CLOSE, {
-                        duration: 8000,
-                        panelClass: ['snackbar-warning']
-                    });
-                }
-            }
-
-            // Correction Handling
-            const isCorrection = !!correction;
-            let correctedIntent: string | undefined;
-            let oldStoryUserId: string | undefined;
-            let oldStoryUserContent: string | undefined;
-            let oldStoryUserIdealOutcome: string | undefined;
-            if (isCorrection) {
-                const storyIntents = [GAME_INTENTS.ACTION, GAME_INTENTS.CONTINUE, GAME_INTENTS.FAST_FORWARD];
-                console.log('[TurnPipeline] Correction detected:', correction);
-                this.updateMessages(prev => {
-                    const updated = [...prev];
-                    for (let i = updated.length - 2; i >= 0; i--) {
-                        const msg = updated[i];
-                        if (msg.role === 'model' && !msg.isRefOnly && msg.intent && (storyIntents as string[]).includes(msg.intent)) {
-                            updated[i] = { ...msg, isRefOnly: true };
-                            correctedIntent = msg.intent;
-                            // The user message paired with this old story model is at i-1.
-                            // Guard the index explicitly so a malformed history starting
-                            // with a model message doesn't trip an out-of-bounds read.
-                            if (i > 0) {
-                                const paired = updated[i - 1];
-                                if (paired.role === 'user') {
-                                    oldStoryUserId = paired.id;
-                                    oldStoryUserContent = paired.content;
-                                    oldStoryUserIdealOutcome = paired.userIdealOutcome;
-                                }
-                            }
-                            console.log('[TurnPipeline] Marked old story model ref-only:', msg.id);
-                            break;
+        const captured: CorrectionState = { isCorrection: true, correction: result.correction };
+        this.updateMessages(prev => {
+            const updated = [...prev];
+            for (let i = updated.length - 2; i >= 0; i--) {
+                const msg = updated[i];
+                if (msg.role === 'model' && !msg.isRefOnly && msg.intent && storyIntents.includes(msg.intent)) {
+                    updated[i] = { ...msg, isRefOnly: true };
+                    captured.correctedIntent = msg.intent;
+                    // Guard the index so a malformed history starting with a
+                    // model message doesn't trip an out-of-bounds read.
+                    if (i > 0) {
+                        const paired = updated[i - 1];
+                        if (paired.role === 'user') {
+                            captured.oldStoryUserId = paired.id;
+                            captured.oldStoryUserContent = paired.content;
+                            captured.oldStoryUserIdealOutcome = paired.userIdealOutcome;
                         }
                     }
-                    return updated;
-                });
+                    console.log('[TurnPipeline] Marked old story model ref-only:', msg.id);
+                    break;
+                }
             }
+            return updated;
+        });
+        return captured;
+    }
 
-            // Single update covers both:
-            //  (a) committing the just-finished model message (always)
-            //  (b) post-resend cleanup when this turn was triggered as a
-            //      correction resend — ref-only the system pair + original
-            //      action user msg, and transplant the correction string onto
-            //      the freshly-committed corrective story model so Layer 1
-            //      stateUpdates keeps propagating the rule going forward.
-            const resendOpts = !isCorrection ? options?.isCorrectionResend : undefined;
-            this.updateMessages(prev => prev.map((m, i) => {
-                const isLast = i === prev.length - 1;
-                if (isLast && m.role === 'model') {
-                    const committed: ChatMessage = {
-                        ...m,
-                        isThinking: false,
-                        parts: ((): ExtendedPart[] => {
-                            const parts: ExtendedPart[] = [];
-                            if (capturedFCs.length > 0) parts.push(...capturedFCs);
-                            if (finalThought) parts.push({ thought: true, text: finalThought });
-                            if (finalAnalysis) parts.push({ thought: true, text: finalAnalysis });
-                            if (finalStory) {
-                                const storyPart: ExtendedPart = { text: finalStory };
-                                if (capturedThoughtSignature && capturedFCs.length === 0) {
-                                    storyPart.thoughtSignature = capturedThoughtSignature;
-                                }
-                                parts.push(storyPart);
-                            } else if (capturedThoughtSignature && capturedFCs.length === 0 && parts.length > 0) {
-                                parts[parts.length - 1].thoughtSignature = capturedThoughtSignature;
-                            }
-                            return parts;
-                        })(),
-                        content: finalStory,
-                        analysis: finalAnalysis,
-                        thought: finalThought,
-                        summary: finalSummary,
-                        character_log: finalCharacterLog,
-                        inventory_log: finalInventoryLog,
-                        quest_log: finalQuestLog,
-                        world_log: finalWorldLog,
-                        usage: turnUsage,
-                        contextTokens,
-                        // intent stays the user's original (SYSTEM for correction-declaration
-                        // turns, story intent for normal turns). The auto-resend below
-                        // produces a separate story-intent turn — we no longer fuse the
-                        // correction declaration into the corrected story slot inline.
-                        intent: currentIntent,
-                        // For correction-resend, transplant the prior system model's
-                        // correction string here so Layer 1 keeps the rule alive after
-                        // the system pair becomes ref-only below.
-                        correction: resendOpts ? resendOpts.correctionText : (isCorrection ? correction : m.correction)
-                    };
-                    return committed;
-                }
-                if (resendOpts && (m.id === resendOpts.systemUserId || m.id === resendOpts.systemModelId || m.id === resendOpts.oldStoryUserId)) {
-                    return { ...m, isRefOnly: true };
-                }
-                return m;
-            }));
+    /**
+     * Phase 7: a single update covers two concerns —
+     *  (a) committing the just-finished model message (always)
+     *  (b) post-resend cleanup when this turn was triggered as a correction
+     *      resend: ref-only the system pair + original action user msg, and
+     *      transplant the correction string onto the freshly-committed
+     *      corrective story model so Layer 1 stateUpdates keeps propagating
+     *      the rule going forward.
+     */
+    private commitModelMessage(turn: TurnContext, result: StreamProcessResult, correction: CorrectionState): void {
+        const resendOpts = !correction.isCorrection ? turn.options?.isCorrectionResend : undefined;
+        this.updateMessages(prev => prev.map((m, i) => {
+            const isLast = i === prev.length - 1;
+            if (isLast && m.role === 'model') {
+                return this.buildCommittedModelMessage(m, turn, result, correction, resendOpts);
+            }
+            if (resendOpts && (m.id === resendOpts.systemUserId || m.id === resendOpts.systemModelId || m.id === resendOpts.oldStoryUserId)) {
+                return { ...m, isRefOnly: true };
+            }
+            return m;
+        }));
+    }
 
-            // Update local state with fresh usage stats
-            // Robust calculation: prompt may be total or fresh-only depending on provider/timings.
-            const cachedTokens = turnUsage.cached || 0;
-            const rawPrompt = turnUsage.prompt || 0;
-            const fresh = rawPrompt >= cachedTokens ? rawPrompt - cachedTokens : rawPrompt;
+    /** Pure parts assembly: function-calls → thoughts → story (with optional thoughtSignature). */
+    private buildCommittedModelMessage(
+        base: ChatMessage,
+        turn: TurnContext,
+        result: StreamProcessResult,
+        correction: CorrectionState,
+        resendOpts: RunTurnOptions['isCorrectionResend']
+    ): ChatMessage {
+        const { capturedFCs, finalThought, finalAnalysis, finalStory, capturedThoughtSignature } = result;
+        const parts: ExtendedPart[] = [];
+        if (capturedFCs.length > 0) parts.push(...capturedFCs);
+        if (finalThought) parts.push({ thought: true, text: finalThought });
+        if (finalAnalysis) parts.push({ thought: true, text: finalAnalysis });
+        if (finalStory) {
+            const storyPart: ExtendedPart = { text: finalStory };
+            if (capturedThoughtSignature && capturedFCs.length === 0) {
+                storyPart.thoughtSignature = capturedThoughtSignature;
+            }
+            parts.push(storyPart);
+        } else if (capturedThoughtSignature && capturedFCs.length === 0 && parts.length > 0) {
+            parts[parts.length - 1].thoughtSignature = capturedThoughtSignature;
+        }
 
-            this.state.lastTurnUsage.set({
-                freshInput: fresh,
-                cached: cachedTokens,
-                output: turnUsage.candidates || 0
-            });
+        return {
+            ...base,
+            isThinking: false,
+            parts,
+            content: result.finalStory,
+            analysis: result.finalAnalysis,
+            thought: result.finalThought,
+            summary: result.finalSummary,
+            character_log: result.finalCharacterLog,
+            inventory_log: result.finalInventoryLog,
+            quest_log: result.finalQuestLog,
+            world_log: result.finalWorldLog,
+            usage: result.turnUsage,
+            contextTokens: result.contextTokens,
+            // intent stays the user's original (SYSTEM for correction-declaration
+            // turns, story intent for normal turns). The auto-resend produces a
+            // separate story-intent turn — we no longer fuse the correction
+            // declaration into the corrected story slot inline.
+            intent: turn.currentIntent,
+            // For correction-resend, transplant the prior system model's correction
+            // string here so Layer 1 keeps the rule alive after the system pair
+            // becomes ref-only above.
+            correction: resendOpts ? resendOpts.correctionText : (correction.isCorrection ? correction.correction : base.correction)
+        };
+    }
 
-            const turnCost = this.calculateTurnCost({
-                prompt: turnUsage.prompt || 0,
-                candidates: turnUsage.candidates || 0,
-                cached: turnUsage.cached || 0
-            });
-            this.state.lastTurnCost.set(turnCost);
+    /** Phase 8: usage stats + token totals + cost + book save + status='idle' + clear abort controller. */
+    private async recordUsageAndPersist(result: StreamProcessResult): Promise<void> {
+        // Robust calculation: prompt may be total or fresh-only depending on provider/timings.
+        const turnUsage = result.turnUsage;
+        const cachedTokens = turnUsage.cached || 0;
+        const rawPrompt = turnUsage.prompt || 0;
+        const fresh = rawPrompt >= cachedTokens ? rawPrompt - cachedTokens : rawPrompt;
 
-            this.state.tokenUsage.update(prev => {
-                return {
-                    freshInput: prev.freshInput + fresh,
-                    cached: prev.cached + (turnUsage.cached || 0),
-                    output: prev.output + (turnUsage.candidates || 0),
-                    total: prev.total + (turnUsage.prompt || 0) + (turnUsage.candidates || 0)
-                };
-            });
+        this.state.lastTurnUsage.set({
+            freshInput: fresh,
+            cached: cachedTokens,
+            output: turnUsage.candidates || 0
+        });
 
-            console.log(`[TurnPipeline] Turn Usage Breakdown:
+        const turnCost = this.calculateTurnCost({
+            prompt: turnUsage.prompt || 0,
+            candidates: turnUsage.candidates || 0,
+            cached: turnUsage.cached || 0
+        });
+        this.state.lastTurnCost.set(turnCost);
+
+        this.state.tokenUsage.update(prev => ({
+            freshInput: prev.freshInput + fresh,
+            cached: prev.cached + (turnUsage.cached || 0),
+            output: prev.output + (turnUsage.candidates || 0),
+            total: prev.total + (turnUsage.prompt || 0) + (turnUsage.candidates || 0)
+        }));
+
+        console.log(`[TurnPipeline] Turn Usage Breakdown:
 - FRESH Input (Not in Cache): ${fresh.toLocaleString()} tokens
   (Includes Chat History + Tool Outputs + System Instructions not in KB)
 - CACHED Input (Knowledge Base): ${(turnUsage.cached || 0).toLocaleString()} tokens
 - Output: ${turnUsage.candidates.toLocaleString()} tokens
 - Turn Cost: $${turnCost.toFixed(5)}`);
 
-            // Auto-save current session to update lastActiveAt and stats in the book list
-            await this.session.saveCurrentSessionToBook();
-
-            this.state.status.set('idle');
-            this.currentAbortController = null;
-
-            // Auto-resend after a `<系統>` correction was accepted. Microtask
-            // queue ensures this runs after the current turn's status flip to
-            // 'idle' so the new runTurn doesn't see itself as re-entrant.
-            // The resend runs through the normal engine, which means two-call
-            // mode produces the corrected story via resolver+narrator (the
-            // whole point of the auto-resend pattern). Cleanup of the system
-            // pair + correction transplant happens inside that next turn's
-            // `isCorrectionResend` post-commit hook above.
-            if (isCorrection && correctedIntent && oldStoryUserId && oldStoryUserContent !== undefined) {
-                const resendOpts = {
-                    intent: correctedIntent,
-                    // Carry the original action's user-supplied ideal_outcome through
-                    // the resend so the corrective resolver run keeps the same
-                    // constraint (otherwise it silently reverts to full inference,
-                    // which can re-introduce the very mismatch the correction fixed).
-                    userIdealOutcome: oldStoryUserIdealOutcome,
-                    isCorrectionResend: {
-                        systemUserId: userMsgId,
-                        systemModelId: modelMsgId,
-                        oldStoryUserId,
-                        correctionText: correction
-                    }
-                };
-                queueMicrotask(() => {
-                    this.runTurn(oldStoryUserContent!, resendOpts).catch(err => {
-                        // runTurn has its own try/catch and surfaces user-facing
-                        // errors via snackbar + status='error'. Anything that escapes
-                        // that net (push of the empty user msg failing, etc.) lands
-                        // here. Logging keeps it visible instead of becoming a silent
-                        // unhandled rejection. The system pair stays non-ref-only on
-                        // failure so the user can manually retry or delete it.
-                        console.error('[TurnPipeline] Auto-resend after correction failed:', err);
-                    });
-                });
-            }
-        } catch (e: unknown) {
-            this.currentAbortController = null;
-            if (e instanceof Error && e.name === 'AbortError') {
-                console.log('[TurnPipeline] Generation aborted.');
-                // Reset status — without this, an abort that didn't come from
-                // stopGeneration() (e.g. external signal cancellation when a
-                // bridge HTTP read times out mid-stream) leaves state.status
-                // stuck on 'generating' and every subsequent runTurn is
-                // rejected as 'busy' until a full page reload.
-                this.state.status.set('idle');
-                return;
-            }
-            console.error(e);
-            this.state.status.set('error');
-
-            const ui = getUIStrings(this.appConfig.outputLanguage());
-            const errMsg = (e instanceof Error) ? e.message : ui.CONN_ERROR;
-            this.updateMessages(prev => {
-                const updated = [...prev];
-                const last = updated[updated.length - 1];
-                if (last && last.role === 'model') {
-                    last.isThinking = false;
-                    last.content = ui.ERR_PREFIX.replace('{error}', errMsg);
-                    last.parts = [{ text: last.content }];
-                } else {
-                    updated.push({ id: crypto.randomUUID(), role: 'model', content: ui.ERR_PREFIX.replace('{error}', errMsg), isRefOnly: true });
-                }
-
-                this.snackBar.open(ui.GEN_FAILED.replace('{error}', errMsg), ui.CLOSE, {
-                    duration: 5000,
-                    panelClass: ['snackbar-error']
-                });
-                return updated;
-            });
-        }
+        await this.session.saveCurrentSessionToBook();
+        this.state.status.set('idle');
+        this.currentAbortController = null;
     }
 
     /**
-     * Aborts the current generation process.
+     * Tail: schedule the post-correction auto-resend on the microtask queue.
+     * Microtask placement guarantees the new runTurn doesn't see itself as
+     * re-entrant — the current turn's status flip to 'idle' has already
+     * committed by the time the microtask runs. The resend goes through the
+     * normal engine, so two-call mode produces the corrected story via
+     * resolver+narrator (the whole point of the auto-resend pattern). Cleanup
+     * of the system pair + correction transplant happens inside that next
+     * turn's `isCorrectionResend` post-commit hook.
      */
-    stopGeneration() {
-        if (this.currentAbortController) {
-            this.currentAbortController.abort();
-            this.currentAbortController = null;
-        }
-        this.state.status.set('idle');
+    private scheduleAutoResendIfNeeded(turn: TurnContext, result: StreamProcessResult, correction: CorrectionState): void {
+        if (!correction.isCorrection || !correction.correctedIntent || !correction.oldStoryUserId || correction.oldStoryUserContent === undefined) return;
+        const resendOpts: RunTurnOptions = {
+            intent: correction.correctedIntent,
+            // Carry the original action's user-supplied ideal_outcome through
+            // the resend so the corrective resolver run keeps the same
+            // constraint (otherwise it silently reverts to full inference,
+            // which can re-introduce the very mismatch the correction fixed).
+            userIdealOutcome: correction.oldStoryUserIdealOutcome,
+            isCorrectionResend: {
+                systemUserId: turn.userMsgId,
+                systemModelId: turn.modelMsgId,
+                oldStoryUserId: correction.oldStoryUserId,
+                correctionText: result.correction
+            }
+        };
+        const oldStoryUserContent = correction.oldStoryUserContent;
+        queueMicrotask(() => {
+            this.runTurn(oldStoryUserContent, resendOpts).catch(err => {
+                // runTurn has its own try/catch and surfaces user-facing errors
+                // via snackbar + status='error'. Anything that escapes that net
+                // (push of the empty user msg failing, etc.) lands here.
+                // Logging keeps it visible instead of becoming a silent
+                // unhandled rejection. The system pair stays non-ref-only on
+                // failure so the user can manually retry or delete it.
+                console.error('[TurnPipeline] Auto-resend after correction failed:', err);
+            });
+        });
     }
+
+    /** Catches errors thrown anywhere in phases 3-tail. AbortError is the silent path. */
+    private handleTurnError(e: unknown): void {
+        this.currentAbortController = null;
+        if (e instanceof Error && e.name === 'AbortError') {
+            console.log('[TurnPipeline] Generation aborted.');
+            // Reset status — without this, an abort that didn't come from
+            // stopGeneration() (e.g. external signal cancellation when a
+            // bridge HTTP read times out mid-stream) leaves state.status
+            // stuck on 'generating' and every subsequent runTurn is rejected
+            // as 'busy' until a full page reload.
+            this.state.status.set('idle');
+            return;
+        }
+        console.error(e);
+        this.state.status.set('error');
+
+        const ui = getUIStrings(this.appConfig.outputLanguage());
+        const errMsg = (e instanceof Error) ? e.message : ui.CONN_ERROR;
+        this.updateMessages(prev => {
+            const updated = [...prev];
+            const last = updated[updated.length - 1];
+            if (last && last.role === 'model') {
+                last.isThinking = false;
+                last.content = ui.ERR_PREFIX.replace('{error}', errMsg);
+                last.parts = [{ text: last.content }];
+            } else {
+                updated.push({ id: crypto.randomUUID(), role: 'model', content: ui.ERR_PREFIX.replace('{error}', errMsg), isRefOnly: true });
+            }
+            this.snackBar.open(ui.GEN_FAILED.replace('{error}', errMsg), ui.CLOSE, {
+                duration: 5000,
+                panelClass: ['snackbar-error']
+            });
+            return updated;
+        });
+    }
+
+    // ===== Support helpers ===================================================
 
     private updateMessages(updater: (prev: ChatMessage[]) => ChatMessage[]) {
         this.chatHistory.updateMessages(updater);
@@ -513,7 +591,7 @@ export class TurnPipelineService {
      * Resolves the per-turn cache state — validates / refreshes / recreates
      * via CacheManager, then commits the result back to the kbCacheXxx
      * signals and arms the storage timer. Throws SESSION_EXPIRED if the KB
-     * is unrecoverable; runTurn's catch block surfaces that to the user.
+     * is unrecoverable; phase 2's catch block surfaces that to the user.
      */
     private async ensureCacheValid(): Promise<void> {
         const cacheProvider = this.providerRegistry.getActive();
@@ -589,7 +667,6 @@ export class TurnPipelineService {
         const history = baseHistory.slice();
 
         const injectionContent = this.contextBuilder.intentInjection(ctx, currentIntent);
-
         if (!injectionContent || history.length === 0) return history;
 
         const lastMsg = history.pop();
