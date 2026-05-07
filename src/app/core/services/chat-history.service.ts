@@ -34,11 +34,6 @@ export class ChatHistoryService {
     }
 
     /**
-     * Updates the content of a specific message by ID. Also rewrites the last
-     * non-thought text part so the LLM history view (which prefers `parts`
-     * over `content` when both exist) reflects the edit.
-     */
-    /**
      * Lockstep persistence tail shared by every field-update mutation:
      *   updateMessages → saveCurrentSessionToBook.
      * Mirrors `commitDeletion` so adding a 6th update method can't drift.
@@ -48,6 +43,11 @@ export class ChatHistoryService {
         await this.session.saveCurrentSessionToBook();
     }
 
+    /**
+     * Updates the content of a specific message by ID. Also rewrites the last
+     * non-thought text part so the LLM history view (which prefers `parts`
+     * over `content` when both exist) reflects the edit.
+     */
     async updateMessageContent(id: string, newContent: string) {
         await this.commitFieldUpdate(msgs =>
             msgs.map(m => {

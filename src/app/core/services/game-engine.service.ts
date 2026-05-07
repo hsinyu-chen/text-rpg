@@ -158,7 +158,10 @@ export class GameEngineService {
 
         const result = await this.sceneBoot.tryLocalBoot();
         if (!result.bootedLocally) {
-            this.sendMessage(result.fallbackText, { isHidden: true });
+            // Fire-and-forget: callers (e.g. startNewGame, post-load init)
+            // resolve as soon as scene-boot finishes; the LLM-fallback turn
+            // owns its own status / error surface via sendMessage's catch.
+            void this.sendMessage(result.fallbackText, { isHidden: true });
         }
     }
 
@@ -400,7 +403,9 @@ export class GameEngineService {
         this.state.kbCacheTokens.set(cacheResult.tokens);
 
         if (cacheResult.sunkUsageTokens > 0) {
-            this.chatHistory.recordSunkUsage(cacheResult.sunkUsageTokens, 0, 0);
+            // Fire-and-forget: sunk_usage_history lives in its own IDB store and
+            // isn't part of the chat/book lockstep contract.
+            void this.chatHistory.recordSunkUsage(cacheResult.sunkUsageTokens, 0, 0);
         }
 
         if (cacheResult.cacheName) {
