@@ -66,6 +66,42 @@ async function wipePrefix(client: S3Client, sdk: AwsSdk, bucket: string, prefix:
     } while (continuationToken);
 }
 
+/** Lists every key under `dirPrefix` (no `<prefix>/` suffix added). */
+async function listAllKeys(
+    client: S3Client, sdk: AwsSdk, bucket: string, dirPrefix: string
+): Promise<string[]> {
+    const keys: string[] = [];
+    let continuationToken: string | undefined;
+    do {
+        const res = await client.send(new sdk.ListObjectsV2Command({
+            Bucket: bucket, Prefix: dirPrefix, ContinuationToken: continuationToken
+        }));
+        for (const obj of res.Contents ?? []) {
+            if (obj.Key) keys.push(obj.Key);
+        }
+        continuationToken = res.IsTruncated ? res.NextContinuationToken : undefined;
+    } while (continuationToken);
+    return keys.sort();
+}
+
+interface ObjectShape {
+    body: string;
+    metadata: Record<string, string>;
+    contentType?: string;
+}
+
+async function inspectObject(
+    client: S3Client, sdk: AwsSdk, bucket: string, key: string
+): Promise<ObjectShape> {
+    const res = await client.send(new sdk.GetObjectCommand({ Bucket: bucket, Key: key }));
+    const body = res.Body ? await res.Body.transformToString() : '';
+    return {
+        body,
+        metadata: res.Metadata ?? {},
+        contentType: res.ContentType
+    };
+}
+
 // Sample bodies sized realistically (~book ≈ small, but enough to be a
 // nontrivial body). lastActiveAt embedded in body too — exercises the
 // metadata-stripped fallback path in hydrateRemoteEntry.
@@ -427,6 +463,244 @@ describe.skipIf(!HAVE_CREDS)('S3SyncBackend integration', () => {
 
             await expect(backend.listSnapshots()).resolves.toEqual([]);
             await expect(backend.readSnapshotManifest(MIN_SNAPSHOT_ID)).rejects.toThrow();
+        });
+    });
+
+    // ===== on-disk shape ===================================================
+    //
+    // Inspect raw S3 keys + bodies + user-metadata via a separate (cleanup)
+    // client. PR2's BlobStore + Repositories refactor must keep these
+    // unchanged — same keys, same metadata names, same body bytes — otherwise
+    // a device on the new code can't read what a device on the old code wrote
+    // (or vice versa) since they share the same cloud storage.
+
+    describe('on-disk shape', () => {
+        const MIN_SNAPSHOT_ID = '20260508T010203-abcd1234';
+
+        const fullKey = (sub: string) => `${prefix}/${sub}`;
+
+        it('write book → key=<prefix>/books/<id>.json with metadata last-active', async () => {
+            const ts = 1_700_000_111_000;
+            const body = makeBookJson('shape-b1', ts);
+            await backend.write('book', 'shape-b1', body, ts);
+
+            const obj = await inspectObject(
+                cleanupClient, sdk, process.env.S3_TEST_BUCKET!,
+                fullKey('books/shape-b1.json')
+            );
+            expect(obj.body).toBe(body);
+            expect(obj.metadata['last-active']).toBe(String(ts));
+            expect(obj.contentType).toBe('application/json');
+        });
+
+        it('write collection → key=<prefix>/collections/<id>.json with metadata last-active', async () => {
+            const ts = 1_700_000_222_000;
+            const body = makeCollectionJson('shape-c1', ts);
+            await backend.write('collection', 'shape-c1', body, ts);
+
+            const obj = await inspectObject(
+                cleanupClient, sdk, process.env.S3_TEST_BUCKET!,
+                fullKey('collections/shape-c1.json')
+            );
+            expect(obj.body).toBe(body);
+            expect(obj.metadata['last-active']).toBe(String(ts));
+            expect(obj.contentType).toBe('application/json');
+        });
+
+        it('writeTombstone → key=<prefix>/tombstones/<resource-dir>/<id>/<deletedAt>, empty body', async () => {
+            await backend.writeTombstone('book', 'shape-tb1', 1_700_000_333_000);
+            await backend.writeTombstone('collection', 'shape-tc1', 1_700_000_444_000);
+
+            const allKeys = await listAllKeys(
+                cleanupClient, sdk, process.env.S3_TEST_BUCKET!, `${prefix}/tombstones/`
+            );
+            expect(allKeys).toEqual([
+                fullKey('tombstones/books/shape-tb1/1700000333000'),
+                fullKey('tombstones/collections/shape-tc1/1700000444000')
+            ]);
+
+            const tombObj = await inspectObject(
+                cleanupClient, sdk, process.env.S3_TEST_BUCKET!,
+                fullKey('tombstones/books/shape-tb1/1700000333000')
+            );
+            expect(tombObj.body).toBe('');
+        });
+
+        it('writeSettings → key=<prefix>/settings.json (application/json)', async () => {
+            const content = JSON.stringify({ a: 1 });
+            await backend.writeSettings(content);
+
+            const obj = await inspectObject(
+                cleanupClient, sdk, process.env.S3_TEST_BUCKET!,
+                fullKey('settings.json')
+            );
+            expect(obj.body).toBe(content);
+            expect(obj.contentType).toBe('application/json');
+        });
+
+        it('writePrompts → key=<prefix>/prompts.json (application/json)', async () => {
+            const content = JSON.stringify({ profiles: [] });
+            await backend.writePrompts(content);
+
+            const obj = await inspectObject(
+                cleanupClient, sdk, process.env.S3_TEST_BUCKET!,
+                fullKey('prompts.json')
+            );
+            expect(obj.body).toBe(content);
+            expect(obj.contentType).toBe('application/json');
+        });
+
+        it('createSnapshotFromCloud → snapshot tree under <prefix>/snapshots/<sid>/', async () => {
+            await backend.write('book', 'sb1', makeBookJson('sb1', 1000), 1000);
+            await backend.write('collection', 'sc1', makeCollectionJson('sc1', 2000), 2000);
+            await backend.writeTombstone('book', 'sgone', 3000);
+
+            await backend.createSnapshotFromCloud(MIN_SNAPSHOT_ID, {
+                createdAt: 4000, trigger: 'manual', note: 'shape-test'
+            });
+
+            const snapKeys = await listAllKeys(
+                cleanupClient, sdk, process.env.S3_TEST_BUCKET!, `${prefix}/snapshots/${MIN_SNAPSHOT_ID}/`
+            );
+            // Note: ordering matches sort by string. Manifest is at the top
+            // of the snapshot folder; entries follow.
+            expect(snapKeys).toEqual([
+                fullKey(`snapshots/${MIN_SNAPSHOT_ID}/books/sb1.json`),
+                fullKey(`snapshots/${MIN_SNAPSHOT_ID}/collections/sc1.json`),
+                fullKey(`snapshots/${MIN_SNAPSHOT_ID}/manifest.json`),
+                fullKey(`snapshots/${MIN_SNAPSHOT_ID}/tombstones/books/sgone/3000`)
+            ]);
+
+            // Snapshot copies MUST preserve original last-active metadata
+            // (CopyObject MetadataDirective: 'COPY'). This is the
+            // load-bearing invariant for "snapshot is a true historical
+            // artefact" — restore re-stamps to now, but the snapshot
+            // itself keeps the original timestamps.
+            const sb1Snap = await inspectObject(
+                cleanupClient, sdk, process.env.S3_TEST_BUCKET!,
+                fullKey(`snapshots/${MIN_SNAPSHOT_ID}/books/sb1.json`)
+            );
+            expect(sb1Snap.metadata['last-active']).toBe('1000');
+
+            const sc1Snap = await inspectObject(
+                cleanupClient, sdk, process.env.S3_TEST_BUCKET!,
+                fullKey(`snapshots/${MIN_SNAPSHOT_ID}/collections/sc1.json`)
+            );
+            expect(sc1Snap.metadata['last-active']).toBe('2000');
+
+            // Manifest body shape: parses to JSON with the right top-level
+            // fields. We don't lock down EVERY field (entries arrive in
+            // completion order from parallelPool then sorted, so the order
+            // is stable but the field set may evolve), just the load-
+            // bearing ones.
+            const manifestObj = await inspectObject(
+                cleanupClient, sdk, process.env.S3_TEST_BUCKET!,
+                fullKey(`snapshots/${MIN_SNAPSHOT_ID}/manifest.json`)
+            );
+            const manifest = JSON.parse(manifestObj.body);
+            expect(manifest.id).toBe(MIN_SNAPSHOT_ID);
+            expect(manifest.version).toBe(1);
+            expect(manifest.bookCount).toBe(1);
+            expect(manifest.collectionCount).toBe(1);
+            expect(manifest.tombstoneCount).toBe(1);
+            expect(manifest.note).toBe('shape-test');
+            expect(manifestObj.contentType).toBe('application/json');
+        });
+
+        it('createSnapshotFromLocal → entry bodies + last-active match payload exactly', async () => {
+            const payload: SnapshotLocalPayload = {
+                books: [{ id: 'plb1', lastActiveAt: 1234, json: makeBookJson('plb1', 1234) }],
+                collections: [{ id: 'plc1', lastActiveAt: 5678, json: makeCollectionJson('plc1', 5678) }],
+                tombstones: [{ resource: 'book' as SyncResource, id: 'pgone', deletedAt: 9999 }]
+            };
+            await backend.createSnapshotFromLocal(MIN_SNAPSHOT_ID, {
+                createdAt: 1, trigger: 'forcePull'
+            }, payload);
+
+            const bookSnap = await inspectObject(
+                cleanupClient, sdk, process.env.S3_TEST_BUCKET!,
+                fullKey(`snapshots/${MIN_SNAPSHOT_ID}/books/plb1.json`)
+            );
+            expect(bookSnap.body).toBe(payload.books[0].json);
+            expect(bookSnap.metadata['last-active']).toBe('1234');
+
+            const collSnap = await inspectObject(
+                cleanupClient, sdk, process.env.S3_TEST_BUCKET!,
+                fullKey(`snapshots/${MIN_SNAPSHOT_ID}/collections/plc1.json`)
+            );
+            expect(collSnap.body).toBe(payload.collections[0].json);
+            expect(collSnap.metadata['last-active']).toBe('5678');
+
+            // Tombstone path includes deletedAt verbatim.
+            const tombKeys = await listAllKeys(
+                cleanupClient, sdk, process.env.S3_TEST_BUCKET!,
+                `${prefix}/snapshots/${MIN_SNAPSHOT_ID}/tombstones/`
+            );
+            expect(tombKeys).toEqual([
+                fullKey(`snapshots/${MIN_SNAPSHOT_ID}/tombstones/books/pgone/9999`)
+            ]);
+        });
+
+        it('restoreSnapshot → live entries get metadata last-active = now (NOT snapshot value)', async () => {
+            const originalTs = 1_000_000_000;
+            await backend.createSnapshotFromLocal(MIN_SNAPSHOT_ID, {
+                createdAt: 1, trigger: 'forcePull'
+            }, {
+                books: [{ id: 'rb1', lastActiveAt: originalTs, json: makeBookJson('rb1', originalTs) }],
+                collections: [],
+                tombstones: []
+            });
+
+            const before = Date.now();
+            await backend.restoreSnapshot(MIN_SNAPSHOT_ID);
+            const after = Date.now();
+
+            const liveBook = await inspectObject(
+                cleanupClient, sdk, process.env.S3_TEST_BUCKET!,
+                fullKey('books/rb1.json')
+            );
+            const liveTs = Number(liveBook.metadata['last-active']);
+            expect(liveTs).toBeGreaterThanOrEqual(before);
+            expect(liveTs).toBeLessThanOrEqual(after);
+            expect(liveTs).not.toBe(originalTs);
+
+            // Snapshot's copy MUST still hold the original.
+            const snapBook = await inspectObject(
+                cleanupClient, sdk, process.env.S3_TEST_BUCKET!,
+                fullKey(`snapshots/${MIN_SNAPSHOT_ID}/books/rb1.json`)
+            );
+            expect(snapBook.metadata['last-active']).toBe(String(originalTs));
+        });
+
+        it('clearTombstones → all keys under <prefix>/tombstones/<resource-dir>/ removed', async () => {
+            await backend.writeTombstone('book', 'b1', 100);
+            await backend.writeTombstone('book', 'b2', 200);
+            await backend.writeTombstone('collection', 'c1', 300); // unrelated resource
+
+            await backend.clearTombstones('book');
+
+            const remaining = await listAllKeys(
+                cleanupClient, sdk, process.env.S3_TEST_BUCKET!, `${prefix}/tombstones/`
+            );
+            // Only the collection tombstone survives.
+            expect(remaining).toEqual([
+                fullKey('tombstones/collections/c1/300')
+            ]);
+        });
+
+        it('remove → key gone from bucket', async () => {
+            await backend.write('book', 'gone', makeBookJson('gone', 1), 1);
+            const before = await listAllKeys(
+                cleanupClient, sdk, process.env.S3_TEST_BUCKET!, `${prefix}/books/`
+            );
+            expect(before).toEqual([fullKey('books/gone.json')]);
+
+            await backend.remove('book', 'gone');
+
+            const after = await listAllKeys(
+                cleanupClient, sdk, process.env.S3_TEST_BUCKET!, `${prefix}/books/`
+            );
+            expect(after).toEqual([]);
         });
     });
 });
