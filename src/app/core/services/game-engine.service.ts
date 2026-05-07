@@ -349,6 +349,10 @@ export class GameEngineService {
             });
             return updated;
         });
+        // Persist the error message to the Book so it survives reload — the
+        // chat-history IDB store alone isn't the source of truth on session
+        // load. Fire-and-forget; save failures here are non-fatal.
+        void this.session.saveCurrentSessionToBook();
     }
 
     /**
