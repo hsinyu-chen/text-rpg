@@ -230,20 +230,17 @@ export class SyncReconciler {
         // post-delete edit on another device.
         const pending = this.tombstones.read(resource);
         const remaining: PendingDeletion[] = [];
-        const justDeletedIds = new Set<string>();
+        // Pre-seed with every pending id so the main loop won't resurrect
+        // them even if writeTombstone fails — local already removed the
+        // entity at delete-time, so a "remote-only → download" path would
+        // bring it back. Items where tombstone *did* succeed are also in
+        // here; that's a no-op skip.
+        const justDeletedIds = new Set<string>(pending.map(p => p.id));
         for (const entry of pending) {
             let tombstoneWritten = false;
             try {
                 await backend.writeTombstone(resource, entry.id, entry.deletedAt);
                 tombstoneWritten = true;
-                // Add to justDeletedIds *immediately* after the tombstone is
-                // up. If `remove` fails below (transient network blip etc.),
-                // the live object is still on cloud — but the tombstone is
-                // the authoritative "this is deleted" signal, so this
-                // device's main loop must NOT re-download. Other devices
-                // will pick up the tombstone on their next sync; the next
-                // retry on this device cleans up the live object.
-                justDeletedIds.add(entry.id);
             } catch (e) {
                 console.error(`[Sync] Failed to write tombstone for ${resource} ${entry.id}, will retry`, e);
                 report.errors.push({ resource, id: entry.id, op: 'delete', message: errMsg(e) });
@@ -274,42 +271,48 @@ export class SyncReconciler {
         // local would leave the cloud copy to resurrect on the next sync).
         // If either side is newer, that's a post-delete restore/edit — keep
         // it, let the regular newer-wins loop pick the winner.
+        let tombstones;
         try {
-            const tombstones = await backend.listTombstones(resource);
-            for (const tomb of tombstones) {
-                if (justDeletedIds.has(tomb.id)) continue;
-                const local = localById.get(tomb.id);
-                const remote = remoteById.get(tomb.id);
-                if (!local && !remote) continue;
-                const localTime = local ? this.localTimestamp(local, resource) : -Infinity;
-                const remoteTime = remote ? remote.lastActiveAt : -Infinity;
-                if (localTime > tomb.deletedAt || remoteTime > tomb.deletedAt) continue;
-                try {
-                    if (local) {
-                        if (resource === 'book') {
-                            await this.storage.deleteBook(tomb.id);
-                            deletedBookIds.add(tomb.id);
-                        } else {
-                            await this.storage.deleteCollection(tomb.id);
-                        }
-                        localById.delete(tomb.id);
-                        report.deleted++;
-                    }
-                    if (remote) {
-                        await backend.remove(resource, tomb.id);
-                        remoteById.delete(tomb.id);
-                        report.deleted++;
-                    }
-                    justDeletedIds.add(tomb.id);
-                    console.log(`[Sync ${resource} ${tomb.id.slice(0, 8)}] tombstone wins → delete (local=${localTime}, remote=${remoteTime}, deletedAt=${tomb.deletedAt})`);
-                } catch (e) {
-                    console.error(`[Sync] Failed to apply tombstone for ${resource} ${tomb.id}`, e);
-                    report.errors.push({ resource, id: tomb.id, op: 'delete', message: errMsg(e) });
-                }
-            }
+            tombstones = await backend.listTombstones(resource);
         } catch (e) {
-            console.error(`[Sync] Failed to list tombstones for ${resource}`, e);
+            // Abort the resource sync. Without a tombstone list we can't
+            // tell whether a local-only item was deleted on another device,
+            // so the main loop would resurrect it on cloud. Better to surface
+            // the failure and retry next sync than silently undo a delete.
+            console.error(`[Sync] Failed to list tombstones for ${resource}, aborting resource sync`, e);
             report.errors.push({ resource, id: '', op: 'list', message: errMsg(e) });
+            return report;
+        }
+        for (const tomb of tombstones) {
+            if (justDeletedIds.has(tomb.id)) continue;
+            const local = localById.get(tomb.id);
+            const remote = remoteById.get(tomb.id);
+            if (!local && !remote) continue;
+            const localTime = local ? this.localTimestamp(local, resource) : -Infinity;
+            const remoteTime = remote ? remote.lastActiveAt : -Infinity;
+            if (localTime > tomb.deletedAt || remoteTime > tomb.deletedAt) continue;
+            try {
+                if (local) {
+                    if (resource === 'book') {
+                        await this.storage.deleteBook(tomb.id);
+                        deletedBookIds.add(tomb.id);
+                    } else {
+                        await this.storage.deleteCollection(tomb.id);
+                    }
+                    localById.delete(tomb.id);
+                    report.deleted++;
+                }
+                if (remote) {
+                    await backend.remove(resource, tomb.id);
+                    remoteById.delete(tomb.id);
+                    report.deleted++;
+                }
+                justDeletedIds.add(tomb.id);
+                console.log(`[Sync ${resource} ${tomb.id.slice(0, 8)}] tombstone wins → delete (local=${localTime}, remote=${remoteTime}, deletedAt=${tomb.deletedAt})`);
+            } catch (e) {
+                console.error(`[Sync] Failed to apply tombstone for ${resource} ${tomb.id}`, e);
+                report.errors.push({ resource, id: tomb.id, op: 'delete', message: errMsg(e) });
+            }
         }
 
         // Refresh localList in case tombstones removed entries.
@@ -386,7 +389,7 @@ export class SyncReconciler {
     ): Promise<void> {
         try {
             const json = await backend.read(resource, id);
-            await this.applyRemote(resource, json);
+            const stored = await this.applyRemote(resource, json);
             report.downloaded++;
             if (resource === 'book') downloadedBookIds.add(id);
 
@@ -395,27 +398,22 @@ export class SyncReconciler {
             // missing or stale (e.g., legacy upload from before the metadata
             // scheme). Re-upload with correct metadata so future syncs see a
             // matching remote/local time and stop looping in download.
-            const stored = resource === 'book'
-                ? await this.storage.getBook(id)
-                : await this.storage.getCollection(id);
-            if (stored) {
-                const bodyTime = this.localTimestamp(stored, resource);
-                // 1000ms slack so a backend that truncates metadata to
-                // second precision (or rounds in any sub-second way) doesn't
-                // trigger a redundant re-upload every session. Legacy uploads
-                // missing metadata fall back to either body extraction (where
-                // bodyTime matches) or modifiedAt (where the gap is typically
-                // minutes), both well outside this window.
-                const drift = Math.abs(bodyTime - expectedRemoteLastActive);
-                if (drift > 1000) {
-                    const healKey = `${resource}:${id}`;
-                    if (this.selfHealedIds.has(healKey)) {
-                        console.warn(`[Sync ${resource} ${id.slice(0, 8)}] self-heal already attempted this session, skipping (body=${bodyTime}, expected=${expectedRemoteLastActive}); backend may be mutating metadata`);
-                    } else {
-                        this.selfHealedIds.add(healKey);
-                        console.warn(`[Sync ${resource} ${id.slice(0, 8)}] self-heal: body=${bodyTime} ≠ expected=${expectedRemoteLastActive} (Δ=${bodyTime - expectedRemoteLastActive}ms) → re-upload`);
-                        await this.uploadEntity(backend, resource, stored, report);
-                    }
+            const bodyTime = this.localTimestamp(stored, resource);
+            // 1000ms slack so a backend that truncates metadata to
+            // second precision (or rounds in any sub-second way) doesn't
+            // trigger a redundant re-upload every session. Legacy uploads
+            // missing metadata fall back to either body extraction (where
+            // bodyTime matches) or modifiedAt (where the gap is typically
+            // minutes), both well outside this window.
+            const drift = Math.abs(bodyTime - expectedRemoteLastActive);
+            if (drift > 1000) {
+                const healKey = `${resource}:${id}`;
+                if (this.selfHealedIds.has(healKey)) {
+                    console.warn(`[Sync ${resource} ${id.slice(0, 8)}] self-heal already attempted this session, skipping (body=${bodyTime}, expected=${expectedRemoteLastActive}); backend may be mutating metadata`);
+                } else {
+                    this.selfHealedIds.add(healKey);
+                    console.warn(`[Sync ${resource} ${id.slice(0, 8)}] self-heal: body=${bodyTime} ≠ expected=${expectedRemoteLastActive} (Δ=${bodyTime - expectedRemoteLastActive}ms) → re-upload`);
+                    await this.uploadEntity(backend, resource, stored, report);
                 }
             }
         } catch (e) {
@@ -435,14 +433,15 @@ export class SyncReconciler {
         return ts || 0;
     }
 
-    private async applyRemote(resource: SyncResource, json: string): Promise<void> {
+    private async applyRemote(resource: SyncResource, json: string): Promise<Book | Collection> {
         if (resource === 'book') {
             const book = cleanBookForSync(JSON.parse(json));
             if (!book.collectionId) book.collectionId = ROOT_COLLECTION_ID;
             await this.storage.saveBook(book);
-        } else {
-            const collection = cleanCollectionForSync(JSON.parse(json));
-            await this.storage.saveCollection(collection);
+            return book;
         }
+        const collection = cleanCollectionForSync(JSON.parse(json));
+        await this.storage.saveCollection(collection);
+        return collection;
     }
 }
