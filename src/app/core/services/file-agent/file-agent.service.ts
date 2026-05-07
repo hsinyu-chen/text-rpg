@@ -2,17 +2,16 @@ import { Injectable, inject, signal, computed, resource, effect } from '@angular
 import { LLMConfigService } from '../llm-config.service';
 import { LLMProviderRegistryService } from '../llm-provider-registry.service';
 import { LLMContent, LLMPart, LLMFunctionCall } from '@hcs/llm-core';
-import { FileAgentContext, ToolCallMode, AgentLogEntry, ParsedAction } from './file-agent.types';
+import { FileAgentContext, AgentLogEntry, ParsedAction } from './file-agent.types';
 import { FILE_AGENT_TOOLS, buildJsonSchema } from './file-agent-tools';
 import { buildSystemInstruction } from './file-agent-prompts';
 import { executeFileTool } from './file-agent-tool-executor';
 import { WorldCompletionValidator } from './world-completion-validator';
 import { sanitizeLatexToUnicode } from '@app/core/utils/latex.util';
 import { processAgentStream, AgentStreamEvent, AgentStreamResult } from './agent-stream-processor';
+import { AgentCapabilityResolver } from './agent-capability-resolver';
 
 export type { FileAgentContext, ToolCallMode } from './file-agent.types';
-
-const TOOL_CALL_MODE_KEY_PREFIX = 'file_agent_tool_call_mode:';
 
 /**
  * FileAgentService
@@ -55,159 +54,16 @@ export class FileAgentService {
   agentLogs = signal<AgentLogEntry[]>([]);
   lastFilesReplaced = signal<{ filename: string; content: string }[]>([]);
 
-  toolCallMode = signal<ToolCallMode>(this.loadToolCallMode(this.llmConfigService.activeProfileId()));
-
   /**
-   * Per-profile native-tool probe results. Set after a successful async
-   * probe (currently llama.cpp `/props` chat_template inspection).
-   * null/missing = not probed yet or probe failed → fall through to static
-   * capability.
+   * Tool-call capability resolution (native vs JSON, parallel calls) and
+   * the per-profile `toolCallMode` user setting. Held as a public field so
+   * templates can bind directly via `agentService.capability.X`.
    */
-  private probeResults = signal<Record<string, boolean>>({});
-
-  /** Per-profile parallel-tool probe results, same contract as probeResults. */
-  private parallelProbeResults = signal<Record<string, boolean>>({});
-
-  /** True when the selected profile is allowed to issue multiple tool calls per turn. */
-  effectiveSupportsParallelToolCalls = computed<boolean>(() => {
-    if (!this.effectiveToolCallModeIsNative()) return false;
-    const id = this.selectedProfileId();
-    const profile = id ? this.agentProfiles().find(p => p.id === id) : null;
-    if (!profile || !id) return false;
-
-    const explicit = profile.settings.additionalSettings?.['supportsParallelToolCalls'];
-    if (typeof explicit === 'boolean') return explicit;
-
-    const probed = this.parallelProbeResults()[id];
-    if (typeof probed === 'boolean') return probed;
-
-    const cap = this.llmProviderRegistry.getProvider(profile.provider)?.getCapabilities(profile.settings);
-    return !!cap?.supportsParallelToolCalls;
+  readonly capability = new AgentCapabilityResolver({
+    selectedProfileId: this.selectedProfileId,
+    agentProfiles: this.agentProfiles,
+    llmProviderRegistry: this.llmProviderRegistry
   });
-
-  /** True when 'auto' would resolve to native for the selected profile. */
-  effectiveToolCallModeIsNative = computed(() => {
-    const setting = this.toolCallMode();
-    if (setting === 'native') return true;
-    if (setting === 'json') return false;
-    return this.resolvedAutoIsNative().result;
-  });
-
-  /** Human-readable reason for the resolved auto mode — surfaced in UI tooltip. */
-  effectiveToolCallReason = computed<string>(() => {
-    const setting = this.toolCallMode();
-    if (setting === 'native') return 'forced Native';
-    if (setting === 'json') return 'forced JSON';
-    const r = this.resolvedAutoIsNative();
-    const verdict = r.result ? 'Native' : 'JSON';
-    return `Auto: ${verdict} (${r.source})`;
-  });
-
-  /**
-   * Resolve auto-mode for the current profile with provenance:
-   *   explicit  — user set additionalSettings.supportsNativeToolCalls
-   *   probed    — async probe (e.g. llama.cpp chat_template) reported a verdict
-   *   default   — fell back to provider's static capability
-   *   no profile — nothing selected
-   */
-  private resolvedAutoIsNative = computed<{ result: boolean, source: 'explicit' | 'probed' | 'default' | 'no profile' }>(() => {
-    const id = this.selectedProfileId();
-    const profile = id ? this.agentProfiles().find(p => p.id === id) : null;
-    if (!profile || !id) return { result: false, source: 'no profile' };
-
-    const explicit = this.readExplicitNativeFlag(profile.settings);
-    if (explicit !== undefined) return { result: explicit, source: 'explicit' };
-
-    const probed = this.probeResults()[id];
-    if (typeof probed === 'boolean') return { result: probed, source: 'probed' };
-
-    const cap = this.llmProviderRegistry.getProvider(profile.provider)?.getCapabilities(profile.settings);
-    return { result: !!cap?.supportsNativeToolCalls, source: 'default' };
-  });
-
-  setToolCallMode(mode: ToolCallMode): void {
-    this.toolCallMode.set(mode);
-    const id = this.selectedProfileId();
-    if (id) localStorage.setItem(TOOL_CALL_MODE_KEY_PREFIX + id, mode);
-  }
-
-  private loadToolCallMode(profileId: string | null): ToolCallMode {
-    if (!profileId) return 'auto';
-    const v = localStorage.getItem(TOOL_CALL_MODE_KEY_PREFIX + profileId);
-    return v === 'native' || v === 'json' || v === 'auto' ? v : 'auto';
-  }
-
-  private readExplicitNativeFlag(settings: { additionalSettings?: Record<string, unknown> }): boolean | undefined {
-    const v = settings.additionalSettings?.['supportsNativeToolCalls'];
-    return typeof v === 'boolean' ? v : undefined;
-  }
-
-  /**
-   * Kick off an async probe for the given profile when its provider exposes
-   * one and the user hasn't pinned an explicit flag. The result is cached on
-   * `probeResults[profileId]` and feeds into auto-mode resolution. Errors
-   * are swallowed — falling back to the static default is the safe behavior.
-   */
-  private async kickToolSupportProbe(profileId: string): Promise<void> {
-    const profile = this.agentProfiles().find(p => p.id === profileId);
-    if (!profile) return;
-
-    const provider = this.llmProviderRegistry.getProvider(profile.provider);
-    if (!provider) return;
-
-    if (this.readExplicitNativeFlag(profile.settings) === undefined && provider.probeNativeToolSupport) {
-      try {
-        const result = await provider.probeNativeToolSupport(profile.settings);
-        if (this.selectedProfileId() === profileId) {
-          this.probeResults.update(r => ({ ...r, [profileId]: result }));
-        }
-      } catch {
-        // Probe failures are non-fatal; fall back to defaults
-      }
-    }
-
-    const parallelExplicit = profile.settings.additionalSettings?.['supportsParallelToolCalls'];
-    if (typeof parallelExplicit !== 'boolean' && provider.probeParallelToolSupport) {
-      try {
-        const result = await provider.probeParallelToolSupport(profile.settings);
-        if (this.selectedProfileId() === profileId) {
-          this.parallelProbeResults.update(r => ({ ...r, [profileId]: result }));
-        }
-      } catch {
-        // Probe failures are non-fatal; fall back to defaults
-      }
-    }
-  }
-
-  toggleThought(index: number): void {
-    this.agentLogs.update(logs => {
-      const next = [...logs];
-      if (next[index]) {
-        next[index] = { ...next[index], isThoughtCollapsed: !next[index].isThoughtCollapsed };
-      }
-      return next;
-    });
-  }
-
-  toggleToolCall(index: number): void {
-    this.agentLogs.update(logs => {
-      const next = [...logs];
-      if (next[index]) {
-        next[index] = { ...next[index], isToolCallCollapsed: !next[index].isToolCallCollapsed };
-      }
-      return next;
-    });
-  }
-
-  toggleToolResult(index: number): void {
-    this.agentLogs.update(logs => {
-      const next = [...logs];
-      if (next[index]) {
-        next[index] = { ...next[index], isToolResultCollapsed: !next[index].isToolResultCollapsed };
-      }
-      return next;
-    });
-  }
 
   private pushToolResultLog(response: Record<string, unknown>, toolName?: string): void {
     this.agentLogs.update(logs => [...logs, {
@@ -242,7 +98,7 @@ export class FileAgentService {
       if (!id || lastProbed === id) return;
       if (!list.find(p => p.id === id)) return;
       lastProbed = id;
-      void this.kickToolSupportProbe(id);
+      void this.capability.kickToolSupportProbe(id);
     });
   }
 
@@ -303,8 +159,8 @@ export class FileAgentService {
 
   selectProfile(profileId: string): void {
     this.selectedProfileId.set(profileId);
-    this.toolCallMode.set(this.loadToolCallMode(profileId));
-    void this.kickToolSupportProbe(profileId);
+    this.capability.syncToolCallModeForProfile(profileId);
+    void this.capability.kickToolSupportProbe(profileId);
   }
 
   clearHistory(): void {
@@ -354,7 +210,7 @@ export class FileAgentService {
   }
 
   private resolveToolCallMode(): 'native' | 'json' {
-    return this.effectiveToolCallModeIsNative() ? 'native' : 'json';
+    return this.capability.effectiveToolCallModeIsNative() ? 'native' : 'json';
   }
 
   private async processAgentTurn(context: FileAgentContext, retryCount = 0): Promise<void> {
@@ -376,7 +232,7 @@ export class FileAgentService {
     // llama.cpp KV slot prefix match) on every replaceFile/replaceSection.
     // Fresh totalLines is returned in every read/write tool response instead.
     const fileList = Array.from(context.files.keys()).map(name => `- ${name}`).join('\n');
-    const allowParallel = mode === 'native' && this.effectiveSupportsParallelToolCalls();
+    const allowParallel = mode === 'native' && this.capability.effectiveSupportsParallelToolCalls();
     const systemInstruction = buildSystemInstruction(fileList, mode, allowParallel);
 
     const genConfig = mode === 'native'

@@ -9,8 +9,8 @@
             </mat-select>
         </mat-form-field>
         <mat-form-field appearance="outline" class="tool-mode-select" subscriptSizing="dynamic"
-            [matTooltip]="'Tool call mode for this profile. ' + agentService.effectiveToolCallReason() + '.'">
-            <mat-select [value]="agentService.toolCallMode()" (selectionChange)="agentService.setToolCallMode($event.value)" [disabled]="agentService.isAgentRunning()">
+            [matTooltip]="'Tool call mode for this profile. ' + agentService.capability.effectiveToolCallReason() + '.'">
+            <mat-select [value]="agentService.capability.toolCallMode()" (selectionChange)="agentService.capability.setToolCallMode($event.value)" [disabled]="agentService.isAgentRunning()">
                 <mat-option value="auto">Auto</mat-option>
                 <mat-option value="native">Native</mat-option>
                 <mat-option value="json">JSON</mat-option>
@@ -47,7 +47,7 @@
                 <div class="log-content-wrapper">
                     @if (log.thought) {
                         <div class="log-thought-container" [class.collapsed]="log.isThoughtCollapsed">
-                            <div class="log-thought-header" (click)="agentService.toggleThought($index)" tabindex="0" (keydown.enter)="agentService.toggleThought($index)" (keydown.space)="$event.preventDefault(); agentService.toggleThought($index)">
+                            <div class="log-thought-header" (click)="toggleLogSection($index, 'isThoughtCollapsed')" tabindex="0" (keydown.enter)="toggleLogSection($index, 'isThoughtCollapsed')" (keydown.space)="$event.preventDefault(); toggleLogSection($index, 'isThoughtCollapsed')">
                                 <mat-icon inline="true">{{ log.isThoughtCollapsed ? 'chevron_right' : 'expand_more' }}</mat-icon>
                                 <span>Thinking Process</span>
                             </div>
@@ -59,7 +59,7 @@
                     @if (log.text) {
                         @if (log.isToolCall) {
                             <div class="log-thought-container" [class.collapsed]="log.isToolCallCollapsed">
-                                <div class="log-thought-header" (click)="agentService.toggleToolCall($index)" tabindex="0" (keydown.enter)="agentService.toggleToolCall($index)" (keydown.space)="$event.preventDefault(); agentService.toggleToolCall($index)">
+                                <div class="log-thought-header" (click)="toggleLogSection($index, 'isToolCallCollapsed')" tabindex="0" (keydown.enter)="toggleLogSection($index, 'isToolCallCollapsed')" (keydown.space)="$event.preventDefault(); toggleLogSection($index, 'isToolCallCollapsed')">
                                     <mat-icon inline="true">{{ log.isToolCallCollapsed ? 'chevron_right' : 'expand_more' }}</mat-icon>
                                     <span>{{ log.toolName ? 'Tool Request: ' + log.toolName : 'Tool Execution Request' }}</span>
                                 </div>
@@ -72,7 +72,7 @@
                             </div>
                         } @else if (log.isToolResult) {
                             <div class="log-thought-container" [class.collapsed]="log.isToolResultCollapsed">
-                                <div class="log-thought-header" (click)="agentService.toggleToolResult($index)" tabindex="0" (keydown.enter)="agentService.toggleToolResult($index)" (keydown.space)="$event.preventDefault(); agentService.toggleToolResult($index)">
+                                <div class="log-thought-header" (click)="toggleLogSection($index, 'isToolResultCollapsed')" tabindex="0" (keydown.enter)="toggleLogSection($index, 'isToolResultCollapsed')" (keydown.space)="$event.preventDefault(); toggleLogSection($index, 'isToolResultCollapsed')">
                                     <mat-icon inline="true">{{ log.isToolResultCollapsed ? 'chevron_right' : 'expand_more' }}</mat-icon>
                                     <span>{{ log.toolName ? 'Tool Result: ' + log.toolName : 'Tool Result' }}</span>
                                 </div>
