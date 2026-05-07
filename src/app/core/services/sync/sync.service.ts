@@ -56,7 +56,7 @@ export class SyncService {
      */
     remoteUpdateAvailable = signal<RemoteUpdateAvailable | null>(null);
 
-    private inFlight: { kind: 'sync' | 'forcePush' | 'forcePull' | 'restore'; promise: Promise<unknown> } | null = null;
+    private inFlight: { kind: 'sync' | 'forcePush' | 'forcePull' | 'restore' | 'auxiliary'; promise: Promise<unknown> } | null = null;
     /**
      * Set true while restoreSnapshot is rewriting state. Auto-sync would
      * race with the restore (its in-flight reads / writes get mixed in,
@@ -178,7 +178,7 @@ export class SyncService {
     }
 
     private async runExclusive<T>(
-        kind: 'sync' | 'forcePush' | 'forcePull' | 'restore',
+        kind: 'sync' | 'forcePush' | 'forcePull' | 'restore' | 'auxiliary',
         fn: () => Promise<T>
     ): Promise<T> {
         while (this.inFlight) {
@@ -664,21 +664,34 @@ export class SyncService {
     }
 
     /**
-     * Pushes a settings JSON snapshot to the active backend.
+     * Auxiliary cloud ops (settings + prompts blobs) share the sync mutex.
+     * Without this, two rapid push / pull clicks (or push concurrent with
+     * an in-flight syncAll) race the GDrive `findXxxFileId` cache and can
+     * leave duplicate `prompts.json` / `settings.json` orphans in appData.
+     * They don't coalesce under 'sync' kind — each call queues distinctly.
      */
     async uploadSettings(content: string): Promise<void> {
-        const backend = await this.backends.getActiveBackend();
-        await backend.authenticate();
-        await backend.writeSettings(content);
+        return this.runExclusive('auxiliary', async () => {
+            const backend = await this.backends.getActiveBackend();
+            await backend.authenticate();
+            await backend.writeSettings(content);
+        });
     }
 
-    /**
-     * Pulls the settings JSON snapshot from the active backend, or null if none.
-     */
     async downloadSettings(): Promise<string | null> {
-        const backend = await this.backends.getActiveBackend();
-        await backend.authenticate();
-        return backend.readSettings();
+        return this.runExclusive('auxiliary', async () => {
+            const backend = await this.backends.getActiveBackend();
+            await backend.authenticate();
+            return backend.readSettings();
+        });
+    }
+
+    async uploadPrompts(): Promise<{ exported: number }> {
+        return this.runExclusive('auxiliary', () => this.promptCloudSync.uploadPrompts());
+    }
+
+    async downloadPrompts(): Promise<{ imported: number }> {
+        return this.runExclusive('auxiliary', () => this.promptCloudSync.downloadPrompts());
     }
 
     // ===== Snapshots ======================================================

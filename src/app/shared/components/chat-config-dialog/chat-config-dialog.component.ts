@@ -20,6 +20,7 @@ import { InjectionService, PromptType } from '@app/core/services/injection.servi
 import { PromptProfileRegistryService } from '@app/core/services/prompt-profile-registry.service';
 import { PromptCloudSyncService } from '@app/core/services/sync/prompt-cloud-sync.service';
 import { DiskProfileSyncService } from '@app/core/services/sync/disk-profile-sync.service';
+import { SyncService } from '@app/core/services/sync/sync.service';
 import { LoadingService } from '@app/core/services/loading.service';
 import { DialogService } from '@app/core/services/dialog.service';
 import { PromptDiffDialogComponent } from '../prompt-diff-dialog/prompt-diff-dialog.component';
@@ -68,6 +69,7 @@ export class ChatConfigDialogComponent {
     private injection = inject(InjectionService);
     private registry = inject(PromptProfileRegistryService);
     private promptCloudSync = inject(PromptCloudSyncService);
+    private sync = inject(SyncService);
     private diskSync = inject(DiskProfileSyncService);
     loading = inject(LoadingService);
     private dialogService = inject(DialogService);
@@ -417,7 +419,7 @@ export class ChatConfigDialogComponent {
     async pushPromptsToCloud(): Promise<void> {
         this.loading.show(this.ui().PROMPT_SYNC_UPLOADING);
         try {
-            const { exported } = await this.promptCloudSync.uploadPrompts();
+            const { exported } = await this.sync.uploadPrompts();
             this.snackBar.open(this.ui().PROMPT_SYNC_UPLOADED.replace('{count}', String(exported)), this.ui().CLOSE, { duration: 3000 });
         } catch (err) {
             console.error('[ChatConfig] uploadPrompts failed', err);
@@ -436,7 +438,7 @@ export class ChatConfigDialogComponent {
 
         this.loading.show(this.ui().PROMPT_SYNC_DOWNLOADING);
         try {
-            const { imported } = await this.promptCloudSync.downloadPrompts();
+            const { imported } = await this.sync.downloadPrompts();
             // forceReload — switchProfile(sameId) would early-return and skip the re-read.
             await this.injection.forceReload();
             this.refreshAllEditorContent();

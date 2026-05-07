@@ -26,7 +26,7 @@ describe('createParallelPool', () => {
     it('caps concurrency below the worker count', async () => {
         let active = 0;
         let peak = 0;
-        const release: Array<() => void> = [];
+        const release: (() => void)[] = [];
         const tasks = Array.from({ length: 6 }, () =>
             new Promise<void>(resolve => release.push(resolve))
         );
