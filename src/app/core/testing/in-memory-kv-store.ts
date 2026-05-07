@@ -30,6 +30,10 @@ export class InMemoryKVStore extends KVStore {
         this.map.delete(key);
     }
 
+    keys(): string[] {
+        return [...this.map.keys()];
+    }
+
     /** Test helper — bulk set without going through `set()` per key. */
     seed(entries: Record<string, string>): void {
         for (const [k, v] of Object.entries(entries)) this.map.set(k, v);

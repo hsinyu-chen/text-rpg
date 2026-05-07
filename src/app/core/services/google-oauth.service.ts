@@ -1,6 +1,7 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { DOCUMENT } from '@angular/common';
 import { environment } from '../../../environments/environment';
+import { KVStore } from './kv/kv-store';
 
 // ===== Google Identity Services types ===================================
 
@@ -69,9 +70,13 @@ async function generateCodeChallenge(verifier: string): Promise<string> {
 // BYO OAuth is web-only: there is no official Tauri distribution, so Tauri
 // users always rebuild from source with credentials baked into environment.ts
 // (Tauri PKCE additionally requires GCP "Desktop app" type + secret, which
-// is awkward to enter through a runtime UI). Only the web client id has an
-// LS fallback.
+// is awkward to enter through a runtime UI). Only the web client id has a
+// runtime fallback.
 const LS_OAUTH_CLIENT_ID = 'gdrive_oauth_client_id';
+const LS_ACCESS_TOKEN = 'gdrive_access_token';
+const LS_REFRESH_TOKEN = 'gdrive_refresh_token';
+const LS_TOKEN_EXPIRY = 'gdrive_token_expiry';
+const LS_USER_EMAIL = 'gdrive_user_email';
 
 // Scopes requested by both Web (GIS popup) and Tauri (PKCE) flows. `email`
 // is needed for the user-info hint that lets `loginWeb` attempt a silent
@@ -97,6 +102,7 @@ interface OAuthCreds {
 @Injectable({ providedIn: 'root' })
 export class GoogleOAuthService {
     private readonly doc = inject(DOCUMENT);
+    private readonly kv = inject(KVStore);
 
     private tokenClient: TokenClient | null = null;
     private accessToken = signal<string | null>(null);
@@ -113,9 +119,9 @@ export class GoogleOAuthService {
     private refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
     constructor() {
-        const savedToken = localStorage.getItem('gdrive_access_token');
-        const savedRefreshToken = localStorage.getItem('gdrive_refresh_token');
-        const savedExpiry = localStorage.getItem('gdrive_token_expiry');
+        const savedToken = this.kv.get(LS_ACCESS_TOKEN);
+        const savedRefreshToken = this.kv.get(LS_REFRESH_TOKEN);
+        const savedExpiry = this.kv.get(LS_TOKEN_EXPIRY);
 
         if (savedToken) {
             this.accessToken.set(savedToken);
@@ -125,7 +131,7 @@ export class GoogleOAuthService {
         }
         if (savedRefreshToken) {
             this.refreshToken.set(savedRefreshToken);
-            console.log('[GoogleOAuth] Restored refresh token from localStorage');
+            console.log('[GoogleOAuth] Restored refresh token from storage');
         }
 
         console.log('[GoogleOAuth] Service initialized. Token expiry:', new Date(this.tokenExpiry()).toLocaleString());
@@ -136,7 +142,7 @@ export class GoogleOAuthService {
 
     /**
      * Resolves OAuth credentials. The Web client id falls back to a
-     * user-supplied value in localStorage when `environment.gcpOauthAppId`
+     * user-supplied runtime value when `environment.gcpOauthAppId`
      * is empty (BYO OAuth in web builds). Tauri-specific creds are read
      * from environment only — see project memory: there is no official
      * Tauri build, so Tauri users always rebuild with env baked in, and
@@ -144,7 +150,7 @@ export class GoogleOAuthService {
      */
     private resolveOAuthCreds(): OAuthCreds {
         return {
-            clientId: environment.gcpOauthAppId || localStorage.getItem(LS_OAUTH_CLIENT_ID) || '',
+            clientId: environment.gcpOauthAppId || this.kv.get(LS_OAUTH_CLIENT_ID) || '',
             clientIdTauri: environment.gcpOauthAppId_Tauri,
             clientSecretTauri: environment.gcpOauthClientSecret_Tauri
         };
@@ -226,8 +232,8 @@ export class GoogleOAuthService {
      */
     saveOAuthClientId(clientId: string): void {
         const trimmed = clientId.trim();
-        if (trimmed) localStorage.setItem(LS_OAUTH_CLIENT_ID, trimmed);
-        else localStorage.removeItem(LS_OAUTH_CLIENT_ID);
+        if (trimmed) this.kv.set(LS_OAUTH_CLIENT_ID, trimmed);
+        else this.kv.remove(LS_OAUTH_CLIENT_ID);
         this.clearTokens();
         if (!this.isConfigured) {
             this.tokenClient = null;
@@ -259,16 +265,16 @@ export class GoogleOAuthService {
         const expiry = now + (expiresInSeconds - expiryBufferSeconds) * 1000;
         this.tokenExpiry.set(expiry);
 
-        localStorage.setItem('gdrive_access_token', token);
-        localStorage.setItem('gdrive_token_expiry', expiry.toString());
+        this.kv.set(LS_ACCESS_TOKEN, token);
+        this.kv.set(LS_TOKEN_EXPIRY, expiry.toString());
 
         if (refreshToken) {
             this.refreshToken.set(refreshToken);
-            localStorage.setItem('gdrive_refresh_token', refreshToken);
+            this.kv.set(LS_REFRESH_TOKEN, refreshToken);
             console.log('[GoogleOAuth] Refresh token saved');
         }
 
-        if (!localStorage.getItem('gdrive_user_email')) {
+        if (!this.kv.get(LS_USER_EMAIL)) {
             void this.fetchAndSaveUserEmail(token);
         }
 
@@ -318,7 +324,7 @@ export class GoogleOAuthService {
             if (res.ok) {
                 const data = await res.json();
                 if (data.email) {
-                    localStorage.setItem('gdrive_user_email', data.email);
+                    this.kv.set(LS_USER_EMAIL, data.email);
                     console.log('[GoogleOAuth] User email saved for hint:', data.email);
                 }
             }
@@ -353,9 +359,9 @@ export class GoogleOAuthService {
         this.accessToken.set(null);
         this.refreshToken.set(null);
         this.tokenExpiry.set(0);
-        localStorage.removeItem('gdrive_access_token');
-        localStorage.removeItem('gdrive_refresh_token');
-        localStorage.removeItem('gdrive_token_expiry');
+        this.kv.remove(LS_ACCESS_TOKEN);
+        this.kv.remove(LS_REFRESH_TOKEN);
+        this.kv.remove(LS_TOKEN_EXPIRY);
     }
 
     private async refreshAccessToken(): Promise<string> {
@@ -543,7 +549,7 @@ export class GoogleOAuthService {
                 }
             };
 
-            const savedEmail = localStorage.getItem('gdrive_user_email');
+            const savedEmail = this.kv.get(LS_USER_EMAIL);
             const config: { prompt?: string; hint?: string } = {};
 
             if (!forceInteractive && savedEmail) {

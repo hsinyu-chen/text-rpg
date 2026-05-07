@@ -12,6 +12,7 @@ import { SnapshotService } from './snapshot.service';
 import { SyncBackendResolver } from './sync-backend-resolver.service';
 import { AutoSyncScheduler } from './auto-sync-scheduler.service';
 import { SyncReconciler } from './sync-reconciler.service';
+import { KVStore } from '../kv/kv-store';
 
 export interface RemoteUpdateAvailable {
     bookId: string;
@@ -37,6 +38,7 @@ export class SyncService {
     private readonly backends = inject(SyncBackendResolver);
     private readonly scheduler = inject(AutoSyncScheduler);
     private readonly reconciler = inject(SyncReconciler);
+    private readonly kv = inject(KVStore);
 
     /**
      * Set when a non-boot sync downloaded a newer version of the active book.
@@ -97,15 +99,10 @@ export class SyncService {
      * harmless but they'd accumulate forever.
      */
     private dropLegacyBaselines(): void {
-        const drop: string[] = [];
-        for (let i = 0; i < localStorage.length; i++) {
-            const k = localStorage.key(i);
-            if (!k) continue;
-            if (k.startsWith('sync_at_') || k.startsWith('sync_lb_') || k.startsWith('sync_rb_')) {
-                drop.push(k);
-            }
-        }
-        for (const k of drop) localStorage.removeItem(k);
+        const drop = this.kv.keys().filter(k =>
+            k.startsWith('sync_at_') || k.startsWith('sync_lb_') || k.startsWith('sync_rb_')
+        );
+        for (const k of drop) this.kv.remove(k);
         if (drop.length) console.log(`[SyncService] Dropped ${drop.length} legacy baseline keys`);
     }
 

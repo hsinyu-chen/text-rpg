@@ -12,6 +12,7 @@ import {
   processAgentStream, AgentStreamEvent, AgentStreamResult, AgentStreamChunk
 } from './agent-stream-processor';
 import { AgentCapabilityResolver } from './agent-capability-resolver';
+import { KVStore } from '../kv/kv-store';
 
 /**
  * Mutable per-turn context shared across phase helpers (stream consumer,
@@ -57,6 +58,7 @@ export type { FileAgentContext, ToolCallMode } from './file-agent.types';
 export class FileAgentService {
   private llmConfigService = inject(LLMConfigService);
   private llmProviderRegistry = inject(LLMProviderRegistryService);
+  private kv = inject(KVStore);
   private completionValidator: WorldCompletionValidator | null = null;
 
   setCompletionValidator(v: WorldCompletionValidator): void {
@@ -76,7 +78,8 @@ export class FileAgentService {
   readonly capability = new AgentCapabilityResolver({
     selectedProfileId: this.selectedProfileId,
     agentProfiles: this.agentProfiles,
-    llmProviderRegistry: this.llmProviderRegistry
+    llmProviderRegistry: this.llmProviderRegistry,
+    kv: this.kv
   });
 
   private pushToolResultLog(response: Record<string, unknown>, toolName?: string): void {

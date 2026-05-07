@@ -1,6 +1,7 @@
 import { Injectable, inject, signal, computed, DestroyRef } from '@angular/core';
 import { LLMConfig, LLMProviderConfig } from '@hcs/llm-core';
 import { LLM_STORAGE_TOKEN } from '@hcs/llm-angular-common';
+import { KVStore } from './kv/kv-store';
 
 const ACTIVE_PROFILE_KEY = 'llm_active_profile_id';
 
@@ -22,10 +23,11 @@ const ACTIVE_PROFILE_KEY = 'llm_active_profile_id';
 export class LLMConfigService {
   private storage = inject(LLM_STORAGE_TOKEN);
   private destroyRef = inject(DestroyRef);
+  private kv = inject(KVStore);
 
   private readonly _profiles = signal<LLMConfig[]>([]);
   private readonly _activeId = signal<string | null>(
-    localStorage.getItem(ACTIVE_PROFILE_KEY)
+    this.kv.get(ACTIVE_PROFILE_KEY)
   );
 
   readonly profiles = this._profiles.asReadonly();
@@ -70,9 +72,9 @@ export class LLMConfigService {
   setActiveProfileId(id: string | null): void {
     this._activeId.set(id);
     if (id) {
-      localStorage.setItem(ACTIVE_PROFILE_KEY, id);
+      this.kv.set(ACTIVE_PROFILE_KEY, id);
     } else {
-      localStorage.removeItem(ACTIVE_PROFILE_KEY);
+      this.kv.remove(ACTIVE_PROFILE_KEY);
     }
   }
 
