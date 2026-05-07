@@ -124,16 +124,23 @@ export class ChatHistoryService {
         await this.session.saveCurrentSessionToBook();
     }
 
-    /** Batch delete; one book save at the end instead of N. */
+    /** Batch delete; single pass + one book save at the end instead of N. */
     async deleteMessages(ids: string[]) {
         if (ids.length === 0) return;
         const idSet = new Set(ids);
         this.updateMessages(prev => {
-            const removed = prev.filter(m => idSet.has(m.id));
+            const removed: ChatMessage[] = [];
+            const remaining = prev.filter(m => {
+                if (idSet.has(m.id)) {
+                    removed.push(m);
+                    return false;
+                }
+                return true;
+            });
             if (removed.length > 0) {
                 this.accumulateSunkUsage(this.calculateSunkUsage(removed));
             }
-            return prev.filter(m => !idSet.has(m.id));
+            return remaining;
         });
         await this.session.saveCurrentSessionToBook();
     }

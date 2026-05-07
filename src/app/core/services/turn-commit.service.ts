@@ -8,7 +8,7 @@ import { LLMProviderRegistryService } from './llm-provider-registry.service';
 import { StreamProcessResult } from './stream-processor.service';
 
 import { ChatMessage, ExtendedPart } from '../models/types';
-import { GAME_INTENTS } from '../constants/game-intents';
+import { STORY_INTENTS } from '../constants/game-intents';
 
 /**
  * Per-turn context produced by the engine's setup phase, consumed by the
@@ -54,6 +54,9 @@ export interface CorrectionState {
     isCorrection: boolean;
     correction: string;
     correctedIntent?: string;
+    /** Set so commitModelMessage can flip the prior story model to ref-only in
+     *  the same pass — keeps the turn at one chat-history write. */
+    oldStoryModelId?: string;
     oldStoryUserId?: string;
     oldStoryUserContent?: string;
     oldStoryUserIdealOutcome?: string;
@@ -75,47 +78,45 @@ export class TurnCommitService {
     private providerRegistry = inject(LLMProviderRegistryService);
 
     /**
-     * Phase 6: if the engine returned a `<系統>` correction, walk back to the
-     * last non-ref-only story-intent model message, mark it ref-only, and
-     * capture the paired user message so the auto-resend can replay the
-     * original action.
+     * Phase 6: if the engine returned a `<系統>` correction, locate the last
+     * non-ref-only story-intent model message and capture the paired user
+     * message. **Pure lookup** — no state mutation; the actual ref-only flip
+     * is folded into commitModelMessage so the turn lands as one IDB write.
      */
     applyCorrection(result: StreamProcessResult): CorrectionState {
         if (!result.correction) return { isCorrection: false, correction: '' };
-        const storyIntents: string[] = [GAME_INTENTS.ACTION, GAME_INTENTS.CONTINUE, GAME_INTENTS.FAST_FORWARD];
         console.log('[TurnCommit] Correction detected:', result.correction);
 
         const captured: CorrectionState = { isCorrection: true, correction: result.correction };
-        this.chatHistory.updateMessages(prev => {
-            const updated = [...prev];
-            for (let i = updated.length - 2; i >= 0; i--) {
-                const msg = updated[i];
-                if (msg.role === 'model' && !msg.isRefOnly && msg.intent && storyIntents.includes(msg.intent)) {
-                    updated[i] = { ...msg, isRefOnly: true };
-                    captured.correctedIntent = msg.intent;
-                    // Guard the index so a malformed history starting with a
-                    // model message doesn't trip an out-of-bounds read.
-                    if (i > 0) {
-                        const paired = updated[i - 1];
-                        if (paired.role === 'user') {
-                            captured.oldStoryUserId = paired.id;
-                            captured.oldStoryUserContent = paired.content;
-                            captured.oldStoryUserIdealOutcome = paired.userIdealOutcome;
-                        }
+        const messages = this.state.messages();
+        for (let i = messages.length - 2; i >= 0; i--) {
+            const msg = messages[i];
+            if (msg.role === 'model' && !msg.isRefOnly && msg.intent && (STORY_INTENTS as string[]).includes(msg.intent)) {
+                captured.oldStoryModelId = msg.id;
+                captured.correctedIntent = msg.intent;
+                // Guard the index so a malformed history starting with a
+                // model message doesn't trip an out-of-bounds read.
+                if (i > 0) {
+                    const paired = messages[i - 1];
+                    if (paired.role === 'user') {
+                        captured.oldStoryUserId = paired.id;
+                        captured.oldStoryUserContent = paired.content;
+                        captured.oldStoryUserIdealOutcome = paired.userIdealOutcome;
                     }
-                    console.log('[TurnCommit] Marked old story model ref-only:', msg.id);
-                    break;
                 }
+                console.log('[TurnCommit] Identified old story model for ref-only marking:', msg.id);
+                break;
             }
-            return updated;
-        });
+        }
         return captured;
     }
 
     /**
-     * Phase 7: a single update covers two concerns —
+     * Phase 7: single update covers three concerns in one IDB write —
      *  (a) committing the just-finished model message (always)
-     *  (b) post-resend cleanup when this turn was triggered as a correction
+     *  (b) flipping the prior story model to ref-only when this turn carried
+     *      a correction (was a separate write before bot review round 1)
+     *  (c) post-resend cleanup when this turn was triggered as a correction
      *      resend: ref-only the system pair + original action user msg, and
      *      transplant the correction string onto the freshly-committed
      *      corrective story model so Layer 1 stateUpdates keeps propagating
@@ -127,6 +128,9 @@ export class TurnCommitService {
             const isLast = i === prev.length - 1;
             if (isLast && m.role === 'model') {
                 return this.buildCommittedModelMessage(m, turn, result, correction, resendOpts);
+            }
+            if (correction.isCorrection && m.id === correction.oldStoryModelId) {
+                return { ...m, isRefOnly: true };
             }
             if (resendOpts && (m.id === resendOpts.systemUserId || m.id === resendOpts.systemModelId || m.id === resendOpts.oldStoryUserId)) {
                 return { ...m, isRefOnly: true };
