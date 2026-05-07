@@ -60,6 +60,22 @@ export class AgentConsoleComponent implements OnDestroy {
   // Internal state
   agentPrompt = signal('');
 
+  /**
+   * Per-log-entry fold toggles. The collapse flags live on `AgentLogEntry`
+   * (the streaming side sets `isThoughtCollapsed` automatically when text
+   * follows thought), but the toggle action itself is a view concern —
+   * driven by user clicks in this template.
+   */
+  toggleLogSection(index: number, key: 'isThoughtCollapsed' | 'isToolCallCollapsed' | 'isToolResultCollapsed'): void {
+    this.agentService.agentLogs.update(logs => {
+      const next = [...logs];
+      if (next[index]) {
+        next[index] = { ...next[index], [key]: !next[index][key] };
+      }
+      return next;
+    });
+  }
+
   // ViewChild refs for auto-scroll
   private agentConsoleEl = viewChild<ElementRef<HTMLElement>>('agentConsole');
   private agentConsoleContentEl = viewChild<ElementRef<HTMLElement>>('agentConsoleContent');

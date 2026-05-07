@@ -2,16 +2,30 @@ import { Injectable, inject, signal, computed, resource, effect } from '@angular
 import { LLMConfigService } from '../llm-config.service';
 import { LLMProviderRegistryService } from '../llm-provider-registry.service';
 import { LLMContent, LLMPart, LLMFunctionCall } from '@hcs/llm-core';
-import { FileAgentContext, ToolCallMode, AgentLogEntry, ParsedAction } from './file-agent.types';
+import { FileAgentContext, AgentLogEntry, ParsedAction } from './file-agent.types';
 import { FILE_AGENT_TOOLS, buildJsonSchema } from './file-agent-tools';
 import { buildSystemInstruction } from './file-agent-prompts';
 import { executeFileTool } from './file-agent-tool-executor';
 import { WorldCompletionValidator } from './world-completion-validator';
 import { sanitizeLatexToUnicode } from '@app/core/utils/latex.util';
+import {
+  processAgentStream, AgentStreamEvent, AgentStreamResult, AgentStreamChunk
+} from './agent-stream-processor';
+import { AgentCapabilityResolver } from './agent-capability-resolver';
+
+/**
+ * Mutable per-turn context shared across phase helpers (stream consumer,
+ * history-append, dispatch). Lives on the stack inside processAgentTurn.
+ */
+interface TurnContext {
+  currentLogIndex: number;
+  accumulatedText: string;
+  accumulatedThought: string;
+  hasCollapsedThought: boolean;
+  nativeFunctionCallParts: LLMPart[];
+}
 
 export type { FileAgentContext, ToolCallMode } from './file-agent.types';
-
-const TOOL_CALL_MODE_KEY_PREFIX = 'file_agent_tool_call_mode:';
 
 /**
  * FileAgentService
@@ -54,159 +68,16 @@ export class FileAgentService {
   agentLogs = signal<AgentLogEntry[]>([]);
   lastFilesReplaced = signal<{ filename: string; content: string }[]>([]);
 
-  toolCallMode = signal<ToolCallMode>(this.loadToolCallMode(this.llmConfigService.activeProfileId()));
-
   /**
-   * Per-profile native-tool probe results. Set after a successful async
-   * probe (currently llama.cpp `/props` chat_template inspection).
-   * null/missing = not probed yet or probe failed → fall through to static
-   * capability.
+   * Tool-call capability resolution (native vs JSON, parallel calls) and
+   * the per-profile `toolCallMode` user setting. Held as a public field so
+   * templates can bind directly via `agentService.capability.X`.
    */
-  private probeResults = signal<Record<string, boolean>>({});
-
-  /** Per-profile parallel-tool probe results, same contract as probeResults. */
-  private parallelProbeResults = signal<Record<string, boolean>>({});
-
-  /** True when the selected profile is allowed to issue multiple tool calls per turn. */
-  effectiveSupportsParallelToolCalls = computed<boolean>(() => {
-    if (!this.effectiveToolCallModeIsNative()) return false;
-    const id = this.selectedProfileId();
-    const profile = id ? this.agentProfiles().find(p => p.id === id) : null;
-    if (!profile || !id) return false;
-
-    const explicit = profile.settings.additionalSettings?.['supportsParallelToolCalls'];
-    if (typeof explicit === 'boolean') return explicit;
-
-    const probed = this.parallelProbeResults()[id];
-    if (typeof probed === 'boolean') return probed;
-
-    const cap = this.llmProviderRegistry.getProvider(profile.provider)?.getCapabilities(profile.settings);
-    return !!cap?.supportsParallelToolCalls;
+  readonly capability = new AgentCapabilityResolver({
+    selectedProfileId: this.selectedProfileId,
+    agentProfiles: this.agentProfiles,
+    llmProviderRegistry: this.llmProviderRegistry
   });
-
-  /** True when 'auto' would resolve to native for the selected profile. */
-  effectiveToolCallModeIsNative = computed(() => {
-    const setting = this.toolCallMode();
-    if (setting === 'native') return true;
-    if (setting === 'json') return false;
-    return this.resolvedAutoIsNative().result;
-  });
-
-  /** Human-readable reason for the resolved auto mode — surfaced in UI tooltip. */
-  effectiveToolCallReason = computed<string>(() => {
-    const setting = this.toolCallMode();
-    if (setting === 'native') return 'forced Native';
-    if (setting === 'json') return 'forced JSON';
-    const r = this.resolvedAutoIsNative();
-    const verdict = r.result ? 'Native' : 'JSON';
-    return `Auto: ${verdict} (${r.source})`;
-  });
-
-  /**
-   * Resolve auto-mode for the current profile with provenance:
-   *   explicit  — user set additionalSettings.supportsNativeToolCalls
-   *   probed    — async probe (e.g. llama.cpp chat_template) reported a verdict
-   *   default   — fell back to provider's static capability
-   *   no profile — nothing selected
-   */
-  private resolvedAutoIsNative = computed<{ result: boolean, source: 'explicit' | 'probed' | 'default' | 'no profile' }>(() => {
-    const id = this.selectedProfileId();
-    const profile = id ? this.agentProfiles().find(p => p.id === id) : null;
-    if (!profile || !id) return { result: false, source: 'no profile' };
-
-    const explicit = this.readExplicitNativeFlag(profile.settings);
-    if (explicit !== undefined) return { result: explicit, source: 'explicit' };
-
-    const probed = this.probeResults()[id];
-    if (typeof probed === 'boolean') return { result: probed, source: 'probed' };
-
-    const cap = this.llmProviderRegistry.getProvider(profile.provider)?.getCapabilities(profile.settings);
-    return { result: !!cap?.supportsNativeToolCalls, source: 'default' };
-  });
-
-  setToolCallMode(mode: ToolCallMode): void {
-    this.toolCallMode.set(mode);
-    const id = this.selectedProfileId();
-    if (id) localStorage.setItem(TOOL_CALL_MODE_KEY_PREFIX + id, mode);
-  }
-
-  private loadToolCallMode(profileId: string | null): ToolCallMode {
-    if (!profileId) return 'auto';
-    const v = localStorage.getItem(TOOL_CALL_MODE_KEY_PREFIX + profileId);
-    return v === 'native' || v === 'json' || v === 'auto' ? v : 'auto';
-  }
-
-  private readExplicitNativeFlag(settings: { additionalSettings?: Record<string, unknown> }): boolean | undefined {
-    const v = settings.additionalSettings?.['supportsNativeToolCalls'];
-    return typeof v === 'boolean' ? v : undefined;
-  }
-
-  /**
-   * Kick off an async probe for the given profile when its provider exposes
-   * one and the user hasn't pinned an explicit flag. The result is cached on
-   * `probeResults[profileId]` and feeds into auto-mode resolution. Errors
-   * are swallowed — falling back to the static default is the safe behavior.
-   */
-  private async kickToolSupportProbe(profileId: string): Promise<void> {
-    const profile = this.agentProfiles().find(p => p.id === profileId);
-    if (!profile) return;
-
-    const provider = this.llmProviderRegistry.getProvider(profile.provider);
-    if (!provider) return;
-
-    if (this.readExplicitNativeFlag(profile.settings) === undefined && provider.probeNativeToolSupport) {
-      try {
-        const result = await provider.probeNativeToolSupport(profile.settings);
-        if (this.selectedProfileId() === profileId) {
-          this.probeResults.update(r => ({ ...r, [profileId]: result }));
-        }
-      } catch {
-        // Probe failures are non-fatal; fall back to defaults
-      }
-    }
-
-    const parallelExplicit = profile.settings.additionalSettings?.['supportsParallelToolCalls'];
-    if (typeof parallelExplicit !== 'boolean' && provider.probeParallelToolSupport) {
-      try {
-        const result = await provider.probeParallelToolSupport(profile.settings);
-        if (this.selectedProfileId() === profileId) {
-          this.parallelProbeResults.update(r => ({ ...r, [profileId]: result }));
-        }
-      } catch {
-        // Probe failures are non-fatal; fall back to defaults
-      }
-    }
-  }
-
-  toggleThought(index: number): void {
-    this.agentLogs.update(logs => {
-      const next = [...logs];
-      if (next[index]) {
-        next[index] = { ...next[index], isThoughtCollapsed: !next[index].isThoughtCollapsed };
-      }
-      return next;
-    });
-  }
-
-  toggleToolCall(index: number): void {
-    this.agentLogs.update(logs => {
-      const next = [...logs];
-      if (next[index]) {
-        next[index] = { ...next[index], isToolCallCollapsed: !next[index].isToolCallCollapsed };
-      }
-      return next;
-    });
-  }
-
-  toggleToolResult(index: number): void {
-    this.agentLogs.update(logs => {
-      const next = [...logs];
-      if (next[index]) {
-        next[index] = { ...next[index], isToolResultCollapsed: !next[index].isToolResultCollapsed };
-      }
-      return next;
-    });
-  }
 
   private pushToolResultLog(response: Record<string, unknown>, toolName?: string): void {
     this.agentLogs.update(logs => [...logs, {
@@ -218,6 +89,59 @@ export class FileAgentService {
       toolName
     }]);
   }
+
+  /** Mutate the entry at `index` via a patch produced by `mutator`. */
+  private updateLogAt(index: number, mutator: (entry: AgentLogEntry) => AgentLogEntry): void {
+    this.agentLogs.update(logs => {
+      const next = [...logs];
+      if (next[index]) next[index] = mutator(next[index]);
+      return next;
+    });
+  }
+
+  /**
+   * Per-event handlers for the LLM stream. Keyed by event kind so the
+   * dispatch is a single lookup rather than a switch ladder; per-handler
+   * state lives in the `TurnContext` passed in from processAgentTurn.
+   */
+  private readonly streamEventHandlers: {
+    [K in AgentStreamEvent['kind']]:
+      (ev: Extract<AgentStreamEvent, { kind: K }>, ctx: TurnContext) => void
+  } = {
+    progress: (ev) => {
+      this.generatedChunkCount.set(ev.chunkCount);
+      if (ev.tokenCount !== undefined) this.generatedTokenCount.set(ev.tokenCount);
+      if (ev.promptProgress !== undefined) this.promptProgress.set(ev.promptProgress);
+      // When promptProgress AND text/functionCall arrive in the same chunk,
+      // the clear wins — keeps the prompt bar from lingering during tool-
+      // call streaming on throttled-heartbeat chunks.
+      if (ev.clearPromptProgress) this.promptProgress.set(undefined);
+    },
+    thought: (ev, ctx) => {
+      ctx.accumulatedThought = ev.accumulatedThought;
+      this.updateLogAt(ctx.currentLogIndex, e => ({ ...e, thought: ctx.accumulatedThought }));
+    },
+    text: (ev, ctx) => {
+      ctx.accumulatedText = ev.accumulatedText;
+      this.updateLogAt(ctx.currentLogIndex, e => ({
+        ...e,
+        text: ctx.accumulatedText,
+        ...(ev.collapseThought ? { isThoughtCollapsed: true } : {})
+      }));
+      if (ev.collapseThought) ctx.hasCollapsedThought = true;
+    },
+    'tool-heartbeat': (ev, ctx) => {
+      const names = ev.toolNames.join(', ');
+      const countStr = ev.tokenCount > 0 ? `${ev.tokenCount} tokens` : `${ev.chunkCount} chunks`;
+      const heartbeat = ev.isFirst
+        ? `Preparing tool: ${names}…`
+        : `Preparing tool: ${names}… (${countStr} received)`;
+      const text = ctx.accumulatedText.trim()
+        ? `${ctx.accumulatedText.trim()}\n\n${heartbeat}`
+        : heartbeat;
+      this.updateLogAt(ctx.currentLogIndex, e => ({ ...e, text }));
+    }
+  };
 
   isAgentRunning = signal(false);
   agentHistory = signal<LLMContent[]>([]);
@@ -241,7 +165,7 @@ export class FileAgentService {
       if (!id || lastProbed === id) return;
       if (!list.find(p => p.id === id)) return;
       lastProbed = id;
-      void this.kickToolSupportProbe(id);
+      void this.capability.kickToolSupportProbe(id);
     });
   }
 
@@ -302,8 +226,7 @@ export class FileAgentService {
 
   selectProfile(profileId: string): void {
     this.selectedProfileId.set(profileId);
-    this.toolCallMode.set(this.loadToolCallMode(profileId));
-    void this.kickToolSupportProbe(profileId);
+    this.capability.syncToolCallModeForProfile(profileId);
   }
 
   clearHistory(): void {
@@ -353,12 +276,76 @@ export class FileAgentService {
   }
 
   private resolveToolCallMode(): 'native' | 'json' {
-    return this.effectiveToolCallModeIsNative() ? 'native' : 'json';
+    return this.capability.effectiveToolCallModeIsNative() ? 'native' : 'json';
   }
 
+  /**
+   * Orchestrator: setup → stream consume → parse → dispatch. Phase
+   * helpers (handleJsonParseError, handleSubmitResponse, executeSingleAction,
+   * executeBatchActions) re-enter via processAgentTurn for retries, validator
+   * rejection, reportProgress, and tool-call follow-up turns.
+   */
   private async processAgentTurn(context: FileAgentContext, retryCount = 0): Promise<void> {
+    const setup = this.setupTurn(context);
+    if (!setup) return;
+    const { profile, provider, mode, allowParallel, genConfig } = setup;
+
+    const ctx = this.openTurnLogEntry();
+    const stream = provider.generateContentStream(profile.settings, this.agentHistory(), setup.systemInstruction, genConfig);
+
+    const result = await this.consumeStream(stream, allowParallel, ctx);
+    if (!result) return;
+
+    if (mode === 'native' && ctx.accumulatedText) {
+      ctx.accumulatedText = sanitizeLatexToUnicode(ctx.accumulatedText);
+      this.updateLogAt(ctx.currentLogIndex, e => ({ ...e, text: ctx.accumulatedText }));
+    }
+
+    const parsed = parseActionsFromOutput(mode, ctx.accumulatedText, result.nativeFunctionCalls);
+    if (!parsed.ok) {
+      await this.handleJsonParseError(context, retryCount, ctx);
+      return;
+    }
+
+    this.appendModelTurnToHistory(mode, ctx);
+
+    if (parsed.actions.length === 0) {
+      // Commentary-only output: implicit finish.
+      this.updateLogAt(ctx.currentLogIndex, e => ({ ...e, text: ctx.accumulatedText || '(no response)' }));
+      this.isAgentRunning.set(false);
+      return;
+    }
+
+    // submitResponse anywhere in the batch ends the turn (after validator).
+    const finishCall = parsed.actions.find((a: ParsedAction) => a.action === 'submitResponse');
+    if (finishCall) {
+      await this.handleSubmitResponse(context, finishCall, mode, ctx);
+      return;
+    }
+
+    if (parsed.actions.length === 1) {
+      await this.executeSingleAction(parsed.actions[0], context, mode, ctx);
+    } else {
+      await this.executeBatchActions(parsed.actions, context, mode);
+    }
+  }
+
+  /**
+   * Resolve profile + provider + tool-call mode + system prompt + gen
+   * config for this turn. Returns null on a missing profile id (caller
+   * silently bails — the runAgent guard already logged the user-facing
+   * "no profile selected" message).
+   */
+  private setupTurn(context: FileAgentContext): {
+    profile: ReturnType<FileAgentService['agentProfiles']>[number];
+    provider: NonNullable<ReturnType<LLMProviderRegistryService['getProvider']>>;
+    mode: 'native' | 'json';
+    allowParallel: boolean;
+    systemInstruction: string;
+    genConfig: Record<string, unknown>;
+  } | null {
     const profileId = this.selectedProfileId();
-    if (!profileId) return;
+    if (!profileId) return null;
 
     const profile = this.agentProfiles().find(p => p.id === profileId);
     if (!profile) throw new Error('Profile not found');
@@ -375,378 +362,227 @@ export class FileAgentService {
     // llama.cpp KV slot prefix match) on every replaceFile/replaceSection.
     // Fresh totalLines is returned in every read/write tool response instead.
     const fileList = Array.from(context.files.keys()).map(name => `- ${name}`).join('\n');
-    const allowParallel = mode === 'native' && this.effectiveSupportsParallelToolCalls();
+    const allowParallel = mode === 'native' && this.capability.effectiveSupportsParallelToolCalls();
     const systemInstruction = buildSystemInstruction(fileList, mode, allowParallel);
 
-    const genConfig = mode === 'native'
+    const genConfig: Record<string, unknown> = mode === 'native'
       ? { tools: FILE_AGENT_TOOLS, signal: this.abortController?.signal }
       : { responseSchema: buildJsonSchema(cap.isLocalProvider), responseMimeType: 'application/json', signal: this.abortController?.signal };
 
-    // Reset progress tracking for this specific turn
+    // Reset progress signals for this turn before the stream lands.
     this.generatedTokenCount.set(0);
     this.generatedChunkCount.set(0);
     this.promptProgress.set(undefined);
 
+    return { profile, provider, mode, allowParallel, systemInstruction, genConfig };
+  }
+
+  /** Append a fresh streaming model entry; return the per-turn context. */
+  private openTurnLogEntry(): TurnContext {
     let currentLogIndex = -1;
     this.agentLogs.update(logs => {
-      const newLogs = [...logs, { role: 'model', text: '', type: 'model' as const, isThoughtCollapsed: false }];
-      currentLogIndex = newLogs.length - 1;
-      return newLogs;
+      const next = [...logs, { role: 'model', text: '', type: 'model' as const, isThoughtCollapsed: false }];
+      currentLogIndex = next.length - 1;
+      return next;
     });
+    return {
+      currentLogIndex,
+      accumulatedText: '',
+      accumulatedThought: '',
+      hasCollapsedThought: false,
+      nativeFunctionCallParts: []
+    };
+  }
 
-    const stream = provider.generateContentStream(
-      profile.settings,
-      this.agentHistory(),
-      systemInstruction,
-      genConfig
-    );
-
-    let accumulatedText = '';
-    let accumulatedThought = '';
-    let hasCollapsedThought = false;
-    const nativeFunctionCalls: LLMFunctionCall[] = [];
-    const nativeFunctionCallParts: LLMPart[] = [];
-
-    // Native-mode tool-call streaming heartbeat. Without this the user sees a
-    // blank streaming entry while the provider assembles the functionCall
-    // (which can take several seconds for large content writes). Show the
-    // tool name on the first functionCall chunk, then throttle subsequent
-    // updates so a chunk-count "heartbeat" reassures the user the model is
-    // still progressing — provider-agnostic since we only count chunks.
-    let firstFunctionCallSeen = false;
-    let lastToolCallRenderAt = 0;
-    const TOOL_CALL_HEARTBEAT_INTERVAL_MS = 100;
-
-    this.promptProgress.set(undefined);
-
+  /**
+   * Pump the stream-event generator into the per-event handler map, then
+   * apply the post-stream "collapse thought without follow-up text"
+   * catch-up. Returns the generator's final result, or null if the stream
+   * threw (in which case the error has already been logged).
+   */
+  private async consumeStream(
+    stream: AsyncIterable<AgentStreamChunk>,
+    allowParallel: boolean,
+    ctx: TurnContext
+  ): Promise<AgentStreamResult | null> {
     try {
-      for await (const chunk of stream) {
-        this.generatedChunkCount.update(c => c + 1);
-        if (chunk.usageMetadata?.promptProgress !== undefined) {
-          this.promptProgress.set(chunk.usageMetadata.promptProgress);
-        }
-        if (chunk.usageMetadata?.candidates !== undefined) {
-          this.generatedTokenCount.set(chunk.usageMetadata.candidates);
-        } else {
-          const legacyMetadata = chunk.usageMetadata as { candidatesTokenCount?: number } | undefined;
-          if (legacyMetadata?.candidatesTokenCount !== undefined) {
-            this.generatedTokenCount.set(legacyMetadata.candidatesTokenCount);
-          }
-        }
-        if (chunk.functionCall) {
-          this.promptProgress.set(undefined);
-          // Collect every tool call when the model supports parallel calls;
-          // otherwise keep only the first to preserve single-tool semantics.
-          if (allowParallel || nativeFunctionCalls.length === 0) {
-            nativeFunctionCalls.push(chunk.functionCall);
-            // Store as LLMPart to preserve all stream metadata (e.g. thoughtSignature)
-            nativeFunctionCallParts.push({ functionCall: chunk.functionCall, thoughtSignature: chunk.thoughtSignature });
-          }
-          const isFirst = !firstFunctionCallSeen;
-          const now = Date.now();
-          if (isFirst || now - lastToolCallRenderAt >= TOOL_CALL_HEARTBEAT_INTERVAL_MS) {
-            firstFunctionCallSeen = true;
-            lastToolCallRenderAt = now;
-            const names = nativeFunctionCalls.map(fc => fc.name).join(', ');
-            const countStr = this.generatedTokenCount() > 0 
-              ? `${this.generatedTokenCount()} tokens` 
-              : `${this.generatedChunkCount()} chunks`;
-            const heartbeat = isFirst
-              ? `Preparing tool: ${names}…`
-              : `Preparing tool: ${names}… (${countStr} received)`;
-            this.agentLogs.update(logs => {
-              const next = [...logs];
-              if (next[currentLogIndex]) {
-                const text = accumulatedText.trim() 
-                  ? `${accumulatedText.trim()}\n\n${heartbeat}` 
-                  : heartbeat;
-                next[currentLogIndex] = { ...next[currentLogIndex], text };
-              }
-              return next;
-            });
-          }
-          continue;
-        }
-        if (chunk.text) {
-          this.promptProgress.set(undefined);
-          if (chunk.thought) {
-            accumulatedThought += chunk.text;
-            this.agentLogs.update(logs => {
-              const next = [...logs];
-              if (next[currentLogIndex]) {
-                next[currentLogIndex] = { ...next[currentLogIndex], thought: accumulatedThought };
-              }
-              return next;
-            });
-          } else {
-            accumulatedText += chunk.text;
-            this.agentLogs.update(logs => {
-              const next = [...logs];
-              if (next[currentLogIndex]) {
-                const entry = { ...next[currentLogIndex], text: accumulatedText };
-                if (accumulatedThought && !hasCollapsedThought) {
-                  entry.isThoughtCollapsed = true;
-                }
-                next[currentLogIndex] = entry;
-              }
-              return next;
-            });
-            hasCollapsedThought = true;
-          }
-        }
+      const events = processAgentStream(stream, { allowParallel });
+      let next: IteratorResult<AgentStreamEvent, AgentStreamResult> = await events.next();
+      while (!next.done) {
+        const ev = next.value;
+        (this.streamEventHandlers[ev.kind] as (e: AgentStreamEvent, c: TurnContext) => void)(ev, ctx);
+        next = await events.next();
       }
+      const result = next.value;
+      ctx.nativeFunctionCallParts = result.nativeFunctionCallParts;
 
-      if (accumulatedThought && !hasCollapsedThought) {
-        this.agentLogs.update(logs => {
-          const next = [...logs];
-          if (next[currentLogIndex]) {
-            next[currentLogIndex] = { ...next[currentLogIndex], isThoughtCollapsed: true };
-          }
-          return next;
-        });
+      // Stream ended with thought + no follow-up text — collapse explicitly
+      // (the per-event mirror only collapses on the first text-after-thought).
+      if (ctx.accumulatedThought && !ctx.hasCollapsedThought) {
+        this.updateLogAt(ctx.currentLogIndex, e => ({ ...e, isThoughtCollapsed: true }));
       }
+      return result;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error('Agent stream error:', e);
       this.agentLogs.update(logs => [...logs, { role: 'system', text: `Stream Error: ${msg}`, type: 'error' }]);
       this.isAgentRunning.set(false);
-      return;
+      return null;
     }
+  }
 
-    if (mode === 'native' && accumulatedText) {
-      accumulatedText = sanitizeLatexToUnicode(accumulatedText);
-      this.agentLogs.update(logs => {
-        const next = [...logs];
-        if (next[currentLogIndex]) {
-          next[currentLogIndex] = { ...next[currentLogIndex], text: accumulatedText };
-        }
-        return next;
-      });
-    }
-
-    let parsedActions: ParsedAction[] = [];
-
-    if (mode === 'native') {
-      parsedActions = nativeFunctionCalls.map(fc => ({
-        action: fc.name,
-        args: (fc.args ?? {}) as Record<string, unknown>,
-        callId: fc.id
-      })) as unknown as ParsedAction[];
-    } else {
-      try {
-        let jsonString = accumulatedText;
-        const jsonMatch = accumulatedText.match(/\{[\s\S]*\}/);
-        if (jsonMatch) jsonString = jsonMatch[0];
-        const raw = JSON.parse(jsonString);
-        if (raw && typeof raw.action === 'string') {
-          parsedActions = [{ action: raw.action, args: raw.args || {} }] as unknown as ParsedAction[];
-        }
-      } catch {
-        const modelParts: LLMPart[] = [];
-        if (accumulatedThought) modelParts.push({ text: accumulatedThought, thought: true });
-        if (accumulatedText) modelParts.push({ text: accumulatedText });
-        if (modelParts.length > 0) {
-          this.agentHistory.update(h => [...h, { role: 'model', parts: modelParts }]);
-        }
-
-        if (retryCount >= 3) {
-          this.agentLogs.update(logs => [...logs, { role: 'system', text: 'Error parsing JSON response from model after 3 retries. Agent stopped.', type: 'error' }]);
-          this.isAgentRunning.set(false);
-          return;
-        }
-        this.agentLogs.update(logs => [...logs, { role: 'system', text: `Error parsing JSON, asking model to retry... (${retryCount + 1}/3)`, type: 'error' }]);
-        this.agentHistory.update(h => [...h, {
-          role: 'user',
-          parts: [{ text: JSON.stringify({ error: "Invalid JSON format. Please output ONLY valid JSON matching the schema without any markdown formatting, thought processes, or extra text." }) }]
-        }]);
-        await this.processAgentTurn(context, retryCount + 1);
-        return;
-      }
-    }
-
-    // Build & append the model turn to history.
+  /**
+   * Build the model turn from accumulated state + native function-call
+   * parts and append it to agentHistory. Native mode preserves the
+   * functionCall parts verbatim (carries thoughtSignature). JSON mode
+   * keeps the raw text intact — eliding it confuses small models into
+   * thinking their own write was malformed and triggers retry loops.
+   */
+  private appendModelTurnToHistory(mode: 'native' | 'json', ctx: TurnContext): void {
     const modelParts: LLMPart[] = [];
-    if (accumulatedThought) modelParts.push({ text: accumulatedThought, thought: true });
-
-    if (mode === 'native') {
-      if (accumulatedText) modelParts.push({ text: accumulatedText });
-      // Use nativeFunctionCallParts directly to preserve all stream metadata (e.g. thoughtSignature)
-      modelParts.push(...nativeFunctionCallParts);
-    } else {
-      // JSON mode is single-tool by design. Keep the model's raw text
-      // (which contains the full content) intact in history — eliding it
-      // confuses small models into believing their own write was malformed
-      // and triggers retry loops.
-      if (accumulatedText) modelParts.push({ text: accumulatedText });
-    }
-
+    if (ctx.accumulatedThought) modelParts.push({ text: ctx.accumulatedThought, thought: true });
+    if (ctx.accumulatedText) modelParts.push({ text: ctx.accumulatedText });
+    if (mode === 'native') modelParts.push(...ctx.nativeFunctionCallParts);
     if (modelParts.length > 0) {
       this.agentHistory.update(h => [...h, { role: 'model', parts: modelParts }]);
     }
+  }
 
-    if (parsedActions.length === 0) {
-      // Model produced only commentary text. Treat as implicit finish.
-      this.agentLogs.update(logs => {
-        const next = [...logs];
-        if (next[currentLogIndex]) {
-          next[currentLogIndex] = { ...next[currentLogIndex], text: accumulatedText || '(no response)' };
-        }
-        return next;
-      });
+  /**
+   * JSON-mode parse failure: append model commentary to history (so retry
+   * sees what the model wrote), inject a "use valid JSON" user message,
+   * and recurse with retryCount+1. Bail with a logged error after 3 tries.
+   */
+  private async handleJsonParseError(
+    context: FileAgentContext, retryCount: number, ctx: TurnContext
+  ): Promise<void> {
+    // Persist what the model wrote so the retry sees its own output. JSON
+    // mode has no native function-call parts, so this delegates cleanly.
+    this.appendModelTurnToHistory('json', ctx);
+
+    if (retryCount >= 3) {
+      this.agentLogs.update(logs => [...logs, { role: 'system', text: 'Error parsing JSON response from model after 3 retries. Agent stopped.', type: 'error' }]);
       this.isAgentRunning.set(false);
       return;
     }
+    this.agentLogs.update(logs => [...logs, { role: 'system', text: `Error parsing JSON, asking model to retry... (${retryCount + 1}/3)`, type: 'error' }]);
+    this.agentHistory.update(h => [...h, {
+      role: 'user',
+      parts: [{ text: JSON.stringify({ error: 'Invalid JSON format. Please output ONLY valid JSON matching the schema without any markdown formatting, thought processes, or extra text.' }) }]
+    }]);
+    await this.processAgentTurn(context, retryCount + 1);
+  }
 
-    // If submitResponse appears anywhere in the batch, treat the turn as done.
-    const finishCall = parsedActions.find(a => a.action === 'submitResponse');
-    if (finishCall) {
-      // Run completion validator before allowing the agent to stop.
-      if (this.completionValidator && !this.completionValidator.isCompleted) {
-        const validation = this.completionValidator.validate();
-        if (!validation.valid) {
-          this.appendToolResults([{ action: finishCall, response: { status: 'acknowledged' } }], mode);
-          this.agentHistory.update(h => [...h, { role: 'user', parts: [{ text: validation.errorMessage }] }]);
-          this.agentLogs.update(logs => [...logs, { role: 'system', text: validation.errorMessage, type: 'info' }]);
-          await this.processAgentTurn(context);
-          return;
-        }
-      }
-
-      const toolMsg = (finishCall.args['message'] as string) || '';
-      // Merge commentary and tool message if they are different and both exist
-      const finalMsg = (accumulatedText.trim() && toolMsg.trim() && accumulatedText.trim() !== toolMsg.trim())
-        ? `${accumulatedText.trim()}\n\n${toolMsg.trim()}`
-        : (toolMsg || accumulatedText || '(no response)');
-
-      this.agentLogs.update(logs => {
-        const next = [...logs];
-        if (next[currentLogIndex]) {
-          next[currentLogIndex] = { ...next[currentLogIndex], text: finalMsg, isToolCall: false };
-        }
-        return next;
-      });
-      this.isAgentRunning.set(false);
-      return;
-    }
-
-    // Single-action fast path preserves the original UX (reuse the streaming
-    // log entry for the tool-call display) so simple flows look unchanged.
-    if (parsedActions.length === 1) {
-      const a = parsedActions[0];
-
-      if (a.action === 'reportProgress') {
-        const message = a.args.message || '';
-        this.agentLogs.update(logs => {
-          const next = [...logs];
-          if (next[currentLogIndex]) {
-            next[currentLogIndex] = { ...next[currentLogIndex], text: message, isToolCall: false };
-          }
-          return next;
-        });
-        this.appendToolResults([{ action: a, response: { status: 'acknowledged' } }], mode);
+  /**
+   * submitResponse path: validate completion (recurse on rejection,
+   * carrying the validator's reason as a follow-up user message), then
+   * merge commentary + tool message into the streaming log entry and
+   * stop the agent.
+   */
+  private async handleSubmitResponse(
+    context: FileAgentContext,
+    finishCall: ParsedAction,
+    mode: 'native' | 'json',
+    ctx: TurnContext
+  ): Promise<void> {
+    if (this.completionValidator && !this.completionValidator.isCompleted) {
+      const validation = this.completionValidator.validate();
+      if (!validation.valid) {
+        this.appendToolResults([{ action: finishCall, response: { status: 'acknowledged' } }], mode);
+        this.agentHistory.update(h => [...h, { role: 'user', parts: [{ text: validation.errorMessage }] }]);
+        this.agentLogs.update(logs => [...logs, { role: 'system', text: validation.errorMessage, type: 'info' }]);
         await this.processAgentTurn(context);
         return;
       }
+    }
 
-      const reason = ('reason' in a.args && typeof a.args.reason === 'string') ? a.args.reason : undefined;
-      if (accumulatedText.trim()) {
-        const filename = ('filename' in a.args) ? a.args.filename : '';
-        const toolName = `${a.action}(${filename})`;
-        // If there's commentary, leave it in the current entry and append a new one for the tool
-        this.agentLogs.update(logs => [
-          ...logs,
-          {
-            role: 'model',
-            text: JSON.stringify({ action: a.action, args: a.args }, null, 2),
-            type: 'model' as const,
-            isToolCall: true,
-            isToolCallCollapsed: true,
-            toolName,
-            reason
-          }
-        ]);
-      } else {
-        // No commentary, overwrite the current (likely empty) entry
-        this.agentLogs.update(logs => {
-          const next = [...logs];
-          if (next[currentLogIndex]) {
-            const filename = ('filename' in a.args) ? a.args.filename : '';
-            const toolName = `${a.action}(${filename})`;
-            next[currentLogIndex] = {
-              ...next[currentLogIndex],
-              text: JSON.stringify({ action: a.action, args: a.args }, null, 2),
-              isToolCall: true,
-              isToolCallCollapsed: true,
-              toolName,
-              reason
-            };
-          }
-          return next;
-        });
-      }
+    // finishCall.action === 'submitResponse' narrows args to SubmitResponseArgs.
+    const toolMsg = (finishCall.action === 'submitResponse' ? (finishCall.args.message ?? '') : '');
+    // Merge commentary and tool message when both exist and differ.
+    const finalMsg = (ctx.accumulatedText.trim() && toolMsg.trim() && ctx.accumulatedText.trim() !== toolMsg.trim())
+      ? `${ctx.accumulatedText.trim()}\n\n${toolMsg.trim()}`
+      : (toolMsg || ctx.accumulatedText || '(no response)');
 
-      const filename = ('filename' in a.args) ? a.args.filename : '';
-      const toolName = `${a.action}(${filename})`;
-      let singleReplaced: { filename: string; content: string } | null = null;
-      const singleContext: FileAgentContext = {
-        ...context,
-        onFileReplaced: (f, c) => { context.onFileReplaced(f, c); singleReplaced = { filename: f, content: c }; }
-      };
-      const result = executeFileTool(a, singleContext);
-      if (singleReplaced) this.lastFilesReplaced.set([singleReplaced]);
-      if (result.infoLog) {
-        this.agentLogs.update(logs => [...logs, { role: 'system', text: result.infoLog!, type: 'info' }]);
-      }
-      this.pushToolResultLog(result.response, toolName);
-      this.appendToolResults([{ action: a, response: result.response }], mode);
+    this.updateLogAt(ctx.currentLogIndex, e => ({ ...e, text: finalMsg, isToolCall: false }));
+    this.isAgentRunning.set(false);
+  }
+
+  /**
+   * Single-action fast path: reuse the streaming log entry for the
+   * tool-call display when the model produced no commentary, otherwise
+   * append a fresh tool-call entry alongside the commentary. Either way,
+   * execute the tool, log the result, and recurse.
+   */
+  private async executeSingleAction(
+    a: ParsedAction, context: FileAgentContext, mode: 'native' | 'json', ctx: TurnContext
+  ): Promise<void> {
+    if (a.action === 'reportProgress') {
+      const message = a.args.message || '';
+      this.updateLogAt(ctx.currentLogIndex, e => ({ ...e, text: message, isToolCall: false }));
+      this.appendToolResults([{ action: a, response: { status: 'acknowledged' } }], mode);
       await this.processAgentTurn(context);
       return;
     }
 
-    // Multi-action batch: leave the streaming log entry showing only commentary
-    // (or empty) and append a fresh log entry per action so each tool call is
-    // visible on its own line.
-    const executed: { action: ParsedAction, response: Record<string, unknown> }[] = [];
+    const toolEntry = buildToolCallLogEntry(a);
+    if (ctx.accumulatedText.trim()) {
+      // Commentary present: leave it in the current entry, append a new one.
+      this.agentLogs.update(logs => [...logs, toolEntry]);
+    } else {
+      // No commentary: overwrite the (likely empty) streaming entry.
+      this.updateLogAt(ctx.currentLogIndex, e => ({ ...e, ...toolEntry }));
+    }
+
+    let singleReplaced: { filename: string; content: string } | null = null;
+    const singleContext: FileAgentContext = {
+      ...context,
+      onFileReplaced: (f, c) => { context.onFileReplaced(f, c); singleReplaced = { filename: f, content: c }; }
+    };
+    const result = executeFileTool(a, singleContext);
+    if (singleReplaced) this.lastFilesReplaced.set([singleReplaced]);
+    if (result.infoLog) {
+      this.agentLogs.update(logs => [...logs, { role: 'system', text: result.infoLog!, type: 'info' }]);
+    }
+    this.pushToolResultLog(result.response, toolEntry.toolName);
+    this.appendToolResults([{ action: a, response: result.response }], mode);
+    await this.processAgentTurn(context);
+  }
+
+  /**
+   * Multi-action batch: append a fresh log entry per action (so each tool
+   * call is visible on its own line), execute each in turn against a
+   * shared replacements collector, then recurse. lastFilesReplaced is set
+   * once at end — Angular signal batching would otherwise lose
+   * intermediate updates inside the synchronous loop.
+   */
+  private async executeBatchActions(
+    actions: ParsedAction[], context: FileAgentContext, mode: 'native' | 'json'
+  ): Promise<void> {
+    const executed: { action: ParsedAction; response: Record<string, unknown> }[] = [];
     const batchReplacements: { filename: string; content: string }[] = [];
     const batchContext: FileAgentContext = {
       ...context,
       onFileReplaced: (f, c) => { context.onFileReplaced(f, c); batchReplacements.push({ filename: f, content: c }); }
     };
 
-    for (const a of parsedActions) {
+    for (const a of actions) {
       if (a.action === 'reportProgress') {
         const message = a.args.message || '';
         this.agentLogs.update(logs => [...logs, { role: 'model', text: message, type: 'model' as const }]);
         executed.push({ action: a, response: { status: 'acknowledged' } });
         continue;
       }
-      const filename = ('filename' in a.args) ? a.args.filename : '';
-      const toolName = `${a.action}(${filename})`;
-      const reason = ('reason' in a.args && typeof a.args.reason === 'string') ? a.args.reason : undefined;
-      this.agentLogs.update(logs => [
-        ...logs,
-        {
-          role: 'model',
-          text: JSON.stringify({ action: a.action, args: a.args }, null, 2),
-          type: 'model' as const,
-          isToolCall: true,
-          isToolCallCollapsed: true,
-          toolName,
-          reason
-        }
-      ]);
+      const toolEntry = buildToolCallLogEntry(a);
+      this.agentLogs.update(logs => [...logs, toolEntry]);
       const result = executeFileTool(a, batchContext);
       if (result.infoLog) {
         this.agentLogs.update(logs => [...logs, { role: 'system', text: result.infoLog!, type: 'info' }]);
       }
-      this.pushToolResultLog(result.response, toolName);
+      this.pushToolResultLog(result.response, toolEntry.toolName);
       executed.push({ action: a, response: result.response });
     }
 
-    // Signal all replacements from this batch at once — avoids Angular signal
-    // glitch-free batching from losing intermediate updates in a synchronous loop.
     if (batchReplacements.length > 0) this.lastFilesReplaced.set(batchReplacements);
-
     this.appendToolResults(executed, mode);
     await this.processAgentTurn(context);
   }
@@ -778,4 +614,63 @@ export class FileAgentService {
       }]);
     }
   }
+}
+
+// ===== Module-level helpers =================================================
+
+/**
+ * Pure parse: native mode wraps `LLMFunctionCall[]` into `ParsedAction[]`;
+ * JSON mode tolerates surrounding noise (`/\{[\s\S]*\}/` extracts the
+ * outermost JSON object) and validates the action shape. Failure path is
+ * a single sentinel — caller drives the retry policy.
+ */
+function parseActionsFromOutput(
+  mode: 'native' | 'json',
+  accumulatedText: string,
+  nativeFunctionCalls: LLMFunctionCall[]
+): { ok: true; actions: ParsedAction[] } | { ok: false } {
+  if (mode === 'native') {
+    const actions = nativeFunctionCalls.map(fc => ({
+      action: fc.name,
+      args: (fc.args ?? {}) as Record<string, unknown>,
+      callId: fc.id
+    })) as unknown as ParsedAction[];
+    return { ok: true, actions };
+  }
+  try {
+    let jsonString = accumulatedText;
+    const jsonMatch = accumulatedText.match(/\{[\s\S]*\}/);
+    if (jsonMatch) jsonString = jsonMatch[0];
+    const raw = JSON.parse(jsonString);
+    if (raw && typeof raw.action === 'string') {
+      return {
+        ok: true,
+        actions: [{ action: raw.action, args: raw.args || {} }] as unknown as ParsedAction[]
+      };
+    }
+    return { ok: true, actions: [] };
+  } catch {
+    return { ok: false };
+  }
+}
+
+/**
+ * Build the AgentLogEntry shape used to display a non-progress tool call.
+ * Same shape whether the entry overwrites the streaming row (single-action
+ * fast path with no commentary) or is appended (commentary or batch).
+ */
+function buildToolCallLogEntry(a: ParsedAction): AgentLogEntry & { toolName: string } {
+  const args = a.args as unknown as Record<string, unknown>;
+  const filename = (typeof args['filename'] === 'string') ? args['filename'] : '';
+  const toolName = `${a.action}(${filename})`;
+  const reason = (typeof args['reason'] === 'string') ? args['reason'] : undefined;
+  return {
+    role: 'model',
+    text: JSON.stringify({ action: a.action, args: a.args }, null, 2),
+    type: 'model' as const,
+    isToolCall: true,
+    isToolCallCollapsed: true,
+    toolName,
+    reason
+  };
 }
