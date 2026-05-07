@@ -16,6 +16,10 @@ import { RemoteEntry, SyncResource } from '../../sync.types';
 
 type ViewerTab = 'book' | 'collection' | 'settings' | 'prompts';
 
+function isResourceTab(tab: ViewerTab): tab is SyncResource {
+    return tab === 'book' || tab === 'collection';
+}
+
 interface DisplayEntry extends RemoteEntry {
     /** Lazily populated from the JSON body's `name` field once fetched. */
     name?: string;
@@ -83,7 +87,7 @@ export class S3FileViewerDialogComponent {
 
     currentEntries = computed<DisplayEntry[]>(() => {
         const tab = this.activeTab();
-        const list = tab === 'book' ? this.bookEntries() : this.collectionEntries();
+        const list = isResourceTab(tab) ? this.entriesByResource[tab]() : [];
         const q = this.filter().trim().toLowerCase();
         if (!q) return list;
         return list.filter(e => e.id.toLowerCase().includes(q) || (e.name?.toLowerCase().includes(q) ?? false));
@@ -103,7 +107,8 @@ export class S3FileViewerDialogComponent {
     detailEntry = computed<DisplayEntry | null>(() => {
         const id = this.selectedId();
         if (!id) return null;
-        const list = this.activeTab() === 'book' ? this.bookEntries() : this.collectionEntries();
+        const tab = this.activeTab();
+        const list = isResourceTab(tab) ? this.entriesByResource[tab]() : [];
         return list.find(e => e.id === id) ?? null;
     });
 
@@ -142,10 +147,8 @@ export class S3FileViewerDialogComponent {
             await this.loadSettings();
         } else if (tab === 'prompts') {
             await this.loadPrompts();
-        } else if (tab === 'book' && this.bookEntries().length === 0) {
-            await this.loadList('book');
-        } else if (tab === 'collection' && this.collectionEntries().length === 0) {
-            await this.loadList('collection');
+        } else if (isResourceTab(tab) && this.entriesByResource[tab]().length === 0) {
+            await this.loadList(tab);
         }
     }
 
@@ -187,8 +190,8 @@ export class S3FileViewerDialogComponent {
 
     onScrolledIndexChange(start: number): void {
         const tab = this.activeTab();
-        if (tab !== 'book' && tab !== 'collection') return;
-        const list = tab === 'book' ? this.bookEntries() : this.collectionEntries();
+        if (!isResourceTab(tab)) return;
+        const list = this.entriesByResource[tab]();
         const buf = S3FileViewerDialogComponent.HYDRATION_VIEWPORT_BUFFER;
         const ahead = S3FileViewerDialogComponent.HYDRATION_VIEWPORT_AHEAD;
         const lo = Math.max(0, start - buf);
@@ -299,8 +302,7 @@ export class S3FileViewerDialogComponent {
             await this.loadPrompts();
         } else {
             // Force re-list by clearing the cache for this resource.
-            if (tab === 'book') this.bookEntries.set([]);
-            else this.collectionEntries.set([]);
+            this.entriesByResource[tab].set([]);
             this.selectedId.set(null);
             this.detailRaw.set(null);
             await this.loadList(tab);
