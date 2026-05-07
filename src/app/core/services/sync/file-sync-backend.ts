@@ -6,6 +6,7 @@ import {
 } from './sync.types';
 import { FileBackendPermissionService } from './file-backend-permission.service';
 import { ensureDir, getDirIfExists, isNotFound, readFileText, splitDir, writeFileText } from './fsa-utils';
+import { createParallelPool } from '@app/core/utils/async.util';
 
 const RESOURCE_DIR: Record<SyncResource, string> = {
     book: 'books',
@@ -20,7 +21,7 @@ const PROMPTS_NAME = 'prompts.json';
 const SNAPSHOTS_DIR = 'snapshots';
 const SNAPSHOT_MANIFEST_NAME = 'manifest.json';
 const SNAPSHOT_CONCURRENCY = 8;
-
+const parallelPool = createParallelPool(SNAPSHOT_CONCURRENCY);
 /**
  * Tombstone filename: `<id>__<deletedAt>.json`. The `__` separator is
  * deliberately not a single `_` (UUIDs / nanoid never contain double
@@ -562,25 +563,6 @@ export class FileSyncBackend implements SyncBackend {
 }
 
 // ===== Module-private helpers ============================================
-
-async function parallelPool<T>(
-    items: T[],
-    worker: (item: T, idx: number) => Promise<void>,
-    concurrency = SNAPSHOT_CONCURRENCY
-): Promise<void> {
-    if (items.length === 0) return;
-    let cursor = 0;
-    const runners = Array.from(
-        { length: Math.min(concurrency, items.length) },
-        async () => {
-            while (cursor < items.length) {
-                const i = cursor++;
-                await worker(items[i], i);
-            }
-        }
-    );
-    await Promise.all(runners);
-}
 
 function byteLength(s: string): number {
     if (typeof TextEncoder !== 'undefined') return new TextEncoder().encode(s).length;

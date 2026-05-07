@@ -4,6 +4,7 @@ import {
     SnapshotLocalPayload, SnapshotTrigger
 } from './sync.types';
 import { errMsg } from './error.util';
+import { createParallelPool } from '@app/core/utils/async.util';
 
 const LS_DEVICE_ID = 'sync_device_id';
 /**
@@ -14,7 +15,7 @@ const LS_DEVICE_ID = 'sync_device_id';
  */
 const SNAPSHOT_AUTO_RETENTION = 20;
 const RETENTION_DELETE_CONCURRENCY = 4;
-
+const parallelPool = createParallelPool(RETENTION_DELETE_CONCURRENCY);
 /**
  * Thrown when the pre-op safety snapshot for forcePush / forcePull /
  * restore fails. The UI catches this to ask "snapshot failed — continue
@@ -184,22 +185,18 @@ export class SnapshotService {
             console.warn('[SnapshotService] Retention sweep failed (non-fatal)', e);
         });
     }
-
     private async runRetention(): Promise<void> {
         const backend = await this.getBackend();
         const all = await backend.listSnapshots();
         const auto = all.filter(s => s.trigger !== 'manual')
             .sort((a, b) => b.createdAt - a.createdAt);
         const excess = auto.slice(SNAPSHOT_AUTO_RETENTION);
-        while (excess.length) {
-            const batch = excess.splice(0, RETENTION_DELETE_CONCURRENCY);
-            await Promise.all(batch.map(async s => {
-                try {
-                    await backend.deleteSnapshot(s.id);
-                } catch (e) {
-                    console.warn(`[SnapshotService] Retention: failed to delete ${s.id}`, e);
-                }
-            }));
-        }
+        await parallelPool(excess, async s => {
+            try {
+                await backend.deleteSnapshot(s.id);
+            } catch (e) {
+                console.warn(`[SnapshotService] Retention: failed to delete ${s.id}`, e);
+            }
+        });
     }
 }

@@ -10,6 +10,7 @@ import {
     SnapshotTombstoneRef, SnapshotSkipped, SnapshotLocalPayload, assertSnapshotId
 } from './sync.types';
 import { S3ConfigService } from './s3-config.service';
+import { createParallelPool } from '@app/core/utils/async.util';
 
 type AwsSdk = typeof import('@aws-sdk/client-s3');
 
@@ -26,6 +27,7 @@ const PROMPTS_KEY = 'prompts.json';
 const SNAPSHOTS_DIR = 'snapshots';
 const SNAPSHOT_MANIFEST_NAME = 'manifest.json';
 const SNAPSHOT_CONCURRENCY = 8;
+const parallelPool = createParallelPool(SNAPSHOT_CONCURRENCY);
 // Hyphen rather than underscore — RFC 7230 disallows underscore in HTTP
 // header names, and SeaweedFS rejects the SigV4 of `x-amz-meta-last_active`
 // outright. AWS S3 itself tolerates underscores; hyphen works on both.
@@ -325,19 +327,10 @@ export class S3SyncBackend implements SyncBackend {
         // Concurrency capped: a List page can return up to 1000 keys, and
         // firing that many HEADs at once exhausts browser connection pools
         // and trips 429s on smaller S3 backends.
-        const HYDRATE_CONCURRENCY = 8;
         const entries: RemoteEntry[] = new Array(partial.length);
-        let cursor = 0;
-        const workers = Array.from(
-            { length: Math.min(HYDRATE_CONCURRENCY, partial.length) },
-            async () => {
-                while (cursor < partial.length) {
-                    const i = cursor++;
-                    entries[i] = await this.hydrateRemoteEntry(partial[i]);
-                }
-            }
-        );
-        await Promise.all(workers);
+        await parallelPool(partial, async (p, i) => {
+            entries[i] = await this.hydrateRemoteEntry(p);
+        });
 
         return entries;
     }
@@ -608,31 +601,6 @@ export class S3SyncBackend implements SyncBackend {
         return `${this.bucket}/${encodedKey}`;
     }
 
-    /**
-     * Cursor-based parallel pool, matching the pattern already used in
-     * `list()`. Each worker pulls the next index until exhausted; bounded
-     * concurrency avoids exhausting browser connection pools and tripping
-     * rate limits on smaller S3-compatible servers.
-     */
-    private async parallelPool<T>(
-        items: T[],
-        worker: (item: T, idx: number) => Promise<void>,
-        concurrency = SNAPSHOT_CONCURRENCY
-    ): Promise<void> {
-        if (items.length === 0) return;
-        let cursor = 0;
-        const runners = Array.from(
-            { length: Math.min(concurrency, items.length) },
-            async () => {
-                while (cursor < items.length) {
-                    const i = cursor++;
-                    await worker(items[i], i);
-                }
-            }
-        );
-        await Promise.all(runners);
-    }
-
     async listSnapshots(): Promise<SnapshotMeta[]> {
         const dirPrefix = `${this.prefix}${SNAPSHOTS_DIR}/`;
         const snapshotIds: string[] = [];
@@ -654,7 +622,7 @@ export class S3SyncBackend implements SyncBackend {
         } while (continuationToken);
 
         const metas: (SnapshotMeta | null)[] = new Array(snapshotIds.length);
-        await this.parallelPool(snapshotIds, async (id, i) => {
+        await parallelPool(snapshotIds, async (id, i) => {
             try {
                 const manifest = await this.readSnapshotManifest(id);
                 // Strip `entries` to keep the list-level payload light.
@@ -709,7 +677,7 @@ export class S3SyncBackend implements SyncBackend {
 
         // 3. Copy books / collections (server-side; preserves last-active metadata).
         const bookEntries: SnapshotEntryRef[] = [];
-        await this.parallelPool(books, async (b) => {
+        await parallelPool(books, async (b) => {
             const src = this.keyFor('book', b.id);
             const dst = this.snapshotBookKey(snapshotId, b.id);
             try {
@@ -730,7 +698,7 @@ export class S3SyncBackend implements SyncBackend {
         });
 
         const collectionEntries: SnapshotEntryRef[] = [];
-        await this.parallelPool(collections, async (c) => {
+        await parallelPool(collections, async (c) => {
             const src = this.keyFor('collection', c.id);
             const dst = this.snapshotCollectionKey(snapshotId, c.id);
             try {
@@ -758,7 +726,7 @@ export class S3SyncBackend implements SyncBackend {
             ...filteredBookTombs.map(t => ({ resource: 'book' as const, t })),
             ...filteredCollTombs.map(t => ({ resource: 'collection' as const, t }))
         ];
-        await this.parallelPool(allTombs, async ({ resource, t }) => {
+        await parallelPool(allTombs, async ({ resource, t }) => {
             const src = this.tombstoneKey(resource, t.id, t.deletedAt);
             const dst = this.snapshotTombstoneKey(snapshotId, resource, t.id, t.deletedAt);
             try {
@@ -831,7 +799,7 @@ export class S3SyncBackend implements SyncBackend {
         const skipped: SnapshotSkipped[] = [];
 
         const bookEntries: SnapshotEntryRef[] = [];
-        await this.parallelPool(payload.books, async (b) => {
+        await parallelPool(payload.books, async (b) => {
             const dst = this.snapshotBookKey(snapshotId, b.id);
             try {
                 await this.client!.send(new this.sdk!.PutObjectCommand({
@@ -852,7 +820,7 @@ export class S3SyncBackend implements SyncBackend {
         });
 
         const collectionEntries: SnapshotEntryRef[] = [];
-        await this.parallelPool(payload.collections, async (c) => {
+        await parallelPool(payload.collections, async (c) => {
             const dst = this.snapshotCollectionKey(snapshotId, c.id);
             try {
                 await this.client!.send(new this.sdk!.PutObjectCommand({
@@ -873,7 +841,7 @@ export class S3SyncBackend implements SyncBackend {
         });
 
         const tombstoneEntries: SnapshotTombstoneRef[] = [];
-        await this.parallelPool(filteredTombs, async (t) => {
+        await parallelPool(filteredTombs, async (t) => {
             const dst = this.snapshotTombstoneKey(snapshotId, t.resource, t.id, t.deletedAt);
             try {
                 await this.client!.send(new this.sdk!.PutObjectCommand({
@@ -963,7 +931,7 @@ export class S3SyncBackend implements SyncBackend {
             srcKey: this.snapshotCollectionKey(snapshotId, e.id),
             dstResource: 'collection' as const
         }));
-        await this.parallelPool([...bookRestoreSrc, ...collRestoreSrc], async (item) => {
+        await parallelPool([...bookRestoreSrc, ...collRestoreSrc], async (item) => {
             const get = await this.client!.send(new this.sdk!.GetObjectCommand({
                 Bucket: this.bucket,
                 Key: item.srcKey,
@@ -981,7 +949,7 @@ export class S3SyncBackend implements SyncBackend {
         //    deletedAt path is `<prefix>tombstones/<resource>/<id>/<now>`,
         //    distinct from any older `<id>/<oldDeletedAt>` keys — those
         //    older keys are wiped in the diff-delete phase.
-        await this.parallelPool(manifest.entries.tombstone, async (t) => {
+        await parallelPool(manifest.entries.tombstone, async (t) => {
             await this.writeTombstone(t.resource, t.id, now);
         });
 
@@ -992,8 +960,8 @@ export class S3SyncBackend implements SyncBackend {
         const booksToDelete = liveBooks.filter(b => !manifestBookIds.has(b.id));
         const collsToDelete = liveCollections.filter(c => !manifestCollIds.has(c.id));
 
-        await this.parallelPool(booksToDelete, async (b) => this.remove('book', b.id));
-        await this.parallelPool(collsToDelete, async (c) => this.remove('collection', c.id));
+        await parallelPool(booksToDelete, async (b) => this.remove('book', b.id));
+        await parallelPool(collsToDelete, async (c) => this.remove('collection', c.id));
 
         // For tombstones: delete ALL pre-existing live tombstone keys we
         // captured at step 2. They are obsolete in both possible cases —
@@ -1003,7 +971,7 @@ export class S3SyncBackend implements SyncBackend {
         // the full key (including the old deletedAt path segment), so the
         // newly-written `<now>` keys are not in this list.
         const allOldTombKeys = [...liveBookTombs, ...liveCollTombs];
-        await this.parallelPool(allOldTombKeys, async (key) => {
+        await parallelPool(allOldTombKeys, async (key) => {
             await this.client!.send(new this.sdk!.DeleteObjectCommand({
                 Bucket: this.bucket,
                 Key: key
@@ -1028,7 +996,7 @@ export class S3SyncBackend implements SyncBackend {
             continuationToken = res.IsTruncated ? res.NextContinuationToken : undefined;
         } while (continuationToken);
 
-        await this.parallelPool(keys, async (key) => {
+        await parallelPool(keys, async (key) => {
             await this.client!.send(new this.sdk!.DeleteObjectCommand({
                 Bucket: this.bucket,
                 Key: key

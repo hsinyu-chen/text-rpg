@@ -5,6 +5,7 @@ import {
     SnapshotMeta, SnapshotManifest, SnapshotMetaInput, SnapshotEntryRef,
     SnapshotTombstoneRef, SnapshotSkipped, SnapshotLocalPayload, assertSnapshotId
 } from './sync.types';
+import { createParallelPool } from '@app/core/utils/async.util';
 
 const APPDATA_ROOT = 'appDataFolder';
 const SETTINGS_FILE_NAME = 'settings.json';
@@ -35,6 +36,7 @@ const SNAPSHOT_RESOURCE_FOLDER: Record<SyncResource, string> = {
 };
 const DRIVE_FOLDER_MIME = 'application/vnd.google-apps.folder';
 const SNAPSHOT_CONCURRENCY = 8;
+const parallelPool = createParallelPool(SNAPSHOT_CONCURRENCY);
 
 interface SnapshotChildFolders {
     book?: string;
@@ -348,30 +350,11 @@ export class GDriveSyncBackend implements SyncBackend {
             && (err as { status: number }).status === 404;
     }
 
-    private async parallelPool<T>(
-        items: T[],
-        worker: (item: T, idx: number) => Promise<void>,
-        concurrency = SNAPSHOT_CONCURRENCY
-    ): Promise<void> {
-        if (items.length === 0) return;
-        let cursor = 0;
-        const runners = Array.from(
-            { length: Math.min(concurrency, items.length) },
-            async () => {
-                while (cursor < items.length) {
-                    const i = cursor++;
-                    await worker(items[i], i);
-                }
-            }
-        );
-        await Promise.all(runners);
-    }
-
     async listSnapshots(): Promise<SnapshotMeta[]> {
         const root = await this.ensureSnapshotsRoot();
         const folders = await this.drive.listFolders(root);
         const metas: (SnapshotMeta | null)[] = new Array(folders.length);
-        await this.parallelPool(folders, async (folder, i) => {
+        await parallelPool(folders, async (folder, i) => {
             try {
                 const manifest = await this.readSnapshotManifestFromFolder(folder.id, folder.name);
                 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -455,7 +438,7 @@ export class GDriveSyncBackend implements SyncBackend {
         // source object disappeared between list and copy) surface from
         // copyFile and are caught by isNotFound below.
         const bookEntries: SnapshotEntryRef[] = [];
-        await this.parallelPool(books, async (b) => {
+        await parallelPool(books, async (b) => {
             const fileId = this.fileIdByKey.get(this.cacheKey('book', b.id));
             if (!fileId) {
                 throw new Error(`GDrive: book/${b.id} listed but not in fileIdByKey cache — list() did not populate as expected`);
@@ -473,7 +456,7 @@ export class GDriveSyncBackend implements SyncBackend {
         });
 
         const collectionEntries: SnapshotEntryRef[] = [];
-        await this.parallelPool(collections, async (c) => {
+        await parallelPool(collections, async (c) => {
             const fileId = this.fileIdByKey.get(this.cacheKey('collection', c.id));
             if (!fileId) {
                 throw new Error(`GDrive: collection/${c.id} listed but not in fileIdByKey cache — list() did not populate as expected`);
@@ -495,7 +478,7 @@ export class GDriveSyncBackend implements SyncBackend {
             ...filteredBookTombs.map(t => ({ resource: 'book' as const, t, targetFolder: bookTombFolder.id })),
             ...filteredCollTombs.map(t => ({ resource: 'collection' as const, t, targetFolder: collTombFolder.id }))
         ];
-        await this.parallelPool(allTombs, async ({ resource, t, targetFolder }) => {
+        await parallelPool(allTombs, async ({ resource, t, targetFolder }) => {
             const fileId = this.tombstoneFileIdByKey.get(this.cacheKey(resource, t.id));
             if (!fileId) {
                 throw new Error(`GDrive: ${resource} tombstone/${t.id} listed but not in tombstoneFileIdByKey cache — listTombstones() did not populate as expected`);
@@ -568,7 +551,7 @@ export class GDriveSyncBackend implements SyncBackend {
         const skipped: SnapshotSkipped[] = [];
 
         const bookEntries: SnapshotEntryRef[] = [];
-        await this.parallelPool(payload.books, async (b) => {
+        await parallelPool(payload.books, async (b) => {
             const props = { [APP_PROP_LAST_ACTIVE]: String(b.lastActiveAt) };
             await this.drive.createFile(bookFolder.id, `${b.id}.json`, b.json, props);
             bookEntries.push({
@@ -579,7 +562,7 @@ export class GDriveSyncBackend implements SyncBackend {
         });
 
         const collectionEntries: SnapshotEntryRef[] = [];
-        await this.parallelPool(payload.collections, async (c) => {
+        await parallelPool(payload.collections, async (c) => {
             const props = { [APP_PROP_LAST_ACTIVE]: String(c.lastActiveAt) };
             await this.drive.createFile(collFolder.id, `${c.id}.json`, c.json, props);
             collectionEntries.push({
@@ -590,7 +573,7 @@ export class GDriveSyncBackend implements SyncBackend {
         });
 
         const tombstoneEntries: SnapshotTombstoneRef[] = [];
-        await this.parallelPool(filteredTombs, async (t) => {
+        await parallelPool(filteredTombs, async (t) => {
             const props = { [APP_PROP_DELETED_AT]: String(t.deletedAt) };
             const targetFolder = t.resource === 'book' ? bookTombFolder.id : collTombFolder.id;
             await this.drive.createFile(targetFolder, t.id, '', props);
@@ -678,7 +661,7 @@ export class GDriveSyncBackend implements SyncBackend {
             srcFileId: collSrcByName.get(`${e.id}.json`),
             resource: 'collection' as const
         }));
-        await this.parallelPool([...bookRestoreItems, ...collRestoreItems], async (item) => {
+        await parallelPool([...bookRestoreItems, ...collRestoreItems], async (item) => {
             if (!item.srcFileId) {
                 throw new Error(
                     `GDrive: snapshot ${snapshotId} references ${item.resource}/${item.id} ` +
@@ -694,7 +677,7 @@ export class GDriveSyncBackend implements SyncBackend {
         //    in place if a live tombstone for the same id already exists,
         //    so we don't accumulate stale files for ids that were already
         //    tombstoned.
-        await this.parallelPool(manifest.entries.tombstone, async (t) => {
+        await parallelPool(manifest.entries.tombstone, async (t) => {
             await this.writeTombstone(t.resource, t.id, now);
         });
 
@@ -711,10 +694,10 @@ export class GDriveSyncBackend implements SyncBackend {
         const bookTombsToDelete = liveBookTombs.filter(t => !manifestTombByResource.book.has(t.id));
         const collTombsToDelete = liveCollTombs.filter(t => !manifestTombByResource.collection.has(t.id));
 
-        await this.parallelPool(booksToDelete, async (b) => this.remove('book', b.id));
-        await this.parallelPool(collsToDelete, async (c) => this.remove('collection', c.id));
-        await this.parallelPool(bookTombsToDelete, async (t) => this.removeTombstoneById('book', t.id));
-        await this.parallelPool(collTombsToDelete, async (t) => this.removeTombstoneById('collection', t.id));
+        await parallelPool(booksToDelete, async (b) => this.remove('book', b.id));
+        await parallelPool(collsToDelete, async (c) => this.remove('collection', c.id));
+        await parallelPool(bookTombsToDelete, async (t) => this.removeTombstoneById('book', t.id));
+        await parallelPool(collTombsToDelete, async (t) => this.removeTombstoneById('collection', t.id));
     }
 
     async deleteSnapshot(snapshotId: string): Promise<void> {
