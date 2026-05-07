@@ -132,7 +132,7 @@ export class GameEngineService {
                 });
             }
         } catch (e: unknown) {
-            this.handleTurnError(e);
+            await this.handleTurnError(e);
         }
     }
 
@@ -321,7 +321,7 @@ export class GameEngineService {
     }
 
     /** Catches errors thrown anywhere in phases 3-tail. AbortError is the silent path. */
-    private handleTurnError(e: unknown): void {
+    private async handleTurnError(e: unknown): Promise<void> {
         this.currentAbortController = null;
         if (e instanceof Error && e.name === 'AbortError') {
             console.log('[GameEngine] Generation aborted.');
@@ -338,7 +338,7 @@ export class GameEngineService {
 
         const ui = getUIStrings(this.appConfig.outputLanguage());
         const errMsg = (e instanceof Error) ? e.message : ui.CONN_ERROR;
-        this.chatHistory.updateMessages(prev => {
+        await this.chatHistory.updateMessages(prev => {
             const updated = [...prev];
             const last = updated[updated.length - 1];
             if (last && last.role === 'model') {
