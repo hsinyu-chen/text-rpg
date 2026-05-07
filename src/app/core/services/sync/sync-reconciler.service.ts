@@ -436,7 +436,6 @@ export class SyncReconciler {
     private async applyRemote(resource: SyncResource, json: string): Promise<Book | Collection> {
         if (resource === 'book') {
             const book = cleanBookForSync(JSON.parse(json));
-            if (!book.collectionId) book.collectionId = ROOT_COLLECTION_ID;
             await this.storage.saveBook(book);
             return book;
         }

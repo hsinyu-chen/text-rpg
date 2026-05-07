@@ -13,8 +13,6 @@ import { SyncBackendResolver } from './sync-backend-resolver.service';
 import { AutoSyncScheduler } from './auto-sync-scheduler.service';
 import { SyncReconciler } from './sync-reconciler.service';
 
-export type { SyncError, SyncReport, ForcePushReport, ForcePullReport } from './sync.types';
-
 export interface RemoteUpdateAvailable {
     bookId: string;
     remoteModifiedAt: number;
