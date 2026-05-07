@@ -212,9 +212,12 @@ export class FileSnapshotStore {
         });
 
         const tombstoneEntries: SnapshotTombstoneRef[] = [];
+        const tombDirByResource: Record<SyncResource, FileSystemDirectoryHandle> = {
+            book: tombBooksDir,
+            collection: tombCollsDir
+        };
         await parallelPool(filteredTombs, async (t) => {
-            const dir = t.resource === 'book' ? tombBooksDir : tombCollsDir;
-            await writeFileText(dir, `${t.id}__${t.deletedAt}.json`, '{}');
+            await writeFileText(tombDirByResource[t.resource], `${t.id}__${t.deletedAt}.json`, '{}');
             tombstoneEntries.push({ resource: t.resource, id: t.id, deletedAt: t.deletedAt });
         });
 

@@ -76,12 +76,11 @@ export function dedupeTombstoneArrays(
 export function dedupeLocalTombstones(
     payload: SnapshotLocalPayload
 ): SnapshotLocalPayload['tombstones'] {
-    const bookIds = new Set(payload.books.map(b => b.id));
-    const collIds = new Set(payload.collections.map(c => c.id));
-    return payload.tombstones.filter(t => {
-        if (t.resource === 'book') return !bookIds.has(t.id);
-        return !collIds.has(t.id);
-    });
+    const idsByResource: Record<SyncResource, Set<string>> = {
+        book: new Set(payload.books.map(b => b.id)),
+        collection: new Set(payload.collections.map(c => c.id))
+    };
+    return payload.tombstones.filter(t => !idsByResource[t.resource].has(t.id));
 }
 
 /**

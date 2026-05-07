@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, afterNextRender, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, WritableSignal, afterNextRender, computed, inject, signal } from '@angular/core';
 import { Clipboard } from '@angular/cdk/clipboard';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -53,6 +53,16 @@ export class S3FileViewerDialogComponent {
     activeTab = signal<ViewerTab>('book');
     bookEntries = signal<DisplayEntry[]>([]);
     collectionEntries = signal<DisplayEntry[]>([]);
+    /**
+     * Per-resource lookup of the entry signals above. Adding a new
+     * SyncResource forces this object literal to grow, keeping all
+     * dispatch sites exhaustive instead of relying on `'book' ? : `
+     * ternaries that would silently misroute the new resource.
+     */
+    private readonly entriesByResource: Record<SyncResource, WritableSignal<DisplayEntry[]>> = {
+        book: this.bookEntries,
+        collection: this.collectionEntries
+    };
     settingsContent = signal<string | null>(null);
     settingsModifiedAt = signal<number | null>(null);
     promptsContent = signal<string | null>(null);
@@ -160,8 +170,7 @@ export class S3FileViewerDialogComponent {
             await this.s3.initAsync();
             const entries = await this.s3.list(resource);
             entries.sort((a, b) => b.modifiedAt - a.modifiedAt);
-            if (resource === 'book') this.bookEntries.set(entries);
-            else this.collectionEntries.set(entries);
+            this.entriesByResource[resource].set(entries);
             // Reset hydration state for this resource and prime the first
             // viewport's worth of entries so the user sees names without
             // having to scroll first.
@@ -222,7 +231,7 @@ export class S3FileViewerDialogComponent {
             const json = await this.s3.read(resource, id);
             const parsed = JSON.parse(json) as { name?: string };
             if (!parsed?.name) return;
-            const target = resource === 'book' ? this.bookEntries : this.collectionEntries;
+            const target = this.entriesByResource[resource];
             const name = parsed.name;
             target.update(list => {
                 const idx = list.findIndex(x => x.id === id);

@@ -1,14 +1,12 @@
 import { Injectable, inject } from '@angular/core';
-import { BookRepository } from '../storage/book.repository';
-import { CollectionRepository } from '../storage/collection.repository';
-import { Book, Collection, ROOT_COLLECTION_ID } from '@app/core/models/types';
+import { ROOT_COLLECTION_ID } from '@app/core/models/types';
 import {
     SyncBackend, SyncResource, SnapshotLocalPayload,
     SyncReport, ForcePushReport, ForcePullReport
 } from './sync.types';
-import { cleanBookForSync, cleanCollectionForSync } from './clean.util';
 import { errMsg } from './error.util';
 import { PendingDeletion, SyncTombstoneTracker } from './tombstone-tracker.service';
+import { ResourceAdapterRegistry, SyncEntity } from './resource-adapter';
 
 export interface ReconcileResult {
     totals: SyncReport;
@@ -21,6 +19,8 @@ export interface ForcePullResult {
     activeBookGone: boolean;
     activeBookOverwritten: boolean;
 }
+
+const RESOURCES: readonly SyncResource[] = ['collection', 'book'] as const;
 
 /**
  * Pure sync reconciliation engine. Owns the newer-wins decision tree, the
@@ -35,9 +35,8 @@ export interface ForcePullResult {
  */
 @Injectable({ providedIn: 'root' })
 export class SyncReconciler {
-    private books = inject(BookRepository);
-    private collections = inject(CollectionRepository);
     private tombstones = inject(SyncTombstoneTracker);
+    private adapters = inject(ResourceAdapterRegistry);
 
     /**
      * Per-process cap on self-heal re-uploads. If a backend mutates the
@@ -50,18 +49,12 @@ export class SyncReconciler {
      */
     private selfHealedIds = new Set<string>();
 
-    private getLocalList(resource: SyncResource): Promise<(Book | Collection)[]> {
-        return resource === 'book'
-            ? this.books.list()
-            : this.collections.list();
-    }
-
     async reconcileAll(backend: SyncBackend): Promise<ReconcileResult> {
         const totals: SyncReport = { uploaded: 0, downloaded: 0, deleted: 0, errors: [] };
         const downloadedBookIds = new Set<string>();
         const deletedBookIds = new Set<string>();
 
-        for (const resource of ['collection', 'book'] as const) {
+        for (const resource of RESOURCES) {
             const r = await this.syncResource(backend, resource, downloadedBookIds, deletedBookIds);
             totals.uploaded += r.uploaded;
             totals.downloaded += r.downloaded;
@@ -75,8 +68,9 @@ export class SyncReconciler {
     async forcePushAll(backend: SyncBackend): Promise<ForcePushReport> {
         const report: ForcePushReport = { uploaded: 0, deletedRemote: 0, errors: [] };
 
-        for (const resource of ['collection', 'book'] as const) {
-            const localList = await this.getLocalList(resource);
+        for (const resource of RESOURCES) {
+            const adapter = this.adapters.get(resource);
+            const localList = await adapter.list();
             const localIds = new Set(localList.map(l => l.id));
             const remoteList = await backend.list(resource);
             const now = Date.now();
@@ -118,10 +112,8 @@ export class SyncReconciler {
 
             for (const local of localList) {
                 try {
-                    const cleaned = resource === 'book'
-                        ? cleanBookForSync(local)
-                        : cleanCollectionForSync(local);
-                    const lastActiveAt = this.localTimestamp(cleaned, resource);
+                    const cleaned = adapter.clean(local);
+                    const lastActiveAt = adapter.timestampOf(cleaned);
                     await backend.write(resource, local.id, JSON.stringify(cleaned), lastActiveAt);
                     report.uploaded++;
                 } catch (e) {
@@ -142,10 +134,11 @@ export class SyncReconciler {
         let activeBookGone = false;
         let activeBookOverwritten = false;
 
-        for (const resource of ['collection', 'book'] as const) {
+        for (const resource of RESOURCES) {
+            const adapter = this.adapters.get(resource);
             const remoteList = await backend.list(resource);
             const remoteIds = new Set(remoteList.map(r => r.id));
-            const localList = await this.getLocalList(resource);
+            const localList = await adapter.list();
 
             // Wipe local entries not on cloud (root collection is special — keep
             // it; it's rebuilt by ensureRoot if missing on cloud).
@@ -153,12 +146,8 @@ export class SyncReconciler {
                 if (remoteIds.has(local.id)) continue;
                 if (resource === 'collection' && local.id === ROOT_COLLECTION_ID) continue;
                 try {
-                    if (resource === 'book') {
-                        if (local.id === activeBookId) activeBookGone = true;
-                        await this.books.delete(local.id);
-                    } else {
-                        await this.collections.delete(local.id);
-                    }
+                    if (resource === 'book' && local.id === activeBookId) activeBookGone = true;
+                    await adapter.delete(local.id);
                     report.deletedLocal++;
                 } catch (e) {
                     console.error(`[Sync] forcePull: failed to delete local ${resource} ${local.id}`, e);
@@ -170,7 +159,7 @@ export class SyncReconciler {
             for (const remote of remoteList) {
                 try {
                     const json = await backend.read(resource, remote.id);
-                    await this.applyRemote(resource, json);
+                    await adapter.applyRemote(json);
                     if (resource === 'book' && remote.id === activeBookId) activeBookOverwritten = true;
                     report.downloaded++;
                 } catch (e) {
@@ -189,30 +178,26 @@ export class SyncReconciler {
     /**
      * Reads local IDB books / collections (cleaned for sync) and pending
      * deletions, packaged for `createSnapshotFromLocal`. Lives here because
-     * it depends on the same `localTimestamp` rules and the tombstone
+     * it depends on the same timestamp / cleaning rules and the tombstone
      * tracker — keeping it in SyncService would force re-importing both.
      */
     async collectLocalSnapshotPayload(): Promise<SnapshotLocalPayload> {
-        const [books, collections] = await Promise.all([
-            this.books.list(),
-            this.collections.list()
+        const buildEntries = async (resource: SyncResource) => {
+            const adapter = this.adapters.get(resource);
+            const items = await adapter.list();
+            return items.map(item => {
+                const cleaned = adapter.clean(item);
+                return {
+                    id: item.id,
+                    lastActiveAt: adapter.timestampOf(cleaned),
+                    json: JSON.stringify(cleaned)
+                };
+            });
+        };
+        const [bookEntries, collectionEntries] = await Promise.all([
+            buildEntries('book'),
+            buildEntries('collection')
         ]);
-        const bookEntries = books.map(b => {
-            const cleaned = cleanBookForSync(b);
-            return {
-                id: b.id,
-                lastActiveAt: this.localTimestamp(cleaned, 'book'),
-                json: JSON.stringify(cleaned)
-            };
-        });
-        const collectionEntries = collections.map(c => {
-            const cleaned = cleanCollectionForSync(c);
-            return {
-                id: c.id,
-                lastActiveAt: this.localTimestamp(cleaned, 'collection'),
-                json: JSON.stringify(cleaned)
-            };
-        });
         return {
             books: bookEntries,
             collections: collectionEntries,
@@ -227,8 +212,9 @@ export class SyncReconciler {
         deletedBookIds: Set<string>
     ): Promise<SyncReport> {
         const report: SyncReport = { uploaded: 0, downloaded: 0, deleted: 0, errors: [] };
+        const adapter = this.adapters.get(resource);
 
-        let localList: (Book | Collection)[] = await this.getLocalList(resource);
+        let localList: SyncEntity[] = await adapter.list();
         const remoteList = await backend.list(resource);
         const remoteById = new Map(remoteList.map(r => [r.id, r]));
         const localById = new Map(localList.map(l => [l.id, l]));
@@ -299,7 +285,7 @@ export class SyncReconciler {
             const local = localById.get(tomb.id);
             const remote = remoteById.get(tomb.id);
             if (!local && !remote) continue;
-            const localTime = local ? this.localTimestamp(local, resource) : -Infinity;
+            const localTime = local ? adapter.timestampOf(local) : -Infinity;
             const remoteTime = remote ? remote.lastActiveAt : -Infinity;
             if (localTime > tomb.deletedAt || remoteTime > tomb.deletedAt) continue;
             // Mark as just-deleted *before* attempting any I/O so the
@@ -312,12 +298,8 @@ export class SyncReconciler {
             justDeletedIds.add(tomb.id);
             try {
                 if (local) {
-                    if (resource === 'book') {
-                        await this.books.delete(tomb.id);
-                        deletedBookIds.add(tomb.id);
-                    } else {
-                        await this.collections.delete(tomb.id);
-                    }
+                    await adapter.delete(tomb.id);
+                    if (resource === 'book') deletedBookIds.add(tomb.id);
                     localById.delete(tomb.id);
                     report.deleted++;
                 }
@@ -353,7 +335,7 @@ export class SyncReconciler {
             const remote = remoteById.get(id);
 
             if (local && !remote) {
-                console.log(`[Sync ${resource} ${id.slice(0, 8)}] local-only → upload (local=${this.localTimestamp(local, resource)})`);
+                console.log(`[Sync ${resource} ${id.slice(0, 8)}] local-only → upload (local=${adapter.timestampOf(local)})`);
                 await this.uploadEntity(backend, resource, local, report);
                 continue;
             }
@@ -363,7 +345,7 @@ export class SyncReconciler {
                 continue;
             }
             if (local && remote) {
-                const localTime = this.localTimestamp(local, resource);
+                const localTime = adapter.timestampOf(local);
                 const remoteTime = remote.lastActiveAt;
                 if (localTime > remoteTime) {
                     console.log(`[Sync ${resource} ${id.slice(0, 8)}] local newer → upload (local=${localTime}, remote=${remoteTime}, Δ=${localTime - remoteTime}ms)`);
@@ -381,14 +363,13 @@ export class SyncReconciler {
     private async uploadEntity(
         backend: SyncBackend,
         resource: SyncResource,
-        local: Book | Collection,
+        local: SyncEntity,
         report: SyncReport
     ): Promise<void> {
         try {
-            const cleaned = resource === 'book'
-                ? cleanBookForSync(local)
-                : cleanCollectionForSync(local);
-            const lastActiveAt = this.localTimestamp(cleaned, resource);
+            const adapter = this.adapters.get(resource);
+            const cleaned = adapter.clean(local);
+            const lastActiveAt = adapter.timestampOf(cleaned);
             await backend.write(resource, local.id, JSON.stringify(cleaned), lastActiveAt);
             report.uploaded++;
         } catch (e) {
@@ -406,8 +387,9 @@ export class SyncReconciler {
         downloadedBookIds: Set<string>
     ): Promise<void> {
         try {
+            const adapter = this.adapters.get(resource);
             const json = await backend.read(resource, id);
-            const stored = await this.applyRemote(resource, json);
+            const stored = await adapter.applyRemote(json);
             report.downloaded++;
             if (resource === 'book') downloadedBookIds.add(id);
 
@@ -416,7 +398,7 @@ export class SyncReconciler {
             // missing or stale (e.g., legacy upload from before the metadata
             // scheme). Re-upload with correct metadata so future syncs see a
             // matching remote/local time and stop looping in download.
-            const bodyTime = this.localTimestamp(stored, resource);
+            const bodyTime = adapter.timestampOf(stored);
             // 1000ms slack so a backend that truncates metadata to
             // second precision (or rounds in any sub-second way) doesn't
             // trigger a redundant re-upload every session. Legacy uploads
@@ -438,27 +420,5 @@ export class SyncReconciler {
             console.error(`[Sync] Failed to download ${resource} ${id}`, e);
             report.errors.push({ resource, id, op: 'download', message: errMsg(e) });
         }
-    }
-
-    private localTimestamp(item: Book | Collection, resource: SyncResource): number {
-        // Fallback to 0 for legacy IDB rows missing the timestamp field —
-        // `undefined > N` returns false in both directions, so without this
-        // a legacy entry would stall forever (never recognized as older or
-        // newer than its remote counterpart).
-        const ts = resource === 'book'
-            ? (item as Book).lastActiveAt
-            : (item as Collection).updatedAt;
-        return ts || 0;
-    }
-
-    private async applyRemote(resource: SyncResource, json: string): Promise<Book | Collection> {
-        if (resource === 'book') {
-            const book = cleanBookForSync(JSON.parse(json));
-            await this.books.save(book);
-            return book;
-        }
-        const collection = cleanCollectionForSync(JSON.parse(json));
-        await this.collections.save(collection);
-        return collection;
     }
 }

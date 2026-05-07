@@ -13,6 +13,7 @@ import {
     SnapshotStoreBackendOps
 } from '../sync-snapshot-utils';
 import { createParallelPool } from '@app/core/utils/async.util';
+import { groupByResource } from '../resource-adapter';
 
 const parallelPool = createParallelPool(SNAPSHOT_CONCURRENCY);
 
@@ -334,10 +335,13 @@ export class GDriveSnapshotStore {
         });
 
         const tombstoneEntries: SnapshotTombstoneRef[] = [];
+        const tombFolderByResource: Record<SyncResource, string> = {
+            book: bookTombFolder.id,
+            collection: collTombFolder.id
+        };
         await parallelPool(filteredTombs, async (t) => {
             const props = { [APP_PROP_DELETED_AT]: String(t.deletedAt) };
-            const targetFolder = t.resource === 'book' ? bookTombFolder.id : collTombFolder.id;
-            await this.deps.drive.createFile(targetFolder, t.id, '', props);
+            await this.deps.drive.createFile(tombFolderByResource[t.resource], t.id, '', props);
             tombstoneEntries.push({ resource: t.resource, id: t.id, deletedAt: t.deletedAt });
         });
 
@@ -428,14 +432,12 @@ export class GDriveSnapshotStore {
         });
 
         // 6. Diff-delete. Anything in live but not in the manifest goes.
-        const manifestTombs = manifest.entries.tombstone;
-        const manifestBookTombs = manifestTombs.filter(t => t.resource === 'book');
-        const manifestCollTombs = manifestTombs.filter(t => t.resource === 'collection');
+        const manifestTombsByResource = groupByResource(manifest.entries.tombstone);
 
         const booksToDelete = diffDeleteTargets(liveBooks, manifest.entries.book);
         const collsToDelete = diffDeleteTargets(liveCollections, manifest.entries.collection);
-        const bookTombsToDelete = diffDeleteTargets(liveBookTombs, manifestBookTombs);
-        const collTombsToDelete = diffDeleteTargets(liveCollTombs, manifestCollTombs);
+        const bookTombsToDelete = diffDeleteTargets(liveBookTombs, manifestTombsByResource.book);
+        const collTombsToDelete = diffDeleteTargets(liveCollTombs, manifestTombsByResource.collection);
 
         await parallelPool(booksToDelete, async (b) => this.deps.ops.remove('book', b.id));
         await parallelPool(collsToDelete, async (c) => this.deps.ops.remove('collection', c.id));
