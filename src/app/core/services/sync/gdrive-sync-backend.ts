@@ -6,6 +6,7 @@ import {
     SnapshotTombstoneRef, SnapshotSkipped, SnapshotLocalPayload, assertSnapshotId
 } from './sync.types';
 import { createParallelPool } from '@app/core/utils/async.util';
+import { KVStore } from '../kv/kv-store';
 
 const APPDATA_ROOT = 'appDataFolder';
 const SETTINGS_FILE_NAME = 'settings.json';
@@ -28,7 +29,7 @@ const TOMBSTONE_FOLDER_NAME: Record<SyncResource, string> = {
 // the snapshots namespace is fresh — there's no existing data to preserve
 // folder names for.
 const SNAPSHOTS_ROOT_NAME = 'snapshots_root';
-const SNAPSHOTS_ROOT_LS_KEY = 'gdrive_snapshots_root_id';
+const SNAPSHOTS_ROOT_KV_KEY = 'gdrive_snapshots_root_id';
 const SNAPSHOT_MANIFEST_NAME = 'manifest.json';
 const SNAPSHOT_RESOURCE_FOLDER: Record<SyncResource, string> = {
     book: 'books',
@@ -50,6 +51,7 @@ export class GDriveSyncBackend implements SyncBackend {
     readonly supportsBackgroundSync = false;
 
     private drive = inject(GoogleDriveService);
+    private kv = inject(KVStore);
 
     private folderIdCache: Partial<Record<SyncResource, string>> = {};
     private tombstoneFolderIdCache: Partial<Record<SyncResource, string>> = {};
@@ -86,8 +88,8 @@ export class GDriveSyncBackend implements SyncBackend {
         const cached = this.folderIdCache[resource];
         if (cached) return cached;
 
-        const lsKey = `gdrive_folder_${resource}_id`;
-        const stored = localStorage.getItem(lsKey);
+        const kvKey = `gdrive_folder_${resource}_id`;
+        const stored = this.kv.get(kvKey);
         if (stored) {
             this.folderIdCache[resource] = stored;
             return stored;
@@ -99,7 +101,7 @@ export class GDriveSyncBackend implements SyncBackend {
         const id = found ? found.id : (await this.drive.createFolder(APPDATA_ROOT, name)).id;
 
         this.folderIdCache[resource] = id;
-        localStorage.setItem(lsKey, id);
+        this.kv.set(kvKey, id);
         return id;
     }
 
@@ -107,8 +109,8 @@ export class GDriveSyncBackend implements SyncBackend {
         const cached = this.tombstoneFolderIdCache[resource];
         if (cached) return cached;
 
-        const lsKey = `gdrive_tombstone_folder_${resource}_id`;
-        const stored = localStorage.getItem(lsKey);
+        const kvKey = `gdrive_tombstone_folder_${resource}_id`;
+        const stored = this.kv.get(kvKey);
         if (stored) {
             this.tombstoneFolderIdCache[resource] = stored;
             return stored;
@@ -120,7 +122,7 @@ export class GDriveSyncBackend implements SyncBackend {
         const id = found ? found.id : (await this.drive.createFolder(APPDATA_ROOT, name)).id;
 
         this.tombstoneFolderIdCache[resource] = id;
-        localStorage.setItem(lsKey, id);
+        this.kv.set(kvKey, id);
         return id;
     }
 
@@ -281,7 +283,7 @@ export class GDriveSyncBackend implements SyncBackend {
     //
     // `snapshots_root` exists as a sibling of the live `books_v1` /
     // `collections` / etc. so snapshot files can never collide with live
-    // file ids. The root's Drive id is cached in localStorage; per-snapshot
+    // file ids. The root's Drive id is cached in KVStore; per-snapshot
     // folder ids are NOT cached (each snapshot is single-use).
 
     private snapshotsRootId: string | null = null;
@@ -289,7 +291,7 @@ export class GDriveSyncBackend implements SyncBackend {
     private async ensureSnapshotsRoot(): Promise<string> {
         if (this.snapshotsRootId) return this.snapshotsRootId;
 
-        const stored = localStorage.getItem(SNAPSHOTS_ROOT_LS_KEY);
+        const stored = this.kv.get(SNAPSHOTS_ROOT_KV_KEY);
         if (stored) {
             this.snapshotsRootId = stored;
             return stored;
@@ -300,7 +302,7 @@ export class GDriveSyncBackend implements SyncBackend {
         const id = found ? found.id : (await this.drive.createFolder(APPDATA_ROOT, SNAPSHOTS_ROOT_NAME)).id;
 
         this.snapshotsRootId = id;
-        localStorage.setItem(SNAPSHOTS_ROOT_LS_KEY, id);
+        this.kv.set(SNAPSHOTS_ROOT_KV_KEY, id);
         return id;
     }
 
