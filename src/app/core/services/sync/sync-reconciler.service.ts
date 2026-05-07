@@ -291,6 +291,14 @@ export class SyncReconciler {
             const localTime = local ? this.localTimestamp(local, resource) : -Infinity;
             const remoteTime = remote ? remote.lastActiveAt : -Infinity;
             if (localTime > tomb.deletedAt || remoteTime > tomb.deletedAt) continue;
+            // Mark as just-deleted *before* attempting any I/O so the
+            // newer-wins loop below skips this id even on storage/backend
+            // failure. Without this, a failed local delete would leave the
+            // entity in localById and the main loop would re-upload it,
+            // resurrecting on cloud. `deletedBookIds` is the opposite — it
+            // only counts entries actually removed from IDB (caller uses it
+            // to decide active-book reload).
+            justDeletedIds.add(tomb.id);
             try {
                 if (local) {
                     if (resource === 'book') {
@@ -307,7 +315,6 @@ export class SyncReconciler {
                     remoteById.delete(tomb.id);
                     report.deleted++;
                 }
-                justDeletedIds.add(tomb.id);
                 console.log(`[Sync ${resource} ${tomb.id.slice(0, 8)}] tombstone wins → delete (local=${localTime}, remote=${remoteTime}, deletedAt=${tomb.deletedAt})`);
             } catch (e) {
                 console.error(`[Sync] Failed to apply tombstone for ${resource} ${tomb.id}`, e);
