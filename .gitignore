@@ -52,3 +52,7 @@ Thumbs.db
 
 # Locally-generated dev TLS certs (created by tools/dev-cert.cjs)
 .certs/
+
+# Local-only test env files (S3 integration test creds, etc.) — never commit
+.env.test.local
+.env*.local

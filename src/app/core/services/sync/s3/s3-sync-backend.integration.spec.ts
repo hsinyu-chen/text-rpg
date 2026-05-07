@@ -1,0 +1,432 @@
+/**
+ * Integration spec for {@link S3SyncBackend} against a real S3-compatible
+ * endpoint (default target: SeaweedFS at `s3.dynameis.app`).
+ *
+ * **Skipped** unless the `.env.test.local` file is present and provides:
+ *   - `S3_TEST_ENDPOINT`
+ *   - `S3_TEST_REGION`
+ *   - `S3_TEST_BUCKET`
+ *   - `S3_TEST_ACCESS_KEY_ID`
+ *   - `S3_TEST_SECRET_ACCESS_KEY`
+ *   - `S3_TEST_FORCE_PATH_STYLE` (optional, defaults to true)
+ *
+ * Each test uses a unique prefix (`spec-<uuid>`) inside the configured
+ * bucket, and `afterEach` wipes everything under that prefix. Bucket itself
+ * is NOT created or deleted by the tests.
+ *
+ * Purpose: lock down S3SyncBackend's externally-observable behaviour so the
+ * upcoming BlobStore + Repositories refactor (PR2 in
+ * `sync-architecture-cleanup.md`) can be verified against the same suite.
+ */
+import { describe, beforeAll, beforeEach, afterEach, expect, it } from 'vitest';
+import { TestBed } from '@angular/core/testing';
+import type { S3Client } from '@aws-sdk/client-s3';
+import { S3SyncBackend } from './s3-sync-backend';
+import { S3ConfigService } from './s3-config.service';
+import { KVStore } from '../../kv/kv-store';
+import { InMemoryKVStore } from '../../../testing/in-memory-kv-store';
+import { S3Config, SyncResource, SnapshotLocalPayload } from '../sync.types';
+
+const REQUIRED_ENV = [
+    'S3_TEST_ENDPOINT', 'S3_TEST_REGION', 'S3_TEST_BUCKET',
+    'S3_TEST_ACCESS_KEY_ID', 'S3_TEST_SECRET_ACCESS_KEY'
+] as const;
+const HAVE_CREDS = REQUIRED_ENV.every(k => !!process.env[k]);
+
+type AwsSdk = typeof import('@aws-sdk/client-s3');
+
+function makeBaseConfig(prefix: string): S3Config {
+    return {
+        endpoint: process.env.S3_TEST_ENDPOINT!,
+        region: process.env.S3_TEST_REGION!,
+        bucket: process.env.S3_TEST_BUCKET!,
+        accessKeyId: process.env.S3_TEST_ACCESS_KEY_ID!,
+        secretAccessKey: process.env.S3_TEST_SECRET_ACCESS_KEY!,
+        prefix,
+        forcePathStyle: process.env.S3_TEST_FORCE_PATH_STYLE !== 'false'
+    };
+}
+
+function uniquePrefix(): string {
+    return `spec-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+async function wipePrefix(client: S3Client, sdk: AwsSdk, bucket: string, prefix: string): Promise<void> {
+    const dirPrefix = prefix.replace(/^\/+|\/+$/g, '') + '/';
+    let continuationToken: string | undefined;
+    do {
+        const res = await client.send(new sdk.ListObjectsV2Command({
+            Bucket: bucket, Prefix: dirPrefix, ContinuationToken: continuationToken
+        }));
+        for (const obj of res.Contents ?? []) {
+            if (!obj.Key) continue;
+            await client.send(new sdk.DeleteObjectCommand({ Bucket: bucket, Key: obj.Key }));
+        }
+        continuationToken = res.IsTruncated ? res.NextContinuationToken : undefined;
+    } while (continuationToken);
+}
+
+// Sample bodies sized realistically (~book ≈ small, but enough to be a
+// nontrivial body). lastActiveAt embedded in body too — exercises the
+// metadata-stripped fallback path in hydrateRemoteEntry.
+function makeBookJson(id: string, lastActiveAt: number, title = `book-${id}`): string {
+    return JSON.stringify({ id, title, lastActiveAt, content: 'sample content' });
+}
+
+function makeCollectionJson(id: string, updatedAt: number, name = `coll-${id}`): string {
+    return JSON.stringify({ id, name, updatedAt, members: [] });
+}
+
+describe.skipIf(!HAVE_CREDS)('S3SyncBackend integration', () => {
+    let backend: S3SyncBackend;
+    let cfgSvc: S3ConfigService;
+    let prefix: string;
+    let sdk: AwsSdk;
+    let cleanupClient: S3Client;
+
+    beforeAll(async () => {
+        // One throwaway client just for afterEach cleanup. Lives across all
+        // tests; never touched by the backend under test.
+        sdk = await import('@aws-sdk/client-s3');
+        const baseCfg = makeBaseConfig('');
+        cleanupClient = new sdk.S3Client({
+            endpoint: baseCfg.endpoint,
+            region: baseCfg.region,
+            credentials: {
+                accessKeyId: baseCfg.accessKeyId,
+                secretAccessKey: baseCfg.secretAccessKey
+            },
+            forcePathStyle: baseCfg.forcePathStyle ?? true
+        });
+    });
+
+    beforeEach(async () => {
+        prefix = uniquePrefix();
+        const kv = new InMemoryKVStore();
+        TestBed.configureTestingModule({
+            providers: [
+                S3SyncBackend,
+                S3ConfigService,
+                { provide: KVStore, useValue: kv }
+            ]
+        });
+        cfgSvc = TestBed.inject(S3ConfigService);
+        cfgSvc.save(makeBaseConfig(prefix));
+        backend = TestBed.inject(S3SyncBackend);
+        await backend.initAsync();
+    });
+
+    afterEach(async () => {
+        // Keep cleanup per-prefix so a failing test doesn't pollute the next run.
+        await wipePrefix(cleanupClient, sdk, process.env.S3_TEST_BUCKET!, prefix);
+    });
+
+    // ===== entries: list / read / write / remove =========================
+
+    describe('entries', () => {
+        it('list returns empty array for empty resource', async () => {
+            await expect(backend.list('book')).resolves.toEqual([]);
+            await expect(backend.list('collection')).resolves.toEqual([]);
+        });
+
+        it('write + list round-trips lastActiveAt via metadata', async () => {
+            const ts = 1_700_000_000_000;
+            await backend.write('book', 'book-A', makeBookJson('book-A', ts), ts);
+
+            const entries = await backend.list('book');
+            expect(entries).toHaveLength(1);
+            expect(entries[0].id).toBe('book-A');
+            expect(entries[0].lastActiveAt).toBe(ts);
+        });
+
+        it('read returns the body verbatim', async () => {
+            const body = makeBookJson('book-X', 1_700_000_001_000);
+            await backend.write('book', 'book-X', body, 1_700_000_001_000);
+
+            await expect(backend.read('book', 'book-X')).resolves.toBe(body);
+        });
+
+        it('remove drops the entry from list', async () => {
+            await backend.write('collection', 'col-1', makeCollectionJson('col-1', 1_700_000_002_000), 1_700_000_002_000);
+            await backend.remove('collection', 'col-1');
+
+            await expect(backend.list('collection')).resolves.toEqual([]);
+        });
+
+        it('list scopes to the configured prefix', async () => {
+            await backend.write('book', 'in-scope', makeBookJson('in-scope', 1), 1);
+
+            // Write something at a different prefix via the cleanup client —
+            // it must NOT show up in our backend's list().
+            const otherPrefix = uniquePrefix();
+            try {
+                await cleanupClient.send(new sdk.PutObjectCommand({
+                    Bucket: process.env.S3_TEST_BUCKET!,
+                    Key: `${otherPrefix}/books/out-of-scope.json`,
+                    Body: '{}',
+                    ContentType: 'application/json'
+                }));
+                const entries = await backend.list('book');
+                expect(entries.map(e => e.id)).toEqual(['in-scope']);
+            } finally {
+                await wipePrefix(cleanupClient, sdk, process.env.S3_TEST_BUCKET!, otherPrefix);
+            }
+        });
+
+        it('list books and collections are isolated from each other', async () => {
+            await backend.write('book', 'b1', makeBookJson('b1', 1), 1);
+            await backend.write('collection', 'c1', makeCollectionJson('c1', 2), 2);
+
+            const books = await backend.list('book');
+            const colls = await backend.list('collection');
+            expect(books.map(e => e.id)).toEqual(['b1']);
+            expect(colls.map(e => e.id)).toEqual(['c1']);
+        });
+    });
+
+    // ===== tombstones =====================================================
+
+    describe('tombstones', () => {
+        it('listTombstones returns empty for empty resource', async () => {
+            await expect(backend.listTombstones('book')).resolves.toEqual([]);
+            await expect(backend.listTombstones('collection')).resolves.toEqual([]);
+        });
+
+        it('writeTombstone + listTombstones round-trips deletedAt', async () => {
+            await backend.writeTombstone('book', 'book-T', 1_700_000_010_000);
+
+            const tombs = await backend.listTombstones('book');
+            expect(tombs).toEqual([{ id: 'book-T', deletedAt: 1_700_000_010_000 }]);
+        });
+
+        it('multiple deletedAt values for same id → max wins', async () => {
+            const id = 'book-multi';
+            await backend.writeTombstone('book', id, 100);
+            await backend.writeTombstone('book', id, 300);
+            await backend.writeTombstone('book', id, 200);
+
+            const tombs = await backend.listTombstones('book');
+            expect(tombs).toEqual([{ id, deletedAt: 300 }]);
+        });
+
+        it('listTombstones returns multiple ids correctly', async () => {
+            await backend.writeTombstone('collection', 'c-a', 10);
+            await backend.writeTombstone('collection', 'c-b', 20);
+            await backend.writeTombstone('collection', 'c-c', 30);
+
+            const tombs = await backend.listTombstones('collection');
+            const sorted = tombs.slice().sort((x, y) => x.deletedAt - y.deletedAt);
+            expect(sorted).toEqual([
+                { id: 'c-a', deletedAt: 10 },
+                { id: 'c-b', deletedAt: 20 },
+                { id: 'c-c', deletedAt: 30 }
+            ]);
+        });
+
+        it('clearTombstones empties the tombstone tree', async () => {
+            await backend.writeTombstone('book', 'b1', 100);
+            await backend.writeTombstone('book', 'b2', 200);
+
+            await backend.clearTombstones('book');
+
+            await expect(backend.listTombstones('book')).resolves.toEqual([]);
+        });
+
+        it('book and collection tombstones are isolated', async () => {
+            await backend.writeTombstone('book', 'b1', 100);
+            await backend.writeTombstone('collection', 'c1', 200);
+
+            await expect(backend.listTombstones('book')).resolves.toEqual([{ id: 'b1', deletedAt: 100 }]);
+            await expect(backend.listTombstones('collection')).resolves.toEqual([{ id: 'c1', deletedAt: 200 }]);
+        });
+    });
+
+    // ===== settings / prompts =============================================
+
+    describe('settings / prompts', () => {
+        it('readSettings returns null when not yet written', async () => {
+            await expect(backend.readSettings()).resolves.toBeNull();
+        });
+
+        it('writeSettings + readSettings round-trips', async () => {
+            const content = JSON.stringify({ theme: 'dark', autoSync: true });
+            await backend.writeSettings(content);
+            await expect(backend.readSettings()).resolves.toBe(content);
+        });
+
+        it('readPrompts returns null when not yet written', async () => {
+            await expect(backend.readPrompts()).resolves.toBeNull();
+        });
+
+        it('writePrompts + readPrompts round-trips', async () => {
+            const content = JSON.stringify({ profiles: [{ id: 'p1', system: 'be helpful' }] });
+            await backend.writePrompts(content);
+            await expect(backend.readPrompts()).resolves.toBe(content);
+        });
+    });
+
+    // ===== snapshots ======================================================
+
+    describe('snapshots', () => {
+        const MIN_SNAPSHOT_ID = '20260508T010203-abcd1234'; // matches assertSnapshotId
+
+        it('listSnapshots returns empty initially', async () => {
+            await expect(backend.listSnapshots()).resolves.toEqual([]);
+        });
+
+        it('createSnapshotFromCloud captures live entries + tombstones', async () => {
+            // Seed live state.
+            await backend.write('book', 'b1', makeBookJson('b1', 1000), 1000);
+            await backend.write('book', 'b2', makeBookJson('b2', 2000), 2000);
+            await backend.write('collection', 'c1', makeCollectionJson('c1', 3000), 3000);
+            await backend.writeTombstone('book', 'gone-1', 4000);
+
+            const manifest = await backend.createSnapshotFromCloud(MIN_SNAPSHOT_ID, {
+                createdAt: 5000, trigger: 'manual', note: 'first'
+            });
+
+            expect(manifest.id).toBe(MIN_SNAPSHOT_ID);
+            expect(manifest.bookCount).toBe(2);
+            expect(manifest.collectionCount).toBe(1);
+            expect(manifest.tombstoneCount).toBe(1);
+            expect(manifest.entries.book.map(e => e.id).sort()).toEqual(['b1', 'b2']);
+            expect(manifest.entries.collection.map(e => e.id)).toEqual(['c1']);
+            expect(manifest.entries.tombstone).toEqual([{ resource: 'book', id: 'gone-1', deletedAt: 4000 }]);
+
+            // listSnapshots reflects it.
+            const list = await backend.listSnapshots();
+            expect(list).toHaveLength(1);
+            expect(list[0].id).toBe(MIN_SNAPSHOT_ID);
+            expect(list[0].note).toBe('first');
+        });
+
+        it('createSnapshotFromCloud applies "book wins" tombstone dedupe', async () => {
+            // Same id appears as both live book AND tombstone — book wins,
+            // tombstone should NOT be in the manifest.
+            await backend.write('book', 'shared-id', makeBookJson('shared-id', 1000), 1000);
+            await backend.writeTombstone('book', 'shared-id', 2000);
+
+            const manifest = await backend.createSnapshotFromCloud(MIN_SNAPSHOT_ID, {
+                createdAt: 3000, trigger: 'manual'
+            });
+            expect(manifest.entries.book.map(e => e.id)).toEqual(['shared-id']);
+            expect(manifest.entries.tombstone).toEqual([]);
+        });
+
+        it('createSnapshotFromLocal uses caller-supplied bodies', async () => {
+            const payload: SnapshotLocalPayload = {
+                books: [
+                    { id: 'lb1', lastActiveAt: 100, json: makeBookJson('lb1', 100) },
+                    { id: 'lb2', lastActiveAt: 200, json: makeBookJson('lb2', 200) }
+                ],
+                collections: [
+                    { id: 'lc1', lastActiveAt: 300, json: makeCollectionJson('lc1', 300) }
+                ],
+                tombstones: [
+                    { resource: 'book' as SyncResource, id: 'lgone', deletedAt: 400 }
+                ]
+            };
+            const manifest = await backend.createSnapshotFromLocal(MIN_SNAPSHOT_ID, {
+                createdAt: 500, trigger: 'forcePull'
+            }, payload);
+
+            expect(manifest.bookCount).toBe(2);
+            expect(manifest.collectionCount).toBe(1);
+            expect(manifest.tombstoneCount).toBe(1);
+            expect(manifest.entries.book.map(e => e.id).sort()).toEqual(['lb1', 'lb2']);
+            expect(manifest.entries.tombstone).toEqual([{ resource: 'book', id: 'lgone', deletedAt: 400 }]);
+        });
+
+        it('readSnapshotManifest matches createSnapshot return', async () => {
+            await backend.write('book', 'b1', makeBookJson('b1', 1000), 1000);
+            const created = await backend.createSnapshotFromCloud(MIN_SNAPSHOT_ID, {
+                createdAt: 2000, trigger: 'manual'
+            });
+            const read = await backend.readSnapshotManifest(MIN_SNAPSHOT_ID);
+            expect(read).toEqual(created);
+        });
+
+        it('updateSnapshotNote rewrites manifest note', async () => {
+            await backend.createSnapshotFromCloud(MIN_SNAPSHOT_ID, {
+                createdAt: 1000, trigger: 'manual', note: 'before'
+            });
+            await backend.updateSnapshotNote(MIN_SNAPSHOT_ID, 'after');
+
+            const read = await backend.readSnapshotManifest(MIN_SNAPSHOT_ID);
+            expect(read.note).toBe('after');
+
+            const list = await backend.listSnapshots();
+            expect(list[0].note).toBe('after');
+        });
+
+        it('restoreSnapshot restamps lastActiveAt and writes manifest content to live', async () => {
+            // Seed snapshot via from-local (bypasses live state requirement).
+            const originalLastActive = 1_700_000_000_000;
+            const payload: SnapshotLocalPayload = {
+                books: [{ id: 'rb1', lastActiveAt: originalLastActive, json: makeBookJson('rb1', originalLastActive) }],
+                collections: [],
+                tombstones: []
+            };
+            await backend.createSnapshotFromLocal(MIN_SNAPSHOT_ID, {
+                createdAt: 1, trigger: 'forcePull'
+            }, payload);
+
+            const before = Date.now();
+            await backend.restoreSnapshot(MIN_SNAPSHOT_ID);
+            const after = Date.now();
+
+            // The restored entry exists in live with restamped lastActiveAt.
+            const live = await backend.list('book');
+            expect(live).toHaveLength(1);
+            expect(live[0].id).toBe('rb1');
+            expect(live[0].lastActiveAt).toBeGreaterThanOrEqual(before);
+            expect(live[0].lastActiveAt).toBeLessThanOrEqual(after);
+            expect(live[0].lastActiveAt).not.toBe(originalLastActive);
+        });
+
+        it('restoreSnapshot diff-deletes live entries not in manifest', async () => {
+            // Snapshot only has b1; live has b1 + b2 → b2 must go.
+            await backend.write('book', 'b1', makeBookJson('b1', 1000), 1000);
+            await backend.createSnapshotFromCloud(MIN_SNAPSHOT_ID, {
+                createdAt: 2000, trigger: 'manual'
+            });
+            await backend.write('book', 'b2', makeBookJson('b2', 3000), 3000);
+
+            await backend.restoreSnapshot(MIN_SNAPSHOT_ID);
+
+            const live = await backend.list('book');
+            expect(live.map(e => e.id)).toEqual(['b1']);
+        });
+
+        it('restoreSnapshot rewrites tombstones with new deletedAt', async () => {
+            await backend.writeTombstone('book', 'tb1', 1000);
+            await backend.createSnapshotFromCloud(MIN_SNAPSHOT_ID, {
+                createdAt: 2000, trigger: 'manual'
+            });
+            // Mutate live tombstones between snapshot and restore.
+            await backend.writeTombstone('book', 'tb1', 5000); // newer
+            await backend.writeTombstone('book', 'tb-extra', 6000);
+
+            const before = Date.now();
+            await backend.restoreSnapshot(MIN_SNAPSHOT_ID);
+            const after = Date.now();
+
+            const tombs = await backend.listTombstones('book');
+            // After restore, only tb1 (in manifest) remains, with restamped deletedAt.
+            expect(tombs).toHaveLength(1);
+            expect(tombs[0].id).toBe('tb1');
+            expect(tombs[0].deletedAt).toBeGreaterThanOrEqual(before);
+            expect(tombs[0].deletedAt).toBeLessThanOrEqual(after);
+        });
+
+        it('deleteSnapshot removes the entire snapshot tree', async () => {
+            await backend.write('book', 'b1', makeBookJson('b1', 1), 1);
+            await backend.createSnapshotFromCloud(MIN_SNAPSHOT_ID, { createdAt: 2, trigger: 'manual' });
+
+            await backend.deleteSnapshot(MIN_SNAPSHOT_ID);
+
+            await expect(backend.listSnapshots()).resolves.toEqual([]);
+            await expect(backend.readSnapshotManifest(MIN_SNAPSHOT_ID)).rejects.toThrow();
+        });
+    });
+});
