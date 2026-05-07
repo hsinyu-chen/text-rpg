@@ -73,6 +73,11 @@ async function generateCodeChallenge(verifier: string): Promise<string> {
 // LS fallback.
 const LS_OAUTH_CLIENT_ID = 'gdrive_oauth_client_id';
 
+// Scopes requested by both Web (GIS popup) and Tauri (PKCE) flows. `email`
+// is needed for the user-info hint that lets `loginWeb` attempt a silent
+// re-login; `drive.appdata` is the actual sync scope.
+const OAUTH_SCOPE = 'https://www.googleapis.com/auth/drive.appdata email';
+
 interface OAuthCreds {
     clientId: string;
     clientIdTauri: string;
@@ -200,7 +205,7 @@ export class GoogleOAuthService {
 
         this.tokenClient = google.accounts.oauth2.initTokenClient({
             client_id: clientId,
-            scope: 'https://www.googleapis.com/auth/drive.appdata email',
+            scope: OAUTH_SCOPE,
             callback: (tokenResponse: TokenResponse) => {
                 if (tokenResponse && tokenResponse.access_token) {
                     this.handleLoginSuccess(tokenResponse.access_token, tokenResponse.expires_in);
@@ -408,12 +413,11 @@ export class GoogleOAuthService {
             // 3. Build URL. access_type=offline + prompt=consent ensures we
             //    get a refresh token even if the user has authorised before.
             const clientId = this.resolveOAuthCreds().clientIdTauri;
-            const scope = 'https://www.googleapis.com/auth/drive.appdata email';
             const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
                 `response_type=code` +
                 `&client_id=${clientId}` +
                 `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-                `&scope=${encodeURIComponent(scope)}` +
+                `&scope=${encodeURIComponent(OAUTH_SCOPE)}` +
                 `&code_challenge=${challenge}` +
                 `&code_challenge_method=S256` +
                 `&access_type=offline` +
