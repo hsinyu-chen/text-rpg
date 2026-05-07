@@ -89,6 +89,11 @@ export class GameEngineService {
      *   8 commitService.recordUsageAndPersist → tail: auto-resend microtask
      */
     async sendMessage(userText: string, options?: RunTurnOptions): Promise<void> {
+        // Re-entrancy guard: if we're already streaming a turn, dropping
+        // through would overwrite this.currentAbortController and orphan the
+        // first turn's stream. Auto-resend microtasks fire after phase 8 has
+        // flipped status='idle', so this guard never blocks them.
+        if (this.state.status() === 'generating') return;
         console.log('[GameEngine] sendMessage received with intent:', options?.intent);
         if (!this.validateRunTurnArgs(userText, options)) return;
 
