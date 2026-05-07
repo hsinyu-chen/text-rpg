@@ -6,6 +6,7 @@ import {
 import {
     SNAPSHOT_CONCURRENCY, SNAPSHOT_MANIFEST_NAME,
     byteLength, restampBodyLastActive, dedupeTombstoneArrays,
+    dedupeLocalTombstones, diffDeleteTargets,
     buildManifest, manifestToMeta,
     SnapshotStoreBackendOps
 } from './sync-snapshot-utils';
@@ -181,12 +182,7 @@ export class FileSnapshotStore {
     ): Promise<SnapshotManifest> {
         assertSnapshotId(snapshotId);
 
-        const bookIds = new Set(payload.books.map(b => b.id));
-        const collIds = new Set(payload.collections.map(c => c.id));
-        const filteredTombs = payload.tombstones.filter(t => {
-            if (t.resource === 'book') return !bookIds.has(t.id);
-            return !collIds.has(t.id);
-        });
+        const filteredTombs = dedupeLocalTombstones(payload);
 
         const skipped: SnapshotSkipped[] = [];
         const snapDir = await this.ensureSnapshotDir(snapshotId);
@@ -241,31 +237,29 @@ export class FileSnapshotStore {
             this.deps.ops.list('collection')
         ]);
 
-        const root = await this.deps.getRoot();
         const snapDir = await this.snapshotDirIfExists(snapshotId);
         if (!snapDir) throw new Error(`File: snapshot ${snapshotId} directory missing`);
         const snapBooksDir = await getDirIfExists(snapDir, [this.deps.resourceDir.book]);
         const snapCollsDir = await getDirIfExists(snapDir, [this.deps.resourceDir.collection]);
 
-        const liveBooksDir = await ensureDir(root, [this.deps.resourceDir.book]);
-        const liveCollsDir = await ensureDir(root, [this.deps.resourceDir.collection]);
-
         const now = Date.now();
 
-        // 3. Re-stamp body lastActiveAt = now and write to live.
+        // 3. Re-stamp body lastActiveAt = now and route through ops.write
+        //    so any backend-side bookkeeping (e.g. cache state on Drive)
+        //    runs identically to a normal upload.
         await parallelPool(manifest.entries.book, async (e) => {
             if (!snapBooksDir) throw new Error(`File: snapshot books dir missing in ${snapshotId}`);
             const text = await readFileText(snapBooksDir, `${e.id}.json`);
             if (text === null) throw new Error(`File: snapshot book body missing for ${e.id}`);
             const restamped = restampBodyLastActive(text, now);
-            await writeFileText(liveBooksDir, `${e.id}.json`, restamped);
+            await this.deps.ops.write('book', e.id, restamped, now);
         });
         await parallelPool(manifest.entries.collection, async (e) => {
             if (!snapCollsDir) throw new Error(`File: snapshot collections dir missing in ${snapshotId}`);
             const text = await readFileText(snapCollsDir, `${e.id}.json`);
             if (text === null) throw new Error(`File: snapshot collection body missing for ${e.id}`);
             const restamped = restampBodyLastActive(text, now);
-            await writeFileText(liveCollsDir, `${e.id}.json`, restamped);
+            await this.deps.ops.write('collection', e.id, restamped, now);
         });
 
         // 4. Wipe live tombstone trees and re-write at deletedAt = now.
@@ -277,10 +271,8 @@ export class FileSnapshotStore {
         });
 
         // 5. Diff-delete: live entries not in manifest.
-        const manifestBookIds = new Set(manifest.entries.book.map(e => e.id));
-        const manifestCollIds = new Set(manifest.entries.collection.map(e => e.id));
-        const booksToDelete = liveBooks.filter(b => !manifestBookIds.has(b.id));
-        const collsToDelete = liveCollections.filter(c => !manifestCollIds.has(c.id));
+        const booksToDelete = diffDeleteTargets(liveBooks, manifest.entries.book);
+        const collsToDelete = diffDeleteTargets(liveCollections, manifest.entries.collection);
         await parallelPool(booksToDelete, async (b) => this.deps.ops.remove('book', b.id));
         await parallelPool(collsToDelete, async (c) => this.deps.ops.remove('collection', c.id));
     }

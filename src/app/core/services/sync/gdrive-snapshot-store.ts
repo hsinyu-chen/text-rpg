@@ -8,6 +8,7 @@ import {
 import {
     SNAPSHOT_CONCURRENCY, SNAPSHOT_MANIFEST_NAME,
     byteLength, restampBodyLastActive, dedupeTombstoneArrays,
+    dedupeLocalTombstones, diffDeleteTargets,
     buildManifest, manifestToMeta,
     SnapshotStoreBackendOps
 } from './sync-snapshot-utils';
@@ -306,12 +307,7 @@ export class GDriveSnapshotStore {
             this.deps.drive.createFolder(snapshotFolder.id, this.deps.tombstoneFolderName.collection)
         ]);
 
-        const bookIds = new Set(payload.books.map(b => b.id));
-        const collIds = new Set(payload.collections.map(c => c.id));
-        const filteredTombs = payload.tombstones.filter(t => {
-            if (t.resource === 'book') return !bookIds.has(t.id);
-            return !collIds.has(t.id);
-        });
+        const filteredTombs = dedupeLocalTombstones(payload);
 
         const skipped: SnapshotSkipped[] = [];
 
@@ -432,17 +428,14 @@ export class GDriveSnapshotStore {
         });
 
         // 6. Diff-delete. Anything in live but not in the manifest goes.
-        const manifestBookIds = new Set(manifest.entries.book.map(e => e.id));
-        const manifestCollIds = new Set(manifest.entries.collection.map(e => e.id));
-        const manifestTombByResource: Record<SyncResource, Set<string>> = {
-            book: new Set(manifest.entries.tombstone.filter(t => t.resource === 'book').map(t => t.id)),
-            collection: new Set(manifest.entries.tombstone.filter(t => t.resource === 'collection').map(t => t.id))
-        };
+        const manifestTombs = manifest.entries.tombstone;
+        const manifestBookTombs = manifestTombs.filter(t => t.resource === 'book');
+        const manifestCollTombs = manifestTombs.filter(t => t.resource === 'collection');
 
-        const booksToDelete = liveBooks.filter(b => !manifestBookIds.has(b.id));
-        const collsToDelete = liveCollections.filter(c => !manifestCollIds.has(c.id));
-        const bookTombsToDelete = liveBookTombs.filter(t => !manifestTombByResource.book.has(t.id));
-        const collTombsToDelete = liveCollTombs.filter(t => !manifestTombByResource.collection.has(t.id));
+        const booksToDelete = diffDeleteTargets(liveBooks, manifest.entries.book);
+        const collsToDelete = diffDeleteTargets(liveCollections, manifest.entries.collection);
+        const bookTombsToDelete = diffDeleteTargets(liveBookTombs, manifestBookTombs);
+        const collTombsToDelete = diffDeleteTargets(liveCollTombs, manifestCollTombs);
 
         await parallelPool(booksToDelete, async (b) => this.deps.ops.remove('book', b.id));
         await parallelPool(collsToDelete, async (c) => this.deps.ops.remove('collection', c.id));

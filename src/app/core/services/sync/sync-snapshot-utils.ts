@@ -4,9 +4,11 @@ import {
 } from './sync.types';
 
 /**
- * Concurrency cap shared by all snapshot stores. The bottleneck is per-object
- * round-trips (HEAD/GET/PUT or Drive REST); 8 keeps the browser's connection
- * pool comfortable on every backend (S3-compatible servers, Drive, FSA).
+ * Concurrency cap reused by every snapshot store and the backends' own
+ * list() hydration pools. Each call site builds its own `parallelPool(8)`
+ * — they don't actually contend in practice because SyncService.runExclusive
+ * serialises sync ops, and the cap is sized for one in-flight pool's worth
+ * of round-trips against the browser connection pool.
  */
 export const SNAPSHOT_CONCURRENCY = 8;
 
@@ -49,8 +51,7 @@ export function restampBodyLastActive(text: string, now: number): string {
 /**
  * "Book wins" dedupe for from-cloud snapshot paths: if an id appears in
  * both the live entries and the tombstones, drop the tombstone. Applied
- * at create time so restore behaviour matches the from-local path (which
- * inlines the filter since its tombstones carry the `resource` field).
+ * at create time so restore behaviour matches the from-local path.
  */
 export function dedupeTombstoneArrays(
     books: RemoteEntry[],
@@ -64,6 +65,35 @@ export function dedupeTombstoneArrays(
         bookTombs: bookTombs.filter(t => !bookIds.has(t.id)),
         collTombs: collTombs.filter(t => !collIds.has(t.id))
     };
+}
+
+/**
+ * "Book wins" dedupe for from-local snapshot paths. Local-payload
+ * tombstones carry the `resource` field, so the filter dispatches per
+ * resource on the same input array (vs `dedupeTombstoneArrays` which gets
+ * tombstones split by resource on the from-cloud path).
+ */
+export function dedupeLocalTombstones(
+    payload: SnapshotLocalPayload
+): SnapshotLocalPayload['tombstones'] {
+    const bookIds = new Set(payload.books.map(b => b.id));
+    const collIds = new Set(payload.collections.map(c => c.id));
+    return payload.tombstones.filter(t => {
+        if (t.resource === 'book') return !bookIds.has(t.id);
+        return !collIds.has(t.id);
+    });
+}
+
+/**
+ * Restore's diff-delete target picker: returns live entries (or
+ * tombstones) whose ids are NOT in the manifest. Used by every backend
+ * to compute the "delete me" set before re-applying the manifest.
+ */
+export function diffDeleteTargets<T extends { id: string }, M extends { id: string }>(
+    live: T[], manifestEntries: M[]
+): T[] {
+    const ids = new Set(manifestEntries.map(e => e.id));
+    return live.filter(item => !ids.has(item.id));
 }
 
 export interface BuildManifestArgs {

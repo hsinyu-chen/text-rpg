@@ -7,6 +7,7 @@ import {
 import {
     SNAPSHOT_CONCURRENCY, SNAPSHOT_MANIFEST_NAME,
     byteLength, restampBodyLastActive, dedupeTombstoneArrays,
+    dedupeLocalTombstones, diffDeleteTargets,
     buildManifest, manifestToMeta,
     SnapshotStoreBackendOps
 } from './sync-snapshot-utils';
@@ -257,12 +258,7 @@ export class S3SnapshotStore {
         const sdk = this.deps.getSdk();
         const bucket = this.deps.getBucket();
 
-        const bookIds = new Set(payload.books.map(b => b.id));
-        const collIds = new Set(payload.collections.map(c => c.id));
-        const filteredTombs = payload.tombstones.filter(t => {
-            if (t.resource === 'book') return !bookIds.has(t.id);
-            return !collIds.has(t.id);
-        });
+        const filteredTombs = dedupeLocalTombstones(payload);
 
         const skipped: SnapshotSkipped[] = [];
 
@@ -411,10 +407,8 @@ export class S3SnapshotStore {
         });
 
         // 5. Diff-delete. live = manifest after this step.
-        const manifestBookIds = new Set(manifest.entries.book.map(e => e.id));
-        const manifestCollIds = new Set(manifest.entries.collection.map(e => e.id));
-        const booksToDelete = liveBooks.filter(b => !manifestBookIds.has(b.id));
-        const collsToDelete = liveCollections.filter(c => !manifestCollIds.has(c.id));
+        const booksToDelete = diffDeleteTargets(liveBooks, manifest.entries.book);
+        const collsToDelete = diffDeleteTargets(liveCollections, manifest.entries.collection);
         await parallelPool(booksToDelete, async (b) => this.deps.ops.remove('book', b.id));
         await parallelPool(collsToDelete, async (c) => this.deps.ops.remove('collection', c.id));
 
