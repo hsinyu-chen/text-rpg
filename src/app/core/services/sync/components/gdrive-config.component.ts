@@ -8,7 +8,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { GoogleDriveService } from '@app/core/services/google-drive.service';
+import { GoogleOAuthService } from '@app/core/services/google-oauth.service';
 
 @Component({
     selector: 'app-gdrive-config',
@@ -26,33 +26,33 @@ import { GoogleDriveService } from '@app/core/services/google-drive.service';
     changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class GDriveConfigComponent {
-    drive = inject(GoogleDriveService);
+    oauth = inject(GoogleOAuthService);
     private snackBar = inject(MatSnackBar);
     private clipboard = inject(Clipboard);
     private readonly win = inject(WINDOW);
 
-    clientId = signal<string>(this.drive.getOAuthClientIdSnapshot());
+    clientId = signal<string>(this.oauth.getOAuthClientIdSnapshot());
     redirectUri = this.win.location.origin;
 
-    showInputs = computed(() => this.drive.isUserConfigurable);
+    showInputs = computed(() => this.oauth.isUserConfigurable);
 
     status = computed(() => {
-        if (!this.drive.isConfigured) return 'unconfigured';
-        return this.drive.isAuthenticated() ? 'authenticated' : 'unauthenticated';
+        if (!this.oauth.isConfigured) return 'unconfigured';
+        return this.oauth.isAuthenticated() ? 'authenticated' : 'unauthenticated';
     });
 
     canSave = computed(() => this.clientId().trim().length > 0);
 
     async signIn(): Promise<void> {
         try {
-            await this.drive.login();
+            await this.oauth.login();
         } catch (e) {
             console.error('[GDriveConfig] Sign-in failed', e);
         }
     }
 
     save(): void {
-        this.drive.saveOAuthClientId(this.clientId());
+        this.oauth.saveOAuthClientId(this.clientId());
         this.snackBar.open('OAuth Client ID saved. Sign in again to apply.', 'OK', { duration: 3000 });
     }
 

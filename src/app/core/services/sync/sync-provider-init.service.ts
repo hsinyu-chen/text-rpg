@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { SyncBackendRegistry } from './sync-backend-registry.service';
-import { GoogleDriveService } from '../google-drive.service';
+import { GoogleOAuthService } from '../google-oauth.service';
 import { GDriveConfigComponent } from './components/gdrive-config.component';
 import { S3ConfigComponent } from './components/s3-config.component';
 import { FileBackendConfigComponent } from './components/file-backend-config.component';
@@ -9,7 +9,7 @@ import { WINDOW } from '@app/core/tokens/window.token';
 @Injectable({ providedIn: 'root' })
 export class SyncProviderInitService {
     private registry = inject(SyncBackendRegistry);
-    private drive = inject(GoogleDriveService);
+    private oauth = inject(GoogleOAuthService);
     private win = inject(WINDOW);
 
     initialize(): void {
@@ -20,7 +20,7 @@ export class SyncProviderInitService {
             // Show the entry whenever the user can either use existing creds
             // or paste their own — otherwise BYO-OAuth builds would hide the
             // radio before the user has a chance to enter a Client ID.
-            isAvailable: () => this.drive.isConfigured || this.drive.isUserConfigurable
+            isAvailable: () => this.oauth.isConfigured || this.oauth.isUserConfigurable
         });
 
         this.registry.register('s3', {

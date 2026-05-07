@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { GoogleDriveService } from '../google-drive.service';
+import { GoogleOAuthService } from '../google-oauth.service';
 import {
     SyncBackend, SyncResource, RemoteEntry, Tombstone, SyncBackendId,
     SnapshotMeta, SnapshotManifest, SnapshotMetaInput, SnapshotLocalPayload
@@ -31,6 +32,7 @@ export class GDriveSyncBackend implements SyncBackend {
     readonly supportsBackgroundSync = false;
 
     private drive = inject(GoogleDriveService);
+    private oauth = inject(GoogleOAuthService);
     private kv = inject(KVStore);
 
     private folderIdCache: Partial<Record<SyncResource, string>> = {};
@@ -41,27 +43,27 @@ export class GDriveSyncBackend implements SyncBackend {
     private promptsFileId: string | null = null;
 
     isReady(): boolean {
-        return this.drive.isConfigured;
+        return this.oauth.isConfigured;
     }
 
     configFingerprint(): string {
         // OAuth state — auth boundary is the only meaningful change for
         // the breaker (re-OAuth after token revocation should reset).
-        return this.drive.isAuthenticated() ? 'auth' : '';
+        return this.oauth.isAuthenticated() ? 'auth' : '';
     }
 
     async initAsync(): Promise<void> {
-        // GoogleDriveService loads its own SDK lazily on first use; backend
-        // has no per-init state to build, so this is a no-op. authenticate()
+        // GoogleOAuthService loads GIS lazily on first use; backend has no
+        // per-init state to build, so this is a no-op. authenticate()
         // (called by SyncService.runExclusive) handles token refresh.
     }
 
     isAuthenticated(): boolean {
-        return this.drive.isAuthenticated();
+        return this.oauth.isAuthenticated();
     }
 
     async authenticate(): Promise<void> {
-        await this.drive.login();
+        await this.oauth.login();
     }
 
     private async ensureFolder(resource: SyncResource): Promise<string> {
