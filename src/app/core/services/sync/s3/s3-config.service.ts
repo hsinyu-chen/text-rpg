@@ -1,5 +1,6 @@
-import { Injectable, computed, signal } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
 import { S3Config } from '../sync.types';
+import { KVStore } from '../../kv/kv-store';
 
 const LS_S3 = {
     endpoint: 'sync_s3_endpoint',
@@ -22,6 +23,8 @@ const LS_S3 = {
  */
 @Injectable({ providedIn: 'root' })
 export class S3ConfigService {
+    private readonly kv = inject(KVStore);
+
     readonly config = signal<S3Config | null>(this.load());
 
     readonly isConfigured = computed(() => {
@@ -31,34 +34,34 @@ export class S3ConfigService {
 
     save(config: S3Config | null): void {
         if (config) {
-            localStorage.setItem(LS_S3.endpoint, config.endpoint);
-            localStorage.setItem(LS_S3.region, config.region);
-            localStorage.setItem(LS_S3.bucket, config.bucket);
-            localStorage.setItem(LS_S3.accessKeyId, config.accessKeyId);
-            localStorage.setItem(LS_S3.secretAccessKey, config.secretAccessKey);
-            if (config.prefix) localStorage.setItem(LS_S3.prefix, config.prefix);
-            else localStorage.removeItem(LS_S3.prefix);
-            localStorage.setItem(LS_S3.forcePathStyle, String(config.forcePathStyle ?? true));
+            this.kv.set(LS_S3.endpoint, config.endpoint);
+            this.kv.set(LS_S3.region, config.region);
+            this.kv.set(LS_S3.bucket, config.bucket);
+            this.kv.set(LS_S3.accessKeyId, config.accessKeyId);
+            this.kv.set(LS_S3.secretAccessKey, config.secretAccessKey);
+            if (config.prefix) this.kv.set(LS_S3.prefix, config.prefix);
+            else this.kv.remove(LS_S3.prefix);
+            this.kv.set(LS_S3.forcePathStyle, String(config.forcePathStyle ?? true));
         } else {
-            for (const k of Object.values(LS_S3)) localStorage.removeItem(k);
+            for (const k of Object.values(LS_S3)) this.kv.remove(k);
         }
         this.config.set(config);
     }
 
     private load(): S3Config | null {
-        const endpoint = localStorage.getItem(LS_S3.endpoint);
-        const bucket = localStorage.getItem(LS_S3.bucket);
-        const accessKeyId = localStorage.getItem(LS_S3.accessKeyId);
-        const secretAccessKey = localStorage.getItem(LS_S3.secretAccessKey);
+        const endpoint = this.kv.get(LS_S3.endpoint);
+        const bucket = this.kv.get(LS_S3.bucket);
+        const accessKeyId = this.kv.get(LS_S3.accessKeyId);
+        const secretAccessKey = this.kv.get(LS_S3.secretAccessKey);
         if (!endpoint || !bucket || !accessKeyId || !secretAccessKey) return null;
         return {
             endpoint,
-            region: localStorage.getItem(LS_S3.region) || 'us-east-1',
+            region: this.kv.get(LS_S3.region) || 'us-east-1',
             bucket,
             accessKeyId,
             secretAccessKey,
-            prefix: localStorage.getItem(LS_S3.prefix) || undefined,
-            forcePathStyle: localStorage.getItem(LS_S3.forcePathStyle) !== 'false'
+            prefix: this.kv.get(LS_S3.prefix) || undefined,
+            forcePathStyle: this.kv.get(LS_S3.forcePathStyle) !== 'false'
         };
     }
 }

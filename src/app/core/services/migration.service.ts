@@ -29,7 +29,13 @@ export class MigrationService {
      * unconditionally so any stale value from a previous version surfaces
      * as a missing key on the next launch — if anything still depended on
      * it being readable, the failure is loud rather than silent.
+     *
+     * Intentionally talks to `localStorage` directly instead of going
+     * through `KVStore`: these are pre-KVStore legacy keys, and if the
+     * KVStore backend ever moves off localStorage this purge must still
+     * clean the raw localStorage residue.
      */
+     
     private purgeLegacyLocalStorageKeys(): void {
         const keys = [
             // Pre-monorepo LLM provider config (now lives in IDB profiles)
@@ -61,7 +67,9 @@ export class MigrationService {
         ];
         let removed = 0;
         for (const k of keys) {
+            // eslint-disable-next-line no-restricted-globals -- see jsdoc on purgeLegacyLocalStorageKeys
             if (localStorage.getItem(k) !== null) {
+                // eslint-disable-next-line no-restricted-globals
                 localStorage.removeItem(k);
                 removed++;
             }

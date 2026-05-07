@@ -10,6 +10,7 @@ import { AppConfigStore } from '../app-config-store';
 import { GAME_INTENTS } from '@app/core/constants/game-intents';
 import { ChatMessage } from '@app/core/models/types';
 import { WINDOW } from '@app/core/tokens/window.token';
+import { KVStore } from '../kv/kv-store';
 import { isSystemMainCompatible } from '../profile-compat';
 
 /**
@@ -84,11 +85,12 @@ export class BridgeService {
     private providerRegistry = inject(LLMProviderRegistryService);
     private destroyRef = inject(DestroyRef);
     private win = inject(WINDOW);
+    private kv = inject(KVStore);
 
     private static readonly VALID_INTENTS: ReadonlySet<string> = new Set(Object.values(GAME_INTENTS));
 
-    readonly url = signal(localStorage.getItem(STORAGE_URL) ?? '');
-    readonly enabled = signal(localStorage.getItem(STORAGE_ENABLED) === 'true');
+    readonly url = signal(this.kv.get(STORAGE_URL) ?? '');
+    readonly enabled = signal(this.kv.get(STORAGE_ENABLED) === 'true');
     readonly status = signal<BridgeStatus>('idle');
     readonly lastError = signal<string | null>(null);
 
@@ -100,7 +102,7 @@ export class BridgeService {
 
     setUrl(url: string): void {
         this.url.set(url);
-        localStorage.setItem(STORAGE_URL, url);
+        this.kv.set(STORAGE_URL, url);
     }
 
     /**
@@ -136,7 +138,7 @@ export class BridgeService {
 
     setEnabled(enabled: boolean): void {
         this.enabled.set(enabled);
-        localStorage.setItem(STORAGE_ENABLED, String(enabled));
+        this.kv.set(STORAGE_ENABLED, String(enabled));
     }
 
     constructor() {

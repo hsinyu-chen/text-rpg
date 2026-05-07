@@ -1,6 +1,7 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { SyncBackend, SyncBackendId } from './sync.types';
 import { SYNC_BACKENDS } from './sync-backends.providers';
+import { KVStore } from '../kv/kv-store';
 
 const LS_BACKEND = 'sync_backend';
 const LS_AUTO_PREFIX = 'sync_auto_';
@@ -19,6 +20,7 @@ const LS_AUTO_PREFIX = 'sync_auto_';
 @Injectable({ providedIn: 'root' })
 export class SyncBackendResolver {
     private readonly backends = inject(SYNC_BACKENDS);
+    private readonly kv = inject(KVStore);
 
     readonly activeBackendId = signal<SyncBackendId>(this.loadBackendId());
     readonly autoSyncEnabled = signal<Record<SyncBackendId, boolean>>(this.loadAutoFlags());
@@ -52,17 +54,17 @@ export class SyncBackendResolver {
 
     setActiveBackend(id: SyncBackendId): void {
         this.activeBackendId.set(id);
-        localStorage.setItem(LS_BACKEND, id);
+        this.kv.set(LS_BACKEND, id);
     }
 
     setAutoSyncEnabled(id: SyncBackendId, on: boolean): void {
         const next = { ...this.autoSyncEnabled(), [id]: on };
         this.autoSyncEnabled.set(next);
-        localStorage.setItem(LS_AUTO_PREFIX + id, on ? '1' : '0');
+        this.kv.set(LS_AUTO_PREFIX + id, on ? '1' : '0');
     }
 
     private loadBackendId(): SyncBackendId {
-        const stored = localStorage.getItem(LS_BACKEND);
+        const stored = this.kv.get(LS_BACKEND);
         const match = this.backends.find(b => b.id === stored);
         return match?.id ?? 'gdrive';
     }
@@ -70,14 +72,14 @@ export class SyncBackendResolver {
     /**
      * Per-backend auto-sync preference. Backends with
      * `supportsBackgroundSync = false` (currently File and GDrive)
-     * always read as false regardless of any stale localStorage value —
+     * always read as false regardless of any stale KVStore value —
      * the UI never offers the toggle for them.
      */
     private loadAutoFlags(): Record<SyncBackendId, boolean> {
         const flags = {} as Record<SyncBackendId, boolean>;
         for (const b of this.backends) {
             flags[b.id] = b.supportsBackgroundSync
-                && localStorage.getItem(LS_AUTO_PREFIX + b.id) === '1';
+                && this.kv.get(LS_AUTO_PREFIX + b.id) === '1';
         }
         return flags;
     }

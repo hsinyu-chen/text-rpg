@@ -1,6 +1,7 @@
 import { Signal, WritableSignal, computed, signal } from '@angular/core';
 import { LLMConfig } from '@hcs/llm-core';
 import { LLMProviderRegistryService } from '../llm-provider-registry.service';
+import { KVStore } from '../kv/kv-store';
 import { ToolCallMode } from './file-agent.types';
 
 const TOOL_CALL_MODE_KEY_PREFIX = 'file_agent_tool_call_mode:';
@@ -9,6 +10,7 @@ export interface AgentCapabilityResolverDeps {
     selectedProfileId: Signal<string | null>;
     agentProfiles: Signal<LLMConfig[]>;
     llmProviderRegistry: LLMProviderRegistryService;
+    kv: KVStore;
 }
 
 /**
@@ -17,7 +19,7 @@ export interface AgentCapabilityResolverDeps {
  *   explicit (additionalSettings) → probed (provider hook) → default (static)
  *
  * Owns the user-facing `toolCallMode` signal (auto / native / json) and
- * its localStorage persistence per profile id. Probe results are cached
+ * its KVStore persistence per profile id. Probe results are cached
  * per profile and feed back into the auto-mode resolution.
  *
  * Plain class (not @Injectable): instantiated by FileAgentService with
@@ -98,7 +100,7 @@ export class AgentCapabilityResolver {
     setToolCallMode(mode: ToolCallMode): void {
         this.toolCallMode.set(mode);
         const id = this.deps.selectedProfileId();
-        if (id) localStorage.setItem(TOOL_CALL_MODE_KEY_PREFIX + id, mode);
+        if (id) this.deps.kv.set(TOOL_CALL_MODE_KEY_PREFIX + id, mode);
     }
 
     /** Called by the owner when the active profile changes. */
@@ -142,7 +144,7 @@ export class AgentCapabilityResolver {
 
     private loadToolCallMode(profileId: string | null): ToolCallMode {
         if (!profileId) return 'auto';
-        const v = localStorage.getItem(TOOL_CALL_MODE_KEY_PREFIX + profileId);
+        const v = this.deps.kv.get(TOOL_CALL_MODE_KEY_PREFIX + profileId);
         return v === 'native' || v === 'json' || v === 'auto' ? v : 'auto';
     }
 }

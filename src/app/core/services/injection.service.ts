@@ -8,6 +8,7 @@ import { getProfileBasePath, getProfileScopedKey, DEFAULT_PROFILE_ID, PromptProf
 import { PromptProfileRegistryService } from './prompt-profile-registry.service';
 import { ActiveProfileStore } from './active-profile-store';
 import { AppConfigStore } from './app-config-store';
+import { KVStore } from './kv/kv-store';
 
 export type PromptType = 'action' | 'continue' | 'fastforward' | 'system' | 'save' | 'postprocess' | 'system_main' | 'protocol_single' | 'protocol_resolver' | 'protocol_narrator' | 'correction';
 
@@ -31,6 +32,7 @@ export class InjectionService {
     private registry = inject(PromptProfileRegistryService);
     private activeProfileStore = inject(ActiveProfileStore);
     private appConfig = inject(AppConfigStore);
+    private kv = inject(KVStore);
     private isSettingsLoading = false;
 
     private readonly ALL_TYPES = ALL_PROMPT_TYPES;
@@ -166,7 +168,7 @@ export class InjectionService {
     }
 
     markAsModified(type: PromptType): void {
-        localStorage.setItem(this.lsKey(`prompt_user_modified_${type}`), 'true');
+        this.kv.set(this.lsKey(`prompt_user_modified_${type}`), 'true');
     }
 
     /** Throws on built-in profiles — UI must clone first. */
@@ -191,12 +193,12 @@ export class InjectionService {
 
         if (applyUpdate) {
             this.setSignalContent(type, status.serverContent);
-            localStorage.setItem(this.lsKey(`prompt_user_modified_${type}`), 'false');
+            this.kv.set(this.lsKey(`prompt_user_modified_${type}`), 'false');
             await this.prompts.saveProfilePrompt(type, this.profileId, status.serverContent);
         }
 
         const newHash = this.hashString(this.normalizeLineEndings(status.serverContent));
-        localStorage.setItem(this.lsKey(`prompt_last_server_hash_${type}`), newHash);
+        this.kv.set(this.lsKey(`prompt_last_server_hash_${type}`), newHash);
 
         this.state.promptUpdateStatus.update(map => {
             const newMap = new Map(map);
@@ -281,18 +283,18 @@ export class InjectionService {
             const serverHash = this.hashString(this.normalizeLineEndings(processedServerContent));
             const hashKey = this.lsKey(`prompt_last_server_hash_${type.id}`, currentProfile);
             const modifiedKey = this.lsKey(`prompt_user_modified_${type.id}`, currentProfile);
-            const lastServerHash = localStorage.getItem(hashKey);
-            const isModified = localStorage.getItem(modifiedKey) === 'true';
+            const lastServerHash = this.kv.get(hashKey);
+            const isModified = this.kv.get(modifiedKey) === 'true';
 
             let hasUpdate = false;
 
             if (lastServerHash === null) {
-                localStorage.setItem(hashKey, serverHash);
+                this.kv.set(hashKey, serverHash);
             } else if (serverHash !== lastServerHash) {
                 if (isModified) {
                     hasUpdate = true;
                 } else {
-                    localStorage.setItem(hashKey, serverHash);
+                    this.kv.set(hashKey, serverHash);
                 }
             }
 
@@ -300,13 +302,18 @@ export class InjectionService {
 
             let dbRecord = await this.prompts.getProfilePrompt(type.id, currentProfile);
 
-            // Pre-IDB customizations were stored in localStorage; migrate on read.
+            // Pre-IDB customizations were stored in raw localStorage; migrate on read.
+            // Talks to localStorage directly, matching MigrationService.purgeLegacyLocalStorageKeys —
+            // these keys pre-date KVStore, and if KVStore's backend ever moves off localStorage
+            // the read must still hit the raw global or the migration silently misses old user data.
             if (!dbRecord && type.legacyKey && currentProfile === DEFAULT_PROFILE_ID) {
+                // eslint-disable-next-line no-restricted-globals -- see comment above
                 const legacyContent = localStorage.getItem(type.legacyKey);
                 if (legacyContent) {
                     console.log(`[InjectionService] Migrating ${type.id} from localStorage to IndexedDB`);
                     await this.prompts.saveProfilePrompt(type.id, currentProfile, legacyContent);
                     dbRecord = { content: legacyContent, lastModified: Date.now() };
+                    // eslint-disable-next-line no-restricted-globals
                     localStorage.removeItem(type.legacyKey);
                 }
             }
@@ -316,7 +323,7 @@ export class InjectionService {
                 this.setSignalContent(type.id as PromptType, dbRecord.content);
             } else {
                 this.setSignalContent(type.id as PromptType, processedServerContent);
-                localStorage.setItem(modifiedKey, 'false');
+                this.kv.set(modifiedKey, 'false');
 
                 // Seed default into IDB so a future clone has something to copy,
                 // AND re-write when an unmodified built-in's disk content has
@@ -413,8 +420,8 @@ export class InjectionService {
             for (const baseKey of [`prompt_user_modified_${type}`, `prompt_last_server_hash_${type}`]) {
                 const sourceLsKey = getProfileScopedKey(baseKey, sourceId);
                 const newLsKey = getProfileScopedKey(baseKey, newId);
-                const value = localStorage.getItem(sourceLsKey);
-                if (value !== null) localStorage.setItem(newLsKey, value);
+                const value = this.kv.get(sourceLsKey);
+                if (value !== null) this.kv.set(newLsKey, value);
             }
         }
 
@@ -460,7 +467,7 @@ export class InjectionService {
         await this.prompts.deleteAllForProfile(id);
         for (const type of this.ALL_TYPES) {
             for (const baseKey of [`prompt_user_modified_${type}`, `prompt_last_server_hash_${type}`]) {
-                localStorage.removeItem(getProfileScopedKey(baseKey, id));
+                this.kv.remove(getProfileScopedKey(baseKey, id));
             }
         }
         await this.profileMeta.delete(id);

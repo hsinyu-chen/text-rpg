@@ -4,6 +4,7 @@ import { ProfileMetaRepository } from '../storage/profile-meta.repository';
 import { PromptProfileRegistryService } from '../prompt-profile-registry.service';
 import { ALL_PROMPT_TYPES, type PromptType } from '../injection.service';
 import { BUILT_IN_PROFILES, getProfileScopedKey, USER_PROFILE_ID_PREFIX } from '@app/core/constants/prompt-profiles';
+import { KVStore } from '../kv/kv-store';
 import { SyncBackend } from './sync.types';
 
 const PROMPT_TYPES = ALL_PROMPT_TYPES;
@@ -65,6 +66,7 @@ export class PromptCloudSyncService {
     private prompts = inject(PromptRepository);
     private profileMeta = inject(ProfileMetaRepository);
     private profileRegistry = inject(PromptProfileRegistryService);
+    private kv = inject(KVStore);
 
     private backendResolver: (() => Promise<SyncBackend>) | null = null;
 
@@ -102,7 +104,7 @@ export class PromptCloudSyncService {
         const results = await Promise.all(PROMPT_TYPES.map(async type => {
             if (opts.onlyUserModified) {
                 const flagKey = getProfileScopedKey(`prompt_user_modified_${type}`, profileId);
-                if (localStorage.getItem(flagKey) !== 'true') return null;
+                if (this.kv.get(flagKey) !== 'true') return null;
             }
             const rec = await this.prompts.getProfilePrompt(type, profileId);
             return rec ? { type, rec } : null;
@@ -273,7 +275,7 @@ export class PromptCloudSyncService {
 
             await this.prompts.saveProfilePrompt(type, profileId, value.content, value.tokens);
             if (profile.isBuiltIn) {
-                localStorage.setItem(getProfileScopedKey(`prompt_user_modified_${type}`, profileId), 'true');
+                this.kv.set(getProfileScopedKey(`prompt_user_modified_${type}`, profileId), 'true');
             }
             return true;
         }));
@@ -290,7 +292,7 @@ export class PromptCloudSyncService {
             if (!BUILT_IN_PROFILES.some(p => p.id === profileId)) return false;
             if (!PROMPT_TYPES.includes(type as PromptType)) return false;
             await this.prompts.saveProfilePrompt(type, profileId, value.content, value.tokens);
-            localStorage.setItem(getProfileScopedKey(`prompt_user_modified_${type}`, profileId), 'true');
+            this.kv.set(getProfileScopedKey(`prompt_user_modified_${type}`, profileId), 'true');
             return true;
         }));
         return { imported: results.filter(Boolean).length };

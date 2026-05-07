@@ -3,6 +3,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { LoadingService } from './loading.service';
 import { SyncService } from './sync/sync.service';
 import { WINDOW } from '../tokens/window.token';
+import { KVStore } from './kv/kv-store';
 
 const SNAPSHOT_VERSION = 1;
 
@@ -34,13 +35,13 @@ export class SettingsSyncService {
     private loading = inject(LoadingService);
     private snackBar = inject(MatSnackBar);
     private readonly win = inject(WINDOW);
+    private kv = inject(KVStore);
 
     buildSnapshot(): SettingsSnapshot {
         const entries: Record<string, string> = {};
-        for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (!key || !isSyncKey(key)) continue;
-            const value = localStorage.getItem(key);
+        for (const key of this.kv.keys()) {
+            if (!isSyncKey(key)) continue;
+            const value = this.kv.get(key);
             if (value !== null) entries[key] = value;
         }
         return {
@@ -57,20 +58,15 @@ export class SettingsSyncService {
 
         // Remove local keys in the sync scope that are missing from the snapshot,
         // so the device ends up matching the cloud source of truth exactly.
-        const existingKeys: string[] = [];
-        for (let i = 0; i < localStorage.length; i++) {
-            const k = localStorage.key(i);
-            if (k && isSyncKey(k)) existingKeys.push(k);
-        }
-        for (const k of existingKeys) {
-            if (!(k in snapshot.entries)) localStorage.removeItem(k);
+        for (const k of this.kv.keys()) {
+            if (isSyncKey(k) && !(k in snapshot.entries)) this.kv.remove(k);
         }
 
         let applied = 0;
         for (const [key, value] of Object.entries(snapshot.entries)) {
             if (!isSyncKey(key)) continue; // ignore unexpected keys in payload
             if (typeof value !== 'string') continue;
-            localStorage.setItem(key, value);
+            this.kv.set(key, value);
             applied++;
         }
         return applied;

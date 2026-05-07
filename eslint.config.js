@@ -68,6 +68,10 @@ module.exports = defineConfig([
         {
           "name": "navigator",
           "message": "Use Clipboard from @angular/cdk/clipboard, or inject WINDOW and read .navigator, instead of the navigator global."
+        },
+        {
+          "name": "localStorage",
+          "message": "Inject KVStore (from app/core/services/kv/kv-store) instead of using the localStorage global. The only allowed exceptions are LocalStorageKVStore itself and pre-KVStore legacy-key migrations (e.g. MigrationService.purgeLegacyLocalStorageKeys) — those require an inline eslint-disable with justification."
         }
       ],
       "no-restricted-syntax": [

@@ -1,3 +1,4 @@
+/* eslint-disable no-restricted-globals -- this file IS the KVStore implementation; it is the one allowed wrapper around the localStorage global. */
 import { Injectable } from '@angular/core';
 import { KVStore } from './kv-store';
 
@@ -18,5 +19,14 @@ export class LocalStorageKVStore extends KVStore {
 
     remove(key: string): void {
         localStorage.removeItem(key);
+    }
+
+    keys(): string[] {
+        const out: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k !== null) out.push(k);
+        }
+        return out;
     }
 }
