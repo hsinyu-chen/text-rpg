@@ -99,13 +99,19 @@ export class HunkApplyController {
         if (!group) return;
 
         if (calibratingId && selection) {
-          const update = group.updates.find((u) => u.id === calibratingId);
-          if (update) {
-            update.targetContent = selection.text;
-            update.context = this.updateService.inferContextFromLine(group.originalContent(), selection.startLineNumber - 1);
-            // The sidebar reads update.context directly (not as a signal),
-            // so refreshing groupedUpdates is what makes the new context
-            // value visible while the user is still calibrating.
+          const idx = group.updates.findIndex((u) => u.id === calibratingId);
+          if (idx !== -1) {
+            // Replace the element immutably so OnPush consumers + downstream
+            // signal observers see a fresh reference, instead of mutating
+            // the existing object in place.
+            group.updates[idx] = {
+              ...group.updates[idx],
+              targetContent: selection.text,
+              context: this.updateService.inferContextFromLine(group.originalContent(), selection.startLineNumber - 1),
+            };
+            // activeUpdate carries the previous reference; rebind so the
+            // calibration panel reads the fresh values.
+            if (this.activeUpdate()?.id === calibratingId) this.activeUpdate.set(group.updates[idx]);
             this.groupedUpdates.update((groups) => [...groups]);
           }
         }
@@ -359,8 +365,11 @@ export class HunkApplyController {
       if (this.activeUpdate()?.id === update.id) {
         this.activeUpdate.set(replacement);
       }
-      this.groupedUpdates.update((groups) => [...groups]);
     }
+    // Batch the array refresh so a many-hunk validation pass fires one
+    // signal-driven re-render instead of N. Per-hunk spinner clearing is
+    // sacrificed; the trade-off favours throughput on large updates.
+    this.groupedUpdates.update((groups) => [...groups]);
   }
 
   private async revalidateUpdate(update: MonacoUpdateItem, group: GroupedUpdate): Promise<void> {
