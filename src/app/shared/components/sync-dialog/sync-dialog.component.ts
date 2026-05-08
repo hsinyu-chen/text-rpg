@@ -13,6 +13,7 @@ import { GameEngineService } from '@app/core/services/game-engine.service';
 
 import { CacheManagerService } from '@app/core/services/cache-manager.service';
 import { MonacoEditorComponent } from '../monaco-editor/monaco-editor.component';
+import { I18nService, TranslatePipe } from '@app/core/i18n';
 
 export interface SyncItem {
     name: string;
@@ -39,7 +40,8 @@ export interface SyncDialogData {
         MatIconModule,
         MatProgressSpinnerModule,
         FormsModule,
-        MonacoEditorComponent
+        MonacoEditorComponent,
+        TranslatePipe
     ],
     templateUrl: './sync-dialog.component.html',
     styleUrl: './sync-dialog.component.scss'
@@ -49,6 +51,7 @@ export class SyncDialogComponent {
     public data = inject<SyncDialogData>(MAT_DIALOG_DATA);
 
     private snackBar = inject(MatSnackBar);
+    private i18n = inject(I18nService);
     private fileSystem = inject(FileSystemService);
     private cacheManager = inject(CacheManagerService);
 
@@ -102,7 +105,11 @@ export class SyncDialogComponent {
             for (const item of selectedItems) {
                 await this.fileSystem.writeToDiskHandle(this.data.diskHandle, item.name, item.localContent());
             }
-            this.snackBar.open(`Successfully synced ${selectedItems.length} files to Disk and DB.`, 'OK', { duration: 3000 });
+            this.snackBar.open(
+                this.i18n.translate('dialog.syncSuccess', { count: selectedItems.length }),
+                this.i18n.translate('ui.CLOSE'),
+                { duration: 3000 },
+            );
 
             // [Added] Clear remote cache since files have changed
             await this.cacheManager.clearAllServerCaches();
@@ -110,7 +117,10 @@ export class SyncDialogComponent {
             this.dialogRef.close(true);
         } catch (error) {
             console.error(error);
-            this.snackBar.open(`Sync failed: ${(error as { message?: string })?.message || 'Unknown error'}`, 'Close');
+            this.snackBar.open(
+                this.i18n.translate('dialog.syncFailedPrefix') + ((error as { message?: string })?.message || 'Unknown error'),
+                this.i18n.translate('ui.CLOSE'),
+            );
         } finally {
             this.isSyncing.set(false);
         }
