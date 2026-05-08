@@ -2,11 +2,11 @@
   @if (profiles().length === 0) {
     <button mat-stroked-button class="create-btn" (click)="openManager()">
       <mat-icon>add</mat-icon>
-      Create LLM Profile
+      {{ 'sidebar.providerSelector.createProfileBtn' | translate }}
     </button>
   } @else {
     <mat-form-field appearance="outline" class="profile-field" subscriptSizing="dynamic">
-      <mat-label>Profile</mat-label>
+      <mat-label>{{ 'sidebar.providerSelector.profileLabel' | translate }}</mat-label>
       <mat-select [ngModel]="activeId()"
                   (ngModelChange)="onChange($event)"
                   [disabled]="state.isBusy()">
@@ -19,7 +19,7 @@
     </mat-form-field>
     <button mat-icon-button
             class="configure-btn"
-            matTooltip="Manage LLM profiles"
+            [matTooltip]="'sidebar.providerSelector.manageProfilesTooltip' | translate"
             [disabled]="state.isBusy()"
             (click)="openManager()">
       <mat-icon>tune</mat-icon>
