@@ -53,10 +53,12 @@ export function getProfileScopedKey(baseKey: string, profileId: string): string 
 }
 
 /**
- * displayName → i18n via nameKey → id. The translate callback is expected to
- * return the original key on miss (fallback semantics of {@link I18nService}),
- * so passing it through cleanly preserves the prior "show the raw key when
- * missing" behaviour.
+ * displayName → i18n via nameKey → id. Resolves the profile's displayName,
+ * else its nameKey via the supplied translate callback, else falls through
+ * to the raw id. On a dictionary miss the translate callback returns the
+ * full dotted key (e.g. `ui.PROFILE_LOCAL`); in practice every shipped
+ * `nameKey` exists in both dictionaries, so the user-visible miss branch
+ * is unreachable from current code.
  */
 export function getProfileDisplayName(
     profile: PromptProfile,

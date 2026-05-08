@@ -90,7 +90,6 @@ export class ChatConfigDialogComponent {
     }
 
     readonly injectionTypes = computed((): InjectionType[] => {
-        this.i18n.currentLang();
         return [
             { id: 'system_main', label: this.t('ui.SYSTEM_PROMPT_TITLE'), icon: 'settings', category: 'main' },
             { id: 'protocol_single', label: this.t('ui.PROTOCOL_SINGLE_TITLE'), icon: 'description', category: 'main' },
@@ -106,7 +105,6 @@ export class ChatConfigDialogComponent {
     });
 
     readonly groupedTypes = computed((): PromptCategory[] => {
-        this.i18n.currentLang();
         const types = this.injectionTypes();
         return [
             { id: 'main', label: this.t('ui.CATEGORY_MAIN'), items: types.filter(t => t.category === 'main') },

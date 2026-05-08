@@ -1,7 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { WINDOW } from '@app/core/tokens/window.token';
-import { AppConfigStore } from '@app/core/services/app-config-store';
 import { GameStateService } from '@app/core/services/game-state.service';
 import { InjectionService } from '@app/core/services/injection.service';
 import { LoadingService } from '@app/core/services/loading.service';
@@ -48,7 +47,6 @@ export class ProfileManagementController {
   private snackBar = inject(MatSnackBar);
   private loading = inject(LoadingService);
   private state = inject(GameStateService);
-  private appConfig = inject(AppConfigStore);
   private readonly win = inject(WINDOW);
   private i18n = inject(I18nService);
 

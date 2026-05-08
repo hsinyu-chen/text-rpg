@@ -67,8 +67,6 @@ export class ChatInputComponent {
     private readonly doc = inject(DOCUMENT);
 
     activeProfileName = computed(() => {
-        // Track interfaceLanguage so display name re-resolves on locale change.
-        this.i18n.currentLang();
         const id = this.state.activePromptProfile();
         const profile = this.profileRegistry.get(id);
         if (!profile) return id;
@@ -78,10 +76,8 @@ export class ChatInputComponent {
     // Engine mode chip — toggles single ⇄ two-call. Two-call is the only mode
     // that consumes userIdealOutcome, so the field is conditionally shown.
     isTwoCall = computed(() => this.appConfig.engineMode() === 'two-call');
-    engineModeLabel = computed(() => {
-        this.i18n.currentLang();
-        return this.i18n.translate(this.isTwoCall() ? 'ui.ENGINE_MODE_TWO_CALL' : 'ui.ENGINE_MODE_SINGLE');
-    });
+    engineModeLabel = computed(() =>
+        this.i18n.translate(this.isTwoCall() ? 'ui.ENGINE_MODE_TWO_CALL' : 'ui.ENGINE_MODE_SINGLE'));
 
     hasActiveSession = computed(() => !!this.session.currentBookId());
 
@@ -133,8 +129,6 @@ export class ChatInputComponent {
 
     dynamicPlaceholder = computed(() => {
         if (this.editingMessageId()) return '';
-        // Track interfaceLanguage so placeholder re-resolves on locale switch.
-        this.i18n.currentLang();
         const intent = this.selectedIntent();
         const known = (Object.values(GAME_INTENTS) as string[]).includes(intent);
         return this.i18n.translate(known ? `placeholder.${intent}` : 'placeholder.fallback');

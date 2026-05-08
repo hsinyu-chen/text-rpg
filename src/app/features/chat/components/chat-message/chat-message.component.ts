@@ -81,10 +81,7 @@ export class ChatMessageComponent {
     // (analysis trace markdown is persisted in the message); UI chrome flows
     // through i18n and tracks interfaceLanguage.
     locale = computed(() => getLocale(this.appConfig.outputLanguage()));
-    idealOutcomeChipPrefix = computed(() => {
-        this.i18n.currentLang();
-        return this.i18n.translate('ui.IDEAL_OUTCOME_CHIP_PREFIX');
-    });
+    idealOutcomeChipPrefix = computed(() => this.i18n.translate('ui.IDEAL_OUTCOME_CHIP_PREFIX'));
 
     // Prefill Metrics
     prefillSpeed = computed(() => {

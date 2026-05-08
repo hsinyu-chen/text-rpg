@@ -89,7 +89,6 @@ export class NewGameDialogComponent {
     };
 
     labels = computed(() => {
-        this.i18n.currentLang();
         return {
             name: this.i18n.translate('ui.USER_NAME'),
             faction: this.i18n.translate('ui.USER_FACTION'),
@@ -100,7 +99,6 @@ export class NewGameDialogComponent {
     });
 
     alignments = computed(() => {
-        this.i18n.currentLang();
         const tr = (id: string): string => this.i18n.translate(`ui.ALIGNMENTS.${id}`);
         return [
             [

@@ -88,10 +88,15 @@ export class SettingsDialogComponent {
   customOutputLanguage = signal('');
   languages: { value: string; label: string }[] = getLanguagesList();
 
-  /** UI-language picker — closed set: 'system' ∪ registered locale ids. */
+  /**
+   * UI-language picker — closed set: 'system' ∪ registered locale ids. The
+   * 'system' entry's display label is rendered via the `settings.systemDefault`
+   * translate key in the template (so it follows the resolved language), so
+   * the option list itself only carries `value` + native-label pairs.
+   */
   interfaceLanguage = signal<InterfaceLanguageSetting>('system');
   interfaceLanguages: { value: InterfaceLanguageSetting; label: string }[] = [
-    { value: 'system', label: 'Follow system' },
+    { value: 'system', label: '' },
     ...UI_LOCALES.map(l => ({ value: l.id, label: l.label })),
   ];
 
