@@ -133,8 +133,7 @@ export class ProfileManagementController {
     try {
       const newId = await this.injection.cloneProfile(active.id, name);
       await this.injection.switchProfile(newId);
-      this.refreshAfterProfileChange();
-      await this.refreshLegacyProfileIds();
+      await this.finalizeProfileMutation();
       this.snackBar.open(this.ui().PROFILE_CLONED, this.ui().CLOSE, { duration: 2000 });
     } catch (err) {
       console.error('[ChatConfig] cloneActive failed', err);
@@ -182,8 +181,7 @@ export class ProfileManagementController {
         : DEFAULT_PROFILE_ID;
       await this.injection.switchProfile(fallbackId);
       await this.injection.deleteProfile(active.id);
-      this.refreshAfterProfileChange();
-      await this.refreshLegacyProfileIds();
+      await this.finalizeProfileMutation();
       this.snackBar.open(this.ui().PROFILE_DELETED, this.ui().CLOSE, { duration: 2000 });
     } catch (err) {
       console.error('[ChatConfig] deleteActive failed', err);
@@ -213,13 +211,14 @@ export class ProfileManagementController {
     );
     if (!confirmed) return;
 
+    if (await this.shouldAbortOnDirty(this.ui().PROFILE_SWITCH_DISCARD_CONFIRM)) return;
+
     this.loading.show(this.ui().PROMPT_SYNC_DOWNLOADING);
     try {
       const { imported } = await this.sync.downloadPrompts();
       // forceReload — switchProfile(sameId) would early-return and skip the re-read.
       await this.injection.forceReload();
-      this.refreshAfterProfileChange();
-      await this.refreshLegacyProfileIds();
+      await this.finalizeProfileMutation();
       const msg = imported === 0
         ? this.ui().PROMPT_SYNC_NONE_FOUND
         : this.ui().PROMPT_SYNC_DOWNLOADED.replace('{count}', String(imported));
@@ -258,6 +257,10 @@ export class ProfileManagementController {
     input.onchange = async () => {
       const file = input.files?.[0];
       if (!file) return;
+      // Confirm BEFORE reading the file: import may switch profiles or overwrite
+      // an existing one in place; either path silently wipes the editor's
+      // dirty content otherwise.
+      if (await this.shouldAbortOnDirty(this.ui().PROFILE_SWITCH_DISCARD_CONFIRM)) return;
       try {
         const text = await file.text();
         const before = new Set(this.registry.userProfiles().map((p) => p.id));
@@ -275,8 +278,7 @@ export class ProfileManagementController {
         } else {
           await this.injection.forceReload();
         }
-        this.refreshAfterProfileChange();
-        await this.refreshLegacyProfileIds();
+        await this.finalizeProfileMutation();
         this.snackBar.open(this.ui().PROFILE_IMPORTED, this.ui().CLOSE, { duration: 3000 });
       } catch (err) {
         console.error('[ChatConfig] importProfileFromFile failed', err);
@@ -315,8 +317,7 @@ export class ProfileManagementController {
     this.loading.show(this.ui().DISK_SYNC_PULLING);
     try {
       const { updatedTypes } = await this.diskSync.pullActiveFromDisk();
-      this.refreshAfterProfileChange();
-      await this.refreshLegacyProfileIds();
+      await this.finalizeProfileMutation();
       const msg = updatedTypes === 0
         ? this.ui().DISK_SYNC_PULL_EMPTY
         : this.ui().DISK_SYNC_PULLED.replace('{count}', String(updatedTypes));
@@ -374,5 +375,15 @@ export class ProfileManagementController {
   private refreshAfterProfileChange(): void {
     this.host?.refreshEditorContent();
     this.host?.clearDirty();
+  }
+
+  /**
+   * Post-mutation cleanup: refresh editor content + clear dirty + recompute
+   * legacy badges. Used by every flow that swaps the active profile content
+   * (clone / delete / cloud-pull / import / disk-pull).
+   */
+  private async finalizeProfileMutation(): Promise<void> {
+    this.refreshAfterProfileChange();
+    await this.refreshLegacyProfileIds();
   }
 }

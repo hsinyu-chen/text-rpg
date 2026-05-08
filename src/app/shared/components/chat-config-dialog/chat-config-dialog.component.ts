@@ -196,6 +196,7 @@ export class ChatConfigDialogComponent {
 
         const dirtyMap = this.dirtyState();
         let savedCount = 0;
+        const systemMainSaved = !!dirtyMap.get('system_main');
 
         for (const [type, isDirty] of dirtyMap.entries()) {
             if (!isDirty) continue;
@@ -209,6 +210,9 @@ export class ChatConfigDialogComponent {
 
         if (savedCount > 0) {
             this.dirtyState.set(new Map());
+            if (systemMainSaved) {
+                await this.profileMgr.refreshLegacyProfileIds();
+            }
             this.snackBar.open(this.ui().SAVE_SUCCESS, this.ui().CLOSE, { duration: 2000 });
         }
     }
