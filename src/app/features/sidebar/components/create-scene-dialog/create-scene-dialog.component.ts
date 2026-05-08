@@ -23,6 +23,7 @@ import { SessionService } from '@app/core/services/session.service';
 import { LLMProviderRegistryService } from '@app/core/services/llm-provider-registry.service';
 import { LOCALES, getLocale } from '@app/core/constants/locales';
 import { MonacoEditorComponent } from '@app/shared/components/monaco-editor/monaco-editor.component';
+import { I18nService, TranslatePipe } from '@app/core/i18n';
 
 type Phase = 'input' | 'processing' | 'review';
 type ProcessingStage = 'opening' | 'extracting' | 'done';
@@ -81,7 +82,8 @@ const EXTRACTION_SCHEMA = {
         MatTooltipModule,
         MatCheckboxModule,
         MatDividerModule,
-        MonacoEditorComponent
+        MonacoEditorComponent,
+        TranslatePipe
     ],
     templateUrl: './create-scene-dialog.component.html',
     styleUrl: './create-scene-dialog.component.scss',
@@ -95,6 +97,11 @@ export class CreateSceneDialogComponent {
     private session = inject(SessionService);
     private providerRegistry = inject(LLMProviderRegistryService);
     private snackBar = inject(MatSnackBar);
+    private i18n = inject(I18nService);
+
+    private t(key: string, params?: Record<string, string | number>): string {
+        return this.i18n.translate(`sidebar.createScene.${key}`, params);
+    }
 
     phase = signal<Phase>('input');
     stage = signal<ProcessingStage>('opening');
@@ -191,11 +198,11 @@ export class CreateSceneDialogComponent {
     async start() {
         if (!this.isInputValid()) return;
         if (!this.providerRegistry.getActive()) {
-            this.snackBar.open('No active LLM provider. Configure an API key first.', 'Close', { duration: 5000 });
+            this.snackBar.open(this.t('noLLMProvider'), this.i18n.translate('ui.CLOSE'), { duration: 5000 });
             return;
         }
         if (this.state.loadedFiles().size === 0) {
-            this.snackBar.open('No Knowledge Base loaded.', 'Close', { duration: 5000 });
+            this.snackBar.open(this.t('noKBLoaded'), this.i18n.translate('ui.CLOSE'), { duration: 5000 });
             return;
         }
 
@@ -219,11 +226,11 @@ export class CreateSceneDialogComponent {
             const msg = e instanceof Error ? e.message : String(e);
             if (msg === 'Aborted' || (e instanceof Error && e.name === 'AbortError')) {
                 this.phase.set('input');
-                this.snackBar.open('Scene creation aborted.', 'Close', { duration: 3000 });
+                this.snackBar.open(this.t('aborted'), this.i18n.translate('ui.CLOSE'), { duration: 3000 });
             } else {
                 console.error('[CreateScene] Failed:', e);
                 this.processingError.set(msg);
-                this.snackBar.open(`Scene creation failed: ${msg}`, 'Close', { duration: 6000 });
+                this.snackBar.open(this.t('failedPrefix') + msg, this.i18n.translate('ui.CLOSE'), { duration: 6000 });
             }
         } finally {
             this.abortController = null;
@@ -553,12 +560,12 @@ export class CreateSceneDialogComponent {
         try {
             const bookName = `Scene: ${this.location().trim()}`.substring(0, 80);
             await this.session.createSceneBook(bookName, this.generatedFiles());
-            this.snackBar.open(`Created new Book "${bookName}".`, 'OK', { duration: 3000 });
+            this.snackBar.open(this.t('createdSuccess', { name: bookName }), this.i18n.translate('ui.CLOSE'), { duration: 3000 });
             this.dialogRef.close(true);
         } catch (e) {
             console.error('[CreateScene] Failed to create book', e);
             const msg = e instanceof Error ? e.message : String(e);
-            this.snackBar.open(`Failed to create book: ${msg}`, 'Close', { duration: 5000 });
+            this.snackBar.open(this.t('createFailedPrefix') + msg, this.i18n.translate('ui.CLOSE'), { duration: 5000 });
         } finally {
             this.isCreatingBook.set(false);
         }
