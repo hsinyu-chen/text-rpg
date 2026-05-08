@@ -2,17 +2,17 @@
     <!-- Header -->
     <div class="dialog-header">
         <button mat-icon-button class="sidebar-toggle" (click)="toggleSidebar()"
-            [matTooltip]="isSidebarCollapsed() ? 'Show Files' : 'Hide Files'">
+            [matTooltip]="(isSidebarCollapsed() ? 'sidebar.fileViewer.showFiles' : 'sidebar.fileViewer.hideFiles') | translate">
             <mat-icon>{{ isSidebarCollapsed() ? 'menu' : 'menu_open' }}</mat-icon>
         </button>
         <span class="file-title">{{ activeFile() }}</span>
         <div class="header-actions">
-            <button mat-icon-button (click)="toggleDiffView()" 
+            <button mat-icon-button (click)="toggleDiffView()"
                 [class.active-diff]="isDiffView()"
-                [matTooltip]="isDiffView() ? 'Show Normal View' : 'Show Diff View'">
+                [matTooltip]="(isDiffView() ? 'sidebar.fileViewer.showNormalView' : 'sidebar.fileViewer.showDiffView') | translate">
                 <mat-icon>{{ isDiffView() ? 'difference' : 'compare' }}</mat-icon>
             </button>
-            <button mat-icon-button (click)="close()" matTooltip="Close">
+            <button mat-icon-button (click)="close()" [matTooltip]="'sidebar.fileViewer.close' | translate">
                 <mat-icon>close</mat-icon>
             </button>
         </div>
@@ -27,15 +27,15 @@
             <!-- VS Code-style Sidebar Tabs -->
             <div class="sidebar-tabs">
                 <button mat-icon-button class="tab-btn" [class.active]="sidebarView() === 'files'"
-                    (click)="sidebarView.set('files')" matTooltip="Files">
+                    (click)="sidebarView.set('files')" [matTooltip]="'sidebar.fileViewer.filesTab' | translate">
                     <mat-icon>folder</mat-icon>
                 </button>
                 <button mat-icon-button class="tab-btn" [class.active]="sidebarView() === 'search'"
-                    (click)="sidebarView.set('search')" matTooltip="Search & Replace">
+                    (click)="sidebarView.set('search')" [matTooltip]="'sidebar.fileViewer.searchTab' | translate">
                     <mat-icon>search</mat-icon>
                 </button>
                 <button mat-icon-button class="tab-btn" [class.active]="sidebarView() === 'agent'"
-                    (click)="sidebarView.set('agent')" matTooltip="AI Agent">
+                    (click)="sidebarView.set('agent')" [matTooltip]="'sidebar.fileViewer.agentTab' | translate">
                     <mat-icon>smart_toy</mat-icon>
                 </button>
             </div>
@@ -46,7 +46,7 @@
                 <!-- Files Section -->
                 <div class="files-list-section">
                     <div class="sidebar-header">
-                        <span>Files</span>
+                        <span>{{ 'sidebar.fileViewer.filesSection' | translate }}</span>
                         <span class="file-count">{{ fileList().length }}</span>
                     </div>
 
@@ -57,7 +57,7 @@
                             <mat-icon matListItemIcon>description</mat-icon>
                             <span matListItemTitle class="file-name">{{ file }}</span>
                             @if (unsavedFiles().has(file)) {
-                            <div matListItemMeta class="unsaved-indicator" title="Unsaved changes"></div>
+                            <div matListItemMeta class="unsaved-indicator" [title]="'sidebar.unsavedTooltip' | translate"></div>
                             }
                         </a>
                         }
@@ -68,7 +68,7 @@
                 @if (outline().length > 0) {
                 <div class="outline-section">
                     <div class="sidebar-header">
-                        <span>Outline</span>
+                        <span>{{ 'sidebar.fileViewer.outlineSection' | translate }}</span>
                     </div>
                     <mat-nav-list class="outline-list">
                         @for (header of outline(); track header.lineNumber) {
@@ -91,22 +91,22 @@
                 <!-- Search Row with expand chevron -->
                 <div class="search-input-row">
                     <button mat-icon-button class="expand-toggle" (click)="searchEngine.toggleReplaceExpanded()"
-                        [matTooltip]="searchEngine.isReplaceExpanded() ? 'Collapse Replace' : 'Expand Replace'">
+                        [matTooltip]="(searchEngine.isReplaceExpanded() ? 'sidebar.fileViewer.collapseReplace' : 'sidebar.fileViewer.expandReplace') | translate">
                         <mat-icon>{{ searchEngine.isReplaceExpanded() ? 'expand_more' : 'chevron_right' }}</mat-icon>
                     </button>
                     <div class="input-with-options">
-                        <input type="text" class="search-input" [(ngModel)]="searchEngine.searchQuery" placeholder="Search...">
+                        <input type="text" class="search-input" [(ngModel)]="searchEngine.searchQuery" [placeholder]="'sidebar.fileViewer.searchPlaceholder' | translate">
                         <div class="input-options">
                             <button mat-icon-button class="option-btn" [class.active]="searchEngine.isCaseSensitive()"
-                                (click)="searchEngine.toggleCaseSensitive(); $event.stopPropagation()" matTooltip="Match Case">
+                                (click)="searchEngine.toggleCaseSensitive(); $event.stopPropagation()" [matTooltip]="'sidebar.fileViewer.matchCase' | translate">
                                 <span class="option-icon">Aa</span>
                             </button>
                             <button mat-icon-button class="option-btn" [class.active]="searchEngine.isWholeWord()"
-                                (click)="searchEngine.toggleWholeWord(); $event.stopPropagation()" matTooltip="Match Whole Word">
+                                (click)="searchEngine.toggleWholeWord(); $event.stopPropagation()" [matTooltip]="'sidebar.fileViewer.matchWholeWord' | translate">
                                 <span class="option-icon underline">ab</span>
                             </button>
                             <button mat-icon-button class="option-btn" [class.active]="searchEngine.isRegex()"
-                                (click)="searchEngine.toggleRegex(); $event.stopPropagation()" matTooltip="Use Regular Expression">
+                                (click)="searchEngine.toggleRegex(); $event.stopPropagation()" [matTooltip]="'sidebar.fileViewer.useRegex' | translate">
                                 <span class="option-icon">.*</span>
                             </button>
                         </div>
@@ -118,12 +118,12 @@
                 <div class="replace-input-row">
                     <div class="replace-spacer"></div>
                     <div class="input-with-options">
-                        <input type="text" class="search-input" [(ngModel)]="searchEngine.replaceQuery" placeholder="Replace...">
+                        <input type="text" class="search-input" [(ngModel)]="searchEngine.replaceQuery" [placeholder]="'sidebar.fileViewer.replacePlaceholder' | translate">
                         <div class="input-options">
                             <button mat-icon-button class="option-btn replace-all-inline"
                                 (click)="runReplaceAllMatches(); $event.stopPropagation()"
                                 [disabled]="(searchEngine.searchResource.value()?.length ?? 0) === 0 || searchEngine.isReplacing()"
-                                matTooltip="Replace All">
+                                [matTooltip]="'sidebar.fileViewer.replaceAll' | translate">
                                 <mat-icon>find_replace</mat-icon>
                             </button>
                         </div>
@@ -134,8 +134,7 @@
                 @if (searchEngine.searchResource.value() && searchEngine.searchResource.value()!.length > 0) {
                 <div class="search-results">
                     <div class="results-header">
-                        <span class="result-count">{{ searchEngine.searchResource.value()?.length ?? 0 }} results in {{
-                            searchEngine.groupedSearchResults().length }} files</span>
+                        <span class="result-count">{{ 'sidebar.fileViewer.searchResults' | translate: { matches: (searchEngine.searchResource.value()?.length ?? 0), files: searchEngine.groupedSearchResults().length } }}</span>
                     </div>
                     <div class="results-list">
                         @for (group of searchEngine.groupedSearchResults(); track group[0]) {
@@ -166,7 +165,7 @@
                                     </div>
                                     @if (searchEngine.isReplaceExpanded()) {
                                     <button mat-icon-button class="result-replace-btn"
-                                        (click)="searchEngine.replaceInFile(result); $event.stopPropagation()" matTooltip="Replace">
+                                        (click)="searchEngine.replaceInFile(result); $event.stopPropagation()" [matTooltip]="'sidebar.fileViewer.replaceTooltip' | translate">
                                         <mat-icon>swap_horiz</mat-icon>
                                     </button>
                                     }
@@ -180,7 +179,7 @@
                 </div>
                 }
                 @if (searchEngine.searchQuery() && (searchEngine.searchResource.value()?.length ?? 0) === 0 && !searchEngine.searchResource.isLoading()) {
-                <div class="no-results">No results found</div>
+                <div class="no-results">{{ 'sidebar.fileViewer.noResults' | translate }}</div>
                 }
             </div>
             }
@@ -215,12 +214,12 @@
                 [disabled]="isStartingGame()"
                 style="font-weight: bold; background: linear-gradient(45deg, #4facfe 0%, #00f2fe 100%); color: white;">
                 <mat-icon>play_arrow</mat-icon>
-                {{ isStartingGame() ? 'Starting...' : 'Start Game' }}
+                {{ (isStartingGame() ? 'sidebar.fileViewer.starting' : 'sidebar.fileViewer.startGameBtn') | translate }}
             </button>
         } @else {
             <button mat-flat-button color="primary" (click)="save()"
                 [disabled]="isSaving() || !unsavedFiles().has(activeFile())">
-                {{ isSaving() ? 'Saving...' : 'Save Changes' }}
+                {{ (isSaving() ? 'sidebar.fileViewer.saving' : 'sidebar.fileViewer.saveChanges') | translate }}
             </button>
         }
     </mat-dialog-actions>

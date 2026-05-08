@@ -23,6 +23,7 @@ import { AgentConsoleComponent } from '@app/shared/components/agent-console/agen
 import { SessionService } from '@app/core/services/session.service';
 import { findAtxHeadings } from '@app/core/utils/markdown.util';
 import { FileSearchEngine, type SearchResult } from './file-search/file-search-engine';
+import { I18nService, TranslatePipe } from '@app/core/i18n';
 
 /** Dialog data interface for multi-file viewer */
 export interface FileViewerDialogData {
@@ -65,7 +66,8 @@ export interface MarkdownHeader {
     MatFormFieldModule,
     FormsModule,
     MonacoEditorComponent,
-    AgentConsoleComponent
+    AgentConsoleComponent,
+    TranslatePipe
   ],
   templateUrl: './file-viewer-dialog.component.html',
   styleUrl: './file-viewer-dialog.component.scss',
@@ -83,6 +85,11 @@ export class FileViewerDialogComponent implements OnDestroy {
   private fileAgentService = inject(FileAgentService);
   searchEngine = inject(FileSearchEngine);
   private readonly win = inject(WINDOW);
+  private i18n = inject(I18nService);
+
+  private t(key: string, params?: Record<string, string | number>): string {
+    return this.i18n.translate(`sidebar.fileViewer.${key}`, params);
+  }
 
   isStartingGame = signal(false);
 
@@ -293,7 +300,7 @@ export class FileViewerDialogComponent implements OnDestroy {
   async runReplaceAllMatches(): Promise<void> {
     const { replaced, files } = await this.searchEngine.replaceAllMatches();
     if (replaced > 0) {
-      this.snackBar.open(`Replaced ${replaced} occurrences in ${files} file(s)`, 'Close', { duration: 3000 });
+      this.snackBar.open(this.t('replaceSuccess', { replaced, files }), this.i18n.translate('ui.CLOSE'), { duration: 3000 });
     }
   }
 
@@ -417,7 +424,7 @@ export class FileViewerDialogComponent implements OnDestroy {
       // Without this, loadBook() on next reload would wipe the change from file_store.
       await this.engine.saveCurrentSessionToBook();
 
-      this.snackBar.open('File saved successfully!', 'Close', { duration: 3000 });
+      this.snackBar.open(this.t('saveSuccess'), this.i18n.translate('ui.CLOSE'), { duration: 3000 });
       // Update the local data map
       this.data.files.set(fileName, content);
       
@@ -440,7 +447,7 @@ export class FileViewerDialogComponent implements OnDestroy {
       });
     } catch (err) {
       console.error('Save failed:', err);
-      this.snackBar.open('Failed to save file.', 'Close', { duration: 5000 });
+      this.snackBar.open(this.t('saveFailed'), this.i18n.translate('ui.CLOSE'), { duration: 5000 });
     } finally {
       this.isSaving.set(false);
     }
@@ -457,7 +464,7 @@ export class FileViewerDialogComponent implements OnDestroy {
       this.dialogRef.close(true);
     } catch (err) {
       console.error('Start game failed:', err);
-      this.snackBar.open('Failed to start game.', 'Close', { duration: 5000 });
+      this.snackBar.open(this.t('startGameFailed'), this.i18n.translate('ui.CLOSE'), { duration: 5000 });
     } finally {
       this.isStartingGame.set(false);
     }
@@ -469,10 +476,10 @@ export class FileViewerDialogComponent implements OnDestroy {
     if (!this.data.createWorldMode && this.unsavedFiles().size > 0) {
       const ref = this.matDialog.open(ConfirmDialogComponent, {
         data: {
-          title: 'Unsaved Changes',
-          message: `You have unsaved changes in ${this.unsavedFiles().size} file(s). Are you sure you want to leave?`,
-          okText: 'Leave',
-          cancelText: 'Stay'
+          title: this.t('unsavedTitle'),
+          message: this.t('unsavedMessage', { count: this.unsavedFiles().size }),
+          okText: this.t('leaveBtn'),
+          cancelText: this.t('stayBtn')
         }
       });
 
