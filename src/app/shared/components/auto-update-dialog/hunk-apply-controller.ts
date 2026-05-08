@@ -103,6 +103,10 @@ export class HunkApplyController {
           if (update) {
             update.targetContent = selection.text;
             update.context = this.updateService.inferContextFromLine(group.originalContent(), selection.startLineNumber - 1);
+            // The sidebar reads update.context directly (not as a signal),
+            // so refreshing groupedUpdates is what makes the new context
+            // value visible while the user is still calibrating.
+            this.groupedUpdates.update((groups) => [...groups]);
           }
         }
         this.recomputeCombinedContent(group);

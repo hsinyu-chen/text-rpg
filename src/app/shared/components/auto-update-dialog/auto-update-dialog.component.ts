@@ -1,4 +1,5 @@
 import { Component, effect, inject, signal, viewChild, computed } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
 import { MatDialogModule, MAT_DIALOG_DATA, MatDialogRef, MatDialog } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
@@ -107,7 +108,7 @@ export class AutoUpdateDialogComponent {
         cancelText: 'Cancel',
       } as ConfirmDialogData,
     });
-    const confirmed = await dialogRef.afterClosed().toPromise();
+    const confirmed = await firstValueFrom(dialogRef.afterClosed());
     if (!confirmed) return;
 
     this.isInitializing.set(true);
@@ -145,7 +146,7 @@ export class AutoUpdateDialogComponent {
         cancelText: 'Cancel',
       } as ConfirmDialogData,
     });
-    const confirmed = await dialogRef.afterClosed().toPromise();
+    const confirmed = await firstValueFrom(dialogRef.afterClosed());
     if (!confirmed) return;
 
     this.isInitializing.set(true);

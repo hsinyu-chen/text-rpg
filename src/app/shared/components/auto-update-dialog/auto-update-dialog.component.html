@@ -153,7 +153,9 @@
 
                 <div class="monaco-wrapper">
                     <app-monaco-editor [isDiff]="true" [originalValue]="group.originalContent()"
-                        [(ngModel)]="group.combinedContent" language="markdown" [options]="{readOnly: false}"
+                        [ngModel]="group.combinedContent()"
+                        (ngModelChange)="group.combinedContent.set($event)"
+                        language="markdown" [options]="{readOnly: false}"
                         (selectionChange)="hunks.onMonacoSelectionChange($event)">
                     </app-monaco-editor>
                 </div>
