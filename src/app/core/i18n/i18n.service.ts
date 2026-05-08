@@ -8,6 +8,15 @@ import {
     type UiLocaleId,
 } from './ui-locales';
 
+/**
+ * Single global regex matching all `{{ name }}` placeholders. Captured once
+ * at module load (vs. per-call `new RegExp(...)` inside a loop) and reused
+ * with a replacement callback so each `translate()` does one pass over the
+ * string regardless of param count. Also dodges the regex-injection edge
+ * case of params whose names contain regex metachars.
+ */
+const PLACEHOLDER_RE = /\{\{\s*(\w+)\s*\}\}/g;
+
 @Injectable({ providedIn: 'root' })
 export class I18nService {
     private appConfig = inject(AppConfigStore);
@@ -22,19 +31,16 @@ export class I18nService {
     /**
      * Look up a dotted-key string in the active dictionary. Falls back to the
      * key itself on miss — surfaces typos visibly in the UI without throwing.
-     * Params replace `{{name}}` placeholders.
+     * Params replace `{{name}}` placeholders in a single regex pass.
      */
     translate(key: string, params?: Record<string, string | number>): string {
         const dict = UI_LOCALES.find(l => l.id === this.currentLang())?.dictionary ?? {};
         const value = this.walk(dict, key);
         if (typeof value !== 'string') return key;
-
         if (!params) return value;
-        let out = value;
-        for (const p in params) {
-            out = out.replace(new RegExp(`{{\\s*${p}\\s*}}`, 'g'), String(params[p]));
-        }
-        return out;
+
+        return value.replace(PLACEHOLDER_RE, (match, name: string) =>
+            name in params ? String(params[name]) : match);
     }
 
     private walk(dict: TranslationDict, key: string): string | TranslationDict | undefined {
