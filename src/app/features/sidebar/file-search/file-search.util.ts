@@ -9,8 +9,6 @@
 export interface SearchResult {
   fileName: string;
   lineNumber: number;
-  /** Trimmed + truncated for sidebar display; not used for preview rendering. */
-  lineContent: string;
   matchIndex: number;
   matchLength: number;
 }
@@ -75,7 +73,6 @@ export function findMatchesInFiles(
         results.push({
           fileName,
           lineNumber: index + 1,
-          lineContent: line.trim().substring(0, 100),
           matchIndex: match.index,
           matchLength: match[0].length,
         });
@@ -94,6 +91,35 @@ export function escapeHtml(text: string): string {
     .replace(/"/g, '&quot;');
 }
 
+interface SnippetClip {
+  /** '...' if context truncates on the left, '' otherwise */
+  prefix: string;
+  /** '...' if context truncates on the right, '' otherwise */
+  suffix: string;
+  before: string;
+  match: string;
+  after: string;
+}
+
+/** Slice a fixed window of context around a match for sidebar previews. */
+function clipSnippetWindow(
+  line: string,
+  matchStart: number,
+  matchEnd: number,
+  ctxBefore: number,
+  ctxAfter: number,
+): SnippetClip {
+  const start = Math.max(0, matchStart - ctxBefore);
+  const end = Math.min(line.length, matchEnd + ctxAfter);
+  return {
+    prefix: start > 0 ? '...' : '',
+    suffix: end < line.length ? '...' : '',
+    before: line.substring(start, matchStart),
+    match: line.substring(matchStart, matchEnd),
+    after: line.substring(matchEnd, end),
+  };
+}
+
 /** Render `...before<span class="match-highlight">match</span>after...` for a sidebar preview. */
 export function formatHighlightedSnippet(
   line: string,
@@ -102,40 +128,8 @@ export function formatHighlightedSnippet(
   ctxBefore = 20,
   ctxAfter = 100,
 ): string {
-  const start = Math.max(0, matchStart - ctxBefore);
-  const end = Math.min(line.length, matchEnd + ctxAfter);
-  const prefix = start > 0 ? '...' : '';
-  const suffix = end < line.length ? '...' : '';
-
-  const before = line.substring(start, matchStart);
-  const match = line.substring(matchStart, matchEnd);
-  const after = line.substring(matchEnd, end);
-
-  return `${prefix}${escapeHtml(before)}<span class="match-highlight">${escapeHtml(match)}</span>${escapeHtml(after)}${suffix}`;
-}
-
-/** Render the substituted text for a single match (replace preview, no diff styling). */
-export function formatReplacePreview(
-  line: string,
-  matchStart: number,
-  matchEnd: number,
-  pattern: RegExp,
-  replaceWith: string,
-  ctxBefore = 10,
-  ctxAfter = 15,
-): string {
-  const match = line.substring(matchStart, matchEnd);
-  const substituted = match.replace(pattern, replaceWith);
-
-  const start = Math.max(0, matchStart - ctxBefore);
-  const end = Math.min(line.length, matchEnd + ctxAfter);
-  const prefix = start > 0 ? '...' : '';
-  const suffix = end < line.length ? '...' : '';
-
-  const previewBefore = line.substring(start, matchStart);
-  const previewAfter = line.substring(matchEnd, end);
-
-  return `${prefix}${escapeHtml(previewBefore)}<span class="replace-preview-text">${escapeHtml(substituted)}</span>${escapeHtml(previewAfter)}${suffix}`;
+  const c = clipSnippetWindow(line, matchStart, matchEnd, ctxBefore, ctxAfter);
+  return `${c.prefix}${escapeHtml(c.before)}<span class="match-highlight">${escapeHtml(c.match)}</span>${escapeHtml(c.after)}${c.suffix}`;
 }
 
 /** Render `before<del>old</del><ins>new</ins>after` style diff for replace preview. */
@@ -148,15 +142,7 @@ export function formatCombinedDiffPreview(
   ctxBefore = 20,
   ctxAfter = 100,
 ): string {
-  const start = Math.max(0, matchStart - ctxBefore);
-  const end = Math.min(line.length, matchEnd + ctxAfter);
-  const prefix = start > 0 ? '...' : '';
-  const suffix = end < line.length ? '...' : '';
-
-  const beforeMatch = line.substring(start, matchStart);
-  const match = line.substring(matchStart, matchEnd);
-  const afterMatch = line.substring(matchEnd, end);
-  const substituted = match.replace(pattern, replaceWith);
-
-  return `${prefix}${escapeHtml(beforeMatch)}<span class="diff-removed">${escapeHtml(match)}</span><span class="diff-added">${escapeHtml(substituted)}</span>${escapeHtml(afterMatch)}${suffix}`;
+  const c = clipSnippetWindow(line, matchStart, matchEnd, ctxBefore, ctxAfter);
+  const substituted = c.match.replace(pattern, replaceWith);
+  return `${c.prefix}${escapeHtml(c.before)}<span class="diff-removed">${escapeHtml(c.match)}</span><span class="diff-added">${escapeHtml(substituted)}</span>${escapeHtml(c.after)}${c.suffix}`;
 }

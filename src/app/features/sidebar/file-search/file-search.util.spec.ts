@@ -6,7 +6,6 @@ import {
   findMatchesInFiles,
   formatCombinedDiffPreview,
   formatHighlightedSnippet,
-  formatReplacePreview,
 } from './file-search.util';
 
 describe('buildSearchPattern', () => {
@@ -105,14 +104,6 @@ describe('findMatchesInFiles', () => {
     expect(results.map((r) => r.fileName)).toEqual(['a.md', 'b.md', 'b.md']);
   });
 
-  it('truncates lineContent to 100 chars and trims', () => {
-    const longLine = '   ' + 'x'.repeat(500) + ' foo end';
-    const files = new Map([['a.md', longLine]]);
-    const results = findMatchesInFiles(files, { ...opts, query: 'foo' });
-    expect(results[0].lineContent.length).toBe(100);
-    expect(results[0].lineContent.startsWith(' ')).toBe(false);
-  });
-
   it('honours regex mode', () => {
     const files = new Map([['a.md', 'aaa abb abc']]);
     const results = findMatchesInFiles(files, { ...opts, query: 'a[bc]', regex: true });
@@ -161,14 +152,6 @@ describe('formatHighlightedSnippet', () => {
     expect(html).toContain('&lt;a&gt;');
     expect(html).toContain('<span class="match-highlight">match</span>');
     expect(html).toContain('&lt;/a&gt;');
-  });
-});
-
-describe('formatReplacePreview', () => {
-  it('renders the substituted match in <span class="replace-preview-text">', () => {
-    const re = /foo/i;
-    const html = formatReplacePreview('say foo loud', 4, 7, re, 'BAR');
-    expect(html).toContain('<span class="replace-preview-text">BAR</span>');
   });
 });
 

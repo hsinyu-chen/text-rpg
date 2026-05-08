@@ -6,7 +6,6 @@ import {
   findMatchesInFiles,
   formatCombinedDiffPreview,
   formatHighlightedSnippet,
-  formatReplacePreview,
 } from './file-search.util';
 
 export type { SearchResult } from './file-search.util';
@@ -141,16 +140,6 @@ export class FileSearchEngine {
   getHighlightedContent(result: SearchResult): string {
     const line = this.lineFor(result);
     return formatHighlightedSnippet(line, result.matchIndex, result.matchIndex + result.matchLength);
-  }
-
-  getReplacePreview(result: SearchResult): string {
-    const line = this.lineFor(result);
-    try {
-      const pattern = buildSearchPattern(this.currentOptions(), false);
-      return formatReplacePreview(line, result.matchIndex, result.matchIndex + result.matchLength, pattern, this.replaceQuery());
-    } catch {
-      return 'Invalid Regex';
-    }
   }
 
   getCombinedDiffPreview(result: SearchResult): string {
