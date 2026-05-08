@@ -102,7 +102,9 @@ export class FileSearchEngine {
     const content = this.files.get(result.fileName);
     if (!content) return;
 
-    const lines = content.split('\n');
+    // .slice() because we mutate `lines[lineIndex]` below; linesFor returns
+    // the cached array.
+    const lines = this.linesFor(result.fileName, content).slice();
     const lineIndex = result.lineNumber - 1;
     if (lineIndex < 0 || lineIndex >= lines.length) return;
 
