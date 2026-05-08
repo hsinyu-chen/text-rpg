@@ -102,7 +102,7 @@
                             }
                         </mat-icon>
                         <span class="file-item-name">{{ name }}</span>
-                        <span class="file-item-status">{{ ('sidebar.createScene.status' + (fileStatusFor(name).charAt(0).toUpperCase() + fileStatusFor(name).slice(1))) | translate }}</span>
+                        <span class="file-item-status">{{ 'sidebar.createScene.status' + (fileStatusFor(name) | titlecase) | translate }}</span>
                     </div>
                     @if (fileNotesFor(name)) {
                     <div class="file-item-notes">{{ fileNotesFor(name) }}</div>
