@@ -27,7 +27,17 @@ describe('AppConfigStore.load', () => {
         expect(store.engineMode()).toBe('single');
         expect(store.exchangeRate()).toBe(30);
         expect(store.outputLanguage()).toBe('default');
+        expect(store.interfaceLanguage()).toBe('system');
         expect(store.smartContextTurns()).toBe(10);
+    });
+
+    it('accepts registered interfaceLanguage ids and falls back to system on garbage', () => {
+        expect(setup({ app_interface_language: 'system' }).store.interfaceLanguage()).toBe('system');
+        expect(setup({ app_interface_language: 'zh-TW' }).store.interfaceLanguage()).toBe('zh-TW');
+        expect(setup({ app_interface_language: 'en' }).store.interfaceLanguage()).toBe('en');
+        // Unknown id (e.g. removed locale) falls back to system rather than locking the user
+        // into a missing dictionary.
+        expect(setup({ app_interface_language: 'klingon' }).store.interfaceLanguage()).toBe('system');
     });
 
     it('parses numeric fields and ignores garbage', () => {
@@ -112,6 +122,7 @@ describe('AppConfigStore.snapshot', () => {
             engineMode: 'single',
             exchangeRate: 30,
             outputLanguage: 'en',
+            interfaceLanguage: 'system',
             smartContextTurns: 10,
         });
     });
