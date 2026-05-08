@@ -531,9 +531,6 @@ The Generate tab pulls from three language-bucketed sources that live outside th
 
 Currently the generator only branches on `isZhLang()` (zh-TW vs everything-else falls through to `en`), so adding a third language requires a small code change in [new-game-dialog.component.ts](src/app/features/sidebar/components/new-game-dialog/new-game-dialog.component.ts) (the `isZh` ternary in `submitCreateWorld()` and the `langPresets()` dispatch).
 
-#### 3. Generate-tab form labels
-The Generate tab in the New Game dialog still has hardcoded English labels (`Quick Preset`, `Genre`, `Tone`, `World Setting`, `Identity / Role`, `Generate World`) in [new-game-dialog.component.html](src/app/features/sidebar/components/new-game-dialog/new-game-dialog.component.html). They have not yet been migrated into the new `ui.*` UI dictionary; the *content* the tab generates still follows Story Language correctly. Migrating these labels is a known pending item.
-
 ### Adding a new language (e.g. Japanese)
 
 A new language usually needs work on **both** layers — engine-facing `AppLocale` for the LLM-bound side, and UI-facing dictionary for the rendered chrome.
