@@ -36,8 +36,12 @@ export const SLASH_TOMBSTONE_LAYOUT: TombstoneLayout = {
         const slash = rel.lastIndexOf('/');
         if (slash <= 0) return null; // malformed; skip
         const id = rel.slice(0, slash);
-        const ts = Number(rel.slice(slash + 1));
-        return id && Number.isFinite(ts) ? { id, deletedAt: ts } : null;
+        const tsPart = rel.slice(slash + 1);
+        // tsPart length check guards against `<id>/` (trailing slash) →
+        // `Number('')` is 0, which would silently parse as deletedAt=0.
+        if (!id || tsPart.length === 0) return null;
+        const ts = Number(tsPart);
+        return Number.isFinite(ts) ? { id, deletedAt: ts } : null;
     }
 };
 

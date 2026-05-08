@@ -8,7 +8,7 @@ import { S3BlobStore } from './s3-blob-store';
 import { S3SnapshotStore } from './s3-snapshot-store';
 import { createParallelPool } from '@app/core/utils/async.util';
 import { SNAPSHOT_CONCURRENCY } from '../sync-snapshot-utils';
-import { entryPath, RESOURCE_DIR, TOMBSTONE_DIR, META_LAST_ACTIVE } from '../layout/sync-paths';
+import { entryPath, tombstonePath, RESOURCE_DIR, TOMBSTONE_DIR, META_LAST_ACTIVE } from '../layout/sync-paths';
 import { blobEntryToRemoteEntry } from '../domain/entry-mapper';
 import { SettingsRepository } from '../domain/settings-repository';
 import { PromptsRepository } from '../domain/prompts-repository';
@@ -109,7 +109,7 @@ export class S3SyncBackend implements SyncBackend {
         tombstoneDir: TOMBSTONE_DIR,
         keyFor: (r, id) => `${this.clientSvc.getPrefix()}${entryPath(r, id)}`,
         tombstoneKey: (r, id, deletedAt) =>
-            `${this.clientSvc.getPrefix()}${TOMBSTONE_DIR[r]}/${id}/${deletedAt}`,
+            `${this.clientSvc.getPrefix()}${tombstonePath(r, id, deletedAt)}`,
         isNotFound: (err) => this.clientSvc.isNotFound(err),
         ops: {
             list: (r) => this.list(r),
