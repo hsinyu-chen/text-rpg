@@ -2,49 +2,49 @@
 <button mat-flat-button color="accent" (click)="startSession()" [disabled]="state.isBusy()" class="full-width start-btn"
     style="margin-top: 8px; font-weight: bold;">
     <mat-icon>play_arrow</mat-icon>
-    Initialize Story
+    {{ 'sidebar.controls.initializeStory' | translate }}
 </button>
 }
 
 <button mat-flat-button color="primary" (click)="newGame()" [disabled]="state.isBusy()" class="full-width new-game-btn"
     style="margin-top: 8px; font-weight: bold; background: linear-gradient(45deg, #4facfe 0%, #00f2fe 100%);">
     <mat-icon>add_circle</mat-icon>
-    Start New Game
+    {{ 'sidebar.controls.startNewGame' | translate }}
 </button>
 
 <button mat-flat-button class="full-width create-next-btn" (click)="createNext()" [disabled]="!session.currentBookId() || state.isBusy()"
-    matTooltip="Rename Current & Next Act"
+    [matTooltip]="'sidebar.controls.createNextTooltip' | translate"
     style="margin-top: 8px; font-weight: bold; background: linear-gradient(45deg, #11998e 0%, #38ef7d 100%); color: white;">
     <mat-icon>fast_forward</mat-icon>
-    Create Next
+    {{ 'sidebar.controls.createNext' | translate }}
 </button>
 
 <button mat-flat-button class="full-width create-scene-btn" (click)="createScene()"
     [disabled]="state.loadedFiles().size === 0 || state.isBusy()"
-    matTooltip="Extract a focused Scene KB from the current Knowledge Base"
+    [matTooltip]="'sidebar.controls.createSceneTooltip' | translate"
     style="margin-top: 8px; font-weight: bold; background: linear-gradient(45deg, #f093fb 0%, #f5576c 100%); color: white;">
     <mat-icon>auto_awesome</mat-icon>
-    Create Scene
+    {{ 'sidebar.controls.createScene' | translate }}
 </button>
 
 <button mat-stroked-button color="warn" (click)="clearHistory()"
     [disabled]="state.messages().length === 0 || state.isBusy()" class="full-width restart-btn">
     <mat-icon>delete_sweep</mat-icon>
-    Restart Session
+    {{ 'sidebar.controls.restartSession' | translate }}
 </button>
 
 
 <button mat-stroked-button color="warn" (click)="clearServerData()" [disabled]="state.isBusy()"
     class="full-width clear-all-btn" style="margin-top: 8px;">
     <mat-icon>cleaning_services</mat-icon>
-    Clear Current Cache
+    {{ 'sidebar.controls.clearCache' | translate }}
 </button>
 
 <mat-divider style="margin: 16px 0"></mat-divider>
 
 @if (state.estimatedKbTokens() > 0) {
 <p class="hint-text info-strong">
-    Est. Cache Size: <strong>{{ state.estimatedKbTokens() | number }}</strong>
+    {{ 'sidebar.controls.estCacheSize' | translate }} <strong>{{ state.estimatedKbTokens() | number }}</strong>
 </p>
 }
 <div class="toggle-section">
@@ -55,23 +55,22 @@
             [class.active-full]="state.contextMode() === 'full'">
             <mat-icon>{{ state.contextMode() === 'smart' ? 'compress' : (state.contextMode() === 'summarized' ?
                 'auto_stories' : 'expand') }}</mat-icon>
-            Mode: {{ state.contextMode() === 'smart' ? 'Smart' : (state.contextMode() === 'summarized' ? 'Summarized' :
-            'Full') }}
+            {{ 'sidebar.controls.modeLabel' | translate }} {{ state.contextMode() === 'smart' ? ('sidebar.controls.modeSmart' | translate) : (state.contextMode() === 'summarized' ? ('sidebar.controls.modeSummarized' | translate) : ('sidebar.controls.modeFull' | translate)) }}
         </button>
         @if (state.contextMode() === 'smart') {
         <button mat-stroked-button class="settings-btn" (click)="editSmartContextTurns()" [disabled]="state.isBusy()"
-            matTooltip="Edit Smart Context Turns">
+            [matTooltip]="'sidebar.controls.editSmartContextTooltip' | translate">
             <mat-icon style="margin-right: 0;">settings</mat-icon>
         </button>
         }
     </div>
     <p class="hint-text">
         @if (state.contextMode() === 'smart') {
-        Older turns summarized + Last {{ appConfig.smartContextTurns() }} Turns Full
+        {{ 'sidebar.controls.smartModeDesc' | translate: { turns: appConfig.smartContextTurns() } }}
         } @else if (state.contextMode() === 'summarized') {
-        Older turns summarized + Last 1 Turn Full
+        {{ 'sidebar.controls.summarizedModeDesc' | translate }}
         } @else {
-        Sends 100% full history (High Cost)
+        {{ 'sidebar.controls.fullModeDesc' | translate }}
         }
     </p>
 
@@ -83,10 +82,9 @@
         [class.active-full]="state.saveContextMode() === 'full'">
         <mat-icon>{{ state.saveContextMode() === 'smart' ? 'compress' : (state.saveContextMode() === 'summarized' ?
             'auto_stories' : 'expand') }}</mat-icon>
-        Save Mode: {{ state.saveContextMode() === 'smart' ? 'Smart' : (state.saveContextMode() === 'summarized' ?
-        'Summarized' : 'Full') }}
+        {{ 'sidebar.controls.saveModeLabel' | translate }} {{ state.saveContextMode() === 'smart' ? ('sidebar.controls.modeSmart' | translate) : (state.saveContextMode() === 'summarized' ? ('sidebar.controls.modeSummarized' | translate) : ('sidebar.controls.modeFull' | translate)) }}
     </button>
     <p class="hint-text">
-        Context mode used for &lt;存檔&gt; tags
+        {{ 'sidebar.controls.saveModeDesc' | translate }}
     </p>
 </div>
