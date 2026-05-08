@@ -6,11 +6,11 @@
            [type]="data.inputType || 'text'"
            [min]="data.min"
            [(ngModel)]="saveName"
-           [placeholder]="data.placeholder || 'Enter value'"
+           [placeholder]="data.placeholder || ('dialog.enterValue' | translate)"
            (keydown.enter)="isValid() && onSave()" cdkFocusInitial>
   </mat-form-field>
 </mat-dialog-content>
 <mat-dialog-actions align="end">
-  <button mat-button (click)="onCancel()">Cancel</button>
-  <button mat-flat-button color="primary" [disabled]="!isValid()" (click)="onSave()">Save</button>
+  <button mat-button (click)="onCancel()">{{ 'dialog.cancel' | translate }}</button>
+  <button mat-flat-button color="primary" [disabled]="!isValid()" (click)="onSave()">{{ 'dialog.save' | translate }}</button>
 </mat-dialog-actions>

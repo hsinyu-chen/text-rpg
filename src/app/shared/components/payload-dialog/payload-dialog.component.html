@@ -1,9 +1,9 @@
 <div class="dialog-container">
     <div class="dialog-header">
-        <span class="dialog-title">API Contents Preview</span>
+        <span class="dialog-title">{{ 'dialog.payloadPreviewTitle' | translate }}</span>
         <div class="header-actions">
-            <mat-slide-toggle [(ngModel)]="showKB" color="primary">Show KB Content</mat-slide-toggle>
-            <button mat-icon-button (click)="close()" matTooltip="Close">
+            <mat-slide-toggle [(ngModel)]="showKB" color="primary">{{ 'dialog.showKBContent' | translate }}</mat-slide-toggle>
+            <button mat-icon-button (click)="close()" [matTooltip]="'dialog.close' | translate">
                 <mat-icon>close</mat-icon>
             </button>
         </div>
@@ -11,12 +11,12 @@
 
     <div class="dialog-body">
         <mat-tab-group class="payload-tabs">
-            <mat-tab label="System Instruction">
+            <mat-tab [label]="'dialog.systemInstructionTab' | translate">
                 <div class="tab-content">
                     <markdown [data]="systemInstruction"></markdown>
                 </div>
             </mat-tab>
-            <mat-tab label="Payload JSON">
+            <mat-tab [label]="'dialog.payloadJsonTab' | translate">
                 <div class="tab-content">
                     <markdown [data]="formattedPayload"></markdown>
                 </div>

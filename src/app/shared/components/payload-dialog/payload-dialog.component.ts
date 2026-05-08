@@ -9,11 +9,12 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { FormsModule } from '@angular/forms';
 import { MarkdownModule } from 'ngx-markdown';
 import { Content, Part } from '@google/genai';
+import { TranslatePipe } from '@app/core/i18n';
 
 @Component({
   selector: 'app-payload-dialog',
   standalone: true,
-  imports: [CommonModule, MatDialogModule, MatButtonModule, MatIconModule, MatTooltipModule, MatSlideToggleModule, MatTabsModule, FormsModule, MarkdownModule],
+  imports: [CommonModule, MatDialogModule, MatButtonModule, MatIconModule, MatTooltipModule, MatSlideToggleModule, MatTabsModule, FormsModule, MarkdownModule, TranslatePipe],
   templateUrl: './payload-dialog.component.html',
   styleUrl: './payload-dialog.component.scss'
 })

@@ -1,10 +1,10 @@
-<h2 mat-dialog-title>{{ data.title || (data.isAlert ? 'Notification' : 'Confirmation') }}</h2>
+<h2 mat-dialog-title>{{ resolvedTitle() }}</h2>
 <mat-dialog-content>
     <p class="message-content">{{ data.message }}</p>
 </mat-dialog-content>
 <mat-dialog-actions align="end">
     @if (!data.isAlert) {
-    <button mat-button [mat-dialog-close]="false">{{ data.cancelText || 'Cancel' }}</button>
+    <button mat-button [mat-dialog-close]="false">{{ resolvedCancelText() }}</button>
     }
-    <button mat-flat-button color="primary" [mat-dialog-close]="true" cdkFocusInitial>{{ data.okText || 'OK' }}</button>
+    <button mat-flat-button color="primary" [mat-dialog-close]="true" cdkFocusInitial>{{ resolvedOkText() }}</button>
 </mat-dialog-actions>

@@ -5,6 +5,7 @@ import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from '@angular/materia
 import { MatButtonModule } from '@angular/material/button';
 import { MatInputModule } from '@angular/material/input';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { TranslatePipe } from '@app/core/i18n';
 
 export interface SaveNameDialogData {
   title: string;
@@ -23,7 +24,8 @@ export interface SaveNameDialogData {
     MatDialogModule,
     MatButtonModule,
     MatInputModule,
-    MatFormFieldModule
+    MatFormFieldModule,
+    TranslatePipe
   ],
   templateUrl: './save-name-dialog.component.html',
   styleUrl: './save-name-dialog.component.scss'

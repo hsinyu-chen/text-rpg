@@ -6,6 +6,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
 import { Collection } from '@app/core/models/types';
+import { TranslatePipe } from '@app/core/i18n';
 
 export interface MoveBookDialogData {
     bookName: string;
@@ -22,7 +23,8 @@ export interface MoveBookDialogData {
         MatDialogModule,
         MatButtonModule,
         MatFormFieldModule,
-        MatSelectModule
+        MatSelectModule,
+        TranslatePipe
     ],
     templateUrl: './move-book-dialog.component.html',
     styleUrl: './move-book-dialog.component.scss',
