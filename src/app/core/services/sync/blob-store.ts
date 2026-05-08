@@ -44,9 +44,22 @@ export interface BlobListEntry {
     size?: number;
 }
 
+export interface BlobListOptions {
+    /**
+     * When `false`, `list` returns entries with empty `meta` and skips
+     * any per-object metadata fetch the backend would otherwise do
+     * (S3: N HeadObject requests; File: N sidecar reads; GDrive: no-op
+     * since `appProperties` come for free on `files.list`).
+     *
+     * Use for layouts where the meta isn't part of the contract — e.g.
+     * tombstones encode `deletedAt` in the path. Default: `true`.
+     */
+    withMeta?: boolean;
+}
+
 export interface BlobStore {
     /** Recursive list under `prefix`. May return [] if prefix doesn't exist. */
-    list(prefix: string): Promise<BlobListEntry[]>;
+    list(prefix: string, options?: BlobListOptions): Promise<BlobListEntry[]>;
     /**
      * Reads a blob; throws if missing. Use {@link exists} first if
      * absence is a normal outcome.

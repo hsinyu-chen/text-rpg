@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { BlobListEntry, BlobMeta, BlobReadResult, BlobStore } from '../blob-store';
+import { BlobListEntry, BlobListOptions, BlobMeta, BlobReadResult, BlobStore } from '../blob-store';
 import { GoogleDriveService, DriveFile } from '../../google-drive.service';
 
 const APPDATA_ROOT = 'appDataFolder';
@@ -30,7 +30,11 @@ export class GDriveBlobStore implements BlobStore {
     /** path → Drive file id. */
     private fileIdByPath = new Map<string, string>();
 
-    async list(prefix: string): Promise<BlobListEntry[]> {
+    async list(prefix: string, _options?: BlobListOptions): Promise<BlobListEntry[]> {
+        // GDrive's `files.list` returns `appProperties` for free, so we
+        // honour the BlobListOptions contract by always populating meta.
+        // The `_options` arg is accepted for interface parity.
+        void _options;
         const cleanPrefix = prefix.replace(/\/+$/, '');
         const folderId = await this.resolveFolder(cleanPrefix, false);
         if (!folderId) return [];

@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { BlobListEntry, BlobMeta, BlobReadResult, BlobStore } from '../blob-store';
+import { BlobListEntry, BlobListOptions, BlobMeta, BlobReadResult, BlobStore } from '../blob-store';
 import { FileBackendPermissionService } from './file-backend-permission.service';
 import { ensureDir, getDirIfExists, isNotFound, splitDir } from '../fsa-utils';
 
@@ -40,24 +40,26 @@ export class FileBlobStore implements BlobStore {
         return { dirParts: parts.slice(0, -1), name: parts[parts.length - 1] };
     }
 
-    async list(prefix: string): Promise<BlobListEntry[]> {
+    async list(prefix: string, options?: BlobListOptions): Promise<BlobListEntry[]> {
         const root = await this.getRoot();
         const cleanPrefix = prefix.replace(/\/+$/, '');
         const dirParts = cleanPrefix ? splitDir(cleanPrefix) : [];
         const dir = await getDirIfExists(root, dirParts);
         if (!dir) return [];
         const out: BlobListEntry[] = [];
-        await this.listRecursive(dir, cleanPrefix, out);
+        await this.listRecursive(dir, cleanPrefix, options?.withMeta !== false, out);
         return out;
     }
 
     private async listRecursive(
         dir: FileSystemDirectoryHandle,
         pathPrefix: string,
+        withMeta: boolean,
         out: BlobListEntry[]
     ): Promise<void> {
-        // Pass 1: index sidecars by their target body path so the body
-        // pass can attach meta in O(1).
+        // Pass 1: split files from sidecars (so the body pass attaches
+        // meta in O(1)) and recurse into subdirs. Sidecar reads are
+        // skipped entirely when withMeta=false.
         const sidecarByName = new Map<string, FileSystemFileHandle>();
         const bodyFiles: { name: string; handle: FileSystemFileHandle }[] = [];
         const subDirs: { name: string; handle: FileSystemDirectoryHandle }[] = [];
@@ -68,8 +70,12 @@ export class FileBlobStore implements BlobStore {
             }
             if (handle.kind !== 'file') continue;
             if (name.endsWith(META_SUFFIX)) {
-                const targetName = name.slice(0, -META_SUFFIX.length);
-                sidecarByName.set(targetName, handle as FileSystemFileHandle);
+                if (withMeta) {
+                    const targetName = name.slice(0, -META_SUFFIX.length);
+                    sidecarByName.set(targetName, handle as FileSystemFileHandle);
+                }
+                // else: silently drop sidecars from results so caller
+                // doesn't see them as data files.
             } else {
                 bodyFiles.push({ name, handle: handle as FileSystemFileHandle });
             }
@@ -78,7 +84,7 @@ export class FileBlobStore implements BlobStore {
         for (const { name, handle } of bodyFiles) {
             const file = await handle.getFile();
             const entryPath = pathPrefix ? `${pathPrefix}/${name}` : name;
-            const sidecar = sidecarByName.get(name);
+            const sidecar = withMeta ? sidecarByName.get(name) : undefined;
             const meta = sidecar ? await this.readSidecar(sidecar) : {};
             out.push({
                 path: entryPath,
@@ -89,7 +95,7 @@ export class FileBlobStore implements BlobStore {
         }
         for (const { name, handle } of subDirs) {
             const subPath = pathPrefix ? `${pathPrefix}/${name}` : name;
-            await this.listRecursive(handle, subPath, out);
+            await this.listRecursive(handle, subPath, withMeta, out);
         }
     }
 

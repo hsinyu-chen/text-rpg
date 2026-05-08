@@ -44,19 +44,20 @@ export class S3SyncBackend implements SyncBackend {
         const dirPrefix = `${RESOURCE_DIR[resource]}/`;
         const blobEntries = await this.blob.list(dirPrefix);
 
-        const out: RemoteEntry[] = new Array(blobEntries.length);
-        await parallelPool(blobEntries, async (e, i) => {
-            // Path: `<dirPrefix><id>.json` → strip dir + `.json` to get id.
-            if (!e.path.endsWith('.json')) {
-                out[i] = await blobEntryToRemoteEntry(this.blob, e, '');
-                return;
-            }
-            const id = e.path.slice(dirPrefix.length, -5);
-            out[i] = await blobEntryToRemoteEntry(this.blob, e, id);
+        // Filter to well-formed `<id>.json` entries BEFORE the hydration
+        // pool — entry-mapper would otherwise fan out wasted GET-body
+        // fallbacks on stray non-`.json` keys (anything someone left in
+        // the prefix that doesn't match our layout).
+        const candidates = blobEntries
+            .filter(e => e.path.endsWith('.json'))
+            .map(e => ({ entry: e, id: e.path.slice(dirPrefix.length, -5) }))
+            .filter(c => c.id.length > 0);
+
+        const out: RemoteEntry[] = new Array(candidates.length);
+        await parallelPool(candidates, async (c, i) => {
+            out[i] = await blobEntryToRemoteEntry(this.blob, c.entry, c.id);
         });
-        // Filter out non-`.json` entries (which got id='' above) — keeps
-        // the contract that list returns only well-formed entries.
-        return out.filter(r => r.id !== '');
+        return out;
     }
 
     read(resource: SyncResource, id: string): Promise<string> {
