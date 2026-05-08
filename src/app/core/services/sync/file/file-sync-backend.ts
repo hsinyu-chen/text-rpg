@@ -141,7 +141,9 @@ export class FileSyncBackend implements SyncBackend {
      */
     async writeTombstone(resource: SyncResource, id: string, deletedAt: number): Promise<void> {
         const prefix = `${TOMBSTONE_DIR[resource]}/`;
-        const entries = await this.blob.list(prefix);
+        // deletedAt lives in the filename — meta is unused, so skip the
+        // sidecar lookup pass.
+        const entries = await this.blob.list(prefix, { withMeta: false });
         for (const e of entries) {
             const rel = e.path.slice(prefix.length);
             const parsed = UNDERSCORE_FILE_TOMBSTONE_LAYOUT.parseRelative(rel, e.meta);

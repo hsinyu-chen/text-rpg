@@ -16,6 +16,14 @@ import { TOMBSTONE_DIR, tombstoneDirPrefix, tombstonePath } from '../layout/sync
 export interface TombstoneLayout {
     pathFor(r: SyncResource, id: string, deletedAt: number): string;
     listPrefix(r: SyncResource): string;
+    /**
+     * The narrowest prefix that still encloses every tombstone for the
+     * given id. For nested layouts (slash) this is `<listPrefix><id>/` —
+     * `removeById` can list a single id's files cheaply. For flat layouts
+     * (underscore) the prefix can't be narrowed per id, so this returns
+     * the same value as `listPrefix`; `removeById` then filters in-memory.
+     */
+    idPrefix(r: SyncResource, id: string): string;
     parseRelative(rel: string, meta: BlobMeta): { id: string; deletedAt: number } | null;
 }
 
@@ -23,6 +31,7 @@ export interface TombstoneLayout {
 export const SLASH_TOMBSTONE_LAYOUT: TombstoneLayout = {
     pathFor: (r, id, ts) => tombstonePath(r, id, ts),
     listPrefix: (r) => tombstoneDirPrefix(r),
+    idPrefix: (r, id) => `${tombstoneDirPrefix(r)}${id}/`,
     parseRelative: (rel) => {
         const slash = rel.lastIndexOf('/');
         if (slash <= 0) return null; // malformed; skip
@@ -36,6 +45,8 @@ export const SLASH_TOMBSTONE_LAYOUT: TombstoneLayout = {
 export const UNDERSCORE_FILE_TOMBSTONE_LAYOUT: TombstoneLayout = {
     pathFor: (r, id, ts) => `${TOMBSTONE_DIR[r]}/${id}__${ts}.json`,
     listPrefix: (r) => `${TOMBSTONE_DIR[r]}/`,
+    // Flat layout — can't narrow per id. removeById falls back to filter.
+    idPrefix: (r) => `${TOMBSTONE_DIR[r]}/`,
     parseRelative: (rel) => {
         const m = /^(.+)__(\d+)\.json$/.exec(rel);
         return m ? { id: m[1], deletedAt: Number(m[2]) } : null;
@@ -95,12 +106,21 @@ export class TombstoneRepository {
      * Removes every tombstone for a single id. Used by snapshot restore's
      * diff-delete phase (which already determined the id should not be
      * tombstoned in the restored state). Doesn't touch other ids.
+     *
+     * Uses `layout.idPrefix(r, id)` so nested layouts (slash) list a
+     * single id's files instead of every tombstone in the resource. Flat
+     * layouts (underscore) get the same prefix as `listPrefix` and the
+     * inner `parseRelative` filter narrows per id.
      */
     async removeById(r: SyncResource, id: string): Promise<void> {
-        const prefix = this.layout.listPrefix(r);
+        const prefix = this.layout.idPrefix(r, id);
+        // Always falls back to the resource-level listPrefix when computing
+        // the relative path so `parseRelative` sees the same layout-relative
+        // string regardless of how narrow `idPrefix` is.
+        const listRoot = this.layout.listPrefix(r);
         const entries = await this.blob.list(prefix, { withMeta: false });
         for (const e of entries) {
-            const rel = e.path.startsWith(prefix) ? e.path.slice(prefix.length) : e.path;
+            const rel = e.path.startsWith(listRoot) ? e.path.slice(listRoot.length) : e.path;
             const parsed = this.layout.parseRelative(rel, e.meta);
             if (parsed?.id === id) await this.blob.remove(e.path);
         }
