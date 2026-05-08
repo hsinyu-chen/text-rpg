@@ -173,7 +173,13 @@ export class HunkApplyController {
     this.currentSelection.set(event);
   }
 
-  startCalibration(update: MonacoUpdateItem): void {
+  async startCalibration(update: MonacoUpdateItem): Promise<void> {
+    // Calibration's effect overwrites combinedContent on every selection
+    // change — manual edits would silently disappear without a confirm.
+    const group = this.activeGroup();
+    if (group && !(await this.confirmDiscardIfDirty(group, 'Entering calibration mode will discard your manual edits. Continue?', 'Discard & Calibrate'))) {
+      return;
+    }
     this.calibratingUpdateId.set(update.id);
     this.currentSelection.set(null);
     this.selectUpdate(update);
@@ -324,18 +330,12 @@ export class HunkApplyController {
   }
 
   recomputeCombinedContent(group: GroupedUpdate): void {
+    // The calibration effect (constructor) already mutates the active hunk's
+    // targetContent + context before triggering this recompute, so a single
+    // loop covers both the calibrating and non-calibrating cases.
     let result = group.originalContent();
-    const calibratingId = this.calibratingUpdateId();
-    const selection = this.currentSelection();
-
     for (const update of group.updates) {
-      if (!update.selected()) continue;
-      if (update.id === calibratingId && selection) {
-        const tempContext = this.updateService.inferContextFromLine(group.originalContent(), selection.startLineNumber - 1);
-        result = this.updateService.applyUpdateToFile(result, { ...update, targetContent: selection.text, context: tempContext });
-      } else {
-        result = this.updateService.applyUpdateToFile(result, update);
-      }
+      if (update.selected()) result = this.updateService.applyUpdateToFile(result, update);
     }
     group.computedContent.set(result);
     group.combinedContent.set(result);
