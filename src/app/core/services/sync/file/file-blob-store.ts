@@ -173,6 +173,33 @@ export class FileBlobStore implements BlobStore {
         await this.write(dstPath, result.text, result.meta);
     }
 
+    async listFolders(prefix: string): Promise<string[]> {
+        const root = await this.getRoot();
+        const cleanPrefix = prefix.replace(/\/+$/, '');
+        const dirParts = cleanPrefix ? splitDir(cleanPrefix) : [];
+        const dir = await getDirIfExists(root, dirParts);
+        if (!dir) return [];
+        const out: string[] = [];
+        for await (const [name, handle] of dir.entries()) {
+            if (handle.kind === 'directory') out.push(name);
+        }
+        return out;
+    }
+
+    async removeFolder(path: string): Promise<void> {
+        const root = await this.getRoot();
+        const cleanPath = path.replace(/\/+$/, '');
+        const parts = splitDir(cleanPath);
+        if (parts.length === 0) return; // refuse to wipe the root
+        const parent = await getDirIfExists(root, parts.slice(0, -1));
+        if (!parent) return;
+        try {
+            await parent.removeEntry(parts[parts.length - 1], { recursive: true });
+        } catch (e) {
+            if (!isNotFound(e)) throw e;
+        }
+    }
+
     async exists(path: string): Promise<boolean> {
         const root = await this.getRoot();
         const { dirParts, name } = this.splitPath(path);

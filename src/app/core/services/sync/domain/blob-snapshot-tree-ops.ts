@@ -4,7 +4,7 @@ import {
 } from '../sync.types';
 import { manifestToMeta } from '../sync-snapshot-utils';
 import {
-    SNAPSHOTS_DIR, RESOURCE_DIR, META_LAST_ACTIVE, entryPath
+    SNAPSHOTS_DIR, META_LAST_ACTIVE, entryPath
 } from '../layout/sync-paths';
 import { TombstoneLayout } from './tombstone-repository';
 import { SnapshotTreeOps } from './snapshot-tree-ops';
@@ -27,15 +27,23 @@ const MANIFEST_NAME = 'manifest.json';
  * use the native fast path; File falls back to read+write under the hood.
  */
 export class BlobSnapshotTreeOps implements SnapshotTreeOps {
+    /**
+     * @param snapshotsRoot Top-level folder name for the snapshot tree.
+     *   Defaults to `SNAPSHOTS_DIR` (`'snapshots'`). GDrive passes
+     *   `'snapshots_root'` so existing user snapshots created before the
+     *   PR3 collapse remain restorable — older code wrote them under
+     *   `appDataFolder/snapshots_root/<sid>/...`.
+     */
     constructor(
         private readonly blob: BlobStore,
-        private readonly tombLayout: TombstoneLayout
+        private readonly tombLayout: TombstoneLayout,
+        private readonly snapshotsRoot: string = SNAPSHOTS_DIR
     ) {}
 
     private snapshotPath(snapshotId: string, sub = ''): string {
         return sub
-            ? `${SNAPSHOTS_DIR}/${snapshotId}/${sub}`
-            : `${SNAPSHOTS_DIR}/${snapshotId}`;
+            ? `${this.snapshotsRoot}/${snapshotId}/${sub}`
+            : `${this.snapshotsRoot}/${snapshotId}`;
     }
 
     private snapshotManifestPath(snapshotId: string): string {
@@ -61,23 +69,12 @@ export class BlobSnapshotTreeOps implements SnapshotTreeOps {
     }
 
     async listSnapshots(): Promise<SnapshotMeta[]> {
-        // Enumerate all manifest.json files under `snapshots/<sid>/`.
-        // Skipping meta saves the per-object HEAD on S3 / sidecar reads
-        // on File — we only need paths.
-        const all = await this.blob.list(`${SNAPSHOTS_DIR}/`, { withMeta: false });
-        const sids: string[] = [];
-        const manifestSuffix = `/${MANIFEST_NAME}`;
-        const prefix = `${SNAPSHOTS_DIR}/`;
-        for (const e of all) {
-            if (!e.path.endsWith(manifestSuffix)) continue;
-            // Path: `snapshots/<sid>/manifest.json` → extract sid.
-            const rel = e.path.slice(prefix.length, -manifestSuffix.length);
-            // Skip nested `manifest.json` files inside resource folders
-            // (defensive — shouldn't exist, but a malformed snapshot tree
-            // could have one).
-            if (rel.includes('/')) continue;
-            sids.push(rel);
-        }
+        // `listFolders` on `<snapshotsRoot>/` returns the immediate
+        // subfolder names — i.e. snapshot ids. Cheap on every backend
+        // (S3: one ListObjectsV2 with Delimiter; GDrive: one folder
+        // listing call); avoids the full-tree recursion a generic
+        // `list()` + filter would do.
+        const sids = await this.blob.listFolders(`${this.snapshotsRoot}/`);
         const out: SnapshotMeta[] = [];
         for (const id of sids) {
             try {
@@ -109,11 +106,7 @@ export class BlobSnapshotTreeOps implements SnapshotTreeOps {
 
     async deleteSnapshotTree(snapshotId: string): Promise<void> {
         assertSnapshotId(snapshotId);
-        const root = `${this.snapshotPath(snapshotId)}/`;
-        const entries = await this.blob.list(root, { withMeta: false });
-        for (const e of entries) {
-            await this.blob.remove(e.path);
-        }
+        await this.blob.removeFolder(this.snapshotPath(snapshotId));
     }
 
     async copyEntry(snapshotId: string, resource: SyncResource, id: string): Promise<void> {
@@ -154,8 +147,4 @@ export class BlobSnapshotTreeOps implements SnapshotTreeOps {
         const result = await this.blob.read(this.snapshotEntryPath(snapshotId, resource, id));
         return result.text;
     }
-
-    /** RESOURCE_DIR is exposed so {@link SnapshotStore} can construct
-     *  paths for layout-introspection paths it doesn't own (e.g. tests). */
-    static get RESOURCE_DIR() { return RESOURCE_DIR; }
 }

@@ -61,6 +61,17 @@ export interface BlobStore {
     /** Recursive list under `prefix`. May return [] if prefix doesn't exist. */
     list(prefix: string, options?: BlobListOptions): Promise<BlobListEntry[]>;
     /**
+     * Names of immediate subfolders directly under `prefix`. Used by
+     * callers that need to enumerate top-level partitioning (e.g.
+     * `snapshots/` → list of snapshot ids) without walking each
+     * subfolder's contents — an `O(1)` round-trip on GDrive vs the
+     * `O(N)` cost of a recursive `list()` followed by a filter.
+     *
+     * Returns folder names (not paths). The empty array if `prefix`
+     * doesn't exist.
+     */
+    listFolders(prefix: string): Promise<string[]>;
+    /**
      * Reads a blob; throws if missing. Use {@link exists} first if
      * absence is a normal outcome.
      */
@@ -72,6 +83,14 @@ export interface BlobStore {
      */
     write(path: string, text: string, meta?: BlobMeta): Promise<void>;
     remove(path: string): Promise<void>;
+    /**
+     * Removes the folder at `path` and everything under it. On backends
+     * with native recursive folder delete (GDrive, FSA), this is one
+     * operation; on S3 — which has no folder concept — the implementation
+     * walks `list(path)` and removes each object. Cleans up empty folder
+     * shells that bare `remove()` per-file would otherwise leave behind.
+     */
+    removeFolder(path: string): Promise<void>;
     /**
      * Server-side copy where supported (S3 CopyObject, GDrive files.copy);
      * read+write fallback for File. Meta is preserved end-to-end.
