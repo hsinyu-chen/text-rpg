@@ -96,6 +96,10 @@ export class SettingsDialogComponent {
    */
   interfaceLanguage = signal<InterfaceLanguageSetting>('system');
   interfaceLanguages: { value: InterfaceLanguageSetting; label: string }[] = [
+    // The empty `label` is intentional and not a placeholder gap — the template
+    // branches on `value === 'system'` and renders the translated
+    // `settings.systemDefault` instead. Filling a hardcoded literal here would
+    // re-introduce the dead-string the round-1 review removed.
     { value: 'system', label: '' },
     ...UI_LOCALES.map(l => ({ value: l.id, label: l.label })),
   ];

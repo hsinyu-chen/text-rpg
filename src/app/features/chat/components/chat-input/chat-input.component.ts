@@ -102,11 +102,18 @@ export class ChatInputComponent {
     private originalIntentBeforeEdit: string | null = null;
 
     getIntentLabel(intent: string): string {
-        return this.i18n.translate(`intent.labels.${intent}`);
+        const key = `intent.labels.${intent}`;
+        const translated = this.i18n.translate(key);
+        // Custom user intents (e.g. from a non-default prompt profile) have no
+        // dictionary entry — fall back to the raw value so the chip doesn't
+        // render the dotted key as a string.
+        return translated === key ? intent : translated;
     }
 
     getIntentDescription(intent: string): string {
-        return this.i18n.translate(`intent.descriptions.${intent}`);
+        const key = `intent.descriptions.${intent}`;
+        const translated = this.i18n.translate(key);
+        return translated === key ? '' : translated;
     }
 
     getIntentIcon(intent: string): string {

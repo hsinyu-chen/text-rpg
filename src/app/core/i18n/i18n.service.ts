@@ -29,13 +29,19 @@ export class I18nService {
     });
 
     /**
+     * Active dictionary, memoized via `computed` so the `pure: false` pipe's
+     * per-CD-cycle `translate()` calls don't repeat the `UI_LOCALES.find` walk.
+     */
+    private readonly currentDict = computed<TranslationDict>(() =>
+        UI_LOCALES.find(l => l.id === this.currentLang())?.dictionary ?? {});
+
+    /**
      * Look up a dotted-key string in the active dictionary. Falls back to the
      * key itself on miss — surfaces typos visibly in the UI without throwing.
      * Params replace `{{name}}` placeholders in a single regex pass.
      */
     translate(key: string, params?: Record<string, string | number>): string {
-        const dict = UI_LOCALES.find(l => l.id === this.currentLang())?.dictionary ?? {};
-        const value = this.walk(dict, key);
+        const value = this.walk(this.currentDict(), key);
         if (typeof value !== 'string') return key;
         if (!params) return value;
 

@@ -84,32 +84,27 @@ export class ChatConfigDialogComponent {
         void this.profileMgr.refreshLegacyProfileIds();
     }
 
-    /** UI strings via i18n; tracked through computeds so locale changes propagate. */
-    private t(key: string, params?: Record<string, string | number>): string {
-        return this.i18n.translate(key, params);
-    }
-
     readonly injectionTypes = computed((): InjectionType[] => {
         return [
-            { id: 'system_main', label: this.t('ui.SYSTEM_PROMPT_TITLE'), icon: 'settings', category: 'main' },
-            { id: 'protocol_single', label: this.t('ui.PROTOCOL_SINGLE_TITLE'), icon: 'description', category: 'main' },
-            { id: 'protocol_resolver', label: this.t('ui.PROTOCOL_RESOLVER_TITLE'), icon: 'description', category: 'main' },
-            { id: 'protocol_narrator', label: this.t('ui.PROTOCOL_NARRATOR_TITLE'), icon: 'description', category: 'main' },
-            { id: 'system', label: this.t(`intent.labels.${GAME_INTENTS.SYSTEM}`), icon: 'psychology', category: 'injection' },
-            { id: 'action', label: this.t(`intent.labels.${GAME_INTENTS.ACTION}`), icon: 'play_arrow', category: 'injection' },
-            { id: 'continue', label: this.t(`intent.labels.${GAME_INTENTS.CONTINUE}`), icon: 'arrow_forward', category: 'injection' },
-            { id: 'save', label: this.t(`intent.labels.${GAME_INTENTS.SAVE}`), icon: 'save', category: 'injection' },
-            { id: 'fastforward', label: this.t(`intent.labels.${GAME_INTENTS.FAST_FORWARD}`), icon: 'fast_forward', category: 'injection' },
-            { id: 'postprocess', label: this.t('intent.labels.post_process'), icon: 'code', category: 'process' }
+            { id: 'system_main', label: this.i18n.translate('ui.SYSTEM_PROMPT_TITLE'), icon: 'settings', category: 'main' },
+            { id: 'protocol_single', label: this.i18n.translate('ui.PROTOCOL_SINGLE_TITLE'), icon: 'description', category: 'main' },
+            { id: 'protocol_resolver', label: this.i18n.translate('ui.PROTOCOL_RESOLVER_TITLE'), icon: 'description', category: 'main' },
+            { id: 'protocol_narrator', label: this.i18n.translate('ui.PROTOCOL_NARRATOR_TITLE'), icon: 'description', category: 'main' },
+            { id: 'system', label: this.i18n.translate(`intent.labels.${GAME_INTENTS.SYSTEM}`), icon: 'psychology', category: 'injection' },
+            { id: 'action', label: this.i18n.translate(`intent.labels.${GAME_INTENTS.ACTION}`), icon: 'play_arrow', category: 'injection' },
+            { id: 'continue', label: this.i18n.translate(`intent.labels.${GAME_INTENTS.CONTINUE}`), icon: 'arrow_forward', category: 'injection' },
+            { id: 'save', label: this.i18n.translate(`intent.labels.${GAME_INTENTS.SAVE}`), icon: 'save', category: 'injection' },
+            { id: 'fastforward', label: this.i18n.translate(`intent.labels.${GAME_INTENTS.FAST_FORWARD}`), icon: 'fast_forward', category: 'injection' },
+            { id: 'postprocess', label: this.i18n.translate('intent.labels.post_process'), icon: 'code', category: 'process' }
         ];
     });
 
     readonly groupedTypes = computed((): PromptCategory[] => {
         const types = this.injectionTypes();
         return [
-            { id: 'main', label: this.t('ui.CATEGORY_MAIN'), items: types.filter(t => t.category === 'main') },
-            { id: 'injection', label: this.t('ui.CATEGORY_INJECTION'), items: types.filter(t => t.category === 'injection') },
-            { id: 'process', label: this.t('ui.CATEGORY_PROCESS'), items: types.filter(t => t.category === 'process') }
+            { id: 'main', label: this.i18n.translate('ui.CATEGORY_MAIN'), items: types.filter(t => t.category === 'main') },
+            { id: 'injection', label: this.i18n.translate('ui.CATEGORY_INJECTION'), items: types.filter(t => t.category === 'injection') },
+            { id: 'process', label: this.i18n.translate('ui.CATEGORY_PROCESS'), items: types.filter(t => t.category === 'process') }
         ];
     });
 
@@ -190,7 +185,7 @@ export class ChatConfigDialogComponent {
             await this.profileMgr.refreshLegacyProfileIds();
         }
 
-        this.snackBar.open(this.t('ui.SAVE_SUCCESS'), this.t('ui.CLOSE'), { duration: 2000 });
+        this.snackBar.open(this.i18n.translate('ui.SAVE_SUCCESS'), this.i18n.translate('ui.CLOSE'), { duration: 2000 });
     }
 
     async saveAll(): Promise<void> {
@@ -216,7 +211,7 @@ export class ChatConfigDialogComponent {
             if (systemMainSaved) {
                 await this.profileMgr.refreshLegacyProfileIds();
             }
-            this.snackBar.open(this.t('ui.SAVE_SUCCESS'), this.t('ui.CLOSE'), { duration: 2000 });
+            this.snackBar.open(this.i18n.translate('ui.SAVE_SUCCESS'), this.i18n.translate('ui.CLOSE'), { duration: 2000 });
         }
     }
 
@@ -296,7 +291,7 @@ export class ChatConfigDialogComponent {
             .map((entry) => entry[0]);
 
         if (dirtyTypes.length > 0) {
-            const ok = await this.dialogService.confirm(this.t('ui.UNSAVED_CHANGES_CONFIRM'));
+            const ok = await this.dialogService.confirm(this.i18n.translate('ui.UNSAVED_CHANGES_CONFIRM'));
             if (!ok) return;
         }
 
@@ -305,7 +300,7 @@ export class ChatConfigDialogComponent {
         const validation = this.postProcessor.validate(currentScript);
 
         if (!validation.valid) {
-            const confirmMsg = this.t('ui.POST_PROCESS_INVALID_CONFIRM', { error: validation.error ?? '' });
+            const confirmMsg = this.i18n.translate('ui.POST_PROCESS_INVALID_CONFIRM', { error: validation.error ?? '' });
             const ok = await this.dialogService.confirm(confirmMsg);
             if (!ok) {
                 if (this.activeType() !== 'postprocess') this.selectType('postprocess');

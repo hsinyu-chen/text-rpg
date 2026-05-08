@@ -16,6 +16,7 @@ import {
   getProfileDisplayName,
 } from '@app/core/constants/prompt-profiles';
 import { I18nService } from '@app/core/i18n';
+import { LanguageService } from '@app/core/services/language.service';
 
 /** Hooks the dialog provides so the controller can react to its own profile mutations. */
 export interface ProfileManagementHost {
@@ -49,6 +50,7 @@ export class ProfileManagementController {
   private state = inject(GameStateService);
   private readonly win = inject(WINDOW);
   private i18n = inject(I18nService);
+  private lang = inject(LanguageService);
 
   isSwitchingProfile = signal(false);
 
@@ -58,11 +60,6 @@ export class ProfileManagementController {
    * template renders a ⚠ badge inside `<mat-option>` for these.
    */
   legacyProfileIds = signal<Set<string>>(new Set());
-
-  /** Terse `i18n.translate` shim, prefixes `ui.` for parity with old `ui().X`. */
-  private t(key: string, params?: Record<string, string | number>): string {
-    return this.i18n.translate(`ui.${key}`, params);
-  }
 
   builtInProfiles = computed(() => this.registry.builtInProfiles());
   userProfiles = computed(() => this.registry.userProfiles());
@@ -115,7 +112,7 @@ export class ProfileManagementController {
   async switchProfile(newProfileId: string): Promise<void> {
     if (newProfileId === this.activeProfileId()) return;
 
-    if (await this.shouldAbortOnDirty(this.t('PROFILE_SWITCH_DISCARD_CONFIRM'))) return;
+    if (await this.shouldAbortOnDirty(this.lang.t('PROFILE_SWITCH_DISCARD_CONFIRM'))) return;
 
     this.isSwitchingProfile.set(true);
     try {
@@ -131,23 +128,23 @@ export class ProfileManagementController {
     if (!active) return;
 
     const defaultName = `${this.getProfileLabel(active)} (copy)`;
-    const name = await this.dialogService.prompt(this.t('PROFILE_CLONE_PROMPT'), {
+    const name = await this.dialogService.prompt(this.lang.t('PROFILE_CLONE_PROMPT'), {
       defaultValue: defaultName,
-      title: this.t('PROFILE_CLONE'),
+      title: this.lang.t('PROFILE_CLONE'),
     });
     if (!name) return;
 
-    if (await this.shouldAbortOnDirty(this.t('PROFILE_SWITCH_DISCARD_CONFIRM'))) return;
+    if (await this.shouldAbortOnDirty(this.lang.t('PROFILE_SWITCH_DISCARD_CONFIRM'))) return;
 
     this.isSwitchingProfile.set(true);
     try {
       const newId = await this.injection.cloneProfile(active.id, name);
       await this.injection.switchProfile(newId);
       await this.finalizeProfileMutation();
-      this.snackBar.open(this.t('PROFILE_CLONED'), this.t('CLOSE'), { duration: 2000 });
+      this.snackBar.open(this.lang.t('PROFILE_CLONED'), this.lang.t('CLOSE'), { duration: 2000 });
     } catch (err) {
       console.error('[ChatConfig] cloneActive failed', err);
-      this.snackBar.open(this.t('PROFILE_OP_FAILED'), this.t('CLOSE'), { duration: 3000 });
+      this.snackBar.open(this.lang.t('PROFILE_OP_FAILED'), this.lang.t('CLOSE'), { duration: 3000 });
     } finally {
       this.isSwitchingProfile.set(false);
     }
@@ -158,18 +155,18 @@ export class ProfileManagementController {
     if (!active || active.isBuiltIn) return;
 
     const current = active.displayName || '';
-    const name = await this.dialogService.prompt(this.t('PROFILE_RENAME_PROMPT'), {
+    const name = await this.dialogService.prompt(this.lang.t('PROFILE_RENAME_PROMPT'), {
       defaultValue: current,
-      title: this.t('PROFILE_RENAME'),
+      title: this.lang.t('PROFILE_RENAME'),
     });
     if (!name || name === current) return;
 
     try {
       await this.injection.renameProfile(active.id, name);
-      this.snackBar.open(this.t('PROFILE_RENAMED'), this.t('CLOSE'), { duration: 2000 });
+      this.snackBar.open(this.lang.t('PROFILE_RENAMED'), this.lang.t('CLOSE'), { duration: 2000 });
     } catch (err) {
       console.error('[ChatConfig] renameActive failed', err);
-      this.snackBar.open(this.t('PROFILE_OP_FAILED'), this.t('CLOSE'), { duration: 3000 });
+      this.snackBar.open(this.lang.t('PROFILE_OP_FAILED'), this.lang.t('CLOSE'), { duration: 3000 });
     }
   }
 
@@ -178,11 +175,11 @@ export class ProfileManagementController {
     const active = this.activeProfile();
     if (!active || active.isBuiltIn) return;
 
-    const confirmMsg = this.t('PROFILE_DELETE_CONFIRM', { name: this.getProfileLabel(active) });
-    const ok = await this.dialogService.confirm(confirmMsg, this.t('PROFILE_DELETE'));
+    const confirmMsg = this.lang.t('PROFILE_DELETE_CONFIRM', { name: this.getProfileLabel(active) });
+    const ok = await this.dialogService.confirm(confirmMsg, this.lang.t('PROFILE_DELETE'));
     if (!ok) return;
 
-    if (await this.shouldAbortOnDirty(this.t('PROFILE_SWITCH_DISCARD_CONFIRM'))) return;
+    if (await this.shouldAbortOnDirty(this.lang.t('PROFILE_SWITCH_DISCARD_CONFIRM'))) return;
 
     this.isSwitchingProfile.set(true);
     try {
@@ -192,23 +189,23 @@ export class ProfileManagementController {
       await this.injection.switchProfile(fallbackId);
       await this.injection.deleteProfile(active.id);
       await this.finalizeProfileMutation();
-      this.snackBar.open(this.t('PROFILE_DELETED'), this.t('CLOSE'), { duration: 2000 });
+      this.snackBar.open(this.lang.t('PROFILE_DELETED'), this.lang.t('CLOSE'), { duration: 2000 });
     } catch (err) {
       console.error('[ChatConfig] deleteActive failed', err);
-      this.snackBar.open(this.t('PROFILE_OP_FAILED'), this.t('CLOSE'), { duration: 3000 });
+      this.snackBar.open(this.lang.t('PROFILE_OP_FAILED'), this.lang.t('CLOSE'), { duration: 3000 });
     } finally {
       this.isSwitchingProfile.set(false);
     }
   }
 
   async pushPromptsToCloud(): Promise<void> {
-    this.loading.show(this.t('PROMPT_SYNC_UPLOADING'));
+    this.loading.show(this.lang.t('PROMPT_SYNC_UPLOADING'));
     try {
       const { exported } = await this.sync.uploadPrompts();
-      this.snackBar.open(this.t('PROMPT_SYNC_UPLOADED', { count: exported }), this.t('CLOSE'), { duration: 3000 });
+      this.snackBar.open(this.lang.t('PROMPT_SYNC_UPLOADED', { count: exported }), this.lang.t('CLOSE'), { duration: 3000 });
     } catch (err) {
       console.error('[ChatConfig] uploadPrompts failed', err);
-      this.snackBar.open(this.t('PROMPT_SYNC_FAILED'), this.t('CLOSE'), { duration: 4000 });
+      this.snackBar.open(this.lang.t('PROMPT_SYNC_FAILED'), this.lang.t('CLOSE'), { duration: 4000 });
     } finally {
       this.loading.hide();
     }
@@ -216,26 +213,26 @@ export class ProfileManagementController {
 
   async pullPromptsFromCloud(): Promise<void> {
     const confirmed = await this.dialogService.confirm(
-      this.t('PROMPT_SYNC_DOWNLOAD_CONFIRM'),
-      this.t('PROMPT_SYNC_DOWNLOAD_TITLE'),
+      this.lang.t('PROMPT_SYNC_DOWNLOAD_CONFIRM'),
+      this.lang.t('PROMPT_SYNC_DOWNLOAD_TITLE'),
     );
     if (!confirmed) return;
 
-    if (await this.shouldAbortOnDirty(this.t('PROFILE_SWITCH_DISCARD_CONFIRM'))) return;
+    if (await this.shouldAbortOnDirty(this.lang.t('PROFILE_SWITCH_DISCARD_CONFIRM'))) return;
 
-    this.loading.show(this.t('PROMPT_SYNC_DOWNLOADING'));
+    this.loading.show(this.lang.t('PROMPT_SYNC_DOWNLOADING'));
     try {
       const { imported } = await this.sync.downloadPrompts();
       // forceReload — switchProfile(sameId) would early-return and skip the re-read.
       await this.injection.forceReload();
       await this.finalizeProfileMutation();
       const msg = imported === 0
-        ? this.t('PROMPT_SYNC_NONE_FOUND')
-        : this.t('PROMPT_SYNC_DOWNLOADED', { count: imported });
-      this.snackBar.open(msg, this.t('CLOSE'), { duration: 3000 });
+        ? this.lang.t('PROMPT_SYNC_NONE_FOUND')
+        : this.lang.t('PROMPT_SYNC_DOWNLOADED', { count: imported });
+      this.snackBar.open(msg, this.lang.t('CLOSE'), { duration: 3000 });
     } catch (err) {
       console.error('[ChatConfig] downloadPrompts failed', err);
-      this.snackBar.open(this.t('PROMPT_SYNC_FAILED'), this.t('CLOSE'), { duration: 4000 });
+      this.snackBar.open(this.lang.t('PROMPT_SYNC_FAILED'), this.lang.t('CLOSE'), { duration: 4000 });
     } finally {
       this.loading.hide();
     }
@@ -256,7 +253,7 @@ export class ProfileManagementController {
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error('[ChatConfig] exportActiveProfile failed', err);
-      this.snackBar.open(this.t('PROFILE_OP_FAILED'), this.t('CLOSE'), { duration: 3000 });
+      this.snackBar.open(this.lang.t('PROFILE_OP_FAILED'), this.lang.t('CLOSE'), { duration: 3000 });
     }
   }
 
@@ -270,14 +267,14 @@ export class ProfileManagementController {
       // Confirm BEFORE reading the file: import may switch profiles or overwrite
       // an existing one in place; either path silently wipes the editor's
       // dirty content otherwise.
-      if (await this.shouldAbortOnDirty(this.t('PROFILE_SWITCH_DISCARD_CONFIRM'))) return;
+      if (await this.shouldAbortOnDirty(this.lang.t('PROFILE_SWITCH_DISCARD_CONFIRM'))) return;
       this.isSwitchingProfile.set(true);
       try {
         const text = await file.text();
         const before = new Set(this.registry.userProfiles().map((p) => p.id));
         const { imported } = await this.promptCloudSync.importSingleProfile(text);
         if (imported === 0) {
-          this.snackBar.open(this.t('PROFILE_IMPORT_EMPTY'), this.t('CLOSE'), { duration: 3000 });
+          this.snackBar.open(this.lang.t('PROFILE_IMPORT_EMPTY'), this.lang.t('CLOSE'), { duration: 3000 });
           return;
         }
         // A fresh id means a new user profile appeared (incl. rename-on-conflict);
@@ -290,10 +287,10 @@ export class ProfileManagementController {
           await this.injection.forceReload();
         }
         await this.finalizeProfileMutation();
-        this.snackBar.open(this.t('PROFILE_IMPORTED'), this.t('CLOSE'), { duration: 3000 });
+        this.snackBar.open(this.lang.t('PROFILE_IMPORTED'), this.lang.t('CLOSE'), { duration: 3000 });
       } catch (err) {
         console.error('[ChatConfig] importProfileFromFile failed', err);
-        this.snackBar.open(this.t('PROFILE_IMPORT_INVALID'), this.t('CLOSE'), { duration: 4000 });
+        this.snackBar.open(this.lang.t('PROFILE_IMPORT_INVALID'), this.lang.t('CLOSE'), { duration: 4000 });
       } finally {
         this.isSwitchingProfile.set(false);
       }
@@ -307,13 +304,13 @@ export class ProfileManagementController {
 
     if (!(await this.ensureDiskFolderBound())) return;
 
-    this.loading.show(this.t('DISK_SYNC_PUSHING'));
+    this.loading.show(this.lang.t('DISK_SYNC_PUSHING'));
     try {
       await this.diskSync.pushActiveToDisk();
-      this.snackBar.open(this.t('DISK_SYNC_PUSHED'), this.t('CLOSE'), { duration: 3000 });
+      this.snackBar.open(this.lang.t('DISK_SYNC_PUSHED'), this.lang.t('CLOSE'), { duration: 3000 });
     } catch (err) {
       console.error('[ChatConfig] pushActiveProfileToDisk failed', err);
-      this.snackBar.open(this.t('DISK_SYNC_FAILED'), this.t('CLOSE'), { duration: 4000 });
+      this.snackBar.open(this.lang.t('DISK_SYNC_FAILED'), this.lang.t('CLOSE'), { duration: 4000 });
     } finally {
       this.loading.hide();
     }
@@ -325,19 +322,19 @@ export class ProfileManagementController {
 
     if (!(await this.ensureDiskFolderBound())) return;
 
-    if (await this.shouldAbortOnDirty(this.t('DISK_SYNC_PULL_DISCARD_CONFIRM'))) return;
+    if (await this.shouldAbortOnDirty(this.lang.t('DISK_SYNC_PULL_DISCARD_CONFIRM'))) return;
 
-    this.loading.show(this.t('DISK_SYNC_PULLING'));
+    this.loading.show(this.lang.t('DISK_SYNC_PULLING'));
     try {
       const { updatedTypes } = await this.diskSync.pullActiveFromDisk();
       await this.finalizeProfileMutation();
       const msg = updatedTypes === 0
-        ? this.t('DISK_SYNC_PULL_EMPTY')
-        : this.t('DISK_SYNC_PULLED', { count: updatedTypes });
-      this.snackBar.open(msg, this.t('CLOSE'), { duration: 3000 });
+        ? this.lang.t('DISK_SYNC_PULL_EMPTY')
+        : this.lang.t('DISK_SYNC_PULLED', { count: updatedTypes });
+      this.snackBar.open(msg, this.lang.t('CLOSE'), { duration: 3000 });
     } catch (err) {
       console.error('[ChatConfig] pullActiveProfileFromDisk failed', err);
-      this.snackBar.open(this.t('DISK_SYNC_FAILED'), this.t('CLOSE'), { duration: 4000 });
+      this.snackBar.open(this.lang.t('DISK_SYNC_FAILED'), this.lang.t('CLOSE'), { duration: 4000 });
     } finally {
       this.loading.hide();
     }
@@ -349,15 +346,15 @@ export class ProfileManagementController {
       const name = this.diskFolderName();
       if (name) {
         this.snackBar.open(
-          this.t('DISK_SYNC_FOLDER_BOUND', { name }),
-          this.t('CLOSE'),
+          this.lang.t('DISK_SYNC_FOLDER_BOUND', { name }),
+          this.lang.t('CLOSE'),
           { duration: 3000 },
         );
       }
     } catch (err) {
       if ((err as Error)?.name === 'AbortError') return;
       console.error('[ChatConfig] changeDiskFolder failed', err);
-      this.snackBar.open(this.t('DISK_SYNC_FAILED'), this.t('CLOSE'), { duration: 3000 });
+      this.snackBar.open(this.lang.t('DISK_SYNC_FAILED'), this.lang.t('CLOSE'), { duration: 3000 });
     }
   }
 
@@ -373,7 +370,7 @@ export class ProfileManagementController {
     } catch (err) {
       if ((err as Error)?.name === 'AbortError') return false;
       console.error('[ChatConfig] disk pickFolder failed', err);
-      this.snackBar.open(this.t('DISK_SYNC_FAILED'), this.t('CLOSE'), { duration: 3000 });
+      this.snackBar.open(this.lang.t('DISK_SYNC_FAILED'), this.lang.t('CLOSE'), { duration: 3000 });
       return false;
     }
   }

@@ -116,7 +116,11 @@ export class ChatMessageComponent {
 
     getIntentLabel(intent: string | undefined): string {
         if (!intent) return '';
-        return this.i18n.translate(`intent.labels.${intent}`);
+        const key = `intent.labels.${intent}`;
+        const translated = this.i18n.translate(key);
+        // Custom user intents have no dictionary entry — fall back to raw
+        // value so the chip never renders the dotted key as text.
+        return translated === key ? intent : translated;
     }
 
     onEditAndResend() {
