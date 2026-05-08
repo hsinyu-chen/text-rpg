@@ -55,7 +55,7 @@
             [class.active-full]="state.contextMode() === 'full'">
             <mat-icon>{{ state.contextMode() === 'smart' ? 'compress' : (state.contextMode() === 'summarized' ?
                 'auto_stories' : 'expand') }}</mat-icon>
-            {{ 'sidebar.controls.modeLabel' | translate }} {{ state.contextMode() === 'smart' ? ('sidebar.controls.modeSmart' | translate) : (state.contextMode() === 'summarized' ? ('sidebar.controls.modeSummarized' | translate) : ('sidebar.controls.modeFull' | translate)) }}
+            {{ 'sidebar.controls.modeLabel' | translate }} {{ 'sidebar.controls.mode' + (state.contextMode() | titlecase) | translate }}
         </button>
         @if (state.contextMode() === 'smart') {
         <button mat-stroked-button class="settings-btn" (click)="editSmartContextTurns()" [disabled]="state.isBusy()"
@@ -82,7 +82,7 @@
         [class.active-full]="state.saveContextMode() === 'full'">
         <mat-icon>{{ state.saveContextMode() === 'smart' ? 'compress' : (state.saveContextMode() === 'summarized' ?
             'auto_stories' : 'expand') }}</mat-icon>
-        {{ 'sidebar.controls.saveModeLabel' | translate }} {{ state.saveContextMode() === 'smart' ? ('sidebar.controls.modeSmart' | translate) : (state.saveContextMode() === 'summarized' ? ('sidebar.controls.modeSummarized' | translate) : ('sidebar.controls.modeFull' | translate)) }}
+        {{ 'sidebar.controls.saveModeLabel' | translate }} {{ 'sidebar.controls.mode' + (state.saveContextMode() | titlecase) | translate }}
     </button>
     <p class="hint-text">
         {{ 'sidebar.controls.saveModeDesc' | translate }}
