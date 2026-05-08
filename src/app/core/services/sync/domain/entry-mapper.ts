@@ -42,10 +42,15 @@ export async function blobEntryToRemoteEntry(
     // Ignore read failures; modifiedAt is the final anchor.
     try {
         const body = await blob.read(listEntry.path);
-        const parsed = JSON.parse(body.text) as { lastActiveAt?: number; updatedAt?: number };
-        const bodyTime = Number(parsed.lastActiveAt ?? parsed.updatedAt);
-        if (Number.isFinite(bodyTime) && bodyTime > 0) {
-            return { ...fallback, lastActiveAt: bodyTime };
+        const parsed = JSON.parse(body.text);
+        // `JSON.parse('null')` legitimately returns null; guard before
+        // dereferencing.
+        if (parsed && typeof parsed === 'object') {
+            const candidate = parsed as { lastActiveAt?: number; updatedAt?: number };
+            const bodyTime = Number(candidate.lastActiveAt ?? candidate.updatedAt);
+            if (Number.isFinite(bodyTime) && bodyTime > 0) {
+                return { ...fallback, lastActiveAt: bodyTime };
+            }
         }
     } catch {
         // fall through

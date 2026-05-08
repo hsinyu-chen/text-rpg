@@ -2,6 +2,10 @@ import { Injectable, inject } from '@angular/core';
 import { BlobListEntry, BlobListOptions, BlobMeta, BlobReadResult, BlobStore } from '../blob-store';
 import { FileBackendPermissionService } from './file-backend-permission.service';
 import { ensureDir, getDirIfExists, isNotFound, splitDir } from '../fsa-utils';
+import { createParallelPool } from '@app/core/utils/async.util';
+import { SNAPSHOT_CONCURRENCY } from '../sync-snapshot-utils';
+
+const parallelPool = createParallelPool(SNAPSHOT_CONCURRENCY);
 
 const META_SUFFIX = '.meta.json';
 
@@ -81,18 +85,28 @@ export class FileBlobStore implements BlobStore {
             }
         }
 
-        for (const { name, handle } of bodyFiles) {
+        // Hydrate body files in parallel — `getFile()` + `readSidecar()`
+        // are independent async I/O per file, so a parallel pool wins on
+        // folders with many entries (large libraries) without overwhelming
+        // the FSA implementation's connection ceiling.
+        const hydrated: BlobListEntry[] = new Array(bodyFiles.length);
+        await parallelPool(bodyFiles, async ({ name, handle }, i) => {
             const file = await handle.getFile();
             const entryPath = pathPrefix ? `${pathPrefix}/${name}` : name;
             const sidecar = withMeta ? sidecarByName.get(name) : undefined;
             const meta = sidecar ? await this.readSidecar(sidecar) : {};
-            out.push({
+            hydrated[i] = {
                 path: entryPath,
                 meta,
                 modifiedAt: file.lastModified,
                 size: file.size
-            });
-        }
+            };
+        });
+        for (const e of hydrated) out.push(e);
+
+        // Subdirs walked sequentially — recursion depth is small for our
+        // layouts (snapshots: 3-4 levels) and parallelising would explode
+        // the global pool's effective concurrency past SNAPSHOT_CONCURRENCY.
         for (const { name, handle } of subDirs) {
             const subPath = pathPrefix ? `${pathPrefix}/${name}` : name;
             await this.listRecursive(handle, subPath, withMeta, out);

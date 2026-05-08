@@ -20,6 +20,20 @@ const DRIVE_FOLDER_MIME = 'application/vnd.google-apps.folder';
  * verbatim by `read` / `list`. `updateFile` with `appProperties = undefined`
  * leaves existing properties intact (Drive's merge semantics) — passing
  * an explicit `null` per-key would clear them.
+ *
+ * **Known performance issues to address when GDrive is wired up
+ * (deferred from PR2):**
+ *   - `listRecursive` is `O(N)` API calls for `N` subfolders. The
+ *     post-migration tombstone layout (`tombstones/<r>/<id>/<deletedAt>`)
+ *     creates one folder per id — listing all tombstones for a resource
+ *     becomes `N+1` round-trips. Fix candidates: change GDrive's
+ *     tombstone layout to flat (`<id>__<deletedAt>` like File backend), or
+ *     batch the lookups via `q='<root>' in parents'` recursion-by-API.
+ *   - `resolveFolder` / `resolveFileId` / `write` use `listFiles` +
+ *     in-memory `.find` rather than Drive's `q=name='<x>' and '<p>' in parents`
+ *     query, which is one round-trip per lookup vs N items returned.
+ *     Add `findOneByName(parentId, name)` to GoogleDriveService when this
+ *     adapter goes live.
  */
 @Injectable({ providedIn: 'root' })
 export class GDriveBlobStore implements BlobStore {
