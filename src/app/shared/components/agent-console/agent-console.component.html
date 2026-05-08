@@ -2,24 +2,24 @@
     <!-- Profile Dropdown & Actions -->
     <div class="agent-controls">
         <mat-form-field appearance="outline" class="profile-select" subscriptSizing="dynamic">
-            <mat-select [value]="agentService.selectedProfileId()" (selectionChange)="agentService.selectProfile($event.value)" placeholder="Select Profile">
+            <mat-select [value]="agentService.selectedProfileId()" (selectionChange)="agentService.selectProfile($event.value)" [placeholder]="'dialog.agentSelectProfile' | translate">
                 @for (profile of agentService.agentProfiles(); track profile.id) {
                     <mat-option [value]="profile.id">{{ profile.name }}</mat-option>
                 }
             </mat-select>
         </mat-form-field>
         <mat-form-field appearance="outline" class="tool-mode-select" subscriptSizing="dynamic"
-            [matTooltip]="'Tool call mode for this profile. ' + agentService.capability.effectiveToolCallReason() + '.'">
+            [matTooltip]="'dialog.agentToolCallModeHintFull' | translate: { reason: agentService.capability.effectiveToolCallReason() }">
             <mat-select [value]="agentService.capability.toolCallMode()" (selectionChange)="agentService.capability.setToolCallMode($event.value)" [disabled]="agentService.isAgentRunning()">
-                <mat-option value="auto">Auto</mat-option>
-                <mat-option value="native">Native</mat-option>
-                <mat-option value="json">JSON</mat-option>
+                <mat-option value="auto">{{ 'dialog.agentToolModeAuto' | translate }}</mat-option>
+                <mat-option value="native">{{ 'dialog.agentToolModeNative' | translate }}</mat-option>
+                <mat-option value="json">{{ 'dialog.agentToolModeJson' | translate }}</mat-option>
             </mat-select>
         </mat-form-field>
-        <button mat-icon-button (click)="agentService.clearHistory()" matTooltip="Clear Conversation" [disabled]="agentService.isAgentRunning()">
+        <button mat-icon-button (click)="agentService.clearHistory()" [matTooltip]="'dialog.agentClearConversation' | translate" [disabled]="agentService.isAgentRunning()">
             <mat-icon>delete_sweep</mat-icon>
         </button>
-        <button mat-icon-button (click)="copyDebugLog()" matTooltip="Copy debug log (all tool calls + file contents)" [disabled]="agentService.agentLogs().length === 0">
+        <button mat-icon-button (click)="copyDebugLog()" [matTooltip]="'dialog.agentCopyDebugLog' | translate" [disabled]="agentService.agentLogs().length === 0">
             <mat-icon>content_copy</mat-icon>
         </button>
     </div>
@@ -29,7 +29,7 @@
         [matTooltip]="(agentService.agentContextUsed() | number) + ' / ' + (ctxSize | number) + ' tokens'">
         <div class="ctx-label">
             <mat-icon inline="true">memory</mat-icon>
-            <span>Context Usage</span>
+            <span>{{ 'dialog.agentContextUsage' | translate }}</span>
             <span class="ctx-pct">{{ agentService.agentContextPercent() | number:'1.0-1' }}%</span>
         </div>
         <div class="ctx-bar">
@@ -49,7 +49,7 @@
                         <div class="log-thought-container" [class.collapsed]="log.isThoughtCollapsed">
                             <div class="log-thought-header" (click)="toggleLogSection($index, 'isThoughtCollapsed')" tabindex="0" (keydown.enter)="toggleLogSection($index, 'isThoughtCollapsed')" (keydown.space)="$event.preventDefault(); toggleLogSection($index, 'isThoughtCollapsed')">
                                 <mat-icon inline="true">{{ log.isThoughtCollapsed ? 'chevron_right' : 'expand_more' }}</mat-icon>
-                                <span>Thinking Process</span>
+                                <span>{{ 'dialog.agentThinkingProcess' | translate }}</span>
                             </div>
                             @if (!log.isThoughtCollapsed) {
                                 <div class="log-thought-text">{{ log.thought }}</div>
@@ -61,7 +61,7 @@
                             <div class="log-thought-container" [class.collapsed]="log.isToolCallCollapsed">
                                 <div class="log-thought-header" (click)="toggleLogSection($index, 'isToolCallCollapsed')" tabindex="0" (keydown.enter)="toggleLogSection($index, 'isToolCallCollapsed')" (keydown.space)="$event.preventDefault(); toggleLogSection($index, 'isToolCallCollapsed')">
                                     <mat-icon inline="true">{{ log.isToolCallCollapsed ? 'chevron_right' : 'expand_more' }}</mat-icon>
-                                    <span>{{ log.toolName ? 'Tool Request: ' + log.toolName : 'Tool Execution Request' }}</span>
+                                    <span>{{ log.toolName ? ('dialog.agentToolRequest' | translate: { name: log.toolName }) : ('dialog.agentToolExecutionRequest' | translate) }}</span>
                                 </div>
                                 @if (log.reason) {
                                     <div class="log-tool-reason">{{ log.reason }}</div>
@@ -74,7 +74,7 @@
                             <div class="log-thought-container" [class.collapsed]="log.isToolResultCollapsed">
                                 <div class="log-thought-header" (click)="toggleLogSection($index, 'isToolResultCollapsed')" tabindex="0" (keydown.enter)="toggleLogSection($index, 'isToolResultCollapsed')" (keydown.space)="$event.preventDefault(); toggleLogSection($index, 'isToolResultCollapsed')">
                                     <mat-icon inline="true">{{ log.isToolResultCollapsed ? 'chevron_right' : 'expand_more' }}</mat-icon>
-                                    <span>{{ log.toolName ? 'Tool Result: ' + log.toolName : 'Tool Result' }}</span>
+                                    <span>{{ log.toolName ? ('dialog.agentToolResult' | translate: { name: log.toolName }) : ('dialog.agentToolResultFallback' | translate) }}</span>
                                 </div>
                                 @if (!log.isToolResultCollapsed) {
                                     <div class="log-thought-text">{{ log.text }}</div>
@@ -97,14 +97,15 @@
             <div class="console-log-entry log-type-model running-indicator">
                 <mat-spinner diameter="16"></mat-spinner>
                 @if (agentService.promptProgress() !== undefined && agentService.promptProgress()! < 1) {
-                    <span class="log-text">Processing prompt... {{ (agentService.promptProgress()! * 100) | number:'1.0-0' }}%</span>
+                    <span class="log-text">{{ 'dialog.agentProcessingPromptPercent' | translate: { percent: ((agentService.promptProgress()! * 100) | number:'1.0-0') ?? '' } }}</span>
                 } @else {
                     <span class="log-text">
-                        Agent is thinking...
                         @if (agentService.generatedTokenCount() > 0) {
-                            [{{ agentService.generatedTokenCount() }} tokens]
+                            {{ 'dialog.agentThinkingTokens' | translate: { count: agentService.generatedTokenCount() } }}
                         } @else if (agentService.generatedChunkCount() > 0) {
-                            [{{ agentService.generatedChunkCount() }} chunks]
+                            {{ 'dialog.agentThinkingChunks' | translate: { count: agentService.generatedChunkCount() } }}
+                        } @else {
+                            {{ 'dialog.agentThinkingPlain' | translate }}
                         }
                     </span>
                 }
@@ -116,7 +117,7 @@
     <!-- Prompt Input -->
     <div class="agent-input-container">
         <button mat-icon-button [matMenuTriggerFor]="builtInPromptsMenu"
-                matTooltip="Built-in prompts"
+                [matTooltip]="'dialog.agentBuiltInPrompts' | translate"
                 [disabled]="agentService.isAgentRunning() || builtInPromptsService.index.isLoading()">
             <mat-icon>bolt</mat-icon>
         </button>
@@ -129,18 +130,18 @@
             }
             @if ((builtInPromptsService.index.value() ?? []).length === 0) {
                 <div style="padding: 8px 16px; color: var(--mat-sys-on-surface-variant); font-size: 12px;">
-                    No prompts available
+                    {{ 'dialog.agentNoPromptsAvailable' | translate }}
                 </div>
             }
         </mat-menu>
         <mat-form-field appearance="outline" class="agent-input" subscriptSizing="dynamic">
-            <textarea matInput placeholder="Tell agent to do something..."
+            <textarea matInput [placeholder]="'dialog.agentPromptPlaceholder' | translate"
                      [ngModel]="agentPrompt()" (ngModelChange)="agentPrompt.set($event)"
                      (keydown.enter)="$event.preventDefault(); runAgent()"
                      rows="2"></textarea>
         </mat-form-field>
         @if (agentService.isAgentRunning()) {
-            <button mat-icon-button color="warn" (click)="agentService.stopAgent()" matTooltip="Stop Agent">
+            <button mat-icon-button color="warn" (click)="agentService.stopAgent()" [matTooltip]="'dialog.agentStop' | translate">
                 <mat-icon>stop_circle</mat-icon>
             </button>
         } @else {

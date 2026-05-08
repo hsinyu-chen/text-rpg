@@ -25,6 +25,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { MarkdownModule } from 'ngx-markdown';
 import { FileAgentService } from '@app/core/services/file-agent/file-agent.service';
 import { BuiltInPromptsService } from '@app/core/services/file-agent/built-in-prompts.service';
+import { TranslatePipe } from '@app/core/i18n';
 
 @Component({
   selector: 'app-agent-console',
@@ -40,7 +41,8 @@ import { BuiltInPromptsService } from '@app/core/services/file-agent/built-in-pr
     MatProgressSpinnerModule,
     MatTooltipModule,
     MatMenuModule,
-    MarkdownModule
+    MarkdownModule,
+    TranslatePipe
   ],
   templateUrl: './agent-console.component.html',
   styleUrl: './agent-console.component.scss',
