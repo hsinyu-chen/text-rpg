@@ -32,6 +32,8 @@ export class FileSearchEngine {
 
   private files = new Map<string, string>();
   private onFileChanged?: (fileName: string, content: string) => void;
+  /** Cached split-by-line view per file. Invalidated when content drifts from `content`. */
+  private linesCache = new Map<string, { content: string; lines: string[] }>();
 
   /** Wire the engine to the live file map + Monaco-update callback. */
   bind(files: Map<string, string>, onFileChanged: (fileName: string, content: string) => void): void {
@@ -47,8 +49,7 @@ export class FileSearchEngine {
       caseSensitive: this.isCaseSensitive(),
     }),
     loader: async ({ params }) => {
-      const query = params.query.trim();
-      if (!query) return [];
+      if (!params.query) return [];
       // setTimeout(0) lets the loading state paint before the synchronous walk.
       return new Promise<SearchResult[]>((resolve) => {
         setTimeout(() => {
@@ -117,6 +118,9 @@ export class FileSearchEngine {
     if (results.length === 0) return { replaced: 0, files: 0 };
 
     this.isReplacing.set(true);
+    // Yield once so the [disabled] state on the Replace All button paints
+    // before the synchronous string-replace work starts.
+    await new Promise((resolve) => setTimeout(resolve, 0));
     try {
       const pattern = buildSearchPatternOrLiteral(this.currentOptions(), true);
       const replaceWith = this.replaceQuery();
@@ -162,6 +166,12 @@ export class FileSearchEngine {
   }
 
   private lineFor(result: SearchResult): string {
-    return this.files.get(result.fileName)?.split('\n')[result.lineNumber - 1] ?? '';
+    const content = this.files.get(result.fileName);
+    if (content === undefined) return '';
+    const cached = this.linesCache.get(result.fileName);
+    if (cached?.content === content) return cached.lines[result.lineNumber - 1] ?? '';
+    const lines = content.split('\n');
+    this.linesCache.set(result.fileName, { content, lines });
+    return lines[result.lineNumber - 1] ?? '';
   }
 }

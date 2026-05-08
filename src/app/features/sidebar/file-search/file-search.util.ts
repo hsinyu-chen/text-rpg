@@ -33,7 +33,10 @@ export interface SearchOptions {
  */
 export function buildSearchPattern(opts: SearchOptions, global: boolean): RegExp {
   const { query, regex, wholeWord, caseSensitive } = opts;
-  const flags = (global ? 'g' : '') + (caseSensitive ? '' : 'i');
+  // `m` flag aligns the file-wide `replaceAllMatches` pass with the per-line
+  // search loop: `^` / `$` mean line anchors in both, otherwise users would
+  // see N preview hits but only the file-start match would replace.
+  const flags = (global ? 'gm' : '') + (caseSensitive ? '' : 'i');
   if (regex) return new RegExp(query, flags);
   let escaped = escapeRegex(query);
   if (wholeWord) escaped = `\\b${escaped}\\b`;
@@ -58,10 +61,9 @@ export function findMatchesInFiles(
   files: Map<string, string>,
   opts: SearchOptions,
 ): SearchResult[] {
-  const trimmed = opts.query.trim();
-  if (!trimmed) return [];
+  if (!opts.query) return [];
 
-  const pattern = buildSearchPatternOrLiteral({ ...opts, query: trimmed }, true);
+  const pattern = buildSearchPatternOrLiteral(opts, true);
   const results: SearchResult[] = [];
 
   files.forEach((content, fileName) => {
@@ -76,6 +78,9 @@ export function findMatchesInFiles(
           matchIndex: match.index,
           matchLength: match[0].length,
         });
+        // Zero-width matches (`^`, `$`, `a*`) leave lastIndex unchanged and
+        // would loop forever without manual advancement.
+        if (match[0].length === 0) pattern.lastIndex += 1;
       }
     });
   });

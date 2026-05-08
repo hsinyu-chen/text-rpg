@@ -9,15 +9,15 @@ import {
 } from './file-search.util';
 
 describe('buildSearchPattern', () => {
-  it('builds a case-insensitive global literal pattern by default', () => {
+  it('builds a case-insensitive global+multiline literal pattern by default', () => {
     const re = buildSearchPattern({ query: 'foo', regex: false, wholeWord: false, caseSensitive: false }, true);
-    expect(re.flags).toBe('gi');
+    expect(re.flags.split('').sort().join('')).toBe('gim');
     expect(re.test('FOO bar')).toBe(true);
   });
 
   it('honours caseSensitive flag', () => {
     const re = buildSearchPattern({ query: 'foo', regex: false, wholeWord: false, caseSensitive: true }, true);
-    expect(re.flags).toBe('g');
+    expect(re.flags.split('').sort().join('')).toBe('gm');
     expect(re.test('FOO')).toBe(false);
     expect(re.test('foo')).toBe(true);
   });
@@ -67,18 +67,39 @@ describe('buildSearchPatternOrLiteral', () => {
 
   it('passes valid regex through', () => {
     const re = buildSearchPatternOrLiteral({ query: 'a+', regex: true, wholeWord: false, caseSensitive: true }, true);
-    expect(re.flags).toBe('g');
+    expect(re.flags.split('').sort().join('')).toBe('gm');
     expect(re.test('aaa')).toBe(true);
+  });
+
+  it('replaceAll-style global pattern matches `^` per line, not just file start', () => {
+    const re = buildSearchPatternOrLiteral({ query: '^', regex: true, wholeWord: false, caseSensitive: true }, true);
+    const replaced = 'a\nb\nc'.replace(re, '> ');
+    expect(replaced).toBe('> a\n> b\n> c');
   });
 });
 
 describe('findMatchesInFiles', () => {
   const opts = { regex: false, wholeWord: false, caseSensitive: false };
 
-  it('returns empty for blank/whitespace query', () => {
+  it('returns empty for empty query', () => {
     const files = new Map([['a.md', 'hello']]);
     expect(findMatchesInFiles(files, { ...opts, query: '' })).toEqual([]);
-    expect(findMatchesInFiles(files, { ...opts, query: '   ' })).toEqual([]);
+  });
+
+  it('searches for literal whitespace when query is whitespace-only', () => {
+    const files = new Map([['a.md', 'a  b\nc d']]);
+    const results = findMatchesInFiles(files, { ...opts, query: '  ' });
+    expect(results).toHaveLength(1);
+    expect(results[0]).toMatchObject({ lineNumber: 1, matchIndex: 1 });
+  });
+
+  it('terminates on zero-width regex matches without infinite loop', () => {
+    const files = new Map([['a.md', 'abc']]);
+    // `a*` is zero-width at every cursor position — the lastIndex guard prevents
+    // an infinite loop while still yielding the expected per-position match set.
+    const results = findMatchesInFiles(files, { ...opts, query: 'a*', regex: true });
+    expect(results.length).toBeGreaterThan(0);
+    expect(results.length).toBeLessThan(100);
   });
 
   it('finds a single match with correct line + index', () => {
