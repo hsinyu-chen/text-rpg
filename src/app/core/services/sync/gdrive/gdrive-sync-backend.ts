@@ -199,7 +199,11 @@ export class GDriveSyncBackend implements SyncBackend {
             remove: (r, id) => this.remove(r, id),
             removeTombstone: (r, id) => this.tombstones.removeById(r, id)
         },
-        new BlobSnapshotTreeOps(this.blob, SLASH_TOMBSTONE_LAYOUT)
+        // GDrive's pre-collapse snapshot store wrote under
+        // `appDataFolder/snapshots_root/<sid>/...`. Keep the root name
+        // so existing user snapshots remain restorable. PR4 may revisit
+        // (rename to match S3/File on a separate migration step).
+        new BlobSnapshotTreeOps(this.blob, SLASH_TOMBSTONE_LAYOUT, 'snapshots_root')
     );
 
     listSnapshots(): Promise<SnapshotMeta[]> { return this.snapshotStore.listSnapshots(); }

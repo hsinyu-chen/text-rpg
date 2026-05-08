@@ -183,6 +183,38 @@ export class S3BlobStore implements BlobStore {
         }
     }
 
+    async listFolders(prefix: string): Promise<string[]> {
+        const sdk = this.clientSvc.getSdk();
+        const client = this.clientSvc.getClient();
+        const dirPrefix = this.absKey(prefix.endsWith('/') ? prefix : `${prefix}/`);
+        const seen = new Set<string>();
+        let continuationToken: string | undefined;
+        do {
+            const res = await client.send(new sdk.ListObjectsV2Command({
+                Bucket: this.clientSvc.getBucket(),
+                Prefix: dirPrefix,
+                Delimiter: '/',
+                ContinuationToken: continuationToken
+            }));
+            for (const cp of res.CommonPrefixes ?? []) {
+                if (!cp.Prefix) continue;
+                // CommonPrefix shape: `<dirPrefix><folder>/`. Strip both.
+                const rel = cp.Prefix.slice(dirPrefix.length).replace(/\/$/, '');
+                if (rel) seen.add(rel);
+            }
+            continuationToken = res.IsTruncated ? res.NextContinuationToken : undefined;
+        } while (continuationToken);
+        return [...seen];
+    }
+
+    async removeFolder(path: string): Promise<void> {
+        const cleanPrefix = path.replace(/\/+$/, '') + '/';
+        const entries = await this.list(cleanPrefix, { withMeta: false });
+        for (const e of entries) {
+            await this.remove(e.path);
+        }
+    }
+
     private contentTypeFor(path: string): string {
         // .json paths get application/json; everything else (e.g. tombstone
         // marker objects with no extension) gets octet-stream so CDNs and

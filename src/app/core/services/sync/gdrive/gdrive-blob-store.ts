@@ -126,6 +126,25 @@ export class GDriveBlobStore implements BlobStore {
         this.fileIdByPath.set(dstPath, created.id);
     }
 
+    async listFolders(prefix: string): Promise<string[]> {
+        const cleanPrefix = prefix.replace(/\/+$/, '');
+        const folderId = await this.resolveFolder(cleanPrefix, false);
+        if (!folderId) return [];
+        const folders = await this.drive.listFolders(folderId);
+        return folders.map(f => f.name);
+    }
+
+    async removeFolder(path: string): Promise<void> {
+        const cleanPath = path.replace(/\/+$/, '');
+        const folderId = await this.resolveFolder(cleanPath, false);
+        if (!folderId) return;
+        await this.drive.deleteFolderRecursive(folderId);
+        // Drop cached ids referencing anything under this folder. We
+        // don't track parent → children, so wipe everything; PR2's
+        // tombstone migration follows the same pattern.
+        this.invalidateCaches();
+    }
+
     async exists(path: string): Promise<boolean> {
         return (await this.resolveFileId(path)) !== null;
     }
