@@ -104,11 +104,16 @@ describe('findMatchesInLines', () => {
 
   it('terminates on zero-width regex matches without infinite loop', () => {
     const files = new Map([['a.md', 'abc']]);
-    // `a*` is zero-width at every cursor position — the lastIndex guard prevents
-    // an infinite loop while still yielding the expected per-position match set.
+    // `a*` matches `a` at index 0 (length 1), then zero-width at indices 1, 2, 3
+    // (after each char + after the line end). The guard advances lastIndex by 1
+    // each zero-width hit so the loop terminates after 4 iterations.
     const results = find(files, { ...opts, query: 'a*', regex: true });
-    expect(results.length).toBeGreaterThan(0);
-    expect(results.length).toBeLessThan(100);
+    expect(results.map((r) => ({ matchIndex: r.matchIndex, matchLength: r.matchLength }))).toEqual([
+      { matchIndex: 0, matchLength: 1 },
+      { matchIndex: 1, matchLength: 0 },
+      { matchIndex: 2, matchLength: 0 },
+      { matchIndex: 3, matchLength: 0 },
+    ]);
   });
 
   it('finds a single match with correct line + index', () => {
