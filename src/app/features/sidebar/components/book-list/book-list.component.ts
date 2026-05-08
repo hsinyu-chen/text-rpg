@@ -239,7 +239,7 @@ export class BookListComponent {
 
     async renameBook(book: Book, event: Event) {
         event.stopPropagation();
-        const newName = await this.promptName(this.t('renameBookTooltip'), book.name);
+        const newName = await this.promptName(this.t('renameBookDialogTitle'), book.name);
         if (newName && newName !== book.name) {
             await this.session.renameBook(book.id, newName);
             await this.loadBooks();
@@ -272,7 +272,7 @@ export class BookListComponent {
 
     private async promptName(title: string, initialName = ''): Promise<string | null> {
         const ref = this.matDialog.open(SaveNameDialogComponent, {
-            data: { title, initialName, placeholder: this.i18n.translate('ui.ENTER_NAME') } as SaveNameDialogData,
+            data: { title, initialName, placeholder: this.t('promptNamePlaceholder') } as SaveNameDialogData,
             width: '400px'
         });
         const result = await firstValueFrom(ref.afterClosed());
@@ -297,7 +297,7 @@ export class BookListComponent {
     }
 
     async createCollection() {
-        const name = await this.promptName(this.t('newCollectionBtn'));
+        const name = await this.promptName(this.t('newCollectionDialogTitle'));
         if (!name) return;
         const c = await this.collectionService.create(name);
         this.expandedIds.set(new Set([c.id]));
@@ -305,7 +305,7 @@ export class BookListComponent {
 
     async renameCollection(collection: Collection, event: Event) {
         event.stopPropagation();
-        const newName = await this.promptName(this.t('renameCollectionTooltip'), collection.name);
+        const newName = await this.promptName(this.t('renameCollectionDialogTitle'), collection.name);
         if (!newName || newName === collection.name) return;
         try {
             await this.collectionService.rename(collection.id, newName);
@@ -317,7 +317,7 @@ export class BookListComponent {
     async removeCollection(collection: Collection, event: Event) {
         event.stopPropagation();
         try {
-            if (!await this.dialog.confirm(this.t('deleteCollectionTooltip') + ` "${collection.name}"?`)) return;
+            if (!await this.dialog.confirm(this.t('deleteCollectionConfirm', { name: collection.name }))) return;
             this.tombstoneTracker.track('collection', collection.id);
             await this.collectionService.remove(collection.id);
         } catch (e) {
@@ -360,17 +360,28 @@ export class BookListComponent {
             return;
         }
 
-        this.loading.show(`Synchronizing with ${backendId === 's3' ? 'S3' : 'Drive'}...`);
+        const backendLabel = backendId === 's3' ? 'S3' : 'Drive';
+        this.loading.show(this.t('syncingWith', { backend: backendLabel }));
         try {
             const report = await this.syncService.syncAll();
             await this.loadBooks();
-            const summary = `Uploaded: ${report.uploaded}, Downloaded: ${report.downloaded}, Deleted: ${report.deleted}`;
+            const summary = this.t('syncSummaryFormat', {
+                uploaded: report.uploaded,
+                downloaded: report.downloaded,
+                deleted: report.deleted,
+            });
             if (report.errors.length > 0) {
                 console.error('[BookList] Sync finished with errors:', report.errors);
                 const sample = report.errors[0];
                 this.snackBar.open(
-                    `Sync had ${report.errors.length} error${report.errors.length === 1 ? '' : 's'} — see console. ` +
-                    `e.g. ${sample.op} ${sample.resource} ${sample.id.slice(0, 8)}: ${sample.message}. ${summary}`,
+                    this.t('syncErrorSample', {
+                        count: report.errors.length,
+                        op: sample.op,
+                        resource: sample.resource,
+                        id: sample.id.slice(0, 8),
+                        message: sample.message,
+                        summary,
+                    }),
                     this.i18n.translate('ui.CLOSE'),
                     { panelClass: ['snackbar-error'] }
                 );
@@ -379,7 +390,10 @@ export class BookListComponent {
             }
         } catch (e) {
             console.error('[BookList] Sync failed', e);
-            this.snackBar.open(this.t('syncFailedPrefix') + ((e as { message?: string })?.message || 'Unknown error'), this.i18n.translate('ui.CLOSE'));
+            this.snackBar.open(
+                this.t('syncFailedSummary', { error: (e as { message?: string })?.message || 'Unknown error' }),
+                this.i18n.translate('ui.CLOSE'),
+            );
         } finally {
             this.loading.hide();
         }

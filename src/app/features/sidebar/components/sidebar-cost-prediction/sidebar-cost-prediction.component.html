@@ -84,8 +84,9 @@
         @if (state.cacheCountdown()) {
         <div class="stat-row expiry">
             <span>{{ 'sidebar.costPrediction.cacheExpiryLabel' | translate }}</span>
-            <span class="val" [class.warning]="state.cacheCountdown() === 'EXPIRED'">{{ state.cacheCountdown()
-                }}</span>
+            <span class="val" [class.warning]="state.cacheCountdown() === 'EXPIRED'">{{
+                state.cacheCountdown() === 'EXPIRED' ? ('sidebar.costPrediction.expired' | translate) : state.cacheCountdown()
+            }}</span>
         </div>
         }
 

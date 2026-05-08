@@ -230,7 +230,7 @@ export class CreateSceneDialogComponent {
             } else {
                 console.error('[CreateScene] Failed:', e);
                 this.processingError.set(msg);
-                this.snackBar.open(this.t('failedPrefix') + msg, this.i18n.translate('ui.CLOSE'), { duration: 6000 });
+                this.snackBar.open(this.t('failedMessage', { error: msg }), this.i18n.translate('ui.CLOSE'), { duration: 6000 });
             }
         } finally {
             this.abortController = null;
@@ -565,7 +565,7 @@ export class CreateSceneDialogComponent {
         } catch (e) {
             console.error('[CreateScene] Failed to create book', e);
             const msg = e instanceof Error ? e.message : String(e);
-            this.snackBar.open(this.t('createFailedPrefix') + msg, this.i18n.translate('ui.CLOSE'), { duration: 5000 });
+            this.snackBar.open(this.t('createFailedMessage', { error: msg }), this.i18n.translate('ui.CLOSE'), { duration: 5000 });
         } finally {
             this.isCreatingBook.set(false);
         }
