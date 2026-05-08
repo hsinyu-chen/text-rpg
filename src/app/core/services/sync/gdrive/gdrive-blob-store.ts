@@ -59,9 +59,12 @@ export class GDriveBlobStore implements BlobStore {
         const fileId = await this.resolveFileId(path);
         if (!fileId) throw new Error(`GDriveBlobStore: ${path} not found`);
         const text = await this.drive.readFile(fileId);
-        // Drive's readFile only returns the body. To get meta we need a
-        // metadata fetch — list parent folder and find by id (cheap when
-        // the cache already knows the folder).
+        // TODO (when GDrive is wired up): replace the parent listFiles +
+        // .find with a `files.get(fileId, fields=...)` call on
+        // GoogleDriveService. One round-trip vs N+1 here. Ditto for
+        // `resolveFolder` / `resolveFileId` / `write` (per the doc-block
+        // header). Skipped for PR2 because GDriveBlobStore isn't on a
+        // hot path yet.
         const { dir, name } = splitPath(path);
         const folderId = await this.resolveFolder(dir, false);
         let meta: BlobMeta = {};
