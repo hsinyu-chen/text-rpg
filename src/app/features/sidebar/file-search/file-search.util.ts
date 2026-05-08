@@ -33,10 +33,11 @@ export interface SearchOptions {
  */
 export function buildSearchPattern(opts: SearchOptions, global: boolean): RegExp {
   const { query, regex, wholeWord, caseSensitive } = opts;
-  // `m` flag aligns the file-wide `replaceAllMatches` pass with the per-line
-  // search loop: `^` / `$` mean line anchors in both, otherwise users would
-  // see N preview hits but only the file-start match would replace.
-  const flags = (global ? 'gm' : '') + (caseSensitive ? '' : 'i');
+  // No `m` flag: every consumer of this pattern operates on individual lines
+  // (search splits via Map<file, string[]>; replaceAll maps replace per line),
+  // so `^` and `$` already mean line anchors. `m` would be silently no-op and
+  // misleadingly suggest cross-line matching is supported.
+  const flags = (global ? 'g' : '') + (caseSensitive ? '' : 'i');
   if (regex) return new RegExp(query, flags);
   let escaped = escapeRegex(query);
   if (wholeWord) escaped = `\\b${escaped}\\b`;
