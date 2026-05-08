@@ -88,14 +88,21 @@ export class ProfileManagementController {
         const content = await this.injection.getResolvedProfilePrompt('system_main', profile.id);
         return { id: profile.id, compatible: isSystemMainCompatible(content) };
       } catch (err) {
-        console.warn(`[ChatConfigDialog] compat check failed for ${profile.id}`, err);
+        console.warn(`[ChatConfig] compat check failed for ${profile.id}`, err);
         // Treat fetch failures as compatible — surfacing a false ⚠ on
         // every profile because storage hiccupped is worse than
         // missing one legacy badge until the next refresh.
         return { id: profile.id, compatible: true };
       }
     }));
-    this.legacyProfileIds.set(new Set(results.filter((r) => !r.compatible).map((r) => r.id)));
+    const next = new Set(results.filter((r) => !r.compatible).map((r) => r.id));
+    // Only push a new reference when the content actually changed — a fresh
+    // Set on every call would re-fire downstream change detection on every
+    // profile-list mutation even when no badges flipped.
+    const current = this.legacyProfileIds();
+    if (next.size !== current.size || [...next].some((id) => !current.has(id))) {
+      this.legacyProfileIds.set(next);
+    }
   }
 
   diskFolderName(): string | null {
@@ -261,6 +268,7 @@ export class ProfileManagementController {
       // an existing one in place; either path silently wipes the editor's
       // dirty content otherwise.
       if (await this.shouldAbortOnDirty(this.ui().PROFILE_SWITCH_DISCARD_CONFIRM)) return;
+      this.isSwitchingProfile.set(true);
       try {
         const text = await file.text();
         const before = new Set(this.registry.userProfiles().map((p) => p.id));
@@ -283,6 +291,8 @@ export class ProfileManagementController {
       } catch (err) {
         console.error('[ChatConfig] importProfileFromFile failed', err);
         this.snackBar.open(this.ui().PROFILE_IMPORT_INVALID, this.ui().CLOSE, { duration: 4000 });
+      } finally {
+        this.isSwitchingProfile.set(false);
       }
     };
     input.click();
