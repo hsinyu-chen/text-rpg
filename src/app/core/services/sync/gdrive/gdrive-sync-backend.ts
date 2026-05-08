@@ -3,7 +3,6 @@ import { GoogleDriveService } from '../../google-drive.service';
 import { GoogleOAuthService } from '../../google-oauth.service';
 import { KVStore } from '../../kv/kv-store';
 import { SyncResource, SyncBackendId } from '../sync.types';
-import { BlobStore } from '../blob-store';
 import { GDriveBlobStore } from './gdrive-blob-store';
 import { tombstonePath } from '../layout/sync-paths';
 import { SLASH_TOMBSTONE_LAYOUT } from '../domain/tombstone-repository';
@@ -116,7 +115,7 @@ function makeTombstoneMigrator(
             return;
         }
         const legacyFolderName = LEGACY_TOMBSTONE_FOLDER[resource];
-        const legacyEntries = await (blob as BlobStore).list(`${legacyFolderName}/`);
+        const legacyEntries = await blob.list(`${legacyFolderName}/`);
         for (const entry of legacyEntries) {
             // Path shape: `<legacyFolderName>/<id>` (one segment after prefix).
             const id = entry.path.slice(legacyFolderName.length + 1);
@@ -127,8 +126,8 @@ function makeTombstoneMigrator(
                 ? deletedAt
                 : entry.modifiedAt; // fallback: same policy the pre-refactor backend used
             if (!Number.isFinite(ts) || ts <= 0) continue;
-            await (blob as BlobStore).write(tombstonePath(resource, id, ts), '');
-            await (blob as BlobStore).remove(entry.path);
+            await blob.write(tombstonePath(resource, id, ts), '');
+            await blob.remove(entry.path);
         }
         // Best-effort cleanup of the now-empty legacy folder. Failure
         // here doesn't compromise correctness; just leaves a stray
