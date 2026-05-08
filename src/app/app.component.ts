@@ -62,6 +62,7 @@ export class AppComponent {
   dialog = inject(MatDialog);
   private snackBar = inject(MatSnackBar);
   private i18n = inject(I18nService);
+  private isSyncingKB = false;
   private remoteUpdateSnackRef: MatSnackBarRef<TextOnlySnackBar> | null = null;
   private breakpointObserver = inject(BreakpointObserver);
   private providerInit = inject(LLMProviderInitService);
@@ -133,15 +134,13 @@ export class AppComponent {
 
     effect(() => {
       if (this.state.status() === 'loading') {
+        this.isSyncingKB = true;
         this.loading.show(this.i18n.translate('app.syncingKBMessage'));
-      } else {
-        // Only hide if the loading service was triggered by engine status (simple check or force hide might conflict)
-        // For simplicity, we can trust other components to manage their own ephemeral loading states or use a stack if needed.
-        // But since engine loading is "global app initialization" mostly, let's just hide it.
-        // Ideally we need a better state management but for this fix:
-        if (this.loading.message() === this.i18n.translate('app.syncingKBMessage')) {
-          this.loading.hide();
-        }
+      } else if (this.isSyncingKB) {
+        // Local flag avoids comparing loading.message() against a translation —
+        // a language switch mid-load would never match and the overlay would stick.
+        this.isSyncingKB = false;
+        this.loading.hide();
       }
     });
 
