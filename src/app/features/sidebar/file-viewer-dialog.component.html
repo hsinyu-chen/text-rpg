@@ -90,23 +90,23 @@
             <div class="search-section">
                 <!-- Search Row with expand chevron -->
                 <div class="search-input-row">
-                    <button mat-icon-button class="expand-toggle" (click)="toggleReplaceExpanded()"
-                        [matTooltip]="isReplaceExpanded() ? 'Collapse Replace' : 'Expand Replace'">
-                        <mat-icon>{{ isReplaceExpanded() ? 'expand_more' : 'chevron_right' }}</mat-icon>
+                    <button mat-icon-button class="expand-toggle" (click)="searchEngine.toggleReplaceExpanded()"
+                        [matTooltip]="searchEngine.isReplaceExpanded() ? 'Collapse Replace' : 'Expand Replace'">
+                        <mat-icon>{{ searchEngine.isReplaceExpanded() ? 'expand_more' : 'chevron_right' }}</mat-icon>
                     </button>
                     <div class="input-with-options">
-                        <input type="text" class="search-input" [(ngModel)]="searchQuery" placeholder="Search...">
+                        <input type="text" class="search-input" [(ngModel)]="searchEngine.searchQuery" placeholder="Search...">
                         <div class="input-options">
-                            <button mat-icon-button class="option-btn" [class.active]="isCaseSensitive()"
-                                (click)="toggleCaseSensitive(); $event.stopPropagation()" matTooltip="Match Case">
+                            <button mat-icon-button class="option-btn" [class.active]="searchEngine.isCaseSensitive()"
+                                (click)="searchEngine.toggleCaseSensitive(); $event.stopPropagation()" matTooltip="Match Case">
                                 <span class="option-icon">Aa</span>
                             </button>
-                            <button mat-icon-button class="option-btn" [class.active]="isWholeWord()"
-                                (click)="toggleWholeWord(); $event.stopPropagation()" matTooltip="Match Whole Word">
+                            <button mat-icon-button class="option-btn" [class.active]="searchEngine.isWholeWord()"
+                                (click)="searchEngine.toggleWholeWord(); $event.stopPropagation()" matTooltip="Match Whole Word">
                                 <span class="option-icon underline">ab</span>
                             </button>
-                            <button mat-icon-button class="option-btn" [class.active]="isRegex()"
-                                (click)="toggleRegex(); $event.stopPropagation()" matTooltip="Use Regular Expression">
+                            <button mat-icon-button class="option-btn" [class.active]="searchEngine.isRegex()"
+                                (click)="searchEngine.toggleRegex(); $event.stopPropagation()" matTooltip="Use Regular Expression">
                                 <span class="option-icon">.*</span>
                             </button>
                         </div>
@@ -114,15 +114,15 @@
                 </div>
 
                 <!-- Replace Row (collapsed by default) -->
-                @if (isReplaceExpanded()) {
+                @if (searchEngine.isReplaceExpanded()) {
                 <div class="replace-input-row">
                     <div class="replace-spacer"></div>
                     <div class="input-with-options">
-                        <input type="text" class="search-input" [(ngModel)]="replaceQuery" placeholder="Replace...">
+                        <input type="text" class="search-input" [(ngModel)]="searchEngine.replaceQuery" placeholder="Replace...">
                         <div class="input-options">
                             <button mat-icon-button class="option-btn replace-all-inline"
-                                (click)="replaceAllMatches(); $event.stopPropagation()"
-                                [disabled]="(searchResource.value()?.length ?? 0) === 0 || isReplacing()"
+                                (click)="runReplaceAllMatches(); $event.stopPropagation()"
+                                [disabled]="(searchEngine.searchResource.value()?.length ?? 0) === 0 || searchEngine.isReplacing()"
                                 matTooltip="Replace All">
                                 <mat-icon>find_replace</mat-icon>
                             </button>
@@ -131,42 +131,42 @@
                 </div>
                 }
 
-                @if (searchResource.value() && searchResource.value()!.length > 0) {
+                @if (searchEngine.searchResource.value() && searchEngine.searchResource.value()!.length > 0) {
                 <div class="search-results">
                     <div class="results-header">
-                        <span class="result-count">{{ searchResource.value()?.length ?? 0 }} results in {{
-                            groupedSearchResults().length }} files</span>
+                        <span class="result-count">{{ searchEngine.searchResource.value()?.length ?? 0 }} results in {{
+                            searchEngine.groupedSearchResults().length }} files</span>
                     </div>
                     <div class="results-list">
-                        @for (group of groupedSearchResults(); track group[0]) {
+                        @for (group of searchEngine.groupedSearchResults(); track group[0]) {
                         <div class="file-group">
-                            <div class="file-group-header" (click)="toggleFileCollapse(group[0])"
-                                (keydown.enter)="toggleFileCollapse(group[0])" tabindex="0">
+                            <div class="file-group-header" (click)="searchEngine.toggleFileCollapse(group[0])"
+                                (keydown.enter)="searchEngine.toggleFileCollapse(group[0])" tabindex="0">
                                 <mat-icon class="chevron"
-                                    [class.collapsed]="collapsedFiles().has(group[0])">expand_more</mat-icon>
+                                    [class.collapsed]="searchEngine.collapsedFiles().has(group[0])">expand_more</mat-icon>
                                 <span class="file-name">{{ group[0] }}</span>
                                 <span class="match-count">{{ group[1].length }}</span>
                             </div>
 
-                            @if (!collapsedFiles().has(group[0])) {
+                            @if (!searchEngine.collapsedFiles().has(group[0])) {
                             <div class="file-matches">
                                 @for (result of group[1]; track $index) {
-                                <div class="result-item" [class.with-replace]="isReplaceExpanded()"
+                                <div class="result-item" [class.with-replace]="searchEngine.isReplaceExpanded()"
                                     (click)="goToResult(result)" (keydown.enter)="goToResult(result)" tabindex="0">
                                     <div class="result-main">
                                         <div class="result-line-info">
                                             <span class="result-line">{{ result.lineNumber }}</span>
                                         </div>
-                                        @if (isReplaceExpanded()) {
-                                        <div class="result-content diff" [innerHTML]="getCombinedDiffPreview(result)">
+                                        @if (searchEngine.isReplaceExpanded()) {
+                                        <div class="result-content diff" [innerHTML]="searchEngine.getCombinedDiffPreview(result)">
                                         </div>
                                         } @else {
-                                        <div class="result-content" [innerHTML]="getHighlightedContent(result)"></div>
+                                        <div class="result-content" [innerHTML]="searchEngine.getHighlightedContent(result)"></div>
                                         }
                                     </div>
-                                    @if (isReplaceExpanded()) {
+                                    @if (searchEngine.isReplaceExpanded()) {
                                     <button mat-icon-button class="result-replace-btn"
-                                        (click)="replaceInFile(result); $event.stopPropagation()" matTooltip="Replace">
+                                        (click)="searchEngine.replaceInFile(result); $event.stopPropagation()" matTooltip="Replace">
                                         <mat-icon>swap_horiz</mat-icon>
                                     </button>
                                     }
@@ -179,7 +179,7 @@
                     </div>
                 </div>
                 }
-                @if (searchQuery() && (searchResource.value()?.length ?? 0) === 0 && !searchResource.isLoading()) {
+                @if (searchEngine.searchQuery() && (searchEngine.searchResource.value()?.length ?? 0) === 0 && !searchEngine.searchResource.isLoading()) {
                 <div class="no-results">No results found</div>
                 }
             </div>

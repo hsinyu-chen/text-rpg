@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, viewChild, effect, resource, OnDestroy } from '@angular/core';
+import { Component, inject, signal, computed, viewChild, effect, OnDestroy } from '@angular/core';
 import { WINDOW } from '@app/core/tokens/window.token';
 import { CommonModule } from '@angular/common';
 import { firstValueFrom } from 'rxjs';
@@ -22,6 +22,7 @@ import { WorldCompletionValidator } from '@app/core/services/file-agent/world-co
 import { AgentConsoleComponent } from '@app/shared/components/agent-console/agent-console.component';
 import { SessionService } from '@app/core/services/session.service';
 import { findAtxHeadings } from '@app/core/utils/markdown.util';
+import { FileSearchEngine, type SearchResult } from './file-search/file-search-engine';
 
 /** Dialog data interface for multi-file viewer */
 export interface FileViewerDialogData {
@@ -41,15 +42,6 @@ export interface FileViewerDialogData {
   completionValidator?: WorldCompletionValidator;
   /** LLM profile ID to pre-select when the agent panel opens (createWorldMode only). */
   initialProfileId?: string;
-}
-
-/** Search result interface */
-export interface SearchResult {
-  fileName: string;
-  lineNumber: number;
-  lineContent: string;
-  matchIndex: number;
-  matchLength: number;
 }
 
 /** Markdown header interface */
@@ -77,7 +69,7 @@ export interface MarkdownHeader {
   ],
   templateUrl: './file-viewer-dialog.component.html',
   styleUrl: './file-viewer-dialog.component.scss',
-  providers: [FileAgentService]
+  providers: [FileAgentService, FileSearchEngine]
 })
 export class FileViewerDialogComponent implements OnDestroy {
   data = inject(MAT_DIALOG_DATA) as FileViewerDialogData;
@@ -89,6 +81,7 @@ export class FileViewerDialogComponent implements OnDestroy {
   private matDialog = inject(MatDialog);
   private cacheManager = inject(CacheManagerService);
   private fileAgentService = inject(FileAgentService);
+  searchEngine = inject(FileSearchEngine);
   private readonly win = inject(WINDOW);
 
   isStartingGame = signal(false);
@@ -123,23 +116,6 @@ export class FileViewerDialogComponent implements OnDestroy {
    * Updated only when a file is successfully saved.
    */
   dbBaselineSnapshot = signal<Map<string, string>>(new Map(this.data.files));
-
-  // Search state
-  searchQuery = signal('');
-  // searchResults & isSearching removed in favor of searchResource
-
-  // Replace state
-  replaceQuery = signal('');
-  isReplaceExpanded = signal(false);
-  isReplacing = signal(false);
-
-  // VS Code-like search options
-  isRegex = signal(false);
-  isWholeWord = signal(false);
-  isCaseSensitive = signal(false);
-
-  // Collapse state for file groups in search results
-  collapsedFiles = signal<Set<string>>(new Set());
 
   // Derived file list for sidebar display
   fileList = computed(() => {
@@ -185,87 +161,6 @@ export class FileViewerDialogComponent implements OnDestroy {
     minimap: { enabled: false }
   }));
 
-  // Resource API transformation for search
-  searchResource = resource({
-    params: () => ({
-      query: this.searchQuery(),
-      regex: this.isRegex(),
-      wholeWord: this.isWholeWord(),
-      caseSensitive: this.isCaseSensitive(),
-    }),
-    loader: async ({ params }) => {
-      const query = params.query.trim();
-      if (!query) {
-        return [];
-      }
-
-      // Wrap synchronous search in a promise to satisfy resource loader contract
-      return new Promise<SearchResult[]>((resolve) => {
-        // Small delay to prevent UI freezing on large searches and allow UI to show loading state
-        setTimeout(() => {
-          const results: SearchResult[] = [];
-          try {
-            let searchPattern: RegExp;
-
-            if (params.regex) {
-              try {
-                searchPattern = new RegExp(query, params.caseSensitive ? 'g' : 'gi');
-              } catch {
-                // Invalid regex, treat as literal
-                const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                searchPattern = new RegExp(escaped, params.caseSensitive ? 'g' : 'gi');
-              }
-            } else {
-              // Escape special chars for literal search
-              let escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-              if (params.wholeWord) {
-                escaped = `\\b${escaped}\\b`;
-              }
-              searchPattern = new RegExp(escaped, params.caseSensitive ? 'g' : 'gi');
-            }
-
-            this.data.files.forEach((content, fileName) => {
-              const lines = content.split('\n');
-              lines.forEach((line, index) => {
-                let match: RegExpExecArray | null;
-                searchPattern.lastIndex = 0; // Reset for global regex
-                while ((match = searchPattern.exec(line)) !== null) {
-                  results.push({
-                    fileName,
-                    lineNumber: index + 1,
-                    lineContent: line.trim().substring(0, 100), // Truncate long lines
-                    matchIndex: match.index,
-                    matchLength: match[0].length
-                  });
-                }
-              });
-            });
-            resolve(results);
-          } catch (err) {
-            console.error('Search validation error', err);
-            resolve([]);
-          }
-        }, 0);
-      });
-    }
-  });
-
-  // Group search results by file
-  groupedSearchResults = computed(() => {
-    const results = this.searchResource.value() ?? [];
-    const groups = new Map<string, SearchResult[]>();
-
-    results.forEach(result => {
-      if (!groups.has(result.fileName)) {
-        groups.set(result.fileName, []);
-      }
-      groups.get(result.fileName)!.push(result);
-    });
-
-    // Sort files by name
-    return Array.from(groups.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-  });
-
   // Store decoration collection for cleanup
   private decorationsCollection: import('monaco-editor').editor.IEditorDecorationsCollection | null = null;
   private highlightTimeoutId: ReturnType<typeof setTimeout> | null = null;
@@ -276,6 +171,10 @@ export class FileViewerDialogComponent implements OnDestroy {
     // Without this, every keystroke mutated the caller's map, so closing
     // without saving still left the change in place on reopen.
     this.data.files = new Map(this.data.files);
+
+    this.searchEngine.bind(this.data.files, (fileName, content) => {
+      this.editorRef()?.updateFileContent(fileName, content);
+    });
 
     // Initialize active file
     if (this.data.initialFile) {
@@ -323,7 +222,7 @@ export class FileViewerDialogComponent implements OnDestroy {
 
     // Effect to highlight matches when search results or active file changes
     effect(() => {
-      const results: SearchResult[] = this.searchResource.value() ?? [];
+      const results: SearchResult[] = this.searchEngine.searchResource.value() ?? [];
       const activeFileName = this.activeFile();
       void this.editorRef();
 
@@ -380,258 +279,12 @@ export class FileViewerDialogComponent implements OnDestroy {
     this.isDiffView.update(v => !v);
   }
 
-  /** Toggle regex option */
-  toggleRegex(): void {
-    this.isRegex.update(v => !v);
-  }
-
-  /** Toggle whole word option */
-  toggleWholeWord(): void {
-    this.isWholeWord.update(v => !v);
-  }
-
-  /** Toggle case sensitive option */
-  toggleCaseSensitive(): void {
-    this.isCaseSensitive.update(v => !v);
-  }
-
-  /** Toggle replace input visibility */
-  toggleReplaceExpanded(): void {
-    this.isReplaceExpanded.update(v => !v);
-  }
-
-  /** Toggle collapse state of a file in search results */
-  toggleFileCollapse(fileName: string): void {
-    this.collapsedFiles.update(set => {
-      const next = new Set(set);
-      if (next.has(fileName)) {
-        next.delete(fileName);
-      } else {
-        next.add(fileName);
-      }
-      return next;
-    });
-  }
-
-  /** Replace match in a specific file at a specific position */
-  async replaceInFile(result: SearchResult): Promise<void> {
-    const content = this.data.files.get(result.fileName);
-    if (!content) return;
-
-    const lines = content.split('\n');
-    const lineIndex = result.lineNumber - 1;
-    if (lineIndex < 0 || lineIndex >= lines.length) return;
-
-    const line = lines[lineIndex];
-    const replaceWith = this.replaceQuery();
-    const query = this.searchQuery();
-
-    // Build the same search pattern used in search
-    let searchPattern: RegExp;
-    if (this.isRegex()) {
-      try {
-        // Non-global for single replacement
-        searchPattern = new RegExp(query, this.isCaseSensitive() ? '' : 'i');
-      } catch {
-        const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        searchPattern = new RegExp(escaped, this.isCaseSensitive() ? '' : 'i');
-      }
-    } else {
-      let escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      if (this.isWholeWord()) {
-        escaped = `\\b${escaped}\\b`;
-      }
-      searchPattern = new RegExp(escaped, this.isCaseSensitive() ? '' : 'i');
+  /** Replace All — engine does the work; show snackbar on completion. */
+  async runReplaceAllMatches(): Promise<void> {
+    const { replaced, files } = await this.searchEngine.replaceAllMatches();
+    if (replaced > 0) {
+      this.snackBar.open(`Replaced ${replaced} occurrences in ${files} file(s)`, 'Close', { duration: 3000 });
     }
-
-    // Replace the specific occurrence at matchIndex
-    const before = line.substring(0, result.matchIndex);
-    const after = line.substring(result.matchIndex);
-    const newAfter = after.replace(searchPattern, replaceWith);
-    lines[lineIndex] = before + newAfter;
-
-    const newContent = lines.join('\n');
-    this.data.files.set(result.fileName, newContent);
-
-    // Update Monaco model via editor component
-    const editor = this.editorRef();
-    if (editor) {
-      editor.updateFileContent(result.fileName, newContent);
-    }
-
-    // Re-run search to update results
-    this.searchResource.reload();
-  }
-
-  /** Replace all matches across all files */
-  async replaceAllMatches(): Promise<void> {
-    const results: SearchResult[] = this.searchResource.value() ?? [];
-    if (results.length === 0) return;
-
-    this.isReplacing.set(true);
-    try {
-      const query = this.searchQuery();
-      const replaceWith = this.replaceQuery();
-
-      // Build global search pattern
-      let searchPattern: RegExp;
-      if (this.isRegex()) {
-        try {
-          searchPattern = new RegExp(query, this.isCaseSensitive() ? 'g' : 'gi');
-        } catch {
-          const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          searchPattern = new RegExp(escaped, this.isCaseSensitive() ? 'g' : 'gi');
-        }
-      } else {
-        let escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        if (this.isWholeWord()) {
-          escaped = `\\b${escaped}\\b`;
-        }
-        searchPattern = new RegExp(escaped, this.isCaseSensitive() ? 'g' : 'gi');
-      }
-
-      // Group results by file and replace all occurrences in each file
-      const affectedFiles = new Set(results.map(r => r.fileName));
-      const editor = this.editorRef();
-
-      for (const fileName of affectedFiles) {
-        const content = this.data.files.get(fileName);
-        if (!content) continue;
-
-        const newContent = content.replace(searchPattern, replaceWith);
-        this.data.files.set(fileName, newContent);
-
-        // Update Monaco model
-        if (editor) {
-          editor.updateFileContent(fileName, newContent);
-        }
-      }
-
-      // Re-run search (should now return empty)
-      this.searchResource.reload();
-
-      this.snackBar.open(`Replaced ${results.length} occurrences in ${affectedFiles.size} file(s)`, 'Close', { duration: 3000 });
-    } finally {
-      this.isReplacing.set(false);
-    }
-  }
-
-  /** Generate HTML content with highlighted match for preview */
-  getHighlightedContent(result: SearchResult): string {
-    // Get the original line (not trimmed) to find the match
-    const originalLine = this.data.files.get(result.fileName)?.split('\n')[result.lineNumber - 1] || '';
-    const matchStart = result.matchIndex;
-    const matchEnd = matchStart + result.matchLength;
-
-    // Show minimal context around the match to fit narrow sidebar
-    const contextBefore = 20;
-    const contextAfter = 100;
-    const start = Math.max(0, matchStart - contextBefore);
-    const end = Math.min(originalLine.length, matchEnd + contextAfter);
-
-    // Build the preview string with highlight
-    const prefix = start > 0 ? '...' : '';
-    const suffix = end < originalLine.length ? '...' : '';
-
-    const before = originalLine.substring(start, matchStart);
-    const match = originalLine.substring(matchStart, matchEnd);
-    const after = originalLine.substring(matchEnd, end);
-
-    return `${prefix}${this.escapeHtml(before)}<span class="match-highlight">${this.escapeHtml(match)}</span>${this.escapeHtml(after)}${suffix}`;
-  }
-
-  /** Generate HTML content with replacement preview */
-  getReplacePreview(result: SearchResult): string {
-    const originalLine = this.data.files.get(result.fileName)?.split('\n')[result.lineNumber - 1] || '';
-    const query = this.searchQuery();
-    const replaceWith = this.replaceQuery();
-
-    let searchPattern: RegExp;
-    try {
-      if (this.isRegex()) {
-        searchPattern = new RegExp(query, this.isCaseSensitive() ? '' : 'i');
-      } else {
-        let escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        if (this.isWholeWord()) {
-          escaped = `\\b${escaped}\\b`;
-        }
-        searchPattern = new RegExp(escaped, this.isCaseSensitive() ? '' : 'i');
-      }
-
-      const matchStart = result.matchIndex;
-      const matchEnd = matchStart + result.matchLength;
-
-      const match = originalLine.substring(matchStart, matchEnd);
-
-      // Perform the replacement on just the match part to see what it becomes
-      const substitutedMatch = match.replace(searchPattern, replaceWith);
-
-      // Show minimal context
-      const contextBefore = 10;
-      const contextAfter = 15;
-      const start = Math.max(0, matchStart - contextBefore);
-      const end = Math.min(originalLine.length, matchEnd + contextAfter);
-
-      const prefix = start > 0 ? '...' : '';
-      const suffix = end < originalLine.length ? '...' : '';
-
-      const previewBefore = originalLine.substring(start, matchStart);
-      const previewAfter = originalLine.substring(matchEnd, Math.min(originalLine.length, matchEnd + contextAfter));
-
-      return `${prefix}${this.escapeHtml(previewBefore)}<span class="replace-preview-text">${this.escapeHtml(substitutedMatch)}</span>${this.escapeHtml(previewAfter)}${suffix}`;
-    } catch {
-      return 'Invalid Regex';
-    }
-  }
-
-  /** Generate combined diff-style HTML for replace preview */
-  getCombinedDiffPreview(result: SearchResult): string {
-    const originalLine = this.data.files.get(result.fileName)?.split('\n')[result.lineNumber - 1] || '';
-    const query = this.searchQuery();
-    const replaceWith = this.replaceQuery();
-
-    let searchPattern: RegExp;
-    try {
-      if (this.isRegex()) {
-        searchPattern = new RegExp(query, this.isCaseSensitive() ? '' : 'i');
-      } else {
-        let escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        if (this.isWholeWord()) {
-          escaped = `\\b${escaped}\\b`;
-        }
-        searchPattern = new RegExp(escaped, this.isCaseSensitive() ? '' : 'i');
-      }
-
-      const matchStart = result.matchIndex;
-      const matchEnd = matchStart + result.matchLength;
-
-      const prefix_len = 20;
-      const suffix_len = 100;
-      const start = Math.max(0, matchStart - prefix_len);
-      const end = Math.min(originalLine.length, matchEnd + suffix_len);
-
-      const prefix = start > 0 ? '...' : '';
-      const suffix = end < originalLine.length ? '...' : '';
-
-      const beforeMatch = originalLine.substring(start, matchStart);
-      const match = originalLine.substring(matchStart, matchEnd);
-      const afterMatch = originalLine.substring(matchEnd, end);
-
-      const substitutedMatch = match.replace(searchPattern, replaceWith);
-
-      return `${prefix}${this.escapeHtml(beforeMatch)}<span class="diff-removed">${this.escapeHtml(match)}</span><span class="diff-added">${this.escapeHtml(substitutedMatch)}</span>${this.escapeHtml(afterMatch)}${suffix}`;
-    } catch {
-      return 'Invalid Regex';
-    }
-  }
-
-  /** Escape HTML special characters */
-  private escapeHtml(text: string): string {
-    return text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
   }
 
   /** Navigate to a search result */
