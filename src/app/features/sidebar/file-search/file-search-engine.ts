@@ -1,9 +1,8 @@
 import { Injectable, computed, resource, signal } from '@angular/core';
 import {
   type SearchResult,
-  buildSearchPattern,
   buildSearchPatternOrLiteral,
-  findMatchesInFiles,
+  findMatchesInLines,
   formatCombinedDiffPreview,
   formatHighlightedSnippet,
 } from './file-search.util';
@@ -48,13 +47,19 @@ export class FileSearchEngine {
       wholeWord: this.isWholeWord(),
       caseSensitive: this.isCaseSensitive(),
     }),
-    loader: async ({ params }) => {
+    loader: async ({ params, abortSignal }) => {
       if (!params.query) return [];
-      // setTimeout(0) lets the loading state paint before the synchronous walk.
+      // setTimeout(0) lets the loading state paint before the synchronous walk;
+      // abortSignal lets a fast typist's earlier loaders short-circuit instead
+      // of running the walk against stale params.
       return new Promise<SearchResult[]>((resolve) => {
         setTimeout(() => {
+          if (abortSignal.aborted) {
+            resolve([]);
+            return;
+          }
           try {
-            resolve(findMatchesInFiles(this.files, params));
+            resolve(findMatchesInLines(this.getLinesPerFile(), params));
           } catch (err) {
             console.error('Search validation error', err);
             resolve([]);
@@ -129,7 +134,10 @@ export class FileSearchEngine {
       for (const fileName of affected) {
         const content = this.files.get(fileName);
         if (!content) continue;
-        const newContent = content.replace(pattern, replaceWith);
+        // Replace per line — mirrors the per-line search loop so patterns like
+        // `\s+` or `\W+` cannot consume newlines and silently merge lines.
+        const newLines = this.linesFor(fileName, content).map((line) => line.replace(pattern, replaceWith));
+        const newContent = newLines.join('\n');
         this.files.set(fileName, newContent);
         this.onFileChanged?.(fileName, newContent);
       }
@@ -148,12 +156,11 @@ export class FileSearchEngine {
 
   getCombinedDiffPreview(result: SearchResult): string {
     const line = this.lineFor(result);
-    try {
-      const pattern = buildSearchPattern(this.currentOptions(), false);
-      return formatCombinedDiffPreview(line, result.matchIndex, result.matchIndex + result.matchLength, pattern, this.replaceQuery());
-    } catch {
-      return 'Invalid Regex';
-    }
+    // Match search/replace's literal fallback: an invalid regex still highlights
+    // the literal hits the result list shows — the diff would otherwise read
+    // 'Invalid Regex' for entries that DO have a working literal replacement.
+    const pattern = buildSearchPatternOrLiteral(this.currentOptions(), false);
+    return formatCombinedDiffPreview(line, result.matchIndex, result.matchIndex + result.matchLength, pattern, this.replaceQuery());
   }
 
   private currentOptions() {
@@ -168,10 +175,21 @@ export class FileSearchEngine {
   private lineFor(result: SearchResult): string {
     const content = this.files.get(result.fileName);
     if (content === undefined) return '';
-    const cached = this.linesCache.get(result.fileName);
-    if (cached?.content === content) return cached.lines[result.lineNumber - 1] ?? '';
+    return this.linesFor(result.fileName, content)[result.lineNumber - 1] ?? '';
+  }
+
+  private linesFor(fileName: string, content: string): string[] {
+    const cached = this.linesCache.get(fileName);
+    if (cached?.content === content) return cached.lines;
     const lines = content.split('\n');
-    this.linesCache.set(result.fileName, { content, lines });
-    return lines[result.lineNumber - 1] ?? '';
+    this.linesCache.set(fileName, { content, lines });
+    return lines;
+  }
+
+  /** Snapshot of all files as pre-split lines, reusing the lines cache where possible. */
+  private getLinesPerFile(): Map<string, string[]> {
+    const out = new Map<string, string[]>();
+    this.files.forEach((content, fileName) => out.set(fileName, this.linesFor(fileName, content)));
+    return out;
   }
 }

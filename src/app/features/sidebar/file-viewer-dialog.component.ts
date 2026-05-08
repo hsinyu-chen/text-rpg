@@ -174,6 +174,16 @@ export class FileViewerDialogComponent implements OnDestroy {
 
     this.searchEngine.bind(this.data.files, (fileName, content) => {
       this.editorRef()?.updateFileContent(fileName, content);
+      // Replace All can mutate non-active files which never reach Monaco's
+      // valueChange path — sync unsaved state explicitly so the close-confirm
+      // dialog still fires.
+      const savedContent = this.dbBaselineSnapshot().get(fileName) ?? '';
+      this.unsavedFiles.update((set) => {
+        const next = new Set(set);
+        if (content !== savedContent) next.add(fileName);
+        else next.delete(fileName);
+        return next;
+      });
     });
 
     // Initialize active file

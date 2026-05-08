@@ -3,10 +3,17 @@ import {
   buildSearchPattern,
   buildSearchPatternOrLiteral,
   escapeHtml,
-  findMatchesInFiles,
+  findMatchesInLines,
   formatCombinedDiffPreview,
   formatHighlightedSnippet,
 } from './file-search.util';
+
+const split = (content: string): string[] => content.split('\n');
+const filesToLines = (files: Map<string, string>): Map<string, string[]> => {
+  const out = new Map<string, string[]>();
+  files.forEach((content, fileName) => out.set(fileName, split(content)));
+  return out;
+};
 
 describe('buildSearchPattern', () => {
   it('builds a case-insensitive global+multiline literal pattern by default', () => {
@@ -78,17 +85,19 @@ describe('buildSearchPatternOrLiteral', () => {
   });
 });
 
-describe('findMatchesInFiles', () => {
+describe('findMatchesInLines', () => {
   const opts = { regex: false, wholeWord: false, caseSensitive: false };
+  const find = (files: Map<string, string>, o: typeof opts) =>
+    findMatchesInLines(filesToLines(files), o);
 
   it('returns empty for empty query', () => {
     const files = new Map([['a.md', 'hello']]);
-    expect(findMatchesInFiles(files, { ...opts, query: '' })).toEqual([]);
+    expect(find(files, { ...opts, query: '' })).toEqual([]);
   });
 
   it('searches for literal whitespace when query is whitespace-only', () => {
     const files = new Map([['a.md', 'a  b\nc d']]);
-    const results = findMatchesInFiles(files, { ...opts, query: '  ' });
+    const results = find(files, { ...opts, query: '  ' });
     expect(results).toHaveLength(1);
     expect(results[0]).toMatchObject({ lineNumber: 1, matchIndex: 1 });
   });
@@ -97,21 +106,21 @@ describe('findMatchesInFiles', () => {
     const files = new Map([['a.md', 'abc']]);
     // `a*` is zero-width at every cursor position — the lastIndex guard prevents
     // an infinite loop while still yielding the expected per-position match set.
-    const results = findMatchesInFiles(files, { ...opts, query: 'a*', regex: true });
+    const results = find(files, { ...opts, query: 'a*', regex: true });
     expect(results.length).toBeGreaterThan(0);
     expect(results.length).toBeLessThan(100);
   });
 
   it('finds a single match with correct line + index', () => {
     const files = new Map([['a.md', 'first line\nsecond foo line']]);
-    const results = findMatchesInFiles(files, { ...opts, query: 'foo' });
+    const results = find(files, { ...opts, query: 'foo' });
     expect(results).toHaveLength(1);
     expect(results[0]).toMatchObject({ fileName: 'a.md', lineNumber: 2, matchIndex: 7, matchLength: 3 });
   });
 
   it('finds multiple matches on the same line', () => {
     const files = new Map([['a.md', 'foo bar foo baz foo']]);
-    const results = findMatchesInFiles(files, { ...opts, query: 'foo' });
+    const results = find(files, { ...opts, query: 'foo' });
     expect(results).toHaveLength(3);
     expect(results.map((r) => r.matchIndex)).toEqual([0, 8, 16]);
   });
@@ -121,19 +130,19 @@ describe('findMatchesInFiles', () => {
       ['a.md', 'foo'],
       ['b.md', 'foo\nfoo'],
     ]);
-    const results = findMatchesInFiles(files, { ...opts, query: 'foo' });
+    const results = find(files, { ...opts, query: 'foo' });
     expect(results.map((r) => r.fileName)).toEqual(['a.md', 'b.md', 'b.md']);
   });
 
   it('honours regex mode', () => {
     const files = new Map([['a.md', 'aaa abb abc']]);
-    const results = findMatchesInFiles(files, { ...opts, query: 'a[bc]', regex: true });
+    const results = find(files, { ...opts, query: 'a[bc]', regex: true });
     expect(results.map((r) => r.matchIndex)).toEqual([4, 8]);
   });
 
   it('falls back to literal on invalid regex (does not throw)', () => {
     const files = new Map([['a.md', '(parens)']]);
-    const results = findMatchesInFiles(files, { ...opts, query: '(', regex: true });
+    const results = find(files, { ...opts, query: '(', regex: true });
     expect(results).toHaveLength(1);
     expect(results[0].matchIndex).toBe(0);
   });

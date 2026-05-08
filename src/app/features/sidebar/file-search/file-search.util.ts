@@ -56,9 +56,14 @@ function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-/** Walk every line of every file with a global pattern, collecting matches. */
-export function findMatchesInFiles(
-  files: Map<string, string>,
+/**
+ * Walk every line of every file with a global pattern, collecting matches.
+ *
+ * Takes pre-split lines (not raw content) so the engine can reuse its own
+ * lines cache instead of re-splitting on each search trigger.
+ */
+export function findMatchesInLines(
+  linesByFile: Map<string, string[]>,
   opts: SearchOptions,
 ): SearchResult[] {
   if (!opts.query) return [];
@@ -66,8 +71,7 @@ export function findMatchesInFiles(
   const pattern = buildSearchPatternOrLiteral(opts, true);
   const results: SearchResult[] = [];
 
-  files.forEach((content, fileName) => {
-    const lines = content.split('\n');
+  linesByFile.forEach((lines, fileName) => {
     lines.forEach((line, index) => {
       let match: RegExpExecArray | null;
       pattern.lastIndex = 0;
