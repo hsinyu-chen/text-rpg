@@ -9,6 +9,8 @@ import { StreamProcessorService } from '../stream-processor.service';
 import { GameStateService } from '../game-state.service';
 import { KVStore } from '../kv/kv-store';
 import { InMemoryKVStore } from '../../testing/in-memory-kv-store';
+import { LLM_STORAGE_TOKEN } from '@hcs/llm-angular-common';
+import type { ILLMStorage } from '@hcs/llm-core';
 import { LanguageService } from '../language.service';
 import { KnowledgeService } from '../knowledge.service';
 import { CostService } from '../cost.service';
@@ -20,6 +22,17 @@ import type {
     StructuredAnalysis
 } from '@app/core/constants/engine-protocol-structured';
 import type { ChatMessage } from '@app/core/models/types';
+
+/** Minimal ILLMStorage stub — LLMConfigService is in the DI graph but never exercised in this spec. */
+function stubLLMStorage(): ILLMStorage {
+    return {
+        getAll: async () => [],
+        getById: async () => undefined,
+        save: async () => undefined,
+        delete: async () => undefined,
+        subscribe: () => () => undefined,
+    };
+}
 
 function step(overrides: Partial<AnalysisStep> = {}): AnalysisStep {
     return {
@@ -91,6 +104,7 @@ describe('two-call orchestrator integration', () => {
                 CostService,
                 KnowledgeService,
                 { provide: KVStore, useValue: new InMemoryKVStore() },
+                { provide: LLM_STORAGE_TOKEN, useValue: stubLLMStorage() },
                 { provide: GameStateService, useValue: fakeState }
             ]
         });
