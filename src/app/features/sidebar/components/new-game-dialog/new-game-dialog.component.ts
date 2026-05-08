@@ -387,7 +387,11 @@ export class NewGameDialogComponent {
             });
         } catch (err) {
             console.error('[CreateWorld] Failed:', err);
-            this.snackBar.open('Failed to load world template files.', 'Close', { duration: 5000 });
+            this.snackBar.open(
+                this.i18n.translate('sidebar.newGame.failedLoadTemplates'),
+                this.i18n.translate('ui.CLOSE'),
+                { duration: 5000 },
+            );
         } finally {
             this.isLoading.set(false);
         }
