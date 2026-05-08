@@ -295,6 +295,7 @@ export const zhTW: TranslationDict = {
         contextCompressedHint: '較舊的回合會折成 smart-context 摘要區塊（每 10 個模型訊息一塊）。',
         contextRecentHint: '最近的回合會原文送出（smart-context 視窗範圍）。',
         contextBufferHint: '保留給：下一筆使用者輸入 + CoT 思考 + 模型輸出。以上一回合的實際總量校準；下限 5,000。',
+        totalLabel: '總計',
     },
     settings: {
         title: '設定',

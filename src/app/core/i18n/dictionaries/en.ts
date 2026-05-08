@@ -295,6 +295,7 @@ export const en: TranslationDict = {
         contextCompressedHint: 'Older turns folded into smart-context summary blocks (every 10 model messages).',
         contextRecentHint: 'Recent turns sent verbatim (smart-context window).',
         contextBufferHint: "Reserved for next user input + CoT thinking + model output. Calibrated from the last turn's observed total; floor 5,000.",
+        totalLabel: 'Total',
     },
     settings: {
         title: 'Configuration',

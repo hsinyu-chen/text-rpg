@@ -24,26 +24,26 @@
             (click)="toggleBreakdown()"
             (keydown.enter)="toggleBreakdown()"
             (keydown.space)="$event.preventDefault(); toggleBreakdown()"
-            [matTooltip]="breakdownExpanded() ? 'Click to collapse breakdown' : 'Click to expand breakdown'">
+            [matTooltip]="'dialog.contextToggleBreakdown' | translate">
             <div class="ctx-label">
                 <mat-icon inline>memory</mat-icon>
-                <span>Context</span>
+                <span>{{ 'dialog.contextLabel' | translate }}</span>
                 <span class="ctx-pct">{{ contextUsagePercent() | number:'1.0-1' }}%</span>
                 <mat-icon class="ctx-chevron" inline>{{ breakdownExpanded() ? 'expand_less' : 'expand_more' }}</mat-icon>
             </div>
             <div class="ctx-bar">
                 <div class="ctx-segment seg-system" [style.width.%]="systemPct()"
-                    matTooltip="System Prompt"></div>
+                    [matTooltip]="'dialog.contextSystemPrompt' | translate"></div>
                 <div class="ctx-segment seg-kb" [style.width.%]="kbPct()"
-                    matTooltip="Knowledge Base"></div>
+                    [matTooltip]="'dialog.contextKnowledgeBase' | translate"></div>
                 <div class="ctx-segment seg-history-compressed" [style.width.%]="historyCompressedPct()"
-                    matTooltip="Chat History — Compressed"></div>
+                    [matTooltip]="'dialog.contextChatHistoryCompressed' | translate"></div>
                 <div class="ctx-segment seg-history-recent" [style.width.%]="historyRecentPct()"
-                    matTooltip="Chat History — Recent (raw)"></div>
+                    [matTooltip]="'dialog.contextChatHistoryRecent' | translate"></div>
                 <div class="ctx-segment seg-injection" [style.width.%]="injectionPct()"
-                    matTooltip="Injection (Protocol + Action)"></div>
+                    [matTooltip]="'dialog.contextInjection' | translate"></div>
                 <div class="ctx-segment seg-buffer" [style.width.%]="bufferPct()"
-                    matTooltip="Action & Output Buffer"></div>
+                    [matTooltip]="'dialog.contextActionOutputBuffer' | translate"></div>
             </div>
             <div class="ctx-counts">{{ contextUsed() | number }} / {{ ctxSize | number }} tk</div>
 
@@ -54,44 +54,44 @@
                 (keydown)="$event.stopPropagation()">
                 <div class="breakdown-row">
                     <span class="seg-dot seg-system"></span>
-                    <span class="breakdown-label">System Prompt</span>
+                    <span class="breakdown-label">{{ 'dialog.contextSystemPrompt' | translate }}</span>
                     <span class="breakdown-val">{{ composition.systemPromptTokens() | number }}</span>
                 </div>
                 <div class="breakdown-row">
                     <span class="seg-dot seg-kb"></span>
-                    <span class="breakdown-label">Knowledge Base</span>
+                    <span class="breakdown-label">{{ 'dialog.contextKnowledgeBase' | translate }}</span>
                     <span class="breakdown-val">{{ state.estimatedKbTokens() | number }}</span>
                 </div>
                 <div class="breakdown-row">
                     <span class="seg-dot seg-history"></span>
-                    <span class="breakdown-label">Chat History</span>
+                    <span class="breakdown-label">{{ 'dialog.contextChatHistory' | translate }}</span>
                     <span class="breakdown-val">{{ composition.historyTokens() | number }}</span>
                 </div>
                 <div class="breakdown-row sub"
-                    matTooltip="Older turns folded into smart-context summary blocks (every 10 model messages).">
+                    [matTooltip]="'dialog.contextCompressedHint' | translate">
                     <span class="seg-dot seg-history-compressed"></span>
-                    <span class="breakdown-label">— Compressed</span>
+                    <span class="breakdown-label">{{ 'dialog.contextCompressed' | translate }}</span>
                     <span class="breakdown-val">{{ composition.historyCompressedTokens() | number }}</span>
                 </div>
                 <div class="breakdown-row sub"
-                    matTooltip="Recent turns sent verbatim (smart-context window).">
+                    [matTooltip]="'dialog.contextRecentHint' | translate">
                     <span class="seg-dot seg-history-recent"></span>
-                    <span class="breakdown-label">— Recent (raw)</span>
+                    <span class="breakdown-label">{{ 'dialog.contextRecentRaw' | translate }}</span>
                     <span class="breakdown-val">{{ composition.historyRecentTokens() | number }}</span>
                 </div>
                 <div class="breakdown-row" [matTooltip]="injectionBreakdownTooltip()">
                     <span class="seg-dot seg-injection"></span>
-                    <span class="breakdown-label">Injection</span>
+                    <span class="breakdown-label">{{ 'dialog.contextInjectionShort' | translate }}</span>
                     <span class="breakdown-val">{{ composition.effectiveInjectionTokens() | number }}</span>
                 </div>
                 <div class="breakdown-row"
-                    matTooltip="Reserved for next user input + CoT thinking + model output. Calibrated from the last turn's observed total; floor 5,000.">
+                    [matTooltip]="'dialog.contextBufferHint' | translate">
                     <span class="seg-dot seg-buffer"></span>
-                    <span class="breakdown-label">Action & Output Buffer</span>
+                    <span class="breakdown-label">{{ 'dialog.contextActionOutputBuffer' | translate }}</span>
                     <span class="breakdown-val">{{ composition.bufferTokens() | number }}</span>
                 </div>
                 <div class="breakdown-row total">
-                    <span class="breakdown-label">Total</span>
+                    <span class="breakdown-label">{{ 'dialog.totalLabel' | translate }}</span>
                     <span class="breakdown-val">{{ contextUsed() | number }} / {{ ctxSize | number }}</span>
                 </div>
             </div>

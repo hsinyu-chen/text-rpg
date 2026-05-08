@@ -7,6 +7,7 @@ import { GameStateService } from '@app/core/services/game-state.service';
 import { LLMProviderRegistryService } from '@app/core/services/llm-provider-registry.service';
 import { ContextCompositionService } from '@app/core/services/context-composition.service';
 import { AppConfigStore } from '@app/core/services/app-config-store';
+import { TranslatePipe } from '@app/core/i18n';
 
 /**
  * Renders a five-segment context-window usage bar (system / KB / chat history
@@ -23,7 +24,7 @@ import { AppConfigStore } from '@app/core/services/app-config-store';
 @Component({
     selector: 'app-context-usage-bar',
     standalone: true,
-    imports: [CommonModule, MatIconModule, MatTooltipModule],
+    imports: [CommonModule, MatIconModule, MatTooltipModule, TranslatePipe],
     templateUrl: './context-usage-bar.component.html',
     styleUrl: './context-usage-bar.component.scss',
     // Variant becomes a host class so the host element itself can `flex: 1`
