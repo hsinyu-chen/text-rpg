@@ -6,23 +6,23 @@
         <!-- Toolbar for User Msg -->
         <div class="msg-toolbar">
             <button mat-icon-button class="mini-btn" (click)="state.toggleRefOnly()" [disabled]="isBusy()"
-                [matTooltip]="msg.isRefOnly ? 'Include in Story' : 'Mark as Ref Only'">
+                [matTooltip]="(msg.isRefOnly ? 'ui.INCLUDE_IN_STORY' : 'ui.MARK_AS_REF_ONLY') | translate">
                 <mat-icon>{{ msg.isRefOnly ? 'link' : 'link_off' }}</mat-icon>
             </button>
             <!-- Rewind & Resend Button (Only Last User Msg) -->
             @if (isLastUser()) {
             <button mat-icon-button class="mini-btn" (click)="onEditAndResend()" [disabled]="isBusy()"
-                matTooltip="Edit & Resend (Deletes subsequent history)">
+                [matTooltip]="'ui.EDIT_RESEND_TOOLTIP' | translate">
                 <mat-icon>history_edu</mat-icon>
             </button>
             }
 
             <button mat-icon-button class="mini-btn delete-btn" (click)="state.deleteMessageAndFollowing()"
-                [disabled]="isBusy()" matTooltip="Delete This and All Following">
+                [disabled]="isBusy()" [matTooltip]="'ui.DELETE_ALL_FOLLOWING' | translate">
                 <mat-icon>delete_sweep</mat-icon>
             </button>
             <button mat-icon-button class="mini-btn delete-btn" (click)="state.deleteMessage()" [disabled]="isBusy()"
-                matTooltip="Delete Message">
+                [matTooltip]="'ui.DELETE_MESSAGE' | translate">
                 <mat-icon>delete</mat-icon>
             </button>
         </div>
@@ -43,7 +43,7 @@
                 {{ idealOutcomeChipPrefix() }}{{ msg.userIdealOutcome }}
             </span>
             }
-            User Action @if (msg.isRefOnly) { <span>(Ref Only)</span> }
+            {{ 'ui.USER_ACTION_LABEL' | translate }} @if (msg.isRefOnly) { <span>{{ 'ui.REF_ONLY_LABEL' | translate }}</span> }
         </div>
     </div>
 </div>
@@ -59,32 +59,32 @@
             <div class="msg-toolbar">
                 @if (msg.intent === Intents.SAVE || msg.content.includes('<save')) { <button mat-icon-button
                     class="mini-btn update-btn" (click)="state.openAutoUpdateDialog()" [disabled]="isBusy()"
-                    matTooltip="Auto Update Files">
+                    [matTooltip]="'ui.AUTO_UPDATE_FILES' | translate">
                     <mat-icon>auto_fix_high</mat-icon>
                     </button>
                     }
                     <button mat-icon-button class="mini-btn" (click)="state.copyPairJSON()" [disabled]="isBusy()"
-                        matTooltip="Copy JSON Pair (User+Model)">
+                        [matTooltip]="'ui.COPY_JSON_PAIR' | translate">
                         <mat-icon>content_copy</mat-icon>
                     </button>
                     <button mat-icon-button class="mini-btn" (click)="state.toggleRaw()" [disabled]="isBusy()"
-                        matTooltip="Toggle Raw/Render">
+                        [matTooltip]="'ui.TOGGLE_RAW_RENDER' | translate">
                         <mat-icon>code</mat-icon>
                     </button>
                     <button mat-icon-button class="mini-btn" (click)="state.enterEditMode()" [disabled]="isBusy()"
-                        matTooltip="Edit Text">
+                        [matTooltip]="'ui.EDIT_TEXT' | translate">
                         <mat-icon>edit</mat-icon>
                     </button>
                     <button mat-icon-button class="mini-btn" (click)="state.toggleRefOnly()" [disabled]="isBusy()"
-                        [matTooltip]="msg.isRefOnly ? 'Include in Story' : 'Mark as Ref Only'">
+                        [matTooltip]="(msg.isRefOnly ? 'ui.INCLUDE_IN_STORY' : 'ui.MARK_AS_REF_ONLY') | translate">
                         <mat-icon>{{ msg.isRefOnly ? 'link' : 'link_off' }}</mat-icon>
                     </button>
                     <button mat-icon-button class="mini-btn delete-btn" (click)="state.deleteMessageAndFollowing()"
-                        [disabled]="isBusy()" matTooltip="Delete This and All Following">
+                        [disabled]="isBusy()" [matTooltip]="'ui.DELETE_ALL_FOLLOWING' | translate">
                         <mat-icon>delete_sweep</mat-icon>
                     </button>
                     <button mat-icon-button class="mini-btn delete-btn" (click)="state.deleteMessage()"
-                        [disabled]="isBusy()" matTooltip="Delete Message">
+                        [disabled]="isBusy()" [matTooltip]="'ui.DELETE_MESSAGE' | translate">
                         <mat-icon>delete</mat-icon>
                     </button>
             </div>
@@ -96,7 +96,7 @@
                 <div class="prefill-status">
                     <div class="status-main">
                         <mat-icon class="status-icon">sync_alt</mat-icon>
-                        <span class="status-text">Prefilling Context... {{ (msg.progress * 100) | number:'1.0-0' }}%</span>
+                        <span class="status-text">{{ 'ui.PREFILLING_CONTEXT_PROGRESS' | translate: { percent: ((msg.progress * 100) | number:'1.0-0') ?? '' } }}</span>
                     </div>
                     <div class="prefill-metrics">
                         @if (msg.usage?.promptProcessed) {
@@ -106,7 +106,7 @@
                         <span class="metric-item">{{ prefillSpeed() | number:'1.0-0' }} tk/s</span>
                         }
                         @if (prefillETA()) {
-                        <span class="metric-item">ETA: {{ prefillETA() }}</span>
+                        <span class="metric-item">{{ 'ui.ETA_LABEL' | translate: { eta: prefillETA() ?? '' } }}</span>
                         }
                     </div>
                 </div>
@@ -115,16 +115,16 @@
 
             <!-- Context Status Indicator (If older than 5 turns) -->
             @if (!state.inContext() && msg.role === 'model' && !msg.isRefOnly) {
-            <div class="context-status" matTooltip="Referenced by Summary Only (Context Optimized)">
+            <div class="context-status" [matTooltip]="'ui.ARCHIVED_TOOLTIP' | translate">
                 <mat-icon>history</mat-icon>
-                <span>Archived</span>
+                <span>{{ 'ui.ARCHIVED_LABEL' | translate }}</span>
             </div>
             }
 
             <!-- Ref Only Collapsible Wrapper -->
             @if (msg.isRefOnly && !state.isRefExpanded()) {
             <div class="ref-only-collapsed" (click)="state.toggleRefExpanded()"
-                (keydown.enter)="state.toggleRefExpanded()" tabindex="0" matTooltip="Click to Expand">
+                (keydown.enter)="state.toggleRefExpanded()" tabindex="0" [matTooltip]="'ui.CLICK_TO_EXPAND' | translate">
                 <span class="collapsed-text">{{ msg.content.slice(0, 50) }}...</span>
                 <mat-icon class="expand-icon">expand_more</mat-icon>
             </div>
@@ -140,12 +140,16 @@
                             <mat-icon>{{ state.isThoughtVisible() || msg.isThinking ? 'expand_more' : 'chevron_right'
                                 }}</mat-icon>
                             <mat-icon class="brain-icon">psychology</mat-icon>
-                            <span>Model Thought Process</span>
+                            <span>{{ 'ui.MODEL_THOUGHT_PROCESS' | translate }}</span>
                         </div>
                         @if (msg.isThinking) {
                         <div class="header-status">
-                            @if (msg.progress !== undefined && msg.progress < 1) { Processing {{ (msg.progress * 100) |
-                                number:'1.0-0' }}%... } @else { Thinking... } </div>
+                            @if (msg.progress !== undefined && msg.progress < 1) {
+                                {{ 'ui.PROCESSING_PERCENT' | translate: { percent: ((msg.progress * 100) | number:'1.0-0') ?? '' } }}
+                            } @else {
+                                {{ 'ui.THINKING_DOTS' | translate }}
+                            }
+                        </div>
                                 }
                         </div>
                         @if (state.isThoughtVisible()) {
@@ -165,12 +169,16 @@
                         <div class="header-main">
                             <mat-icon>{{ state.isAnalysisVisible() ? 'expand_more' : 'chevron_right' }}</mat-icon>
                             <mat-icon class="brain-icon">fact_check</mat-icon>
-                            <span>Atomic Breakdown & Check</span>
+                            <span>{{ 'ui.ATOMIC_BREAKDOWN' | translate }}</span>
                         </div>
                         @if (msg.isThinking && !msg.thought && msg.analysis) {
                         <div class="header-status">
-                            @if (msg.progress !== undefined && msg.progress < 1) { Processing {{ (msg.progress * 100) |
-                                number:'1.0-0' }}%... } @else { Analyzing... } </div>
+                            @if (msg.progress !== undefined && msg.progress < 1) {
+                                {{ 'ui.PROCESSING_PERCENT' | translate: { percent: ((msg.progress * 100) | number:'1.0-0') ?? '' } }}
+                            } @else {
+                                {{ 'ui.ANALYZING_DOTS' | translate }}
+                            }
+                        </div>
                             }
                         </div>
                         @if (state.isAnalysisVisible()) {
@@ -191,12 +199,12 @@
                             <div class="header-main">
                                 <mat-icon>{{ state.isUpdateVisible() ? 'expand_more' : 'chevron_right' }}</mat-icon>
                                 <mat-icon class="brain-icon">update</mat-icon>
-                                <span>Turn Update</span>
+                                <span>{{ 'ui.TURN_UPDATE' | translate }}</span>
                             </div>
                             @if (msg.isThinking && (msg.summary || (msg.inventory_log?.length ?? 0) > 0 ||
                             (msg.quest_log?.length ?? 0) > 0 || (msg.world_log?.length ?? 0) > 0)) {
                             <div class="header-status">
-                                Updating...
+                                {{ 'ui.UPDATING_DOTS' | translate }}
                             </div>
                             }
                         </div>
@@ -228,7 +236,7 @@
                     }
                     @if (msg.isRefOnly) {
                     <div class="ref-only-collapse-footer" (click)="state.toggleRefExpanded()"
-                        (keydown.enter)="state.toggleRefExpanded()" tabindex="0" matTooltip="Collapse">
+                        (keydown.enter)="state.toggleRefExpanded()" tabindex="0" [matTooltip]="'ui.COLLAPSE_TOOLTIP' | translate">
                         <mat-icon>expand_less</mat-icon>
                     </div>
                     }
@@ -238,16 +246,16 @@
                     <div class="msg-meta">
                         @if (msg.intent) { <span class="intent-tag" [class.system]="msg.intent === Intents.SYSTEM"
                             [class.save]="msg.intent === Intents.SAVE">{{ getIntentLabel(msg.intent) }}</span> }
-                        @if (msg.correction) { <span class="correction-tag" [matTooltip]="msg.correction">(修正)</span> }
-                        Model Response @if (msg.isRefOnly) { <span>(Ref Only)</span> }
+                        @if (msg.correction) { <span class="correction-tag" [matTooltip]="msg.correction">{{ 'ui.CORRECTION_TAG' | translate }}</span> }
+                        {{ 'ui.MODEL_RESPONSE_LABEL' | translate }} @if (msg.isRefOnly) { <span>{{ 'ui.REF_ONLY_LABEL' | translate }}</span> }
                         @if (msg.usage) {
                         @if (msg.usage.promptSpeed) {
-                        <span class="metric-tag" [matTooltip]="'Prompt Processing: ' + msg.usage.prompt + ' tokens'">PP:
+                        <span class="metric-tag" [matTooltip]="'ui.PROMPT_PROCESSING_TOOLTIP' | translate: { tokens: msg.usage.prompt }">PP:
                             {{
                             msg.usage.promptSpeed | number:'1.1-1' }} tk/s</span>
                         }
                         @if (msg.usage.completionSpeed) {
-                        <span class="metric-tag" [matTooltip]="'Completion: ' + msg.usage.candidates + ' tokens'">Out:
+                        <span class="metric-tag" [matTooltip]="'ui.COMPLETION_TOOLTIP' | translate: { tokens: msg.usage.candidates }">Out:
                             {{
                             msg.usage.completionSpeed | number:'1.1-1' }} tk/s</span>
                         }
@@ -271,8 +279,8 @@
             </textarea>
                 </mat-form-field>
                 <div class="editor-actions">
-                    <button mat-button color="warn" (click)="state.cancelEdit()">Cancel</button>
-                    <button mat-flat-button color="primary" (click)="state.saveEdit()">Save</button>
+                    <button mat-button color="warn" (click)="state.cancelEdit()">{{ 'ui.CANCEL_EDIT_BTN' | translate }}</button>
+                    <button mat-flat-button color="primary" (click)="state.saveEdit()">{{ 'ui.SAVE_EDIT_BTN' | translate }}</button>
                 </div>
             </div>
         </ng-template>

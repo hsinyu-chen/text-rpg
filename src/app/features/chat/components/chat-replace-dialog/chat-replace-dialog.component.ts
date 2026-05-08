@@ -16,7 +16,7 @@ import { ChatHistoryService } from '@app/core/services/chat-history.service';
 import { GAME_INTENTS, GameIntent } from '@app/core/constants/game-intents';
 import { ChatMessage } from '@app/core/models/types';
 import { LanguageService } from '@app/core/services/language.service';
-import { I18nService } from '@app/core/i18n';
+import { I18nService, TranslatePipe } from '@app/core/i18n';
 
 export type SearchField = 'all' | 'story' | 'summary' | 'logs';
 
@@ -44,7 +44,8 @@ export interface ChatMatch {
         MatSelectModule,
         MatTooltipModule,
         MatProgressSpinnerModule,
-        MatSnackBarModule
+        MatSnackBarModule,
+        TranslatePipe
     ],
     templateUrl: './chat-replace-dialog.component.html',
     styleUrl: './chat-replace-dialog.component.scss'
@@ -228,7 +229,7 @@ export class ChatReplaceDialogComponent {
 
             return `${start > 0 ? '...' : ''}${this._escapeHtml(beforeMatch)}<span class="diff-removed">${this._escapeHtml(matchStr)}</span><span class="diff-added">${this._escapeHtml(substitutedMatch)}</span>${this._escapeHtml(afterMatch)}${end < content.length ? '...' : ''}`;
         } catch {
-            return 'Invalid Regex';
+            return this.i18n.translate('ui.INVALID_REGEX');
         }
     }
 

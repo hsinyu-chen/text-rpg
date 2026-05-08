@@ -14,6 +14,7 @@ import { GAME_INTENTS } from '@app/core/constants/game-intents';
 import { ChatMessageComponent } from './components/chat-message/chat-message.component';
 import { ChatInputComponent } from './components/chat-input/chat-input.component';
 import { TurnUpdatePanelComponent } from './components/turn-update-panel/turn-update-panel.component';
+import { TranslatePipe } from '@app/core/i18n';
 
 @Component({
     selector: 'app-chat',
@@ -26,7 +27,8 @@ import { TurnUpdatePanelComponent } from './components/turn-update-panel/turn-up
         MatSidenavModule,
         ChatMessageComponent,
         ChatInputComponent,
-        TurnUpdatePanelComponent
+        TurnUpdatePanelComponent,
+        TranslatePipe
     ],
     templateUrl: './chat.component.html',
     styleUrl: './chat.component.scss',

@@ -58,22 +58,22 @@
         <mat-menu #mobileMenu="matMenu">
             <button mat-menu-item (click)="toggleSidebar.emit()">
                 <mat-icon>history</mat-icon>
-                <span>Turn Updates</span>
+                <span>{{ 'ui.TURN_UPDATES_MENU' | translate }}</span>
             </button>
             <button mat-menu-item (click)="saveProgress()">
                 <mat-icon [matBadge]="state.shouldPromptSave() ? '!' : ''" matBadgeColor="warn"
                     [matBadgeHidden]="!state.shouldPromptSave()">save</mat-icon>
-                <span>Save Progress</span>
+                <span>{{ 'ui.SAVE_PROGRESS_MENU' | translate }}</span>
             </button>
             <button mat-menu-item (click)="openConfigDialog()">
                 <mat-icon [matBadge]="state.hasAnyPromptUpdate() ? '!' : ''" matBadgeColor="warn"
                     [matBadgeHidden]="!state.hasAnyPromptUpdate()" aria-hidden="false"
                     aria-label="Settings notification">settings</mat-icon>
-                <span>Config</span>
+                <span>{{ 'ui.CONFIG_MENU' | translate }}</span>
             </button>
             <button mat-menu-item (click)="exportToMarkdown()">
                 <mat-icon>file_download</mat-icon>
-                <span>Export MD</span>
+                <span>{{ 'ui.EXPORT_MD_MENU' | translate }}</span>
             </button>
             <button mat-menu-item (click)="openReplaceDialog()">
                 <mat-icon>find_replace</mat-icon>
@@ -81,7 +81,7 @@
             </button>
             <button mat-menu-item (click)="openPayloadPreview()">
                 <mat-icon>visibility</mat-icon>
-                <span>Preview API</span>
+                <span>{{ 'ui.PREVIEW_API_MENU' | translate }}</span>
             </button>
         </mat-menu>
 
@@ -89,9 +89,9 @@
         <button mat-mini-fab color="accent" class="save-btn desktop-only"
             [disabled]="state.status() === 'generating' || !state.isConfigured()" (click)="saveProgress()"
             [matBadge]="state.shouldPromptSave() ? '!' : ''" matBadgeColor="warn"
-            [matBadgeHidden]="!state.shouldPromptSave()" [matTooltip]="state.shouldPromptSave() 
-                ? 'Save Recommended! (' + state.turnsSinceActStart() + ' turns)' 
-                : 'Save Progress (Full Context)'">
+            [matBadgeHidden]="!state.shouldPromptSave()" [matTooltip]="state.shouldPromptSave()
+                ? ('ui.SAVE_RECOMMENDED_TOOLTIP' | translate: { turns: state.turnsSinceActStart() })
+                : ('ui.SAVE_PROGRESS_FULL_TOOLTIP' | translate)">
             <mat-icon>save</mat-icon>
         </button>
 
@@ -99,14 +99,14 @@
         <button mat-mini-fab class="config-btn desktop-only"
             [disabled]="state.status() === 'generating' || !state.isConfigured()" (click)="openConfigDialog()"
             [matBadge]="state.hasAnyPromptUpdate() ? '!' : ''" matBadgeColor="warn"
-            [matBadgeHidden]="!state.hasAnyPromptUpdate()" matTooltip="Chat Config (Thinking Inject)">
+            [matBadgeHidden]="!state.hasAnyPromptUpdate()" [matTooltip]="'ui.CHAT_CONFIG_TOOLTIP' | translate">
             <mat-icon>settings</mat-icon>
         </button>
 
         <!-- Export Button (Desktop) -->
         <button mat-mini-fab color="primary" class="export-btn desktop-only"
             [disabled]="state.status() === 'generating' || state.messages().length === 0" (click)="exportToMarkdown()"
-            matTooltip="Export Story to MD">
+            [matTooltip]="'ui.EXPORT_STORY_TOOLTIP' | translate">
             <mat-icon>file_download</mat-icon>
         </button>
 
@@ -119,7 +119,7 @@
 
         <!-- Turn Updates History Button -->
         <button mat-mini-fab class="history-btn desktop-only" [disabled]="state.status() === 'generating'"
-            (click)="toggleSidebar.emit()" matTooltip="View Turn Updates">
+            (click)="toggleSidebar.emit()" [matTooltip]="'ui.VIEW_TURN_UPDATES_TOOLTIP' | translate">
             <mat-icon>history</mat-icon>
         </button>
 
@@ -151,16 +151,14 @@
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="main-input" floatLabel="always">
-            <mat-label>{{ editingMessageId() ? 'Editing Mode. Ctrl+Enter to save.' : (dynamicPlaceholder() || 'Enter
-                your action...')
-                }}</mat-label>
+            <mat-label>{{ editingMessageId() ? ('ui.EDITING_MODE_HINT' | translate) : (dynamicPlaceholder() || ('ui.FALLBACK_PLACEHOLDER' | translate)) }}</mat-label>
             <textarea #messageInput matInput rows="1" cdkTextareaAutosize cdkAutosizeMinRows="1" cdkAutosizeMaxRows="5"
                 [(ngModel)]="userInput" (keydown)="onEnter($event)" (focus)="onInteraction()" (click)="onInteraction()"
                 (blur)="onBlur()" [disabled]="state.status() === 'generating' || !hasActiveSession()"
-                [placeholder]="!hasActiveSession() ? 'No active session. Create or select a book.' : ''"></textarea>
+                [placeholder]="!hasActiveSession() ? ('ui.NO_ACTIVE_SESSION_PLACEHOLDER' | translate) : ''"></textarea>
 
             @if (editingMessageId()) {
-            <button mat-icon-button matSuffix (click)="cancelEdit()" matTooltip="Cancel Edit">
+            <button mat-icon-button matSuffix (click)="cancelEdit()" [matTooltip]="'ui.CANCEL_EDIT_TOOLTIP' | translate">
                 <mat-icon>close</mat-icon>
             </button>
             }
@@ -168,7 +166,7 @@
 
         <button mat-mini-fab class="preview-btn desktop-only"
             [disabled]="state.status() === 'generating' || !state.isConfigured()" (click)="openPayloadPreview()"
-            matTooltip="Preview API Payload">
+            [matTooltip]="'ui.PREVIEW_API_PAYLOAD_TOOLTIP' | translate">
             <mat-icon>visibility</mat-icon>
         </button>
 
@@ -180,7 +178,7 @@
         } @else {
         <button mat-mini-fab color="primary" class="send-btn"
             [disabled]="state.status() === 'generating' || !hasActiveSession()" (click)="sendMessage()"
-            matTooltip="Send (Ctrl+Enter)">
+            [matTooltip]="'ui.SEND_TOOLTIP' | translate">
             <mat-icon>send</mat-icon>
         </button>
         }
