@@ -25,7 +25,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { MarkdownModule } from 'ngx-markdown';
 import { FileAgentService } from '@app/core/services/file-agent/file-agent.service';
 import { BuiltInPromptsService } from '@app/core/services/file-agent/built-in-prompts.service';
-import { TranslatePipe } from '@app/core/i18n';
+import { I18nService, TranslatePipe } from '@app/core/i18n';
 
 @Component({
   selector: 'app-agent-console',
@@ -58,6 +58,7 @@ export class AgentConsoleComponent implements OnDestroy {
   builtInPromptsService = inject(BuiltInPromptsService);
   private clipboard = inject(Clipboard);
   private snackBar = inject(MatSnackBar);
+  private i18n = inject(I18nService);
 
   // Internal state
   agentPrompt = signal('');
@@ -201,8 +202,8 @@ export class AgentConsoleComponent implements OnDestroy {
       // and the user would only see an empty input. Each prompt MUST have a body
       // file for every supported language; a missing one is a maintenance error.
       this.snackBar.open(
-        `Failed to load prompt "${id}" for the current language.`,
-        'Close',
+        this.i18n.translate('dialog.agentLoadPromptFailed', { id }),
+        this.i18n.translate('ui.CLOSE'),
         { duration: 5000 }
       );
     }

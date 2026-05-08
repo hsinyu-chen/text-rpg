@@ -18,6 +18,7 @@ import { AppConfigStore } from '@app/core/services/app-config-store';
 import { GAME_INTENTS } from '@app/core/constants/game-intents';
 import { getCoreFilenames } from '@app/core/constants/engine-protocol';
 import { ConfirmDialogComponent, ConfirmDialogData } from '../confirm-dialog/confirm-dialog.component';
+import { I18nService } from '@app/core/i18n';
 
 export interface ValidationStatus {
   exists: boolean;
@@ -67,6 +68,11 @@ export class HunkApplyController {
   private appConfig = inject(AppConfigStore);
   private snackBar = inject(MatSnackBar);
   private dialog = inject(MatDialog);
+  private i18n = inject(I18nService);
+
+  private t(key: string, params?: Record<string, string | number>): string {
+    return this.i18n.translate(`dialog.${key}`, params);
+  }
 
   groupedUpdates = signal<GroupedUpdate[]>([]);
   activeGroupIndex = signal(0);
@@ -149,7 +155,7 @@ export class HunkApplyController {
   async onCheckboxClick(group: GroupedUpdate, update: MonacoUpdateItem, event: Event): Promise<void> {
     event.stopPropagation();
     const targetChecked = !update.selected();
-    if (await this.confirmDiscardIfDirty(group, 'Changing selections will discard your edits. Continue?', 'Discard & Update')) {
+    if (await this.confirmDiscardIfDirty(group, this.t('confirmDiscardSelections'), this.t('discardUpdate'))) {
       update.selected.set(targetChecked);
       this.recomputeCombinedContent(group);
     }
@@ -157,7 +163,7 @@ export class HunkApplyController {
 
   async onDrop(group: GroupedUpdate, event: CdkDragDrop<MonacoUpdateItem[]>): Promise<void> {
     if (event.previousIndex === event.currentIndex) return;
-    if (await this.confirmDiscardIfDirty(group, 'Reordering will discard your edits. Continue?', 'Discard & Reorder')) {
+    if (await this.confirmDiscardIfDirty(group, this.t('confirmDiscardReorder'), this.t('discardReorder'))) {
       moveItemInArray(group.updates, event.previousIndex, event.currentIndex);
       this.recomputeCombinedContent(group);
       this.groupedUpdates.update((groups) => [...groups]);
@@ -172,7 +178,7 @@ export class HunkApplyController {
     // Calibration's effect overwrites combinedContent on every selection
     // change — manual edits would silently disappear without a confirm.
     const group = this.activeGroup();
-    if (group && !(await this.confirmDiscardIfDirty(group, 'Entering calibration mode will discard your manual edits. Continue?', 'Discard & Calibrate'))) {
+    if (group && !(await this.confirmDiscardIfDirty(group, this.t('confirmDiscardCalibrate'), this.t('discardCalibrate')))) {
       return;
     }
     this.calibratingUpdateId.set(update.id);
@@ -196,7 +202,7 @@ export class HunkApplyController {
 
     this.cancelCalibration();
     await this.revalidateUpdate(update, group);
-    this.snackBar.open('Calibration applied successfully', 'OK', { duration: 2000 });
+    this.snackBar.open(this.t('calibrationSuccess'), this.i18n.translate('ui.CLOSE'), { duration: 2000 });
   }
 
   onHunkContentChange(update: MonacoUpdateItem, type: 'target' | 'replacement', event: Event): void {
@@ -230,10 +236,10 @@ export class HunkApplyController {
 
     const dialogRef = this.dialog.open(ConfirmDialogComponent, {
       data: {
-        title: 'Discard Manual Edits?',
+        title: this.t('discardEditsTitle'),
         message,
         okText,
-        cancelText: 'Cancel',
+        cancelText: this.t('cancel'),
       } as ConfirmDialogData,
     });
     return !!(await firstValueFrom(dialogRef.afterClosed()));
