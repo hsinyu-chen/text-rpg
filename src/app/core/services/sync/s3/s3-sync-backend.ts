@@ -5,14 +5,15 @@ import {
 } from '../sync.types';
 import { S3ClientService } from './s3-client.service';
 import { S3BlobStore } from './s3-blob-store';
-import { S3SnapshotStore } from './s3-snapshot-store';
 import { createParallelPool } from '@app/core/utils/async.util';
 import { SNAPSHOT_CONCURRENCY } from '../sync-snapshot-utils';
-import { entryPath, tombstonePath, RESOURCE_DIR, TOMBSTONE_DIR, META_LAST_ACTIVE } from '../layout/sync-paths';
+import { entryPath, RESOURCE_DIR, META_LAST_ACTIVE } from '../layout/sync-paths';
 import { blobEntryToRemoteEntry } from '../domain/entry-mapper';
 import { SettingsRepository } from '../domain/settings-repository';
 import { PromptsRepository } from '../domain/prompts-repository';
 import { SLASH_TOMBSTONE_LAYOUT, TombstoneRepository } from '../domain/tombstone-repository';
+import { BlobSnapshotTreeOps } from '../domain/blob-snapshot-tree-ops';
+import { SnapshotStore } from '../domain/snapshot-store';
 
 const parallelPool = createParallelPool(SNAPSHOT_CONCURRENCY);
 
@@ -93,32 +94,19 @@ export class S3SyncBackend implements SyncBackend {
     readPrompts(): Promise<string | null> { return this.prompts.read(); }
     writePrompts(content: string): Promise<void> { return this.prompts.write(content); }
 
-    // ===== Snapshots — delegated to S3SnapshotStore (unchanged in PR2) ===
-    //
-    // The snapshot store still constructs S3 commands directly via the
-    // raw client/sdk. PR3 will rewrite it on top of BlobStore + a single
-    // SnapshotTreeOps; for now we keep its accessors pointing at the
-    // client service to preserve behaviour.
+    // ===== Snapshots — delegated to the shared SnapshotStore ============
 
-    private readonly snapshotStore = new S3SnapshotStore({
-        getClient: () => this.clientSvc.getClient(),
-        getSdk: () => this.clientSvc.getSdk(),
-        getBucket: () => this.clientSvc.getBucket(),
-        getPrefix: () => this.clientSvc.getPrefix(),
-        resourceDir: RESOURCE_DIR,
-        tombstoneDir: TOMBSTONE_DIR,
-        keyFor: (r, id) => `${this.clientSvc.getPrefix()}${entryPath(r, id)}`,
-        tombstoneKey: (r, id, deletedAt) =>
-            `${this.clientSvc.getPrefix()}${tombstonePath(r, id, deletedAt)}`,
-        isNotFound: (err) => this.clientSvc.isNotFound(err),
-        ops: {
+    private readonly snapshotStore = new SnapshotStore(
+        {
             list: (r) => this.list(r),
             listTombstones: (r) => this.listTombstones(r),
             write: (r, id, json, ts) => this.write(r, id, json, ts),
             writeTombstone: (r, id, ts) => this.writeTombstone(r, id, ts),
-            remove: (r, id) => this.remove(r, id)
-        }
-    });
+            remove: (r, id) => this.remove(r, id),
+            removeTombstone: (r, id) => this.tombstones.removeById(r, id)
+        },
+        new BlobSnapshotTreeOps(this.blob, SLASH_TOMBSTONE_LAYOUT)
+    );
 
     listSnapshots(): Promise<SnapshotMeta[]> { return this.snapshotStore.listSnapshots(); }
     readSnapshotManifest(id: string): Promise<SnapshotManifest> { return this.snapshotStore.readSnapshotManifest(id); }

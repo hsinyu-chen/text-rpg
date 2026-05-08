@@ -6,10 +6,9 @@ import {
 import { FileBackendPermissionService } from './file-backend-permission.service';
 import { FileBlobStore } from './file-blob-store';
 import { createParallelPool } from '@app/core/utils/async.util';
-import { FileSnapshotStore } from './file-snapshot-store';
 import { SNAPSHOT_CONCURRENCY } from '../sync-snapshot-utils';
 import {
-    RESOURCE_DIR, TOMBSTONE_DIR, entryPath, entryDirPrefix
+    TOMBSTONE_DIR, entryPath, entryDirPrefix
 } from '../layout/sync-paths';
 import { blobEntryToRemoteEntry } from '../domain/entry-mapper';
 import { SettingsRepository } from '../domain/settings-repository';
@@ -17,6 +16,8 @@ import { PromptsRepository } from '../domain/prompts-repository';
 import {
     TombstoneRepository, UNDERSCORE_FILE_TOMBSTONE_LAYOUT
 } from '../domain/tombstone-repository';
+import { BlobSnapshotTreeOps } from '../domain/blob-snapshot-tree-ops';
+import { SnapshotStore } from '../domain/snapshot-store';
 
 const parallelPool = createParallelPool(SNAPSHOT_CONCURRENCY);
 
@@ -165,26 +166,19 @@ export class FileSyncBackend implements SyncBackend {
     readPrompts(): Promise<string | null> { return this.prompts.read(); }
     writePrompts(content: string): Promise<void> { return this.prompts.write(content); }
 
-    // ===== Snapshots — delegated to FileSnapshotStore (unchanged in PR2) =
+    // ===== Snapshots — delegated to the shared SnapshotStore ============
 
-    private async getRoot(): Promise<FileSystemDirectoryHandle> {
-        const h = this.permission.handle();
-        if (!h) throw new Error('File sync backend: no folder bound. Pick one in Settings.');
-        return h;
-    }
-
-    private readonly snapshotStore = new FileSnapshotStore({
-        getRoot: () => this.getRoot(),
-        resourceDir: RESOURCE_DIR,
-        tombstoneDir: TOMBSTONE_DIR,
-        ops: {
+    private readonly snapshotStore = new SnapshotStore(
+        {
             list: (r) => this.list(r),
             listTombstones: (r) => this.listTombstones(r),
             write: (r, id, json, ts) => this.write(r, id, json, ts),
             writeTombstone: (r, id, ts) => this.writeTombstone(r, id, ts),
-            remove: (r, id) => this.remove(r, id)
-        }
-    });
+            remove: (r, id) => this.remove(r, id),
+            removeTombstone: (r, id) => this.tombstones.removeById(r, id)
+        },
+        new BlobSnapshotTreeOps(this.blob, UNDERSCORE_FILE_TOMBSTONE_LAYOUT)
+    );
 
     listSnapshots(): Promise<SnapshotMeta[]> { return this.snapshotStore.listSnapshots(); }
     readSnapshotManifest(id: string): Promise<SnapshotManifest> { return this.snapshotStore.readSnapshotManifest(id); }

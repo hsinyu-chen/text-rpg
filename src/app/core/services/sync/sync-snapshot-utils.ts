@@ -163,6 +163,13 @@ export interface SnapshotStoreBackendOps {
     write(resource: SyncResource, id: string, json: string, lastActiveAt: number): Promise<void>;
     writeTombstone(resource: SyncResource, id: string, deletedAt: number): Promise<void>;
     remove(resource: SyncResource, id: string): Promise<void>;
+    /**
+     * Removes every tombstone for the given id from the live tree.
+     * Used by `restoreSnapshot`'s diff-delete phase to wipe pre-existing
+     * tombstones whose ids aren't in the manifest. Stronger than what
+     * `clearTombstones` offers (resource-wide wipe).
+     */
+    removeTombstone(resource: SyncResource, id: string): Promise<void>;
 }
 
 export type { SnapshotLocalPayload };
