@@ -64,7 +64,11 @@ export class TombstoneRepository {
 
     async list(r: SyncResource): Promise<Tombstone[]> {
         const prefix = this.layout.listPrefix(r);
-        const entries = await this.blob.list(prefix);
+        // Tombstone deletedAt lives in the path (slash layout) or filename
+        // (underscore layout) for the current LayoutS — meta is irrelevant,
+        // so skip the per-object meta fetch on backends that would otherwise
+        // do one (S3: N HeadObjects; File: N sidecar reads).
+        const entries = await this.blob.list(prefix, { withMeta: false });
         const latest = new Map<string, number>();
         for (const e of entries) {
             const rel = e.path.startsWith(prefix) ? e.path.slice(prefix.length) : e.path;
@@ -78,7 +82,7 @@ export class TombstoneRepository {
 
     async clear(r: SyncResource): Promise<void> {
         const prefix = this.layout.listPrefix(r);
-        const entries = await this.blob.list(prefix);
+        const entries = await this.blob.list(prefix, { withMeta: false });
         // Sequential delete: AWS DeleteObjects multi isn't universally
         // supported on S3-compatible servers, and the tombstone count
         // here is small (one per ever-deleted entity).
@@ -94,7 +98,7 @@ export class TombstoneRepository {
      */
     async removeById(r: SyncResource, id: string): Promise<void> {
         const prefix = this.layout.listPrefix(r);
-        const entries = await this.blob.list(prefix);
+        const entries = await this.blob.list(prefix, { withMeta: false });
         for (const e of entries) {
             const rel = e.path.startsWith(prefix) ? e.path.slice(prefix.length) : e.path;
             const parsed = this.layout.parseRelative(rel, e.meta);

@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { BlobListEntry, BlobMeta, BlobReadResult, BlobStore } from '../blob-store';
+import { BlobListEntry, BlobListOptions, BlobMeta, BlobReadResult, BlobStore } from '../blob-store';
 import { S3ClientService } from './s3-client.service';
 import { createParallelPool } from '@app/core/utils/async.util';
 import { SNAPSHOT_CONCURRENCY } from '../sync-snapshot-utils';
@@ -31,12 +31,13 @@ export class S3BlobStore implements BlobStore {
         return absKey.startsWith(prefix) ? absKey.slice(prefix.length) : absKey;
     }
 
-    async list(prefix: string): Promise<BlobListEntry[]> {
+    async list(prefix: string, options?: BlobListOptions): Promise<BlobListEntry[]> {
         await this.clientSvc.ensureCorsApplied();
         const sdk = this.clientSvc.getSdk();
         const client = this.clientSvc.getClient();
         const bucket = this.clientSvc.getBucket();
         const dirPrefix = this.absKey(prefix);
+        const withMeta = options?.withMeta !== false;
 
         // Stage 1: enumerate keys via paginated ListObjectsV2.
         const partial: { absKey: string; modifiedAt: number; etag?: string; size?: number }[] = [];
@@ -60,10 +61,23 @@ export class S3BlobStore implements BlobStore {
         } while (continuationToken);
 
         // Stage 2: HEAD each object in parallel to recover user metadata.
-        // Browser CORS gotcha: `x-amz-meta-*` headers are stripped unless
-        // ExposeHeaders includes them. ensureCorsApplied tries to fix it
-        // but if it failed, the meta returns empty — that's OK; consumer
-        // (entry-mapper) will fall back to GET-body or modifiedAt.
+        // Skipped when caller opted out (`withMeta === false`) — saves N
+        // round-trips when the consumer doesn't need meta (e.g. tombstones,
+        // which encode `deletedAt` in the path).
+        //
+        // Browser CORS gotcha (when withMeta IS true): `x-amz-meta-*`
+        // headers are stripped unless ExposeHeaders includes them.
+        // ensureCorsApplied tries to fix it; if it failed, meta returns
+        // empty — entry-mapper will fall back to GET-body or modifiedAt.
+        if (!withMeta) {
+            return partial.map(p => ({
+                path: this.toRelative(p.absKey),
+                meta: {},
+                modifiedAt: p.modifiedAt,
+                etag: p.etag,
+                size: p.size
+            }));
+        }
         const entries: BlobListEntry[] = new Array(partial.length);
         await parallelPool(partial, async (p, i) => {
             entries[i] = await this.headForListEntry(p);

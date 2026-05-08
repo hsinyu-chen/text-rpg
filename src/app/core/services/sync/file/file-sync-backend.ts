@@ -9,8 +9,7 @@ import { createParallelPool } from '@app/core/utils/async.util';
 import { FileSnapshotStore } from './file-snapshot-store';
 import { SNAPSHOT_CONCURRENCY } from '../sync-snapshot-utils';
 import {
-    RESOURCE_DIR, TOMBSTONE_DIR, META_LAST_ACTIVE,
-    entryPath, entryDirPrefix
+    RESOURCE_DIR, TOMBSTONE_DIR, entryPath, entryDirPrefix
 } from '../layout/sync-paths';
 import { blobEntryToRemoteEntry } from '../domain/entry-mapper';
 import { SettingsRepository } from '../domain/settings-repository';
@@ -113,14 +112,15 @@ export class FileSyncBackend implements SyncBackend {
         return this.blob.read(entryPath(resource, id)).then(r => r.text);
     }
 
+    // `lastActiveAt` is unused: FSA has no native per-file metadata, and
+    // the value is already on the body (clean.util stamps it). Skipping
+    // the sidecar write keeps the user's local sync folder from doubling
+    // in file count and matches the pre-refactor on-disk shape verbatim.
+    // entry-mapper.list() recovers `lastActiveAt` from the body — same
+    // behaviour as before.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     write(resource: SyncResource, id: string, json: string, lastActiveAt: number): Promise<void> {
-        // FSA has no native per-file metadata; FileBlobStore stores it as a
-        // sidecar file. Writing meta here keeps `list()` fast (no body read
-        // needed for new entries — entry-mapper picks meta first) and stays
-        // contract-compatible with S3 / GDrive.
-        return this.blob.write(entryPath(resource, id), json, {
-            [META_LAST_ACTIVE]: String(lastActiveAt)
-        });
+        return this.blob.write(entryPath(resource, id), json);
     }
 
     remove(resource: SyncResource, id: string): Promise<void> {
