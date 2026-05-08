@@ -19,11 +19,12 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { SaveNameDialogComponent } from '@app/shared/components/save-name-dialog/save-name-dialog.component';
 import { firstValueFrom } from 'rxjs';
 import { ConfigService } from '@app/core/services/config.service';
+import { I18nService, TranslatePipe } from '@app/core/i18n';
 
 @Component({
     selector: 'app-sidebar-context-controls',
     standalone: true,
-    imports: [CommonModule, MatButtonModule, MatIconModule, MatDividerModule, MatTooltipModule, MatDialogModule],
+    imports: [CommonModule, MatButtonModule, MatIconModule, MatDividerModule, MatTooltipModule, MatDialogModule, TranslatePipe],
     templateUrl: './sidebar-context-controls.component.html',
     styleUrl: './sidebar-context-controls.component.scss'
 })
@@ -38,6 +39,11 @@ export class SidebarContextControlsComponent {
     configService = inject(ConfigService);
     cacheManager = inject(CacheManagerService);
     private matDialog = inject(MatDialog);
+    private i18n = inject(I18nService);
+
+    private t(key: string, params?: Record<string, string | number>): string {
+        return this.i18n.translate(`sidebar.controls.${key}`, params);
+    }
 
     startSession() {
         void this.engine.startSession();
@@ -48,13 +54,15 @@ export class SidebarContextControlsComponent {
      */
     async createNext() {
         if (!this.session.currentBookId()) {
-            this.snackBar.open('No active session (Book) to create next from.', 'OK');
+            this.snackBar.open(this.t('createNextNoSession'), this.i18n.translate('ui.CLOSE'));
             return;
         }
 
         if (!await this.dialog.confirm(
-            'This will:\n1. Rename the current session to "[Slot] Act.N"\n2. Create a NEW session "[Slot] Act.N+1" with copied memory\n3. Switch to the new session\n\nContinue?',
-            'Create Next Act', 'Create', 'Cancel'
+            this.t('createNextConfirm'),
+            this.t('createNextDialogTitle'),
+            this.t('createNextConfirmBtn'),
+            this.i18n.translate('ui.CANCEL'),
         )) {
             return;
         }
@@ -62,14 +70,14 @@ export class SidebarContextControlsComponent {
         this.state.status.set('loading');
         try {
             await this.session.createNextBook();
-            this.snackBar.open('Created next Act successfully.', 'OK', { duration: 3000 });
+            this.snackBar.open(this.t('createNextSuccess'), this.i18n.translate('ui.CLOSE'), { duration: 3000 });
 
             // Initialize the story for the new act
             await this.engine.startSession();
 
         } catch (e) {
             console.error('Failed to create next Act', e);
-            this.snackBar.open('Failed to create next Act.', 'Close');
+            this.snackBar.open(this.t('createNextFailed'), this.i18n.translate('ui.CLOSE'));
         } finally {
             this.state.status.set('idle');
         }
@@ -93,15 +101,15 @@ export class SidebarContextControlsComponent {
     }
 
     async clearHistory() {
-        if (await this.dialog.confirm('Are you sure you want to delete all chat history and restart?')) {
+        if (await this.dialog.confirm(this.t('clearHistoryConfirm'))) {
             await this.engine.clearHistory();
         }
     }
 
     async clearServerData() {
-        if (await this.dialog.confirm('Clear the active Cloud Cache for this session? Billing for this context will stop, and it will be re-uploaded on the next turn.')) {
+        if (await this.dialog.confirm(this.t('clearCacheConfirm'))) {
             await this.cacheManager.cleanupCache();
-            await this.dialog.alert(`Active cache cleared.`);
+            await this.dialog.alert(this.t('clearCacheSuccess'));
         }
     }
 
@@ -126,9 +134,9 @@ export class SidebarContextControlsComponent {
         const dialogRef = this.matDialog.open(SaveNameDialogComponent, {
             width: '400px',
             data: {
-                title: 'Smart Context Full-sized Turns',
+                title: this.t('smartContextDialogTitle'),
                 initialName: currentTurns.toString(),
-                placeholder: 'Enter number of turns (e.g. 10)',
+                placeholder: this.t('smartContextPlaceholder'),
                 inputType: 'number',
                 min: 1
             }
@@ -139,9 +147,9 @@ export class SidebarContextControlsComponent {
             const turns = parseInt(result, 10);
             if (!isNaN(turns) && turns > 0) {
                 await this.configService.saveConfig({ smartContextTurns: turns });
-                this.snackBar.open(`Smart context set to ${turns} turns.`, 'OK', { duration: 3000 });
+                this.snackBar.open(this.t('smartContextSetSuccess', { turns }), this.i18n.translate('ui.CLOSE'), { duration: 3000 });
             } else {
-                this.snackBar.open('Invalid turn count.', 'OK', { duration: 3000 });
+                this.snackBar.open(this.t('invalidTurnCount'), this.i18n.translate('ui.CLOSE'), { duration: 3000 });
             }
         }
     }

@@ -18,6 +18,7 @@ import { SidebarFileSyncComponent } from './components/sidebar-file-sync/sidebar
 import { SidebarContextControlsComponent } from './components/sidebar-context-controls/sidebar-context-controls.component';
 import { SidebarCostPredictionComponent } from './components/sidebar-cost-prediction/sidebar-cost-prediction.component';
 import { SidebarProviderSelectorComponent } from './components/sidebar-provider-selector/sidebar-provider-selector.component';
+import { TranslatePipe } from '@app/core/i18n';
 
 @Component({
   selector: 'app-sidebar',
@@ -33,7 +34,8 @@ import { SidebarProviderSelectorComponent } from './components/sidebar-provider-
     SidebarFileSyncComponent,
     SidebarContextControlsComponent,
     SidebarCostPredictionComponent,
-    SidebarProviderSelectorComponent
+    SidebarProviderSelectorComponent,
+    TranslatePipe
   ],
   templateUrl: './sidebar.component.html',
   styleUrl: './sidebar.component.scss'
