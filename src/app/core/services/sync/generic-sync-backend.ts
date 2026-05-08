@@ -49,6 +49,26 @@ export interface SyncBackendConfig {
     entryPathFor(resource: SyncResource, id: string): string;
     /** Layout-aware list prefix matching {@link entryPathFor}'s parent. */
     entryDirPrefix(resource: SyncResource): string;
+    /**
+     * Optional name-level filter applied to `list()` results before they
+     * reach the entry-mapper hydration pool. File backend uses it to
+     * drop cloud-mirror conflict files (`Foo (1).json`, sync-conflict,
+     * conflicted copy) so they don't get ingested as bogus entries with
+     * junk ids and propagate cross-device. Default: accept everything.
+     *
+     * Receives the entry's filename WITHOUT the `<dirPrefix>` (e.g.
+     * `'Foo (1).json'`, NOT `'books/Foo (1).json'`).
+     */
+    entryNameFilter?(name: string): boolean;
+    /**
+     * When `false`, `write()` skips passing user metadata to the
+     * BlobStore. File backend opts out — FSA has no native per-file
+     * metadata, so the BlobStore would otherwise emit a `<path>.meta.json`
+     * sidecar that doubles the user's local-folder file count. The body
+     * already contains `lastActiveAt`; entry-mapper recovers it from
+     * there on read. Default: `true`.
+     */
+    writesEntryMeta?: boolean;
     tombstoneLayout: TombstoneLayout;
     /** Top-level snapshot folder name. Defaults `'snapshots'`; GDrive
      *  passes `'snapshots_root'` so existing snapshots remain accessible. */
@@ -87,6 +107,8 @@ export class GenericSyncBackend implements SyncBackend {
     private readonly lifecycle: ClientLifecycle;
     private readonly entryPathFor: (resource: SyncResource, id: string) => string;
     private readonly entryDirPrefixFor: (resource: SyncResource) => string;
+    private readonly entryNameFilter?: (name: string) => boolean;
+    private readonly writesEntryMeta: boolean;
     private readonly hooks: Pick<SyncBackendConfig,
         'onBeforeListTombstones' | 'onBeforeWriteTombstone' | 'onBeforeClearTombstones'>;
 
@@ -103,6 +125,8 @@ export class GenericSyncBackend implements SyncBackend {
         this.lifecycle = config.lifecycle;
         this.entryPathFor = config.entryPathFor;
         this.entryDirPrefixFor = config.entryDirPrefix;
+        this.entryNameFilter = config.entryNameFilter;
+        this.writesEntryMeta = config.writesEntryMeta !== false;
         this.hooks = {
             onBeforeListTombstones: config.onBeforeListTombstones,
             onBeforeWriteTombstone: config.onBeforeWriteTombstone,
@@ -143,11 +167,19 @@ export class GenericSyncBackend implements SyncBackend {
         const blobEntries = await this.blob.list(dirPrefix);
         // Filter to well-formed `<id>.json` candidates BEFORE the
         // hydration pool — entry-mapper would otherwise fan out wasted
-        // GET-body fallbacks on stray non-`.json` keys.
-        const candidates = blobEntries
-            .filter(e => e.path.endsWith('.json'))
-            .map(e => ({ entry: e, id: e.path.slice(dirPrefix.length, -5) }))
-            .filter(c => c.id.length > 0);
+        // GET-body fallbacks on stray non-`.json` keys. Backends that
+        // need stricter rules (File: cloud-mirror conflict patterns)
+        // supply `entryNameFilter`.
+        const candidates: { entry: typeof blobEntries[number]; id: string }[] = [];
+        for (const e of blobEntries) {
+            if (!e.path.endsWith('.json')) continue;
+            const name = e.path.slice(dirPrefix.length);
+            if (name.includes('/')) continue;
+            if (this.entryNameFilter && !this.entryNameFilter(name)) continue;
+            const id = name.slice(0, -5);
+            if (!id) continue;
+            candidates.push({ entry: e, id });
+        }
         const out: RemoteEntry[] = new Array(candidates.length);
         await parallelPool(candidates, async (c, i) => {
             out[i] = await blobEntryToRemoteEntry(this.blob, c.entry, c.id);
@@ -160,6 +192,9 @@ export class GenericSyncBackend implements SyncBackend {
     }
 
     write(resource: SyncResource, id: string, json: string, lastActiveAt: number): Promise<void> {
+        if (!this.writesEntryMeta) {
+            return this.blob.write(this.entryPathFor(resource, id), json);
+        }
         return this.blob.write(this.entryPathFor(resource, id), json, {
             [META_LAST_ACTIVE]: String(lastActiveAt)
         });

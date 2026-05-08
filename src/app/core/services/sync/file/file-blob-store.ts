@@ -17,12 +17,14 @@ const META_SUFFIX = '.meta.json';
  *   `books/abc.json`           ← body
  *   `books/abc.json.meta.json` ← meta sidecar (omitted if meta is empty)
  *
- * The sidecar is intentionally `*.meta.json` rather than `*.meta` so:
- *   1. The cloud-mirror conflict detection in FileSyncBackend.list (which
- *      checks for `(N)`-style filenames) keeps working — sidecars get the
- *      same conflict patterns and the parser already rejects `.meta.json`
- *      via the `<id>.json` regex.
- *   2. Editors that hide non-`.json` files don't make sidecars invisible.
+ * The sidecar suffix is `*.meta.json` (not `*.meta`) so editors that
+ * hide non-`.json` files don't make sidecars invisible to the user.
+ * `list()` skips sidecar entries from results regardless of the entry-name
+ * filter the calling backend applies on the body files.
+ *
+ * The default FileSyncBackend writes entries WITHOUT meta
+ * (`writesEntryMeta: false`) — sidecars only appear if a future writer
+ * passes meta to `write()`. The class supports them either way.
  *
  * `list(prefix)` recurses and excludes sidecar files from the result.
  * `copy(src, dst)` is emulated as read+write (meta + body) since FSA
