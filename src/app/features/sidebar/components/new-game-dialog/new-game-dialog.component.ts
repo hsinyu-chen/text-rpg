@@ -73,6 +73,10 @@ export class NewGameDialogComponent {
     private llmConfig = inject(LLMConfigService);
     private i18n = inject(I18nService);
 
+    private t(key: string, params?: Record<string, string | number>): string {
+        return this.i18n.translate(`sidebar.newGame.${key}`, params);
+    }
+
     // ─── Shared ───────────────────────────────────────────────────────────
     isLoading = signal(false);
     activeTabIndex = signal(1);
@@ -388,7 +392,7 @@ export class NewGameDialogComponent {
         } catch (err) {
             console.error('[CreateWorld] Failed:', err);
             this.snackBar.open(
-                this.i18n.translate('sidebar.newGame.failedLoadTemplates'),
+                this.t('failedLoadTemplates'),
                 this.i18n.translate('ui.CLOSE'),
                 { duration: 5000 },
             );

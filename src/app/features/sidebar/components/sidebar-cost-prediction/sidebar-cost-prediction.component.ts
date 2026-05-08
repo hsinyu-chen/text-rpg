@@ -32,6 +32,10 @@ export class SidebarCostPredictionComponent {
     public costService = inject(CostService);
     private i18n = inject(I18nService);
 
+    private t(key: string, params?: Record<string, string | number>): string {
+        return this.i18n.translate(`sidebar.costPrediction.${key}`, params);
+    }
+
     // Current Model ID (derived from active provider config; falls back to provider default).
     currentModelId = computed(() => this.providerRegistry.getActiveModelId() || 'Unknown');
 
@@ -262,7 +266,7 @@ export class SidebarCostPredictionComponent {
 
         if (this.clipboard.copy(markdown)) {
             this.snackBar.open(
-                this.i18n.translate('sidebar.costPrediction.copySuccess'),
+                this.t('copySuccess'),
                 this.i18n.translate('ui.CLOSE'),
                 { duration: 2000 },
             );
