@@ -8,6 +8,7 @@ import { GameStateService } from '@app/core/services/game-state.service';
 import { LLMProviderRegistryService } from '@app/core/services/llm-provider-registry.service';
 import { CostService } from '@app/core/services/cost.service';
 import { LLMModelDefinition } from '@hcs/llm-core';
+import { TranslatePipe } from '@app/core/i18n';
 
 interface ModelCostInfo {
     model: LLMModelDefinition;
@@ -19,7 +20,7 @@ interface ModelCostInfo {
 @Component({
     selector: 'app-cost-comparison-dialog',
     standalone: true,
-    imports: [CommonModule, MatDialogModule, MatButtonModule, MatIconModule],
+    imports: [CommonModule, MatDialogModule, MatButtonModule, MatIconModule, TranslatePipe],
     templateUrl: './cost-comparison-dialog.component.html',
     styleUrl: './cost-comparison-dialog.component.scss'
 })

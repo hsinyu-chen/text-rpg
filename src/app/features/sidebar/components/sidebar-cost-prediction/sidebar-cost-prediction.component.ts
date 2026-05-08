@@ -13,11 +13,12 @@ import { LLMProviderRegistryService } from '@app/core/services/llm-provider-regi
 import { CostService } from '@app/core/services/cost.service';
 import { CostComparisonDialogComponent } from '@app/features/sidebar/cost-comparison-dialog.component';
 import { ContextUsageBarComponent } from '@app/shared/components/context-usage-bar/context-usage-bar.component';
+import { I18nService, TranslatePipe } from '@app/core/i18n';
 
 @Component({
     selector: 'app-sidebar-cost-prediction',
     standalone: true,
-    imports: [CommonModule, MatButtonModule, MatIconModule, MatTooltipModule, ContextUsageBarComponent],
+    imports: [CommonModule, MatButtonModule, MatIconModule, MatTooltipModule, ContextUsageBarComponent, TranslatePipe],
     templateUrl: './sidebar-cost-prediction.component.html',
     styleUrl: './sidebar-cost-prediction.component.scss'
 })
@@ -29,6 +30,7 @@ export class SidebarCostPredictionComponent {
     private clipboard = inject(Clipboard);
     public providerRegistry = inject(LLMProviderRegistryService);
     public costService = inject(CostService);
+    private i18n = inject(I18nService);
 
     // Current Model ID (derived from active provider config; falls back to provider default).
     currentModelId = computed(() => this.providerRegistry.getActiveModelId() || 'Unknown');
@@ -259,7 +261,11 @@ export class SidebarCostPredictionComponent {
         });
 
         if (this.clipboard.copy(markdown)) {
-            this.snackBar.open('Stats copied to clipboard!', 'OK', { duration: 2000 });
+            this.snackBar.open(
+                this.i18n.translate('sidebar.costPrediction.copySuccess'),
+                this.i18n.translate('ui.CLOSE'),
+                { duration: 2000 },
+            );
         }
     }
 }

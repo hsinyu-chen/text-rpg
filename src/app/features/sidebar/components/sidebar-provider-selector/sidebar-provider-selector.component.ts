@@ -11,6 +11,7 @@ import { LLMProviderRegistryService } from '@app/core/services/llm-provider-regi
 import { LLMConfigService } from '@app/core/services/llm-config.service';
 import { GameStateService } from '@app/core/services/game-state.service';
 import { LLMProfilesDialogComponent } from '@app/features/settings/llm-profiles-dialog.component';
+import { TranslatePipe } from '@app/core/i18n';
 
 /**
  * Compact profile switcher for the left sidebar — hot-swaps the active
@@ -28,7 +29,8 @@ import { LLMProfilesDialogComponent } from '@app/features/settings/llm-profiles-
     MatSelectModule,
     MatIconModule,
     MatButtonModule,
-    MatTooltipModule
+    MatTooltipModule,
+    TranslatePipe
   ],
   templateUrl: './sidebar-provider-selector.component.html',
   styleUrl: './sidebar-provider-selector.component.scss'

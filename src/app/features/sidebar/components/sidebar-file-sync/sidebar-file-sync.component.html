@@ -2,7 +2,7 @@
 <div class="sync-section">
     <div class="section-header">
         <mat-icon>computer</mat-icon>
-        <span class="section-title">Local File System</span>
+        <span class="section-title">{{ 'sidebar.fileSync.localFileSystem' | translate }}</span>
     </div>
 
     <div class="folder-selection">
@@ -12,14 +12,14 @@
             <span class="slot-name text-truncate-left" [matTooltip]="fileSystem.directoryHandle()?.name || ''">
                 {{ fileSystem.directoryHandle()?.name }}
             </span>
-            <button mat-icon-button (click)="loadFolder()" matTooltip="Change Local Folder">
+            <button mat-icon-button (click)="loadFolder()" [matTooltip]="'sidebar.fileSync.changeFolderTooltip' | translate">
                 <mat-icon>edit</mat-icon>
             </button>
         </div>
         } @else {
         <div class="slot-info fade-text">
-            <span class="slot-name">No Folder Selected</span>
-            <button mat-icon-button (click)="loadFolder()" matTooltip="Select Local Folder">
+            <span class="slot-name">{{ 'sidebar.fileSync.noFolderSelected' | translate }}</span>
+            <button mat-icon-button (click)="loadFolder()" [matTooltip]="'sidebar.fileSync.selectFolderTooltip' | translate">
                 <mat-icon>add_link</mat-icon>
             </button>
         </div>
@@ -30,12 +30,12 @@
         <button mat-flat-button color="primary" (click)="loadFilesOnly()"
             [disabled]="state.isBusy() || !fileSystem.hasHandle()" class="action-btn">
             <mat-icon>folder_open</mat-icon>
-            Load
+            {{ 'sidebar.fileSync.loadBtn' | translate }}
         </button>
         <button mat-stroked-button color="primary" (click)="syncToDisk()"
             [disabled]="state.isBusy() || !fileSystem.hasHandle() || state.loadedFiles().size === 0" class="action-btn">
             <mat-icon>sync</mat-icon>
-            Sync
+            {{ 'sidebar.fileSync.syncBtn' | translate }}
         </button>
     </div>
 </div>
