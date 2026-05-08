@@ -1,0 +1,165 @@
+<h2 mat-dialog-title>
+  <mat-icon class="title-icon">build</mat-icon>
+  Advanced Sync Tools
+  <span class="backend-tag">{{ syncBackends.activeBackendId() === 's3' ? 'S3' : 'Drive' }}</span>
+</h2>
+
+<mat-dialog-content>
+  <mat-tab-group [(selectedIndex)]="selectedTab" animationDuration="0ms">
+
+    <!-- ============ Force Sync ============ -->
+    <mat-tab label="Force Sync">
+      <div class="tab-pad">
+        <div class="warn-box">
+          <mat-icon>warning_amber</mat-icon>
+          <div>
+            <strong>Force operations bypass the newer-wins logic and are destructive.</strong>
+            A safety snapshot is taken automatically before each operation; if it
+            fails you'll be asked whether to continue without one.
+          </div>
+        </div>
+
+        <div class="action-row">
+          <div class="action-info">
+            <h4>Force Push <span class="arrow">this device → cloud</span></h4>
+            <p>
+              Cloud becomes an exact mirror of this device. A
+              <code>forcePush</code> snapshot of the current cloud is taken
+              first so you can restore it later.
+            </p>
+          </div>
+          <button mat-flat-button color="warn"
+              [disabled]="state.isBusy() || busy()"
+              (click)="runForcePush()">
+            <mat-icon>cloud_upload</mat-icon>
+            Force Push
+          </button>
+        </div>
+
+        <div class="action-row">
+          <div class="action-info">
+            <h4>Force Pull <span class="arrow">cloud → this device</span></h4>
+            <p>
+              This device becomes an exact mirror of the cloud. A
+              <code>forcePull</code> snapshot of the current local state is
+              taken first so you can restore it.
+            </p>
+          </div>
+          <button mat-flat-button color="warn"
+              [disabled]="state.isBusy() || busy()"
+              (click)="runForcePull()">
+            <mat-icon>cloud_download</mat-icon>
+            Force Pull
+          </button>
+        </div>
+      </div>
+    </mat-tab>
+
+    <!-- ============ Snapshots ============ -->
+    <mat-tab label="Snapshots">
+      <div class="tab-pad">
+        <div class="snapshots-toolbar">
+          <button mat-stroked-button color="primary"
+              [disabled]="state.isBusy() || busy()"
+              (click)="createManualSnapshot()">
+            <mat-icon>add_a_photo</mat-icon>
+            Create Snapshot
+          </button>
+          <button mat-stroked-button
+              [disabled]="busy()"
+              (click)="refreshSnapshots()">
+            <mat-icon>refresh</mat-icon>
+            Refresh
+          </button>
+          <span class="spacer"></span>
+          @if (!loadingList()) {
+            <span class="snapshot-count">
+              {{ snapshots().length }} snapshot{{ snapshots().length === 1 ? '' : 's' }}
+            </span>
+          }
+        </div>
+
+        @if (loadingList()) {
+          <div class="loading-row">
+            <mat-spinner diameter="24"></mat-spinner>
+            <span>Loading snapshots…</span>
+          </div>
+        } @else if (snapshots().length === 0) {
+          <div class="empty-list">
+            <mat-icon>inbox</mat-icon>
+            <p>No snapshots yet. Force push / pull / restore will create one
+            automatically, or press <em>Create Snapshot</em> above.</p>
+          </div>
+        } @else {
+        <table mat-table [dataSource]="snapshots()" class="snap-table">
+
+          <ng-container matColumnDef="time">
+            <th mat-header-cell *matHeaderCellDef>Time</th>
+            <td mat-cell *matCellDef="let s">{{ s.createdAt | date:'yyyy-MM-dd HH:mm:ss' }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="trigger">
+            <th mat-header-cell *matHeaderCellDef>Trigger</th>
+            <td mat-cell *matCellDef="let s">
+              <span class="trigger-badge" [attr.data-trigger]="s.trigger">{{ s.trigger }}</span>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="counts">
+            <th mat-header-cell *matHeaderCellDef matTooltip="books / collections / tombstones">Items</th>
+            <td mat-cell *matCellDef="let s" class="num">
+              {{ s.bookCount }}/{{ s.collectionCount }}/{{ s.tombstoneCount }}
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="size">
+            <th mat-header-cell *matHeaderCellDef>Size</th>
+            <td mat-cell *matCellDef="let s" class="num">{{ formatSize(s.sizeBytes) }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="device">
+            <th mat-header-cell *matHeaderCellDef>Device</th>
+            <td mat-cell *matCellDef="let s">
+              <span [matTooltip]="s.deviceId || ''">{{ deviceLabel(s) }}</span>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="note">
+            <th mat-header-cell *matHeaderCellDef>Note</th>
+            <td mat-cell *matCellDef="let s">
+              <input class="note-input" type="text" [value]="s.note || ''"
+                  placeholder="(none)"
+                  [disabled]="busy()"
+                  (blur)="commitNote(s, $event)"
+                  (keydown.enter)="$any($event.target).blur()" />
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="actions">
+            <th mat-header-cell *matHeaderCellDef>Actions</th>
+            <td mat-cell *matCellDef="let s" class="actions-cell">
+              <button mat-icon-button color="primary"
+                  [disabled]="state.isBusy() || busy()"
+                  matTooltip="Restore" (click)="restore(s)">
+                <mat-icon>restore</mat-icon>
+              </button>
+              <button mat-icon-button color="warn"
+                  [disabled]="state.isBusy() || busy()"
+                  matTooltip="Delete" (click)="deleteOne(s)">
+                <mat-icon>delete</mat-icon>
+              </button>
+            </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="cols"></tr>
+          <tr mat-row *matRowDef="let row; columns: cols"></tr>
+        </table>
+        }
+      </div>
+    </mat-tab>
+  </mat-tab-group>
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button (click)="dialogRef.close()">Close</button>
+</mat-dialog-actions>

@@ -1,0 +1,31 @@
+<div class="dialog-wrapper">
+    <div class="dialog-header">
+        <mat-icon>diff</mat-icon>
+        <span class="title-text">{{ ui().PROMPT_UPDATE_TITLE || 'Prompt Update Comparison' }}: {{ data.label }}</span>
+        <span class="spacer"></span>
+        <button mat-icon-button (click)="onIgnore()" class="close-btn">
+            <mat-icon>close</mat-icon>
+        </button>
+    </div>
+
+    <div class="dialog-body">
+        <div class="editor-wrapper">
+            <app-monaco-editor
+                [isDiff]="true"
+                [originalValue]="data.remoteContent"
+                [(ngModel)]="data.localContent"
+                [language]="data.type === 'postprocess' ? 'javascript' : 'markdown'"
+                class="diff-editor">
+            </app-monaco-editor>
+        </div>
+    </div>
+
+    <div class="dialog-footer">
+        <button mat-button (click)="onIgnore()" color="warn">
+            {{ ui().IGNORE || 'Ignore' }}
+        </button>
+        <button mat-raised-button color="primary" (click)="onUpdate()">
+            {{ ui().UPDATE || 'Update' }}
+        </button>
+    </div>
+</div>

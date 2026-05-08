@@ -1,0 +1,28 @@
+<div class="selector-row">
+  @if (profiles().length === 0) {
+    <button mat-stroked-button class="create-btn" (click)="openManager()">
+      <mat-icon>add</mat-icon>
+      Create LLM Profile
+    </button>
+  } @else {
+    <mat-form-field appearance="outline" class="profile-field" subscriptSizing="dynamic">
+      <mat-label>Profile</mat-label>
+      <mat-select [ngModel]="activeId()"
+                  (ngModelChange)="onChange($event)"
+                  [disabled]="state.isBusy()">
+        @for (p of profiles(); track p.id) {
+          <mat-option [value]="p.id">
+            {{ p.name }} <span class="provider-tag">({{ p.provider }})</span>
+          </mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+    <button mat-icon-button
+            class="configure-btn"
+            matTooltip="Manage LLM profiles"
+            [disabled]="state.isBusy()"
+            (click)="openManager()">
+      <mat-icon>tune</mat-icon>
+    </button>
+  }
+</div>

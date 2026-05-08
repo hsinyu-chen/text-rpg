@@ -25,34 +25,8 @@ export interface SaveNameDialogData {
     MatInputModule,
     MatFormFieldModule
   ],
-  template: `
-    <h2 mat-dialog-title>{{ data.title }}</h2>
-    <mat-dialog-content>
-      <mat-form-field class="full-width">
-        <mat-label>{{ data.title }}</mat-label>
-        <input matInput 
-               [type]="data.inputType || 'text'"
-               [min]="data.min"
-               [(ngModel)]="saveName" 
-               [placeholder]="data.placeholder || 'Enter value'" 
-               (keydown.enter)="isValid() && onSave()" cdkFocusInitial>
-      </mat-form-field>
-    </mat-dialog-content>
-    <mat-dialog-actions align="end">
-      <button mat-button (click)="onCancel()">Cancel</button>
-      <button mat-flat-button color="primary" [disabled]="!isValid()" (click)="onSave()">Save</button>
-    </mat-dialog-actions>
-  `,
-  styles: [`
-    .full-width {
-      width: 100%;
-      margin-top: 8px;
-    }
-    :host {
-        display: block;
-        min-width: 350px;
-    }
-  `]
+  templateUrl: './save-name-dialog.component.html',
+  styleUrl: './save-name-dialog.component.scss'
 })
 export class SaveNameDialogComponent {
   public data = inject<SaveNameDialogData>(MAT_DIALOG_DATA);

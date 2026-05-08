@@ -1,0 +1,30 @@
+<h2 mat-dialog-title>
+    <mat-icon>compare_arrows</mat-icon>
+    Model Cost Comparison
+</h2>
+<mat-dialog-content>
+    <div class="model-list">
+        @for (info of modelCosts(); track info.model.id) {
+            <div class="model-item" [class.inactive]="!info.isActive" [class.active]="info.isActive">
+                <div class="model-header">
+                    <span class="model-name">{{ info.model.name }}</span>
+                    @if (info.isActive) {
+                        <span class="badge">Active</span>
+                    }
+                </div>
+                <div class="cost-row">
+                    <span class="label">Last Turn Cost</span>
+                    <span class="value">{{ formatCost(info.turnCost) }}</span>
+                </div>
+                <div class="cost-row total">
+                    <span class="label">Session Total Cost</span>
+                    <span class="value">{{ formatCost(info.totalCost) }}</span>
+                </div>
+            </div>
+        }
+    </div>
+    <p class="hint">* Inactive models show hypothetical costs as if they were used for the entire session history.</p>
+</mat-dialog-content>
+<mat-dialog-actions align="end">
+    <button mat-button mat-dialog-close>Close</button>
+</mat-dialog-actions>

@@ -175,53 +175,8 @@ fn main() {
   selector: 'app-code-screensaver',
   standalone: true,
   imports: [CommonModule, MatButtonModule, MatIconModule],
-  template: `
-    <div class="screensaver-container">
-      <div #monacoContainer class="monaco-container"></div>
-      <button mat-icon-button class="exit-btn" (click)="exit()" aria-label="Exit Boss Key">
-        <mat-icon>close</mat-icon>
-      </button>
-      <div class="overlay"></div>
-    </div>
-  `,
-  styles: [`
-    .screensaver-container {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      background: #1e1e1e;
-      z-index: 9999;
-      cursor: text;
-    }
-    .monaco-container {
-      width: 100%;
-      height: 100%;
-    }
-    .exit-btn {
-      position: absolute;
-      top: 20px;
-      right: 20px;
-      color: rgba(255, 255, 255, 0.3);
-      z-index: 10001;
-      transition: color 0.3s, background-color 0.3s;
-    }
-    .exit-btn:hover {
-      color: white;
-      background-color: rgba(255, 255, 255, 0.1);
-    }
-    .overlay {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        z-index: 10000;
-        pointer-events: none;
-        box-shadow: inset 0 0 100px rgba(0,0,0,0.5);
-    }
-  `]
+  templateUrl: './code-screensaver.component.html',
+  styleUrl: './code-screensaver.component.scss'
 })
 export class CodeScreensaverComponent {
   private monacoContainer = viewChild.required<ElementRef>('monacoContainer');

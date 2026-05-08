@@ -10,53 +10,8 @@ import { MatIconModule } from '@angular/material/icon';
     selector: 'app-space-invaders',
     standalone: true,
     imports: [MatButtonModule, MatIconModule],
-    template: `
-    <div class="screensaver-container">
-      <div #gameContainer class="phaser-container"></div>
-      <button mat-icon-button class="exit-btn" (click)="exit()" aria-label="Exit Screensaver">
-        <mat-icon>close</mat-icon>
-      </button>
-      <div class="hint">Screensaver Active - Click Top Right to Exit</div>
-    </div>
-  `,
-    styles: [`
-    .screensaver-container {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      background: black;
-      z-index: 9999;
-    }
-    .phaser-container {
-      width: 100%;
-      height: 100%;
-    }
-    .exit-btn {
-      position: absolute;
-      top: 20px;
-      right: 20px;
-      color: rgba(255, 255, 255, 0.5);
-      z-index: 10000;
-      transition: color 0.3s, background-color 0.3s;
-    }
-    .exit-btn:hover {
-      color: white;
-      background-color: rgba(255, 255, 255, 0.1);
-    }
-    .hint {
-        position: absolute;
-        bottom: 20px;
-        left: 50%;
-        transform: translateX(-50%);
-        color: #333;
-        font-family: monospace;
-        font-size: 12px;
-        opacity: 0.3;
-        pointer-events: none;
-    }
-  `]
+    templateUrl: './space-invaders.component.html',
+    styleUrl: './space-invaders.component.scss'
 })
 export class SpaceInvadersComponent {
     private gameContainer = viewChild.required<ElementRef>('gameContainer');

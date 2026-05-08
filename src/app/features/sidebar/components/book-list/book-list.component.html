@@ -1,0 +1,143 @@
+<div class="book-list-container">
+  <div class="header">
+    <h3>Adventure Books</h3>
+    <button mat-icon-button (click)="closePanel.emit()">
+        <mat-icon>close</mat-icon>
+    </button>
+  </div>
+
+  <!-- 7-Day Cost Summary -->
+  <div class="cost-summary">
+    <div class="cost-header">
+        <mat-icon>analytics</mat-icon>
+        <span>7-Day Summary</span>
+    </div>
+    <div class="cost-stats">
+        <div class="cost-row">
+            <span>Books Active:</span>
+            <span class="val">{{ weeklyStats().bookCount }}</span>
+        </div>
+        <div class="cost-row total">
+            <span>Total Cost:</span>
+            <span class="val">{{ formatCost(weeklyStats().totalCost) }}</span>
+        </div>
+    </div>
+  </div>
+
+  <div class="top-actions">
+    <button mat-stroked-button color="primary" class="top-btn" (click)="startNewSession()">
+        <mat-icon>add_circle</mat-icon>
+        New Session
+    </button>
+    <button mat-stroked-button class="top-btn" (click)="createCollection()">
+        <mat-icon>create_new_folder</mat-icon>
+        New Collection
+    </button>
+  </div>
+
+  <div class="book-scroll">
+    @for (group of bookGroups(); track group.collection.id) {
+        <div class="collection-group">
+            <div class="collection-header"
+                [class.active-collection]="group.collection.id === activeCollectionId()"
+                role="button"
+                tabindex="0"
+                (click)="toggleCollection(group.collection.id)"
+                (keydown.enter)="toggleCollection(group.collection.id)"
+                (keydown.space)="$event.preventDefault(); toggleCollection(group.collection.id)">
+                <mat-icon class="caret">
+                    {{ isExpanded(group.collection.id) ? 'expand_more' : 'chevron_right' }}
+                </mat-icon>
+                <mat-icon class="folder-icon">
+                    {{ group.collection.id === rootId ? 'inbox' : 'folder' }}
+                </mat-icon>
+                <span class="collection-name">{{ group.collection.name }}</span>
+                <span class="collection-count">({{ group.books.length }})</span>
+                <span class="spacer"></span>
+                <button mat-icon-button class="header-btn"
+                    (click)="addBookTo(group.collection.id, $event)"
+                    matTooltip="New session in this collection">
+                    <mat-icon>add</mat-icon>
+                </button>
+                @if (group.collection.id !== rootId) {
+                    <button mat-icon-button class="header-btn"
+                        (click)="renameCollection(group.collection, $event)"
+                        matTooltip="Rename collection">
+                        <mat-icon>drive_file_rename_outline</mat-icon>
+                    </button>
+                    <button mat-icon-button class="header-btn" color="warn"
+                        (click)="removeCollection(group.collection, $event)"
+                        [matTooltip]="group.books.length > 0 ? 'Move/delete its books first' : 'Delete collection'">
+                        <mat-icon>folder_delete</mat-icon>
+                    </button>
+                }
+            </div>
+
+            @if (isExpanded(group.collection.id)) {
+                <mat-list class="book-sublist">
+                    @for (book of group.books; track book.id) {
+                        <mat-list-item [class.active-book]="isActive(book.id)" (click)="switchBook(book.id)">
+                            <div matListItemTitle class="book-title">
+                                {{ book.name }}
+                            </div>
+
+                            <div matListItemLine class="book-meta">
+                                <span>{{ book.lastActiveAt | date:'short' }}</span>
+                                @if (book.stats.kbCacheName) {
+                                    <span class="cache-badge" matTooltip="Active Cloud Cache">
+                                        <mat-icon class="tiny-icon">cloud_done</mat-icon>
+                                    </span>
+                                }
+                            </div>
+
+                            <div matListItemMeta>
+                                <button mat-icon-button (click)="moveBook(book, $event)"
+                                    matTooltip="Move to another collection">
+                                    <mat-icon>drive_file_move</mat-icon>
+                                </button>
+                                <button mat-icon-button (click)="renameBook(book, $event)"
+                                    matTooltip="Rename Book">
+                                    <mat-icon>edit</mat-icon>
+                                </button>
+                                <button mat-icon-button color="warn" (click)="deleteBook(book, $event)"
+                                    [matTooltip]="isActive(book.id) ? 'Delete Active Book (will switch to another)' : 'Delete Book'">
+                                    <mat-icon>delete</mat-icon>
+                                </button>
+                            </div>
+                        </mat-list-item>
+                        <mat-divider></mat-divider>
+                    }
+
+                    @if (group.books.length === 0) {
+                        <div class="empty-collection">No books in this collection</div>
+                    }
+                </mat-list>
+            }
+        </div>
+    }
+
+    @if (totalBookCount() === 0) {
+        <div class="empty-state">
+            <mat-icon>menu_book</mat-icon>
+            <p>No books found. Start a new adventure!</p>
+        </div>
+    }
+  </div>
+
+  <div class="footer-actions">
+        <button mat-stroked-button class="sync-btn" (click)="syncAllToCloud()" [disabled]="state.isBusy()">
+            <mat-icon>cloud_sync</mat-icon>
+            Sync All ({{ syncBackends.activeBackendId() === 's3' ? 'S3' : 'Drive' }})
+        </button>
+
+        <button mat-stroked-button color="warn" class="nuke-btn" (click)="nukeCaches()">
+            <mat-icon>delete_forever</mat-icon>
+            Nuke All Caches
+        </button>
+
+        <button mat-stroked-button class="advanced-btn" (click)="openAdvancedSyncTools()" [disabled]="state.isBusy()">
+            <mat-icon>build</mat-icon>
+            Advanced Sync Tools
+        </button>
+  </div>
+</div>
