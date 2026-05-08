@@ -1,7 +1,10 @@
 import { Injectable, computed, resource, signal } from '@angular/core';
 import {
   type SearchResult,
+  applyReplacementAt,
   buildSearchPatternOrLiteral,
+  effectiveRegexMode,
+  escapeReplacement,
   findMatchesInLines,
   formatCombinedDiffPreview,
   formatHighlightedSnippet,
@@ -103,13 +106,12 @@ export class FileSearchEngine {
     const lineIndex = result.lineNumber - 1;
     if (lineIndex < 0 || lineIndex >= lines.length) return;
 
-    const line = lines[lineIndex];
-    const pattern = buildSearchPatternOrLiteral(this.currentOptions(), false);
-    const replaceWith = this.replaceQuery();
-
-    const before = line.substring(0, result.matchIndex);
-    const after = line.substring(result.matchIndex);
-    lines[lineIndex] = before + after.replace(pattern, replaceWith);
+    const opts = this.currentOptions();
+    const pattern = buildSearchPatternOrLiteral(opts, false);
+    const replaceWith = escapeReplacement(this.replaceQuery(), effectiveRegexMode(opts));
+    const matchEnd = result.matchIndex + result.matchLength;
+    const { newLine } = applyReplacementAt(lines[lineIndex], result.matchIndex, matchEnd, pattern, replaceWith);
+    lines[lineIndex] = newLine;
 
     const newContent = lines.join('\n');
     this.files.set(result.fileName, newContent);
@@ -127,8 +129,9 @@ export class FileSearchEngine {
     // before the synchronous string-replace work starts.
     await new Promise((resolve) => setTimeout(resolve, 0));
     try {
-      const pattern = buildSearchPatternOrLiteral(this.currentOptions(), true);
-      const replaceWith = this.replaceQuery();
+      const opts = this.currentOptions();
+      const pattern = buildSearchPatternOrLiteral(opts, true);
+      const replaceWith = escapeReplacement(this.replaceQuery(), effectiveRegexMode(opts));
       const affected = new Set(results.map((r) => r.fileName));
 
       for (const fileName of affected) {
@@ -159,8 +162,10 @@ export class FileSearchEngine {
     // Match search/replace's literal fallback: an invalid regex still highlights
     // the literal hits the result list shows — the diff would otherwise read
     // 'Invalid Regex' for entries that DO have a working literal replacement.
-    const pattern = buildSearchPatternOrLiteral(this.currentOptions(), false);
-    return formatCombinedDiffPreview(line, result.matchIndex, result.matchIndex + result.matchLength, pattern, this.replaceQuery());
+    const opts = this.currentOptions();
+    const pattern = buildSearchPatternOrLiteral(opts, false);
+    const replaceWith = escapeReplacement(this.replaceQuery(), effectiveRegexMode(opts));
+    return formatCombinedDiffPreview(line, result.matchIndex, result.matchIndex + result.matchLength, pattern, replaceWith);
   }
 
   private currentOptions() {

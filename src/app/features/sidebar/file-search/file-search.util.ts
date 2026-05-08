@@ -52,6 +52,52 @@ export function buildSearchPatternOrLiteral(opts: SearchOptions, global: boolean
   }
 }
 
+/**
+ * Whether `opts.regex` is honoured or silently downgraded to literal mode.
+ *
+ * `buildSearchPatternOrLiteral` swallows invalid regex syntax — the resulting
+ * pattern then matches escaped literals. Callers that build a replacement
+ * string need this signal to escape `$` correctly: literal mode requires
+ * `$$` to emit `$`; regex mode preserves substitution tokens like `$&` / `$1`.
+ */
+export function effectiveRegexMode(opts: SearchOptions): boolean {
+  if (!opts.regex) return false;
+  try {
+    new RegExp(opts.query);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Replace the match at `[matchStart, matchEnd)` on `line`, preserving full
+ * regex context (lookbehinds, `\B`, `$\`` / `$'` substitution tokens).
+ *
+ * Uses a sticky (`y`) regex anchored at `matchStart` and runs replace against
+ * the full line — the prior `line.substring(matchStart).replace(...)` approach
+ * silently dropped left context, breaking those features.
+ *
+ * Returns both the rewritten line and the substituted slice (useful for
+ * preview rendering). Substituted slice is derived from length math; no second
+ * replace pass needed.
+ */
+export function applyReplacementAt(
+  line: string,
+  matchStart: number,
+  matchEnd: number,
+  pattern: RegExp,
+  replaceWith: string,
+): { newLine: string; substituted: string } {
+  const stickyFlags = pattern.flags.replace(/[gy]/g, '') + 'y';
+  const sticky = new RegExp(pattern.source, stickyFlags);
+  sticky.lastIndex = matchStart;
+  const newLine = line.replace(sticky, replaceWith);
+  // newLine.length = line.length - (matchEnd - matchStart) + substituted.length
+  const subLen = newLine.length - line.length + (matchEnd - matchStart);
+  return { newLine, substituted: newLine.substring(matchStart, matchStart + subLen) };
+}
+
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -97,7 +143,20 @@ export function escapeHtml(text: string): string {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
+ * Escape `$` in a replacement string for literal-mode `.replace()` calls.
+ *
+ * `String.prototype.replace` treats `$$`, `$&`, `$\``, `$'`, `$<n>` as special
+ * substitution patterns. In literal search mode the user expects `$` to mean
+ * a `$` character — double every `$` so the substitution engine emits one.
+ * Regex mode passes through verbatim so users keep access to `$1`, `$&`, etc.
+ */
+export function escapeReplacement(replaceWith: string, isRegex: boolean): string {
+  return isRegex ? replaceWith : replaceWith.replace(/\$/g, '$$$$');
 }
 
 interface SnippetClip {
@@ -152,6 +211,8 @@ export function formatCombinedDiffPreview(
   ctxAfter = 100,
 ): string {
   const c = clipSnippetWindow(line, matchStart, matchEnd, ctxBefore, ctxAfter);
-  const substituted = c.match.replace(pattern, replaceWith);
+  // Substitute against the full line so lookbehinds, \B, and $`/$' tokens
+  // see the actual surrounding context — c.match alone has none.
+  const { substituted } = applyReplacementAt(line, matchStart, matchEnd, pattern, replaceWith);
   return `${c.prefix}${escapeHtml(c.before)}<span class="diff-removed">${escapeHtml(c.match)}</span><span class="diff-added">${escapeHtml(substituted)}</span>${escapeHtml(c.after)}${c.suffix}`;
 }

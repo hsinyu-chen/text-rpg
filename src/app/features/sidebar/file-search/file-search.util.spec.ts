@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  applyReplacementAt,
   buildSearchPattern,
   buildSearchPatternOrLiteral,
+  effectiveRegexMode,
   escapeHtml,
+  escapeReplacement,
   findMatchesInLines,
   formatCombinedDiffPreview,
   formatHighlightedSnippet,
@@ -158,8 +161,56 @@ describe('escapeHtml', () => {
     expect(escapeHtml('a & b < c > d "e"')).toBe('a &amp; b &lt; c &gt; d &quot;e&quot;');
   });
 
-  it('leaves apostrophes alone (consistent with original behaviour)', () => {
-    expect(escapeHtml("it's")).toBe("it's");
+  it('escapes apostrophes', () => {
+    expect(escapeHtml("it's")).toBe('it&#39;s');
+  });
+});
+
+describe('effectiveRegexMode', () => {
+  it('returns false when regex flag is off', () => {
+    expect(effectiveRegexMode({ query: '(', regex: false, wholeWord: false, caseSensitive: false })).toBe(false);
+  });
+
+  it('returns true when regex is on and query is a valid pattern', () => {
+    expect(effectiveRegexMode({ query: 'a+', regex: true, wholeWord: false, caseSensitive: false })).toBe(true);
+  });
+
+  it('returns false when regex is on but query is invalid (matches buildSearchPatternOrLiteral fallback)', () => {
+    expect(effectiveRegexMode({ query: '(', regex: true, wholeWord: false, caseSensitive: false })).toBe(false);
+  });
+});
+
+describe('applyReplacementAt', () => {
+  it('replaces the match at the given offset, preserving left context for $`', () => {
+    const pattern = /bar/;
+    const { newLine, substituted } = applyReplacementAt('foo bar baz', 4, 7, pattern, '[$`]');
+    expect(newLine).toBe('foo [foo ] baz');
+    expect(substituted).toBe('[foo ]');
+  });
+
+  it('honours lookbehind by running against the full line', () => {
+    const pattern = /(?<=foo )bar/;
+    const { newLine } = applyReplacementAt('foo bar', 4, 7, pattern, 'BAR');
+    expect(newLine).toBe('foo BAR');
+  });
+
+  it('replaces only at the given offset even if earlier matches exist on the line', () => {
+    const pattern = /bar/;
+    const { newLine } = applyReplacementAt('bar bar bar', 8, 11, pattern, 'X');
+    expect(newLine).toBe('bar bar X');
+  });
+});
+
+describe('escapeReplacement', () => {
+  it('doubles `$` in literal mode so .replace emits a single `$`', () => {
+    expect(escapeReplacement('$10', false)).toBe('$$10');
+    // String.prototype.replace consumes `$$` → `$`, verify end-to-end
+    expect('abc'.replace(/b/, escapeReplacement('$&', false))).toBe('a$&c');
+  });
+
+  it('passes regex mode through verbatim so $1 / $& still work', () => {
+    expect(escapeReplacement('$&', true)).toBe('$&');
+    expect('abc'.replace(/b/, escapeReplacement('[$&]', true))).toBe('a[b]c');
   });
 });
 
