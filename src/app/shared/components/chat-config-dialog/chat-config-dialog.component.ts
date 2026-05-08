@@ -17,16 +17,11 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { getUIStrings, getIntentLabels } from '@app/core/constants/engine-protocol';
 import { PostProcessorService } from '@app/core/services/post-processor.service';
 import { InjectionService, PromptType } from '@app/core/services/injection.service';
-import { PromptProfileRegistryService } from '@app/core/services/prompt-profile-registry.service';
-import { PromptCloudSyncService } from '@app/core/services/sync/prompt-cloud-sync.service';
-import { DiskProfileSyncService } from '@app/core/services/sync/disk-profile-sync.service';
-import { SyncService } from '@app/core/services/sync/sync.service';
 import { LoadingService } from '@app/core/services/loading.service';
 import { DialogService } from '@app/core/services/dialog.service';
 import { PromptDiffDialogComponent } from '../prompt-diff-dialog/prompt-diff-dialog.component';
 import { MatBadgeModule } from '@angular/material/badge';
-import { DEFAULT_PROFILE_ID, PromptProfile, getProfileDisplayName } from '@app/core/constants/prompt-profiles';
-import { isSystemMainCompatible } from '@app/core/services/profile-compat';
+import { ProfileManagementController } from './profile-management-controller';
 
 interface InjectionType {
     id: 'action' | 'continue' | 'fastforward' | 'system' | 'save' | 'postprocess' | 'system_main' | 'protocol_single' | 'protocol_resolver' | 'protocol_narrator';
@@ -59,7 +54,8 @@ interface PromptCategory {
         MonacoEditorComponent
     ],
     templateUrl: './chat-config-dialog.component.html',
-    styleUrl: './chat-config-dialog.component.scss'
+    styleUrl: './chat-config-dialog.component.scss',
+    providers: [ProfileManagementController]
 })
 export class ChatConfigDialogComponent {
     private dialogRef = inject(MatDialogRef<ChatConfigDialogComponent>);
@@ -67,20 +63,22 @@ export class ChatConfigDialogComponent {
     private snackBar = inject(MatSnackBar);
     private postProcessor = inject(PostProcessorService);
     private injection = inject(InjectionService);
-    private registry = inject(PromptProfileRegistryService);
-    private promptCloudSync = inject(PromptCloudSyncService);
-    private sync = inject(SyncService);
-    private diskSync = inject(DiskProfileSyncService);
     loading = inject(LoadingService);
     private dialogService = inject(DialogService);
     private readonly win = inject(WINDOW);
     state = inject(GameStateService);
     private appConfig = inject(AppConfigStore);
+    profileMgr = inject(ProfileManagementController);
 
     editorRef = viewChild<MonacoEditorComponent>('editorRef');
 
     constructor() {
-        void this.refreshLegacyProfileIds();
+        this.profileMgr.bind({
+            hasAnyDirty: () => this.hasAnyDirty(),
+            clearDirty: () => this.dirtyState.set(new Map()),
+            refreshEditorContent: () => this.refreshAllEditorContent(),
+        });
+        void this.profileMgr.refreshLegacyProfileIds();
     }
 
     ui = computed(() => getUIStrings(this.appConfig.outputLanguage()));
@@ -114,46 +112,6 @@ export class ChatConfigDialogComponent {
 
     activeType = signal<InjectionType['id']>('system_main');
 
-    builtInProfiles = computed(() => this.registry.builtInProfiles());
-    userProfiles = computed(() => this.registry.userProfiles());
-    activeProfileId = computed(() => this.state.activePromptProfile());
-    activeProfile = computed(() => this.registry.get(this.activeProfileId()));
-    isActiveBuiltIn = computed(() => this.activeProfile()?.isBuiltIn ?? false);
-    isSwitchingProfile = signal(false);
-
-    /**
-     * Set of profile ids whose `system_main` lacks the v2 version marker.
-     * Recomputed on dialog init and after any profile-list mutation; the
-     * template renders a ⚠ badge inside `<mat-option>` for these.
-     */
-    legacyProfileIds = signal<Set<string>>(new Set());
-
-    getProfileLabel(profile: PromptProfile): string {
-        return getProfileDisplayName(profile, this.ui() as unknown as Record<string, string>);
-    }
-
-    isLegacyProfile(profileId: string): boolean {
-        return this.legacyProfileIds().has(profileId);
-    }
-
-    async refreshLegacyProfileIds(): Promise<void> {
-        const all = [...this.builtInProfiles(), ...this.userProfiles()];
-        const results = await Promise.all(all.map(async profile => {
-            try {
-                const content = await this.injection.getResolvedProfilePrompt('system_main', profile.id);
-                return { id: profile.id, compatible: isSystemMainCompatible(content) };
-            } catch (err) {
-                console.warn(`[ChatConfigDialog] compat check failed for ${profile.id}`, err);
-                // Treat fetch failures as compatible — surfacing a false ⚠ on
-                // every profile because storage hiccupped is worse than
-                // missing one legacy badge until the next refresh.
-                return { id: profile.id, compatible: true };
-            }
-        }));
-        const legacy = new Set<string>(results.filter(r => !r.compatible).map(r => r.id));
-        this.legacyProfileIds.set(legacy);
-    }
-
     isSidebarCollapsed = signal(false);
     dirtyState = signal<Map<string, boolean>>(new Map());
     validationResult = signal<{ valid: boolean, error?: string }>({ valid: true });
@@ -174,7 +132,7 @@ export class ChatConfigDialogComponent {
     });
 
     editorOptions = computed(() => ({
-        readOnly: this.isActiveBuiltIn(),
+        readOnly: this.profileMgr.isActiveBuiltIn(),
         minimap: { enabled: false },
         wordWrap: 'on' as const,
         lineNumbers: 'on' as const,
@@ -226,7 +184,7 @@ export class ChatConfigDialogComponent {
         });
 
         if (type === 'system_main') {
-            await this.refreshLegacyProfileIds();
+            await this.profileMgr.refreshLegacyProfileIds();
         }
 
         this.snackBar.open(this.ui().SAVE_SUCCESS, this.ui().CLOSE, { duration: 2000 });
@@ -238,6 +196,7 @@ export class ChatConfigDialogComponent {
 
         const dirtyMap = this.dirtyState();
         let savedCount = 0;
+        const systemMainSaved = !!dirtyMap.get('system_main');
 
         for (const [type, isDirty] of dirtyMap.entries()) {
             if (!isDirty) continue;
@@ -251,6 +210,9 @@ export class ChatConfigDialogComponent {
 
         if (savedCount > 0) {
             this.dirtyState.set(new Map());
+            if (systemMainSaved) {
+                await this.profileMgr.refreshLegacyProfileIds();
+            }
             this.snackBar.open(this.ui().SAVE_SUCCESS, this.ui().CLOSE, { duration: 2000 });
         }
     }
@@ -311,291 +273,6 @@ export class ChatConfigDialogComponent {
 
     private getContentForType(type: InjectionType['id']): string {
         return this.injection.getContentForType(type as PromptType);
-    }
-
-    async switchProfile(newProfileId: string): Promise<void> {
-        if (newProfileId === this.activeProfileId()) return;
-
-        if (this.hasAnyDirty()) {
-            const ok = await this.dialogService.confirm(this.ui().PROFILE_SWITCH_DISCARD_CONFIRM);
-            if (!ok) return;
-        }
-
-        this.isSwitchingProfile.set(true);
-        try {
-            await this.injection.switchProfile(newProfileId);
-            this.refreshAllEditorContent();
-            this.dirtyState.set(new Map());
-        } finally {
-            this.isSwitchingProfile.set(false);
-        }
-    }
-
-    async cloneActive(): Promise<void> {
-        const active = this.activeProfile();
-        if (!active) return;
-
-        const defaultName = `${this.getProfileLabel(active)} (copy)`;
-        const name = await this.dialogService.prompt(this.ui().PROFILE_CLONE_PROMPT, {
-            defaultValue: defaultName,
-            title: this.ui().PROFILE_CLONE
-        });
-        if (!name) return;
-
-        if (this.hasAnyDirty()) {
-            const ok = await this.dialogService.confirm(this.ui().PROFILE_SWITCH_DISCARD_CONFIRM);
-            if (!ok) return;
-        }
-
-        this.isSwitchingProfile.set(true);
-        try {
-            const newId = await this.injection.cloneProfile(active.id, name);
-            await this.injection.switchProfile(newId);
-            this.refreshAllEditorContent();
-            this.dirtyState.set(new Map());
-            await this.refreshLegacyProfileIds();
-            this.snackBar.open(this.ui().PROFILE_CLONED, this.ui().CLOSE, { duration: 2000 });
-        } catch (err) {
-            console.error('[ChatConfig] cloneActive failed', err);
-            this.snackBar.open(this.ui().PROFILE_OP_FAILED, this.ui().CLOSE, { duration: 3000 });
-        } finally {
-            this.isSwitchingProfile.set(false);
-        }
-    }
-
-    async renameActive(): Promise<void> {
-        const active = this.activeProfile();
-        if (!active || active.isBuiltIn) return;
-
-        const current = active.displayName || '';
-        const name = await this.dialogService.prompt(this.ui().PROFILE_RENAME_PROMPT, {
-            defaultValue: current,
-            title: this.ui().PROFILE_RENAME
-        });
-        if (!name || name === current) return;
-
-        try {
-            await this.injection.renameProfile(active.id, name);
-            this.snackBar.open(this.ui().PROFILE_RENAMED, this.ui().CLOSE, { duration: 2000 });
-        } catch (err) {
-            console.error('[ChatConfig] renameActive failed', err);
-            this.snackBar.open(this.ui().PROFILE_OP_FAILED, this.ui().CLOSE, { duration: 3000 });
-        }
-    }
-
-    /** Switches to a fallback profile first so the app never points at a deleted id. */
-    async deleteActive(): Promise<void> {
-        const active = this.activeProfile();
-        if (!active || active.isBuiltIn) return;
-
-        const confirmMsg = this.ui().PROFILE_DELETE_CONFIRM.replace('{name}', this.getProfileLabel(active));
-        const ok = await this.dialogService.confirm(confirmMsg, this.ui().PROFILE_DELETE);
-        if (!ok) return;
-
-        if (this.hasAnyDirty()) {
-            const discardOk = await this.dialogService.confirm(this.ui().PROFILE_SWITCH_DISCARD_CONFIRM);
-            if (!discardOk) return;
-        }
-
-        this.isSwitchingProfile.set(true);
-        try {
-            const fallbackId = active.baseProfileId && this.registry.get(active.baseProfileId)
-                ? active.baseProfileId
-                : DEFAULT_PROFILE_ID;
-            await this.injection.switchProfile(fallbackId);
-            await this.injection.deleteProfile(active.id);
-            this.refreshAllEditorContent();
-            this.dirtyState.set(new Map());
-            await this.refreshLegacyProfileIds();
-            this.snackBar.open(this.ui().PROFILE_DELETED, this.ui().CLOSE, { duration: 2000 });
-        } catch (err) {
-            console.error('[ChatConfig] deleteActive failed', err);
-            this.snackBar.open(this.ui().PROFILE_OP_FAILED, this.ui().CLOSE, { duration: 3000 });
-        } finally {
-            this.isSwitchingProfile.set(false);
-        }
-    }
-
-    async pushPromptsToCloud(): Promise<void> {
-        this.loading.show(this.ui().PROMPT_SYNC_UPLOADING);
-        try {
-            const { exported } = await this.sync.uploadPrompts();
-            this.snackBar.open(this.ui().PROMPT_SYNC_UPLOADED.replace('{count}', String(exported)), this.ui().CLOSE, { duration: 3000 });
-        } catch (err) {
-            console.error('[ChatConfig] uploadPrompts failed', err);
-            this.snackBar.open(this.ui().PROMPT_SYNC_FAILED, this.ui().CLOSE, { duration: 4000 });
-        } finally {
-            this.loading.hide();
-        }
-    }
-
-    async pullPromptsFromCloud(): Promise<void> {
-        const confirmed = await this.dialogService.confirm(
-            this.ui().PROMPT_SYNC_DOWNLOAD_CONFIRM,
-            this.ui().PROMPT_SYNC_DOWNLOAD_TITLE
-        );
-        if (!confirmed) return;
-
-        this.loading.show(this.ui().PROMPT_SYNC_DOWNLOADING);
-        try {
-            const { imported } = await this.sync.downloadPrompts();
-            // forceReload — switchProfile(sameId) would early-return and skip the re-read.
-            await this.injection.forceReload();
-            this.refreshAllEditorContent();
-            this.dirtyState.set(new Map());
-            await this.refreshLegacyProfileIds();
-            const msg = imported === 0
-                ? this.ui().PROMPT_SYNC_NONE_FOUND
-                : this.ui().PROMPT_SYNC_DOWNLOADED.replace('{count}', String(imported));
-            this.snackBar.open(msg, this.ui().CLOSE, { duration: 3000 });
-        } catch (err) {
-            console.error('[ChatConfig] downloadPrompts failed', err);
-            this.snackBar.open(this.ui().PROMPT_SYNC_FAILED, this.ui().CLOSE, { duration: 4000 });
-        } finally {
-            this.loading.hide();
-        }
-    }
-
-    async exportActiveProfile(): Promise<void> {
-        const active = this.activeProfile();
-        if (!active) return;
-        try {
-            const json = await this.promptCloudSync.exportSingleProfile(active.id);
-            const safeName = (this.getProfileLabel(active) || active.id).replace(/[^\w-]+/g, '_');
-            const blob = new Blob([json], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = this.win.document.createElement('a');
-            a.href = url;
-            a.download = `prompt-profile-${safeName}.json`;
-            a.click();
-            URL.revokeObjectURL(url);
-        } catch (err) {
-            console.error('[ChatConfig] exportActiveProfile failed', err);
-            this.snackBar.open(this.ui().PROFILE_OP_FAILED, this.ui().CLOSE, { duration: 3000 });
-        }
-    }
-
-    importProfileFromFile(): void {
-        const input = this.win.document.createElement('input');
-        input.type = 'file';
-        input.accept = 'application/json,.json';
-        input.onchange = async () => {
-            const file = input.files?.[0];
-            if (!file) return;
-            try {
-                const text = await file.text();
-                const before = new Set(this.registry.userProfiles().map(p => p.id));
-                const { imported } = await this.promptCloudSync.importSingleProfile(text);
-                if (imported === 0) {
-                    this.snackBar.open(this.ui().PROFILE_IMPORT_EMPTY, this.ui().CLOSE, { duration: 3000 });
-                    return;
-                }
-                // A fresh id means a new user profile appeared (incl. rename-on-conflict);
-                // no fresh id means the import overwrote an existing one in place.
-                const after = this.registry.userProfiles();
-                const fresh = after.find(p => !before.has(p.id));
-                if (fresh) {
-                    await this.injection.switchProfile(fresh.id);
-                } else {
-                    await this.injection.forceReload();
-                }
-                this.refreshAllEditorContent();
-                this.dirtyState.set(new Map());
-                await this.refreshLegacyProfileIds();
-                this.snackBar.open(this.ui().PROFILE_IMPORTED, this.ui().CLOSE, { duration: 3000 });
-            } catch (err) {
-                console.error('[ChatConfig] importProfileFromFile failed', err);
-                this.snackBar.open(this.ui().PROFILE_IMPORT_INVALID, this.ui().CLOSE, { duration: 4000 });
-            }
-        };
-        input.click();
-    }
-
-    diskFolderName(): string | null {
-        return this.diskSync.boundFolderName();
-    }
-
-    async pushActiveProfileToDisk(): Promise<void> {
-        const active = this.activeProfile();
-        if (!active || active.isBuiltIn) return;
-
-        if (!this.diskFolderName()) {
-            try {
-                await this.diskSync.pickFolder();
-            } catch (err) {
-                if ((err as Error)?.name === 'AbortError') return;
-                console.error('[ChatConfig] disk pickFolder failed', err);
-                this.snackBar.open(this.ui().DISK_SYNC_FAILED, this.ui().CLOSE, { duration: 3000 });
-                return;
-            }
-        }
-
-        this.loading.show(this.ui().DISK_SYNC_PUSHING);
-        try {
-            await this.diskSync.pushActiveToDisk();
-            this.snackBar.open(this.ui().DISK_SYNC_PUSHED, this.ui().CLOSE, { duration: 3000 });
-        } catch (err) {
-            console.error('[ChatConfig] pushActiveProfileToDisk failed', err);
-            this.snackBar.open(this.ui().DISK_SYNC_FAILED, this.ui().CLOSE, { duration: 4000 });
-        } finally {
-            this.loading.hide();
-        }
-    }
-
-    async pullActiveProfileFromDisk(): Promise<void> {
-        const active = this.activeProfile();
-        if (!active || active.isBuiltIn) return;
-
-        if (!this.diskFolderName()) {
-            try {
-                await this.diskSync.pickFolder();
-            } catch (err) {
-                if ((err as Error)?.name === 'AbortError') return;
-                console.error('[ChatConfig] disk pickFolder failed', err);
-                this.snackBar.open(this.ui().DISK_SYNC_FAILED, this.ui().CLOSE, { duration: 3000 });
-                return;
-            }
-        }
-
-        if (this.hasAnyDirty()) {
-            const ok = await this.dialogService.confirm(this.ui().DISK_SYNC_PULL_DISCARD_CONFIRM);
-            if (!ok) return;
-        }
-
-        this.loading.show(this.ui().DISK_SYNC_PULLING);
-        try {
-            const { updatedTypes } = await this.diskSync.pullActiveFromDisk();
-            this.refreshAllEditorContent();
-            this.dirtyState.set(new Map());
-            await this.refreshLegacyProfileIds();
-            const msg = updatedTypes === 0
-                ? this.ui().DISK_SYNC_PULL_EMPTY
-                : this.ui().DISK_SYNC_PULLED.replace('{count}', String(updatedTypes));
-            this.snackBar.open(msg, this.ui().CLOSE, { duration: 3000 });
-        } catch (err) {
-            console.error('[ChatConfig] pullActiveProfileFromDisk failed', err);
-            this.snackBar.open(this.ui().DISK_SYNC_FAILED, this.ui().CLOSE, { duration: 4000 });
-        } finally {
-            this.loading.hide();
-        }
-    }
-
-    async changeDiskFolder(): Promise<void> {
-        try {
-            await this.diskSync.pickFolder();
-            const name = this.diskFolderName();
-            if (name) {
-                this.snackBar.open(
-                    this.ui().DISK_SYNC_FOLDER_BOUND.replace('{name}', name),
-                    this.ui().CLOSE,
-                    { duration: 3000 }
-                );
-            }
-        } catch (err) {
-            if ((err as Error)?.name === 'AbortError') return;
-            console.error('[ChatConfig] changeDiskFolder failed', err);
-            this.snackBar.open(this.ui().DISK_SYNC_FAILED, this.ui().CLOSE, { duration: 3000 });
-        }
     }
 
     private refreshAllEditorContent(): void {
