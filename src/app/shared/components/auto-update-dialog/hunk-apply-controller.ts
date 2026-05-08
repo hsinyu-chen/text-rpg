@@ -89,33 +89,18 @@ export class HunkApplyController {
       }
     });
 
-    // Real-time preview: recompute combinedContent when calibration target moves.
+    // Real-time preview: recompute combinedContent ONLY while a hunk is being
+    // calibrated. recomputeCombinedContent reads currentSelection() itself
+    // and applies an on-the-fly tempUpdate for the calibrating hunk, leaving
+    // the source array untouched. Outside calibration, a recompute on every
+    // cursor move would silently overwrite the user's manual edits.
     effect(() => {
-      const selection = this.currentSelection();
+      this.currentSelection();
       const calibratingId = this.calibratingUpdateId();
-
+      if (!calibratingId) return;
       untracked(() => {
         const group = this.activeGroup();
-        if (!group) return;
-
-        if (calibratingId && selection) {
-          const idx = group.updates.findIndex((u) => u.id === calibratingId);
-          if (idx !== -1) {
-            // Replace the element immutably so OnPush consumers + downstream
-            // signal observers see a fresh reference, instead of mutating
-            // the existing object in place.
-            group.updates[idx] = {
-              ...group.updates[idx],
-              targetContent: selection.text,
-              context: this.updateService.inferContextFromLine(group.originalContent(), selection.startLineNumber - 1),
-            };
-            // activeUpdate carries the previous reference; rebind so the
-            // calibration panel reads the fresh values.
-            if (this.activeUpdate()?.id === calibratingId) this.activeUpdate.set(group.updates[idx]);
-            this.groupedUpdates.update((groups) => [...groups]);
-          }
-        }
-        this.recomputeCombinedContent(group);
+        if (group) this.recomputeCombinedContent(group);
       });
     });
   }
@@ -340,12 +325,23 @@ export class HunkApplyController {
   }
 
   recomputeCombinedContent(group: GroupedUpdate): void {
-    // The calibration effect (constructor) already mutates the active hunk's
-    // targetContent + context before triggering this recompute, so a single
-    // loop covers both the calibrating and non-calibrating cases.
+    // For the calibrating hunk we apply a synthetic tempUpdate built from the
+    // live selection — the source array is left untouched so cancel reverts
+    // for free, indexOf-based lookups stay valid, and OnPush consumers don't
+    // see false reference changes. Only applyCalibration() commits the values
+    // back onto the hunk permanently.
+    const calibratingId = this.calibratingUpdateId();
+    const selection = this.currentSelection();
     let result = group.originalContent();
+
     for (const update of group.updates) {
-      if (update.selected()) result = this.updateService.applyUpdateToFile(result, update);
+      if (!update.selected()) continue;
+      if (update.id === calibratingId && selection) {
+        const tempContext = this.updateService.inferContextFromLine(group.originalContent(), selection.startLineNumber - 1);
+        result = this.updateService.applyUpdateToFile(result, { ...update, targetContent: selection.text, context: tempContext });
+      } else {
+        result = this.updateService.applyUpdateToFile(result, update);
+      }
     }
     group.computedContent.set(result);
     group.combinedContent.set(result);
@@ -365,11 +361,10 @@ export class HunkApplyController {
       if (this.activeUpdate()?.id === update.id) {
         this.activeUpdate.set(replacement);
       }
+      // Per-hunk refresh so the validating spinner clears progressively
+      // as each hunk completes — gives the user feedback on long passes.
+      this.groupedUpdates.update((groups) => [...groups]);
     }
-    // Batch the array refresh so a many-hunk validation pass fires one
-    // signal-driven re-render instead of N. Per-hunk spinner clearing is
-    // sacrificed; the trade-off favours throughput on large updates.
-    this.groupedUpdates.update((groups) => [...groups]);
   }
 
   private async revalidateUpdate(update: MonacoUpdateItem, group: GroupedUpdate): Promise<void> {
