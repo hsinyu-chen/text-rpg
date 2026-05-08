@@ -1,7 +1,7 @@
 <div class="dialog-wrapper">
     <div class="dialog-header">
         <mat-icon>diff</mat-icon>
-        <span class="title-text">{{ ui().PROMPT_UPDATE_TITLE || 'Prompt Update Comparison' }}: {{ data.label }}</span>
+        <span class="title-text">{{ 'ui.PROMPT_UPDATE_TITLE' | translate }}: {{ data.label }}</span>
         <span class="spacer"></span>
         <button mat-icon-button (click)="onIgnore()" class="close-btn">
             <mat-icon>close</mat-icon>
@@ -22,10 +22,10 @@
 
     <div class="dialog-footer">
         <button mat-button (click)="onIgnore()" color="warn">
-            {{ ui().IGNORE || 'Ignore' }}
+            {{ 'ui.IGNORE' | translate }}
         </button>
         <button mat-raised-button color="primary" (click)="onUpdate()">
-            {{ ui().UPDATE || 'Update' }}
+            {{ 'ui.UPDATE' | translate }}
         </button>
     </div>
 </div>

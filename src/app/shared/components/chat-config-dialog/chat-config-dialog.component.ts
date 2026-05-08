@@ -14,7 +14,8 @@ import { MonacoEditorComponent } from '../monaco-editor/monaco-editor.component'
 import { GameStateService } from '@app/core/services/game-state.service';
 import { AppConfigStore } from '@app/core/services/app-config-store';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { getUIStrings, getIntentLabels } from '@app/core/constants/engine-protocol';
+import { GAME_INTENTS } from '@app/core/constants/game-intents';
+import { I18nService, TranslatePipe } from '@app/core/i18n';
 import { PostProcessorService } from '@app/core/services/post-processor.service';
 import { InjectionService, PromptType } from '@app/core/services/injection.service';
 import { LoadingService } from '@app/core/services/loading.service';
@@ -51,7 +52,8 @@ interface PromptCategory {
         MatDividerModule,
         MatBadgeModule,
         FormsModule,
-        MonacoEditorComponent
+        MonacoEditorComponent,
+        TranslatePipe
     ],
     templateUrl: './chat-config-dialog.component.html',
     styleUrl: './chat-config-dialog.component.scss',
@@ -68,6 +70,7 @@ export class ChatConfigDialogComponent {
     private readonly win = inject(WINDOW);
     state = inject(GameStateService);
     private appConfig = inject(AppConfigStore);
+    private i18n = inject(I18nService);
     profileMgr = inject(ProfileManagementController);
 
     editorRef = viewChild<MonacoEditorComponent>('editorRef');
@@ -81,32 +84,34 @@ export class ChatConfigDialogComponent {
         void this.profileMgr.refreshLegacyProfileIds();
     }
 
-    ui = computed(() => getUIStrings(this.appConfig.outputLanguage()));
+    /** UI strings via i18n; tracked through computeds so locale changes propagate. */
+    private t(key: string, params?: Record<string, string | number>): string {
+        return this.i18n.translate(key, params);
+    }
 
     readonly injectionTypes = computed((): InjectionType[] => {
-        const labels = getIntentLabels(this.appConfig.outputLanguage());
-        const ui = this.ui();
+        this.i18n.currentLang();
         return [
-            { id: 'system_main', label: ui.SYSTEM_PROMPT_TITLE || 'Main System Prompt', icon: 'settings', category: 'main' },
-            { id: 'protocol_single', label: ui.PROTOCOL_SINGLE_TITLE || 'Output Protocol — Single-Call', icon: 'description', category: 'main' },
-            { id: 'protocol_resolver', label: ui.PROTOCOL_RESOLVER_TITLE || 'Output Protocol — Resolver', icon: 'description', category: 'main' },
-            { id: 'protocol_narrator', label: ui.PROTOCOL_NARRATOR_TITLE || 'Output Protocol — Narrator', icon: 'description', category: 'main' },
-            { id: 'system', label: labels.SYSTEM, icon: 'psychology', category: 'injection' },
-            { id: 'action', label: labels.ACTION, icon: 'play_arrow', category: 'injection' },
-            { id: 'continue', label: labels.CONTINUE, icon: 'arrow_forward', category: 'injection' },
-            { id: 'save', label: labels.SAVE, icon: 'save', category: 'injection' },
-            { id: 'fastforward', label: labels.FAST_FORWARD, icon: 'fast_forward', category: 'injection' },
-            { id: 'postprocess', label: labels.POST_PROCESS, icon: 'code', category: 'process' }
+            { id: 'system_main', label: this.t('ui.SYSTEM_PROMPT_TITLE'), icon: 'settings', category: 'main' },
+            { id: 'protocol_single', label: this.t('ui.PROTOCOL_SINGLE_TITLE'), icon: 'description', category: 'main' },
+            { id: 'protocol_resolver', label: this.t('ui.PROTOCOL_RESOLVER_TITLE'), icon: 'description', category: 'main' },
+            { id: 'protocol_narrator', label: this.t('ui.PROTOCOL_NARRATOR_TITLE'), icon: 'description', category: 'main' },
+            { id: 'system', label: this.t(`intent.labels.${GAME_INTENTS.SYSTEM}`), icon: 'psychology', category: 'injection' },
+            { id: 'action', label: this.t(`intent.labels.${GAME_INTENTS.ACTION}`), icon: 'play_arrow', category: 'injection' },
+            { id: 'continue', label: this.t(`intent.labels.${GAME_INTENTS.CONTINUE}`), icon: 'arrow_forward', category: 'injection' },
+            { id: 'save', label: this.t(`intent.labels.${GAME_INTENTS.SAVE}`), icon: 'save', category: 'injection' },
+            { id: 'fastforward', label: this.t(`intent.labels.${GAME_INTENTS.FAST_FORWARD}`), icon: 'fast_forward', category: 'injection' },
+            { id: 'postprocess', label: this.t('intent.labels.post_process'), icon: 'code', category: 'process' }
         ];
     });
 
     readonly groupedTypes = computed((): PromptCategory[] => {
+        this.i18n.currentLang();
         const types = this.injectionTypes();
-        const ui = this.ui();
         return [
-            { id: 'main', label: ui.CATEGORY_MAIN, items: types.filter(t => t.category === 'main') },
-            { id: 'injection', label: ui.CATEGORY_INJECTION, items: types.filter(t => t.category === 'injection') },
-            { id: 'process', label: ui.CATEGORY_PROCESS, items: types.filter(t => t.category === 'process') }
+            { id: 'main', label: this.t('ui.CATEGORY_MAIN'), items: types.filter(t => t.category === 'main') },
+            { id: 'injection', label: this.t('ui.CATEGORY_INJECTION'), items: types.filter(t => t.category === 'injection') },
+            { id: 'process', label: this.t('ui.CATEGORY_PROCESS'), items: types.filter(t => t.category === 'process') }
         ];
     });
 
@@ -187,7 +192,7 @@ export class ChatConfigDialogComponent {
             await this.profileMgr.refreshLegacyProfileIds();
         }
 
-        this.snackBar.open(this.ui().SAVE_SUCCESS, this.ui().CLOSE, { duration: 2000 });
+        this.snackBar.open(this.t('ui.SAVE_SUCCESS'), this.t('ui.CLOSE'), { duration: 2000 });
     }
 
     async saveAll(): Promise<void> {
@@ -213,7 +218,7 @@ export class ChatConfigDialogComponent {
             if (systemMainSaved) {
                 await this.profileMgr.refreshLegacyProfileIds();
             }
-            this.snackBar.open(this.ui().SAVE_SUCCESS, this.ui().CLOSE, { duration: 2000 });
+            this.snackBar.open(this.t('ui.SAVE_SUCCESS'), this.t('ui.CLOSE'), { duration: 2000 });
         }
     }
 
@@ -293,7 +298,7 @@ export class ChatConfigDialogComponent {
             .map((entry) => entry[0]);
 
         if (dirtyTypes.length > 0) {
-            const ok = await this.dialogService.confirm(this.ui().UNSAVED_CHANGES_CONFIRM);
+            const ok = await this.dialogService.confirm(this.t('ui.UNSAVED_CHANGES_CONFIRM'));
             if (!ok) return;
         }
 
@@ -302,7 +307,7 @@ export class ChatConfigDialogComponent {
         const validation = this.postProcessor.validate(currentScript);
 
         if (!validation.valid) {
-            const confirmMsg = this.ui().POST_PROCESS_INVALID_CONFIRM.replace('{error}', validation.error ?? '');
+            const confirmMsg = this.t('ui.POST_PROCESS_INVALID_CONFIRM', { error: validation.error ?? '' });
             const ok = await this.dialogService.confirm(confirmMsg);
             if (!ok) {
                 if (this.activeType() !== 'postprocess') this.selectType('postprocess');

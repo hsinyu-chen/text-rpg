@@ -70,7 +70,7 @@
                                 <!-- Calibration Action -->
                                 <button mat-icon-button class="calibrate-btn"
                                     [class.active]="hunks.calibratingUpdateId() === update.id"
-                                    [matTooltip]="locale().uiStrings.CALIBRATE_TOOLTIP"
+                                    [matTooltip]="'ui.CALIBRATE_TOOLTIP' | translate"
                                     (click)="hunks.startCalibration(update); $event.stopPropagation()">
                                     <mat-icon class="calibrate-icon">my_location</mat-icon>
                                 </button>
@@ -90,7 +90,7 @@
                             (keydown.enter)="$event.stopPropagation()" tabindex="0" role="region">
                             <div class="calibration-header">
                                 <mat-icon>edit_note</mat-icon>
-                                <span>{{ locale().uiStrings.CALIBRATE_MODE_TITLE }}</span>
+                                <span>{{ 'ui.CALIBRATE_MODE_TITLE' | translate }}</span>
                             </div>
 
                             <!-- LIVE SELECTION PREVIEW -->
@@ -101,7 +101,7 @@
                                     <button mat-flat-button color="primary" size="small"
                                         (click)="hunks.applyCalibration(update)">
                                         <mat-icon>check</mat-icon>
-                                        {{ locale().uiStrings.CALIBRATE_CONFIRM }}
+                                        {{ 'ui.CALIBRATE_CONFIRM' | translate }}
                                     </button>
                                     <button mat-icon-button (click)="hunks.currentSelection.set(null)">
                                         <mat-icon>close</mat-icon>
@@ -129,7 +129,7 @@
 
                             <div class="calibration-footer">
                                 <button mat-button color="warn" (click)="hunks.cancelCalibration()">
-                                    {{ locale().uiStrings.CALIBRATE_CANCEL }}
+                                    {{ 'ui.CALIBRATE_CANCEL' | translate }}
                                 </button>
                             </div>
                         </div>
@@ -172,7 +172,7 @@
     @if (hunks.hasAnyMismatch()) {
     <button mat-stroked-button color="warn" (click)="onRegenerateSave()">
         <mat-icon>refresh</mat-icon>
-        {{ locale().uiStrings.REGENERATE_SAVE_BTN }}
+        {{ 'ui.REGENERATE_SAVE_BTN' | translate }}
     </button>
     }
     <button mat-button (click)="onCancel()">Cancel</button>

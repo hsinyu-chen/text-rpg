@@ -38,20 +38,8 @@ export const getSectionHeaders = (lang = 'default') => {
     return getLocale(lang).sectionHeaders;
 };
 
-export const getIntentLabels = (lang = 'default') => {
-    return getLocale(lang).intentLabels;
-};
-
 export const getIntentTags = (lang = 'default') => {
     return getLocale(lang).intentTags;
-};
-
-export const getIntentDescriptions = (lang = 'default') => {
-    return getLocale(lang).intentDescriptions;
-};
-
-export const getInputPlaceholders = (lang = 'default') => {
-    return getLocale(lang).inputPlaceholders;
 };
 
 export const LLM_MARKERS = {
@@ -63,8 +51,14 @@ export const getAdultDeclaration = (lang = 'default'): string => {
     return getLocale(lang).adultDeclaration;
 };
 
-export const getUIStrings = (lang = 'default') => {
-    return getLocale(lang).uiStrings;
+/**
+ * Engine-facing strings tied to {@link AppLocale.engineStrings} — strings the
+ * engine writes either as chat-message content (persisted alongside the
+ * story) or as prompt content sent back to the LLM. NOT live UI chrome —
+ * those live in `src/app/core/i18n/dictionaries/` keyed by `interfaceLanguage`.
+ */
+export const getEngineStrings = (lang = 'default') => {
+    return getLocale(lang).engineStrings;
 };
 
 export const INJECTION_FILE_PATHS = {

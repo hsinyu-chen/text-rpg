@@ -11,7 +11,7 @@ import { FileUpdateService } from '@app/core/services/file-update.service';
 import { ChatMessage } from '@app/core/models/types';
 import { AutoUpdateDialogComponent } from '@app/shared/components/auto-update-dialog/auto-update-dialog.component';
 import { GAME_INTENTS } from '@app/core/constants/game-intents';
-import { getInputPlaceholders } from '@app/core/constants/engine-protocol';
+import { I18nService } from '@app/core/i18n';
 
 @Injectable()
 export class MessageStateService {
@@ -23,6 +23,7 @@ export class MessageStateService {
     private snackBar = inject(MatSnackBar);
     private updateService = inject(FileUpdateService);
     private clipboard = inject(Clipboard);
+    private i18n = inject(I18nService);
 
     // Reactive sources initialized by the component
     message = signal<ChatMessage>(null!);
@@ -147,9 +148,8 @@ export class MessageStateService {
      * Triggers the save flow - sends a save intent message like the save button in chat-input
      */
     triggerSaveFlow() {
-        const placeholders = getInputPlaceholders(this.appConfig.outputLanguage());
         this.gameState.contextMode.set('full');
-        void this.engine.sendMessage(placeholders.SAVE, { intent: GAME_INTENTS.SAVE });
+        void this.engine.sendMessage(this.i18n.translate('placeholder.save'), { intent: GAME_INTENTS.SAVE });
         this.gameState.contextMode.set('smart');
     }
 

@@ -52,9 +52,17 @@ export function getProfileScopedKey(baseKey: string, profileId: string): string 
     return profileId === DEFAULT_PROFILE_ID ? baseKey : `${profileId}:${baseKey}`;
 }
 
-/** displayName → i18n via nameKey → id. */
-export function getProfileDisplayName(profile: PromptProfile, uiStrings: Record<string, string>): string {
+/**
+ * displayName → i18n via nameKey → id. The translate callback is expected to
+ * return the original key on miss (fallback semantics of {@link I18nService}),
+ * so passing it through cleanly preserves the prior "show the raw key when
+ * missing" behaviour.
+ */
+export function getProfileDisplayName(
+    profile: PromptProfile,
+    translate: (key: string) => string,
+): string {
     if (profile.displayName) return profile.displayName;
-    if (profile.nameKey) return uiStrings[profile.nameKey] ?? profile.nameKey;
+    if (profile.nameKey) return translate(`ui.${profile.nameKey}`);
     return profile.id;
 }

@@ -429,60 +429,65 @@ To enable Google Drive sync, you must provide your own GCP OAuth credentials:
 
 ### Language Switching
 
-TextRPG supports **dynamic language switching** without restarting the application:
+TextRPG splits language into **two independent settings**:
 
-#### 1. Switching AI Output Language
-*   **Location**: Settings → Game Settings → Output Language
-*   **Supported Languages**: Traditional Chinese, English
-*   **Affected Areas**:
+#### 1. Interface Language (UI chrome)
+*   **Location**: Settings → Game Settings → Interface Language
+*   **Values**: `Follow system` (default) / `繁體中文` / `English`
+*   **Source of truth**: `interfaceLanguage` in `AppConfigStore`, persisted under KV key `app_interface_language`
+*   **`'system'` resolution**: walks the `UI_LOCALES` registry's `matchPrefixes` against `navigator.language` at read time, so an OS locale change is picked up without rewriting the saved setting
+*   **Affected areas**: dialog titles, buttons, intent labels, placeholders, snackbar messages, settings dialog itself — anything rendered live through `I18nService` / `TranslatePipe`
+
+#### 2. Story (Output) Language (LLM-bound)
+*   **Location**: Settings → Game Settings → Story Language
+*   **Values**: free-form — preset labels (`Traditional Chinese`, `English`), `default`, or a user-typed custom string (e.g. `Klingon`); the LLM is told to write in whatever string this resolves to
+*   **Affected areas**:
     *   AI-generated story content language
     *   Structured outputs like `summary`, `inventory_log`, `quest_log`, `world_log`
     *   System file names (e.g., `2.Story_Outline.md` vs `2.劇情綱要.md`)
-    *   Input format hints (e.g., `([Mood]Action)Dialogue` vs `([心境]動作)台詞`)
+    *   `<intent>` XML markers wrapped around user input (`<Action>` vs `<行動意圖>`)
+    *   Analysis trace markdown labels (persisted alongside the story message)
     *   AI World Generator: Quick Presets, identities, blank world template directory (`blank_world_zh` / `blank_world_en`), and the world-generation prompt template (`create_world_prompt_zh.md` / `create_world_prompt_en.md`)
 
-#### 2. UI Interface Language
-*   **Current Status**: Most UI text (intent labels, scenario picker, Pre-build tab labels, Settings) dynamically switches with the Output Language setting via the custom locale system in `src/app/core/constants/locales/`.
-*   **Known Exception**: The **Generate** tab in the New Game dialog uses hardcoded English labels and placeholders (e.g. *Quick Preset*, *Genre*, *Tone*, *World Setting*, *Identity / Role*, *Generate World*). The *content* it produces (presets, identities, generated world files) still follows the Output Language — only the form chrome is English.
+#### 3. Mixed-Language Combinations
+The two settings are deliberately decoupled, so a Chinese-native user practising English can pair `Interface Language = 繁體中文` with `Story Language = English` (or vice versa) without the UI fighting them.
 
-#### 3. Mixed Language Scenarios (Not Recommended)
 > [!WARNING]
-> While the system technically supports mixed-language usage (e.g., English UI + Traditional Chinese scenario), this is **strongly discouraged**.
-
-**Issues**:
-*   **Narrative Inconsistency**: Different languages for AI output and scenario content lead to story coherence problems
-*   **Character Name Confusion**: Character names may switch between languages, causing confusion
-*   **World-building Conflicts**: Location names, item names, etc. may be inconsistent across language versions
-
-**Recommendation**:
-*   **Always Use Matching Languages**: Ensure Output Language setting matches your scenario language
-*   **Technical Support**: The system auto-detects scenario file language and adapts section headers and adult declaration, but this is for technical compatibility only and does not guarantee narrative quality
+> Changing **Story Language** mid-campaign is still risky — historical messages keep their original language, character/place names may diverge across the seam, and a scenario file ships in only one language. Pick the story language before starting a new game; switch interface language whenever.
 
 
 #### 4. Switching Considerations
-*   **Existing Games**: After switching language, new AI responses use the new language, but historical messages retain their original language
-*   **File Naming**: Recommended to set language before starting a new game to avoid file name inconsistencies
-*   **Scenario Compatibility**: Ensure the selected scenario has a version in the corresponding language (see Localization Guide below)
+*   **Existing Games**: After switching Story Language, new AI responses use the new language, but historical messages retain their original language
+*   **Scenario Compatibility**: Ensure the selected scenario has a version in the corresponding Story Language (see Localization Guide below)
+*   **Custom Story Language**: typing a string with no UI-dictionary entry (e.g. `Klingon`) only affects what the LLM is told to write; the UI keeps using whatever Interface Language is set
 
 ---
 
 
 ## Localization (I18N) Guide
 
-TextRPG uses a **custom locale system** centred on the `AppLocale` interface in [src/app/core/constants/locales/locale.interface.ts](src/app/core/constants/locales/locale.interface.ts), with two locales shipped out of the box. Most localizable surfaces are driven from a single locale object, so adding a language is mostly a matter of writing one `.ts` file plus translating scenario content.
+TextRPG uses **two layers** keyed by the two language settings above:
+
+*   **Engine layer — `AppLocale`** in [src/app/core/constants/locales/locale.interface.ts](src/app/core/constants/locales/locale.interface.ts), keyed by `outputLanguage`. Holds LLM-bound prompt fragments, response schema descriptions, asset paths, and any string that gets persisted into chat content (so it must stay aligned with the saved-message language). Looked up by `getLocale(outputLanguage)` and consumed by services / engines.
+*   **UI layer — `I18nService` + dotted-key dictionaries** in [src/app/core/i18n/](src/app/core/i18n/), keyed by `interfaceLanguage`. Holds dialog labels, buttons, error toasts — anything rendered live to the user. Consumed via the `translate` pipe / directive or `i18n.translate('ui.X')`.
 
 ### Built-in Language Support
-*   **Traditional Chinese** (`zh-TW`) — registered as `'Traditional Chinese'` and used as the `'default'` fallback
-*   **English** (`en-US`) — registered as `'English'`
 
-Resolution is done by [src/app/core/constants/locales/index.ts](src/app/core/constants/locales/index.ts):
-*   `getLocale(lang)` — returns the `AppLocale` for the given key (e.g. `'English'`), with fallback by `id` and finally to `'default'`.
-*   `getLangFolder(lang)` — returns the `folder` field of the locale (used to resolve language-bucketed assets under `public/assets/system_files/<folder>/`).
-*   `getLanguagesList()` — drives the Output Language dropdown in Settings.
+| Layer | Languages | Registry |
+| :--- | :--- | :--- |
+| Engine (`AppLocale`) | Traditional Chinese (`zh-TW`, also the `default` fallback), English (`en-US`) | [src/app/core/constants/locales/index.ts](src/app/core/constants/locales/index.ts) — `LOCALES` map |
+| UI (`I18nService`) | Traditional Chinese (`zh-TW`), English (`en`) | [src/app/core/i18n/ui-locales.ts](src/app/core/i18n/ui-locales.ts) — `UI_LOCALES` array |
 
-### What the locale object covers (auto-localized)
+Engine resolution helpers ([src/app/core/constants/locales/index.ts](src/app/core/constants/locales/index.ts)):
+*   `getLocale(lang)` — returns the `AppLocale` for the given key, with fallback by `id` and finally to `'default'`.
+*   `getLangFolder(lang)` — returns the `folder` field (used for `public/assets/system_files/<folder>/`).
+*   `getLanguagesList()` — drives the **Story Language** dropdown in Settings.
 
-When the user changes Output Language, the following are switched automatically by reading the active `AppLocale`:
+UI resolution: `I18nService.currentLang()` reads `AppConfigStore.interfaceLanguage()`, resolves `'system'` via the registry's `matchPrefixes`, then walks the dotted key against the active dictionary. Adding a new UI language = push one entry into `UI_LOCALES` + write a dictionary file; the resolver and `AppConfigStore` typing stay put.
+
+### What each layer covers (auto-localized)
+
+**Engine layer (`AppLocale`, swaps on Story Language change):**
 
 | Surface | Field on `AppLocale` |
 | :--- | :--- |
@@ -492,8 +497,18 @@ When the user changes Output Language, the following are switched automatically 
 | Mapping from semantic file roles to actual filenames (`BASIC_SETTINGS` → `1.Base_Settings.md` / `1.基礎設定.md`, etc.) | `coreFilenames` |
 | Language-rule injection (forces the model to write in the target language) | `promptHoles.LANGUAGE_RULE` |
 | Markdown section headers (`START_SCENE`, `INPUT_FORMAT`) | `sectionHeaders` |
-| Intent picker (Action / Fast Forward / System / Save / Continue) — labels, XML tags, descriptions, and input placeholders | `intentLabels`, `intentTags`, `intentDescriptions`, `inputPlaceholders` |
-| All UI strings: dialog titles, buttons, errors, alignments grid, batch search/replace, filters, regenerate flow, calibrate mode, etc. | `uiStrings` |
+| Analysis trace markdown labels (persisted in chat-message analysis text) | `analysisTrace` |
+| `<intent>` XML markers wrapped around user input + reverse-mapped from saved messages on load | `intentTags` |
+| Engine-facing strings the engine writes as chat content or sends back to the LLM (e.g. `INTRO_TEXT`, `LOCAL_INIT_ANALYSIS`, the regenerate-save prompt) | `engineStrings` |
+
+**UI layer (`I18nService` dotted-key namespaces, swaps on Interface Language change):**
+
+| Namespace | Covers |
+| :--- | :--- |
+| `ui.*` | Dialog titles, buttons, snackbar errors, alignments grid, batch search/replace, regenerate-save dialog, calibrate mode, profile management, sync flows, settings labels |
+| `intent.labels.*` / `intent.descriptions.*` | Intent picker labels (`Action` / `行動`) and tooltips |
+| `placeholder.*` | Per-intent input placeholders (the chip text shown in `<textarea>`) |
+| `settings.*` | Settings dialog field labels and hints (`Interface Language`, `Story Language`, `Follow system`, etc.) |
 
 System-prompt assets that are too large for inline strings live under `public/assets/system_files/<folder>/` and are picked up via `getLangFolder()`.
 
@@ -517,15 +532,26 @@ The Generate tab pulls from three language-bucketed sources that live outside th
 Currently the generator only branches on `isZhLang()` (zh-TW vs everything-else falls through to `en`), so adding a third language requires a small code change in [new-game-dialog.component.ts](src/app/features/sidebar/components/new-game-dialog/new-game-dialog.component.ts) (the `isZh` ternary in `submitCreateWorld()` and the `langPresets()` dispatch).
 
 #### 3. Generate-tab form labels
-As noted in the Language Switching section above, the Generate tab's labels and placeholders (`Quick Preset`, `Genre`, `Tone`, `World Setting`, `Identity / Role`, `Generate World`, etc.) are currently hardcoded English in [new-game-dialog.component.html](src/app/features/sidebar/components/new-game-dialog/new-game-dialog.component.html). Migrating them into `uiStrings` is a known pending item — touch this file if your translation needs the form chrome localized too.
+The Generate tab in the New Game dialog still has hardcoded English labels (`Quick Preset`, `Genre`, `Tone`, `World Setting`, `Identity / Role`, `Generate World`) in [new-game-dialog.component.html](src/app/features/sidebar/components/new-game-dialog/new-game-dialog.component.html). They have not yet been migrated into the new `ui.*` UI dictionary; the *content* the tab generates still follows Story Language correctly. Migrating these labels is a known pending item.
 
 ### Adding a new language (e.g. Japanese)
 
-1.  **Create the locale file**: add `src/app/core/constants/locales/ja.ts` exporting a `JA_JP_LOCALE: AppLocale` that implements every field listed in the table above. Pick a stable `id` (e.g. `ja-JP`) and a `folder` (e.g. `ja`).
-2.  **Register it**: add the locale to the `LOCALES` map in [src/app/core/constants/locales/index.ts](src/app/core/constants/locales/index.ts) under a human-readable key (e.g. `'Japanese'`). It will automatically appear in the Settings → Output Language dropdown via `getLanguagesList()`.
+A new language usually needs work on **both** layers — engine-facing `AppLocale` for the LLM-bound side, and UI-facing dictionary for the rendered chrome.
+
+**Engine layer (`AppLocale`):**
+1.  **Create the locale file**: add `src/app/core/constants/locales/ja.ts` exporting a `JA_JP_LOCALE: AppLocale` that implements every field listed in the engine table above. Pick a stable `id` (e.g. `ja-JP`) and a `folder` (e.g. `ja`).
+2.  **Register it**: add the locale to the `LOCALES` map in [src/app/core/constants/locales/index.ts](src/app/core/constants/locales/index.ts) under a human-readable key (e.g. `'Japanese'`). It will automatically appear in the Settings → Story Language dropdown via `getLanguagesList()`.
 3.  **Provide system-prompt assets**: create `public/assets/system_files/<folder>/` mirroring `en/` and `zh-tw/`.
 4.  **Provide scenario content**: either translate at least one existing scenario (see *Scenario content* above), or rely on the AI World Generator — in which case also do step 5.
 5.  **(Optional) Extend the AI World Generator**: add `WORLD_PRESETS.ja` in `world-preset.ts`, ship `blank_world_ja/` and `create_world_prompt_ja.md`, and broaden the `isZhLang()` dispatch in `new-game-dialog.component.ts` from a boolean to a 3-way locale id check.
+
+**UI layer (`I18nService`):**
+6.  **Write the dictionary**: add `src/app/core/i18n/dictionaries/ja.ts` exporting a `TranslationDict` with the same `ui.*` / `intent.*` / `placeholder.*` / `settings.*` namespaces as the existing `zh-tw.ts` / `en.ts`. Missing keys fall back to the raw key in the rendered UI (e.g. `ui.START_GAME`), so partial translations are visible failures rather than silent ones.
+7.  **Register it**: add a new entry to `UI_LOCALES` in [src/app/core/i18n/ui-locales.ts](src/app/core/i18n/ui-locales.ts):
+    ```ts
+    { id: 'ja', label: '日本語', matchPrefixes: ['ja'], dictionary: ja },
+    ```
+    The new id is automatically valid for `interfaceLanguage`, gets a Settings dropdown entry, and `'system'` resolution picks it up for users whose `navigator.language` starts with `ja`. The resolver code does not change.
 
 ---
 

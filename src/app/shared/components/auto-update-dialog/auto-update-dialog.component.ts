@@ -20,6 +20,7 @@ import { CacheManagerService } from '@app/core/services/cache-manager.service';
 import { ConfirmDialogComponent, ConfirmDialogData } from '../confirm-dialog/confirm-dialog.component';
 import { GAME_INTENTS } from '@app/core/constants/game-intents';
 import { getLocale } from '@app/core/constants/locales';
+import { TranslatePipe } from '@app/core/i18n';
 import { GroupedUpdate, HunkApplyController } from './hunk-apply-controller';
 import { buildRegenerateSavePrompt } from './regenerate-save.util';
 
@@ -38,7 +39,8 @@ import { buildRegenerateSavePrompt } from './regenerate-save.util';
     TextFieldModule,
     DragDropModule,
     FormsModule,
-    MonacoEditorComponent
+    MonacoEditorComponent,
+    TranslatePipe
   ],
   templateUrl: './auto-update-dialog.component.html',
   styleUrl: './auto-update-dialog.component.scss',

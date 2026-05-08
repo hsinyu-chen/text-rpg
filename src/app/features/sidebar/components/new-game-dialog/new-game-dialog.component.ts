@@ -18,7 +18,7 @@ import { firstValueFrom } from 'rxjs';
 import { GameEngineService } from '@app/core/services/game-engine.service';
 import { GameStateService } from '@app/core/services/game-state.service';
 import { AppConfigStore } from '@app/core/services/app-config-store';
-import { getUIStrings } from '@app/core/constants/engine-protocol';
+import { I18nService, TranslatePipe } from '@app/core/i18n';
 import { IdentityOption, Scenario, WorldPreset } from '@app/core/models/types';
 import { getLocale } from '@app/core/constants/locales';
 import { FileViewerDialogComponent } from '@app/features/sidebar/file-viewer-dialog.component';
@@ -56,7 +56,8 @@ const BLANK_FILES_ZH = [
         MatSnackBarModule,
         MatTooltipModule,
         MatTabsModule,
-        MatDividerModule
+        MatDividerModule,
+        TranslatePipe
     ],
     templateUrl: './new-game-dialog.component.html',
     styleUrl: './new-game-dialog.component.scss'
@@ -70,16 +71,12 @@ export class NewGameDialogComponent {
     private snackBar = inject(MatSnackBar);
     private matDialog = inject(MatDialog);
     private llmConfig = inject(LLMConfigService);
+    private i18n = inject(I18nService);
 
     // ─── Shared ───────────────────────────────────────────────────────────
     isLoading = signal(false);
     activeTabIndex = signal(1);
 
-    // ─── Pre-build tab ────────────────────────────────────────────────────
-    ui = computed(() => {
-        const lang = this.appConfig.outputLanguage();
-        return getUIStrings(lang);
-    });
     scenarios = signal<Scenario[]>([]);
     selectedScenarioId = signal<string>('');
 
@@ -92,36 +89,34 @@ export class NewGameDialogComponent {
     };
 
     labels = computed(() => {
-        const lang = this.appConfig.outputLanguage();
-        const ui = getUIStrings(lang);
+        this.i18n.currentLang();
         return {
-            name: ui.USER_NAME,
-            faction: ui.USER_FACTION,
-            background: ui.USER_BACKGROUND,
-            interests: ui.USER_INTERESTS,
-            appearance: ui.USER_APPEARANCE
+            name: this.i18n.translate('ui.USER_NAME'),
+            faction: this.i18n.translate('ui.USER_FACTION'),
+            background: this.i18n.translate('ui.USER_BACKGROUND'),
+            interests: this.i18n.translate('ui.USER_INTERESTS'),
+            appearance: this.i18n.translate('ui.USER_APPEARANCE')
         };
     });
 
     alignments = computed(() => {
-        const lang = this.appConfig.outputLanguage();
-        const ui = getUIStrings(lang);
-        const alignments = ui.ALIGNMENTS || {};
+        this.i18n.currentLang();
+        const tr = (id: string): string => this.i18n.translate(`ui.ALIGNMENTS.${id}`);
         return [
             [
-                { id: 'Lawful Good', label: alignments['Lawful Good'] || 'Lawful Good' },
-                { id: 'Neutral Good', label: alignments['Neutral Good'] || 'Neutral Good' },
-                { id: 'Chaotic Good', label: alignments['Chaotic Good'] || 'Chaotic Good' }
+                { id: 'Lawful Good', label: tr('Lawful Good') },
+                { id: 'Neutral Good', label: tr('Neutral Good') },
+                { id: 'Chaotic Good', label: tr('Chaotic Good') }
             ],
             [
-                { id: 'Lawful Neutral', label: alignments['Lawful Neutral'] || 'Lawful Neutral' },
-                { id: 'True Neutral', label: alignments['True Neutral'] || 'True Neutral' },
-                { id: 'Chaotic Neutral', label: alignments['Chaotic Neutral'] || 'Chaotic Neutral' }
+                { id: 'Lawful Neutral', label: tr('Lawful Neutral') },
+                { id: 'True Neutral', label: tr('True Neutral') },
+                { id: 'Chaotic Neutral', label: tr('Chaotic Neutral') }
             ],
             [
-                { id: 'Lawful Evil', label: alignments['Lawful Evil'] || 'Lawful Evil' },
-                { id: 'Neutral Evil', label: alignments['Neutral Evil'] || 'Neutral Evil' },
-                { id: 'Chaotic Evil', label: alignments['Chaotic Evil'] || 'Chaotic Evil' }
+                { id: 'Lawful Evil', label: tr('Lawful Evil') },
+                { id: 'Neutral Evil', label: tr('Neutral Evil') },
+                { id: 'Chaotic Evil', label: tr('Chaotic Evil') }
             ]
         ];
     });
@@ -181,10 +176,11 @@ export class NewGameDialogComponent {
             }
         } catch (e) {
             console.error('Failed to load default values from scenario', e);
-            const ui = this.ui();
-            this.snackBar.open(ui.GEN_FAILED.replace('{error}', (e as Error).message), ui.CLOSE, {
-                duration: 5000, panelClass: ['snackbar-error']
-            });
+            this.snackBar.open(
+                this.i18n.translate('ui.GEN_FAILED', { error: (e as Error).message }),
+                this.i18n.translate('ui.CLOSE'),
+                { duration: 5000, panelClass: ['snackbar-error'] },
+            );
         } finally {
             this.isLoading.set(false);
         }
