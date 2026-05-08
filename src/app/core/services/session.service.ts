@@ -260,7 +260,11 @@ export class SessionService {
             await this.loadFiles(false);
 
             // Notify success
-            this.snackBar.open(this.i18n.translate('ui.GAME_INIT_SUCCESS'), 'OK', { duration: 3000 });
+            this.snackBar.open(
+                this.i18n.translate('ui.GAME_INIT_SUCCESS'),
+                this.i18n.translate('ui.CLOSE'),
+                { duration: 3000 },
+            );
 
             // Note: Caller (GameEngine) still needs to trigger startSession if needed, 
             // but GameEngine.startNewGame previously called startSession.
