@@ -1,29 +1,50 @@
 import { Injectable, inject } from '@angular/core';
 import { GoogleDriveService } from '../../google-drive.service';
 import { GoogleOAuthService } from '../../google-oauth.service';
+import { KVStore } from '../../kv/kv-store';
 import {
     SyncBackend, SyncResource, RemoteEntry, Tombstone, SyncBackendId,
     SnapshotMeta, SnapshotManifest, SnapshotMetaInput, SnapshotLocalPayload
 } from '../sync.types';
-import { KVStore } from '../../kv/kv-store';
-import { GDriveSnapshotStore } from './gdrive-snapshot-store';
+import { GDriveBlobStore } from './gdrive-blob-store';
+import { createParallelPool } from '@app/core/utils/async.util';
+import { SNAPSHOT_CONCURRENCY } from '../sync-snapshot-utils';
+import { META_LAST_ACTIVE, tombstonePath } from '../layout/sync-paths';
+import { blobEntryToRemoteEntry } from '../domain/entry-mapper';
+import { SettingsRepository } from '../domain/settings-repository';
+import { PromptsRepository } from '../domain/prompts-repository';
+import { SLASH_TOMBSTONE_LAYOUT, TombstoneRepository } from '../domain/tombstone-repository';
+import { BlobSnapshotTreeOps } from '../domain/blob-snapshot-tree-ops';
+import { SnapshotStore } from '../domain/snapshot-store';
 
-const APPDATA_ROOT = 'appDataFolder';
-const SETTINGS_FILE_NAME = 'settings.json';
-const PROMPTS_FILE_NAME = 'prompts.json';
-// Match the S3 metadata keys for consistency. Hyphen is fine in Drive's
-// appProperties (JSON keys, no header-name restriction).
-const APP_PROP_LAST_ACTIVE = 'last-active';
-const APP_PROP_DELETED_AT = 'deleted-at';
+const parallelPool = createParallelPool(SNAPSHOT_CONCURRENCY);
 
-const FOLDER_NAME: Record<SyncResource, string> = {
-    book: 'books_v1',     // legacy folder name preserved for existing data
+// GDrive-specific live-tree folder names. `books_v1` is preserved from the
+// legacy layout — renaming would orphan existing user data. Collections
+// never had a versioned name. These differ from the unified RESOURCE_DIR
+// (`books` / `collections`) used by S3 + File on purpose; PR4's
+// GenericSyncBackend will surface this asymmetry as an explicit
+// per-backend paths config.
+const GDRIVE_ENTRY_DIR: Record<SyncResource, string> = {
+    book: 'books_v1',
     collection: 'collections'
 };
-const TOMBSTONE_FOLDER_NAME: Record<SyncResource, string> = {
+
+// Pre-migration tombstone folder names (flat, with deletedAt in
+// appProperties). After migration completes, these folders are emptied
+// and removed; new tombstones land at `tombstones/<r>/<id>/<deletedAt>`.
+const LEGACY_TOMBSTONE_FOLDER: Record<SyncResource, string> = {
     book: 'tombstones_books',
     collection: 'tombstones_collections'
 };
+const LEGACY_DELETED_AT_PROP = 'deleted-at';
+
+function gdriveEntryPath(r: SyncResource, id: string): string {
+    return `${GDRIVE_ENTRY_DIR[r]}/${id}.json`;
+}
+function gdriveEntryDirPrefix(r: SyncResource): string {
+    return `${GDRIVE_ENTRY_DIR[r]}/`;
+}
 
 @Injectable({ providedIn: 'root' })
 export class GDriveSyncBackend implements SyncBackend {
@@ -34,257 +55,152 @@ export class GDriveSyncBackend implements SyncBackend {
     private drive = inject(GoogleDriveService);
     private oauth = inject(GoogleOAuthService);
     private kv = inject(KVStore);
+    private blob = inject(GDriveBlobStore);
 
-    private folderIdCache: Partial<Record<SyncResource, string>> = {};
-    private tombstoneFolderIdCache: Partial<Record<SyncResource, string>> = {};
-    private fileIdByKey = new Map<string, string>();
-    private tombstoneFileIdByKey = new Map<string, string>();
-    private settingsFileId: string | null = null;
-    private promptsFileId: string | null = null;
+    private readonly tombstones = new TombstoneRepository(this.blob, SLASH_TOMBSTONE_LAYOUT);
+    private readonly settings = new SettingsRepository(this.blob);
+    private readonly prompts = new PromptsRepository(this.blob);
 
-    isReady(): boolean {
-        return this.oauth.isConfigured;
+    /** Per-resource flag: tombstone migration v2 (flat → slash layout)
+     *  done. Persisted in KVStore so a re-launch doesn't re-run. */
+    private migratedResources = new Set<SyncResource>();
+
+    isReady(): boolean { return this.oauth.isConfigured; }
+    isAuthenticated(): boolean { return this.oauth.isAuthenticated(); }
+    async authenticate(): Promise<void> { await this.oauth.login(); }
+    async initAsync(): Promise<void> {
+        // GoogleOAuthService loads GIS lazily; backend has no per-init
+        // state to build. authenticate() handles token refresh.
     }
-
     configFingerprint(): string {
-        // OAuth state — auth boundary is the only meaningful change for
-        // the breaker (re-OAuth after token revocation should reset).
         return this.oauth.isAuthenticated() ? 'auth' : '';
     }
 
-    async initAsync(): Promise<void> {
-        // GoogleOAuthService loads GIS lazily on first use; backend has no
-        // per-init state to build, so this is a no-op. authenticate()
-        // (called by SyncService.runExclusive) handles token refresh.
-    }
-
-    isAuthenticated(): boolean {
-        return this.oauth.isAuthenticated();
-    }
-
-    async authenticate(): Promise<void> {
-        await this.oauth.login();
-    }
-
-    private async ensureFolder(resource: SyncResource): Promise<string> {
-        const cached = this.folderIdCache[resource];
-        if (cached) return cached;
-
-        const kvKey = `gdrive_folder_${resource}_id`;
-        const stored = this.kv.get(kvKey);
-        if (stored) {
-            this.folderIdCache[resource] = stored;
-            return stored;
-        }
-
-        const folders = await this.drive.listFolders(APPDATA_ROOT);
-        const name = FOLDER_NAME[resource];
-        const found = folders.find(f => f.name === name);
-        const id = found ? found.id : (await this.drive.createFolder(APPDATA_ROOT, name)).id;
-
-        this.folderIdCache[resource] = id;
-        this.kv.set(kvKey, id);
-        return id;
-    }
-
-    private async ensureTombstoneFolder(resource: SyncResource): Promise<string> {
-        const cached = this.tombstoneFolderIdCache[resource];
-        if (cached) return cached;
-
-        const kvKey = `gdrive_tombstone_folder_${resource}_id`;
-        const stored = this.kv.get(kvKey);
-        if (stored) {
-            this.tombstoneFolderIdCache[resource] = stored;
-            return stored;
-        }
-
-        const folders = await this.drive.listFolders(APPDATA_ROOT);
-        const name = TOMBSTONE_FOLDER_NAME[resource];
-        const found = folders.find(f => f.name === name);
-        const id = found ? found.id : (await this.drive.createFolder(APPDATA_ROOT, name)).id;
-
-        this.tombstoneFolderIdCache[resource] = id;
-        this.kv.set(kvKey, id);
-        return id;
-    }
-
-    private cacheKey(resource: SyncResource, id: string): string {
-        return `${resource}:${id}`;
-    }
+    // ===== Live tree IO ===================================================
 
     async list(resource: SyncResource): Promise<RemoteEntry[]> {
-        const folderId = await this.ensureFolder(resource);
-        const files = await this.drive.listFiles(folderId);
-        const entries: RemoteEntry[] = [];
-        for (const f of files) {
-            if (!f.name.endsWith('.json')) continue;
-            const id = f.name.slice(0, -5);
-            this.fileIdByKey.set(this.cacheKey(resource, id), f.id);
-            const modifiedAt = f.modifiedTime ? new Date(f.modifiedTime).getTime() : 0;
-            const metaValue = f.appProperties?.[APP_PROP_LAST_ACTIVE];
-            const lastActiveAt = metaValue ? Number(metaValue) || modifiedAt : modifiedAt;
-            entries.push({
-                id,
-                lastActiveAt,
-                modifiedAt,
-                size: f.size ? Number(f.size) : undefined,
-                etag: f.md5Checksum
-            });
-        }
-        return entries;
+        const dirPrefix = gdriveEntryDirPrefix(resource);
+        const blobEntries = await this.blob.list(dirPrefix);
+        const candidates = blobEntries
+            .filter(e => e.path.endsWith('.json'))
+            .map(e => ({ entry: e, id: e.path.slice(dirPrefix.length, -5) }))
+            .filter(c => c.id.length > 0);
+        const out: RemoteEntry[] = new Array(candidates.length);
+        await parallelPool(candidates, async (c, i) => {
+            out[i] = await blobEntryToRemoteEntry(this.blob, c.entry, c.id);
+        });
+        return out;
     }
 
-    async read(resource: SyncResource, id: string): Promise<string> {
-        let fileId = this.fileIdByKey.get(this.cacheKey(resource, id));
-        if (!fileId) {
-            await this.list(resource);
-            fileId = this.fileIdByKey.get(this.cacheKey(resource, id));
-        }
-        if (!fileId) throw new Error(`Drive: ${resource}/${id} not found.`);
-        return this.drive.readFile(fileId);
+    read(resource: SyncResource, id: string): Promise<string> {
+        return this.blob.read(gdriveEntryPath(resource, id)).then(r => r.text);
     }
 
-    async write(resource: SyncResource, id: string, json: string, lastActiveAt: number): Promise<void> {
-        const folderId = await this.ensureFolder(resource);
-        const key = this.cacheKey(resource, id);
-        const existing = this.fileIdByKey.get(key);
-        const props = { [APP_PROP_LAST_ACTIVE]: String(lastActiveAt) };
-        if (existing) {
-            await this.drive.updateFile(existing, json, props);
-        } else {
-            const created = await this.drive.createFile(folderId, `${id}.json`, json, props);
-            this.fileIdByKey.set(key, created.id);
-        }
+    write(resource: SyncResource, id: string, json: string, lastActiveAt: number): Promise<void> {
+        return this.blob.write(gdriveEntryPath(resource, id), json, {
+            [META_LAST_ACTIVE]: String(lastActiveAt)
+        });
     }
 
-    async remove(resource: SyncResource, id: string): Promise<void> {
-        const key = this.cacheKey(resource, id);
-        let fileId = this.fileIdByKey.get(key);
-        if (!fileId) {
-            await this.list(resource);
-            fileId = this.fileIdByKey.get(key);
-        }
-        if (!fileId) return;
-        await this.drive.deleteFile(fileId);
-        this.fileIdByKey.delete(key);
+    remove(resource: SyncResource, id: string): Promise<void> {
+        return this.blob.remove(gdriveEntryPath(resource, id));
     }
+
+    // ===== Tombstones (with one-time legacy migration) ====================
 
     async listTombstones(resource: SyncResource): Promise<Tombstone[]> {
-        const folderId = await this.ensureTombstoneFolder(resource);
-        const files = await this.drive.listFiles(folderId);
-        const tombstones: Tombstone[] = [];
-        for (const f of files) {
-            const id = f.name;
-            this.tombstoneFileIdByKey.set(this.cacheKey(resource, id), f.id);
-            const modifiedAt = f.modifiedTime ? new Date(f.modifiedTime).getTime() : 0;
-            const metaValue = f.appProperties?.[APP_PROP_DELETED_AT];
-            const deletedAt = metaValue ? Number(metaValue) || modifiedAt : modifiedAt;
-            tombstones.push({ id, deletedAt });
-        }
-        return tombstones;
+        await this.ensureTombstoneMigration(resource);
+        return this.tombstones.list(resource);
     }
-
     async writeTombstone(resource: SyncResource, id: string, deletedAt: number): Promise<void> {
-        const folderId = await this.ensureTombstoneFolder(resource);
-        const key = this.cacheKey(resource, id);
-        const props = { [APP_PROP_DELETED_AT]: String(deletedAt) };
-        const existing = this.tombstoneFileIdByKey.get(key);
-        if (existing) {
-            await this.drive.updateFile(existing, '', props);
-            return;
-        }
-        const created = await this.drive.createFile(folderId, id, '', props);
-        this.tombstoneFileIdByKey.set(key, created.id);
+        await this.ensureTombstoneMigration(resource);
+        return this.tombstones.write(resource, id, deletedAt);
     }
-
     async clearTombstones(resource: SyncResource): Promise<void> {
-        const folderId = await this.ensureTombstoneFolder(resource);
-        const files = await this.drive.listFiles(folderId);
-        for (const f of files) {
-            await this.drive.deleteFile(f.id);
-            this.tombstoneFileIdByKey.delete(this.cacheKey(resource, f.name));
-        }
-    }
-
-    private async findSettingsFileId(): Promise<string | null> {
-        if (this.settingsFileId) return this.settingsFileId;
-        const files = await this.drive.listFiles(APPDATA_ROOT);
-        const file = files.find(f => f.name === SETTINGS_FILE_NAME);
-        this.settingsFileId = file?.id ?? null;
-        return this.settingsFileId;
-    }
-
-    async readSettings(): Promise<string | null> {
-        const id = await this.findSettingsFileId();
-        if (!id) return null;
-        return this.drive.readFile(id);
-    }
-
-    async writeSettings(content: string): Promise<void> {
-        const id = await this.findSettingsFileId();
-        if (id) {
-            await this.drive.updateFile(id, content);
-            return;
-        }
-        const created = await this.drive.createFile(APPDATA_ROOT, SETTINGS_FILE_NAME, content);
-        this.settingsFileId = created.id;
-    }
-
-    private async findPromptsFileId(): Promise<string | null> {
-        if (this.promptsFileId) return this.promptsFileId;
-        const files = await this.drive.listFiles(APPDATA_ROOT);
-        const file = files.find(f => f.name === PROMPTS_FILE_NAME);
-        this.promptsFileId = file?.id ?? null;
-        return this.promptsFileId;
-    }
-
-    async readPrompts(): Promise<string | null> {
-        const id = await this.findPromptsFileId();
-        if (!id) return null;
-        return this.drive.readFile(id);
-    }
-
-    async writePrompts(content: string): Promise<void> {
-        const id = await this.findPromptsFileId();
-        if (id) {
-            await this.drive.updateFile(id, content);
-            return;
-        }
-        const created = await this.drive.createFile(APPDATA_ROOT, PROMPTS_FILE_NAME, content);
-        this.promptsFileId = created.id;
+        await this.ensureTombstoneMigration(resource);
+        return this.tombstones.clear(resource);
     }
 
     /**
-     * Deletes a tombstone file by id (resource + id → cached file id →
-     * delete). Used by GDriveSnapshotStore.restoreSnapshot's diff-delete;
-     * the public clearTombstones() wipes ALL tombstones for a resource,
-     * which is stronger than what diff-delete needs.
+     * One-time migration from the legacy flat layout
+     * (`tombstones_<r>/<id>` + appProperty `deleted-at`) to the unified
+     * path-based layout (`tombstones/<r>/<id>/<deletedAt>`).
+     *
+     * Runs lazily on first tombstone op per resource per session. The
+     * `gdrive_tombstone_migration_v2_<r>` flag in KVStore prevents repeats
+     * across sessions. Mid-migration interruption is safe — surviving
+     * old files get migrated next run; `blob.write` is idempotent for
+     * unchanged content.
+     *
+     * If migration fails (network, permission), the flag is NOT set and
+     * we retry next call. TombstoneRepository.list still works correctly
+     * (reads new-layout entries), just transiently misses un-migrated
+     * ones until migration completes.
      */
-    private async removeTombstoneById(resource: SyncResource, id: string): Promise<void> {
-        const key = this.cacheKey(resource, id);
-        const fileId = this.tombstoneFileIdByKey.get(key);
-        if (!fileId) return;
-        await this.drive.deleteFile(fileId);
-        this.tombstoneFileIdByKey.delete(key);
+    private async ensureTombstoneMigration(resource: SyncResource): Promise<void> {
+        if (this.migratedResources.has(resource)) return;
+        const flagKey = `gdrive_tombstone_migration_v2_${resource}`;
+        if (this.kv.get(flagKey) === 'done') {
+            this.migratedResources.add(resource);
+            return;
+        }
+
+        const legacyFolderName = LEGACY_TOMBSTONE_FOLDER[resource];
+        const legacyEntries = await this.blob.list(`${legacyFolderName}/`);
+        for (const entry of legacyEntries) {
+            // path shape: `<legacyFolderName>/<id>` (one segment after prefix)
+            const id = entry.path.slice(legacyFolderName.length + 1);
+            if (!id || id.includes('/')) continue;
+            const rawTs = entry.meta[LEGACY_DELETED_AT_PROP];
+            const deletedAt = rawTs ? Number(rawTs) : NaN;
+            const ts = Number.isFinite(deletedAt) && deletedAt > 0
+                ? deletedAt
+                : entry.modifiedAt; // fallback: same policy as the pre-refactor backend
+            if (!Number.isFinite(ts) || ts <= 0) continue;
+            await this.blob.write(tombstonePath(resource, id, ts), '');
+            await this.blob.remove(entry.path);
+        }
+        // Best-effort cleanup of the now-empty legacy folder. Failure
+        // here doesn't compromise correctness; it just leaves a stray
+        // empty folder under appDataFolder.
+        try {
+            const folders = await this.drive.listFolders('appDataFolder');
+            const legacy = folders.find(f => f.name === legacyFolderName);
+            if (legacy) {
+                const remaining = await this.drive.listFiles(legacy.id);
+                if (remaining.length === 0) await this.drive.deleteFile(legacy.id);
+            }
+        } catch (e) {
+            console.warn(`[GDrive] migration: failed to clean up legacy ${legacyFolderName}`, e);
+        }
+
+        this.kv.set(flagKey, 'done');
+        this.migratedResources.add(resource);
+        // BlobStore caches now reference the deleted legacy folder /
+        // moved files — invalidate rather than surgically prune.
+        this.blob.invalidateCaches();
     }
 
-    // ===== Snapshots — delegated to GDriveSnapshotStore ==================
+    // ===== Settings / Prompts =============================================
 
-    private readonly snapshotStore = new GDriveSnapshotStore({
-        drive: this.drive,
-        kv: this.kv,
-        tombstoneFolderName: TOMBSTONE_FOLDER_NAME,
-        findLiveFileId: (r, id) => this.fileIdByKey.get(this.cacheKey(r, id)),
-        findLiveTombstoneFileId: (r, id) => this.tombstoneFileIdByKey.get(this.cacheKey(r, id)),
-        removeTombstoneById: (r, id) => this.removeTombstoneById(r, id),
-        ops: {
+    readSettings(): Promise<string | null> { return this.settings.read(); }
+    writeSettings(content: string): Promise<void> { return this.settings.write(content); }
+    readPrompts(): Promise<string | null> { return this.prompts.read(); }
+    writePrompts(content: string): Promise<void> { return this.prompts.write(content); }
+
+    // ===== Snapshots — delegated to the shared SnapshotStore ============
+
+    private readonly snapshotStore = new SnapshotStore(
+        {
             list: (r) => this.list(r),
             listTombstones: (r) => this.listTombstones(r),
             write: (r, id, json, ts) => this.write(r, id, json, ts),
             writeTombstone: (r, id, ts) => this.writeTombstone(r, id, ts),
-            remove: (r, id) => this.remove(r, id)
-        }
-    });
+            remove: (r, id) => this.remove(r, id),
+            removeTombstone: (r, id) => this.tombstones.removeById(r, id)
+        },
+        new BlobSnapshotTreeOps(this.blob, SLASH_TOMBSTONE_LAYOUT)
+    );
 
     listSnapshots(): Promise<SnapshotMeta[]> { return this.snapshotStore.listSnapshots(); }
     readSnapshotManifest(id: string): Promise<SnapshotManifest> { return this.snapshotStore.readSnapshotManifest(id); }
