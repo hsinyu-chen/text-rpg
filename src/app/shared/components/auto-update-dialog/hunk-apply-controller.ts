@@ -211,7 +211,8 @@ export class HunkApplyController {
 
   /**
    * Refresh validation + originalContent on a group whose contents were just
-   * written to disk. Used by the dialog's onApplyFile flow.
+   * written to disk. Used by the dialog's onApplyFile flow. Only re-validates
+   * this group — flashing spinners on untouched files would be misleading.
    */
   async refreshGroupAfterApply(group: GroupedUpdate): Promise<void> {
     group.originalContent.set(group.combinedContent());
@@ -220,7 +221,7 @@ export class HunkApplyController {
       update.status = { exists: false, matched: false, validating: true };
     }
     this.groupedUpdates.update((groups) => [...groups]);
-    await this.validateAll();
+    await this.validateGroup(group);
   }
 
   private async confirmDiscardIfDirty(group: GroupedUpdate, message: string, okText: string): Promise<boolean> {
@@ -341,68 +342,66 @@ export class HunkApplyController {
   }
 
   private async validateAll(): Promise<void> {
-    const currentGroups = this.groupedUpdates();
-    for (const group of currentGroups) {
-      for (let i = 0; i < group.updates.length; i++) {
-        const update = group.updates[i];
-        try {
-          const result = await this.updateService.validateUpdate(update);
-          group.updates[i] = {
-            ...update,
-            status: {
-              exists: result.exists,
-              matched: result.matched,
-              alreadyExists: result.alreadyExists,
-              beforeLines: result.beforeLines,
-              afterLines: result.afterLines,
-              matchIndex: result.matchIndex,
-              failReason: result.failReason,
-              validating: false,
-            },
-          };
-          if (this.activeUpdate()?.id === update.id) {
-            this.activeUpdate.set(group.updates[i]);
-          }
-        } catch (err) {
-          console.error(`[AutoUpdateDialog] Validation failed for ${update.id}`, err);
-          group.updates[i] = {
-            ...update,
-            status: { ...update.status!, validating: false },
-          };
-        }
-        this.groupedUpdates.update((groups) => [...groups]);
+    for (const group of this.groupedUpdates()) {
+      await this.validateGroup(group);
+    }
+  }
+
+  private async validateGroup(group: GroupedUpdate): Promise<void> {
+    for (let i = 0; i < group.updates.length; i++) {
+      const update = group.updates[i];
+      const replacement = await this.runValidation(update);
+      group.updates[i] = replacement;
+      if (this.activeUpdate()?.id === update.id) {
+        this.activeUpdate.set(replacement);
       }
+      this.groupedUpdates.update((groups) => [...groups]);
     }
   }
 
   private async revalidateUpdate(update: MonacoUpdateItem, group: GroupedUpdate): Promise<void> {
-    update.status = { ...update.status!, validating: true };
+    const idx = group.updates.indexOf(update);
+    if (idx < 0) return;
+
+    // Mark validating via in-place + array swap to fire change detection
+    // without breaking referential equality at the array level.
+    group.updates[idx] = { ...update, status: { ...update.status!, validating: true } };
+    if (this.activeUpdate()?.id === update.id) this.activeUpdate.set(group.updates[idx]);
     this.groupedUpdates.update((groups) => [...groups]);
 
+    const replacement = await this.runValidation(group.updates[idx]);
+    group.updates[idx] = replacement;
+    this.recomputeCombinedContent(group);
+    if (this.activeUpdate()?.id === replacement.id) this.activeUpdate.set(replacement);
+    this.groupedUpdates.update((groups) => [...groups]);
+  }
+
+  /**
+   * Run one validateUpdate cycle against an item, returning a fresh object
+   * with the resolved status. Same shape used by validateGroup and
+   * revalidateUpdate so the array element is always replaced — never mutated
+   * in place — keeping referential equality consistent for downstream signals.
+   */
+  private async runValidation(update: MonacoUpdateItem): Promise<MonacoUpdateItem> {
     try {
       const result = await this.updateService.validateUpdate(update);
-      update.status = {
-        exists: result.exists,
-        matched: result.matched,
-        alreadyExists: result.alreadyExists,
-        beforeLines: result.beforeLines,
-        afterLines: result.afterLines,
-        matchIndex: result.matchIndex,
-        failReason: result.failReason,
-        validating: false,
+      return {
+        ...update,
+        status: {
+          exists: result.exists,
+          matched: result.matched,
+          alreadyExists: result.alreadyExists,
+          beforeLines: result.beforeLines,
+          afterLines: result.afterLines,
+          matchIndex: result.matchIndex,
+          failReason: result.failReason,
+          validating: false,
+        },
       };
-
-      this.recomputeCombinedContent(group);
-
-      if (this.activeUpdate()?.id === update.id) {
-        this.activeUpdate.set({ ...update });
-      }
     } catch (err) {
-      console.error('Revalidation failed:', err);
-      update.status!.validating = false;
+      console.error(`[AutoUpdateDialog] Validation failed for ${update.id}`, err);
+      return { ...update, status: { ...update.status!, validating: false } };
     }
-
-    this.groupedUpdates.update((groups) => [...groups]);
   }
 
   /** Compute the line number to scroll to for a given hunk; null if no anchor found. */
