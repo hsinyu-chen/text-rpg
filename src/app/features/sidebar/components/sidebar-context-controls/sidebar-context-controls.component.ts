@@ -71,8 +71,6 @@ export class SidebarContextControlsComponent {
         try {
             await this.session.createNextBook();
             this.snackBar.open(this.t('createNextSuccess'), this.i18n.translate('ui.CLOSE'), { duration: 3000 });
-
-            // Initialize the story for the new act
             await this.engine.startSession();
 
         } catch (e) {

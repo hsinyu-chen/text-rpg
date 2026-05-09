@@ -17,7 +17,6 @@
     <div class="update-card" (click)="onJump(msg.id)" (keydown.enter)="onJump(msg.id)" tabindex="0" role="button">
         <div class="card-header">
             <span class="role-badge">{{ msg.intent || ('ui.SYSTEM_LABEL' | translate) }}</span>
-            <!-- <span class="time">{{ formatTime(msg.timestamp) }}</span> -->
         </div>
 
         @if (msg.summary) {

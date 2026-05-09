@@ -38,8 +38,6 @@ const BLANK_FILES_ZH = [
     '7.魔法與技能.md', '8.計畫.md', '9.物品欄.md'
 ];
 
-// ─── Component ──────────────────────────────────────────────────────────────
-
 @Component({
     selector: 'app-new-game-dialog',
     standalone: true,
@@ -77,7 +75,6 @@ export class NewGameDialogComponent {
         return this.i18n.translate(`sidebar.newGame.${key}`, params);
     }
 
-    // ─── Shared ───────────────────────────────────────────────────────────
     isLoading = signal(false);
     activeTabIndex = signal(1);
 
@@ -216,7 +213,6 @@ export class NewGameDialogComponent {
         }
     }
 
-    // ─── Generate tab ─────────────────────────────────────────────────────
     llmProfiles = this.llmConfig.profiles;
     generateProfileId = signal<string>(this.llmConfig.activeProfileId() ?? '');
 
@@ -401,6 +397,5 @@ export class NewGameDialogComponent {
         }
     }
 
-    // ─── Shared ───────────────────────────────────────────────────────────
     cancel() { this.dialogRef.close(); }
 }

@@ -95,13 +95,13 @@ export class SyncDialogComponent {
         try {
             const selectedItems = this.syncItems().filter(i => i.selected());
 
-            // 1. Update Database (IndexedDB) first for all selected items
-            // This ensures if user edited the right side of the diff, it's saved locally
+            // IDB before disk: localContent() may carry user edits made on
+            // the right side of the diff, and the disk mirror must come
+            // from the same authoritative copy that engine state holds.
             for (const item of selectedItems) {
                 await this.engine.updateSingleFile(item.name, item.localContent());
             }
 
-            // 2. Mirror to Disk
             for (const item of selectedItems) {
                 await this.fileSystem.writeToDiskHandle(this.data.diskHandle, item.name, item.localContent());
             }
@@ -111,7 +111,6 @@ export class SyncDialogComponent {
                 { duration: 3000 },
             );
 
-            // [Added] Clear remote cache since files have changed
             await this.cacheManager.clearAllServerCaches();
 
             this.dialogRef.close(true);

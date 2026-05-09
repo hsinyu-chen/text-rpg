@@ -173,10 +173,9 @@ export class FileViewerDialogComponent implements OnDestroy {
   private highlightTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
-    // Detach from caller's Map: edits-in-progress must not leak back into
-    // engine state (sidebar passes state.loadedFiles() by reference).
-    // Without this, every keystroke mutated the caller's map, so closing
-    // without saving still left the change in place on reopen.
+    // Defensive copy: sidebar passes state.loadedFiles() by reference, so
+    // every keystroke would otherwise mutate the caller's Map and persist
+    // unsaved edits across cancel + reopen.
     this.data.files = new Map(this.data.files);
 
     this.searchEngine.bind(this.data.files, (fileName, content) => {
@@ -342,11 +341,7 @@ export class FileViewerDialogComponent implements OnDestroy {
 
     this.activeFile.set(fileName);
 
-    // Update activeFileContent for the new file
     const newInitialContent = this.data.files.get(fileName) || '';
-    // If it was already modified, Monaco will have the modified version, 
-    // but the outline needs the content. Monaco handles model switching.
-    // We should probably get the value from Monaco models if available.
     if (editor) {
       const existingModelContent = editor.getFileContent(fileName);
       if (existingModelContent !== undefined) {

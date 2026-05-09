@@ -126,7 +126,6 @@ export class AutoUpdateDialogComponent {
           await this.engine.updateSingleFile(group.fileName, group.combinedContent());
         }
       }
-      // [Added] Clear remote cache since files have changed
       await this.cacheManager.clearAllServerCaches();
       this.dialogRef.close(true);
     } catch (err: unknown) {
@@ -161,7 +160,6 @@ export class AutoUpdateDialogComponent {
     this.isInitializing.set(true);
     try {
       await this.engine.updateSingleFile(group.fileName, group.combinedContent());
-      // [Added] Clear remote cache since files have changed
       await this.cacheManager.clearAllServerCaches();
       await this.hunks.refreshGroupAfterApply(group);
       this.snackBar.open(this.t('appliedToFile', { file: group.fileName }), this.i18n.translate('ui.CLOSE'), { duration: 2000 });

@@ -20,10 +20,9 @@ import { LOCALES } from '../constants/locales';
 import { convertLatexToSymbols, repairCorruptedLatex } from '../utils/latex.util';
 import { extractActName } from '../utils/act-name.util';
 
-// Pre-feat/correction-string saves stored intent as the raw <XXX> tag and used
-// boolean isCorrection. Normalize on load so downstream code only sees the
-// current shape. Built dynamically from LOCALES so legacy saves from any
-// supported locale (zh-tw <行動意圖>, en <Action>, …) all migrate.
+// Legacy saves stored intent as the raw localized tag (e.g. zh-tw "<行動意圖>",
+// en "<Action>") instead of the canonical GAME_INTENTS id. Built dynamically
+// from LOCALES so any supported locale's old saves migrate on load.
 const LEGACY_INTENT_TAG_MAP: Map<string, string> = (() => {
     const m = new Map<string, string>();
     for (const locale of Object.values(LOCALES)) {
@@ -101,10 +100,8 @@ export class SessionService {
                 const book = await this.books.get(lastBookId);
                 if (book) {
                     console.log(`[SessionService] Auto-loading last book: ${book.name} (${lastBookId})`);
-                    // autoSave=false: boot has no prior active book to save —
-                    // loadBook's unloadCurrentSession branch is gated on
-                    // currentBookId() anyway, but pass the accurate flag so
-                    // the log line doesn't claim AutoSave: true.
+                    // autoSave=false on boot: there is no prior active book
+                    // to write back, and we want the log to reflect that.
                     await this.loadBook(lastBookId, false);
                     return; // loadBook already restored messages
                 } else {
@@ -266,9 +263,6 @@ export class SessionService {
                 { duration: 3000 },
             );
 
-            // Note: Caller (GameEngine) still needs to trigger startSession if needed, 
-            // but GameEngine.startNewGame previously called startSession.
-            // Since startSession is just "local init", we can return true indicating success.
             return true;
 
         } catch (e) {

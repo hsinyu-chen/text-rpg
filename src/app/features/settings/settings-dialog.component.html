@@ -2,7 +2,6 @@
 <mat-dialog-content>
     <div class="settings-form">
 
-        <!-- LLM Profile Selection — active profile picks both provider & settings. -->
         <div class="provider-selector">
             <h3>{{ 'settings.llmProfileSection' | translate }}</h3>
             @if (profiles().length === 0) {
@@ -29,7 +28,6 @@
             </div>
         </div>
 
-        <!-- Game Settings -->
         <div class="advanced-section">
             <h3>{{ 'settings.gameSettings' | translate }}</h3>
 
@@ -136,7 +134,6 @@
             </div>
         </div>
 
-        <!-- Billing Settings -->
         <div class="advanced-section">
             <h3>{{ 'settings.billingCurrency' | translate }}</h3>
 
@@ -175,7 +172,6 @@
             }
         </div>
 
-        <!-- Settings Sync -->
         <div class="advanced-section">
             <h3>{{ 'settings.settingsSync' | translate }}</h3>
             <p class="hint-text">

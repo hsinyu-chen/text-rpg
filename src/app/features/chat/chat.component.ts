@@ -131,12 +131,10 @@ export class ChatComponent {
 
         if (!scrollEl || !contentEl) return;
 
-        // 1. Scroll Listener (Access user scroll state)
         scrollEl.addEventListener('scroll', () => {
             this.checkScroll(scrollEl);
-        }, { passive: true }); // passive improves scroll performance
+        }, { passive: true });
 
-        // 2. Resize Observer (Detect content changes)
         this.resizeObserver = new ResizeObserver(() => {
             this.smartScroll();
         });

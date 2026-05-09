@@ -314,7 +314,6 @@ export class CreateSceneDialogComponent {
             })
             .join('\n\n---\n\n');
 
-        // === Stage 1: Expand the opening scene ===
         this.stage.set('opening');
         const openingTemplate = await firstValueFrom(
             this.http.get(`assets/system_files/${locale.folder}/create_scene_opening.md`, { responseType: 'text' })
@@ -329,7 +328,6 @@ export class CreateSceneDialogComponent {
 
         if (this.abortController?.signal.aborted) throw new Error('Aborted');
 
-        // === Stage 2: Per-file extraction ===
         this.stage.set('extracting');
         const extractBaseTemplate = await firstValueFrom(
             this.http.get(`assets/system_files/${locale.folder}/create_scene.md`, { responseType: 'text' })
@@ -402,7 +400,6 @@ export class CreateSceneDialogComponent {
         this.processedFiles.set(filesToProcess.length);
         this.currentFile.set('');
 
-        // === Stage 3: Patch Story Outline with last_scene ===
         // Force Story Outline to exist so startSession can extract the opening.
         const outlineName = this.findStoryOutlineName(working, locale);
         const existingOutline = working.get(outlineName) ?? '';

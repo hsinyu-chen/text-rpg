@@ -148,11 +148,9 @@ export class GameStateService {
 
     /**
      * 'legacy' when the active profile's `system_main` lacks the
-     * `@system-main-version` marker — i.e. it was forked before PR #25
-     * extracted the output protocol into `injection_protocol_*.md`.
-     * GameEngineService uses this to auto-switch to the default profile
-     * before dispatching, so legacy forks don't mis-render under the
-     * new injection model.
+     * `@system-main-version` marker. GameEngineService uses this to
+     * auto-switch to the default profile before dispatching, so legacy
+     * profiles don't mis-render under the current injection model.
      */
     activeProfileCompat = computed<'compatible' | 'legacy'>(() =>
         isSystemMainCompatible(this.dynamicSystemMainInjection()) ? 'compatible' : 'legacy'

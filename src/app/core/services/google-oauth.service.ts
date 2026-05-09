@@ -370,10 +370,9 @@ export class GoogleOAuthService {
 
         const creds = this.resolveOAuthCreds();
         const clientId = this.isTauri ? creds.clientIdTauri : creds.clientId;
-        // Tauri (Desktop-app client) requires the client secret on the refresh
-        // call. Web GIS doesn't issue a refresh token in the popup token
-        // model, so this branch only runs on Tauri in practice — but keep
-        // the secret-empty guard for symmetry with exchangeCodeForToken.
+        // Web GIS popup model never issues a refresh token, so in practice
+        // only Tauri reaches here — but keep the empty-secret branch for
+        // symmetry with exchangeCodeForToken.
         const clientSecret = this.isTauri ? creds.clientSecretTauri : '';
 
         const body = new URLSearchParams({

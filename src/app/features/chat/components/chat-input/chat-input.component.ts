@@ -73,8 +73,8 @@ export class ChatInputComponent {
         return getProfileDisplayName(profile, k => this.i18n.translate(k));
     });
 
-    // Engine mode chip — toggles single ⇄ two-call. Two-call is the only mode
-    // that consumes userIdealOutcome, so the field is conditionally shown.
+    // Two-call is the only engine mode that consumes userIdealOutcome,
+    // so the field is shown conditionally on this flag.
     isTwoCall = computed(() => this.appConfig.engineMode() === 'two-call');
     engineModeLabel = computed(() =>
         this.i18n.translate(this.isTwoCall() ? 'ui.ENGINE_MODE_TWO_CALL' : 'ui.ENGINE_MODE_SINGLE'));

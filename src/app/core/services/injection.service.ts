@@ -124,8 +124,7 @@ export class InjectionService {
 
             // Built-ins are immutable — always re-fetch from the shipped disk
             // asset (which also refreshes the IDB cache) so changes to a
-            // shipped prompt (e.g. the @system-main-version marker added in
-            // PR #28) propagate without requiring users to manually accept
+            // shipped prompt propagate without requiring users to manually accept
             // the prompt-update badge.
             if (current.isBuiltIn) {
                 const seeded = await this.seedBuiltInAssetToIdb(type, langFolder, lang, current.id);
