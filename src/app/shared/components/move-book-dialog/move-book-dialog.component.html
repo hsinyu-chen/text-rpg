@@ -1,8 +1,8 @@
-<h2 mat-dialog-title>Move Book</h2>
+<h2 mat-dialog-title>{{ 'dialog.moveBook' | translate }}</h2>
 <mat-dialog-content>
     <p class="book-name">"{{ data.bookName }}"</p>
     <mat-form-field appearance="outline" class="full-width">
-        <mat-label>Target Collection</mat-label>
+        <mat-label>{{ 'dialog.targetCollection' | translate }}</mat-label>
         <mat-select [ngModel]="targetId()" (ngModelChange)="targetId.set($event)">
             @for (c of data.collections; track c.id) {
                 <mat-option [value]="c.id">{{ c.name }}</mat-option>
@@ -11,6 +11,6 @@
     </mat-form-field>
 </mat-dialog-content>
 <mat-dialog-actions align="end">
-    <button mat-button (click)="cancel()">Cancel</button>
-    <button mat-flat-button color="primary" [disabled]="!canMove()" (click)="confirm()">Move</button>
+    <button mat-button (click)="cancel()">{{ 'dialog.cancel' | translate }}</button>
+    <button mat-flat-button color="primary" [disabled]="!canMove()" (click)="confirm()">{{ 'dialog.move' | translate }}</button>
 </mat-dialog-actions>

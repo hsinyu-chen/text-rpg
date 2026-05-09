@@ -19,6 +19,7 @@ import { DialogService } from '@app/core/services/dialog.service';
 import { LoadingService } from '@app/core/services/loading.service';
 import { GameStateService } from '@app/core/services/game-state.service';
 import { SaveNameDialogComponent, SaveNameDialogData } from '../save-name-dialog/save-name-dialog.component';
+import { I18nService, TranslatePipe } from '@app/core/i18n';
 
 @Component({
     selector: 'app-advanced-sync-tools-dialog',
@@ -33,7 +34,8 @@ import { SaveNameDialogComponent, SaveNameDialogData } from '../save-name-dialog
         MatIconModule,
         MatTableModule,
         MatProgressSpinnerModule,
-        MatTooltipModule
+        MatTooltipModule,
+        TranslatePipe
     ],
     templateUrl: './advanced-sync-tools-dialog.component.html',
     styleUrl: './advanced-sync-tools-dialog.component.scss'
@@ -48,6 +50,11 @@ export class AdvancedSyncToolsDialogComponent {
     private matDialog = inject(MatDialog);
     private loading = inject(LoadingService);
     private snackBar = inject(MatSnackBar);
+    private i18n = inject(I18nService);
+
+    private t(key: string, params?: Record<string, string | number>): string {
+        return this.i18n.translate(`dialog.${key}`, params);
+    }
 
     selectedTab = 0;
     snapshots = signal<SnapshotMeta[]>([]);
@@ -92,7 +99,7 @@ export class AdvancedSyncToolsDialogComponent {
             this.snapshots.set(list);
         } catch (e) {
             console.error('[AdvancedSyncTools] listSnapshots failed', e);
-            this.snackBar.open('Failed to list snapshots: ' + this.errMsg(e), 'Close', {
+            this.snackBar.open(this.t('failedListSnapshots') + this.errMsg(e), this.i18n.translate('ui.CLOSE'), {
                 panelClass: ['snackbar-error']
             });
         } finally {
@@ -101,28 +108,25 @@ export class AdvancedSyncToolsDialogComponent {
     }
 
     async createManualSnapshot() {
-        const note = await this.promptNote('Create Snapshot', '');
+        const note = await this.promptNote(this.t('createSnapshot'), '');
         if (note === null) return;
 
         const proceed = await this.dialog.confirm(
-            'Manual snapshots capture the *cloud* state. If this device has ' +
-            'unsynced local changes, they will NOT be in the snapshot.\n\n' +
-            'Recommendation: run "Sync All" first if you want local changes ' +
-            'included. Continue with the snapshot now?',
-            'Manual Snapshot',
-            'Snapshot now'
+            this.t('manualSnapshotBody'),
+            this.t('manualSnapshotTitle'),
+            this.t('manualSnapshotConfirmBtn'),
         );
         if (!proceed) return;
 
         this.busy.set(true);
-        this.loading.show('Creating snapshot…');
+        this.loading.show(this.t('creatingSnapshotMessage'));
         try {
             await this.snapshotService.manualSnapshot(note || undefined);
-            this.snackBar.open('Snapshot created.', 'OK', { duration: 3000 });
+            this.snackBar.open(this.t('snapshotCreated'), this.i18n.translate('ui.CLOSE'), { duration: 3000 });
             await this.refreshSnapshots();
         } catch (e) {
             console.error('[AdvancedSyncTools] manualSnapshot failed', e);
-            this.snackBar.open('Snapshot failed: ' + this.errMsg(e), 'Close', {
+            this.snackBar.open(this.t('snapshotFailed') + this.errMsg(e), this.i18n.translate('ui.CLOSE'), {
                 panelClass: ['snackbar-error']
             });
         } finally {
@@ -133,13 +137,9 @@ export class AdvancedSyncToolsDialogComponent {
 
     async runForcePush() {
         const confirmed = await this.dialog.confirm(
-            'FORCE PUSH will make the cloud bucket an exact mirror of this device:\n\n' +
-            '  • every cloud book / collection NOT on this device will be DELETED on cloud\n' +
-            '  • every local book / collection will be UPLOADED, overwriting the cloud version\n\n' +
-            'A snapshot of the current cloud will be taken first so you can restore it.\n\n' +
-            'Other devices will lose their version on the next sync. Continue?',
-            'Force Push',
-            'FORCE PUSH'
+            this.t('forcePushDialogBody'),
+            this.t('forcePushDialogTitle'),
+            this.t('forcePushDialogConfirmBtn'),
         );
         if (!confirmed) return;
 
@@ -156,35 +156,44 @@ export class AdvancedSyncToolsDialogComponent {
         // loading.show is scoped to the actual sync call so a
         // SnapshotPreOpError → confirm dialog isn't blocked by a stale
         // overlay. Re-shown on the recursive retry-without-snapshot path.
-        this.loading.show('Force pushing to cloud…');
+        this.loading.show(this.t('forcePushingMessage'));
         try {
             const report = await this.syncService.forcePushAll({ skipSnapshot });
             this.loading.hide();
-            const summary = `Uploaded: ${report.uploaded}, Removed remote: ${report.deletedRemote}.`;
             if (report.errors.length > 0) {
                 console.error('[AdvancedSyncTools] forcePush errors:', report.errors);
                 this.snackBar.open(
-                    `Force Push had ${report.errors.length} error${report.errors.length === 1 ? '' : 's'} — see console. ${summary}`,
-                    'Close',
+                    this.t('forcePushErrorSummary', {
+                        count: report.errors.length,
+                        uploaded: report.uploaded,
+                        deletedRemote: report.deletedRemote,
+                    }),
+                    this.i18n.translate('ui.CLOSE'),
                     { panelClass: ['snackbar-error'] }
                 );
             } else {
-                this.snackBar.open(`Force Push done. ${summary}`, 'OK', { duration: 4000 });
+                this.snackBar.open(
+                    this.t('forcePushDoneSummary', {
+                        uploaded: report.uploaded,
+                        deletedRemote: report.deletedRemote,
+                    }),
+                    this.i18n.translate('ui.CLOSE'),
+                    { duration: 4000 },
+                );
             }
         } catch (e) {
             this.loading.hide();
             if (e instanceof SnapshotPreOpError) {
                 const continueAnyway = await this.dialog.confirm(
-                    `The pre-push safety snapshot failed:\n\n${e.message}\n\n` +
-                    'Continue with force push anyway? You will not have a backup of cloud state to restore.',
-                    'Snapshot failed',
-                    'Continue without snapshot'
+                    this.t('snapshotPushFailedBody', { error: e.message }),
+                    this.t('snapshotPreOpFailedTitle'),
+                    this.t('snapshotPreOpContinueBtn'),
                 );
                 if (continueAnyway) await this.runForcePushCore(true);
                 return;
             }
             console.error('[AdvancedSyncTools] forcePush failed', e);
-            this.snackBar.open('Force Push failed: ' + this.errMsg(e), 'Close', {
+            this.snackBar.open(this.t('forcePushFailed') + this.errMsg(e), this.i18n.translate('ui.CLOSE'), {
                 panelClass: ['snackbar-error']
             });
         }
@@ -192,13 +201,9 @@ export class AdvancedSyncToolsDialogComponent {
 
     async runForcePull() {
         const confirmed = await this.dialog.confirm(
-            'FORCE PULL will make this device an exact mirror of the cloud bucket:\n\n' +
-            '  • every local book / collection NOT on cloud will be DELETED locally\n' +
-            '  • every cloud book / collection will be DOWNLOADED, overwriting the local version\n\n' +
-            'A snapshot of this device\'s current state will be taken first so you can restore it.\n\n' +
-            'Unsynced local edits not in the snapshot will be lost. Continue?',
-            'Force Pull',
-            'FORCE PULL'
+            this.t('forcePullDialogBody'),
+            this.t('forcePullDialogTitle'),
+            this.t('forcePullDialogConfirmBtn'),
         );
         if (!confirmed) return;
 
@@ -212,35 +217,44 @@ export class AdvancedSyncToolsDialogComponent {
     }
 
     private async runForcePullCore(skipSnapshot: boolean) {
-        this.loading.show('Force pulling from cloud…');
+        this.loading.show(this.t('forcePullingMessage'));
         try {
             const report = await this.syncService.forcePullAll({ skipSnapshot });
             this.loading.hide();
-            const summary = `Downloaded: ${report.downloaded}, Removed local: ${report.deletedLocal}.`;
             if (report.errors.length > 0) {
                 console.error('[AdvancedSyncTools] forcePull errors:', report.errors);
                 this.snackBar.open(
-                    `Force Pull had ${report.errors.length} error${report.errors.length === 1 ? '' : 's'} — see console. ${summary}`,
-                    'Close',
+                    this.t('forcePullErrorSummary', {
+                        count: report.errors.length,
+                        downloaded: report.downloaded,
+                        deletedLocal: report.deletedLocal,
+                    }),
+                    this.i18n.translate('ui.CLOSE'),
                     { panelClass: ['snackbar-error'] }
                 );
             } else {
-                this.snackBar.open(`Force Pull done. ${summary}`, 'OK', { duration: 4000 });
+                this.snackBar.open(
+                    this.t('forcePullDoneSummary', {
+                        downloaded: report.downloaded,
+                        deletedLocal: report.deletedLocal,
+                    }),
+                    this.i18n.translate('ui.CLOSE'),
+                    { duration: 4000 },
+                );
             }
         } catch (e) {
             this.loading.hide();
             if (e instanceof SnapshotPreOpError) {
                 const continueAnyway = await this.dialog.confirm(
-                    `The pre-pull safety snapshot failed:\n\n${e.message}\n\n` +
-                    'Continue with force pull anyway? You will not have a backup of local state to restore.',
-                    'Snapshot failed',
-                    'Continue without snapshot'
+                    this.t('snapshotPullFailedBody', { error: e.message }),
+                    this.t('snapshotPreOpFailedTitle'),
+                    this.t('snapshotPreOpContinueBtn'),
                 );
                 if (continueAnyway) await this.runForcePullCore(true);
                 return;
             }
             console.error('[AdvancedSyncTools] forcePull failed', e);
-            this.snackBar.open('Force Pull failed: ' + this.errMsg(e), 'Close', {
+            this.snackBar.open(this.t('forcePullFailed') + this.errMsg(e), this.i18n.translate('ui.CLOSE'), {
                 panelClass: ['snackbar-error']
             });
         }
@@ -249,15 +263,9 @@ export class AdvancedSyncToolsDialogComponent {
     async restore(s: SnapshotMeta) {
         const when = new Date(s.createdAt).toLocaleString();
         const confirmed = await this.dialog.confirm(
-            `Restore the snapshot from ${when} (trigger: ${s.trigger})?\n\n` +
-            'This will:\n' +
-            '  • rewrite the cloud bucket to match the snapshot\n' +
-            '  • re-download everything to this device\n' +
-            '  • take a preRestore snapshot of the current cloud first (so this is reversible)\n\n' +
-            'Other devices will pick up the restored state on their next sync. ' +
-            'For best results, ask other devices to pause auto-sync or close the app first. Continue?',
-            'Restore Snapshot',
-            'Restore'
+            this.t('restoreSnapshotBody', { when, trigger: s.trigger }),
+            this.t('restoreSnapshotTitle'),
+            this.t('restoreSnapshotConfirmBtn'),
         );
         if (!confirmed) return;
 
@@ -271,29 +279,28 @@ export class AdvancedSyncToolsDialogComponent {
     }
 
     private async runRestoreCore(s: SnapshotMeta, skipPreRestoreSnapshot: boolean) {
-        this.loading.show('Restoring snapshot…');
+        this.loading.show(this.t('restoringMessage'));
         try {
             await this.syncService.restoreSnapshot(s.id, { skipPreRestoreSnapshot });
             this.loading.hide();
             this.snackBar.open(
-                'Snapshot restored. Other devices: please trigger Sync All or restart the app to pick up the change.',
-                'OK',
+                this.t('snapshotRestoredMessage'),
+                this.i18n.translate('ui.CLOSE'),
                 { duration: 8000 }
             );
         } catch (e) {
             this.loading.hide();
             if (e instanceof SnapshotPreOpError) {
                 const continueAnyway = await this.dialog.confirm(
-                    `The pre-restore safety snapshot failed:\n\n${e.message}\n\n` +
-                    'Continue with restore anyway? You will not be able to undo this restore via the safety snapshot.',
-                    'Snapshot failed',
-                    'Continue without snapshot'
+                    this.t('snapshotRestoreFailedBody', { error: e.message }),
+                    this.t('snapshotPreOpFailedTitle'),
+                    this.t('snapshotPreOpContinueBtn'),
                 );
                 if (continueAnyway) await this.runRestoreCore(s, true);
                 return;
             }
             console.error('[AdvancedSyncTools] restoreSnapshot failed', e);
-            this.snackBar.open('Restore failed: ' + this.errMsg(e), 'Close', {
+            this.snackBar.open(this.t('restoreFailed') + this.errMsg(e), this.i18n.translate('ui.CLOSE'), {
                 panelClass: ['snackbar-error']
             });
         }
@@ -302,9 +309,9 @@ export class AdvancedSyncToolsDialogComponent {
     async deleteOne(s: SnapshotMeta) {
         const when = new Date(s.createdAt).toLocaleString();
         const confirmed = await this.dialog.confirm(
-            `Delete the snapshot from ${when} (trigger: ${s.trigger})? This cannot be undone.`,
-            'Delete Snapshot',
-            'Delete'
+            this.t('deleteSnapshotBody', { when, trigger: s.trigger }),
+            this.t('deleteSnapshotTitle'),
+            this.t('delete'),
         );
         if (!confirmed) return;
 
@@ -312,10 +319,10 @@ export class AdvancedSyncToolsDialogComponent {
         try {
             await this.snapshotService.deleteSnapshot(s.id);
             this.snapshots.set(this.snapshots().filter(x => x.id !== s.id));
-            this.snackBar.open('Snapshot deleted.', 'OK', { duration: 3000 });
+            this.snackBar.open(this.t('snapshotDeleted'), this.i18n.translate('ui.CLOSE'), { duration: 3000 });
         } catch (e) {
             console.error('[AdvancedSyncTools] deleteSnapshot failed', e);
-            this.snackBar.open('Delete failed: ' + this.errMsg(e), 'Close', {
+            this.snackBar.open(this.t('deleteFailed') + this.errMsg(e), this.i18n.translate('ui.CLOSE'), {
                 panelClass: ['snackbar-error']
             });
         } finally {
@@ -338,7 +345,7 @@ export class AdvancedSyncToolsDialogComponent {
             ));
         } catch (e) {
             console.error('[AdvancedSyncTools] updateSnapshotNote failed', e);
-            this.snackBar.open('Failed to update note: ' + this.errMsg(e), 'Close', {
+            this.snackBar.open(this.t('failedUpdateNote') + this.errMsg(e), this.i18n.translate('ui.CLOSE'), {
                 panelClass: ['snackbar-error']
             });
             // Revert input value to last-known.
@@ -350,7 +357,7 @@ export class AdvancedSyncToolsDialogComponent {
 
     private async promptNote(title: string, initial: string): Promise<string | null> {
         const ref = this.matDialog.open(SaveNameDialogComponent, {
-            data: { title, initialName: initial, placeholder: 'Optional note' } as SaveNameDialogData,
+            data: { title, initialName: initial, placeholder: this.t('optionalNote') } as SaveNameDialogData,
             width: '400px'
         });
         const result = await firstValueFrom(ref.afterClosed());

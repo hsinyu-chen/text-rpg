@@ -1,15 +1,15 @@
-<h2 mat-dialog-title>Configuration</h2>
+<h2 mat-dialog-title>{{ 'settings.title' | translate }}</h2>
 <mat-dialog-content>
     <div class="settings-form">
 
         <!-- LLM Profile Selection — active profile picks both provider & settings. -->
         <div class="provider-selector">
-            <h3>LLM Profile</h3>
+            <h3>{{ 'settings.llmProfileSection' | translate }}</h3>
             @if (profiles().length === 0) {
-                <p class="hint-text">No profiles configured yet. Click below to create one.</p>
+                <p class="hint-text">{{ 'settings.noProfilesHint' | translate }}</p>
             } @else {
                 <mat-form-field appearance="outline" class="full-width">
-                    <mat-label>Active Profile</mat-label>
+                    <mat-label>{{ 'settings.activeProfile' | translate }}</mat-label>
                     <mat-select [ngModel]="selectedProfileId()"
                                 (ngModelChange)="selectedProfileId.set($event)">
                         @for (p of profiles(); track p.id) {
@@ -24,14 +24,14 @@
             <div class="provider-configure-row">
                 <button mat-stroked-button (click)="openProfilesManager()">
                     <mat-icon>tune</mat-icon>
-                    Manage LLM Profiles…
+                    {{ 'settings.manageLLMProfiles' | translate }}
                 </button>
             </div>
         </div>
 
         <!-- Game Settings -->
         <div class="advanced-section">
-            <h3>Game Settings</h3>
+            <h3>{{ 'settings.gameSettings' | translate }}</h3>
 
             <mat-form-field appearance="outline" class="full-width">
                 <mat-label>{{ 'settings.interfaceLanguage' | translate }}</mat-label>
@@ -63,35 +63,35 @@
 
             @if (outputLanguage() === 'custom') {
             <mat-form-field appearance="outline" class="full-width">
-                <mat-label>Enter Language</mat-label>
+                <mat-label>{{ 'settings.enterLanguageLabel' | translate }}</mat-label>
                 <input matInput [ngModel]="customOutputLanguage()" (ngModelChange)="customOutputLanguage.set($event)"
-                    placeholder="e.g. French, Korean">
+                    [placeholder]="'settings.customLanguagePlaceholder' | translate">
             </mat-form-field>
             }
 
             <div class="toggle-row">
                 <mat-slide-toggle [ngModel]="enableAdultDeclaration()"
                     (ngModelChange)="enableAdultDeclaration.set($event)" color="primary">
-                    Enable Adult Content Declaration
+                    {{ 'settings.enableAdultContent' | translate }}
                 </mat-slide-toggle>
             </div>
             @if (!enableAdultDeclaration()) {
-            <p class="hint-text">Some models may refuse or filter mature scenes without this declaration.</p>
+            <p class="hint-text">{{ 'settings.adultContentHint' | translate }}</p>
             }
 
             <div class="toggle-row">
                 <mat-slide-toggle [ngModel]="engineMode() === 'two-call'"
                     (ngModelChange)="engineMode.set($event ? 'two-call' : 'single')" color="primary">
-                    Two-Call Engine (Resolver + Narrator)
+                    {{ 'settings.twoCallEngine' | translate }}
                 </mat-slide-toggle>
             </div>
-            <p class="hint-text">Splits each story turn into a structured-resolution call and a narrator call. Improves precondition handling at the cost of an extra LLM call per turn.</p>
+            <p class="hint-text">{{ 'settings.twoCallEngineHint' | translate }}</p>
         </div>
 
         <div class="advanced-section">
-            <h3>UI Customization</h3>
+            <h3>{{ 'settings.uiCustomization' | translate }}</h3>
             <div class="slider-row">
-                <label for="fontSize-slider">Font Size: {{ fontSize() || 17 }}px</label>
+                <label for="fontSize-slider">{{ 'settings.fontSizeLabel' | translate: { size: fontSize() || 17 } }}</label>
                 <mat-slider min="12" max="32" step="1" showTickMarks discrete>
                     <input matSliderThumb id="fontSize-slider" [ngModel]="fontSize()"
                         (ngModelChange)="fontSize.set($event)">
@@ -99,7 +99,7 @@
             </div>
 
             <mat-form-field appearance="outline" class="full-width">
-                <mat-label>Font Family</mat-label>
+                <mat-label>{{ 'settings.fontFamily' | translate }}</mat-label>
                 <mat-select [ngModel]="fontFamily()" (ngModelChange)="fontFamily.set($event)">
                     @for (f of fontFamilies; track f.value) {
                     <mat-option [value]="f.value">
@@ -111,45 +111,45 @@
 
             @if (fontFamily() === 'custom') {
             <mat-form-field appearance="outline" class="full-width">
-                <mat-label>Enter Font Name</mat-label>
+                <mat-label>{{ 'settings.enterFontName' | translate }}</mat-label>
                 <input matInput [ngModel]="customFontName()" (ngModelChange)="customFontName.set($event)"
-                    placeholder="e.g. Inter, Consolas">
+                    [placeholder]="'settings.customFontPlaceholder' | translate">
             </mat-form-field>
             }
 
             <mat-form-field appearance="outline" class="full-width">
-                <mat-label>Screensaver Type</mat-label>
+                <mat-label>{{ 'settings.screensaverType' | translate }}</mat-label>
                 <mat-select [ngModel]="screensaverType()" (ngModelChange)="screensaverType.set($event)">
                     <mat-option value="invaders">
-                        <mat-icon>videogame_asset</mat-icon> Space Invaders
+                        <mat-icon>videogame_asset</mat-icon> {{ 'settings.spaceInvaders' | translate }}
                     </mat-option>
                     <mat-option value="code">
-                        <mat-icon>code</mat-icon> Code Editor (Boss Key)
+                        <mat-icon>code</mat-icon> {{ 'settings.codeEditorBossKey' | translate }}
                     </mat-option>
                 </mat-select>
             </mat-form-field>
 
             <div class="toggle-row">
                 <mat-slide-toggle [ngModel]="idleOnBlur()" (ngModelChange)="idleOnBlur.set($event)" color="primary">
-                    Immediate Idle on Focus Loss
+                    {{ 'settings.idleOnBlur' | translate }}
                 </mat-slide-toggle>
             </div>
         </div>
 
         <!-- Billing Settings -->
         <div class="advanced-section">
-            <h3>Billing & Currency</h3>
+            <h3>{{ 'settings.billingCurrency' | translate }}</h3>
 
             <div class="toggle-row">
                 <mat-slide-toggle [ngModel]="enableConversion()" (ngModelChange)="enableConversion.set($event)"
                     color="primary">
-                    Enable Currency Conversion
+                    {{ 'settings.enableConversion' | translate }}
                 </mat-slide-toggle>
             </div>
 
             <div class="currency-row">
                 <mat-form-field appearance="outline" class="half-width">
-                    <mat-label>Display Currency</mat-label>
+                    <mat-label>{{ 'settings.displayCurrency' | translate }}</mat-label>
                     <mat-select [ngModel]="currency()" (ngModelChange)="currency.set($event)"
                         [disabled]="!enableConversion()">
                         @for (c of currencies; track c.code) {
@@ -162,7 +162,7 @@
 
                 @if (currency() !== 'USD') {
                 <mat-form-field appearance="outline" class="half-width">
-                    <mat-label>Exchange Rate</mat-label>
+                    <mat-label>{{ 'settings.exchangeRate' | translate }}</mat-label>
                     <input matInput type="number" [ngModel]="exchangeRate()" (ngModelChange)="exchangeRate.set($event)"
                         [disabled]="!enableConversion()">
                     <span matSuffix>{{ currency() }}/USD</span>
@@ -171,24 +171,22 @@
             </div>
 
             @if (!enableConversion()) {
-            <p class="hint-text">Costs will be displayed in default USD ($).</p>
+            <p class="hint-text">{{ 'settings.defaultUSDHint' | translate }}</p>
             }
         </div>
 
         <!-- Settings Sync -->
         <div class="advanced-section">
-            <h3>Settings Sync</h3>
+            <h3>{{ 'settings.settingsSync' | translate }}</h3>
             <p class="hint-text">
-                Push or pull the app settings snapshot via the active sync provider. Click Save first
-                to include pending edits. Configure the provider (Drive / S3) from the Sync Provider
-                button on the sidebar. Download reloads the app.
+                {{ 'settings.settingsSyncHint' | translate }}
             </p>
             <div class="button-row">
                 <button mat-stroked-button (click)="uploadSettings()" [disabled]="loading.isLoading()">
-                    <mat-icon>cloud_upload</mat-icon> Upload
+                    <mat-icon>cloud_upload</mat-icon> {{ 'settings.upload' | translate }}
                 </button>
                 <button mat-stroked-button (click)="downloadSettings()" [disabled]="loading.isLoading()">
-                    <mat-icon>cloud_download</mat-icon> Download
+                    <mat-icon>cloud_download</mat-icon> {{ 'settings.download' | translate }}
                 </button>
                 @if (loading.isLoading()) {
                 <mat-progress-spinner mode="indeterminate" diameter="24"></mat-progress-spinner>
@@ -198,21 +196,19 @@
 
         @if (isDev) {
         <div class="advanced-section">
-            <h3>Debug Bridge</h3>
+            <h3>{{ 'settings.debugBridge' | translate }}</h3>
             <p class="hint-text">
-                Local agent-driven testing only. Connect this build to a running BridgeServer
-                (sibling repo TextRPG_TestBridge) so an agent can drive turns over HTTP.
-                Hidden in production builds.
+                {{ 'settings.debugBridgeHint' | translate }}
             </p>
             <mat-form-field appearance="outline" class="full-width">
-                <mat-label>Bridge URL</mat-label>
+                <mat-label>{{ 'settings.bridgeUrl' | translate }}</mat-label>
                 <input matInput [ngModel]="debugBridgeUrl()" (ngModelChange)="onDebugBridgeUrlChange($event)"
-                    placeholder="wss://localhost:5050/app">
+                    [placeholder]="'settings.bridgeUrlPlaceholder' | translate">
             </mat-form-field>
             <div class="bridge-test-row">
                 <button mat-stroked-button type="button" (click)="testBridgeConnection()"
                     [disabled]="!debugBridgeUrl().trim() || bridgeTestInProgress()">
-                    <mat-icon>network_check</mat-icon> Test connection
+                    <mat-icon>network_check</mat-icon> {{ 'settings.testConnection' | translate }}
                 </button>
                 @if (bridgeTestInProgress()) {
                 <mat-progress-spinner mode="indeterminate" diameter="20"></mat-progress-spinner>
@@ -220,7 +216,7 @@
                 @if (bridgeTestResult(); as r) {
                 <span class="test-result" [class.ok]="r.ok" [class.fail]="!r.ok">
                     @if (r.ok) {
-                    <mat-icon>check_circle</mat-icon> connected
+                    <mat-icon>check_circle</mat-icon> {{ 'settings.connected' | translate }}
                     } @else {
                     <mat-icon>error</mat-icon> {{ r.error }}
                     }
@@ -230,7 +226,7 @@
             <div class="toggle-row">
                 <mat-slide-toggle [ngModel]="debugBridgeEnabled()"
                     (ngModelChange)="debugBridgeEnabled.set($event)" color="primary">
-                    Connect to debug bridge
+                    {{ 'settings.connectDebugBridge' | translate }}
                 </mat-slide-toggle>
             </div>
             <div class="bridge-status status-{{ bridge.status() }}">
@@ -246,6 +242,6 @@
     </div>
 </mat-dialog-content>
 <mat-dialog-actions align="end">
-    @if (state.isConfigured()) { <button mat-button mat-dialog-close>Cancel</button> }
-    <button mat-flat-button color="primary" (click)="save()" [disabled]="!isValid()">Save</button>
+    @if (state.isConfigured()) { <button mat-button mat-dialog-close>{{ 'settings.cancel' | translate }}</button> }
+    <button mat-flat-button color="primary" (click)="save()" [disabled]="!isValid()">{{ 'settings.save' | translate }}</button>
 </mat-dialog-actions>

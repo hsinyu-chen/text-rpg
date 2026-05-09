@@ -1,10 +1,10 @@
 <h2 mat-dialog-title class="dialog-title">
     <mat-icon>sync</mat-icon>
-    Sync to Local Folder
+    {{ 'dialog.syncLocalFolder' | translate }}
 </h2>
 <mat-dialog-content>
     <div class="description">
-        Review changes between your local session and Disk.
+        {{ 'dialog.syncDescription' | translate }}
     </div>
 
     @if (syncItems().length > 0) {
@@ -24,7 +24,7 @@
         @if (currentItem()) {
         <div class="diff-header">
             <mat-checkbox [(ngModel)]="currentItem().selected">
-                Sync {{ currentItem().name }}
+                {{ 'dialog.syncItem' | translate: { name: currentItem().name } }}
             </mat-checkbox>
             <span class="status-tag" [class]="currentItem().status">{{ currentItem().status }}</span>
         </div>
@@ -38,23 +38,23 @@
         }
     </div>
     } @else {
-    <div class="no-changes">No changes detected.</div>
+    <div class="no-changes">{{ 'dialog.noChanges' | translate }}</div>
     }
 
     @if (isSyncing()) {
     <div class="loading-overlay">
         <mat-progress-spinner mode="indeterminate" diameter="48"></mat-progress-spinner>
-        <span>Syncing to Disk...</span>
+        <span>{{ 'dialog.syncingDisk' | translate }}</span>
     </div>
     }
 </mat-dialog-content>
 <mat-dialog-actions align="end">
-    <button mat-button (click)="onCancel()" [disabled]="isSyncing()">Cancel</button>
+    <button mat-button (click)="onCancel()" [disabled]="isSyncing()">{{ 'dialog.cancel' | translate }}</button>
     <button mat-flat-button color="primary" (click)="onConfirm()" [disabled]="!hasSelected() || isSyncing()">
         @if (isSyncing()) {
-        Syncing...
+        {{ 'dialog.syncing' | translate }}
         } @else {
-        Confirm Sync
+        {{ 'dialog.confirmSync' | translate }}
         }
     </button>
 </mat-dialog-actions>

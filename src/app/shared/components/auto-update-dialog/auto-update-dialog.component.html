@@ -1,16 +1,16 @@
 <h2 mat-dialog-title class="dialog-title">
     <mat-icon>auto_fix_high</mat-icon>
-    Auto Update Files
+    {{ 'dialog.autoUpdateFiles' | translate }}
 </h2>
 <mat-dialog-content>
     <div class="description">
-        Review the changes proposed by the AI. Select an update to view details.
+        {{ 'dialog.autoUpdateHint' | translate }}
     </div>
 
     @if (isInitializing()) {
     <div class="loading-container">
         <mat-spinner diameter="48"></mat-spinner>
-        <span>Loading files and updates...</span>
+        <span>{{ 'dialog.loadingFilesUpdates' | translate }}</span>
     </div>
     } @else if (hunks.groupedUpdates().length > 0) {
     <!-- Mat Tab Nav Bar (navigation mode - single editor reused) -->
@@ -30,7 +30,7 @@
             <!-- Left: Update List -->
             <div class="update-list-pane" [class.collapsed]="!isSidebarOpen()">
                 <div class="pane-header">
-                    <h3>Hunks in this File</h3>
+                    <h3>{{ 'dialog.hunksInFile' | translate }}</h3>
                     <button mat-icon-button class="sidebar-toggle" (click)="toggleSidebar()">
                         <mat-icon>{{ isSidebarOpen() ? 'chevron_left' : 'menu' }}</mat-icon>
                     </button>
@@ -59,12 +59,12 @@
                                 @if (update.status.validating) {
                                 <mat-spinner diameter="16"></mat-spinner>
                                 } @else if (!update.status.exists) {
-                                <mat-icon class="status-icon info" matTooltip="New File">fiber_new</mat-icon>
+                                <mat-icon class="status-icon info" [matTooltip]="'dialog.newFile' | translate">fiber_new</mat-icon>
                                 } @else if (update.status.matched) {
-                                <mat-icon class="status-icon success" matTooltip="Match Found">check_circle</mat-icon>
+                                <mat-icon class="status-icon success" [matTooltip]="'dialog.matchFound' | translate">check_circle</mat-icon>
                                 } @else {
                                 <mat-icon class="status-icon warning"
-                                    [matTooltip]="update.status.failReason === 'context_mismatch' ? 'Context Mismatch' : 'Target Not Found'">warning</mat-icon>
+                                    [matTooltip]="(update.status.failReason === 'context_mismatch' ? 'dialog.contextMismatch' : 'dialog.targetNotFound') | translate">warning</mat-icon>
                                 }
 
                                 <!-- Calibration Action -->
@@ -112,19 +112,19 @@
 
                             <!-- MANUAL TEXT AREAS (Fallback) -->
                             <div class="hunk-edit-group">
-                                <label class="hunk-label" [attr.for]="'target-' + update.id">Target</label>
+                                <label class="hunk-label" [attr.for]="'target-' + update.id">{{ 'dialog.targetLabel' | translate }}</label>
                                 <textarea [id]="'target-' + update.id" cdkTextareaAutosize [value]="update.targetContent || ''"
                                     (input)="hunks.onHunkContentChange(update, 'target', $event)"
                                     class="hunk-textarea"
-                                    placeholder="Enter text to find..."></textarea>
+                                    [placeholder]="'dialog.targetPlaceholder' | translate"></textarea>
                             </div>
 
                             <div class="hunk-edit-group">
-                                <label class="hunk-label" [attr.for]="'replacement-' + update.id">Replacement</label>
+                                <label class="hunk-label" [attr.for]="'replacement-' + update.id">{{ 'dialog.replacementLabel' | translate }}</label>
                                 <textarea [id]="'replacement-' + update.id" cdkTextareaAutosize [value]="update.replacementContent || ''"
                                     (input)="hunks.onHunkContentChange(update, 'replacement', $event)"
                                     class="hunk-textarea"
-                                    placeholder="Enter replacement text..."></textarea>
+                                    [placeholder]="'dialog.replacementPlaceholder' | translate"></textarea>
                             </div>
 
                             <div class="calibration-footer">
@@ -145,9 +145,9 @@
                     <button mat-icon-button class="mobile-menu-toggle" (click)="toggleSidebar()">
                         <mat-icon>menu</mat-icon>
                     </button>
-                    <span class="mode-badge diff">Full File View</span>
+                    <span class="mode-badge diff">{{ 'dialog.fullFileViewBadge' | translate }}</span>
                     <span class="editor-hint">
-                        Showing combined result of selected hunks. You can edit the result directly.
+                        {{ 'dialog.fullFileViewHint' | translate }}
                     </span>
                 </div>
 
@@ -164,7 +164,7 @@
         }
     </mat-tab-nav-panel>
     } @else {
-    <div class="no-updates">No updates found in the message.</div>
+    <div class="no-updates">{{ 'dialog.noUpdates' | translate }}</div>
     }
 </mat-dialog-content>
 
@@ -175,12 +175,11 @@
         {{ 'ui.REGENERATE_SAVE_BTN' | translate }}
     </button>
     }
-    <button mat-button (click)="onCancel()">Cancel</button>
+    <button mat-button (click)="onCancel()">{{ 'dialog.cancel' | translate }}</button>
     @if (hunks.activeGroup(); as group) {
     <button mat-stroked-button color="accent" (click)="onApplyFile(group)" [disabled]="!hunks.hasSelectedInGroup(group)">
-        Apply Current File
+        {{ 'dialog.applyCurrentFile' | translate }}
     </button>
     }
-    <button mat-flat-button color="primary" (click)="onApply()" [disabled]="!hunks.hasSelectedUpdates()">Apply
-        All Changes</button>
+    <button mat-flat-button color="primary" (click)="onApply()" [disabled]="!hunks.hasSelectedUpdates()">{{ 'dialog.applyAllChanges' | translate }}</button>
 </mat-dialog-actions>

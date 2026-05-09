@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { MatDialogModule } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { SyncProviderConfigComponent } from '@app/core/services/sync/components/sync-provider-config.component';
+import { TranslatePipe } from '@app/core/i18n';
 
 @Component({
     selector: 'app-sync-provider-dialog',
@@ -11,7 +12,8 @@ import { SyncProviderConfigComponent } from '@app/core/services/sync/components/
         CommonModule,
         MatDialogModule,
         MatButtonModule,
-        SyncProviderConfigComponent
+        SyncProviderConfigComponent,
+        TranslatePipe
     ],
     templateUrl: './sync-provider-dialog.component.html',
     styleUrl: './sync-provider-dialog.component.scss',
