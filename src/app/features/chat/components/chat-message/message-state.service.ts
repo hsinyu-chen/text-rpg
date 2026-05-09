@@ -97,12 +97,12 @@ export class MessageStateService {
     }
 
     async deleteMessage() {
-        const ok = await this.dialog.confirm('Delete this message?');
+        const ok = await this.dialog.confirm(this.i18n.translate('ui.DELETE_MESSAGE_CONFIRM'));
         if (ok) await this.engine.deleteMessage(this.message().id);
     }
 
     async deleteMessageAndFollowing() {
-        const ok = await this.dialog.confirm('Delete this and ALL following messages? (Irreversible)');
+        const ok = await this.dialog.confirm(this.i18n.translate('ui.DELETE_ALL_FOLLOWING_CONFIRM'));
         if (ok) await this.engine.deleteFrom(this.message().id);
     }
 
@@ -126,7 +126,7 @@ export class MessageStateService {
 
         const updates = this.updateService.parseUpdates(msg.content);
         if (updates.length === 0) {
-            await this.dialog.alert('No file updates found in this message.');
+            await this.dialog.alert(this.i18n.translate('ui.NO_FILE_UPDATES'));
             return;
         }
 
@@ -139,7 +139,11 @@ export class MessageStateService {
         if (result && Array.isArray(result) && result.length > 0) {
             const results = await this.updateService.applyUpdates(result);
             await this.engine.loadFiles(false);
-            this.snackBar.open(`Applied ${results.length} file updates.`, 'OK', { duration: 3000 });
+            this.snackBar.open(
+                this.i18n.translate('ui.APPLIED_FILE_UPDATES', { count: results.length }),
+                this.i18n.translate('ui.CLOSE'),
+                { duration: 3000 },
+            );
         }
     }
 
@@ -177,7 +181,7 @@ export class MessageStateService {
         };
 
         this.clipboard.copy(JSON.stringify(pair, null, 2));
-        this.snackBar.open('Pair JSON copied to clipboard', 'OK', { duration: 2000 });
+        this.snackBar.open(this.i18n.translate('ui.PAIR_JSON_COPIED'), this.i18n.translate('ui.CLOSE'), { duration: 2000 });
     }
 
     // Log Item Logic
@@ -187,7 +191,7 @@ export class MessageStateService {
                 type === 'world' ? [...(this.message().world_log || [])] :
                     [...(this.message().character_log || [])];
 
-        items.push('New Item');
+        items.push(this.i18n.translate('ui.NEW_ITEM_DEFAULT'));
         const engineType = type === 'inv' ? 'inventory' : type === 'quest' ? 'quest' : type === 'world' ? 'world' : 'character';
         void this.engine.updateMessageLogs(this.message().id, engineType, items);
 

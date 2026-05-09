@@ -5,6 +5,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { GameEngineService } from '@app/core/services/game-engine.service';
 import { GameStateService } from '@app/core/services/game-state.service';
+import { TranslatePipe } from '@app/core/i18n';
 
 @Component({
     selector: 'app-turn-update-panel',
@@ -13,7 +14,8 @@ import { GameStateService } from '@app/core/services/game-state.service';
         CommonModule,
         MatButtonModule,
         MatIconModule,
-        MatTooltipModule
+        MatTooltipModule,
+        TranslatePipe
     ],
     templateUrl: './turn-update-panel.component.html',
     styleUrl: './turn-update-panel.component.scss'

@@ -7,6 +7,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MessageStateService } from '../chat-message/message-state.service';
 import { AutofocusSelectDirective } from '@app/shared/directives/autofocus-select.directive';
 import { ChatMessage } from '@app/core/models/types';
+import { TranslatePipe } from '@app/core/i18n';
 
 @Component({
     selector: 'app-turn-update',
@@ -17,7 +18,8 @@ import { ChatMessage } from '@app/core/models/types';
         MatButtonModule,
         MatIconModule,
         MatTooltipModule,
-        AutofocusSelectDirective
+        AutofocusSelectDirective,
+        TranslatePipe
     ],
     templateUrl: './turn-update.component.html',
     styleUrl: './turn-update.component.scss',

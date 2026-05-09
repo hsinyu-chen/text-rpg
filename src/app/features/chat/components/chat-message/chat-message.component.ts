@@ -20,7 +20,7 @@ import { AppConfigStore } from '@app/core/services/app-config-store';
 import { TurnUpdateComponent } from '../turn-update/turn-update.component';
 import { GAME_INTENTS } from '@app/core/constants/game-intents';
 import { getLocale } from '@app/core/constants/locales';
-import { I18nService } from '@app/core/i18n';
+import { I18nService, TranslatePipe } from '@app/core/i18n';
 import { computed } from '@angular/core';
 import { KATEX_DELIMITERS, hasKatexDelimiters } from '@app/core/utils/latex.util';
 
@@ -41,7 +41,8 @@ import { KATEX_DELIMITERS, hasKatexDelimiters } from '@app/core/utils/latex.util
         WrapSaveXmlPipe,
         MatProgressSpinnerModule,
         MatProgressBarModule,
-        TurnUpdateComponent
+        TurnUpdateComponent,
+        TranslatePipe
     ],
     templateUrl: './chat-message.component.html',
     styleUrl: './chat-message.component.scss',

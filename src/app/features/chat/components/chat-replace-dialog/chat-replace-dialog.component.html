@@ -4,7 +4,7 @@
             <mat-icon>find_replace</mat-icon>
             {{ lang.t('BATCH_REPLACE') }}
         </h2>
-        <button mat-icon-button (click)="close()" matTooltip="Close">
+        <button mat-icon-button (click)="close()" [matTooltip]="'dialog.close' | translate">
             <mat-icon>close</mat-icon>
         </button>
     </div>
@@ -16,21 +16,21 @@
                 <mat-form-field appearance="outline" class="search-field">
                     <mat-label>{{ lang.t('SEARCH') }}</mat-label>
                     <input matInput [(ngModel)]="searchQuery" (ngModelChange)="searchResource.reload()"
-                        placeholder="Search text...">
+                        [placeholder]="'ui.SEARCH_PLACEHOLDER' | translate">
                     <div matSuffix class="search-options">
                         <button mat-icon-button class="option-btn" [class.active]="isCaseSensitive()"
                             (click)="isCaseSensitive.set(!isCaseSensitive()); $event.stopPropagation()"
-                            matTooltip="Match Case">
+                            [matTooltip]="'ui.MATCH_CASE_TOOLTIP' | translate">
                             <span class="option-icon">Aa</span>
                         </button>
                         <button mat-icon-button class="option-btn" [class.active]="isWholeWord()"
                             (click)="isWholeWord.set(!isWholeWord()); $event.stopPropagation()"
-                            matTooltip="Match Whole Word">
+                            [matTooltip]="'ui.MATCH_WHOLE_WORD_TOOLTIP' | translate">
                             <span class="option-icon underline">ab</span>
                         </button>
                         <button mat-icon-button class="option-btn" [class.active]="isRegex()"
                             (click)="isRegex.set(!isRegex()); $event.stopPropagation()"
-                            matTooltip="Use Regular Expression">
+                            [matTooltip]="'ui.USE_REGEX_TOOLTIP' | translate">
                             <span class="option-icon">.*</span>
                         </button>
                     </div>
@@ -40,7 +40,7 @@
             <div class="input-row">
                 <mat-form-field appearance="outline" class="replace-field">
                     <mat-label>{{ lang.t('REPLACE') }}</mat-label>
-                    <input matInput [(ngModel)]="replaceQuery" placeholder="Replace with...">
+                    <input matInput [(ngModel)]="replaceQuery" [placeholder]="'ui.REPLACE_PLACEHOLDER' | translate">
                 </mat-form-field>
             </div>
         </div>

@@ -1,5 +1,5 @@
 <div class="panel-header">
-    <h2>Turn Updates</h2>
+    <h2>{{ 'ui.TURN_UPDATES_PANEL' | translate }}</h2>
     <button mat-icon-button (click)="closePanel.emit()">
         <mat-icon>close</mat-icon>
     </button>
@@ -9,14 +9,14 @@
     @if (updates().length === 0) {
     <div class="empty-state">
         <mat-icon>history_toggle_off</mat-icon>
-        <p>No updates recorded yet.</p>
+        <p>{{ 'ui.NO_UPDATES_RECORDED' | translate }}</p>
     </div>
     }
 
     @for (msg of updates(); track msg.id) {
     <div class="update-card" (click)="onJump(msg.id)" (keydown.enter)="onJump(msg.id)" tabindex="0" role="button">
         <div class="card-header">
-            <span class="role-badge">{{ msg.intent || 'System' }}</span>
+            <span class="role-badge">{{ msg.intent || ('ui.SYSTEM_LABEL' | translate) }}</span>
             <!-- <span class="time">{{ formatTime(msg.timestamp) }}</span> -->
         </div>
 
@@ -31,7 +31,7 @@
         <div class="section inventory">
             <div class="sec-title">
                 <mat-icon class="sec-icon">inventory_2</mat-icon>
-                <span>Items</span>
+                <span>{{ 'ui.ITEMS_LABEL' | translate }}</span>
             </div>
             <ul>
                 @for (item of msg.inventory_log; track $index) {
@@ -45,7 +45,7 @@
         <div class="section quest">
             <div class="sec-title">
                 <mat-icon class="sec-icon">assignment</mat-icon>
-                <span>Quests</span>
+                <span>{{ 'ui.QUESTS_LABEL' | translate }}</span>
             </div>
             <ul>
                 @for (item of msg.quest_log; track $index) {
@@ -58,7 +58,7 @@
         <div class="section character">
             <div class="sec-title">
                 <mat-icon class="sec-icon">person</mat-icon>
-                <span>Characters</span>
+                <span>{{ 'ui.CHARACTERS_LABEL' | translate }}</span>
             </div>
             <ul>
                 @for (item of msg.character_log; track $index) {
@@ -71,7 +71,7 @@
         <div class="section world">
             <div class="sec-title">
                 <mat-icon class="sec-icon">public</mat-icon>
-                <span>World</span>
+                <span>{{ 'ui.WORLD_LABEL' | translate }}</span>
             </div>
             <ul>
                 @for (item of msg.world_log; track $index) {
