@@ -1,44 +1,10 @@
 import { Injectable, inject, signal } from '@angular/core';
-import { DOCUMENT } from '@angular/common';
 import { environment } from '../../../environments/environment';
 import { KVStore } from './kv/kv-store';
-
-// ===== Google Identity Services types ===================================
-
-interface TokenResponse {
-    access_token: string;
-    expires_in: number;
-    token_type: string;
-    scope: string;
-    error?: string;
-    error_description?: string;
-}
-
-interface TokenClientConfig {
-    client_id: string;
-    scope: string;
-    callback: (response: TokenResponse) => void;
-    error_callback?: (error: { type: string; message: string }) => void;
-}
-
-interface TokenClient {
-    callback: (response: TokenResponse) => void;
-    requestAccessToken: (overrideConfig?: { prompt?: string; hint?: string }) => void;
-}
-
-interface GoogleAccountsOAuth2 {
-    initTokenClient: (config: TokenClientConfig) => TokenClient;
-}
-
-interface GoogleAccounts {
-    oauth2: GoogleAccountsOAuth2;
-}
-
-interface Google {
-    accounts: GoogleAccounts;
-}
-
-declare const google: Google | undefined;
+import { OAuthTokenStore } from './oauth-token-store';
+import { OAuthFlow, OAuthFlowResult } from './oauth/oauth-flow';
+import { WebGisFlow } from './oauth/web-gis-flow';
+import { TauriPkceFlow } from './oauth/tauri-pkce-flow';
 
 interface WindowWithTauri extends Window {
     __TAURI_INTERNALS__?: unknown;
@@ -47,117 +13,84 @@ interface WindowWithTauri extends Window {
 
 declare const window: WindowWithTauri;
 
-// ===== PKCE helpers =====================================================
-
-async function generateCodeVerifier(): Promise<string> {
-    const array = new Uint8Array(32);
-    globalThis.crypto.getRandomValues(array);
-    return Array.from(array, dec2hex).join('');
-}
-function dec2hex(dec: number): string {
-    return ('0' + dec.toString(16)).substr(-2);
-}
-async function generateCodeChallenge(verifier: string): Promise<string> {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(verifier);
-    const digest = await globalThis.crypto.subtle.digest('SHA-256', data);
-    return btoa(String.fromCharCode(...new Uint8Array(digest)))
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=+$/, '');
-}
-
 // BYO OAuth is web-only: there is no official Tauri distribution, so Tauri
 // users always rebuild from source with credentials baked into environment.ts
 // (Tauri PKCE additionally requires GCP "Desktop app" type + secret, which
 // is awkward to enter through a runtime UI). Only the web client id has a
 // runtime fallback.
 const LS_OAUTH_CLIENT_ID = 'gdrive_oauth_client_id';
-const LS_ACCESS_TOKEN = 'gdrive_access_token';
-const LS_REFRESH_TOKEN = 'gdrive_refresh_token';
-const LS_TOKEN_EXPIRY = 'gdrive_token_expiry';
-const LS_USER_EMAIL = 'gdrive_user_email';
 
-// Scopes requested by both Web (GIS popup) and Tauri (PKCE) flows. `email`
-// is needed for the user-info hint that lets `loginWeb` attempt a silent
-// re-login; `drive.appdata` is the actual sync scope.
-const OAUTH_SCOPE = 'https://www.googleapis.com/auth/drive.appdata email';
-
-interface OAuthCreds {
-    clientId: string;
-    clientIdTauri: string;
-    clientSecretTauri: string;
-}
 
 /**
  * Owns the Google OAuth lifecycle: credential resolution (env vs runtime
- * config), GIS script loading, token state (access + refresh + expiry),
- * Web (popup) and Tauri (PKCE) login flows, silent refresh, and the
- * `getValidToken` accessor that Drive REST callers use to authenticate
- * each request.
+ * config), token state (access + refresh + expiry), refresh scheduling,
+ * and the `getValidToken` accessor that Drive REST callers use to
+ * authenticate each request.
+ *
+ * The IdP-facing protocol details — GIS popup vs Tauri PKCE — live in
+ * {@link WebGisFlow} and {@link TauriPkceFlow}; this service picks one
+ * based on `isTauri` at construction. Token persistence is delegated to
+ * {@link OAuthTokenStore}.
  *
  * Drive REST itself lives in `GoogleDriveService`, which depends on this
- * service for token acquisition and 401-retry seam.
+ * service for token acquisition and the 401-retry seam.
  */
 @Injectable({ providedIn: 'root' })
 export class GoogleOAuthService {
-    private readonly doc = inject(DOCUMENT);
     private readonly kv = inject(KVStore);
+    private readonly tokenStore = inject(OAuthTokenStore);
+    private readonly webFlow = inject(WebGisFlow);
+    private readonly tauriFlow = inject(TauriPkceFlow);
 
-    private tokenClient: TokenClient | null = null;
     private accessToken = signal<string | null>(null);
     private refreshToken = signal<string | null>(null);
     private tokenExpiry = signal<number>(0);
 
     private isTauri = !!(window.__TAURI_INTERNALS__ || window.__TAURI__);
-
-    // Tracks whether the GIS script has been requested so we don't append a
-    // second <script> when reinitClient() runs (e.g. user pasted creds after
-    // boot in a build whose environment was empty).
-    private gisScriptLoading = false;
-    private gisScript: HTMLScriptElement | null = null;
     private refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    // Memoizes an in-flight token acquisition so concurrent callers don't
+    // each spawn their own flow.login() / flow.refresh() — Web flow's
+    // singleton GIS callback would have one of them hang forever, and
+    // Tauri would open multiple browser tabs.
+    private inFlightAuth: Promise<string> | null = null;
+
+    private get flow(): OAuthFlow {
+        return this.isTauri ? this.tauriFlow : this.webFlow;
+    }
 
     constructor() {
-        const savedToken = this.kv.get(LS_ACCESS_TOKEN);
-        const savedRefreshToken = this.kv.get(LS_REFRESH_TOKEN);
-        const savedExpiry = this.kv.get(LS_TOKEN_EXPIRY);
-
-        if (savedToken) {
-            this.accessToken.set(savedToken);
-            if (savedExpiry) {
-                this.tokenExpiry.set(parseInt(savedExpiry, 10));
+        const saved = this.tokenStore.load();
+        if (saved) {
+            this.accessToken.set(saved.accessToken);
+            this.tokenExpiry.set(saved.expiry);
+            if (saved.refreshToken) {
+                this.refreshToken.set(saved.refreshToken);
+                console.log('[GoogleOAuth] Restored refresh token from storage');
             }
-        }
-        if (savedRefreshToken) {
-            this.refreshToken.set(savedRefreshToken);
-            console.log('[GoogleOAuth] Restored refresh token from storage');
+            // Schedule proactive refresh against the restored expiry so a
+            // session loaded near its 5-min buffer doesn't miss the
+            // background refresh and force a synchronous one on the next
+            // request. saved.expiry was already buffered by applyResult, so
+            // add 300s back to align with scheduleAutoRefresh's
+            // (expiresInSeconds - 300) math.
+            if (this.isAuthenticated()) {
+                const remainingSeconds = Math.floor((saved.expiry - Date.now()) / 1000);
+                this.scheduleAutoRefresh(remainingSeconds + 300);
+            }
         }
 
         console.log('[GoogleOAuth] Service initialized. Token expiry:', new Date(this.tokenExpiry()).toLocaleString());
-        if (this.isConfigured) {
-            this.loadScripts();
+        if (!this.isTauri && this.isConfigured) {
+            this.webFlow.init(this.getOAuthClientIdSnapshot());
         }
     }
 
-    /**
-     * Resolves OAuth credentials. The Web client id falls back to a
-     * user-supplied runtime value when `environment.gcpOauthAppId`
-     * is empty (BYO OAuth in web builds). Tauri-specific creds are read
-     * from environment only — see project memory: there is no official
-     * Tauri build, so Tauri users always rebuild with env baked in, and
-     * the runtime UI deliberately doesn't ask for them.
-     */
-    private resolveOAuthCreds(): OAuthCreds {
-        return {
-            clientId: environment.gcpOauthAppId || this.kv.get(LS_OAUTH_CLIENT_ID) || '',
-            clientIdTauri: environment.gcpOauthAppId_Tauri,
-            clientSecretTauri: environment.gcpOauthClientSecret_Tauri
-        };
-    }
-
     get isConfigured(): boolean {
-        return this.resolveOAuthCreds().clientId.length > 0;
+        // Tauri creds are env-only (no runtime UI for them) and validated at
+        // flow-call time. The configured-flag must reflect the actual client
+        // id that the active flow will use, not always the web one.
+        if (this.isTauri) return !!environment.gcpOauthAppId_Tauri;
+        return this.getOAuthClientIdSnapshot().length > 0;
     }
 
     /** Whether the running build has the web client id slot empty and
@@ -167,57 +100,19 @@ export class GoogleOAuthService {
         return !environment.gcpOauthAppId && !this.isTauri;
     }
 
-    /** Snapshot of the currently-effective web client id — used by the
-     *  config UI to prefill the input. */
+    /**
+     * Currently-effective web client id. Falls back to a user-supplied
+     * runtime value when `environment.gcpOauthAppId` is empty (BYO OAuth
+     * in web builds). Tauri-specific creds are read from environment only
+     * by {@link TauriPkceFlow} — see project memory: there is no official
+     * Tauri build, so Tauri users always rebuild with env baked in.
+     */
     getOAuthClientIdSnapshot(): string {
-        return this.resolveOAuthCreds().clientId;
+        return environment.gcpOauthAppId || this.kv.get(LS_OAUTH_CLIENT_ID) || '';
     }
 
     isAuthenticated(): boolean {
         return this.accessToken() !== null && Date.now() < this.tokenExpiry();
-    }
-
-    private loadScripts(): void {
-        if (this.gisScriptLoading) {
-            // Script already requested; if it's done loading, just (re)init.
-            if (typeof google !== 'undefined') this.initClient();
-            return;
-        }
-        this.gisScriptLoading = true;
-        const script = this.doc.createElement('script');
-        script.src = 'https://accounts.google.com/gsi/client';
-        script.async = true;
-        script.defer = true;
-        script.onload = () => this.initClient();
-        // If the script fails to load (ad blocker, offline, corp network
-        // blocking accounts.google.com), reset the flag and detach the
-        // failed tag so a later reinitClient() can append a fresh one
-        // instead of silently no-oping or stacking dead <script> nodes.
-        script.onerror = () => {
-            console.warn('[GoogleOAuth] Failed to load GIS script (network blocked?)');
-            this.gisScriptLoading = false;
-            script.remove();
-            if (this.gisScript === script) this.gisScript = null;
-        };
-        this.gisScript = script;
-        this.doc.body.appendChild(script);
-    }
-
-    private initClient(): void {
-        if (typeof google === 'undefined') return;
-
-        const { clientId } = this.resolveOAuthCreds();
-        if (!clientId) return;
-
-        this.tokenClient = google.accounts.oauth2.initTokenClient({
-            client_id: clientId,
-            scope: OAUTH_SCOPE,
-            callback: (tokenResponse: TokenResponse) => {
-                if (tokenResponse && tokenResponse.access_token) {
-                    this.handleLoginSuccess(tokenResponse.access_token, tokenResponse.expires_in);
-                }
-            },
-        });
     }
 
     /**
@@ -226,7 +121,7 @@ export class GoogleOAuthService {
      * previous client id and refreshing them would fail — better to force
      * a fresh interactive login on the next sync.
      *
-     * Clearing creds (empty input) drops the existing tokenClient so
+     * Clearing creds (empty input) tears down the GIS token client so
      * subsequent calls don't accidentally reach Google with the previous
      * client id.
      */
@@ -236,49 +131,43 @@ export class GoogleOAuthService {
         else this.kv.remove(LS_OAUTH_CLIENT_ID);
         this.clearTokens();
         if (!this.isConfigured) {
-            this.tokenClient = null;
+            this.webFlow.teardown();
             return;
         }
-        this.reinitClient();
+        this.webFlow.init(this.getOAuthClientIdSnapshot());
     }
 
-    /**
-     * Public hook to (re)build the GIS token client after creds change. Safe
-     * to call repeatedly: `initTokenClient` overwrites the previous instance
-     * and the script loader is idempotent.
-     */
-    reinitClient(): void {
-        if (!this.isConfigured) return;
-        if (typeof google === 'undefined') {
-            this.loadScripts();
-            return;
-        }
-        this.initClient();
-    }
+    private applyResult(result: OAuthFlowResult): string {
+        this.accessToken.set(result.accessToken);
 
-    private handleLoginSuccess(token: string, expiresInSeconds = 3599, refreshToken?: string): void {
-        this.accessToken.set(token);
-
-        // Set expiry slightly before actual expiry (5 min buffer for isAuthenticated()).
-        const now = Date.now();
+        // Set expiry slightly before actual expiry (5 min buffer for
+        // isAuthenticated()). Floor at 10s so very short test tokens
+        // (expiresInSeconds < 300) still register as briefly authenticated
+        // instead of computing a past timestamp and looping refresh.
         const expiryBufferSeconds = 300;
-        const expiry = now + (expiresInSeconds - expiryBufferSeconds) * 1000;
+        const effectiveSeconds = Math.max(10, result.expiresInSeconds - expiryBufferSeconds);
+        const expiry = Date.now() + effectiveSeconds * 1000;
         this.tokenExpiry.set(expiry);
 
-        this.kv.set(LS_ACCESS_TOKEN, token);
-        this.kv.set(LS_TOKEN_EXPIRY, expiry.toString());
-
-        if (refreshToken) {
-            this.refreshToken.set(refreshToken);
-            this.kv.set(LS_REFRESH_TOKEN, refreshToken);
+        if (result.refreshToken) {
+            this.refreshToken.set(result.refreshToken);
             console.log('[GoogleOAuth] Refresh token saved');
         }
 
-        if (!this.kv.get(LS_USER_EMAIL)) {
-            void this.fetchAndSaveUserEmail(token);
-        }
+        this.tokenStore.save({
+            accessToken: result.accessToken,
+            refreshToken: result.refreshToken ?? null,
+            expiry,
+        });
 
-        this.scheduleAutoRefresh(expiresInSeconds);
+        // Always re-fetch on success — the saved email is used as the
+        // GIS silent re-login hint, and a stale value (from a previous
+        // user on the same device) would steer the next silent attempt
+        // at the wrong account picker entry.
+        void this.fetchAndSaveUserEmail(result.accessToken);
+
+        this.scheduleAutoRefresh(result.expiresInSeconds);
+        return result.accessToken;
     }
 
     private scheduleAutoRefresh(expiresInSeconds: number): void {
@@ -301,16 +190,23 @@ export class GoogleOAuthService {
 
     private async performSilentRefresh(): Promise<void> {
         console.log('[GoogleOAuth] Performing proactive silent refresh...');
+        // Route through the same acquireToken path user requests use, so a
+        // concurrent ensureValidToken caller joining inFlightAuth gets the
+        // full refresh-or-login behavior — not a refresh-only closure that
+        // would surface invalid_grant as a fatal failure to the caller.
+        // Trade-off: invalid_grant on the timer-driven path may surface an
+        // interactive popup while the user is idle, but that is the correct
+        // signal — the session is genuinely dead and needs re-auth.
         try {
-            // Refresh token (Tauri/Desktop) takes priority; fall back to
-            // silent web login if no refresh token is present.
-            if (this.refreshToken()) {
-                await this.refreshAccessToken();
-            } else {
-                await this.loginWeb(false);
-            }
+            await this.memoizeAuth(() => this.acquireToken());
             console.log('[GoogleOAuth] Proactive refresh successful');
         } catch (e) {
+            // Defensive duplication: acquireToken's Tauri fallback already
+            // clears on invalid before calling flow.login(), so the catch
+            // here usually only sees declined/transient. Including invalid
+            // anyway costs nothing and makes the intent explicit.
+            const cls = this.flow.classifyError(e);
+            if (cls === 'declined' || cls === 'invalid') this.clearTokens();
             console.warn('[GoogleOAuth] Proactive refresh failed. Will wait for manual interaction.', e);
         }
     }
@@ -324,7 +220,7 @@ export class GoogleOAuthService {
             if (res.ok) {
                 const data = await res.json();
                 if (data.email) {
-                    this.kv.set(LS_USER_EMAIL, data.email);
+                    this.tokenStore.setUserEmail(data.email);
                     console.log('[GoogleOAuth] User email saved for hint:', data.email);
                 }
             }
@@ -333,22 +229,113 @@ export class GoogleOAuthService {
         }
     }
 
-    async login(): Promise<string> {
-        if (this.accessToken() && Date.now() < this.tokenExpiry()) {
-            return this.accessToken()!;
-        }
+    /**
+     * Coalesce concurrent auth attempts onto a single in-flight promise.
+     * Without this, two parallel Drive 401s (or any concurrent
+     * `getValidToken` callers) each spawn their own `flow.login()` /
+     * `flow.refresh()` — which Web GIS cannot serve (singleton callback)
+     * and Tauri shouldn't (multiple browser tabs).
+     */
+    private memoizeAuth(operation: () => Promise<string>): Promise<string> {
+        if (this.inFlightAuth) return this.inFlightAuth;
+        const p = operation().finally(() => {
+            if (this.inFlightAuth === p) this.inFlightAuth = null;
+        });
+        this.inFlightAuth = p;
+        return p;
+    }
 
-        if (this.refreshToken()) {
+    /**
+     * Shared implementation backing {@link GoogleOAuthService.login}
+     * (user-initiated sign-in) and {@link GoogleOAuthService.getValidToken}
+     * (per-request token reads): cached if still fresh, refreshed if a
+     * refresh token is available, otherwise interactive login.
+     */
+    private ensureValidToken(): Promise<string> {
+        if (this.accessToken() && Date.now() < this.tokenExpiry()) {
+            return Promise.resolve(this.accessToken()!);
+        }
+        return this.memoizeAuth(() => this.acquireToken());
+    }
+
+    private async acquireToken(): Promise<string> {
+        // Web flow: refresh() escalates inside (silent → interactive popup),
+        // so a throw means either the user rejected or something transient
+        // broke. Clear only on explicit decline; transient errors (network
+        // blip, GIS script not loaded yet) preserve state so the next
+        // attempt can succeed against the cached cookies.
+        if (this.flow.refreshIncludesInteractive) {
             try {
-                console.log('[GoogleOAuth] Access token expired, attempting silent refresh...');
-                return await this.refreshAccessToken();
-            } catch (error) {
-                console.warn('[GoogleOAuth] Silent refresh failed, falling back to interactive login:', error);
-                this.clearTokens();
+                return this.applyResult(await this.flow.refresh(this.refreshToken()));
+            } catch (e) {
+                if (this.flow.classifyError(e) === 'declined') this.clearTokens();
+                throw e;
             }
         }
+        // Tauri: refresh-token grant first when we have one. Transient errors
+        // (offline, 5xx) preserve the refresh token for retry; invalid_grant
+        // and "no token" both fall through to a fresh interactive PKCE round.
+        if (this.refreshToken()) {
+            try {
+                console.log('[GoogleOAuth] Access token expired, refreshing...');
+                return this.applyResult(await this.flow.refresh(this.refreshToken()));
+            } catch (e) {
+                if (this.flow.classifyError(e) === 'transient') {
+                    console.warn('[GoogleOAuth] Transient refresh error, preserving state for retry:', e);
+                    throw e;
+                }
+                console.warn('[GoogleOAuth] Refresh token invalid, falling back to interactive login:', e);
+            }
+        }
+        // Clear any stale refresh token before interactive login so we don't
+        // try to use a known-bad one on the next ensureValidToken cycle.
+        this.clearTokens();
+        return this.applyResult(await this.flow.login());
+    }
 
-        return this.isTauri ? this.loginTauri() : this.loginWeb();
+    /** User-initiated sign-in (login button). Returns the access token. */
+    login(): Promise<string> {
+        return this.ensureValidToken();
+    }
+
+    /**
+     * Returns a non-expired access token, refreshing or re-authenticating
+     * as needed. Drive REST callers (`GoogleDriveService.execute`) wrap
+     * this with 401-retry; clients that just want a token for a one-off
+     * fetch can call this directly.
+     */
+    getValidToken(): Promise<string> {
+        return this.ensureValidToken();
+    }
+
+    /**
+     * 401 retry primitive used by Drive REST: bypasses the cached-token
+     * check (the cached one is what just failed), tries refresh, then
+     * falls through to interactive login. Caller re-runs the original
+     * request with the returned token.
+     *
+     * Joins any in-flight `ensureValidToken` so concurrent 401s share a
+     * single re-auth round.
+     */
+    forceReauthAfter401(): Promise<string> {
+        console.warn('[GoogleOAuth] 401 Unauthorized encountered. Retry logic...');
+        // Mark the cached access token dead before joining the in-flight
+        // check, so concurrent getValidToken callers see "expired" and queue
+        // onto our reauth instead of returning the now-revoked cached value
+        // (whose tokenExpiry timestamp is still in the future). Refresh
+        // token is intentionally left intact — only access is known dead.
+        //
+        // Note: an earlier revision fast-path-returned the cached token if
+        // it was still time-valid, on the theory that a concurrent refresh
+        // had already written a fresh one. That broke server-side
+        // revocation: a token that's still time-valid but rejected by the
+        // server gets returned to the caller, who retries it, gets 401 again,
+        // gives up — never triggering an actual reauth. Removed; the wasted
+        // IdP round on the rare concurrent-refresh-just-won case is cheaper
+        // than failing to reauth on a genuine revocation.
+        this.accessToken.set(null);
+        this.tokenExpiry.set(0);
+        return this.memoizeAuth(() => this.acquireToken());
     }
 
     private clearTokens(): void {
@@ -359,253 +346,7 @@ export class GoogleOAuthService {
         this.accessToken.set(null);
         this.refreshToken.set(null);
         this.tokenExpiry.set(0);
-        this.kv.remove(LS_ACCESS_TOKEN);
-        this.kv.remove(LS_REFRESH_TOKEN);
-        this.kv.remove(LS_TOKEN_EXPIRY);
-    }
-
-    private async refreshAccessToken(): Promise<string> {
-        const refreshToken = this.refreshToken();
-        if (!refreshToken) throw new Error('No refresh token available');
-
-        const creds = this.resolveOAuthCreds();
-        const clientId = this.isTauri ? creds.clientIdTauri : creds.clientId;
-        // Web GIS popup model never issues a refresh token, so in practice
-        // only Tauri reaches here — but keep the empty-secret branch for
-        // symmetry with exchangeCodeForToken.
-        const clientSecret = this.isTauri ? creds.clientSecretTauri : '';
-
-        const body = new URLSearchParams({
-            client_id: clientId,
-            grant_type: 'refresh_token',
-            refresh_token: refreshToken,
-        });
-        if (clientSecret) body.append('client_secret', clientSecret);
-
-        const res = await fetch('https://oauth2.googleapis.com/token', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: body.toString()
-        });
-
-        if (!res.ok) {
-            const err = await res.json();
-            throw new Error('Refresh Token Failed: ' + JSON.stringify(err));
-        }
-
-        const data = await res.json();
-        const newAccessToken = data.access_token;
-        const expiresIn = data.expires_in || 3599;
-
-        console.log('[GoogleOAuth] Token refreshed successfully');
-        this.handleLoginSuccess(newAccessToken, expiresIn, data.refresh_token);
-        return newAccessToken;
-    }
-
-    private async loginTauri(): Promise<string> {
-        try {
-            const { invoke } = await import('@tauri-apps/api/core');
-            const { open } = await import('@tauri-apps/plugin-shell');
-
-            // 1. Start OAuth Server
-            const port = await invoke<number>('plugin:oauth|start');
-            const redirectUri = `http://localhost:${port}`;
-
-            // 2. Prepare PKCE
-            const verifier = await generateCodeVerifier();
-            const challenge = await generateCodeChallenge(verifier);
-
-            // 3. Build URL. access_type=offline + prompt=consent ensures we
-            //    get a refresh token even if the user has authorised before.
-            const clientId = this.resolveOAuthCreds().clientIdTauri;
-            const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
-                `response_type=code` +
-                `&client_id=${clientId}` +
-                `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-                `&scope=${encodeURIComponent(OAUTH_SCOPE)}` +
-                `&code_challenge=${challenge}` +
-                `&code_challenge_method=S256` +
-                `&access_type=offline` +
-                `&prompt=consent`;
-
-            console.log('[GoogleOAuth] Opening Auth URL:', authUrl);
-
-            // 4. Listen for code (REGISTER BEFORE OPENING BROWSER).
-            const { listen } = await import('@tauri-apps/api/event');
-
-            const codePromise = new Promise<string>((resolve, reject) => {
-                let unlistenPayload: (() => void) | undefined;
-                let unlistenResponse: (() => void) | undefined;
-                let unlistenUrl: (() => void) | undefined;
-
-                const cleanup = () => {
-                    if (unlistenPayload) unlistenPayload();
-                    if (unlistenResponse) unlistenResponse();
-                    if (unlistenUrl) unlistenUrl();
-                };
-
-                // Standard Tauri v2 event
-                void listen<string>('oauth://url', (event) => {
-                    console.log('[GoogleOAuth] Received oauth://url:', event.payload);
-                    cleanup();
-                    resolve(event.payload);
-                }).then(u => unlistenUrl = u);
-
-                // Custom / legacy event names
-                void listen<string>('oauth://payload', (event) => {
-                    console.log('[GoogleOAuth] Received oauth://payload:', event.payload);
-                    cleanup();
-                    resolve(event.payload);
-                }).then(u => unlistenPayload = u);
-
-                void listen<string>('oauth-response', (event) => {
-                    console.log('[GoogleOAuth] Received oauth-response:', event.payload);
-                    cleanup();
-                    resolve(event.payload);
-                }).then(u => unlistenResponse = u);
-
-                setTimeout(() => {
-                    cleanup();
-                    reject(new Error('OAuth Timeout'));
-                }, 300000);
-            });
-
-            await open(authUrl);
-
-            const codeOrUrl = await codePromise;
-            let code = codeOrUrl;
-            if (codeOrUrl.includes('code=')) {
-                code = new URL(codeOrUrl).searchParams.get('code') || '';
-            }
-            if (!code) throw new Error('No code received');
-
-            // 5. Exchange Token
-            const { token, expires_in, refresh_token } = await this.exchangeCodeForToken(code, verifier, redirectUri);
-            this.handleLoginSuccess(token, expires_in, refresh_token);
-            return token;
-        } catch (e) {
-            console.error('Tauri Login Error', e);
-            throw e;
-        }
-    }
-
-    private async exchangeCodeForToken(
-        code: string, verifier: string, redirectUri: string
-    ): Promise<{ token: string; expires_in: number; refresh_token?: string }> {
-        const creds = this.resolveOAuthCreds();
-        const body = new URLSearchParams({
-            client_id: creds.clientIdTauri,
-            grant_type: 'authorization_code',
-            code,
-            redirect_uri: redirectUri,
-            code_verifier: verifier,
-        });
-
-        // Tauri PKCE flow with Google requires a "Desktop app" type client id
-        // AND its client secret — Web-type client ids do not work here at all.
-        if (creds.clientSecretTauri) {
-            body.append('client_secret', creds.clientSecretTauri);
-        }
-
-        const res = await fetch('https://oauth2.googleapis.com/token', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: body.toString()
-        });
-
-        const data = await res.json();
-        if (data.access_token) {
-            return {
-                token: data.access_token,
-                expires_in: data.expires_in || 3599,
-                refresh_token: data.refresh_token
-            };
-        }
-        throw new Error('Token Exchange Failed: ' + JSON.stringify(data));
-    }
-
-    private loginWeb(forceInteractive = false): Promise<string> {
-        return new Promise((resolve, reject) => {
-            if (!this.tokenClient) {
-                this.initClient();
-                if (!this.tokenClient) {
-                    reject('Google Sign-In not initialized');
-                    return;
-                }
-            }
-
-            this.tokenClient.callback = (resp: TokenResponse) => {
-                if (resp.error) {
-                    if (!forceInteractive && (resp.error === 'interaction_required' || resp.error === 'login_required')) {
-                        console.warn('[GoogleOAuth] Silent login failed, triggering interactive mode...');
-                        this.loginWeb(true).then(resolve).catch(reject);
-                        return;
-                    }
-                    reject(resp);
-                } else {
-                    this.handleLoginSuccess(resp.access_token, resp.expires_in);
-                    resolve(resp.access_token);
-                }
-            };
-
-            const savedEmail = this.kv.get(LS_USER_EMAIL);
-            const config: { prompt?: string; hint?: string } = {};
-
-            if (!forceInteractive && savedEmail) {
-                config.hint = savedEmail;
-                config.prompt = ''; // Try silent
-            } else {
-                config.prompt = 'consent'; // Force interactive
-            }
-
-            console.log('[GoogleOAuth] Requesting Web Token. Config:', config);
-            this.tokenClient.requestAccessToken(config);
-        });
-    }
-
-    /**
-     * Returns a non-expired access token, refreshing or re-authenticating
-     * as needed. Drive REST callers (`GoogleDriveService.execute`) wrap
-     * this with 401-retry; clients that just want a token for a one-off
-     * fetch can call this directly.
-     */
-    async getValidToken(): Promise<string> {
-        if (this.accessToken() && Date.now() < this.tokenExpiry()) {
-            return this.accessToken()!;
-        }
-
-        // Tauri: refresh-token path first
-        if (this.isTauri && this.refreshToken()) {
-            try {
-                console.log('[GoogleOAuth] Tauri: Access token expired, refreshing...');
-                return await this.refreshAccessToken();
-            } catch (e) {
-                console.warn('[GoogleOAuth] Tauri refresh failed, falling back to login.', e);
-            }
-        }
-
-        // Web (or failed Tauri refresh): full re-auth
-        console.log('[GoogleOAuth] Token expired or missing. Triggering re-auth...');
-        return this.isTauri ? this.loginTauri() : this.loginWeb();
-    }
-
-    /**
-     * 401 retry primitive used by Drive REST: forces a refresh (or a fresh
-     * interactive login if no refresh token / refresh fails) and returns
-     * the new access token. Caller re-runs the original request with it.
-     */
-    async forceReauthAfter401(): Promise<string> {
-        console.warn('[GoogleOAuth] 401 Unauthorized encountered. Retry logic...');
-        if (this.refreshToken()) {
-            try {
-                return await this.refreshAccessToken();
-            } catch (refreshErr) {
-                console.warn('[GoogleOAuth] Retry refresh failed', refreshErr);
-            }
-        }
-        // No refresh token or refresh failed: clear + interactive re-login.
-        this.clearTokens();
-        return this.login();
+        this.tokenStore.clear();
     }
 
     /** True iff this 401-shaped error should trigger the re-auth-and-retry seam. */
