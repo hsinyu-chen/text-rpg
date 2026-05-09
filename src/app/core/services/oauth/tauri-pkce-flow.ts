@@ -78,7 +78,11 @@ export class TauriPkceFlow implements OAuthFlow {
 
         console.log('[TauriPkceFlow] Opening Auth URL:', authUrl);
 
-        const codePromise = this.listenForCode();
+        // Two-phase: await registration BEFORE opening the browser, then
+        // await the code arrival. Previously startCodeListener returned its
+        // promise immediately (registration still in-flight), so a fast
+        // OAuth redirect could arrive before listeners were active.
+        const { codePromise } = await this.startCodeListener();
 
         await open(authUrl);
 
@@ -114,7 +118,14 @@ export class TauriPkceFlow implements OAuthFlow {
         return result;
     }
 
-    private async listenForCode(): Promise<string> {
+    /**
+     * Two-phase listener setup: the outer promise resolves once all event
+     * listeners are registered; the returned `codePromise` resolves when
+     * the actual OAuth code arrives. Caller must await the outer promise
+     * before opening the system browser, then await `codePromise` to
+     * receive the code.
+     */
+    private async startCodeListener(): Promise<{ codePromise: Promise<string> }> {
         const { listen } = await import('@tauri-apps/api/event');
 
         let resolveCode!: (s: string) => void;
@@ -134,6 +145,15 @@ export class TauriPkceFlow implements OAuthFlow {
             for (const u of unlisteners) u();
             unlisteners.length = 0;
         };
+
+        // Set the timeout BEFORE awaiting registrations so a hung listen()
+        // IPC can't strand the promise without a deadline. cleanup() called
+        // before any unlisteners are pushed is a no-op; isCleanedUp prevents
+        // late-arriving registrations from adding stale handles.
+        const timeout = setTimeout(() => {
+            cleanup();
+            rejectCode(new Error('OAuth Timeout'));
+        }, 300000);
 
         const register = async (event: string) => {
             const u = await listen<string>(event, ({ payload }) => {
@@ -158,23 +178,12 @@ export class TauriPkceFlow implements OAuthFlow {
             ]);
         } catch (err) {
             cleanup();
-            // Settle the internal promise explicitly so it doesn't sit
-            // unresolved if any future code adds observers — the function
-            // already returns a rejected promise via throw, but a settled
-            // codePromise is cleaner.
+            clearTimeout(timeout);
             rejectCode(err);
             throw err;
         }
 
-        // Set the timeout AFTER all registrations succeed so a Promise.all
-        // rejection above doesn't orphan a 5-minute setTimeout into the
-        // event loop.
-        const timeout = setTimeout(() => {
-            cleanup();
-            rejectCode(new Error('OAuth Timeout'));
-        }, 300000);
-
-        return codePromise.finally(() => clearTimeout(timeout));
+        return { codePromise: codePromise.finally(() => clearTimeout(timeout)) };
     }
 
     private exchangeCodeForToken(
