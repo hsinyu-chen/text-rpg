@@ -77,17 +77,13 @@ export class TauriPkceFlow implements OAuthFlow {
 
     async refresh(refreshToken: string | null): Promise<OAuthFlowResult> {
         if (!refreshToken) throw new Error('No refresh token available');
-
-        const body = new URLSearchParams({
-            client_id: environment.gcpOauthAppId_Tauri,
-            grant_type: 'refresh_token',
-            refresh_token: refreshToken,
-        });
-        if (environment.gcpOauthClientSecret_Tauri) {
-            body.append('client_secret', environment.gcpOauthClientSecret_Tauri);
-        }
-
-        const result = await this.tokenEndpointPost(body, 'Refresh Token');
+        const result = await this.tokenEndpointPost(
+            this.buildAuthBody({
+                grant_type: 'refresh_token',
+                refresh_token: refreshToken,
+            }),
+            'Refresh Token'
+        );
         console.log('[TauriPkceFlow] Token refreshed successfully');
         return result;
     }
@@ -95,58 +91,62 @@ export class TauriPkceFlow implements OAuthFlow {
     private async listenForCode(): Promise<string> {
         const { listen } = await import('@tauri-apps/api/event');
 
-        return new Promise<string>((resolve, reject) => {
-            let unlistenPayload: (() => void) | undefined;
-            let unlistenResponse: (() => void) | undefined;
-            let unlistenUrl: (() => void) | undefined;
+        let resolveCode!: (s: string) => void;
+        let rejectCode!: (e: unknown) => void;
+        const codePromise = new Promise<string>((res, rej) => { resolveCode = res; rejectCode = rej; });
 
-            const cleanup = () => {
-                if (unlistenPayload) unlistenPayload();
-                if (unlistenResponse) unlistenResponse();
-                if (unlistenUrl) unlistenUrl();
-            };
+        const unlisteners: (() => void)[] = [];
+        const cleanup = () => {
+            for (const u of unlisteners) u();
+            unlisteners.length = 0;
+        };
 
-            void listen<string>('oauth://url', (event) => {
-                console.log('[TauriPkceFlow] Received oauth://url:', event.payload);
-                cleanup();
-                resolve(event.payload);
-            }).then(u => unlistenUrl = u);
+        const onCode = (label: string) => (event: { payload: string }) => {
+            console.log(`[TauriPkceFlow] Received ${label}:`, event.payload);
+            cleanup();
+            resolveCode(event.payload);
+        };
 
-            void listen<string>('oauth://payload', (event) => {
-                console.log('[TauriPkceFlow] Received oauth://payload:', event.payload);
-                cleanup();
-                resolve(event.payload);
-            }).then(u => unlistenPayload = u);
+        // Await each registration so the unlisten handle is captured before
+        // any event can fire — fire-and-forget with .then(u => ...) leaks
+        // the handle on a fast click-through (cleanup runs while u is still
+        // undefined). 'oauth://url' is the standard Tauri v2 event;
+        // 'oauth://payload' / 'oauth-response' cover custom / legacy names.
+        unlisteners.push(await listen<string>('oauth://url', onCode('oauth://url')));
+        unlisteners.push(await listen<string>('oauth://payload', onCode('oauth://payload')));
+        unlisteners.push(await listen<string>('oauth-response', onCode('oauth-response')));
 
-            void listen<string>('oauth-response', (event) => {
-                console.log('[TauriPkceFlow] Received oauth-response:', event.payload);
-                cleanup();
-                resolve(event.payload);
-            }).then(u => unlistenResponse = u);
+        const timeout = setTimeout(() => {
+            cleanup();
+            rejectCode(new Error('OAuth Timeout'));
+        }, 300000);
 
-            setTimeout(() => {
-                cleanup();
-                reject(new Error('OAuth Timeout'));
-            }, 300000);
-        });
+        return codePromise.finally(() => clearTimeout(timeout));
     }
 
     private exchangeCodeForToken(
         code: string, verifier: string, redirectUri: string
     ): Promise<OAuthFlowResult> {
+        return this.tokenEndpointPost(
+            this.buildAuthBody({
+                grant_type: 'authorization_code',
+                code,
+                redirect_uri: redirectUri,
+                code_verifier: verifier,
+            }),
+            'Token Exchange'
+        );
+    }
+
+    private buildAuthBody(extras: Record<string, string>): URLSearchParams {
         const body = new URLSearchParams({
             client_id: environment.gcpOauthAppId_Tauri,
-            grant_type: 'authorization_code',
-            code,
-            redirect_uri: redirectUri,
-            code_verifier: verifier,
+            ...extras,
         });
-
         if (environment.gcpOauthClientSecret_Tauri) {
             body.append('client_secret', environment.gcpOauthClientSecret_Tauri);
         }
-
-        return this.tokenEndpointPost(body, 'Token Exchange');
+        return body;
     }
 
     /**

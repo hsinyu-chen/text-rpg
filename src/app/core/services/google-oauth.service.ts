@@ -170,8 +170,9 @@ export class GoogleOAuthService {
     private async performSilentRefresh(): Promise<void> {
         console.log('[GoogleOAuth] Performing proactive silent refresh...');
         try {
-            const result = await this.flow.refresh(this.refreshToken());
-            this.applyResult(result);
+            await this.memoizeAuth(async () =>
+                this.applyResult(await this.flow.refresh(this.refreshToken()))
+            );
             console.log('[GoogleOAuth] Proactive refresh successful');
         } catch (e) {
             console.warn('[GoogleOAuth] Proactive refresh failed. Will wait for manual interaction.', e);
@@ -235,6 +236,9 @@ export class GoogleOAuthService {
                 console.warn('[GoogleOAuth] Refresh failed, falling back to interactive login:', e);
             }
         }
+        // Clear any stale refresh token before interactive login so we don't
+        // try to use a known-bad one on the next ensureValidToken cycle.
+        this.clearTokens();
         return this.applyResult(await this.flow.login());
     }
 
@@ -264,19 +268,7 @@ export class GoogleOAuthService {
      */
     forceReauthAfter401(): Promise<string> {
         console.warn('[GoogleOAuth] 401 Unauthorized encountered. Retry logic...');
-        return this.memoizeAuth(() => this.reauth401());
-    }
-
-    private async reauth401(): Promise<string> {
-        if (this.refreshToken()) {
-            try {
-                return this.applyResult(await this.flow.refresh(this.refreshToken()));
-            } catch (refreshErr) {
-                console.warn('[GoogleOAuth] Retry refresh failed', refreshErr);
-            }
-        }
-        this.clearTokens();
-        return this.applyResult(await this.flow.login());
+        return this.memoizeAuth(() => this.acquireToken());
     }
 
     private clearTokens(): void {
