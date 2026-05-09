@@ -86,6 +86,10 @@ export class GoogleOAuthService {
     }
 
     get isConfigured(): boolean {
+        // Tauri creds are env-only (no runtime UI for them) and validated at
+        // flow-call time. The configured-flag must reflect the actual client
+        // id that the active flow will use, not always the web one.
+        if (this.isTauri) return !!environment.gcpOauthAppId_Tauri;
         return this.getOAuthClientIdSnapshot().length > 0;
     }
 

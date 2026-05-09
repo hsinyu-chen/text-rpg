@@ -101,12 +101,17 @@ export class TauriPkceFlow implements OAuthFlow {
             // Standard 'oauth://url' delivers a full http://localhost URL;
             // legacy 'oauth://payload' / 'oauth-response' may deliver only
             // the query string (e.g. '?code=...'), which throws TypeError
-            // when fed to `new URL()`. Fall back to URLSearchParams so
-            // both shapes parse.
+            // when fed to `new URL()`. Custom-scheme URLs like
+            // 'oauth://url?code=...' may also throw in some WebView envs.
+            // Fall back to extracting the query-string portion before
+            // handing to URLSearchParams so all three shapes parse.
             try {
                 code = new URL(codeOrUrl).searchParams.get('code') || '';
             } catch {
-                code = new URLSearchParams(codeOrUrl.replace(/^\?/, '')).get('code') || '';
+                const queryString = codeOrUrl.includes('?')
+                    ? codeOrUrl.slice(codeOrUrl.indexOf('?') + 1)
+                    : codeOrUrl.replace(/^\?/, '');
+                code = new URLSearchParams(queryString).get('code') || '';
             }
         }
         if (!code) throw new Error('No code received');
