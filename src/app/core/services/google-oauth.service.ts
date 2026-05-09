@@ -149,9 +149,13 @@ export class GoogleOAuthService {
     private applyResult(result: OAuthFlowResult): string {
         this.accessToken.set(result.accessToken);
 
-        // Set expiry slightly before actual expiry (5 min buffer for isAuthenticated()).
+        // Set expiry slightly before actual expiry (5 min buffer for
+        // isAuthenticated()). Floor at 10s so very short test tokens
+        // (expiresInSeconds < 300) still register as briefly authenticated
+        // instead of computing a past timestamp and looping refresh.
         const expiryBufferSeconds = 300;
-        const expiry = Date.now() + (result.expiresInSeconds - expiryBufferSeconds) * 1000;
+        const effectiveSeconds = Math.max(10, result.expiresInSeconds - expiryBufferSeconds);
+        const expiry = Date.now() + effectiveSeconds * 1000;
         this.tokenExpiry.set(expiry);
 
         if (result.refreshToken) {
@@ -193,16 +197,17 @@ export class GoogleOAuthService {
 
     private async performSilentRefresh(): Promise<void> {
         console.log('[GoogleOAuth] Performing proactive silent refresh...');
+        // Route through the same acquireToken path user requests use, so a
+        // concurrent ensureValidToken caller joining inFlightAuth gets the
+        // full refresh-or-login behavior — not a refresh-only closure that
+        // would surface invalid_grant as a fatal failure to the caller.
+        // Trade-off: invalid_grant on the timer-driven path may surface an
+        // interactive popup while the user is idle, but that is the correct
+        // signal — the session is genuinely dead and needs re-auth.
         try {
-            await this.memoizeAuth(async () =>
-                this.applyResult(await this.flow.refresh(this.refreshToken()))
-            );
+            await this.memoizeAuth(() => this.acquireToken());
             console.log('[GoogleOAuth] Proactive refresh successful');
         } catch (e) {
-            // If the proactive popup escalated and the user explicitly
-            // declined, clear so the next request starts logged-out instead
-            // of looping. Transient errors leave state intact; the next
-            // request will retry as normal.
             if (classifyRefreshError(e) === 'declined') this.clearTokens();
             console.warn('[GoogleOAuth] Proactive refresh failed. Will wait for manual interaction.', e);
         }
