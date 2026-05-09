@@ -321,18 +321,20 @@ export class GoogleOAuthService {
      */
     forceReauthAfter401(): Promise<string> {
         console.warn('[GoogleOAuth] 401 Unauthorized encountered. Retry logic...');
-        // If the cached token is still time-valid AND non-null, a concurrent
-        // acquire already wrote a fresh one — the 401 we saw was the
-        // caller's stale local copy. Return the new token instead of wasting
-        // another IdP round.
-        if (this.accessToken() && Date.now() < this.tokenExpiry()) {
-            return Promise.resolve(this.accessToken()!);
-        }
         // Mark the cached access token dead before joining the in-flight
         // check, so concurrent getValidToken callers see "expired" and queue
         // onto our reauth instead of returning the now-revoked cached value
         // (whose tokenExpiry timestamp is still in the future). Refresh
         // token is intentionally left intact — only access is known dead.
+        //
+        // Note: an earlier revision fast-path-returned the cached token if
+        // it was still time-valid, on the theory that a concurrent refresh
+        // had already written a fresh one. That broke server-side
+        // revocation: a token that's still time-valid but rejected by the
+        // server gets returned to the caller, who retries it, gets 401 again,
+        // gives up — never triggering an actual reauth. Removed; the wasted
+        // IdP round on the rare concurrent-refresh-just-won case is cheaper
+        // than failing to reauth on a genuine revocation.
         this.accessToken.set(null);
         this.tokenExpiry.set(0);
         return this.memoizeAuth(() => this.acquireToken());
