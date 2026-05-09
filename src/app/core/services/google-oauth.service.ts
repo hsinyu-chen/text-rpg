@@ -47,6 +47,11 @@ export class GoogleOAuthService {
 
     private isTauri = !!(window.__TAURI_INTERNALS__ || window.__TAURI__);
     private refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    // Memoizes an in-flight token acquisition so concurrent callers don't
+    // each spawn their own flow.login() / flow.refresh() — Web flow's
+    // singleton GIS callback would have one of them hang forever, and
+    // Tauri would open multiple browser tabs.
+    private inFlightAuth: Promise<string> | null = null;
 
     private get flow(): OAuthFlow {
         return this.isTauri ? this.tauriFlow : this.webFlow;
@@ -192,17 +197,36 @@ export class GoogleOAuthService {
     }
 
     /**
+     * Coalesce concurrent auth attempts onto a single in-flight promise.
+     * Without this, two parallel Drive 401s (or any concurrent
+     * `getValidToken` callers) each spawn their own `flow.login()` /
+     * `flow.refresh()` — which Web GIS cannot serve (singleton callback)
+     * and Tauri shouldn't (multiple browser tabs).
+     */
+    private memoizeAuth(operation: () => Promise<string>): Promise<string> {
+        if (this.inFlightAuth) return this.inFlightAuth;
+        const p = operation().finally(() => {
+            if (this.inFlightAuth === p) this.inFlightAuth = null;
+        });
+        this.inFlightAuth = p;
+        return p;
+    }
+
+    /**
      * Acquire a valid access token: cached if still fresh, refreshed if a
      * refresh token is available, otherwise interactive login. Public
      * entry point for both user-initiated sign-in
      * ({@link GoogleOAuthService.login}) and per-request token reads
      * ({@link GoogleOAuthService.getValidToken}).
      */
-    private async ensureValidToken(): Promise<string> {
+    private ensureValidToken(): Promise<string> {
         if (this.accessToken() && Date.now() < this.tokenExpiry()) {
-            return this.accessToken()!;
+            return Promise.resolve(this.accessToken()!);
         }
+        return this.memoizeAuth(() => this.acquireToken());
+    }
 
+    private async acquireToken(): Promise<string> {
         if (this.refreshToken()) {
             try {
                 console.log('[GoogleOAuth] Access token expired, refreshing...');
@@ -211,7 +235,6 @@ export class GoogleOAuthService {
                 console.warn('[GoogleOAuth] Refresh failed, falling back to interactive login:', e);
             }
         }
-
         return this.applyResult(await this.flow.login());
     }
 
@@ -235,9 +258,16 @@ export class GoogleOAuthService {
      * check (the cached one is what just failed), tries refresh, then
      * falls through to interactive login. Caller re-runs the original
      * request with the returned token.
+     *
+     * Joins any in-flight `ensureValidToken` so concurrent 401s share a
+     * single re-auth round.
      */
-    async forceReauthAfter401(): Promise<string> {
+    forceReauthAfter401(): Promise<string> {
         console.warn('[GoogleOAuth] 401 Unauthorized encountered. Retry logic...');
+        return this.memoizeAuth(() => this.reauth401());
+    }
+
+    private async reauth401(): Promise<string> {
         if (this.refreshToken()) {
             try {
                 return this.applyResult(await this.flow.refresh(this.refreshToken()));
