@@ -87,24 +87,9 @@ export class TauriPkceFlow implements OAuthFlow {
             body.append('client_secret', environment.gcpOauthClientSecret_Tauri);
         }
 
-        const res = await fetch('https://oauth2.googleapis.com/token', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: body.toString()
-        });
-
-        if (!res.ok) {
-            const err = await res.json();
-            throw new Error('Refresh Token Failed: ' + JSON.stringify(err));
-        }
-
-        const data = await res.json();
+        const result = await this.tokenEndpointPost(body, 'Refresh Token');
         console.log('[TauriPkceFlow] Token refreshed successfully');
-        return {
-            accessToken: data.access_token,
-            expiresInSeconds: data.expires_in || 3599,
-            refreshToken: data.refresh_token,
-        };
+        return result;
     }
 
     private async listenForCode(): Promise<string> {
@@ -146,7 +131,7 @@ export class TauriPkceFlow implements OAuthFlow {
         });
     }
 
-    private async exchangeCodeForToken(
+    private exchangeCodeForToken(
         code: string, verifier: string, redirectUri: string
     ): Promise<OAuthFlowResult> {
         const body = new URLSearchParams({
@@ -161,20 +146,36 @@ export class TauriPkceFlow implements OAuthFlow {
             body.append('client_secret', environment.gcpOauthClientSecret_Tauri);
         }
 
+        return this.tokenEndpointPost(body, 'Token Exchange');
+    }
+
+    /**
+     * Single source of truth for Google OAuth token endpoint POSTs. Shapes
+     * the response into {@link OAuthFlowResult} and throws a contextual
+     * error on either HTTP failure or a 200-with-no-access_token body
+     * (which Google does emit for some error shapes).
+     */
+    private async tokenEndpointPost(body: URLSearchParams, contextLabel: string): Promise<OAuthFlowResult> {
         const res = await fetch('https://oauth2.googleapis.com/token', {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: body.toString()
         });
 
-        const data = await res.json();
-        if (data.access_token) {
-            return {
-                accessToken: data.access_token,
-                expiresInSeconds: data.expires_in || 3599,
-                refreshToken: data.refresh_token,
-            };
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({ error: res.statusText }));
+            throw new Error(`${contextLabel} Failed: ` + JSON.stringify(err));
         }
-        throw new Error('Token Exchange Failed: ' + JSON.stringify(data));
+
+        const data = await res.json();
+        if (!data.access_token) {
+            throw new Error(`${contextLabel} Failed: ` + JSON.stringify(data));
+        }
+
+        return {
+            accessToken: data.access_token,
+            expiresInSeconds: data.expires_in || 3599,
+            refreshToken: data.refresh_token,
+        };
     }
 }
