@@ -21,6 +21,30 @@ declare const window: WindowWithTauri;
 const LS_OAUTH_CLIENT_ID = 'gdrive_oauth_client_id';
 
 /**
+ * Classifies a `flow.refresh()` failure so the orchestrator can decide
+ * whether to clear cached tokens. Misclassifying transient errors as
+ * fatal would log the user out on a network blip; misclassifying a
+ * declined popup as transient would loop forever.
+ */
+type RefreshErrorClass = 'declined' | 'invalid' | 'transient';
+
+function classifyRefreshError(error: unknown): RefreshErrorClass {
+    if (!error || typeof error !== 'object') return 'transient';
+    // GIS popup error: callback receives a TokenResponse with .error field.
+    const gisError = (error as { error?: string }).error;
+    if (gisError === 'popup_closed_by_user' || gisError === 'access_denied') {
+        return 'declined';
+    }
+    // Tauri token endpoint error: TauriPkceFlow throws an Error whose message
+    // embeds the parsed JSON body, including Google's `error: "invalid_grant"`
+    // when the saved refresh token is no longer valid.
+    if (error instanceof Error && error.message.includes('invalid_grant')) {
+        return 'invalid';
+    }
+    return 'transient';
+}
+
+/**
  * Owns the Google OAuth lifecycle: credential resolution (env vs runtime
  * config), token state (access + refresh + expiry), refresh scheduling,
  * and the `getValidToken` accessor that Drive REST callers use to
@@ -175,6 +199,11 @@ export class GoogleOAuthService {
             );
             console.log('[GoogleOAuth] Proactive refresh successful');
         } catch (e) {
+            // If the proactive popup escalated and the user explicitly
+            // declined, clear so the next request starts logged-out instead
+            // of looping. Transient errors leave state intact; the next
+            // request will retry as normal.
+            if (classifyRefreshError(e) === 'declined') this.clearTokens();
             console.warn('[GoogleOAuth] Proactive refresh failed. Will wait for manual interaction.', e);
         }
     }
@@ -228,26 +257,32 @@ export class GoogleOAuthService {
     }
 
     private async acquireToken(): Promise<string> {
-        // Web flows escalate inside refresh() (silent → interactive popup);
-        // a throw means the user rejected, so don't double-popup via login().
-        // Clear tokens on failure so the next request starts logged-out
-        // instead of looping on a stale cached token.
+        // Web flow: refresh() escalates inside (silent → interactive popup),
+        // so a throw means either the user rejected or something transient
+        // broke. Clear only on explicit decline; transient errors (network
+        // blip, GIS script not loaded yet) preserve state so the next
+        // attempt can succeed against the cached cookies.
         if (this.flow.refreshIncludesInteractive) {
             try {
                 return this.applyResult(await this.flow.refresh(this.refreshToken()));
             } catch (e) {
-                this.clearTokens();
+                if (classifyRefreshError(e) === 'declined') this.clearTokens();
                 throw e;
             }
         }
-        // Tauri: try the refresh-token grant when we have one; fall through
-        // to interactive PKCE on miss or failure.
+        // Tauri: refresh-token grant first when we have one. Transient errors
+        // (offline, 5xx) preserve the refresh token for retry; invalid_grant
+        // and "no token" both fall through to a fresh interactive PKCE round.
         if (this.refreshToken()) {
             try {
                 console.log('[GoogleOAuth] Access token expired, refreshing...');
                 return this.applyResult(await this.flow.refresh(this.refreshToken()));
             } catch (e) {
-                console.warn('[GoogleOAuth] Refresh failed, falling back to interactive login:', e);
+                if (classifyRefreshError(e) === 'transient') {
+                    console.warn('[GoogleOAuth] Transient refresh error, preserving state for retry:', e);
+                    throw e;
+                }
+                console.warn('[GoogleOAuth] Refresh token invalid, falling back to interactive login:', e);
             }
         }
         // Clear any stale refresh token before interactive login so we don't
