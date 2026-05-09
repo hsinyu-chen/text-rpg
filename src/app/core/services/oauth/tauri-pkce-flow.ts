@@ -67,56 +67,62 @@ export class TauriPkceFlow implements OAuthFlow {
         const { open } = await import('@tauri-apps/plugin-shell');
 
         const port = await invoke<number>('plugin:oauth|start');
-        const redirectUri = `http://localhost:${port}`;
+        try {
+            const redirectUri = `http://localhost:${port}`;
 
-        const verifier = await generateCodeVerifier();
-        const challenge = await generateCodeChallenge(verifier);
+            const verifier = await generateCodeVerifier();
+            const challenge = await generateCodeChallenge(verifier);
 
-        // access_type=offline + prompt=consent ensures we get a refresh
-        // token even if the user has authorised before.
-        const clientId = environment.gcpOauthAppId_Tauri;
-        const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
-            `response_type=code` +
-            `&client_id=${clientId}` +
-            `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-            `&scope=${encodeURIComponent(OAUTH_SCOPE)}` +
-            `&code_challenge=${challenge}` +
-            `&code_challenge_method=S256` +
-            `&access_type=offline` +
-            `&prompt=consent`;
+            // access_type=offline + prompt=consent ensures we get a refresh
+            // token even if the user has authorised before.
+            const clientId = environment.gcpOauthAppId_Tauri;
+            const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
+                `response_type=code` +
+                `&client_id=${clientId}` +
+                `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+                `&scope=${encodeURIComponent(OAUTH_SCOPE)}` +
+                `&code_challenge=${challenge}` +
+                `&code_challenge_method=S256` +
+                `&access_type=offline` +
+                `&prompt=consent`;
 
-        console.log('[TauriPkceFlow] Opening Auth URL:', authUrl);
+            console.log('[TauriPkceFlow] Opening Auth URL:', authUrl);
 
-        // Two-phase: await registration BEFORE opening the browser, then
-        // await the code arrival. Previously startCodeListener returned its
-        // promise immediately (registration still in-flight), so a fast
-        // OAuth redirect could arrive before listeners were active.
-        const { codePromise } = await this.startCodeListener();
+            // Two-phase: await registration BEFORE opening the browser, then
+            // await the code arrival. Previously startCodeListener returned
+            // its promise immediately (registration still in-flight), so a
+            // fast OAuth redirect could arrive before listeners were active.
+            const { codePromise } = await this.startCodeListener();
 
-        await open(authUrl);
+            await open(authUrl);
 
-        const codeOrUrl = await codePromise;
-        let code = codeOrUrl;
-        if (codeOrUrl.includes('code=')) {
-            // Standard 'oauth://url' delivers a full http://localhost URL;
-            // legacy 'oauth://payload' / 'oauth-response' may deliver only
-            // the query string (e.g. '?code=...'), which throws TypeError
-            // when fed to `new URL()`. Custom-scheme URLs like
-            // 'oauth://url?code=...' may also throw in some WebView envs.
-            // Fall back to extracting the query-string portion before
-            // handing to URLSearchParams so all three shapes parse.
-            try {
-                code = new URL(codeOrUrl).searchParams.get('code') || '';
-            } catch {
-                const queryString = codeOrUrl.includes('?')
-                    ? codeOrUrl.slice(codeOrUrl.indexOf('?') + 1)
-                    : codeOrUrl.replace(/^\?/, '');
-                code = new URLSearchParams(queryString).get('code') || '';
+            const codeOrUrl = await codePromise;
+            let code = codeOrUrl;
+            if (codeOrUrl.includes('code=')) {
+                // Standard 'oauth://url' delivers a full http://localhost URL;
+                // legacy 'oauth://payload' / 'oauth-response' may deliver only
+                // the query string (e.g. '?code=...'), which throws TypeError
+                // when fed to `new URL()`. Custom-scheme URLs like
+                // 'oauth://url?code=...' may also throw in some WebView envs.
+                // Fall back to extracting the query-string portion before
+                // handing to URLSearchParams so all three shapes parse.
+                try {
+                    code = new URL(codeOrUrl).searchParams.get('code') || '';
+                } catch {
+                    const queryString = codeOrUrl.includes('?')
+                        ? codeOrUrl.slice(codeOrUrl.indexOf('?') + 1)
+                        : codeOrUrl.replace(/^\?/, '');
+                    code = new URLSearchParams(queryString).get('code') || '';
+                }
             }
-        }
-        if (!code) throw new Error('No code received');
+            if (!code) throw new Error('No code received');
 
-        return this.exchangeCodeForToken(code, verifier, redirectUri);
+            return await this.exchangeCodeForToken(code, verifier, redirectUri);
+        } finally {
+            // Always release the loopback port. The plugin auto-shuts after
+            // a successful request, but timeouts and errors leave it bound.
+            try { await invoke('plugin:oauth|cancel', { port }); } catch { /* port already gone */ }
+        }
     }
 
     async refresh(refreshToken: string | null): Promise<OAuthFlowResult> {
