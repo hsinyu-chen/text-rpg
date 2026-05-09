@@ -160,9 +160,11 @@ export class GoogleOAuthService {
             expiry,
         });
 
-        if (!this.tokenStore.getUserEmail()) {
-            void this.fetchAndSaveUserEmail(result.accessToken);
-        }
+        // Always re-fetch on success — the saved email is used as the
+        // GIS silent re-login hint, and a stale value (from a previous
+        // user on the same device) would steer the next silent attempt
+        // at the wrong account picker entry.
+        void this.fetchAndSaveUserEmail(result.accessToken);
 
         this.scheduleAutoRefresh(result.expiresInSeconds);
         return result.accessToken;
