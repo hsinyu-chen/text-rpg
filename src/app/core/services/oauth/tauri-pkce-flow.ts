@@ -124,13 +124,22 @@ export class TauriPkceFlow implements OAuthFlow {
         // 'oauth://url' is the standard Tauri v2 event; 'oauth://payload' /
         // 'oauth-response' cover custom / legacy names. Concurrent
         // registration shrinks the window where one event could fire while
-        // siblings are still pending.
-        await Promise.all([
-            register('oauth://url'),
-            register('oauth://payload'),
-            register('oauth-response'),
-        ]);
+        // siblings are still pending. If any registration rejects, detach
+        // the siblings that did succeed before propagating.
+        try {
+            await Promise.all([
+                register('oauth://url'),
+                register('oauth://payload'),
+                register('oauth-response'),
+            ]);
+        } catch (err) {
+            cleanup();
+            throw err;
+        }
 
+        // Set the timeout AFTER all registrations succeed so a Promise.all
+        // rejection above doesn't orphan a 5-minute setTimeout into the
+        // event loop.
         const timeout = setTimeout(() => {
             cleanup();
             rejectCode(new Error('OAuth Timeout'));

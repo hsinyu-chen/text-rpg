@@ -230,8 +230,15 @@ export class GoogleOAuthService {
     private async acquireToken(): Promise<string> {
         // Web flows escalate inside refresh() (silent → interactive popup);
         // a throw means the user rejected, so don't double-popup via login().
+        // Clear tokens on failure so the next request starts logged-out
+        // instead of looping on a stale cached token.
         if (this.flow.refreshIncludesInteractive) {
-            return this.applyResult(await this.flow.refresh(this.refreshToken()));
+            try {
+                return this.applyResult(await this.flow.refresh(this.refreshToken()));
+            } catch (e) {
+                this.clearTokens();
+                throw e;
+            }
         }
         // Tauri: try the refresh-token grant when we have one; fall through
         // to interactive PKCE on miss or failure.
@@ -275,6 +282,13 @@ export class GoogleOAuthService {
      */
     forceReauthAfter401(): Promise<string> {
         console.warn('[GoogleOAuth] 401 Unauthorized encountered. Retry logic...');
+        // Mark the cached access token dead before joining the in-flight
+        // check, so concurrent getValidToken callers see "expired" and queue
+        // onto our reauth instead of returning the now-revoked cached value
+        // (whose tokenExpiry timestamp is still in the future). Refresh
+        // token is intentionally left intact — only access is known dead.
+        this.accessToken.set(null);
+        this.tokenExpiry.set(0);
         return this.memoizeAuth(() => this.acquireToken());
     }
 
