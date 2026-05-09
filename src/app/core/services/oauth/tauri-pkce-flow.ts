@@ -20,11 +20,7 @@ export class TauriOAuthEndpointError extends Error {
 async function generateCodeVerifier(): Promise<string> {
     const array = new Uint8Array(32);
     globalThis.crypto.getRandomValues(array);
-    return Array.from(array, dec2hex).join('');
-}
-
-function dec2hex(dec: number): string {
-    return ('0' + dec.toString(16)).slice(-2);
+    return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
 async function generateCodeChallenge(verifier: string): Promise<string> {
