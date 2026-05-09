@@ -2,6 +2,21 @@ import { Injectable } from '@angular/core';
 import { environment } from '../../../../environments/environment';
 import { OAuthFlow, OAuthFlowResult, OAUTH_SCOPE } from './oauth-flow';
 
+/**
+ * Thrown by {@link TauriPkceFlow}'s token-endpoint POSTs (refresh,
+ * authorization-code exchange) on either an HTTP failure or a
+ * 200-with-no-access_token body. Carries Google's `error` field
+ * (e.g. `invalid_grant`) as a structured property so the orchestrator
+ * can classify the failure without substring-matching the message.
+ */
+export class TauriOAuthEndpointError extends Error {
+    override readonly name = 'TauriOAuthEndpointError';
+
+    constructor(message: string, readonly errorCode: string | undefined) {
+        super(message);
+    }
+}
+
 async function generateCodeVerifier(): Promise<string> {
     const array = new Uint8Array(32);
     globalThis.crypto.getRandomValues(array);
@@ -70,7 +85,16 @@ export class TauriPkceFlow implements OAuthFlow {
         const codeOrUrl = await codePromise;
         let code = codeOrUrl;
         if (codeOrUrl.includes('code=')) {
-            code = new URL(codeOrUrl).searchParams.get('code') || '';
+            // Standard 'oauth://url' delivers a full http://localhost URL;
+            // legacy 'oauth://payload' / 'oauth-response' may deliver only
+            // the query string (e.g. '?code=...'), which throws TypeError
+            // when fed to `new URL()`. Fall back to URLSearchParams so
+            // both shapes parse.
+            try {
+                code = new URL(codeOrUrl).searchParams.get('code') || '';
+            } catch {
+                code = new URLSearchParams(codeOrUrl.replace(/^\?/, '')).get('code') || '';
+            }
         }
         if (!code) throw new Error('No code received');
 
@@ -188,12 +212,18 @@ export class TauriPkceFlow implements OAuthFlow {
 
         if (!res.ok) {
             const err = await res.json().catch(() => ({ error: res.statusText }));
-            throw new Error(`${contextLabel} Failed: ` + JSON.stringify(err));
+            throw new TauriOAuthEndpointError(
+                `${contextLabel} Failed: ` + JSON.stringify(err),
+                err.error
+            );
         }
 
         const data = await res.json();
         if (!data.access_token) {
-            throw new Error(`${contextLabel} Failed: ` + JSON.stringify(data));
+            throw new TauriOAuthEndpointError(
+                `${contextLabel} Failed: ` + JSON.stringify(data),
+                data.error
+            );
         }
 
         return {

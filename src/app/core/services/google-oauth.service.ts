@@ -4,7 +4,7 @@ import { KVStore } from './kv/kv-store';
 import { OAuthTokenStore } from './oauth-token-store';
 import { OAuthFlow, OAuthFlowResult } from './oauth/oauth-flow';
 import { WebGisFlow } from './oauth/web-gis-flow';
-import { TauriPkceFlow } from './oauth/tauri-pkce-flow';
+import { TauriPkceFlow, TauriOAuthEndpointError } from './oauth/tauri-pkce-flow';
 
 interface WindowWithTauri extends Window {
     __TAURI_INTERNALS__?: unknown;
@@ -35,10 +35,10 @@ function classifyRefreshError(error: unknown): RefreshErrorClass {
     if (gisError === 'popup_closed_by_user' || gisError === 'access_denied') {
         return 'declined';
     }
-    // Tauri token endpoint error: TauriPkceFlow throws an Error whose message
-    // embeds the parsed JSON body, including Google's `error: "invalid_grant"`
-    // when the saved refresh token is no longer valid.
-    if (error instanceof Error && error.message.includes('invalid_grant')) {
+    // Tauri token endpoint error: structured errorCode field carries
+    // Google's `error` value verbatim (e.g. `invalid_grant` when the saved
+    // refresh token is no longer valid).
+    if (error instanceof TauriOAuthEndpointError && error.errorCode === 'invalid_grant') {
         return 'invalid';
     }
     return 'transient';
