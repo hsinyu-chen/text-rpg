@@ -5,20 +5,23 @@
         </div>
         <div class="header-actions">
             <button mat-icon-button (click)="toggleCostPrediction()"
-                [matTooltip]="showCostPrediction() ? 'Hide Cost Prediction' : 'Show Cost Prediction'">
+                [matTooltip]="(showCostPrediction() ? 'sidebar.hideCostPrediction' : 'sidebar.showCostPrediction') | translate">
                 <mat-icon>{{ showCostPrediction() ? 'visibility_off' : 'visibility' }}</mat-icon>
             </button>
-            <button mat-icon-button (click)="openBooks.emit()" [disabled]="state.isBusy()" matTooltip="Adventure Books">
+            <button mat-icon-button (click)="openBooks.emit()" [disabled]="state.isBusy()"
+                [matTooltip]="'sidebar.adventureBooksTooltip' | translate">
                 <mat-icon>auto_stories</mat-icon>
             </button>
             <button mat-icon-button (click)="openSyncProvider()" [disabled]="state.isBusy()"
-                matTooltip="Sync Provider (Drive / S3 configuration)">
+                [matTooltip]="'sidebar.syncProviderTooltip' | translate">
                 <mat-icon>cloud_sync</mat-icon>
             </button>
-            <button mat-icon-button (click)="openSettings()" [disabled]="state.isBusy()" matTooltip="Settings">
+            <button mat-icon-button (click)="openSettings()" [disabled]="state.isBusy()"
+                [matTooltip]="'sidebar.settingsTooltip' | translate">
                 <mat-icon>settings</mat-icon>
             </button>
-            <button mat-icon-button class="close-btn" (click)="close()" matTooltip="Close Sidebar">
+            <button mat-icon-button class="close-btn" (click)="close()"
+                [matTooltip]="'sidebar.closeSidebarTooltip' | translate">
                 <mat-icon>close</mat-icon>
             </button>
         </div>
@@ -42,13 +45,13 @@
         <mat-tab>
             <ng-template mat-tab-label>
                 <mat-icon>folder_open</mat-icon>
-                <span class="tab-label">Files</span>
+                <span class="tab-label">{{ 'sidebar.filesTabLabel' | translate }}</span>
             </ng-template>
             <div class="tab-content">
                 <div class="section-header-container">
-                    <h3 class="section-header">Loaded Files</h3>
+                    <h3 class="section-header">{{ 'sidebar.loadedFilesHeader' | translate }}</h3>
                     <button mat-icon-button class="toggle-btn" (click)="toggleDisplayMode()"
-                        [matTooltip]="displayMode() === 'tokens' ? 'Switch to Character Count' : 'Switch to Token Count'">
+                        [matTooltip]="(displayMode() === 'tokens' ? 'sidebar.switchToCharCount' : 'sidebar.switchToTokenCount') | translate">
                         <mat-icon>{{ displayMode() === 'tokens' ? 'text_format' : 'token' }}</mat-icon>
                     </button>
                 </div>
@@ -63,20 +66,20 @@
                         </div>
                         <div matListItemLine>
                             @if (displayMode() === 'tokens') {
-                            {{ formatCount(file.tokens) }} tokens
+                            {{ formatCount(file.tokens) }} {{ 'sidebar.tokensUnit' | translate }}
                             } @else {
-                            {{ formatCount(file.content.length) }} chars
+                            {{ formatCount(file.content.length) }} {{ 'sidebar.charsUnit' | translate }}
                             }
                         </div>
                         @if (state.unsavedFiles().has(file.name)) {
-                        <div matListItemMeta class="unsaved-indicator" title="Unsaved changes"></div>
+                        <div matListItemMeta class="unsaved-indicator" [title]="'sidebar.unsavedTooltip' | translate"></div>
                         }
                     </mat-list-item>
                     }
 
                     @if (fileList().length === 0) {
                     <div class="empty-state">
-                        No files loaded
+                        {{ 'sidebar.noFilesLoaded' | translate }}
                     </div>
                     }
                 </mat-list>
@@ -93,7 +96,7 @@
         <mat-tab>
             <ng-template mat-tab-label>
                 <mat-icon>settings_backup_restore</mat-icon>
-                <span class="tab-label">Session</span>
+                <span class="tab-label">{{ 'sidebar.sessionTabLabel' | translate }}</span>
             </ng-template>
             <div class="tab-content padded">
                 <app-sidebar-context-controls></app-sidebar-context-controls>

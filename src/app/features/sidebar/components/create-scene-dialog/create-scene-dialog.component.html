@@ -1,29 +1,27 @@
 <div class="create-scene-dialog">
     <h2 mat-dialog-title>
         <mat-icon>auto_awesome</mat-icon>
-        Create Scene
+        {{ 'sidebar.createScene.title' | translate }}
     </h2>
 
     <mat-dialog-content class="dialog-content">
         @if (phase() === 'input') {
         <p class="hint">
-            Define a focused scene. The engine will first expand your opening concept into a rich scene narrative, then
-            walk through each Knowledge Base file to produce a scene-focused replacement — same filenames, trimmed
-            content. Files you check below are copied verbatim and used as context only.
+            {{ 'sidebar.createScene.hint' | translate }}
         </p>
 
         <mat-form-field appearance="outline" class="field">
-            <mat-label>Location</mat-label>
+            <mat-label>{{ 'sidebar.createScene.locationLabel' | translate }}</mat-label>
             <input matInput [ngModel]="location()" (ngModelChange)="location.set($event)" required>
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="field">
-            <mat-label>Characters</mat-label>
+            <mat-label>{{ 'sidebar.createScene.charactersLabel' | translate }}</mat-label>
             <input matInput [ngModel]="character()" (ngModelChange)="character.set($event)" required>
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="field">
-            <mat-label>Opening Scene (short concept — will be expanded)</mat-label>
+            <mat-label>{{ 'sidebar.createScene.openingSceneLabel' | translate }}</mat-label>
             <textarea matInput rows="5" [ngModel]="startScene()"
                 (ngModelChange)="startScene.set($event)" required></textarea>
         </mat-form-field>
@@ -32,12 +30,11 @@
 
         <div class="file-selection">
             <div class="selection-header">
-                <span class="selection-title">Files to copy verbatim</span>
+                <span class="selection-title">{{ 'sidebar.createScene.filesToCopyLabel' | translate }}</span>
                 <span class="selection-hint">
-                    Checked files are copied as-is into the new Scene KB and used as fixed context for every LLM call.
-                    Unchecked files are rewritten by the LLM into a scene-focused version of themselves.
+                    {{ 'sidebar.createScene.filesToCopyHint' | translate }}
                 </span>
-                <span class="selection-count">{{ selectedCount() }} / {{ selectableFiles().length }} selected</span>
+                <span class="selection-count">{{ 'sidebar.createScene.filesSelectedCount' | translate: { selected: selectedCount(), total: selectableFiles().length } }}</span>
             </div>
             <div class="file-checklist">
                 @for (name of selectableFiles(); track name) {
@@ -55,11 +52,11 @@
             <div class="progress-header">
                 <mat-icon class="spin">sync</mat-icon>
                 @if (stage() === 'opening') {
-                <span class="status-text">Stage 1/2 — Expanding opening scene…</span>
+                <span class="status-text">{{ 'sidebar.createScene.stage1Expanding' | translate }}</span>
                 } @else if (stage() === 'extracting') {
-                <span class="status-text">Stage 2/2 — Extracting scene KB… {{ progressPercent() }}%</span>
+                <span class="status-text">{{ 'sidebar.createScene.stage2Extracting' | translate: { percent: progressPercent() } }}</span>
                 } @else {
-                <span class="status-text">Finalizing…</span>
+                <span class="status-text">{{ 'sidebar.createScene.finalizing' | translate }}</span>
                 }
             </div>
 
@@ -73,7 +70,7 @@
             <div class="pp-progress">
                 <div class="pp-label">
                     <mat-icon>sync_alt</mat-icon>
-                    <span>Prefilling context… {{ ppPercent() }}%</span>
+                    <span>{{ 'sidebar.createScene.prefillingContext' | translate: { percent: ppPercent() } }}</span>
                     @if (ppTotal() > 0) {
                     <span class="pp-tokens">{{ ppProcessed() | number }} / {{ ppTotal() | number }} tk</span>
                     }
@@ -84,9 +81,9 @@
 
             @if (stage() === 'extracting' || stage() === 'done') {
             <div class="status-summary">
-                <span>Processed {{ processedFiles() }} / {{ totalFiles() }}</span>
+                <span>{{ 'sidebar.createScene.filesProcessed' | translate: { processed: processedFiles(), total: totalFiles() } }}</span>
                 <span class="dot">·</span>
-                <span>Remaining {{ remainingFiles() }}</span>
+                <span>{{ 'sidebar.createScene.filesRemaining' | translate: { remaining: remainingFiles() } }}</span>
             </div>
             }
 
@@ -105,7 +102,7 @@
                             }
                         </mat-icon>
                         <span class="file-item-name">{{ name }}</span>
-                        <span class="file-item-status">{{ fileStatusFor(name) }}</span>
+                        <span class="file-item-status">{{ 'sidebar.createScene.status' + (fileStatusFor(name) | titlecase) | translate }}</span>
                     </div>
                     @if (fileNotesFor(name)) {
                     <div class="file-item-notes">{{ fileNotesFor(name) }}</div>
@@ -117,7 +114,7 @@
 
             @if (expandedOpening()) {
             <div class="accumulated-preview">
-                <div class="preview-label">Opening scene ({{ expandedOpening().length | number }} chars)</div>
+                <div class="preview-label">{{ 'sidebar.createScene.openingScenePreview' | translate: { chars: expandedOpening().length } }}</div>
                 <pre class="preview-body">{{ expandedOpening().length > 1200 ? (expandedOpening().substring(0, 1200) + '…') : expandedOpening() }}</pre>
             </div>
             }
@@ -132,12 +129,11 @@
         <div class="review-view">
             <div class="review-toolbar">
                 <p class="hint">
-                    Review the generated Scene KB against the original. Pick a file to view both the original
-                    (read-only, left) and the extracted scene-focused version (editable, right).
+                    {{ 'sidebar.createScene.reviewHint' | translate }}
                 </p>
 
                 <mat-form-field appearance="outline" class="file-picker">
-                    <mat-label>File</mat-label>
+                    <mat-label>{{ 'sidebar.createScene.filePickerLabel' | translate }}</mat-label>
                     <mat-select [ngModel]="activeReviewFile()" (ngModelChange)="activeReviewFile.set($event)">
                         @for (name of reviewFiles(); track name) {
                         <mat-option [value]="name">{{ name }}</mat-option>
@@ -148,7 +144,7 @@
 
             <div class="review-panes">
                 <div class="pane">
-                    <div class="pane-header">Original (read-only)</div>
+                    <div class="pane-header">{{ 'sidebar.createScene.originalPaneHeader' | translate }}</div>
                     <div class="editor-wrapper">
                         <app-monaco-editor
                             [ngModel]="reviewOriginal()"
@@ -158,7 +154,7 @@
                     </div>
                 </div>
                 <div class="pane">
-                    <div class="pane-header">Extracted Scene KB (editable)</div>
+                    <div class="pane-header">{{ 'sidebar.createScene.extractedPaneHeader' | translate }}</div>
                     <div class="editor-wrapper">
                         <app-monaco-editor
                             [ngModel]="reviewModified()"
@@ -175,10 +171,10 @@
 
     <mat-dialog-actions align="end">
         @if (phase() === 'input') {
-        <button mat-button (click)="cancel()">Cancel</button>
+        <button mat-button (click)="cancel()">{{ 'sidebar.createScene.cancelBtn' | translate }}</button>
         <button mat-flat-button color="primary" (click)="start()" [disabled]="!isInputValid()">
             <mat-icon>play_arrow</mat-icon>
-            Start Extraction
+            {{ 'sidebar.createScene.startExtractionBtn' | translate }}
         </button>
         }
 
@@ -186,29 +182,29 @@
             @if (processingError()) {
             <button mat-button (click)="backToInput()">
                 <mat-icon>arrow_back</mat-icon>
-                Back to Input
+                {{ 'sidebar.createScene.backToInputBtn' | translate }}
             </button>
-            <button mat-button (click)="cancel()">Close</button>
+            <button mat-button (click)="cancel()">{{ 'sidebar.createScene.closeBtn' | translate }}</button>
             } @else {
             <button mat-stroked-button color="warn" (click)="abort()">
                 <mat-icon>stop</mat-icon>
-                Abort
+                {{ 'sidebar.createScene.abortBtn' | translate }}
             </button>
             <button mat-button (click)="backToInput()">
                 <mat-icon>arrow_back</mat-icon>
-                Back
+                {{ 'sidebar.createScene.backBtn' | translate }}
             </button>
             }
         }
 
         @if (phase() === 'review') {
-        <button mat-button (click)="backToInput()" [disabled]="isCreatingBook()">Back</button>
-        <button mat-button (click)="cancel()" [disabled]="isCreatingBook()">Cancel</button>
+        <button mat-button (click)="backToInput()" [disabled]="isCreatingBook()">{{ 'sidebar.createScene.backBtn' | translate }}</button>
+        <button mat-button (click)="cancel()" [disabled]="isCreatingBook()">{{ 'sidebar.createScene.cancelBtn' | translate }}</button>
         <button mat-flat-button color="primary" (click)="confirm()" [disabled]="isCreatingBook()">
             @if (isCreatingBook()) {
-            <span class="btn-inline"><mat-spinner diameter="18"></mat-spinner> Creating…</span>
+            <span class="btn-inline"><mat-spinner diameter="18"></mat-spinner> {{ 'sidebar.createScene.creating' | translate }}</span>
             } @else {
-            <span class="btn-inline"><mat-icon>check</mat-icon> Create Book</span>
+            <span class="btn-inline"><mat-icon>check</mat-icon> {{ 'sidebar.createScene.createBookBtn' | translate }}</span>
             }
         </button>
         }

@@ -15,7 +15,7 @@
         <mat-tab>
             <ng-template mat-tab-label>
                 <mat-icon style="margin-right: 6px; font-size: 18px; height: 18px; width: 18px;">map</mat-icon>
-                Pre-build
+                {{ 'sidebar.newGame.tabPrebuildLabel' | translate }}
             </ng-template>
 
             <div class="form-container tab-content">
@@ -84,56 +84,56 @@
         <mat-tab>
             <ng-template mat-tab-label>
                 <mat-icon style="margin-right: 6px; font-size: 18px; height: 18px; width: 18px;">auto_awesome</mat-icon>
-                Generate
+                {{ 'sidebar.newGame.tabGenerateLabel' | translate }}
             </ng-template>
 
             <div class="form-container tab-content">
-                <p class="generate-hint">Describe your world and protagonist — the AI will fill all 9 world files.</p>
+                <p class="generate-hint">{{ 'sidebar.newGame.generateHint' | translate }}</p>
 
                 <!-- Preset selector — fills in the system output language automatically -->
                 <mat-form-field appearance="outline" class="full-width">
-                    <mat-label>Quick Preset (optional)</mat-label>
+                    <mat-label>{{ 'sidebar.newGame.quickPresetLabel' | translate }}</mat-label>
                     <mat-select [ngModel]="selectedPresetId()" (ngModelChange)="applyPreset($event)">
-                        <mat-option value="">— Start from scratch —</mat-option>
+                        <mat-option value="">{{ 'sidebar.newGame.startFromScratch' | translate }}</mat-option>
                         @for (preset of localizedPresets(); track preset.id) {
                         <mat-option [value]="preset.id">{{ preset.label }}</mat-option>
                         }
                     </mat-select>
-                    <mat-hint>Fills all fields in the current system language. Edit freely afterwards.</mat-hint>
+                    <mat-hint>{{ 'sidebar.newGame.presetHint' | translate }}</mat-hint>
                 </mat-form-field>
 
                 <mat-divider style="margin: 4px 0 12px;"></mat-divider>
 
                 <div class="two-col">
                     <mat-form-field appearance="outline">
-                        <mat-label>Genre</mat-label>
+                        <mat-label>{{ 'sidebar.newGame.genreLabel' | translate }}</mat-label>
                         <input matInput [ngModel]="genre()" (ngModelChange)="genre.set($event)"
-                            placeholder="e.g. Fantasy, Sci-Fi, Cyberpunk">
+                            [placeholder]="'sidebar.newGame.genrePlaceholder' | translate">
                     </mat-form-field>
 
                     <mat-form-field appearance="outline">
-                        <mat-label>Tone</mat-label>
+                        <mat-label>{{ 'sidebar.newGame.toneLabel' | translate }}</mat-label>
                         <input matInput [ngModel]="tone()" (ngModelChange)="tone.set($event)"
-                            placeholder="e.g. Dark, Epic, Slice of Life">
+                            [placeholder]="'sidebar.newGame.tonePlaceholder' | translate">
                     </mat-form-field>
                 </div>
 
                 <mat-form-field appearance="outline" class="full-width">
-                    <mat-label>World Setting</mat-label>
+                    <mat-label>{{ 'sidebar.newGame.worldSettingLabel' | translate }}</mat-label>
                     <textarea matInput [ngModel]="setting()" (ngModelChange)="setting.set($event)"
-                        placeholder="Describe the world: era, geography, key concepts, atmosphere..."
+                        [placeholder]="'sidebar.newGame.worldSettingPlaceholder' | translate"
                         rows="3"></textarea>
                 </mat-form-field>
 
 
                 <div style="display:flex; gap:12px; align-items:flex-start">
                     <mat-form-field appearance="outline" style="flex:1 1 auto">
-                        <mat-label>Protagonist Name</mat-label>
+                        <mat-label>{{ 'sidebar.newGame.protagonistNameLabel' | translate }}</mat-label>
                         <input matInput [ngModel]="protagonistName()" (ngModelChange)="protagonistName.set($event)"
-                            placeholder="Character name">
+                            [placeholder]="'sidebar.newGame.characterNamePlaceholder' | translate">
                     </mat-form-field>
                     <mat-form-field appearance="outline" style="flex:0 0 110px">
-                        <mat-label>Gender</mat-label>
+                        <mat-label>{{ 'sidebar.newGame.genderLabel' | translate }}</mat-label>
                         <mat-select [ngModel]="protagonistGender()" (ngModelChange)="protagonistGender.set($event)">
                             <mat-option value="">—</mat-option>
                             @for (opt of genderOptions(); track opt.value) {
@@ -142,29 +142,29 @@
                         </mat-select>
                     </mat-form-field>
                     <mat-form-field appearance="outline" style="flex:0 0 80px">
-                        <mat-label>Age</mat-label>
+                        <mat-label>{{ 'sidebar.newGame.ageLabel' | translate }}</mat-label>
                         <input matInput [ngModel]="protagonistAge()" (ngModelChange)="protagonistAge.set($event)"
-                            placeholder="e.g. 22" type="text">
+                            [placeholder]="'sidebar.newGame.agePlaceholder' | translate" type="text">
                     </mat-form-field>
                 </div>
 
                 <mat-form-field appearance="outline" class="full-width">
-                    <mat-label>Identity / Role</mat-label>
+                    <mat-label>{{ 'sidebar.newGame.identityLabel' | translate }}</mat-label>
                         @if (currentIdentities().length > 0 && !isCustomIdentity()) {
                             <mat-select [ngModel]="protagonistIdentity()" (ngModelChange)="onIdentityChange($event)">
                                 @for (opt of currentIdentities(); track opt.value) {
                                     <mat-option [value]="opt.value">{{ opt.value }}</mat-option>
                                 }
                                 <mat-divider></mat-divider>
-                                <mat-option value="__custom__">✏ Custom...</mat-option>
+                                <mat-option value="__custom__">{{ 'sidebar.newGame.customIdentity' | translate }}</mat-option>
                             </mat-select>
                         } @else {
                             <input matInput [ngModel]="protagonistIdentity()"
                                 (ngModelChange)="protagonistIdentity.set($event)"
-                                placeholder="e.g. 貴族、穿越者、Adventurer">
+                                [placeholder]="'sidebar.newGame.identityPlaceholder' | translate">
                             @if (currentIdentities().length > 0) {
                                 <button matSuffix mat-icon-button (click)="resetToPresetIdentity()"
-                                    matTooltip="Back to preset list" type="button">
+                                    [matTooltip]="'sidebar.newGame.backToPresetTooltip' | translate" type="button">
                                     <mat-icon style="font-size:18px">list</mat-icon>
                                 </button>
                             }
@@ -172,7 +172,7 @@
                     </mat-form-field>
 
                 <div class="field-group">
-                    <span class="field-label">Alignment</span>
+                    <span class="field-label">{{ 'sidebar.newGame.alignmentLabel' | translate }}</span>
                     <div class="alignment-grid">
                         @for (row of alignments(); track row) {
                         @for (cell of row; track cell.id) {
@@ -185,61 +185,61 @@
                         }
                     </div>
                     @if (!protagonistAlignment()) {
-                    <mat-error style="font-size: 0.75em;">Select an alignment</mat-error>
+                    <mat-error style="font-size: 0.75em;">{{ 'sidebar.newGame.selectAlignmentError' | translate }}</mat-error>
                     }
                 </div>
 
                 <mat-form-field appearance="outline" class="full-width">
-                    <mat-label>Background</mat-label>
+                    <mat-label>{{ 'sidebar.newGame.backgroundLabel' | translate }}</mat-label>
                     <textarea matInput [ngModel]="protagonistBackground()"
                         (ngModelChange)="protagonistBackground.set($event)"
-                        placeholder="Who is this person — their history and current situation..."
+                        [placeholder]="'sidebar.newGame.backgroundPlaceholder' | translate"
                         rows="2"></textarea>
                     <mat-icon matSuffix>history_edu</mat-icon>
                 </mat-form-field>
 
                 <mat-form-field appearance="outline" class="full-width">
-                    <mat-label>Interests / Hobbies</mat-label>
+                    <mat-label>{{ 'sidebar.newGame.interestsLabel' | translate }}</mat-label>
                     <input matInput [ngModel]="protagonistInterests()"
                         (ngModelChange)="protagonistInterests.set($event)"
-                        placeholder="e.g. Swordsmanship, herbalism, gambling">
+                        [placeholder]="'sidebar.newGame.interestsPlaceholder' | translate">
                     <mat-icon matSuffix>interests</mat-icon>
                 </mat-form-field>
 
                 <mat-form-field appearance="outline" class="full-width">
-                    <mat-label>Appearance</mat-label>
+                    <mat-label>{{ 'sidebar.newGame.appearanceLabel' | translate }}</mat-label>
                     <textarea matInput [ngModel]="protagonistAppearance()"
                         (ngModelChange)="protagonistAppearance.set($event)"
-                        placeholder="Physical description — build, face, distinctive features..."
+                        [placeholder]="'sidebar.newGame.appearancePlaceholder' | translate"
                         rows="2"></textarea>
                     <mat-icon matSuffix>face</mat-icon>
                 </mat-form-field>
 
                 <mat-form-field appearance="outline" class="full-width">
-                    <mat-label>NPC Preferences (optional)</mat-label>
+                    <mat-label>{{ 'sidebar.newGame.npcPreferencesLabel' | translate }}</mat-label>
                     <textarea matInput [ngModel]="npcPreferences()"
                         (ngModelChange)="npcPreferences.set($event)"
-                        placeholder="Suggest key NPCs — e.g. a romanceable companion, a rival, a mysterious mentor..."
+                        [placeholder]="'sidebar.newGame.npcPreferencesPlaceholder' | translate"
                         rows="2"></textarea>
-                    <mat-hint>The AI will use this to design the 2–3 core supporting characters.</mat-hint>
+                    <mat-hint>{{ 'sidebar.newGame.npcPreferencesHint' | translate }}</mat-hint>
                 </mat-form-field>
 
                 <mat-form-field appearance="outline" class="full-width">
-                    <mat-label>Special Requests (optional)</mat-label>
+                    <mat-label>{{ 'sidebar.newGame.specialRequestsLabel' | translate }}</mat-label>
                     <input matInput [ngModel]="specialRequests()" (ngModelChange)="specialRequests.set($event)"
-                        placeholder="Extra themes or elements to include...">
+                        [placeholder]="'sidebar.newGame.specialRequestsPlaceholder' | translate">
                 </mat-form-field>
 
                 <mat-divider style="margin: 8px 0 12px;"></mat-divider>
 
                 <mat-form-field appearance="outline" class="full-width">
-                    <mat-label>AI Profile for Generation</mat-label>
+                    <mat-label>{{ 'sidebar.newGame.aiProfileLabel' | translate }}</mat-label>
                     <mat-select [ngModel]="generateProfileId()" (ngModelChange)="generateProfileId.set($event)">
                         @for (profile of llmProfiles(); track profile.id) {
                             <mat-option [value]="profile.id">{{ profile.name }}</mat-option>
                         }
                     </mat-select>
-                    <mat-hint>Choose which LLM profile to use for world generation.</mat-hint>
+                    <mat-hint>{{ 'sidebar.newGame.aiProfileHint' | translate }}</mat-hint>
                 </mat-form-field>
             </div>
         </mat-tab>
@@ -259,7 +259,7 @@
             [disabled]="isLoading() || !isCreateWorldValid()"
             style="font-weight: bold;">
             <mat-icon>auto_awesome</mat-icon>
-            Generate World
+            {{ 'sidebar.newGame.generateWorldBtn' | translate }}
         </button>
     }
 </mat-dialog-actions>

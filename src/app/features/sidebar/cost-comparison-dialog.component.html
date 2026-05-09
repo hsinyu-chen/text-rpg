@@ -1,6 +1,6 @@
 <h2 mat-dialog-title>
     <mat-icon>compare_arrows</mat-icon>
-    Model Cost Comparison
+    {{ 'sidebar.costComparison.title' | translate }}
 </h2>
 <mat-dialog-content>
     <div class="model-list">
@@ -9,22 +9,22 @@
                 <div class="model-header">
                     <span class="model-name">{{ info.model.name }}</span>
                     @if (info.isActive) {
-                        <span class="badge">Active</span>
+                        <span class="badge">{{ 'sidebar.costComparison.activeBadge' | translate }}</span>
                     }
                 </div>
                 <div class="cost-row">
-                    <span class="label">Last Turn Cost</span>
+                    <span class="label">{{ 'sidebar.costComparison.lastTurnCostLabel' | translate }}</span>
                     <span class="value">{{ formatCost(info.turnCost) }}</span>
                 </div>
                 <div class="cost-row total">
-                    <span class="label">Session Total Cost</span>
+                    <span class="label">{{ 'sidebar.costComparison.sessionTotalCostLabel' | translate }}</span>
                     <span class="value">{{ formatCost(info.totalCost) }}</span>
                 </div>
             </div>
         }
     </div>
-    <p class="hint">* Inactive models show hypothetical costs as if they were used for the entire session history.</p>
+    <p class="hint">{{ 'sidebar.costComparison.inactiveModelsNote' | translate }}</p>
 </mat-dialog-content>
 <mat-dialog-actions align="end">
-    <button mat-button mat-dialog-close>Close</button>
+    <button mat-button mat-dialog-close>{{ 'sidebar.costComparison.closeBtn' | translate }}</button>
 </mat-dialog-actions>

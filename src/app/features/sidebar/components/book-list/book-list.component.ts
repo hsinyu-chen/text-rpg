@@ -24,6 +24,7 @@ import { firstValueFrom } from 'rxjs';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { I18nService, TranslatePipe } from '@app/core/i18n';
 
 interface BookGroup {
     collection: Collection;
@@ -40,7 +41,8 @@ interface BookGroup {
         MatListModule,
         MatTooltipModule,
         MatDividerModule,
-        MatProgressSpinnerModule
+        MatProgressSpinnerModule,
+        TranslatePipe
     ],
     templateUrl: './book-list.component.html',
     styleUrl: './book-list.component.scss',
@@ -60,6 +62,11 @@ export class BookListComponent {
     syncService = inject(SyncService);
     syncBackends = inject(SyncBackendResolver);
     tombstoneTracker = inject(SyncTombstoneTracker);
+    private i18n = inject(I18nService);
+
+    private t(key: string, params?: Record<string, string | number>): string {
+        return this.i18n.translate(`sidebar.bookList.${key}`, params);
+    }
 
     readonly rootId = ROOT_COLLECTION_ID;
 
@@ -203,16 +210,17 @@ export class BookListComponent {
         event.stopPropagation();
 
         const wasActive = this.isActive(book.id);
-        const confirmMsg = wasActive
-            ? `Delete the ACTIVE book "${book.name}"?\nYou will be switched to another book automatically.`
-            : `Are you sure you want to delete "${book.name}"?\nThis cannot be undone.`;
+        const confirmMsg = this.t(
+            wasActive ? 'deleteActiveBookConfirm' : 'deleteBookConfirm',
+            { name: book.name },
+        );
 
         if (!await this.dialog.confirm(confirmMsg)) return;
 
         this.tombstoneTracker.track('book', book.id);
 
         if (book.stats.kbCacheName) {
-            if (await this.dialog.confirm('This book has an associated Cloud Cache active. Do you want to remove it from the server to avoid costs?')) {
+            if (await this.dialog.confirm(this.t('removeCacheConfirm'))) {
                 // TODO: Implement robust remote cache deletion for specific books
             }
         }
@@ -231,7 +239,7 @@ export class BookListComponent {
 
     async renameBook(book: Book, event: Event) {
         event.stopPropagation();
-        const newName = await this.promptName('Rename Book', book.name);
+        const newName = await this.promptName(this.t('renameBookDialogTitle'), book.name);
         if (newName && newName !== book.name) {
             await this.session.renameBook(book.id, newName);
             await this.loadBooks();
@@ -264,7 +272,7 @@ export class BookListComponent {
 
     private async promptName(title: string, initialName = ''): Promise<string | null> {
         const ref = this.matDialog.open(SaveNameDialogComponent, {
-            data: { title, initialName, placeholder: 'Enter name' } as SaveNameDialogData,
+            data: { title, initialName, placeholder: this.t('promptNamePlaceholder') } as SaveNameDialogData,
             width: '400px'
         });
         const result = await firstValueFrom(ref.afterClosed());
@@ -289,7 +297,7 @@ export class BookListComponent {
     }
 
     async createCollection() {
-        const name = await this.promptName('New Collection');
+        const name = await this.promptName(this.t('newCollectionDialogTitle'));
         if (!name) return;
         const c = await this.collectionService.create(name);
         this.expandedIds.set(new Set([c.id]));
@@ -297,7 +305,7 @@ export class BookListComponent {
 
     async renameCollection(collection: Collection, event: Event) {
         event.stopPropagation();
-        const newName = await this.promptName('Rename Collection', collection.name);
+        const newName = await this.promptName(this.t('renameCollectionDialogTitle'), collection.name);
         if (!newName || newName === collection.name) return;
         try {
             await this.collectionService.rename(collection.id, newName);
@@ -309,7 +317,7 @@ export class BookListComponent {
     async removeCollection(collection: Collection, event: Event) {
         event.stopPropagation();
         try {
-            if (!await this.dialog.confirm(`Delete empty collection "${collection.name}"?`)) return;
+            if (!await this.dialog.confirm(this.t('deleteCollectionConfirm', { name: collection.name }))) return;
             this.tombstoneTracker.track('collection', collection.id);
             await this.collectionService.remove(collection.id);
         } catch (e) {
@@ -318,17 +326,17 @@ export class BookListComponent {
     }
 
     async nukeCaches() {
-        if (await this.dialog.confirm('WARNING: This will delete ALL caches on the server for your API Key. This resolves "Session Expired" issues but resets billing for all books. Continue?')) {
+        if (await this.dialog.confirm(this.t('nukeCachesConfirm'))) {
             const count = await this.session.nukeAllCaches();
             await this.loadBooks();
-            await this.dialog.alert(`Cleared ${count} caches.`);
+            await this.dialog.alert(this.t('nukeCachesSuccess', { count }));
         }
     }
 
     async openAdvancedSyncTools() {
         const backendId = this.syncBackends.activeBackendId();
         if (!this.syncBackends.isReady(backendId)) {
-            await this.dialog.alert('The selected sync backend is not ready. Open Settings to configure it.');
+            await this.dialog.alert(this.t('backendNotReady'));
             return;
         }
         const { AdvancedSyncToolsDialogComponent } = await import(
@@ -348,30 +356,44 @@ export class BookListComponent {
     async syncAllToCloud() {
         const backendId = this.syncBackends.activeBackendId();
         if (!this.syncBackends.isReady(backendId)) {
-            await this.dialog.alert('The selected sync backend is not ready. Open Settings to configure it.');
+            await this.dialog.alert(this.t('backendNotReady'));
             return;
         }
 
-        this.loading.show(`Synchronizing with ${backendId === 's3' ? 'S3' : 'Drive'}...`);
+        const backendLabel = backendId === 's3' ? 'S3' : 'Drive';
+        this.loading.show(this.t('syncingWith', { backend: backendLabel }));
         try {
             const report = await this.syncService.syncAll();
             await this.loadBooks();
-            const summary = `Uploaded: ${report.uploaded}, Downloaded: ${report.downloaded}, Deleted: ${report.deleted}`;
+            const summary = this.t('syncSummaryFormat', {
+                uploaded: report.uploaded,
+                downloaded: report.downloaded,
+                deleted: report.deleted,
+            });
             if (report.errors.length > 0) {
                 console.error('[BookList] Sync finished with errors:', report.errors);
                 const sample = report.errors[0];
                 this.snackBar.open(
-                    `Sync had ${report.errors.length} error${report.errors.length === 1 ? '' : 's'} — see console. ` +
-                    `e.g. ${sample.op} ${sample.resource} ${sample.id.slice(0, 8)}: ${sample.message}. ${summary}`,
-                    'Close',
+                    this.t('syncErrorSample', {
+                        count: report.errors.length,
+                        op: sample.op,
+                        resource: sample.resource,
+                        id: sample.id.slice(0, 8),
+                        message: sample.message,
+                        summary,
+                    }),
+                    this.i18n.translate('ui.CLOSE'),
                     { panelClass: ['snackbar-error'] }
                 );
             } else {
-                this.snackBar.open(`Sync Complete! ${summary}`, 'OK', { duration: 3000 });
+                this.snackBar.open(this.t('syncCompleteSummary', { summary }), this.i18n.translate('ui.CLOSE'), { duration: 3000 });
             }
         } catch (e) {
             console.error('[BookList] Sync failed', e);
-            this.snackBar.open('Sync failed: ' + ((e as { message?: string })?.message || 'Unknown error'), 'Close');
+            this.snackBar.open(
+                this.t('syncFailedSummary', { error: (e as { message?: string })?.message || 'Unknown error' }),
+                this.i18n.translate('ui.CLOSE'),
+            );
         } finally {
             this.loading.hide();
         }

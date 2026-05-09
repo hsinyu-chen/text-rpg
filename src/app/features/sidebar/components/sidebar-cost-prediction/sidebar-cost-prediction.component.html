@@ -1,17 +1,17 @@
 <div class="status-indicator" [class]="state.status()">
     <div class="model-config-info">
         <div class="config-row">
-            <span class="label">Provider:</span>
+            <span class="label">{{ 'sidebar.costPrediction.providerLabel' | translate }}</span>
             <span class="value">{{ activeProviderName() }}</span>
         </div>
         <div class="config-row">
-            <span class="label">Model:</span>
+            <span class="label">{{ 'sidebar.costPrediction.modelLabel' | translate }}</span>
             <span class="value" [matTooltip]="currentModelId()">{{ currentModelId() }}</span>
         </div>
         <div class="config-row">
-            <span class="label">Explicit Cache:</span>
+            <span class="label">{{ 'sidebar.costPrediction.explicitCacheLabel' | translate }}</span>
             <span class="value" [class.enabled]="isCacheEnabled()" [class.disabled]="!isCacheEnabled()">
-                {{ isCacheEnabled() ? 'ON' : 'OFF' }}
+                {{ (isCacheEnabled() ? 'sidebar.costPrediction.cacheOn' : 'sidebar.costPrediction.cacheOff') | translate }}
             </span>
         </div>
     </div>
@@ -27,23 +27,23 @@
         @if (isCacheEnabled() && state.loadedFiles().size > 0 && !state.kbCacheName()) {
         <div class="kb-warning">
             <mat-icon>warning</mat-icon>
-            <span>KB changed. Next send will rebuild cache.</span>
+            <span>{{ 'sidebar.costPrediction.kbChangedWarning' | translate }}</span>
         </div>
         }
         @if (computedLastTurnUsage(); as turn) {
-        <div class="stat-header">LAST TURN</div>
-        <div class="stat-row turn"><span>New:</span> <span class="val">{{ (turn.prompt - turn.cached) |
+        <div class="stat-header">{{ 'sidebar.costPrediction.lastTurnHeader' | translate }}</div>
+        <div class="stat-row turn"><span>{{ 'sidebar.costPrediction.newLabel' | translate }}</span> <span class="val">{{ (turn.prompt - turn.cached) |
                 number }}</span>
         </div>
-        <div class="stat-row turn-cached"><span>Cached:</span> <span class="val">{{ turn.cached | number }}</span>
+        <div class="stat-row turn-cached"><span>{{ 'sidebar.costPrediction.cachedLabel' | translate }}</span> <span class="val">{{ turn.cached | number }}</span>
         </div>
-        <div class="stat-row turn-total"><span>Total Input:</span> <span class="val">{{ turn.prompt | number
+        <div class="stat-row turn-total"><span>{{ 'sidebar.costPrediction.totalInputLabel' | translate }}</span> <span class="val">{{ turn.prompt | number
                 }}</span>
         </div>
-        <div class="stat-row turn"><span>Output:</span> <span class="val">{{ turn.candidates | number }}</span>
+        <div class="stat-row turn"><span>{{ 'sidebar.costPrediction.outputLabel' | translate }}</span> <span class="val">{{ turn.candidates | number }}</span>
         </div>
         <div class="stat-row turn-total">
-            <span>Last Turn Est. Cost:</span>
+            <span>{{ 'sidebar.costPrediction.lastTurnCostLabel' | translate }}</span>
             <span class="val">{{ (lastTurnCost() * displayRate()) |
                 currency:displayCurrency():'symbol-narrow':(displayCurrency() === 'USD' ? '1.4-6' : '1.2-2') }}</span>
         </div>
@@ -52,21 +52,21 @@
 
     @if (activeUsage(); as usage) {
     <div class="token-stats">
-        <div class="stat-header">SESSION TOTAL</div>
-        <div class="stat-row" matTooltip="Number of model responses in this session"><span>Turns:</span> <span
+        <div class="stat-header">{{ 'sidebar.costPrediction.sessionTotalHeader' | translate }}</div>
+        <div class="stat-row" [matTooltip]="'sidebar.costPrediction.turnsTooltip' | translate"><span>{{ 'sidebar.costPrediction.turnsLabel' | translate }}</span> <span
                 class="val">{{ turnCount() }}</span></div>
-        <div class="stat-row" matTooltip="Tokens sent for the first time"><span>New Input:</span> <span class="val">{{
+        <div class="stat-row" [matTooltip]="'sidebar.costPrediction.newInputTooltip' | translate"><span>{{ 'sidebar.costPrediction.newInputLabel' | translate }}</span> <span class="val">{{
                 usage.freshInput | number }}</span></div>
         <div class="stat-row cached"
-            matTooltip="Implicit Caching is WORKING when this is > 0. These are FREE/Discounted tokens.">
-            <span>Cached:</span> <span class="val">{{ usage.cached | number }}</span>
+            [matTooltip]="'sidebar.costPrediction.cachedTooltip' | translate">
+            <span>{{ 'sidebar.costPrediction.cachedLabel' | translate }}</span> <span class="val">{{ usage.cached | number }}</span>
         </div>
-        <div class="stat-row"><span>Output:</span> <span class="val">{{ usage.output | number }}</span></div>
+        <div class="stat-row"><span>{{ 'sidebar.costPrediction.outputLabel' | translate }}</span> <span class="val">{{ usage.output | number }}</span></div>
 
         @if (state.kbCacheName()) {
         <div class="stat-row storage"
-            matTooltip="Real-time cost increment for active context cache. Rate: $1.00 - $4.50/1M/hr">
-            <span>Storage Cost:</span>
+            [matTooltip]="'sidebar.costPrediction.storageCostTooltip' | translate">
+            <span>{{ 'sidebar.costPrediction.storageCostLabel' | translate }}</span>
             <span class="val">{{ (activeStorageCostDisplay() * displayRate()) |
                 currency:displayCurrency():'symbol-narrow':(displayCurrency() === 'USD' ? '1.4-6' : '1.2-2') }}</span>
         </div>
@@ -74,8 +74,8 @@
 
         @if (historyStorageCostDisplay() > 0) {
         <div class="stat-row storage history"
-            matTooltip="Accumulated storage cost from previous/deleted caches in this session.">
-            <span>Hist. Cache Cost:</span>
+            [matTooltip]="'sidebar.costPrediction.histCacheTooltip' | translate">
+            <span>{{ 'sidebar.costPrediction.histCacheCostLabel' | translate }}</span>
             <span class="val">{{ (historyStorageCostDisplay() * displayRate()) |
                 currency:displayCurrency():'symbol-narrow':(displayCurrency() === 'USD' ? '1.4-6' : '1.2-2') }}</span>
         </div>
@@ -83,26 +83,26 @@
 
         @if (state.cacheCountdown()) {
         <div class="stat-row expiry">
-            <span>Cache Expiry:</span>
-            <span class="val" [class.warning]="state.cacheCountdown() === 'EXPIRED'">{{ state.cacheCountdown()
-                }}</span>
+            <span>{{ 'sidebar.costPrediction.cacheExpiryLabel' | translate }}</span>
+            <span class="val" [class.warning]="state.cacheCountdown() === 'EXPIRED'">{{
+                state.cacheCountdown() === 'EXPIRED' ? ('sidebar.costPrediction.expired' | translate) : state.cacheCountdown()
+            }}</span>
         </div>
         }
 
-        <div class="stat-row total" matTooltip="Sum of all tokens processed in this session"><span>Total
-                Sent:</span> <span class="val">{{ usage.total | number }}</span></div>
+        <div class="stat-row total" [matTooltip]="'sidebar.costPrediction.totalSentTooltip' | translate"><span>{{ 'sidebar.costPrediction.totalSentLabel' | translate }}</span> <span class="val">{{ usage.total | number }}</span></div>
         <div class="stat-row cost"
-            [matTooltip]="'Estimated total cost (Transactions + Storage) converted to ' + displayCurrency()">
-            <span>Total Est. Cost({{ displayCurrency() }}):</span>
+            [matTooltip]="'sidebar.costPrediction.totalEstCostTooltip' | translate: { currency: displayCurrency() }">
+            <span>{{ 'sidebar.costPrediction.totalEstCostLabel' | translate: { currency: displayCurrency() } }}</span>
             <span class="val">{{ (totalSessionCost() * displayRate()) |
                 currency:displayCurrency():'symbol-narrow':(displayCurrency() === 'USD' ? '1.4-6' : '1.2-2') }}</span>
         </div>
         <div class="stat-actions">
-            <button mat-icon-button class="action-btn" (click)="openCostComparison()" matTooltip="Compare Model Costs">
+            <button mat-icon-button class="action-btn" (click)="openCostComparison()" [matTooltip]="'sidebar.costPrediction.compareModelsTooltip' | translate">
                 <mat-icon>compare_arrows</mat-icon>
             </button>
             <button mat-icon-button class="action-btn" (click)="copySessionStats()"
-                matTooltip="Copy Stats to Clipboard">
+                [matTooltip]="'sidebar.costPrediction.copyStatsTooltip' | translate">
                 <mat-icon>content_copy</mat-icon>
             </button>
         </div>
