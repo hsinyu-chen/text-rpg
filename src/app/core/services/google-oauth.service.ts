@@ -248,11 +248,10 @@ export class GoogleOAuthService {
     }
 
     /**
-     * Acquire a valid access token: cached if still fresh, refreshed if a
-     * refresh token is available, otherwise interactive login. Public
-     * entry point for both user-initiated sign-in
-     * ({@link GoogleOAuthService.login}) and per-request token reads
-     * ({@link GoogleOAuthService.getValidToken}).
+     * Shared implementation backing {@link GoogleOAuthService.login}
+     * (user-initiated sign-in) and {@link GoogleOAuthService.getValidToken}
+     * (per-request token reads): cached if still fresh, refreshed if a
+     * refresh token is available, otherwise interactive login.
      */
     private ensureValidToken(): Promise<string> {
         if (this.accessToken() && Date.now() < this.tokenExpiry()) {
@@ -322,6 +321,13 @@ export class GoogleOAuthService {
      */
     forceReauthAfter401(): Promise<string> {
         console.warn('[GoogleOAuth] 401 Unauthorized encountered. Retry logic...');
+        // If the cached token is still time-valid AND non-null, a concurrent
+        // acquire already wrote a fresh one — the 401 we saw was the
+        // caller's stale local copy. Return the new token instead of wasting
+        // another IdP round.
+        if (this.accessToken() && Date.now() < this.tokenExpiry()) {
+            return Promise.resolve(this.accessToken()!);
+        }
         // Mark the cached access token dead before joining the in-flight
         // check, so concurrent getValidToken callers see "expired" and queue
         // onto our reauth instead of returning the now-revoked cached value
