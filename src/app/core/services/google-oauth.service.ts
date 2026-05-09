@@ -4,7 +4,7 @@ import { KVStore } from './kv/kv-store';
 import { OAuthTokenStore } from './oauth-token-store';
 import { OAuthFlow, OAuthFlowResult } from './oauth/oauth-flow';
 import { WebGisFlow } from './oauth/web-gis-flow';
-import { TauriPkceFlow, TauriOAuthEndpointError } from './oauth/tauri-pkce-flow';
+import { TauriPkceFlow } from './oauth/tauri-pkce-flow';
 
 interface WindowWithTauri extends Window {
     __TAURI_INTERNALS__?: unknown;
@@ -20,29 +20,6 @@ declare const window: WindowWithTauri;
 // runtime fallback.
 const LS_OAUTH_CLIENT_ID = 'gdrive_oauth_client_id';
 
-/**
- * Classifies a `flow.refresh()` failure so the orchestrator can decide
- * whether to clear cached tokens. Misclassifying transient errors as
- * fatal would log the user out on a network blip; misclassifying a
- * declined popup as transient would loop forever.
- */
-type RefreshErrorClass = 'declined' | 'invalid' | 'transient';
-
-function classifyRefreshError(error: unknown): RefreshErrorClass {
-    if (!error || typeof error !== 'object') return 'transient';
-    // GIS popup error: callback receives a TokenResponse with .error field.
-    const gisError = (error as { error?: string }).error;
-    if (gisError === 'popup_closed_by_user' || gisError === 'access_denied') {
-        return 'declined';
-    }
-    // Tauri token endpoint error: structured errorCode field carries
-    // Google's `error` value verbatim (e.g. `invalid_grant` when the saved
-    // refresh token is no longer valid).
-    if (error instanceof TauriOAuthEndpointError && error.errorCode === 'invalid_grant') {
-        return 'invalid';
-    }
-    return 'transient';
-}
 
 /**
  * Owns the Google OAuth lifecycle: credential resolution (env vs runtime
@@ -218,7 +195,12 @@ export class GoogleOAuthService {
             await this.memoizeAuth(() => this.acquireToken());
             console.log('[GoogleOAuth] Proactive refresh successful');
         } catch (e) {
-            if (classifyRefreshError(e) === 'declined') this.clearTokens();
+            // Defensive duplication: acquireToken's Tauri fallback already
+            // clears on invalid before calling flow.login(), so the catch
+            // here usually only sees declined/transient. Including invalid
+            // anyway costs nothing and makes the intent explicit.
+            const cls = this.flow.classifyError(e);
+            if (cls === 'declined' || cls === 'invalid') this.clearTokens();
             console.warn('[GoogleOAuth] Proactive refresh failed. Will wait for manual interaction.', e);
         }
     }
@@ -280,7 +262,7 @@ export class GoogleOAuthService {
             try {
                 return this.applyResult(await this.flow.refresh(this.refreshToken()));
             } catch (e) {
-                if (classifyRefreshError(e) === 'declined') this.clearTokens();
+                if (this.flow.classifyError(e) === 'declined') this.clearTokens();
                 throw e;
             }
         }
@@ -292,7 +274,7 @@ export class GoogleOAuthService {
                 console.log('[GoogleOAuth] Access token expired, refreshing...');
                 return this.applyResult(await this.flow.refresh(this.refreshToken()));
             } catch (e) {
-                if (classifyRefreshError(e) === 'transient') {
+                if (this.flow.classifyError(e) === 'transient') {
                     console.warn('[GoogleOAuth] Transient refresh error, preserving state for retry:', e);
                     throw e;
                 }

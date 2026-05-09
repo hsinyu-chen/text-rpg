@@ -14,11 +14,26 @@ export interface OAuthFlowResult {
 }
 
 /**
+ * Classification of a `flow.refresh()` failure that decides whether
+ * the orchestrator should clear cached tokens. Each flow knows its
+ * own error shapes and maps them via {@link OAuthFlow.classifyError}.
+ *
+ * - `declined`: user explicitly rejected (closed popup, denied consent).
+ *   State should be cleared so the UI reflects logged-out.
+ * - `invalid`: Google said the saved refresh token is bad. Token must
+ *   be cleared; on Tauri the orchestrator may try interactive PKCE next.
+ * - `transient`: network failure, 5xx, GIS script not loaded yet.
+ *   State should be preserved so a later retry can succeed.
+ */
+export type RefreshErrorClass = 'declined' | 'invalid' | 'transient';
+
+/**
  * Strategy interface for the two Google OAuth flows TextRPG supports:
  * Web (GIS popup, no refresh token) and Tauri (PKCE + refresh token).
  *
- * Implementations own only the IdP interaction. Token persistence,
- * expiry bookkeeping, and refresh scheduling stay in
+ * Implementations own only the IdP interaction and the mapping from
+ * their own error shapes to {@link RefreshErrorClass}. Token
+ * persistence, expiry bookkeeping, and refresh scheduling stay in
  * {@link GoogleOAuthService}.
  */
 export interface OAuthFlow {
@@ -46,6 +61,14 @@ export interface OAuthFlow {
      * double-popup.
      */
     readonly refreshIncludesInteractive: boolean;
+
+    /**
+     * Classifies an error thrown by {@link login} or {@link refresh}
+     * into a category the orchestrator can act on without inspecting
+     * IdP-specific error shapes. Unknown errors map to `transient` so
+     * the safe default (preserve state, retry later) wins.
+     */
+    classifyError(error: unknown): RefreshErrorClass;
 }
 
 /**

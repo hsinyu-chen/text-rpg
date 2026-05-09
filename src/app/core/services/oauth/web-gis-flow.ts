@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { DOCUMENT } from '@angular/common';
 import { OAuthTokenStore } from '../oauth-token-store';
-import { OAuthFlow, OAuthFlowResult, OAUTH_SCOPE } from './oauth-flow';
+import { OAuthFlow, OAuthFlowResult, RefreshErrorClass, OAUTH_SCOPE } from './oauth-flow';
 
 interface TokenResponse {
     access_token: string;
@@ -90,6 +90,18 @@ export class WebGisFlow implements OAuthFlow {
 
     refresh(): Promise<OAuthFlowResult> {
         return this.requestToken(false);
+    }
+
+    classifyError(error: unknown): RefreshErrorClass {
+        // GIS callback delivers a TokenResponse-shaped object whose `.error`
+        // field carries the rejection reason. Web has no refresh-token grant,
+        // so there's no `invalid` category — just declined or transient.
+        if (!error || typeof error !== 'object') return 'transient';
+        const gisError = (error as { error?: string }).error;
+        if (gisError === 'popup_closed_by_user' || gisError === 'access_denied') {
+            return 'declined';
+        }
+        return 'transient';
     }
 
     private loadScripts(): void {

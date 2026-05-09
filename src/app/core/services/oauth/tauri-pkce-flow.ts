@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { environment } from '../../../../environments/environment';
-import { OAuthFlow, OAuthFlowResult, OAUTH_SCOPE } from './oauth-flow';
+import { OAuthFlow, OAuthFlowResult, RefreshErrorClass, OAUTH_SCOPE } from './oauth-flow';
 
 /**
  * Thrown by {@link TauriPkceFlow}'s token-endpoint POSTs (refresh,
@@ -48,6 +48,19 @@ async function generateCodeChallenge(verifier: string): Promise<string> {
 @Injectable({ providedIn: 'root' })
 export class TauriPkceFlow implements OAuthFlow {
     readonly refreshIncludesInteractive = false;
+
+    classifyError(error: unknown): RefreshErrorClass {
+        // TauriOAuthEndpointError carries Google's `error` field as a
+        // structured property. invalid_grant means the saved refresh token
+        // is dead; access_denied means the user clicked "Deny" on the
+        // consent screen. Anything else (network failure, plain Error
+        // wrappers, OAuth Timeout) maps to transient so we preserve state.
+        if (error instanceof TauriOAuthEndpointError) {
+            if (error.errorCode === 'invalid_grant') return 'invalid';
+            if (error.errorCode === 'access_denied') return 'declined';
+        }
+        return 'transient';
+    }
 
     async login(): Promise<OAuthFlowResult> {
         const { invoke } = await import('@tauri-apps/api/core');
