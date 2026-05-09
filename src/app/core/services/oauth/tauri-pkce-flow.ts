@@ -158,6 +158,11 @@ export class TauriPkceFlow implements OAuthFlow {
             ]);
         } catch (err) {
             cleanup();
+            // Settle the internal promise explicitly so it doesn't sit
+            // unresolved if any future code adds observers — the function
+            // already returns a rejected promise via throw, but a settled
+            // codePromise is cleaner.
+            rejectCode(err);
             throw err;
         }
 
