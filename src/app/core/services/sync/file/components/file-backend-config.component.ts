@@ -1,5 +1,4 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -12,7 +11,7 @@ import {
 @Component({
     selector: 'app-file-backend-config',
     standalone: true,
-    imports: [CommonModule, MatButtonModule, MatIconModule],
+    imports: [MatButtonModule, MatIconModule],
     templateUrl: './file-backend-config.component.html',
     styleUrl: './file-backend-config.component.scss',
     changeDetection: ChangeDetectionStrategy.OnPush

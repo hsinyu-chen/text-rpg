@@ -6,7 +6,6 @@ import { MatSidenavModule } from '@angular/material/sidenav';
 import { BreakpointObserver } from '@angular/cdk/layout';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { map } from 'rxjs';
-import { CommonModule } from '@angular/common';
 import { GameEngineService } from '@app/core/services/game-engine.service';
 import { GameStateService } from '@app/core/services/game-state.service';
 import { ChatMessage } from '@app/core/models/types';
@@ -20,7 +19,6 @@ import { TranslatePipe } from '@app/core/i18n';
     selector: 'app-chat',
     standalone: true,
     imports: [
-        CommonModule,
         MatButtonModule,
         MatIconModule,
         MatProgressSpinnerModule,

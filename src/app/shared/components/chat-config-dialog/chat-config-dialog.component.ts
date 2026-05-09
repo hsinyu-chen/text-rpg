@@ -1,14 +1,11 @@
 import { Component, inject, signal, computed, viewChild } from '@angular/core';
 import { WINDOW } from '@app/core/tokens/window.token';
-import { CommonModule } from '@angular/common';
 import { MatDialogModule, MatDialogRef, MatDialog } from '@angular/material/dialog';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
 import { MatListModule } from '@angular/material/list';
-import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSelectModule } from '@angular/material/select';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatDividerModule } from '@angular/material/divider';
+import { CORE_MAT } from '@app/shared/material/material-groups';
 import { FormsModule } from '@angular/forms';
 import { MonacoEditorComponent } from '../monaco-editor/monaco-editor.component';
 import { GameStateService } from '@app/core/services/game-state.service';
@@ -41,12 +38,9 @@ interface PromptCategory {
     selector: 'app-chat-config-dialog',
     standalone: true,
     imports: [
-        CommonModule,
+        ...CORE_MAT,
         MatDialogModule,
-        MatButtonModule,
-        MatIconModule,
         MatListModule,
-        MatTooltipModule,
         MatSelectModule,
         MatMenuModule,
         MatDividerModule,

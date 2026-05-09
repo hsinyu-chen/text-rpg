@@ -1,5 +1,5 @@
 import { Component, computed, inject, input, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { DecimalPipe } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
@@ -24,7 +24,7 @@ import { TranslatePipe } from '@app/core/i18n';
 @Component({
     selector: 'app-context-usage-bar',
     standalone: true,
-    imports: [CommonModule, MatIconModule, MatTooltipModule, TranslatePipe],
+    imports: [MatIconModule, MatTooltipModule, DecimalPipe, TranslatePipe],
     templateUrl: './context-usage-bar.component.html',
     styleUrl: './context-usage-bar.component.scss',
     // Variant becomes a host class so the host element itself can `flex: 1`

@@ -1,5 +1,4 @@
 import { Component, inject, computed } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -20,7 +19,7 @@ interface ModelCostInfo {
 @Component({
     selector: 'app-cost-comparison-dialog',
     standalone: true,
-    imports: [CommonModule, MatDialogModule, MatButtonModule, MatIconModule, TranslatePipe],
+    imports: [MatDialogModule, MatButtonModule, MatIconModule, TranslatePipe],
     templateUrl: './cost-comparison-dialog.component.html',
     styleUrl: './cost-comparison-dialog.component.scss'
 })

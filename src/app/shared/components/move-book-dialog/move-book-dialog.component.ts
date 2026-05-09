@@ -1,5 +1,4 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -18,7 +17,6 @@ export interface MoveBookDialogData {
     selector: 'app-move-book-dialog',
     standalone: true,
     imports: [
-        CommonModule,
         FormsModule,
         MatDialogModule,
         MatButtonModule,

@@ -1,6 +1,5 @@
 import { ChangeDetectionStrategy, Component, WritableSignal, afterNextRender, computed, inject, signal } from '@angular/core';
 import { Clipboard } from '@angular/cdk/clipboard';
-import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -29,7 +28,6 @@ interface DisplayEntry extends RemoteEntry {
     selector: 'app-s3-file-viewer-dialog',
     standalone: true,
     imports: [
-        CommonModule,
         FormsModule,
         MatDialogModule,
         MatButtonModule,

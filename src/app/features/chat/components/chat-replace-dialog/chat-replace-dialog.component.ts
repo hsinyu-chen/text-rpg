@@ -1,15 +1,9 @@
 import { Component, inject, signal, computed, resource } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatInputModule } from '@angular/material/input';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatSelectModule } from '@angular/material/select';
-import { MatTooltipModule } from '@angular/material/tooltip';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatDialogRef } from '@angular/material/dialog';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { CORE_MAT, DIALOG_MAT, FORM_MAT } from '@app/shared/material/material-groups';
 import { GameStateService } from '@app/core/services/game-state.service';
 import { GameEngineService } from '@app/core/services/game-engine.service';
 import { ChatHistoryService } from '@app/core/services/chat-history.service';
@@ -34,17 +28,11 @@ export interface ChatMatch {
     selector: 'app-chat-replace-dialog',
     standalone: true,
     imports: [
-        CommonModule,
-        FormsModule,
-        MatDialogModule,
-        MatButtonModule,
-        MatIconModule,
-        MatInputModule,
-        MatFormFieldModule,
-        MatSelectModule,
-        MatTooltipModule,
+        ...CORE_MAT,
+        ...DIALOG_MAT,
+        ...FORM_MAT,
         MatProgressSpinnerModule,
-        MatSnackBarModule,
+        FormsModule,
         TranslatePipe
     ],
     templateUrl: './chat-replace-dialog.component.html',

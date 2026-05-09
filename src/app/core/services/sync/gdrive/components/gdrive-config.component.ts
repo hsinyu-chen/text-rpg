@@ -1,7 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { Clipboard } from '@angular/cdk/clipboard';
 import { WINDOW } from '@app/core/tokens/window.token';
-import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -14,7 +13,6 @@ import { GoogleOAuthService } from '@app/core/services/google-oauth.service';
     selector: 'app-gdrive-config',
     standalone: true,
     imports: [
-        CommonModule,
         FormsModule,
         MatButtonModule,
         MatIconModule,

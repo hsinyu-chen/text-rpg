@@ -1,11 +1,9 @@
 import { Component, inject, computed } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { CurrencyPipe, DecimalPipe, UpperCasePipe } from '@angular/common';
 import { Clipboard } from '@angular/cdk/clipboard';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { CORE_MAT } from '@app/shared/material/material-groups';
 
 import { GameEngineService } from '@app/core/services/game-engine.service';
 import { GameStateService } from '@app/core/services/game-state.service';
@@ -18,7 +16,7 @@ import { I18nService, TranslatePipe } from '@app/core/i18n';
 @Component({
     selector: 'app-sidebar-cost-prediction',
     standalone: true,
-    imports: [CommonModule, MatButtonModule, MatIconModule, MatTooltipModule, ContextUsageBarComponent, TranslatePipe],
+    imports: [...CORE_MAT, CurrencyPipe, DecimalPipe, UpperCasePipe, ContextUsageBarComponent, TranslatePipe],
     templateUrl: './sidebar-cost-prediction.component.html',
     styleUrl: './sidebar-cost-prediction.component.scss'
 })

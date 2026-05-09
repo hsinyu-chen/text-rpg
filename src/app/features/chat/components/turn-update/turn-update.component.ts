@@ -1,23 +1,17 @@
 import { Component, inject, ChangeDetectionStrategy, input, linkedSignal } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatTooltipModule } from '@angular/material/tooltip';
 import { MessageStateService } from '../chat-message/message-state.service';
 import { AutofocusSelectDirective } from '@app/shared/directives/autofocus-select.directive';
 import { ChatMessage } from '@app/core/models/types';
 import { TranslatePipe } from '@app/core/i18n';
+import { CORE_MAT } from '@app/shared/material/material-groups';
 
 @Component({
     selector: 'app-turn-update',
     standalone: true,
     imports: [
-        CommonModule,
+        ...CORE_MAT,
         FormsModule,
-        MatButtonModule,
-        MatIconModule,
-        MatTooltipModule,
         AutofocusSelectDirective,
         TranslatePipe
     ],

@@ -1,12 +1,9 @@
 import { Component, ChangeDetectionStrategy, inject, computed } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatSelectModule } from '@angular/material/select';
-import { MatIconModule } from '@angular/material/icon';
-import { MatButtonModule } from '@angular/material/button';
-import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialog } from '@angular/material/dialog';
+import { CORE_MAT } from '@app/shared/material/material-groups';
 import { LLMProviderRegistryService } from '@app/core/services/llm-provider-registry.service';
 import { LLMConfigService } from '@app/core/services/llm-config.service';
 import { GameStateService } from '@app/core/services/game-state.service';
@@ -23,13 +20,10 @@ import { TranslatePipe } from '@app/core/i18n';
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    CommonModule,
-    FormsModule,
+    ...CORE_MAT,
     MatFormFieldModule,
     MatSelectModule,
-    MatIconModule,
-    MatButtonModule,
-    MatTooltipModule,
+    FormsModule,
     TranslatePipe
   ],
   templateUrl: './sidebar-provider-selector.component.html',

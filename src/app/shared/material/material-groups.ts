@@ -1,0 +1,20 @@
+import { MatButtonModule } from '@angular/material/button';
+import { MatIconModule } from '@angular/material/icon';
+import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatDialogModule } from '@angular/material/dialog';
+import { MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatFormFieldModule } from '@angular/material/form-field';
+import { MatInputModule } from '@angular/material/input';
+import { MatSelectModule } from '@angular/material/select';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { MatTabsModule } from '@angular/material/tabs';
+import { MatDividerModule } from '@angular/material/divider';
+import { MatListModule } from '@angular/material/list';
+import { MatMenuModule } from '@angular/material/menu';
+
+export const CORE_MAT = [MatButtonModule, MatIconModule, MatTooltipModule] as const;
+export const DIALOG_MAT = [MatDialogModule, MatSnackBarModule] as const;
+export const FORM_MAT = [MatFormFieldModule, MatInputModule, MatSelectModule] as const;
+export const PROGRESS_MAT = [MatProgressSpinnerModule, MatProgressBarModule] as const;
+export const NAV_MAT = [MatTabsModule, MatDividerModule, MatListModule, MatMenuModule] as const;

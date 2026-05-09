@@ -1,10 +1,8 @@
 import { Component, inject } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
+import { DecimalPipe, TitleCasePipe } from '@angular/common';
 import { MatDividerModule } from '@angular/material/divider';
-import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { CORE_MAT } from '@app/shared/material/material-groups';
 import { NewGameDialogComponent } from '../new-game-dialog/new-game-dialog.component';
 import { CreateSceneDialogComponent } from '../create-scene-dialog/create-scene-dialog.component';
 
@@ -24,7 +22,7 @@ import { I18nService, TranslatePipe } from '@app/core/i18n';
 @Component({
     selector: 'app-sidebar-context-controls',
     standalone: true,
-    imports: [CommonModule, MatButtonModule, MatIconModule, MatDividerModule, MatTooltipModule, MatDialogModule, TranslatePipe],
+    imports: [...CORE_MAT, MatDividerModule, MatDialogModule, DecimalPipe, TitleCasePipe, TranslatePipe],
     templateUrl: './sidebar-context-controls.component.html',
     styleUrl: './sidebar-context-controls.component.scss'
 })

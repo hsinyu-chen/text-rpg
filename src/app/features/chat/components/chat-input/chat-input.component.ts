@@ -1,16 +1,11 @@
 import { Component, model, ChangeDetectionStrategy, inject, output, viewChild, ElementRef, computed } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { CommonModule, DOCUMENT } from '@angular/common';
+import { DOCUMENT } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatInputModule } from '@angular/material/input';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatTooltipModule } from '@angular/material/tooltip';
-import { MatSelectModule } from '@angular/material/select';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatBadgeModule } from '@angular/material/badge';
 import { TextFieldModule } from '@angular/cdk/text-field';
+import { CORE_MAT, FORM_MAT } from '@app/shared/material/material-groups';
 import { GAME_INTENTS, STORY_INTENTS } from '@app/core/constants/game-intents';
 import { GameEngineService } from '@app/core/services/game-engine.service';
 import { GameStateService } from '@app/core/services/game-state.service';
@@ -34,17 +29,12 @@ import { ContextUsageBarComponent } from '@app/shared/components/context-usage-b
     selector: 'app-chat-input',
     standalone: true,
     imports: [
-        CommonModule,
-        FormsModule,
-        MatButtonModule,
-        MatIconModule,
-        MatInputModule,
-        MatFormFieldModule,
-        MatTooltipModule,
-        MatSelectModule,
+        ...CORE_MAT,
+        ...FORM_MAT,
         MatMenuModule,
-        TextFieldModule,
         MatBadgeModule,
+        FormsModule,
+        TextFieldModule,
         ContextUsageBarComponent,
         TranslatePipe
     ],

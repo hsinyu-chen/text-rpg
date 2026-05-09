@@ -1,5 +1,4 @@
 import { Component, inject, signal, computed, WritableSignal } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { MatDialogModule, MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
@@ -32,7 +31,6 @@ export interface SyncDialogData {
     selector: 'app-sync-dialog',
     standalone: true,
     imports: [
-        CommonModule,
         MatDialogModule,
         MatButtonModule,
         MatCheckboxModule,

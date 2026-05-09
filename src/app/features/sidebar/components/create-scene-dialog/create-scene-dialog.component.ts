@@ -1,20 +1,13 @@
 import { Component, ChangeDetectionStrategy, computed, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { DecimalPipe, TitleCasePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
-import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
-import { MatSelectModule } from '@angular/material/select';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatDialogRef } from '@angular/material/dialog';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDividerModule } from '@angular/material/divider';
+import { CORE_MAT, DIALOG_MAT, FORM_MAT, PROGRESS_MAT } from '@app/shared/material/material-groups';
 import type { LLMContent } from '@hcs/llm-core';
 
 import { GameStateService } from '@app/core/services/game-state.service';
@@ -68,20 +61,15 @@ const EXTRACTION_SCHEMA = {
     selector: 'app-create-scene-dialog',
     standalone: true,
     imports: [
-        CommonModule,
-        FormsModule,
-        MatDialogModule,
-        MatButtonModule,
-        MatIconModule,
-        MatFormFieldModule,
-        MatInputModule,
-        MatSelectModule,
-        MatProgressBarModule,
-        MatProgressSpinnerModule,
-        MatSnackBarModule,
-        MatTooltipModule,
+        ...CORE_MAT,
+        ...DIALOG_MAT,
+        ...FORM_MAT,
+        ...PROGRESS_MAT,
         MatCheckboxModule,
         MatDividerModule,
+        FormsModule,
+        DecimalPipe,
+        TitleCasePipe,
         MonacoEditorComponent,
         TranslatePipe
     ],

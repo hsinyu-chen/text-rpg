@@ -1,17 +1,14 @@
 import { Component, inject, signal, computed, isDevMode } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatInputModule } from '@angular/material/input';
 import { MatButtonModule } from '@angular/material/button';
-import { MatSelectModule } from '@angular/material/select';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatIconModule } from '@angular/material/icon';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSliderModule } from '@angular/material/slider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { FORM_MAT } from '@app/shared/material/material-groups';
 import { GameEngineService } from '@app/core/services/game-engine.service';
 import { GameStateService } from '@app/core/services/game-state.service';
 import { AppConfigStore } from '@app/core/services/app-config-store';
@@ -28,19 +25,16 @@ import { BridgeService } from '@app/core/services/dev/bridge.service';
   selector: 'app-settings-dialog',
   standalone: true,
   imports: [
-    CommonModule,
-    FormsModule,
+    ...FORM_MAT,
     MatButtonModule,
-    MatFormFieldModule,
-    MatInputModule,
     MatIconModule,
     MatDialogModule,
-    MatSelectModule,
     MatSlideToggleModule,
     MatTabsModule,
     MatExpansionModule,
     MatSliderModule,
     MatProgressSpinnerModule,
+    FormsModule,
     TranslatePipe
   ],
   templateUrl: './settings-dialog.component.html',

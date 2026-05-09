@@ -1,10 +1,8 @@
 import { Component, inject, signal, output, computed, linkedSignal } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
+import { DatePipe } from '@angular/common';
 import { MatListModule } from '@angular/material/list';
-import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialog } from '@angular/material/dialog';
+import { CORE_MAT } from '@app/shared/material/material-groups';
 import { SessionService } from '@app/core/services/session.service';
 import { BookRepository } from '@app/core/services/storage/book.repository';
 import { GameEngineService } from '@app/core/services/game-engine.service';
@@ -35,13 +33,11 @@ interface BookGroup {
     selector: 'app-book-list',
     standalone: true,
     imports: [
-        CommonModule,
-        MatButtonModule,
-        MatIconModule,
+        ...CORE_MAT,
         MatListModule,
-        MatTooltipModule,
         MatDividerModule,
         MatProgressSpinnerModule,
+        DatePipe,
         TranslatePipe
     ],
     templateUrl: './book-list.component.html',

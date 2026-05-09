@@ -1,12 +1,9 @@
 import { Component, effect, inject, signal, viewChild, computed } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { MatDialogModule, MAT_DIALOG_DATA, MatDialogRef, MatDialog } from '@angular/material/dialog';
-import { MatButtonModule } from '@angular/material/button';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatTabsModule } from '@angular/material/tabs';
-import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatTooltipModule } from '@angular/material/tooltip';
 import { TextFieldModule } from '@angular/cdk/text-field';
 import { DragDropModule } from '@angular/cdk/drag-drop';
 import { FormsModule } from '@angular/forms';
@@ -15,7 +12,7 @@ import { MonacoEditorComponent } from '../monaco-editor/monaco-editor.component'
 import { FileUpdate } from '@app/core/services/file-update.service';
 import { GameEngineService } from '@app/core/services/game-engine.service';
 import { AppConfigStore } from '@app/core/services/app-config-store';
-import { CommonModule } from '@angular/common';
+import { CORE_MAT } from '@app/shared/material/material-groups';
 import { CacheManagerService } from '@app/core/services/cache-manager.service';
 import { ConfirmDialogComponent, ConfirmDialogData } from '../confirm-dialog/confirm-dialog.component';
 import { GAME_INTENTS } from '@app/core/constants/game-intents';
@@ -28,14 +25,11 @@ import { buildRegenerateSavePrompt } from './regenerate-save.util';
   selector: 'app-auto-update-dialog',
   standalone: true,
   imports: [
-    CommonModule,
+    ...CORE_MAT,
     MatDialogModule,
-    MatButtonModule,
     MatCheckboxModule,
     MatTabsModule,
-    MatIconModule,
     MatProgressSpinnerModule,
-    MatTooltipModule,
     TextFieldModule,
     DragDropModule,
     FormsModule,

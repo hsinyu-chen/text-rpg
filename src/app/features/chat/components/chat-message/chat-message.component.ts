@@ -1,18 +1,14 @@
 import { Component, input, output, ChangeDetectionStrategy, inject, effect } from '@angular/core';
-import { CommonModule } from '@angular/common';
+import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatTooltipModule } from '@angular/material/tooltip';
 import { MarkdownModule } from 'ngx-markdown';
 import { TextFieldModule } from '@angular/cdk/text-field';
 import { ContentSanitizerPipe } from '@app/shared/pipes/content-sanitizer.pipe';
 import { WrapSaveXmlPipe } from '@app/shared/pipes/wrap-save-xml.pipe';
 import { ChatMessage } from '@app/core/models/types';
-import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatProgressBarModule } from '@angular/material/progress-bar';
+import { CORE_MAT, PROGRESS_MAT } from '@app/shared/material/material-groups';
 import { MessageStateService } from './message-state.service';
 import { GameEngineService } from '@app/core/services/game-engine.service';
 import { GameStateService } from '@app/core/services/game-state.service';
@@ -28,19 +24,17 @@ import { KATEX_DELIMITERS, hasKatexDelimiters } from '@app/core/utils/latex.util
     selector: 'app-chat-message',
     standalone: true,
     imports: [
-        CommonModule,
-        FormsModule,
-        MatButtonModule,
-        MatIconModule,
+        ...CORE_MAT,
+        ...PROGRESS_MAT,
         MatInputModule,
         MatFormFieldModule,
-        MatTooltipModule,
+        FormsModule,
+        NgTemplateOutlet,
+        DecimalPipe,
         MarkdownModule,
         TextFieldModule,
         ContentSanitizerPipe,
         WrapSaveXmlPipe,
-        MatProgressSpinnerModule,
-        MatProgressBarModule,
         TurnUpdateComponent,
         TranslatePipe
     ],

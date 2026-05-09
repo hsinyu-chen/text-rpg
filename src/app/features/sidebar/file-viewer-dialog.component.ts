@@ -1,14 +1,11 @@
 import { Component, inject, signal, computed, viewChild, effect, OnDestroy } from '@angular/core';
 import { WINDOW } from '@app/core/tokens/window.token';
-import { CommonModule } from '@angular/common';
 import { firstValueFrom } from 'rxjs';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
 import { MatListModule } from '@angular/material/list';
-import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatInputModule } from '@angular/material/input';
 import { MatFormFieldModule } from '@angular/material/form-field';
+import { CORE_MAT } from '@app/shared/material/material-groups';
 import { FormsModule } from '@angular/forms';
 import { MonacoEditorComponent } from '@app/shared/components/monaco-editor/monaco-editor.component';
 import { GameEngineService } from '@app/core/services/game-engine.service';
@@ -56,12 +53,9 @@ export interface MarkdownHeader {
   selector: 'app-file-viewer-dialog',
   standalone: true,
   imports: [
-    CommonModule,
+    ...CORE_MAT,
     MatDialogModule,
-    MatButtonModule,
-    MatIconModule,
     MatListModule,
-    MatTooltipModule,
     MatInputModule,
     MatFormFieldModule,
     FormsModule,

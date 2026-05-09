@@ -1,20 +1,14 @@
 import { Component, inject, computed, output, viewChild, ElementRef, input, effect } from '@angular/core';
-import { CommonModule } from '@angular/common';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatTooltipModule } from '@angular/material/tooltip';
 import { GameEngineService } from '@app/core/services/game-engine.service';
 import { GameStateService } from '@app/core/services/game-state.service';
 import { TranslatePipe } from '@app/core/i18n';
+import { CORE_MAT } from '@app/shared/material/material-groups';
 
 @Component({
     selector: 'app-turn-update-panel',
     standalone: true,
     imports: [
-        CommonModule,
-        MatButtonModule,
-        MatIconModule,
-        MatTooltipModule,
+        ...CORE_MAT,
         TranslatePipe
     ],
     templateUrl: './turn-update-panel.component.html',

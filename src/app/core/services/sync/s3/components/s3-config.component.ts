@@ -1,13 +1,10 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatTooltipModule } from '@angular/material/tooltip';
+import { CORE_MAT } from '@app/shared/material/material-groups';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatDialog } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
@@ -26,15 +23,12 @@ import { S3FileViewerDialogComponent } from './s3-file-viewer-dialog.component';
     selector: 'app-s3-config',
     standalone: true,
     imports: [
-        CommonModule,
-        FormsModule,
+        ...CORE_MAT,
         MatFormFieldModule,
         MatInputModule,
-        MatButtonModule,
-        MatIconModule,
         MatSlideToggleModule,
         MatProgressSpinnerModule,
-        MatTooltipModule
+        FormsModule
     ],
     templateUrl: './s3-config.component.html',
     styleUrl: './s3-config.component.scss',

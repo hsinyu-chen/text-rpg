@@ -1,5 +1,4 @@
 import { Component, inject, signal, computed, effect, viewChild } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
@@ -37,7 +36,6 @@ import { I18nService, TranslatePipe } from './core/i18n';
   selector: 'app-root',
   standalone: true,
   imports: [
-    CommonModule,
     MatSidenavModule,
     MatIconModule,
     MatButtonModule,

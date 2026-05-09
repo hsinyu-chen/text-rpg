@@ -1,5 +1,4 @@
 import { Component, ElementRef, inject, afterNextRender, DestroyRef, viewChild } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { MonacoLoaderService } from '@app/core/services/monaco-loader.service';
 import { IdleService } from '@app/core/services/idle.service';
 import { MatButtonModule } from '@angular/material/button';
@@ -175,7 +174,7 @@ fn main() {
 @Component({
   selector: 'app-code-screensaver',
   standalone: true,
-  imports: [CommonModule, MatButtonModule, MatIconModule, TranslatePipe],
+  imports: [MatButtonModule, MatIconModule, TranslatePipe],
   templateUrl: './code-screensaver.component.html',
   styleUrl: './code-screensaver.component.scss'
 })

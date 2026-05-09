@@ -1,13 +1,11 @@
 import { Component, inject, signal } from '@angular/core';
-import { CommonModule, DatePipe } from '@angular/common';
+import { DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatTabsModule } from '@angular/material/tabs';
-import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
 import { MatTableModule } from '@angular/material/table';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatTooltipModule } from '@angular/material/tooltip';
+import { CORE_MAT } from '@app/shared/material/material-groups';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { firstValueFrom } from 'rxjs';
 
@@ -25,16 +23,13 @@ import { I18nService, TranslatePipe } from '@app/core/i18n';
     selector: 'app-advanced-sync-tools-dialog',
     standalone: true,
     imports: [
-        CommonModule,
-        FormsModule,
-        DatePipe,
+        ...CORE_MAT,
         MatDialogModule,
         MatTabsModule,
-        MatButtonModule,
-        MatIconModule,
         MatTableModule,
         MatProgressSpinnerModule,
-        MatTooltipModule,
+        FormsModule,
+        DatePipe,
         TranslatePipe
     ],
     templateUrl: './advanced-sync-tools-dialog.component.html',

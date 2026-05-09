@@ -1,5 +1,4 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { Clipboard } from '@angular/cdk/clipboard';
 import { FormsModule } from '@angular/forms';
 import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
@@ -21,7 +20,6 @@ export interface S3ConfigJsonDialogData {
     selector: 'app-s3-config-json-dialog',
     standalone: true,
     imports: [
-        CommonModule,
         FormsModule,
         MatDialogModule,
         MatButtonModule,

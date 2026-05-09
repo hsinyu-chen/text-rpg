@@ -1,18 +1,12 @@
 import { Component, computed, inject, signal } from '@angular/core';
-import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
-import { MatButtonModule } from '@angular/material/button';
-import { MatInputModule } from '@angular/material/input';
-import { MatFormFieldModule } from '@angular/material/form-field';
-import { MatIconModule } from '@angular/material/icon';
-import { MatSelectModule } from '@angular/material/select';
+import { MatDialogRef } from '@angular/material/dialog';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { MatSnackBarModule, MatSnackBar } from '@angular/material/snack-bar';
-import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatDialog } from '@angular/material/dialog';
+import { CORE_MAT, DIALOG_MAT, FORM_MAT } from '@app/shared/material/material-groups';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { GameEngineService } from '@app/core/services/game-engine.service';
@@ -42,19 +36,13 @@ const BLANK_FILES_ZH = [
     selector: 'app-new-game-dialog',
     standalone: true,
     imports: [
-        CommonModule,
-        FormsModule,
-        MatButtonModule,
-        MatFormFieldModule,
-        MatInputModule,
-        MatIconModule,
-        MatSelectModule,
-        MatDialogModule,
+        ...CORE_MAT,
+        ...DIALOG_MAT,
+        ...FORM_MAT,
         MatProgressSpinnerModule,
-        MatSnackBarModule,
-        MatTooltipModule,
         MatTabsModule,
         MatDividerModule,
+        FormsModule,
         TranslatePipe
     ],
     templateUrl: './new-game-dialog.component.html',
