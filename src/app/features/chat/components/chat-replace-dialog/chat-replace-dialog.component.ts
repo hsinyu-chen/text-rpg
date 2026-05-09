@@ -11,13 +11,12 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { GameStateService } from '@app/core/services/game-state.service';
-import { AppConfigStore } from '@app/core/services/app-config-store';
 import { GameEngineService } from '@app/core/services/game-engine.service';
 import { ChatHistoryService } from '@app/core/services/chat-history.service';
 import { GAME_INTENTS, GameIntent } from '@app/core/constants/game-intents';
-import { getIntentLabels } from '@app/core/constants/engine-protocol';
 import { ChatMessage } from '@app/core/models/types';
 import { LanguageService } from '@app/core/services/language.service';
+import { I18nService } from '@app/core/i18n';
 
 export type SearchField = 'all' | 'story' | 'summary' | 'logs';
 
@@ -53,9 +52,9 @@ export interface ChatMatch {
 export class ChatReplaceDialogComponent {
     state = inject(GameStateService);
     engine = inject(GameEngineService);
-    private appConfig = inject(AppConfigStore);
     history = inject(ChatHistoryService);
     lang = inject(LanguageService);
+    private i18n = inject(I18nService);
     dialogRef = inject(MatDialogRef<ChatReplaceDialogComponent>);
     private snackBar = inject(MatSnackBar);
 
@@ -73,16 +72,15 @@ export class ChatReplaceDialogComponent {
     isRegex = signal(false);
     isWholeWord = signal(false);
 
-    // Intents list (Localized)
+    // Intents list (Localized via interfaceLanguage)
     intents = computed(() => {
-        const labels = getIntentLabels(this.appConfig.outputLanguage());
         return [
             { value: 'all', label: this.lang.t('ALL') },
-            { value: GAME_INTENTS.ACTION, label: labels.ACTION },
-            { value: GAME_INTENTS.CONTINUE, label: labels.CONTINUE },
-            { value: GAME_INTENTS.FAST_FORWARD, label: labels.FAST_FORWARD },
-            { value: GAME_INTENTS.SYSTEM, label: labels.SYSTEM },
-            { value: GAME_INTENTS.SAVE, label: labels.SAVE }
+            { value: GAME_INTENTS.ACTION, label: this.i18n.translate(`intent.labels.${GAME_INTENTS.ACTION}`) },
+            { value: GAME_INTENTS.CONTINUE, label: this.i18n.translate(`intent.labels.${GAME_INTENTS.CONTINUE}`) },
+            { value: GAME_INTENTS.FAST_FORWARD, label: this.i18n.translate(`intent.labels.${GAME_INTENTS.FAST_FORWARD}`) },
+            { value: GAME_INTENTS.SYSTEM, label: this.i18n.translate(`intent.labels.${GAME_INTENTS.SYSTEM}`) },
+            { value: GAME_INTENTS.SAVE, label: this.i18n.translate(`intent.labels.${GAME_INTENTS.SAVE}`) }
         ];
     });
 

@@ -1,4 +1,5 @@
 import { Injectable, inject, signal } from '@angular/core';
+import { isValidInterfaceLanguage, type InterfaceLanguageSetting } from '../i18n/ui-locales';
 import { KVStore } from './kv/kv-store';
 
 export interface AppConfigShape {
@@ -11,7 +12,14 @@ export interface AppConfigShape {
     enableAdultDeclaration: boolean;
     engineMode: 'single' | 'two-call';
     exchangeRate: number;
+    /** LLM-facing story language. Open set — accepts custom strings the model can write. */
     outputLanguage: string;
+    /**
+     * UI-facing language. Closed set: `'system'` ∪ registered {@link UiLocaleId}.
+     * `'system'` means "resolve via navigator at read time" — first-class default,
+     * not "absent value". Resolution lives in {@link I18nService}.
+     */
+    interfaceLanguage: InterfaceLanguageSetting;
     smartContextTurns: number;
 }
 
@@ -26,8 +34,13 @@ const KEYS = {
     engineMode: 'app_engine_mode',
     exchangeRate: 'app_exchange_rate',
     outputLanguage: 'app_output_language',
+    interfaceLanguage: 'app_interface_language',
     smartContextTurns: 'app_smart_context_turns',
 } as const;
+
+function parseInterfaceLanguage(raw: string | null): InterfaceLanguageSetting {
+    return isValidInterfaceLanguage(raw) ? raw : 'system';
+}
 
 /**
  * Source of truth for general app preferences (fonts, currency, screensaver,
@@ -53,6 +66,7 @@ export class AppConfigStore {
     private _engineMode = signal<'single' | 'two-call'>('single');
     private _exchangeRate = signal<number>(30);
     private _outputLanguage = signal<string>('default');
+    private _interfaceLanguage = signal<InterfaceLanguageSetting>('system');
     private _smartContextTurns = signal<number>(10);
 
     // Public read-only views. Consumers can subscribe / read but cannot
@@ -67,6 +81,7 @@ export class AppConfigStore {
     readonly engineMode = this._engineMode.asReadonly();
     readonly exchangeRate = this._exchangeRate.asReadonly();
     readonly outputLanguage = this._outputLanguage.asReadonly();
+    readonly interfaceLanguage = this._interfaceLanguage.asReadonly();
     readonly smartContextTurns = this._smartContextTurns.asReadonly();
 
     constructor() {
@@ -105,6 +120,8 @@ export class AppConfigStore {
 
         const lang = this.kv.get(KEYS.outputLanguage);
         if (lang) this._outputLanguage.set(lang);
+
+        this._interfaceLanguage.set(parseInterfaceLanguage(this.kv.get(KEYS.interfaceLanguage)));
 
         const sct = this.kv.get(KEYS.smartContextTurns);
         if (sct) {
@@ -160,6 +177,10 @@ export class AppConfigStore {
             this._outputLanguage.set(partial.outputLanguage);
             this.kv.set(KEYS.outputLanguage, partial.outputLanguage);
         }
+        if (partial.interfaceLanguage !== undefined) {
+            this._interfaceLanguage.set(partial.interfaceLanguage);
+            this.kv.set(KEYS.interfaceLanguage, partial.interfaceLanguage);
+        }
         if (partial.smartContextTurns !== undefined) {
             this._smartContextTurns.set(partial.smartContextTurns);
             this.kv.set(KEYS.smartContextTurns, String(partial.smartContextTurns));
@@ -182,6 +203,7 @@ export class AppConfigStore {
             engineMode: this.engineMode(),
             exchangeRate: this.exchangeRate(),
             outputLanguage: this.outputLanguage(),
+            interfaceLanguage: this.interfaceLanguage(),
             smartContextTurns: this.smartContextTurns(),
         };
     }

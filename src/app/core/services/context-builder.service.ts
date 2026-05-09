@@ -416,7 +416,7 @@ export class ContextBuilderService {
      */
     private isLastSceneMessage(m: ChatMessage): boolean {
         return Object.values(LOCALES).some(l => {
-            return m.role === 'model' && m.analysis === l.uiStrings.LOCAL_INIT_ANALYSIS;
+            return m.role === 'model' && m.analysis === l.engineStrings.LOCAL_INIT_ANALYSIS;
         });
     }
 

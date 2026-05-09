@@ -19,8 +19,8 @@ import { GameStateService } from '@app/core/services/game-state.service';
 import { AppConfigStore } from '@app/core/services/app-config-store';
 import { TurnUpdateComponent } from '../turn-update/turn-update.component';
 import { GAME_INTENTS } from '@app/core/constants/game-intents';
-import { getIntentLabels, getUIStrings } from '@app/core/constants/engine-protocol';
 import { getLocale } from '@app/core/constants/locales';
+import { I18nService } from '@app/core/i18n';
 import { computed } from '@angular/core';
 import { KATEX_DELIMITERS, hasKatexDelimiters } from '@app/core/utils/latex.util';
 
@@ -54,6 +54,7 @@ export class ChatMessageComponent {
     engine = inject(GameEngineService);
     gameState = inject(GameStateService);
     private appConfig = inject(AppConfigStore);
+    private i18n = inject(I18nService);
 
     protected readonly Intents = GAME_INTENTS;
 
@@ -76,10 +77,11 @@ export class ChatMessageComponent {
         });
     }
 
-    // Localized strings
+    // Localized strings — engine-facing locale stays keyed by outputLanguage
+    // (analysis trace markdown is persisted in the message); UI chrome flows
+    // through i18n and tracks interfaceLanguage.
     locale = computed(() => getLocale(this.appConfig.outputLanguage()));
-    intentLabels = computed(() => getIntentLabels(this.appConfig.outputLanguage()));
-    idealOutcomeChipPrefix = computed(() => getUIStrings(this.appConfig.outputLanguage()).IDEAL_OUTCOME_CHIP_PREFIX);
+    idealOutcomeChipPrefix = computed(() => this.i18n.translate('ui.IDEAL_OUTCOME_CHIP_PREFIX'));
 
     // Prefill Metrics
     prefillSpeed = computed(() => {
@@ -114,14 +116,11 @@ export class ChatMessageComponent {
 
     getIntentLabel(intent: string | undefined): string {
         if (!intent) return '';
-        const labels = this.intentLabels();
-        // Map intent values to label keys
-        if (intent === GAME_INTENTS.ACTION) return labels.ACTION;
-        if (intent === GAME_INTENTS.FAST_FORWARD) return labels.FAST_FORWARD;
-        if (intent === GAME_INTENTS.SYSTEM) return labels.SYSTEM;
-        if (intent === GAME_INTENTS.SAVE) return labels.SAVE;
-        if (intent === GAME_INTENTS.CONTINUE) return labels.CONTINUE;
-        return intent; // Fallback to raw value
+        const key = `intent.labels.${intent}`;
+        const translated = this.i18n.translate(key);
+        // Custom user intents have no dictionary entry — fall back to raw
+        // value so the chip never renders the dotted key as text.
+        return translated === key ? intent : translated;
     }
 
     onEditAndResend() {

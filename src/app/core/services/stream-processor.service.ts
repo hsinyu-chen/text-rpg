@@ -4,7 +4,7 @@ import { PostProcessorService, PostProcessFields } from './post-processor.servic
 import { ExtendedPart, ThoughtPart } from '../models/types';
 import { LLMStreamChunk, LLMUsageMetadata } from '@hcs/llm-core';
 import { ChatMessage } from '../models/types';
-import { getUIStrings } from '../constants/engine-protocol';
+import { I18nService } from '../i18n';
 import type { SingleCallResponse, StructuredAnalysis } from '../constants/engine-protocol-structured';
 import type { NarratorOutput } from '../constants/engine-protocol-two-call';
 import { assembleStoryWithSceneHeader, formatStructuredAnalysis } from './turn-engines/format-structured-analysis';
@@ -41,6 +41,7 @@ export interface StreamProcessResult {
 export class StreamProcessorService {
     private parser = inject(ContentParserService);
     private postProcessor = inject(PostProcessorService);
+    private i18n = inject(I18nService);
 
     /** Streaming-phase log mapper: parse + apply safe replacements per item, so the live UI sees post-processed text. */
     private mapLogStream(log: string[] | undefined): string[] | undefined {
@@ -224,8 +225,7 @@ export class StreamProcessorService {
         } catch (jsonErr) {
             console.error('[StreamProcessor] JSON Parse Failed:', jsonErr);
             finalAnalysis = '';
-            const ui = getUIStrings(outputLanguage);
-            finalStory = currentStoryPreview || ui.FORMAT_ERROR;
+            finalStory = currentStoryPreview || this.i18n.translate('ui.FORMAT_ERROR');
         }
 
         // Apply user post-processing
@@ -374,8 +374,7 @@ export class StreamProcessorService {
             finalWorldLog = this.mapLogFinal(parsed.world_log);
         } catch (jsonErr) {
             console.error('[StreamProcessor] Narrator JSON Parse Failed:', jsonErr);
-            const ui = getUIStrings(outputLanguage);
-            finalStory = currentStoryPreview || ui.FORMAT_ERROR;
+            finalStory = currentStoryPreview || this.i18n.translate('ui.FORMAT_ERROR');
         }
 
         const postProcessFields: PostProcessFields = {

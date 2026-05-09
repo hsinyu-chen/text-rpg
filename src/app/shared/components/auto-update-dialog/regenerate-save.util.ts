@@ -8,7 +8,7 @@
 
 export interface RegenerateSaveLocale {
   intentTags: { SAVE: string };
-  uiStrings: {
+  engineStrings: {
     REGENERATE_SAVE_PROMPT: string;
     REGEN_SUCCESS_LABEL: string;
     REGEN_FILE_LABEL: string;
@@ -41,25 +41,25 @@ export function buildRegenerateSavePrompt(
       if (!update.status?.exists) continue;
 
       if (update.status.matched) {
-        matchedItems.push(`- ${locale.uiStrings.REGEN_SUCCESS_LABEL} ${update.filePath} (${update.context || 'root'})`);
+        matchedItems.push(`- ${locale.engineStrings.REGEN_SUCCESS_LABEL} ${update.filePath} (${update.context || 'root'})`);
       } else {
         const targetPreview = update.targetContent
           ? update.targetContent.substring(0, 500)
           : '(append mode)';
         failedItems.push(
-          `- ${locale.uiStrings.REGEN_FILE_LABEL} ${update.filePath} (${update.context || 'root'})\n` +
-          `  ${locale.uiStrings.REGEN_ERROR_LABEL}\n  """\n  ${targetPreview}\n  """`,
+          `- ${locale.engineStrings.REGEN_FILE_LABEL} ${update.filePath} (${update.context || 'root'})\n` +
+          `  ${locale.engineStrings.REGEN_ERROR_LABEL}\n  """\n  ${targetPreview}\n  """`,
         );
       }
     }
   }
 
-  let message = `${locale.intentTags.SAVE}${locale.uiStrings.REGENERATE_SAVE_PROMPT}\n\n`;
+  let message = `${locale.intentTags.SAVE}${locale.engineStrings.REGENERATE_SAVE_PROMPT}\n\n`;
   if (matchedItems.length > 0) {
-    message += `${locale.uiStrings.REGEN_SUCCESS_TITLE}\n${matchedItems.join('\n')}\n\n`;
+    message += `${locale.engineStrings.REGEN_SUCCESS_TITLE}\n${matchedItems.join('\n')}\n\n`;
   }
   if (failedItems.length > 0) {
-    message += `${locale.uiStrings.REGEN_FAILED_TITLE}\n${failedItems.join('\n\n')}`;
+    message += `${locale.engineStrings.REGEN_FAILED_TITLE}\n${failedItems.join('\n\n')}`;
   }
   return message;
 }

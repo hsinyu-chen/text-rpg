@@ -14,7 +14,8 @@ import { LastActiveBookStore } from './last-active-book-store';
 import { AppConfigStore } from './app-config-store';
 import { SessionFileService } from './session-file.service';
 import { GAME_INTENTS } from '../constants/game-intents';
-import { getCoreFilenames, getSectionHeaders, getUIStrings } from '../constants/engine-protocol';
+import { getCoreFilenames, getSectionHeaders } from '../constants/engine-protocol';
+import { I18nService } from '../i18n';
 import { LOCALES } from '../constants/locales';
 import { convertLatexToSymbols, repairCorruptedLatex } from '../utils/latex.util';
 import { extractActName } from '../utils/act-name.util';
@@ -69,6 +70,7 @@ export class SessionService {
     private lastActiveBook = inject(LastActiveBookStore);
     private appConfig = inject(AppConfigStore);
     private sessionFile = inject(SessionFileService);
+    private i18n = inject(I18nService);
 
     constructor() {
         // Only write — removal is handled explicitly in unloadCurrentSession()
@@ -258,8 +260,11 @@ export class SessionService {
             await this.loadFiles(false);
 
             // Notify success
-            const ui = getUIStrings(this.appConfig.outputLanguage());
-            this.snackBar.open(ui.GAME_INIT_SUCCESS, 'OK', { duration: 3000 });
+            this.snackBar.open(
+                this.i18n.translate('ui.GAME_INIT_SUCCESS'),
+                this.i18n.translate('ui.CLOSE'),
+                { duration: 3000 },
+            );
 
             // Note: Caller (GameEngine) still needs to trigger startSession if needed, 
             // but GameEngine.startNewGame previously called startSession.
@@ -268,8 +273,11 @@ export class SessionService {
 
         } catch (e) {
             console.error('[SessionService] Failed to initialize new game', e);
-            const ui = getUIStrings(this.appConfig.outputLanguage());
-            this.snackBar.open(ui.GAME_INIT_FAILED, ui.CLOSE, { duration: 5000 });
+            this.snackBar.open(
+                this.i18n.translate('ui.GAME_INIT_FAILED'),
+                this.i18n.translate('ui.CLOSE'),
+                { duration: 5000 },
+            );
             throw e;
         } finally {
             this.state.status.set('idle');

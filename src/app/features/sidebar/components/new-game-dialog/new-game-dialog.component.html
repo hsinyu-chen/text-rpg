@@ -1,10 +1,10 @@
-<h2 mat-dialog-title>{{ ui().CREATE_NEW_GAME }}</h2>
+<h2 mat-dialog-title>{{ 'ui.CREATE_NEW_GAME' | translate }}</h2>
 
 <mat-dialog-content class="dialog-content">
     @if (isLoading()) {
     <div class="loading-overlay">
         <mat-spinner diameter="40"></mat-spinner>
-        <p>{{ ui().INITIALIZING }}</p>
+        <p>{{ 'ui.INITIALIZING' | translate }}</p>
     </div>
     }
 
@@ -20,7 +20,7 @@
 
             <div class="form-container tab-content">
                 <mat-form-field appearance="outline" class="full-width">
-                    <mat-label>{{ ui().SELECT_SCENARIO }}</mat-label>
+                    <mat-label>{{ 'ui.SELECT_SCENARIO' | translate }}</mat-label>
                     <mat-select [(ngModel)]="selectedScenarioId" (selectionChange)="onScenarioChange()">
                         @for (s of displayScenarios(); track s.id) {
                         <mat-option [value]="s.id" [matTooltip]="s.description || ''">{{ s.name }}</mat-option>
@@ -31,9 +31,9 @@
 
                 <mat-form-field appearance="outline" class="full-width">
                     <mat-label>{{ labels().name }}</mat-label>
-                    <input matInput [(ngModel)]="profile.name" required [placeholder]="ui().ENTER_NAME">
+                    <input matInput [(ngModel)]="profile.name" required [placeholder]="'ui.ENTER_NAME' | translate">
                     <mat-icon matSuffix>person</mat-icon>
-                    @if (!profile.name()) { <mat-error>{{ ui().REQUIRED_FIELD }}</mat-error> }
+                    @if (!profile.name()) { <mat-error>{{ 'ui.REQUIRED_FIELD' | translate }}</mat-error> }
                 </mat-form-field>
 
                 <div class="field-group">
@@ -49,32 +49,32 @@
                         }
                     </div>
                     @if (!profile.faction()) {
-                    <mat-error style="font-size: 0.75em;">{{ ui().SELECT_ALIGNMENT }}</mat-error>
+                    <mat-error style="font-size: 0.75em;">{{ 'ui.SELECT_ALIGNMENT' | translate }}</mat-error>
                     }
                 </div>
 
                 <mat-form-field appearance="outline" class="full-width">
                     <mat-label>{{ labels().background }}</mat-label>
                     <textarea matInput [(ngModel)]="profile.background" required rows="2"
-                        [placeholder]="ui().CHAR_HISTORY_PLCH"></textarea>
+                        [placeholder]="'ui.CHAR_HISTORY_PLCH' | translate"></textarea>
                     <mat-icon matSuffix>history_edu</mat-icon>
-                    @if (!profile.background()) { <mat-error>{{ ui().REQUIRED_FIELD }}</mat-error> }
+                    @if (!profile.background()) { <mat-error>{{ 'ui.REQUIRED_FIELD' | translate }}</mat-error> }
                 </mat-form-field>
 
                 <mat-form-field appearance="outline" class="full-width">
                     <mat-label>{{ labels().interests }}</mat-label>
                     <textarea matInput [(ngModel)]="profile.interests" required rows="2"
-                        [placeholder]="ui().INTERESTS_PLCH"></textarea>
+                        [placeholder]="'ui.INTERESTS_PLCH' | translate"></textarea>
                     <mat-icon matSuffix>interests</mat-icon>
-                    @if (!profile.interests()) { <mat-error>{{ ui().REQUIRED_FIELD }}</mat-error> }
+                    @if (!profile.interests()) { <mat-error>{{ 'ui.REQUIRED_FIELD' | translate }}</mat-error> }
                 </mat-form-field>
 
                 <mat-form-field appearance="outline" class="full-width">
                     <mat-label>{{ labels().appearance }}</mat-label>
                     <textarea matInput [(ngModel)]="profile.appearance" required rows="3"
-                        [placeholder]="ui().APPEARANCE_PLCH"></textarea>
+                        [placeholder]="'ui.APPEARANCE_PLCH' | translate"></textarea>
                     <mat-icon matSuffix>face</mat-icon>
-                    @if (!profile.appearance()) { <mat-error>{{ ui().REQUIRED_FIELD }}</mat-error> }
+                    @if (!profile.appearance()) { <mat-error>{{ 'ui.REQUIRED_FIELD' | translate }}</mat-error> }
                 </mat-form-field>
 
             </div>
@@ -248,11 +248,11 @@
 </mat-dialog-content>
 
 <mat-dialog-actions align="end">
-    <button mat-button (click)="cancel()">{{ ui().CANCEL }}</button>
+    <button mat-button (click)="cancel()">{{ 'ui.CANCEL' | translate }}</button>
     @if (activeTabIndex() === 0) {
         <button mat-flat-button color="primary" (click)="start()" [disabled]="isLoading() || !isFormValid()">
             <mat-icon>play_circle</mat-icon>
-            {{ ui().START_GAME }}
+            {{ 'ui.START_GAME' | translate }}
         </button>
     } @else {
         <button mat-flat-button color="primary" (click)="submitCreateWorld()"

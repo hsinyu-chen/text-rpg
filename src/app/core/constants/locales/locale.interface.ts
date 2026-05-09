@@ -45,9 +45,9 @@ export interface AppLocale {
     };
     /**
      * Labels rendered into the "Atomic Breakdown & Check" trace panel by
-     * `formatStructuredAnalysis`. Programmatic markdown — pick the locale by
-     * the active `outputLanguage` so en users don't see Chinese headers and
-     * vice versa.
+     * `formatStructuredAnalysis`. Persisted into chat-message analysis text
+     * — must match the locale the message was written in, so this layer is
+     * keyed by `outputLanguage` (not `interfaceLanguage`).
      */
     analysisTrace: {
         SCENE_HEADING: string;
@@ -71,14 +71,13 @@ export interface AppLocale {
         NO_REACTION: string;
         NO_CHANGE: string;
     };
-    intentLabels: {
-        ACTION: string;
-        FAST_FORWARD: string;
-        SYSTEM: string;
-        SAVE: string;
-        CONTINUE: string;
-        POST_PROCESS: string;
-    };
+    /**
+     * XML markers wrapped around user input before it's sent to the LLM, AND
+     * reverse-mapped from saved chat messages on load (see
+     * `LEGACY_INTENT_TAG_MAP` in session.service.ts). Engine-facing — must
+     * stay tied to `outputLanguage` so saves from any historical locale
+     * still migrate.
+     */
     intentTags: {
         ACTION: string;
         FAST_FORWARD: string;
@@ -86,162 +85,24 @@ export interface AppLocale {
         SAVE: string;
         CONTINUE: string;
     };
-    intentDescriptions: {
-        ACTION: string;
-        FAST_FORWARD: string;
-        SYSTEM: string;
-        SAVE: string;
-        CONTINUE: string;
-    };
-    inputPlaceholders: {
-        ACTION: string;
-        FAST_FORWARD: string;
-        SYSTEM: string;
-        SAVE: string;
-        CONTINUE: string;
-        FALLBACK: string;
-    };
-    uiStrings: {
-        GAME_INIT_SUCCESS: string;
-        GAME_INIT_FAILED: string;
-        MARKER_NOT_FOUND: string;
-        LOCAL_INIT_ANALYSIS: string;
-        CLOSE: string;
+    /**
+     * Strings the engine writes either as chat-message content (so they're
+     * persisted alongside the story) or as prompt content sent back to the
+     * LLM. NOT live UI chrome — UI strings live in
+     * `src/app/core/i18n/dictionaries/` keyed by `interfaceLanguage`.
+     */
+    engineStrings: {
+        /** Committed as chat-message content during local boot. */
         INTRO_TEXT: string;
-        FORMAT_ERROR: string;
-        GEN_FAILED: string;
-        CONN_ERROR: string;
-        ERR_PREFIX: string;
-        CORRECTION_SUCCESS: string;
-        CORRECTION_NOT_FOUND: string;
-        USER_NAME: string;
-        USER_FACTION: string;
-        USER_BACKGROUND: string;
-        USER_INTERESTS: string;
-        USER_APPEARANCE: string;
-        USER_CORE_VALUES: string;
-        CREATE_NEW_GAME: string;
-        SELECT_SCENARIO: string;
-        INITIALIZING: string;
-        REQUIRED_FIELD: string;
-        SELECT_ALIGNMENT: string;
-        CANCEL: string;
-        START_GAME: string;
-        ENTER_NAME: string;
-        CHAR_HISTORY_PLCH: string;
-        INTERESTS_PLCH: string;
-        APPEARANCE_PLCH: string;
-        CORE_VALUES_PLCH: string;
-        DYNAMIC_PROMPT_SETTINGS: string;
-        SHOW_MENU: string;
-        HIDE_MENU: string;
-        AUTO_INJECTION_HINT: string;
-        ALIGNMENTS: Record<string, string>;
-        BATCH_REPLACE: string;
-        SEARCH: string;
-        REPLACE: string;
-        REPLACE_ALL: string;
-        REPLACE_COUNT: string;
-        MATCH_COUNT: string;
-        FILTER_INTENT: string;
-        FILTER_ROLE: string;
-        FILTER_FIELD: string;
-        FIELD_STORY: string;
-        FIELD_SUMMARY: string;
-        FIELD_LOGS: string;
-        NO_MATCHES: string;
-        REPLACE_SUCCESS: string;
-        ALL: string;
-        ROLE_USER: string;
-        ROLE_MODEL: string;
-        POST_PROCESS_ERROR: string;
-        POST_PROCESS_HINT: string;
-        PROMPT_UPDATE_AVAILABLE: string;
-        PROMPT_UPDATE_TITLE: string;
-        UPDATE: string;
-        IGNORE: string;
-        SAVE: string;
-        SAVE_ALL: string;
-        SAVE_SUCCESS: string;
-        SAVE_FAILED: string;
-        SYSTEM_PROMPT_TITLE: string;
-        PROTOCOL_SINGLE_TITLE: string;
-        PROTOCOL_RESOLVER_TITLE: string;
-        PROTOCOL_NARRATOR_TITLE: string;
-        LEGACY_PROFILE_BADGE_TIP: string;
-        LEGACY_PROFILE_AUTOSWITCH: string;
-        CATEGORY_MAIN: string;
-        CATEGORY_INJECTION: string;
-        CATEGORY_PROCESS: string;
-        STOP_REASON_PREFIX: string;
-        REGENERATE_SAVE_BTN: string;
+        /** Written into `m.analysis` for system-init messages; equality-compared on load. */
+        LOCAL_INIT_ANALYSIS: string;
+        /** Sent back to the LLM at the head of the regenerate-save prompt. */
         REGENERATE_SAVE_PROMPT: string;
-        STOP_GENERATION: string;
-        STOP_GENERATION_CONFIRM_TITLE: string;
-        STOP_GENERATION_CONFIRM_MSG: string;
-        PROMPT_PROFILE_LABEL: string;
-        PROFILE_CLOUD: string;
-        PROFILE_LOCAL: string;
-        PROFILE_CLOUD_DESC: string;
-        PROFILE_LOCAL_DESC: string;
-        PROFILE_MANAGE_MENU: string;
-        PROFILE_CLONE: string;
-        PROFILE_CLONE_PROMPT: string;
-        PROFILE_CLONE_TO_EDIT: string;
-        PROFILE_CLONED: string;
-        PROFILE_RENAME: string;
-        PROFILE_RENAME_PROMPT: string;
-        PROFILE_RENAMED: string;
-        PROFILE_DELETE: string;
-        PROFILE_DELETE_CONFIRM: string;
-        PROFILE_DELETED: string;
-        PROFILE_OP_FAILED: string;
-        PROFILE_EXPORT: string;
-        PROFILE_IMPORT: string;
-        PROFILE_IMPORTED: string;
-        PROFILE_IMPORT_EMPTY: string;
-        PROFILE_IMPORT_INVALID: string;
-        PROMPT_SYNC_PUSH: string;
-        PROMPT_SYNC_PULL: string;
-        PROMPT_SYNC_UPLOADING: string;
-        PROMPT_SYNC_DOWNLOADING: string;
-        PROMPT_SYNC_UPLOADED: string;
-        PROMPT_SYNC_DOWNLOADED: string;
-        PROMPT_SYNC_NONE_FOUND: string;
-        PROMPT_SYNC_FAILED: string;
-        PROMPT_SYNC_DOWNLOAD_TITLE: string;
-        PROMPT_SYNC_DOWNLOAD_CONFIRM: string;
-        DISK_SYNC_PUSH: string;
-        DISK_SYNC_PULL: string;
-        DISK_SYNC_PUSHING: string;
-        DISK_SYNC_PULLING: string;
-        DISK_SYNC_PUSHED: string;
-        DISK_SYNC_PULLED: string;
-        DISK_SYNC_PULL_EMPTY: string;
-        DISK_SYNC_PULL_DISCARD_CONFIRM: string;
-        DISK_SYNC_FAILED: string;
-        DISK_SYNC_FOLDER_BOUND: string;
-        DISK_SYNC_FOLDER_NOT_BOUND: string;
-        PROFILE_READONLY_BANNER: string;
-        PROFILE_SWITCH_DISCARD_CONFIRM: string;
-        UNSAVED_CHANGES_CONFIRM: string;
-        POST_PROCESS_INVALID_CONFIRM: string;
+        /** Labels embedded in the regenerate-save prompt body. */
         REGEN_SUCCESS_TITLE: string;
         REGEN_FAILED_TITLE: string;
         REGEN_SUCCESS_LABEL: string;
         REGEN_FILE_LABEL: string;
         REGEN_ERROR_LABEL: string;
-        CALIBRATE_TOOLTIP: string;
-        CALIBRATE_MODE_TITLE: string;
-        CALIBRATE_CONFIRM: string;
-        CALIBRATE_CANCEL: string;
-        IDEAL_OUTCOME_FIELD_LABEL: string;
-        IDEAL_OUTCOME_FIELD_PLACEHOLDER: string;
-        IDEAL_OUTCOME_CHIP_LABEL: string;
-        IDEAL_OUTCOME_CHIP_PREFIX: string;
-        IDEAL_OUTCOME_TOGGLE_TOOLTIP: string;
-        ENGINE_MODE_SINGLE: string;
-        ENGINE_MODE_TWO_CALL: string;
-        ENGINE_MODE_TOGGLE_TOOLTIP: string;
     };
 }

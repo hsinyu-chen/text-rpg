@@ -1,0 +1,69 @@
+import { Injectable, computed, inject } from '@angular/core';
+import { AppConfigStore } from '../services/app-config-store';
+import { WINDOW } from '../tokens/window.token';
+import {
+    FALLBACK_UI_LOCALE_ID,
+    UI_LOCALES,
+    type TranslationDict,
+    type UiLocaleId,
+} from './ui-locales';
+
+/**
+ * Single global regex matching all `{{ name }}` placeholders. Captured once
+ * at module load (vs. per-call `new RegExp(...)` inside a loop) and reused
+ * with a replacement callback so each `translate()` does one pass over the
+ * string regardless of param count. Also dodges the regex-injection edge
+ * case of params whose names contain regex metachars.
+ */
+const PLACEHOLDER_RE = /\{\{\s*(\w+)\s*\}\}/g;
+
+@Injectable({ providedIn: 'root' })
+export class I18nService {
+    private appConfig = inject(AppConfigStore);
+    private window = inject(WINDOW);
+
+    /** Resolved active language. Tracks `interfaceLanguage` and resolves `'system'`. */
+    readonly currentLang = computed<UiLocaleId>(() => {
+        const setting = this.appConfig.interfaceLanguage();
+        return setting === 'system' ? this.resolveSystemLang() : setting;
+    });
+
+    /**
+     * Active dictionary, memoized via `computed` so the `pure: false` pipe's
+     * per-CD-cycle `translate()` calls don't repeat the `UI_LOCALES.find` walk.
+     */
+    private readonly currentDict = computed<TranslationDict>(() =>
+        UI_LOCALES.find(l => l.id === this.currentLang())?.dictionary ?? {});
+
+    /**
+     * Look up a dotted-key string in the active dictionary. Falls back to the
+     * key itself on miss — surfaces typos visibly in the UI without throwing.
+     * Params replace `{{name}}` placeholders in a single regex pass.
+     */
+    translate(key: string, params?: Record<string, string | number>): string {
+        const value = this.walk(this.currentDict(), key);
+        if (typeof value !== 'string') return key;
+        if (!params) return value;
+
+        return value.replace(PLACEHOLDER_RE, (match, name: string) =>
+            name in params ? String(params[name]) : match);
+    }
+
+    private walk(dict: TranslationDict, key: string): string | TranslationDict | undefined {
+        let value: string | TranslationDict | undefined = dict;
+        for (const k of key.split('.')) {
+            if (value && typeof value === 'object' && k in value) {
+                value = value[k];
+            } else {
+                return undefined;
+            }
+        }
+        return value;
+    }
+
+    private resolveSystemLang(): UiLocaleId {
+        const browser = this.window.navigator.language.toLowerCase();
+        return UI_LOCALES.find(l => l.matchPrefixes.some(p => browser.startsWith(p)))?.id
+            ?? FALLBACK_UI_LOCALE_ID;
+    }
+}

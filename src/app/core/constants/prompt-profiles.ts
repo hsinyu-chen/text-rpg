@@ -52,9 +52,19 @@ export function getProfileScopedKey(baseKey: string, profileId: string): string 
     return profileId === DEFAULT_PROFILE_ID ? baseKey : `${profileId}:${baseKey}`;
 }
 
-/** displayName → i18n via nameKey → id. */
-export function getProfileDisplayName(profile: PromptProfile, uiStrings: Record<string, string>): string {
+/**
+ * displayName → i18n via nameKey → id. Resolves the profile's displayName,
+ * else its nameKey via the supplied translate callback, else falls through
+ * to the raw id. On a dictionary miss the translate callback returns the
+ * full dotted key (e.g. `ui.PROFILE_LOCAL`); in practice every shipped
+ * `nameKey` exists in both dictionaries, so the user-visible miss branch
+ * is unreachable from current code.
+ */
+export function getProfileDisplayName(
+    profile: PromptProfile,
+    translate: (key: string) => string,
+): string {
     if (profile.displayName) return profile.displayName;
-    if (profile.nameKey) return uiStrings[profile.nameKey] ?? profile.nameKey;
+    if (profile.nameKey) return translate(`ui.${profile.nameKey}`);
     return profile.id;
 }

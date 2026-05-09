@@ -4,7 +4,7 @@ import { SessionService } from './session.service';
 import { ChatHistoryService } from './chat-history.service';
 import { AppConfigStore } from './app-config-store';
 import { LOCALES } from '../constants/locales';
-import { getAdultDeclaration, getSectionHeaders, getUIStrings } from '../constants/engine-protocol';
+import { getAdultDeclaration, getEngineStrings, getSectionHeaders } from '../constants/engine-protocol';
 
 export type LocalBootResult =
     | { bootedLocally: true }
@@ -29,7 +29,7 @@ export class SceneBootService {
 
     async tryLocalBoot(): Promise<LocalBootResult> {
         const lang = this.appConfig.outputLanguage();
-        const introText = getUIStrings(lang).INTRO_TEXT;
+        const introText = getEngineStrings(lang).INTRO_TEXT;
 
         const outline = this.findStoryOutline();
         if (!outline) return { bootedLocally: false, fallbackText: introText };
@@ -83,7 +83,7 @@ export class SceneBootService {
 
     private async commitBootMessages(introText: string, scene: string, langId: string): Promise<void> {
         const declaration = this.appConfig.enableAdultDeclaration() === false ? '' : getAdultDeclaration(langId);
-        const ui = getUIStrings(langId);
+        const eng = getEngineStrings(langId);
         await this.chatHistory.updateMessages(prev => [
             ...prev,
             {
@@ -98,7 +98,7 @@ export class SceneBootService {
                 role: 'model',
                 content: declaration + scene,
                 parts: [{ text: declaration + scene }],
-                analysis: ui.LOCAL_INIT_ANALYSIS
+                analysis: eng.LOCAL_INIT_ANALYSIS
             }
         ]);
     }

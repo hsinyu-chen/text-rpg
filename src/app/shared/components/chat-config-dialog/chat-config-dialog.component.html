@@ -2,11 +2,11 @@
     <!-- Header -->
     <div class="dialog-header">
         <button mat-icon-button class="sidebar-toggle" (click)="toggleSidebar()"
-            [matTooltip]="isSidebarCollapsed() ? ui().SHOW_MENU : ui().HIDE_MENU">
+            [matTooltip]="(isSidebarCollapsed() ? 'ui.SHOW_MENU' : 'ui.HIDE_MENU') | translate">
             <mat-icon>{{ isSidebarCollapsed() ? 'menu' : 'menu_open' }}</mat-icon>
         </button>
         <div class="dialog-title">
-            <span class="title-text">{{ ui().DYNAMIC_PROMPT_SETTINGS }} - {{ activeTypeLabel() }}</span>
+            <span class="title-text">{{ 'ui.DYNAMIC_PROMPT_SETTINGS' | translate }} - {{ activeTypeLabel() }}</span>
             @if (getIsDirty(activeType())) {
             <span class="dirty-indicator"></span>
             }
@@ -14,29 +14,29 @@
         <div class="header-actions">
             <!-- Save Current -->
             <button mat-raised-button color="primary" (click)="saveCurrent()"
-                [disabled]="!getIsDirty(activeType()) || profileMgr.isActiveBuiltIn()" [matTooltip]="ui().SAVE">
-                <mat-icon>save</mat-icon> {{ ui().SAVE }}
+                [disabled]="!getIsDirty(activeType()) || profileMgr.isActiveBuiltIn()" [matTooltip]="'ui.SAVE' | translate">
+                <mat-icon>save</mat-icon> {{ 'ui.SAVE' | translate }}
             </button>
 
             <!-- Save All -->
             <button mat-stroked-button color="primary" (click)="saveAll()"
-                [disabled]="!hasAnyDirty() || profileMgr.isActiveBuiltIn()" [matTooltip]="ui().SAVE_ALL">
-                <mat-icon>save_as</mat-icon> {{ ui().SAVE_ALL }}
+                [disabled]="!hasAnyDirty() || profileMgr.isActiveBuiltIn()" [matTooltip]="'ui.SAVE_ALL' | translate">
+                <mat-icon>save_as</mat-icon> {{ 'ui.SAVE_ALL' | translate }}
             </button>
 
             <div class="header-divider"></div>
 
             <!-- Cloud Sync -->
-            <button mat-icon-button (click)="profileMgr.pushPromptsToCloud()" [matTooltip]="ui().PROMPT_SYNC_PUSH"
+            <button mat-icon-button (click)="profileMgr.pushPromptsToCloud()" [matTooltip]="'ui.PROMPT_SYNC_PUSH' | translate"
                 [disabled]="loading.isLoading()">
                 <mat-icon>cloud_upload</mat-icon>
             </button>
-            <button mat-icon-button (click)="profileMgr.pullPromptsFromCloud()" [matTooltip]="ui().PROMPT_SYNC_PULL"
+            <button mat-icon-button (click)="profileMgr.pullPromptsFromCloud()" [matTooltip]="'ui.PROMPT_SYNC_PULL' | translate"
                 [disabled]="loading.isLoading()">
                 <mat-icon>cloud_download</mat-icon>
             </button>
 
-            <button mat-icon-button (click)="close()" [matTooltip]="ui().CLOSE">
+            <button mat-icon-button (click)="close()" [matTooltip]="'ui.CLOSE' | translate">
                 <mat-icon>close</mat-icon>
             </button>
         </div>
@@ -49,7 +49,7 @@
 
             <!-- Profile Selector -->
             <div class="profile-selector">
-                <div class="profile-label">{{ ui().PROMPT_PROFILE_LABEL }}</div>
+                <div class="profile-label">{{ 'ui.PROMPT_PROFILE_LABEL' | translate }}</div>
                 <div class="profile-row">
                     <mat-form-field appearance="outline" class="profile-select-field" subscriptSizing="dynamic">
                         <mat-select [value]="profileMgr.activeProfileId()" (selectionChange)="profileMgr.switchProfile($event.value)"
@@ -59,7 +59,7 @@
                                 {{ profileMgr.getProfileLabel(profile) }}
                                 @if (profileMgr.isLegacyProfile(profile.id)) {
                                 <mat-icon class="legacy-profile-warn"
-                                    [matTooltip]="ui().LEGACY_PROFILE_BADGE_TIP">warning</mat-icon>
+                                    [matTooltip]="'ui.LEGACY_PROFILE_BADGE_TIP' | translate">warning</mat-icon>
                                 }
                             </mat-option>
                             }
@@ -70,7 +70,7 @@
                                 {{ profileMgr.getProfileLabel(profile) }}
                                 @if (profileMgr.isLegacyProfile(profile.id)) {
                                 <mat-icon class="legacy-profile-warn"
-                                    [matTooltip]="ui().LEGACY_PROFILE_BADGE_TIP">warning</mat-icon>
+                                    [matTooltip]="'ui.LEGACY_PROFILE_BADGE_TIP' | translate">warning</mat-icon>
                                 }
                             </mat-option>
                             }
@@ -78,43 +78,43 @@
                         </mat-select>
                     </mat-form-field>
                     <button mat-icon-button [matMenuTriggerFor]="profileMenu"
-                        [matTooltip]="ui().PROFILE_MANAGE_MENU" [disabled]="profileMgr.isSwitchingProfile()">
+                        [matTooltip]="'ui.PROFILE_MANAGE_MENU' | translate" [disabled]="profileMgr.isSwitchingProfile()">
                         <mat-icon>more_vert</mat-icon>
                     </button>
                     <mat-menu #profileMenu="matMenu">
                         <button mat-menu-item (click)="profileMgr.cloneActive()">
                             <mat-icon>content_copy</mat-icon>
-                            <span>{{ ui().PROFILE_CLONE }}</span>
+                            <span>{{ 'ui.PROFILE_CLONE' | translate }}</span>
                         </button>
                         <button mat-menu-item (click)="profileMgr.renameActive()" [disabled]="profileMgr.isActiveBuiltIn()">
                             <mat-icon>edit</mat-icon>
-                            <span>{{ ui().PROFILE_RENAME }}</span>
+                            <span>{{ 'ui.PROFILE_RENAME' | translate }}</span>
                         </button>
                         <button mat-menu-item (click)="profileMgr.deleteActive()" [disabled]="profileMgr.isActiveBuiltIn()">
                             <mat-icon>delete</mat-icon>
-                            <span>{{ ui().PROFILE_DELETE }}</span>
+                            <span>{{ 'ui.PROFILE_DELETE' | translate }}</span>
                         </button>
                         <mat-divider></mat-divider>
                         <button mat-menu-item (click)="profileMgr.exportActiveProfile()">
                             <mat-icon>file_download</mat-icon>
-                            <span>{{ ui().PROFILE_EXPORT }}</span>
+                            <span>{{ 'ui.PROFILE_EXPORT' | translate }}</span>
                         </button>
                         <button mat-menu-item (click)="profileMgr.importProfileFromFile()">
                             <mat-icon>file_upload</mat-icon>
-                            <span>{{ ui().PROFILE_IMPORT }}</span>
+                            <span>{{ 'ui.PROFILE_IMPORT' | translate }}</span>
                         </button>
                         <mat-divider></mat-divider>
                         <button mat-menu-item (click)="profileMgr.pushActiveProfileToDisk()" [disabled]="profileMgr.isActiveBuiltIn()">
                             <mat-icon>folder_shared</mat-icon>
-                            <span>{{ ui().DISK_SYNC_PUSH }}</span>
+                            <span>{{ 'ui.DISK_SYNC_PUSH' | translate }}</span>
                         </button>
                         <button mat-menu-item (click)="profileMgr.pullActiveProfileFromDisk()" [disabled]="profileMgr.isActiveBuiltIn()">
                             <mat-icon>folder_open</mat-icon>
-                            <span>{{ ui().DISK_SYNC_PULL }}</span>
+                            <span>{{ 'ui.DISK_SYNC_PULL' | translate }}</span>
                         </button>
                         <button mat-menu-item (click)="profileMgr.changeDiskFolder()">
                             <mat-icon>drive_folder_upload</mat-icon>
-                            <span>{{ profileMgr.diskFolderName() || ui().DISK_SYNC_FOLDER_NOT_BOUND }}</span>
+                            <span>{{ profileMgr.diskFolderName() || ('ui.DISK_SYNC_FOLDER_NOT_BOUND' | translate) }}</span>
                         </button>
                     </mat-menu>
                 </div>
@@ -138,7 +138,7 @@
                             @if (state.promptUpdateStatus().get(type.id)?.hasUpdate) {
                             <button mat-icon-button matListItemMeta color="warn"
                                 (click)="$event.stopPropagation(); openPromptUpdateDialog(type.id)"
-                                [matTooltip]="ui().PROMPT_UPDATE_AVAILABLE || 'Update Available'">
+                                [matTooltip]="'ui.PROMPT_UPDATE_AVAILABLE' | translate">
                                 <mat-icon>error</mat-icon>
                             </button>
                             }
@@ -151,7 +151,7 @@
 
             <div class="sidebar-hint">
                 <mat-icon>info</mat-icon>
-                <span>{{ ui().AUTO_INJECTION_HINT }}</span>
+                <span>{{ 'ui.AUTO_INJECTION_HINT' | translate }}</span>
             </div>
         </div>
 
@@ -161,10 +161,10 @@
             @if (profileMgr.isActiveBuiltIn()) {
             <div class="readonly-banner">
                 <mat-icon>lock</mat-icon>
-                <span class="banner-text">{{ ui().PROFILE_READONLY_BANNER }}</span>
+                <span class="banner-text">{{ 'ui.PROFILE_READONLY_BANNER' | translate }}</span>
                 <button mat-flat-button color="primary" (click)="profileMgr.cloneActive()">
                     <mat-icon>content_copy</mat-icon>
-                    {{ ui().PROFILE_CLONE_TO_EDIT }}
+                    {{ 'ui.PROFILE_CLONE_TO_EDIT' | translate }}
                 </button>
             </div>
             }
@@ -178,7 +178,7 @@
             <div class="problems-panel">
                 <mat-icon class="problem-icon">warning</mat-icon>
                 <div class="problem-content">
-                    <span class="problem-title">{{ (ui().POST_PROCESS_ERROR || 'Error').replace('{error}', '') }}</span>
+                    <span class="problem-title">{{ 'ui.POST_PROCESS_ERROR' | translate: { error: '' } }}</span>
                     <span class="problem-msg">{{ validationResult().error }}</span>
                 </div>
             </div>

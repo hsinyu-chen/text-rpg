@@ -12,7 +12,6 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatBadgeModule } from '@angular/material/badge';
 import { TextFieldModule } from '@angular/cdk/text-field';
 import { GAME_INTENTS, STORY_INTENTS } from '@app/core/constants/game-intents';
-import { getIntentLabels, getIntentDescriptions, getInputPlaceholders } from '@app/core/constants/engine-protocol';
 import { GameEngineService } from '@app/core/services/game-engine.service';
 import { GameStateService } from '@app/core/services/game-state.service';
 import { ConfigService } from '@app/core/services/config.service';
@@ -25,9 +24,9 @@ import { ChatReplaceDialogComponent } from '../chat-replace-dialog/chat-replace-
 import { ConfirmDialogComponent, ConfirmDialogData } from '@app/shared/components/confirm-dialog/confirm-dialog.component';
 import { TauriWindow } from '@app/core/models/types';
 import { LanguageService } from '@app/core/services/language.service';
+import { I18nService, TranslatePipe } from '@app/core/i18n';
 import { PromptProfileRegistryService } from '@app/core/services/prompt-profile-registry.service';
 import { SystemStatusService } from '@app/core/services/system-status.service';
-import { getUIStrings } from '@app/core/constants/engine-protocol';
 import { getProfileDisplayName } from '@app/core/constants/prompt-profiles';
 import { ContextUsageBarComponent } from '@app/shared/components/context-usage-bar/context-usage-bar.component';
 
@@ -46,7 +45,8 @@ import { ContextUsageBarComponent } from '@app/shared/components/context-usage-b
         MatMenuModule,
         TextFieldModule,
         MatBadgeModule,
-        ContextUsageBarComponent
+        ContextUsageBarComponent,
+        TranslatePipe
     ],
     templateUrl: './chat-input.component.html',
     styleUrl: './chat-input.component.scss',
@@ -59,38 +59,25 @@ export class ChatInputComponent {
     session = inject(SessionService);
     lang = inject(LanguageService);
     sys = inject(SystemStatusService);
+    private i18n = inject(I18nService);
     private profileRegistry = inject(PromptProfileRegistryService);
     private config = inject(ConfigService);
     private appConfig = inject(AppConfigStore);
     private matDialog = inject(MatDialog);
     private readonly doc = inject(DOCUMENT);
 
-    // Localized UI string lookup — memoized once per language change so the
-    // many label / tooltip computeds below don't each re-resolve the locale.
-    private uiStrings = computed(() => getUIStrings(this.appConfig.outputLanguage()));
-
     activeProfileName = computed(() => {
         const id = this.state.activePromptProfile();
         const profile = this.profileRegistry.get(id);
         if (!profile) return id;
-        const ui = this.uiStrings() as unknown as Record<string, string>;
-        return getProfileDisplayName(profile, ui);
+        return getProfileDisplayName(profile, k => this.i18n.translate(k));
     });
 
     // Engine mode chip — toggles single ⇄ two-call. Two-call is the only mode
     // that consumes userIdealOutcome, so the field is conditionally shown.
     isTwoCall = computed(() => this.appConfig.engineMode() === 'two-call');
-    engineModeLabel = computed(() => {
-        const ui = this.uiStrings();
-        return this.isTwoCall() ? ui.ENGINE_MODE_TWO_CALL : ui.ENGINE_MODE_SINGLE;
-    });
-    engineModeTooltip = computed(() => this.uiStrings().ENGINE_MODE_TOGGLE_TOOLTIP);
-
-    // Ideal outcome field labels
-    idealOutcomeLabel = computed(() => this.uiStrings().IDEAL_OUTCOME_FIELD_LABEL);
-    idealOutcomeChipLabel = computed(() => this.uiStrings().IDEAL_OUTCOME_CHIP_LABEL);
-    idealOutcomePlaceholder = computed(() => this.uiStrings().IDEAL_OUTCOME_FIELD_PLACEHOLDER);
-    idealOutcomeToggleTooltip = computed(() => this.uiStrings().IDEAL_OUTCOME_TOGGLE_TOOLTIP);
+    engineModeLabel = computed(() =>
+        this.i18n.translate(this.isTwoCall() ? 'ui.ENGINE_MODE_TWO_CALL' : 'ui.ENGINE_MODE_SINGLE'));
 
     hasActiveSession = computed(() => !!this.session.currentBookId());
 
@@ -113,29 +100,20 @@ export class ChatInputComponent {
     // Local State
     intents = Object.values(GAME_INTENTS);
     private originalIntentBeforeEdit: string | null = null;
-    // Localized intent labels
-    intentLabels = computed(() => getIntentLabels(this.appConfig.outputLanguage()));
-    intentDescriptions = computed(() => getIntentDescriptions(this.appConfig.outputLanguage()));
 
     getIntentLabel(intent: string): string {
-        const labels = this.intentLabels();
-        // Map intent values to label keys
-        if (intent === GAME_INTENTS.ACTION) return labels.ACTION;
-        if (intent === GAME_INTENTS.FAST_FORWARD) return labels.FAST_FORWARD;
-        if (intent === GAME_INTENTS.SYSTEM) return labels.SYSTEM;
-        if (intent === GAME_INTENTS.SAVE) return labels.SAVE;
-        if (intent === GAME_INTENTS.CONTINUE) return labels.CONTINUE;
-        return intent; // Fallback to raw value
+        const key = `intent.labels.${intent}`;
+        const translated = this.i18n.translate(key);
+        // Custom user intents (e.g. from a non-default prompt profile) have no
+        // dictionary entry — fall back to the raw value so the chip doesn't
+        // render the dotted key as a string.
+        return translated === key ? intent : translated;
     }
 
     getIntentDescription(intent: string): string {
-        const descriptions = this.intentDescriptions();
-        if (intent === GAME_INTENTS.ACTION) return descriptions.ACTION;
-        if (intent === GAME_INTENTS.FAST_FORWARD) return descriptions.FAST_FORWARD;
-        if (intent === GAME_INTENTS.SYSTEM) return descriptions.SYSTEM;
-        if (intent === GAME_INTENTS.SAVE) return descriptions.SAVE;
-        if (intent === GAME_INTENTS.CONTINUE) return descriptions.CONTINUE;
-        return '';
+        const key = `intent.descriptions.${intent}`;
+        const translated = this.i18n.translate(key);
+        return translated === key ? '' : translated;
     }
 
     getIntentIcon(intent: string): string {
@@ -159,16 +137,8 @@ export class ChatInputComponent {
     dynamicPlaceholder = computed(() => {
         if (this.editingMessageId()) return '';
         const intent = this.selectedIntent();
-        const placeholders = getInputPlaceholders(this.appConfig.outputLanguage());
-
-        // Map intent to placeholder
-        if (intent === GAME_INTENTS.ACTION) return placeholders.ACTION;
-        if (intent === GAME_INTENTS.FAST_FORWARD) return placeholders.FAST_FORWARD;
-        if (intent === GAME_INTENTS.SYSTEM) return placeholders.SYSTEM;
-        if (intent === GAME_INTENTS.SAVE) return placeholders.SAVE;
-        if (intent === GAME_INTENTS.CONTINUE) return placeholders.CONTINUE;
-
-        return placeholders.FALLBACK;
+        const known = (Object.values(GAME_INTENTS) as string[]).includes(intent);
+        return this.i18n.translate(known ? `placeholder.${intent}` : 'placeholder.fallback');
     });
 
     onEnter(event: Event) {
@@ -252,8 +222,7 @@ export class ChatInputComponent {
     }
 
     saveProgress() {
-        const placeholders = getInputPlaceholders(this.appConfig.outputLanguage());
-        this.userInput.set(placeholders.SAVE);
+        this.userInput.set(this.i18n.translate('placeholder.save'));
         this.selectedIntent.set(GAME_INTENTS.SAVE);
         this.focusInput();
     }

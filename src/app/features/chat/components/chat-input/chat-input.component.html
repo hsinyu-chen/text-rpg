@@ -7,7 +7,7 @@
         </button>
         <button class="profile-pill engine-mode-pill" [class.two-call]="isTwoCall()"
             [disabled]="state.status() === 'generating'" (click)="toggleEngineMode()"
-            [matTooltip]="engineModeTooltip()">
+            [matTooltip]="'ui.ENGINE_MODE_TOGGLE_TOOLTIP' | translate">
             <span>{{ engineModeLabel() }}</span>
         </button>
         @if (isTwoCall()) {
@@ -15,9 +15,9 @@
             [class.expanded]="idealOutcomeExpanded()"
             [class.has-text]="!!userIdealOutcome().trim()"
             [disabled]="state.status() === 'generating'" (click)="toggleIdealOutcome()"
-            [matTooltip]="idealOutcomeToggleTooltip()">
+            [matTooltip]="'ui.IDEAL_OUTCOME_TOGGLE_TOOLTIP' | translate">
             <mat-icon>flag</mat-icon>
-            <span>{{ idealOutcomeChipLabel() }}</span>
+            <span>{{ 'ui.IDEAL_OUTCOME_CHIP_LABEL' | translate }}</span>
         </button>
         }
         <app-context-usage-bar variant="compact" />
@@ -37,9 +37,9 @@
     @if (isTwoCall() && idealOutcomeExpanded()) {
     <div class="ideal-outcome-row">
         <mat-form-field appearance="outline" class="ideal-outcome-field" floatLabel="always">
-            <mat-label>{{ idealOutcomeLabel() }}</mat-label>
+            <mat-label>{{ 'ui.IDEAL_OUTCOME_FIELD_LABEL' | translate }}</mat-label>
             <textarea matInput rows="1" cdkTextareaAutosize cdkAutosizeMinRows="1" cdkAutosizeMaxRows="3"
-                [(ngModel)]="userIdealOutcome" [placeholder]="idealOutcomePlaceholder()"
+                [(ngModel)]="userIdealOutcome" [placeholder]="'ui.IDEAL_OUTCOME_FIELD_PLACEHOLDER' | translate"
                 [disabled]="state.status() === 'generating' || !hasActiveSession()"></textarea>
         </mat-form-field>
     </div>

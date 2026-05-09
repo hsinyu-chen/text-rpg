@@ -10,6 +10,7 @@ import { LLMProviderRegistryService } from './llm-provider-registry.service';
 import { LLMConfigService } from './llm-config.service';
 import { ActiveProfileStore } from './active-profile-store';
 import { AppConfigStore, AppConfigShape } from './app-config-store';
+import { isValidInterfaceLanguage } from '../i18n/ui-locales';
 
 @Injectable({
     providedIn: 'root'
@@ -143,6 +144,9 @@ export class ConfigService {
         if (typeof cfg.enableConversion === 'boolean') genConfig.enableConversion = cfg.enableConversion;
         if (cfg.screensaverType === 'invaders' || cfg.screensaverType === 'code') genConfig.screensaverType = cfg.screensaverType;
         if (typeof cfg.outputLanguage === 'string') genConfig.outputLanguage = cfg.outputLanguage;
+        if (isValidInterfaceLanguage(cfg.interfaceLanguage)) {
+            genConfig.interfaceLanguage = cfg.interfaceLanguage;
+        }
         if (typeof cfg.idleOnBlur === 'boolean') genConfig.idleOnBlur = cfg.idleOnBlur;
         if (typeof cfg.enableAdultDeclaration === 'boolean') genConfig.enableAdultDeclaration = cfg.enableAdultDeclaration;
         if (typeof cfg.smartContextTurns === 'number') genConfig.smartContextTurns = cfg.smartContextTurns;

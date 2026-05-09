@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { GameStateService } from './game-state.service';
 import { AppConfigStore } from './app-config-store';
-import { getUIStrings } from '../constants/engine-protocol';
+import { I18nService } from '../i18n';
 
 /**
  * Fields available for post-processing.
@@ -46,6 +46,7 @@ export class PostProcessorService {
     private state = inject(GameStateService);
     private snackBar = inject(MatSnackBar);
     private appConfig = inject(AppConfigStore);
+    private i18n = inject(I18nService);
 
     /**
      * Validates a post-processing script with mock data.
@@ -148,11 +149,10 @@ export class PostProcessorService {
 
             return result;
         } catch (err) {
-            const ui = getUIStrings(this.appConfig.outputLanguage());
             const errorMsg = err instanceof Error ? err.message : String(err);
             this.snackBar.open(
-                ui.POST_PROCESS_ERROR.replace('{error}', errorMsg),
-                ui.CLOSE,
+                this.i18n.translate('ui.POST_PROCESS_ERROR', { error: errorMsg }),
+                this.i18n.translate('ui.CLOSE'),
                 { duration: 5000, panelClass: 'error-snackbar' }
             );
             return fields;

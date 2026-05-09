@@ -20,6 +20,7 @@ import { LLMConfigService } from '@app/core/services/llm-config.service';
 import { LoadingService } from '@app/core/services/loading.service';
 import { SettingsSyncService } from '@app/core/services/settings-sync.service';
 import { getLanguagesList } from '@app/core/constants/locales';
+import { UI_LOCALES, type InterfaceLanguageSetting, TranslatePipe } from '@app/core/i18n';
 import { LLMProfilesDialogComponent } from './llm-profiles-dialog.component';
 import { BridgeService } from '@app/core/services/dev/bridge.service';
 
@@ -39,7 +40,8 @@ import { BridgeService } from '@app/core/services/dev/bridge.service';
     MatTabsModule,
     MatExpansionModule,
     MatSliderModule,
-    MatProgressSpinnerModule
+    MatProgressSpinnerModule,
+    TranslatePipe
   ],
   templateUrl: './settings-dialog.component.html',
   styleUrl: './settings-dialog.component.scss'
@@ -85,6 +87,22 @@ export class SettingsDialogComponent {
   outputLanguage = signal('default');
   customOutputLanguage = signal('');
   languages: { value: string; label: string }[] = getLanguagesList();
+
+  /**
+   * UI-language picker — closed set: 'system' ∪ registered locale ids. The
+   * 'system' entry's display label is rendered via the `settings.systemDefault`
+   * translate key in the template (so it follows the resolved language), so
+   * the option list itself only carries `value` + native-label pairs.
+   */
+  interfaceLanguage = signal<InterfaceLanguageSetting>('system');
+  interfaceLanguages: { value: InterfaceLanguageSetting; label: string }[] = [
+    // The empty `label` is intentional and not a placeholder gap — the template
+    // branches on `value === 'system'` and renders the translated
+    // `settings.systemDefault` instead. Filling a hardcoded literal here would
+    // re-introduce the dead-string the round-1 review removed.
+    { value: 'system', label: '' },
+    ...UI_LOCALES.map(l => ({ value: l.id, label: l.label })),
+  ];
 
   currencies = [
     { code: 'TWD', name: 'New Taiwan Dollar (NT$)', symbol: 'NT$' },
@@ -151,6 +169,8 @@ export class SettingsDialogComponent {
     } else {
       this.outputLanguage.set(lang);
     }
+
+    this.interfaceLanguage.set(this.appConfig.interfaceLanguage());
   }
 
   openProfilesManager(): void {
@@ -178,7 +198,8 @@ export class SettingsDialogComponent {
       idleOnBlur: this.idleOnBlur(),
       enableAdultDeclaration: this.enableAdultDeclaration(),
       engineMode: this.engineMode(),
-      outputLanguage: this.outputLanguage() === 'custom' ? this.customOutputLanguage() : this.outputLanguage()
+      outputLanguage: this.outputLanguage() === 'custom' ? this.customOutputLanguage() : this.outputLanguage(),
+      interfaceLanguage: this.interfaceLanguage()
     };
 
     await this.engine.saveConfig(commonConfig);

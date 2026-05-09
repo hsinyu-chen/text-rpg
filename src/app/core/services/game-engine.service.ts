@@ -19,7 +19,7 @@ import { StreamProcessResult } from './stream-processor.service';
 
 import { SessionSave, Scenario } from '../models/types';
 import { GAME_INTENTS, STORY_INTENTS } from '../constants/game-intents';
-import { getUIStrings } from '../constants/engine-protocol';
+import { I18nService } from '../i18n';
 import { DEFAULT_PROFILE_ID } from '../constants/prompt-profiles';
 
 import { SceneBootService } from './scene-boot.service';
@@ -66,6 +66,7 @@ export class GameEngineService {
     private appConfig = inject(AppConfigStore);
     private sceneBoot = inject(SceneBootService);
     private commitService = inject(TurnCommitService);
+    private i18n = inject(I18nService);
 
     private currentAbortController: AbortController | null = null;
 
@@ -225,8 +226,9 @@ export class GameEngineService {
                 // gone server-side.
                 this.cacheManager.resetCacheState();
             }
-            const ui = getUIStrings(this.appConfig.outputLanguage());
-            const autoswitchPrefix = turn.switchedFromLegacy ? `${ui.LEGACY_PROFILE_AUTOSWITCH}\n\n` : '';
+            const autoswitchPrefix = turn.switchedFromLegacy
+                ? `${this.i18n.translate('ui.LEGACY_PROFILE_AUTOSWITCH')}\n\n`
+                : '';
             const errorCore = sessionExpired
                 ? 'Session Expired: Please reload your Knowledge Base folder to continue.'
                 : `Error: ${e instanceof Error ? e.message : 'Unknown error during cache refresh'}`;
@@ -252,11 +254,11 @@ export class GameEngineService {
         const lang = buildCtx.outputLanguage || 'default';
 
         if (turn.switchedFromLegacy) {
-            const ui = getUIStrings(lang);
-            this.snackBar.open(ui.LEGACY_PROFILE_AUTOSWITCH, ui.CLOSE, {
-                duration: 8000,
-                panelClass: ['snackbar-warning']
-            });
+            this.snackBar.open(
+                this.i18n.translate('ui.LEGACY_PROFILE_AUTOSWITCH'),
+                this.i18n.translate('ui.CLOSE'),
+                { duration: 8000, panelClass: ['snackbar-warning'] },
+            );
         }
 
         // Two-call only applies to story intents — SYSTEM/SAVE bypass the
@@ -316,11 +318,11 @@ export class GameEngineService {
         if (!reason) return;
         const normalized = reason.toLowerCase();
         if (normalized === 'stop' || normalized === 'null') return;
-        const ui = getUIStrings(this.appConfig.outputLanguage());
-        this.snackBar.open(`${ui.STOP_REASON_PREFIX || 'Model Stopped:'} ${reason}`, ui.CLOSE, {
-            duration: 8000,
-            panelClass: ['snackbar-warning']
-        });
+        this.snackBar.open(
+            `${this.i18n.translate('ui.STOP_REASON_PREFIX')} ${reason}`,
+            this.i18n.translate('ui.CLOSE'),
+            { duration: 8000, panelClass: ['snackbar-warning'] },
+        );
     }
 
     /** Catches errors thrown anywhere in phases 3-tail. AbortError is the silent path. */
@@ -339,24 +341,25 @@ export class GameEngineService {
         console.error(e);
         this.state.status.set('error');
 
-        const ui = getUIStrings(this.appConfig.outputLanguage());
-        const errMsg = (e instanceof Error) ? e.message : ui.CONN_ERROR;
+        const errMsg = (e instanceof Error) ? e.message : this.i18n.translate('ui.CONN_ERROR');
+        const errorContent = this.i18n.translate('ui.ERR_PREFIX', { error: errMsg });
         await this.chatHistory.updateMessages(prev => {
             const updated = [...prev];
             const last = updated[updated.length - 1];
             if (last && last.role === 'model') {
                 last.isThinking = false;
-                last.content = ui.ERR_PREFIX.replace('{error}', errMsg);
+                last.content = errorContent;
                 last.parts = [{ text: last.content }];
             } else {
-                updated.push({ id: crypto.randomUUID(), role: 'model', content: ui.ERR_PREFIX.replace('{error}', errMsg), isRefOnly: true });
+                updated.push({ id: crypto.randomUUID(), role: 'model', content: errorContent, isRefOnly: true });
             }
             return updated;
         });
-        this.snackBar.open(ui.GEN_FAILED.replace('{error}', errMsg), ui.CLOSE, {
-            duration: 5000,
-            panelClass: ['snackbar-error']
-        });
+        this.snackBar.open(
+            this.i18n.translate('ui.GEN_FAILED', { error: errMsg }),
+            this.i18n.translate('ui.CLOSE'),
+            { duration: 5000, panelClass: ['snackbar-error'] },
+        );
         // Persist the error message to the Book so it survives reload — the
         // chat-history IDB store alone isn't the source of truth on session
         // load. Awaited (consistent with the round-11 lockstep contract); the
