@@ -90,6 +90,16 @@ export class GoogleOAuthService {
                 this.refreshToken.set(saved.refreshToken);
                 console.log('[GoogleOAuth] Restored refresh token from storage');
             }
+            // Schedule proactive refresh against the restored expiry so a
+            // session loaded near its 5-min buffer doesn't miss the
+            // background refresh and force a synchronous one on the next
+            // request. saved.expiry was already buffered by applyResult, so
+            // add 300s back to align with scheduleAutoRefresh's
+            // (expiresInSeconds - 300) math.
+            if (this.isAuthenticated()) {
+                const remainingSeconds = Math.floor((saved.expiry - Date.now()) / 1000);
+                this.scheduleAutoRefresh(remainingSeconds + 300);
+            }
         }
 
         console.log('[GoogleOAuth] Service initialized. Token expiry:', new Date(this.tokenExpiry()).toLocaleString());
