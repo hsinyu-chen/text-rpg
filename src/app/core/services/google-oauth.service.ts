@@ -2,6 +2,7 @@ import { Injectable, inject, signal } from '@angular/core';
 import { DOCUMENT } from '@angular/common';
 import { environment } from '../../../environments/environment';
 import { KVStore } from './kv/kv-store';
+import { OAuthTokenStore } from './oauth-token-store';
 
 // ===== Google Identity Services types ===================================
 
@@ -73,10 +74,6 @@ async function generateCodeChallenge(verifier: string): Promise<string> {
 // is awkward to enter through a runtime UI). Only the web client id has a
 // runtime fallback.
 const LS_OAUTH_CLIENT_ID = 'gdrive_oauth_client_id';
-const LS_ACCESS_TOKEN = 'gdrive_access_token';
-const LS_REFRESH_TOKEN = 'gdrive_refresh_token';
-const LS_TOKEN_EXPIRY = 'gdrive_token_expiry';
-const LS_USER_EMAIL = 'gdrive_user_email';
 
 // Scopes requested by both Web (GIS popup) and Tauri (PKCE) flows. `email`
 // is needed for the user-info hint that lets `loginWeb` attempt a silent
@@ -103,6 +100,7 @@ interface OAuthCreds {
 export class GoogleOAuthService {
     private readonly doc = inject(DOCUMENT);
     private readonly kv = inject(KVStore);
+    private readonly tokenStore = inject(OAuthTokenStore);
 
     private tokenClient: TokenClient | null = null;
     private accessToken = signal<string | null>(null);
@@ -119,19 +117,14 @@ export class GoogleOAuthService {
     private refreshTimer: ReturnType<typeof setTimeout> | null = null;
 
     constructor() {
-        const savedToken = this.kv.get(LS_ACCESS_TOKEN);
-        const savedRefreshToken = this.kv.get(LS_REFRESH_TOKEN);
-        const savedExpiry = this.kv.get(LS_TOKEN_EXPIRY);
-
-        if (savedToken) {
-            this.accessToken.set(savedToken);
-            if (savedExpiry) {
-                this.tokenExpiry.set(parseInt(savedExpiry, 10));
+        const saved = this.tokenStore.load();
+        if (saved) {
+            this.accessToken.set(saved.accessToken);
+            this.tokenExpiry.set(saved.expiry);
+            if (saved.refreshToken) {
+                this.refreshToken.set(saved.refreshToken);
+                console.log('[GoogleOAuth] Restored refresh token from storage');
             }
-        }
-        if (savedRefreshToken) {
-            this.refreshToken.set(savedRefreshToken);
-            console.log('[GoogleOAuth] Restored refresh token from storage');
         }
 
         console.log('[GoogleOAuth] Service initialized. Token expiry:', new Date(this.tokenExpiry()).toLocaleString());
@@ -265,16 +258,18 @@ export class GoogleOAuthService {
         const expiry = now + (expiresInSeconds - expiryBufferSeconds) * 1000;
         this.tokenExpiry.set(expiry);
 
-        this.kv.set(LS_ACCESS_TOKEN, token);
-        this.kv.set(LS_TOKEN_EXPIRY, expiry.toString());
-
         if (refreshToken) {
             this.refreshToken.set(refreshToken);
-            this.kv.set(LS_REFRESH_TOKEN, refreshToken);
             console.log('[GoogleOAuth] Refresh token saved');
         }
 
-        if (!this.kv.get(LS_USER_EMAIL)) {
+        this.tokenStore.save({
+            accessToken: token,
+            refreshToken: refreshToken ?? null,
+            expiry,
+        });
+
+        if (!this.tokenStore.getUserEmail()) {
             void this.fetchAndSaveUserEmail(token);
         }
 
@@ -324,7 +319,7 @@ export class GoogleOAuthService {
             if (res.ok) {
                 const data = await res.json();
                 if (data.email) {
-                    this.kv.set(LS_USER_EMAIL, data.email);
+                    this.tokenStore.setUserEmail(data.email);
                     console.log('[GoogleOAuth] User email saved for hint:', data.email);
                 }
             }
@@ -359,9 +354,7 @@ export class GoogleOAuthService {
         this.accessToken.set(null);
         this.refreshToken.set(null);
         this.tokenExpiry.set(0);
-        this.kv.remove(LS_ACCESS_TOKEN);
-        this.kv.remove(LS_REFRESH_TOKEN);
-        this.kv.remove(LS_TOKEN_EXPIRY);
+        this.tokenStore.clear();
     }
 
     private async refreshAccessToken(): Promise<string> {
@@ -548,7 +541,7 @@ export class GoogleOAuthService {
                 }
             };
 
-            const savedEmail = this.kv.get(LS_USER_EMAIL);
+            const savedEmail = this.tokenStore.getUserEmail();
             const config: { prompt?: string; hint?: string } = {};
 
             if (!forceInteractive && savedEmail) {
