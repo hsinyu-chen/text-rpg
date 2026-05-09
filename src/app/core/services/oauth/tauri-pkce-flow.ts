@@ -36,6 +36,8 @@ async function generateCodeChallenge(verifier: string): Promise<string> {
  */
 @Injectable({ providedIn: 'root' })
 export class TauriPkceFlow implements OAuthFlow {
+    readonly refreshIncludesInteractive = false;
+
     async login(): Promise<OAuthFlowResult> {
         const { invoke } = await import('@tauri-apps/api/core');
         const { open } = await import('@tauri-apps/plugin-shell');
@@ -95,26 +97,39 @@ export class TauriPkceFlow implements OAuthFlow {
         let rejectCode!: (e: unknown) => void;
         const codePromise = new Promise<string>((res, rej) => { resolveCode = res; rejectCode = rej; });
 
+        // Cleanup tracking: once the code arrives (or the timeout fires), all
+        // outstanding listener registrations should be detached. Because each
+        // listen() resolves on its own microtask, the first listener can fire
+        // and complete cleanup() while sibling registrations are still pending
+        // — those pending unlisten handles must detach themselves immediately
+        // when they finally resolve, instead of joining a stale array.
+        let isCleanedUp = false;
         const unlisteners: (() => void)[] = [];
         const cleanup = () => {
+            isCleanedUp = true;
             for (const u of unlisteners) u();
             unlisteners.length = 0;
         };
 
-        const onCode = (label: string) => (event: { payload: string }) => {
-            console.log(`[TauriPkceFlow] Received ${label}:`, event.payload);
-            cleanup();
-            resolveCode(event.payload);
+        const register = async (event: string) => {
+            const u = await listen<string>(event, ({ payload }) => {
+                console.log(`[TauriPkceFlow] Received ${event}:`, payload);
+                cleanup();
+                resolveCode(payload);
+            });
+            if (isCleanedUp) u();
+            else unlisteners.push(u);
         };
 
-        // Await each registration so the unlisten handle is captured before
-        // any event can fire — fire-and-forget with .then(u => ...) leaks
-        // the handle on a fast click-through (cleanup runs while u is still
-        // undefined). 'oauth://url' is the standard Tauri v2 event;
-        // 'oauth://payload' / 'oauth-response' cover custom / legacy names.
-        unlisteners.push(await listen<string>('oauth://url', onCode('oauth://url')));
-        unlisteners.push(await listen<string>('oauth://payload', onCode('oauth://payload')));
-        unlisteners.push(await listen<string>('oauth-response', onCode('oauth-response')));
+        // 'oauth://url' is the standard Tauri v2 event; 'oauth://payload' /
+        // 'oauth-response' cover custom / legacy names. Concurrent
+        // registration shrinks the window where one event could fire while
+        // siblings are still pending.
+        await Promise.all([
+            register('oauth://url'),
+            register('oauth://payload'),
+            register('oauth-response'),
+        ]);
 
         const timeout = setTimeout(() => {
             cleanup();

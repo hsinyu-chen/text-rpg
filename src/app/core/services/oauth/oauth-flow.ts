@@ -25,11 +25,27 @@ export interface OAuthFlow {
     login(): Promise<OAuthFlowResult>;
 
     /**
-     * Attempt to obtain a fresh access token without user interaction.
-     * - Web (GIS): silent popup attempt with saved email as hint.
-     * - Tauri: refresh-token grant; throws if `refreshToken` is null.
+     * Attempt to obtain a fresh access token, preferring no user
+     * interaction. Behaviour and contract differ per flow:
+     *
+     * - Tauri: POSTs the refresh-token grant. Throws if `refreshToken`
+     *   is null. Service falls through to {@link login} on failure.
+     * - Web (GIS): runs a silent popup attempt with saved email as hint
+     *   and ESCALATES to an interactive popup if Google declines silent
+     *   ({@link refreshIncludesInteractive} = true). A throw here means
+     *   the user actively rejected (closed popup, denied consent), so
+     *   the service must NOT call {@link login} again.
      */
     refresh(refreshToken: string | null): Promise<OAuthFlowResult>;
+
+    /**
+     * True iff `refresh()` may itself prompt the user (Web GIS does;
+     * Tauri does not). The service uses this to decide whether
+     * `refresh()` failure should fall through to a fresh `login()`
+     * attempt — re-prompting after the user already declined would
+     * double-popup.
+     */
+    readonly refreshIncludesInteractive: boolean;
 }
 
 /**

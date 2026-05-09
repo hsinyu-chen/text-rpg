@@ -228,6 +228,13 @@ export class GoogleOAuthService {
     }
 
     private async acquireToken(): Promise<string> {
+        // Web flows escalate inside refresh() (silent → interactive popup);
+        // a throw means the user rejected, so don't double-popup via login().
+        if (this.flow.refreshIncludesInteractive) {
+            return this.applyResult(await this.flow.refresh(this.refreshToken()));
+        }
+        // Tauri: try the refresh-token grant when we have one; fall through
+        // to interactive PKCE on miss or failure.
         if (this.refreshToken()) {
             try {
                 console.log('[GoogleOAuth] Access token expired, refreshing...');

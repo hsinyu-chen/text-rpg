@@ -49,6 +49,8 @@ declare const google: Google | undefined;
  */
 @Injectable({ providedIn: 'root' })
 export class WebGisFlow implements OAuthFlow {
+    readonly refreshIncludesInteractive = true;
+
     private readonly doc = inject(DOCUMENT);
     private readonly tokenStore = inject(OAuthTokenStore);
 
