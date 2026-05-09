@@ -65,24 +65,12 @@ export class GoogleOAuthService {
 
         console.log('[GoogleOAuth] Service initialized. Token expiry:', new Date(this.tokenExpiry()).toLocaleString());
         if (!this.isTauri && this.isConfigured) {
-            this.webFlow.init(this.resolveClientId());
+            this.webFlow.init(this.getOAuthClientIdSnapshot());
         }
     }
 
-    /**
-     * Resolves the active web client id. Falls back to a user-supplied
-     * runtime value when `environment.gcpOauthAppId` is empty (BYO OAuth
-     * in web builds). Tauri-specific creds are read from environment only
-     * by {@link TauriPkceFlow} — see project memory: there is no official
-     * Tauri build, so Tauri users always rebuild with env baked in, and
-     * the runtime UI deliberately doesn't ask for them.
-     */
-    private resolveClientId(): string {
-        return environment.gcpOauthAppId || this.kv.get(LS_OAUTH_CLIENT_ID) || '';
-    }
-
     get isConfigured(): boolean {
-        return this.resolveClientId().length > 0;
+        return this.getOAuthClientIdSnapshot().length > 0;
     }
 
     /** Whether the running build has the web client id slot empty and
@@ -92,10 +80,15 @@ export class GoogleOAuthService {
         return !environment.gcpOauthAppId && !this.isTauri;
     }
 
-    /** Snapshot of the currently-effective web client id — used by the
-     *  config UI to prefill the input. */
+    /**
+     * Currently-effective web client id. Falls back to a user-supplied
+     * runtime value when `environment.gcpOauthAppId` is empty (BYO OAuth
+     * in web builds). Tauri-specific creds are read from environment only
+     * by {@link TauriPkceFlow} — see project memory: there is no official
+     * Tauri build, so Tauri users always rebuild with env baked in.
+     */
     getOAuthClientIdSnapshot(): string {
-        return this.resolveClientId();
+        return environment.gcpOauthAppId || this.kv.get(LS_OAUTH_CLIENT_ID) || '';
     }
 
     isAuthenticated(): boolean {
@@ -121,7 +114,7 @@ export class GoogleOAuthService {
             this.webFlow.teardown();
             return;
         }
-        this.webFlow.init(this.resolveClientId());
+        this.webFlow.init(this.getOAuthClientIdSnapshot());
     }
 
     private applyResult(result: OAuthFlowResult): string {
@@ -198,21 +191,61 @@ export class GoogleOAuthService {
         }
     }
 
-    async login(): Promise<string> {
+    /**
+     * Acquire a valid access token: cached if still fresh, refreshed if a
+     * refresh token is available, otherwise interactive login. Public
+     * entry point for both user-initiated sign-in
+     * ({@link GoogleOAuthService.login}) and per-request token reads
+     * ({@link GoogleOAuthService.getValidToken}).
+     */
+    private async ensureValidToken(): Promise<string> {
         if (this.accessToken() && Date.now() < this.tokenExpiry()) {
             return this.accessToken()!;
         }
 
         if (this.refreshToken()) {
             try {
-                console.log('[GoogleOAuth] Access token expired, attempting silent refresh...');
+                console.log('[GoogleOAuth] Access token expired, refreshing...');
                 return this.applyResult(await this.flow.refresh(this.refreshToken()));
-            } catch (error) {
-                console.warn('[GoogleOAuth] Silent refresh failed, falling back to interactive login:', error);
-                this.clearTokens();
+            } catch (e) {
+                console.warn('[GoogleOAuth] Refresh failed, falling back to interactive login:', e);
             }
         }
 
+        return this.applyResult(await this.flow.login());
+    }
+
+    /** User-initiated sign-in (login button). Returns the access token. */
+    login(): Promise<string> {
+        return this.ensureValidToken();
+    }
+
+    /**
+     * Returns a non-expired access token, refreshing or re-authenticating
+     * as needed. Drive REST callers (`GoogleDriveService.execute`) wrap
+     * this with 401-retry; clients that just want a token for a one-off
+     * fetch can call this directly.
+     */
+    getValidToken(): Promise<string> {
+        return this.ensureValidToken();
+    }
+
+    /**
+     * 401 retry primitive used by Drive REST: bypasses the cached-token
+     * check (the cached one is what just failed), tries refresh, then
+     * falls through to interactive login. Caller re-runs the original
+     * request with the returned token.
+     */
+    async forceReauthAfter401(): Promise<string> {
+        console.warn('[GoogleOAuth] 401 Unauthorized encountered. Retry logic...');
+        if (this.refreshToken()) {
+            try {
+                return this.applyResult(await this.flow.refresh(this.refreshToken()));
+            } catch (refreshErr) {
+                console.warn('[GoogleOAuth] Retry refresh failed', refreshErr);
+            }
+        }
+        this.clearTokens();
         return this.applyResult(await this.flow.login());
     }
 
@@ -225,50 +258,6 @@ export class GoogleOAuthService {
         this.refreshToken.set(null);
         this.tokenExpiry.set(0);
         this.tokenStore.clear();
-    }
-
-    /**
-     * Returns a non-expired access token, refreshing or re-authenticating
-     * as needed. Drive REST callers (`GoogleDriveService.execute`) wrap
-     * this with 401-retry; clients that just want a token for a one-off
-     * fetch can call this directly.
-     */
-    async getValidToken(): Promise<string> {
-        if (this.accessToken() && Date.now() < this.tokenExpiry()) {
-            return this.accessToken()!;
-        }
-
-        // Try refresh first if we have a refresh token (Tauri path); fall
-        // through to a full login on failure.
-        if (this.refreshToken()) {
-            try {
-                console.log('[GoogleOAuth] Access token expired, refreshing...');
-                return this.applyResult(await this.flow.refresh(this.refreshToken()));
-            } catch (e) {
-                console.warn('[GoogleOAuth] Refresh failed, falling back to login.', e);
-            }
-        }
-
-        console.log('[GoogleOAuth] Token expired or missing. Triggering re-auth...');
-        return this.applyResult(await this.flow.login());
-    }
-
-    /**
-     * 401 retry primitive used by Drive REST: forces a refresh (or a fresh
-     * interactive login if no refresh token / refresh fails) and returns
-     * the new access token. Caller re-runs the original request with it.
-     */
-    async forceReauthAfter401(): Promise<string> {
-        console.warn('[GoogleOAuth] 401 Unauthorized encountered. Retry logic...');
-        if (this.refreshToken()) {
-            try {
-                return this.applyResult(await this.flow.refresh(this.refreshToken()));
-            } catch (refreshErr) {
-                console.warn('[GoogleOAuth] Retry refresh failed', refreshErr);
-            }
-        }
-        this.clearTokens();
-        return this.login();
     }
 
     /** True iff this 401-shaped error should trigger the re-auth-and-retry seam. */
