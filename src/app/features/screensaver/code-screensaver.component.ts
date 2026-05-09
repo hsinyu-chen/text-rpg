@@ -4,6 +4,7 @@ import { MonacoLoaderService } from '@app/core/services/monaco-loader.service';
 import { IdleService } from '@app/core/services/idle.service';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
+import { TranslatePipe } from '@app/core/i18n';
 import * as monaco from 'monaco-editor';
 
 const CODE_SNIPPETS = [
@@ -174,7 +175,7 @@ fn main() {
 @Component({
   selector: 'app-code-screensaver',
   standalone: true,
-  imports: [CommonModule, MatButtonModule, MatIconModule],
+  imports: [CommonModule, MatButtonModule, MatIconModule, TranslatePipe],
   templateUrl: './code-screensaver.component.html',
   styleUrl: './code-screensaver.component.scss'
 })

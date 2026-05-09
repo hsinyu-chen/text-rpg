@@ -1,6 +1,6 @@
 <div class="screensaver-container">
   <div #monacoContainer class="monaco-container"></div>
-  <button mat-icon-button class="exit-btn" (click)="exit()" aria-label="Exit Boss Key">
+  <button mat-icon-button class="exit-btn" (click)="exit()" [attr.aria-label]="'screensaver.exitBossKey' | translate">
     <mat-icon>close</mat-icon>
   </button>
   <div class="overlay"></div>

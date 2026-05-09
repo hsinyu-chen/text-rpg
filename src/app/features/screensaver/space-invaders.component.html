@@ -1,7 +1,7 @@
 <div class="screensaver-container">
   <div #gameContainer class="phaser-container"></div>
-  <button mat-icon-button class="exit-btn" (click)="exit()" aria-label="Exit Screensaver">
+  <button mat-icon-button class="exit-btn" (click)="exit()" [attr.aria-label]="'screensaver.exitScreensaver' | translate">
     <mat-icon>close</mat-icon>
   </button>
-  <div class="hint">Screensaver Active - Click Top Right to Exit</div>
+  <div class="hint">{{ 'screensaver.hint' | translate }}</div>
 </div>

@@ -30,6 +30,7 @@ import { SessionService } from './core/services/session.service';
 import { WakeLockService } from './core/services/wake-lock.service';
 import { BackgroundFetchService } from './core/services/background-fetch.service';
 import { BridgeService } from './core/services/dev/bridge.service';
+import { I18nService, TranslatePipe } from './core/i18n';
 
 
 @Component({
@@ -46,7 +47,8 @@ import { BridgeService } from './core/services/dev/bridge.service';
     ChatComponent,
     SpaceInvadersComponent,
     CodeScreensaverComponent,
-    BookListComponent
+    BookListComponent,
+    TranslatePipe
   ],
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss'
@@ -59,6 +61,8 @@ export class AppComponent {
   loading = inject(LoadingService);
   dialog = inject(MatDialog);
   private snackBar = inject(MatSnackBar);
+  private i18n = inject(I18nService);
+  private isSyncingKB = false;
   private remoteUpdateSnackRef: MatSnackBarRef<TextOnlySnackBar> | null = null;
   private breakpointObserver = inject(BreakpointObserver);
   private providerInit = inject(LLMProviderInitService);
@@ -130,15 +134,13 @@ export class AppComponent {
 
     effect(() => {
       if (this.state.status() === 'loading') {
-        this.loading.show('Synchronizing Knowledge Base...\nChecking files, uploading, and cleaning up...');
-      } else {
-        // Only hide if the loading service was triggered by engine status (simple check or force hide might conflict)
-        // For simplicity, we can trust other components to manage their own ephemeral loading states or use a stack if needed.
-        // But since engine loading is "global app initialization" mostly, let's just hide it.
-        // Ideally we need a better state management but for this fix:
-        if (this.loading.message().includes('Synchronizing Knowledge Base')) {
-          this.loading.hide();
-        }
+        this.isSyncingKB = true;
+        this.loading.show(this.i18n.translate('app.syncingKBMessage'));
+      } else if (this.isSyncingKB) {
+        // Local flag avoids comparing loading.message() against a translation —
+        // a language switch mid-load would never match and the overlay would stick.
+        this.isSyncingKB = false;
+        this.loading.hide();
       }
     });
 
@@ -176,8 +178,11 @@ export class AppComponent {
 
   private handleAppUpdate(): void {
     this.appUpdateSnackRef?.dismiss();
-    // English to match the existing remote-update snackbar (handleRemoteUpdate).
-    const ref = this.snackBar.open('A new app version is ready.', 'Reload', { duration: 0 });
+    const ref = this.snackBar.open(
+      this.i18n.translate('app.newAppVersion'),
+      this.i18n.translate('app.reloadAction'),
+      { duration: 0 }
+    );
     this.appUpdateSnackRef = ref;
     firstValueFrom(ref.onAction()).then(async () => {
       if (this.state.status() === 'generating') {
@@ -185,7 +190,11 @@ export class AppComponent {
         // effect re-call handleAppUpdate when status actually leaves
         // 'generating'. A timer-based retry would either re-pester the user
         // mid-turn or miss the moment entirely if the turn ran long.
-        this.snackBar.open('Wait for the current turn to finish — we\'ll prompt again.', 'OK', { duration: 3000 });
+        this.snackBar.open(
+          this.i18n.translate('app.waitTurnFinish'),
+          this.i18n.translate('app.okAction'),
+          { duration: 3000 }
+        );
         this.pendingAppUpdateRetry.set(true);
         return;
       }
@@ -202,11 +211,19 @@ export class AppComponent {
 
   private handleRemoteUpdate(bookId: string): void {
     this.remoteUpdateSnackRef?.dismiss();
-    const ref = this.snackBar.open('Cloud has a newer version of this book.', 'Load', { duration: 0 });
+    const ref = this.snackBar.open(
+      this.i18n.translate('app.cloudNewerVersion'),
+      this.i18n.translate('app.loadAction'),
+      { duration: 0 }
+    );
     this.remoteUpdateSnackRef = ref;
     firstValueFrom(ref.onAction()).then(async () => {
       if (this.state.status() === 'generating') {
-        this.snackBar.open('Wait for the current turn to finish, then try again.', 'OK', { duration: 3000 });
+        this.snackBar.open(
+          this.i18n.translate('app.waitTurnFinishRetry'),
+          this.i18n.translate('app.okAction'),
+          { duration: 3000 }
+        );
         return;
       }
       try {

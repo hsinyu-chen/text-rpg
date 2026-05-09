@@ -5,11 +5,12 @@ import { IdleService } from '@app/core/services/idle.service';
 import { WINDOW } from '@app/core/tokens/window.token';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
+import { TranslatePipe } from '@app/core/i18n';
 
 @Component({
     selector: 'app-space-invaders',
     standalone: true,
-    imports: [MatButtonModule, MatIconModule],
+    imports: [MatButtonModule, MatIconModule, TranslatePipe],
     templateUrl: './space-invaders.component.html',
     styleUrl: './space-invaders.component.scss'
 })
