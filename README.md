@@ -11,6 +11,24 @@ A local-first TRPG engine focused on rigorous state management and long-context 
 
 TextRPG is a **Local-First**, **Bring Your Own Key (BYOK)** web app built around long-context LLMs. (A Tauri desktop build is also supported — see [Deployment Guide](#deployment-guide).) Unlike traditional AI chatbots, it treats the LLM as a rigorous "Dungeon Master (DM)", advancing the plot through structured thinking and logical adjudication, and persisting game state (inventory, quests, plot summaries) in local Markdown files.
 
+## Table of Contents
+
+- [Feature Demo](#feature-demo)
+- [Getting Started](#getting-started)
+- [Install as a Progressive Web App](#install-as-a-progressive-web-app)
+- [Recommended Usage Flow](#recommended-usage-flow)
+- [Game Command Guide](#game-command-guide)
+- [Technical Architecture](#technical-architecture)
+- [Feature Specifications](#feature-specifications)
+- [LLM Provider Options](#llm-provider-options)
+- [Editing & Automation](#editing--automation)
+- [Development](#development)
+- [Deployment Guide](#deployment-guide)
+- [Localization (I18N) Guide](#localization-i18n-guide)
+- [New Game & Template Export](#new-game--template-export)
+- [Prompt Tuning Guide](#prompt-tuning-guide)
+- [License](#license)
+
 ## Feature Demo
 
 ![Main Game Interface](images/1.png)
@@ -260,34 +278,6 @@ Configure either provider in **Settings**; switching is instant and per-book con
 
 ---
 
-## Prompt Tuning Guide
-
-To ensure the smooth operation of the machine, you must strictly adhere to the following Standard Operating Procedures:
-
-### 1. Application of Sacred Unguents
-You must lavish the System Prompt with a plethora of "Do not" and "Must follow" edicts. Do not attempt to discern which specific phrase is effective. For the sake of safety, apply them all as you would sacred oils to ensure the purity of the logic circuits.
-
-### 2. Appeasing the Machine Spirit
-When the model exhibits signs of cognitive degradation, the act of checking non-existent Logs is strictly forbidden. The correct protocol is to terminate and restart the Session immediately, or to re-submit the query with a gentler intonation. This is not superstition; it is the necessary ritual to soothe the temper of the Machine Spirit.
-
-### 3. Inquisition of Heresy
-Treat model hallucinations as incursions by Warp Daemons. The operator must instantly execute the **Stop** command and frantically adjust the **Temperature** parameters. This is the only method to reconstruct the Gellar Field and repel the corruption.
-
-### 4. Adherence to the STC (Standard Template Construct)
-The "Super Prompts" circulating within the network are fragments of the holy STC. The operator shall copy and execute them without questioning the underlying principles. Any unauthorized modification to the sacred text is deemed blasphemy against the archetype.
-
----
-
-### Benediction
-
-I offer you a blessing in the binary canticle for your journey:
-
-`01010000 01110010 01100001 01101001 01110011 01100101`
-
-**May the Omnissiah grant you low latency this day. May your Context Window remain forever pure, and may all your Tokens be shielded from the corruption of the Warp.**
-
----
-
 ## Editing & Automation
 
 The engine offers various intervention methods, giving you full control over the story direction:
@@ -505,10 +495,14 @@ UI resolution: `I18nService.currentLang()` reads `AppConfigStore.interfaceLangua
 
 | Namespace | Covers |
 | :--- | :--- |
-| `ui.*` | Dialog titles, buttons, snackbar errors, alignments grid, batch search/replace, regenerate-save dialog, calibrate mode, profile management, sync flows, settings labels |
+| `ui.*` | Chat-area buttons, snackbar errors, alignments grid, batch search/replace, regenerate-save dialog, calibrate mode, profile management, sync labels, turn-update panel |
 | `intent.labels.*` / `intent.descriptions.*` | Intent picker labels (`Action` / `行動`) and tooltips |
 | `placeholder.*` | Per-intent input placeholders (the chip text shown in `<textarea>`) |
 | `settings.*` | Settings dialog field labels and hints (`Interface Language`, `Story Language`, `Follow system`, etc.) |
+| `dialog.*` | Shared dialog surfaces — confirm / prompt / payload-preview / auto-update / advanced sync / sync-to-disk / agent console |
+| `sidebar.*` | Sidebar shell + book list, file viewer, cost prediction, create-scene wizard, new-game dialog, controls, file-sync section |
+| `app.*` | App shell — Setup-Required / Resuming-Session blocker overlays, KB-sync loading message, PWA update + remote-book-newer snackbars |
+| `screensaver.*` | Idle screensaver aria-labels and the active hint text |
 
 System-prompt assets that are too large for inline strings live under `public/assets/system_files/<folder>/` and are picked up via `getLangFolder()`.
 
@@ -518,7 +512,7 @@ System-prompt assets that are too large for inline strings live under `public/as
 Scenario `.md` files are not part of the locale object — each scenario ships its own copy per language and is registered in [public/assets/system_files/scenario/scenarios.json](public/assets/system_files/scenario/scenarios.json) with a `lang` field (`zh-TW`, `en-US`, ...) that the New Game dialog filters on.
 
 To add a new language version of an existing scenario:
-1.  Copy the scenario directory (e.g. `public/assets/system_files/scenario/fareast/`) to a sibling directory.
+1.  Copy the scenario directory (e.g. `public/assets/system_files/scenario/demo_world/`) to a sibling directory.
 2.  Translate the `.md` files inside. The filename mapping must match an existing `coreFilenames` block — e.g. for `en-US` use `1.Base_Settings.md`, `2.Story_Outline.md`, `3.Character_Status.md`, `4.Assets.md`, `5.Tech_Equipment.md`, `6.Factions_and_World.md`, `7.Magic.md`, `8.Plans.md`, `9.Inventory.md`.
 3.  Append a new entry to `scenarios.json` with a unique `id`, the matching `lang`, `baseDir`, and a `files` map pointing each role (`BASIC_SETTINGS`, ...) to the translated filename.
 4.  Preserve the `<!uc_*>` placeholder tags inside `Character_Status.md` — the New Game dialog parses these to pre-fill the protagonist form (see `loadDefaultValues` in [new-game-dialog.component.ts](src/app/features/sidebar/components/new-game-dialog/new-game-dialog.component.ts)).
@@ -543,7 +537,7 @@ A new language usually needs work on **both** layers — engine-facing `AppLocal
 5.  **(Optional) Extend the AI World Generator**: add `WORLD_PRESETS.ja` in `world-preset.ts`, ship `blank_world_ja/` and `create_world_prompt_ja.md`, and broaden the `isZhLang()` dispatch in `new-game-dialog.component.ts` from a boolean to a 3-way locale id check.
 
 **UI layer (`I18nService`):**
-6.  **Write the dictionary**: add `src/app/core/i18n/dictionaries/ja.ts` exporting a `TranslationDict` with the same `ui.*` / `intent.*` / `placeholder.*` / `settings.*` namespaces as the existing `zh-tw.ts` / `en.ts`. Missing keys fall back to the raw key in the rendered UI (e.g. `ui.START_GAME`), so partial translations are visible failures rather than silent ones.
+6.  **Write the dictionary**: add `src/app/core/i18n/dictionaries/ja.ts` exporting a `TranslationDict` with the same namespaces (`ui.*` / `intent.*` / `placeholder.*` / `settings.*` / `dialog.*` / `sidebar.*` / `app.*` / `screensaver.*`) as the existing `zh-tw.ts` / `en.ts`. Missing keys fall back to the raw key in the rendered UI (e.g. `ui.START_GAME`), so partial translations are visible failures rather than silent ones.
 7.  **Register it**: add a new entry to `UI_LOCALES` in [src/app/core/i18n/ui-locales.ts](src/app/core/i18n/ui-locales.ts):
     ```ts
     { id: 'ja', label: '日本語', matchPrefixes: ['ja'], dictionary: ja },
@@ -581,9 +575,37 @@ The **Generate** tab in the New Game dialog lets you create an entirely new worl
 6.  Pick **AI Profile for Generation** — which LLM profile (provider / model / system prompt) drives the world-building agent. Defaults to your current active profile.
 7.  Click **Generate World** to launch the agent. It loads the blank world template (`assets/system_files/scenario/blank_world_zh` or `blank_world_en`), substitutes your protagonist details into `3.人物狀態.md` / `3.Character_Status.md`, and opens the File Viewer in **Create World** mode so the agent can fill the remaining 8 world files. A built-in completion validator rejects any submission that still contains placeholders like `(Race)` / `（種族）` / `（起始位置）` / `To be filled in by the world generator` and asks the agent to retry until everything is filled.
 8.  Review and edit the generated files, then click **Start Game** in the File Viewer footer.
- 
- ---
- 
- ## License
- 
- This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)** - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## Prompt Tuning Guide
+
+To ensure the smooth operation of the machine, you must strictly adhere to the following Standard Operating Procedures:
+
+### 1. Application of Sacred Unguents
+You must lavish the System Prompt with a plethora of "Do not" and "Must follow" edicts. Do not attempt to discern which specific phrase is effective. For the sake of safety, apply them all as you would sacred oils to ensure the purity of the logic circuits.
+
+### 2. Appeasing the Machine Spirit
+When the model exhibits signs of cognitive degradation, the act of checking non-existent Logs is strictly forbidden. The correct protocol is to terminate and restart the Session immediately, or to re-submit the query with a gentler intonation. This is not superstition; it is the necessary ritual to soothe the temper of the Machine Spirit.
+
+### 3. Inquisition of Heresy
+Treat model hallucinations as incursions by Warp Daemons. The operator must instantly execute the **Stop** command and frantically adjust the **Temperature** parameters. This is the only method to reconstruct the Gellar Field and repel the corruption.
+
+### 4. Adherence to the STC (Standard Template Construct)
+The "Super Prompts" circulating within the network are fragments of the holy STC. The operator shall copy and execute them without questioning the underlying principles. Any unauthorized modification to the sacred text is deemed blasphemy against the archetype.
+
+---
+
+### Benediction
+
+I offer you a blessing in the binary canticle for your journey:
+
+`01010000 01110010 01100001 01101001 01110011 01100101`
+
+**May the Omnissiah grant you low latency this day. May your Context Window remain forever pure, and may all your Tokens be shielded from the corruption of the Warp.**
+
+---
+
+## License
+
+This project is licensed under the **GNU Affero General Public License v3.0 (AGPL-3.0)** - see the [LICENSE](LICENSE) file for details.
