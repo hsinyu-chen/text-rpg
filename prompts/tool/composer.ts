@@ -19,7 +19,8 @@ export function compose(
 
   for (const [id, slot] of baseAst.slots) {
     finalSlots.set(id, { ...slot });
-    slotHistory.set(id, []);
+    // Seed history with base's own remove so layers can't silently revive it.
+    slotHistory.set(id, slot.isRemove ? [{ layer: 'base', op: 'remove' }] : []);
   }
 
   for (const { name, ast: layerAst } of layerAsts) {
@@ -49,9 +50,19 @@ export function compose(
         continue;
       }
 
-      const conflictsWith = (a: OpKind, b: OpKind): boolean => {
-        if (a === 'full-replace' || b === 'full-replace') return true;
-        return a === b && (a === 'content-replace' || a === 'heading-replace');
+      // A new op conflicts with a prior op iff their write-sets overlap.
+      // - full-replace overwrites everything → conflicts with anything prior
+      // - content-replace overwrites prior content-* (replace/prepend/append) silently → warn
+      // - heading-replace conflicts only with another heading-replace (orthogonal to content-*)
+      const writesContent = (k: OpKind): boolean =>
+        k === 'content-replace' || k === 'content-prepend' || k === 'content-append' || k === 'full-replace';
+      const writesHeading = (k: OpKind): boolean =>
+        k === 'heading-replace' || k === 'full-replace';
+      const conflictsWith = (prior: OpKind, next: OpKind): boolean => {
+        if (next === 'full-replace') return true;
+        if (next === 'content-replace') return writesContent(prior);
+        if (next === 'heading-replace') return writesHeading(prior);
+        return false;
       };
       const prevConflict = [...history].reverse().find(h => conflictsWith(h.op, op.op));
       if (prevConflict) {
@@ -118,16 +129,18 @@ export function splitHeading(body: string): {
   let i = 0;
   while (i < lines.length && lines[i].trim() === '') i++;
   if (i < lines.length && /^\s*#+\s/.test(lines[i])) {
-    const headingLine = lines[i];
+    // Heading prefix includes any leading blank lines so they survive
+    // heading-replace / content-replace ops (was lost otherwise).
+    const heading = lines.slice(0, i + 1).join('\n');
     let j = i + 1;
     let blanks = 0;
-    while (j < lines.length && lines[j] === '') {
+    while (j < lines.length && lines[j].trim() === '') {
       blanks++;
       j++;
     }
     const separator = blanks > 0 ? '\n\n' : (j < lines.length ? '\n' : '');
     const content = lines.slice(j).join('\n');
-    return { heading: headingLine, separator, content };
+    return { heading, separator, content };
   }
   return { heading: '', separator: '', content: body };
 }

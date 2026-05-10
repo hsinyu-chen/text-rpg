@@ -106,6 +106,28 @@ describe('multi-layer composition', () => {
     ]);
     expect(r.diagnostics.some(d => d.level === 'error' && d.message.includes('removed'))).toBe(true);
   });
+
+  it('content-prepend then content-replace — warn (replace squashes the addition)', () => {
+    const base = baseAst({ s: 'old' });
+    const r = compose(base, [
+      layer('A', [{ id: 's', op: 'content-prepend', body: 'extra' }]),
+      layer('B', [{ id: 's', op: 'content-replace', body: 'new' }]),
+    ]);
+    expect(r.diagnostics.some(d => d.level === 'warning' && /'A'.+'B'/.test(d.message))).toBe(true);
+  });
+});
+
+describe('base-level remove', () => {
+  it('base slot with isRemove=true cannot be silently revived by a layer op', () => {
+    const slots = new Map();
+    slots.set('s', { id: 's', body: '', isRemove: true, startLine: 1, source: 'base.md' });
+    const base: import('../types').FileAst = {
+      filePath: 'base.md', slots,
+      blocks: [{ kind: 'slot-ref', slotId: 's' }],
+    };
+    const r = compose(base, [layer('L', [{ id: 's', op: 'content-replace', body: 'x' }])]);
+    expect(r.diagnostics.some(d => d.level === 'error' && d.message.includes('removed'))).toBe(true);
+  });
 });
 
 describe('warnings', () => {
