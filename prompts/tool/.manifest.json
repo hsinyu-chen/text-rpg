@@ -2,7 +2,22 @@
   "entries": [
     {
       "variantKey": "zh-tw/default",
+      "filePath": "public/assets/system_files/zh-tw/injection_action.md",
+      "passthrough": true
+    },
+    {
+      "variantKey": "zh-tw/default",
+      "filePath": "public/assets/system_files/zh-tw/injection_continue.md",
+      "passthrough": true
+    },
+    {
+      "variantKey": "zh-tw/default",
       "filePath": "public/assets/system_files/zh-tw/injection_correction.md",
+      "passthrough": true
+    },
+    {
+      "variantKey": "zh-tw/default",
+      "filePath": "public/assets/system_files/zh-tw/injection_fastforward.md",
       "passthrough": true
     },
     {
@@ -18,6 +33,16 @@
     {
       "variantKey": "zh-tw/default",
       "filePath": "public/assets/system_files/zh-tw/injection_protocol_single.md",
+      "passthrough": true
+    },
+    {
+      "variantKey": "zh-tw/default",
+      "filePath": "public/assets/system_files/zh-tw/injection_save.md",
+      "passthrough": true
+    },
+    {
+      "variantKey": "zh-tw/default",
+      "filePath": "public/assets/system_files/zh-tw/injection_system.md",
       "passthrough": true
     },
     {
@@ -74,7 +99,22 @@
     },
     {
       "variantKey": "zh-tw/local",
+      "filePath": "public/assets/system_files/zh-tw/profiles/local/injection_action.md",
+      "passthrough": true
+    },
+    {
+      "variantKey": "zh-tw/local",
+      "filePath": "public/assets/system_files/zh-tw/profiles/local/injection_continue.md",
+      "passthrough": true
+    },
+    {
+      "variantKey": "zh-tw/local",
       "filePath": "public/assets/system_files/zh-tw/profiles/local/injection_correction.md",
+      "passthrough": true
+    },
+    {
+      "variantKey": "zh-tw/local",
+      "filePath": "public/assets/system_files/zh-tw/profiles/local/injection_fastforward.md",
       "passthrough": true
     },
     {
@@ -90,6 +130,16 @@
     {
       "variantKey": "zh-tw/local",
       "filePath": "public/assets/system_files/zh-tw/profiles/local/injection_protocol_single.md",
+      "passthrough": true
+    },
+    {
+      "variantKey": "zh-tw/local",
+      "filePath": "public/assets/system_files/zh-tw/profiles/local/injection_save.md",
+      "passthrough": true
+    },
+    {
+      "variantKey": "zh-tw/local",
+      "filePath": "public/assets/system_files/zh-tw/profiles/local/injection_system.md",
       "passthrough": true
     },
     {
@@ -161,7 +211,22 @@
     },
     {
       "variantKey": "en/default",
+      "filePath": "public/assets/system_files/en/injection_action.md",
+      "passthrough": true
+    },
+    {
+      "variantKey": "en/default",
+      "filePath": "public/assets/system_files/en/injection_continue.md",
+      "passthrough": true
+    },
+    {
+      "variantKey": "en/default",
       "filePath": "public/assets/system_files/en/injection_correction.md",
+      "passthrough": true
+    },
+    {
+      "variantKey": "en/default",
+      "filePath": "public/assets/system_files/en/injection_fastforward.md",
       "passthrough": true
     },
     {
@@ -177,6 +242,16 @@
     {
       "variantKey": "en/default",
       "filePath": "public/assets/system_files/en/injection_protocol_single.md",
+      "passthrough": true
+    },
+    {
+      "variantKey": "en/default",
+      "filePath": "public/assets/system_files/en/injection_save.md",
+      "passthrough": true
+    },
+    {
+      "variantKey": "en/default",
+      "filePath": "public/assets/system_files/en/injection_system.md",
       "passthrough": true
     },
     {
@@ -233,7 +308,22 @@
     },
     {
       "variantKey": "en/local",
+      "filePath": "public/assets/system_files/en/profiles/local/injection_action.md",
+      "passthrough": true
+    },
+    {
+      "variantKey": "en/local",
+      "filePath": "public/assets/system_files/en/profiles/local/injection_continue.md",
+      "passthrough": true
+    },
+    {
+      "variantKey": "en/local",
       "filePath": "public/assets/system_files/en/profiles/local/injection_correction.md",
+      "passthrough": true
+    },
+    {
+      "variantKey": "en/local",
+      "filePath": "public/assets/system_files/en/profiles/local/injection_fastforward.md",
       "passthrough": true
     },
     {
@@ -249,6 +339,16 @@
     {
       "variantKey": "en/local",
       "filePath": "public/assets/system_files/en/profiles/local/injection_protocol_single.md",
+      "passthrough": true
+    },
+    {
+      "variantKey": "en/local",
+      "filePath": "public/assets/system_files/en/profiles/local/injection_save.md",
+      "passthrough": true
+    },
+    {
+      "variantKey": "en/local",
+      "filePath": "public/assets/system_files/en/profiles/local/injection_system.md",
       "passthrough": true
     },
     {
