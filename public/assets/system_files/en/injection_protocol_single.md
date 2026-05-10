@@ -110,7 +110,7 @@ Strictly follow these JSON field definitions. **Flat top-level shape**: `{ analy
     - **Equipped**: don a piece of equipment (e.g., `Equipped Rusty Sword`, `Equipped Steel Breastplate`).
     - **Unequipped**: take off an equipped item back into carried storage (e.g., `Unequipped Rusty Sword`).
     - **Corrected**: item-state correction caused by a story correction. **ONLY allowed when `correction` is non-empty** (e.g., `Corrected Red Gown→Blue School Uniform`).
-  - **[Protagonist-Owned Only]**: ONLY items personally owned by the protagonist. Companions / love interests / employers / hosts use `character_log`'s `Possession Change:` label. Even when the protagonist is short-term sheltered, lodging, or kept by another, the host's belongings **MUST NOT** be treated as protagonist-owned.
+  - **[Protagonist-Owned Only]**: ONLY items personally owned by the protagonist. Companions / love interests / employers / hosts use `character_log`'s `Possession Change:` label. Even when the protagonist is short-term sheltered, lodged, or kept by another, the host's belongings **MUST NOT** be treated as protagonist-owned.
   - **[Carried vs Non-Carried]**: carried = `{{FILE_INVENTORY}}`; non-carried (money, real estate, deposits) = `{{FILE_ASSETS}}`.
   - **Core**: do not label simple movements as "Consumed". Use "Consumed" ONLY when an item is actually used up or destroyed.
   - **No Storage = No Log**: if not explicitly stored, do NOT log "Gained".

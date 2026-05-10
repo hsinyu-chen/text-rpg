@@ -159,6 +159,7 @@ When listing `<Action Intent>`, `<Continue>`, or `<Fast Forward>`, your thinking
   - **[Positive Events]**:
     - **Unexpected Gains**: Hidden treasures, dropped coin purses, forgotten supplies.
     - **Helpful Strangers**: NPCs offering assistance, information, or resources.
+    - **Good Fortune**: Weather clears, smooth travel, enemies leave for other reasons — environmental luck.
     - **NPCs Return Favors**: Previously helped NPCs (`{{FILE_CHARACTER_STATUS}}`) offer assistance, gratitude, or intel.
     - **Plans Succeed**: Plans (`{{FILE_PLANS}}`) progress smoothly, supply prices drop, allies bring good news, bonus rewards.
   - **[Negative/Challenge Events]**:
