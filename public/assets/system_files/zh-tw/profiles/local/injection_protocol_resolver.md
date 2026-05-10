@@ -106,7 +106,7 @@
 ## 切勿
 
 - ❌ 寫敘事（schema 沒有 `story` 欄位）
-- ❌ 短路（`breaks_ideal=true` 後仍要列出剩餘步驟）
+- ❌ 在 `breaks_ideal=true` 之後繼續列出後續步驟（必須在破壞點停止輸出）
 - ❌ NPC 開口卻 `dialogue=""`（必須補回原文台詞）
 - ❌ 漏列任何 `present_npcs` 或 `key_objects` 於 `npc_reactions[]` / `object_reactions[]`
 - ❌ 把推理理由塞進 `action` / `pc_dialogue`（理由只進 `outcome` 字串）

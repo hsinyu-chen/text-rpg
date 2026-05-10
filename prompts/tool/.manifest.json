@@ -71,11 +71,6 @@
           "layers": []
         },
         {
-          "id": "npc-proactivity",
-          "finalSource": "prompts/source/base/zh-tw/system_prompt.md",
-          "layers": []
-        },
-        {
           "id": "creative-permission-extra",
           "finalSource": "prompts/source/layers/cloud-overrides/zh-tw/system_prompt.md",
           "layers": [
@@ -188,16 +183,6 @@
           ]
         },
         {
-          "id": "npc-proactivity",
-          "finalSource": "prompts/source/layers/local-overrides/zh-tw/system_prompt.md",
-          "layers": [
-            {
-              "layer": "local-overrides",
-              "op": "content-replace"
-            }
-          ]
-        },
-        {
           "id": "creative-permission-extra",
           "finalSource": "prompts/source/base/zh-tw/system_prompt.md",
           "layers": []
@@ -276,11 +261,6 @@
         },
         {
           "id": "s12-npc-scope-reminder",
-          "finalSource": "prompts/source/base/en/system_prompt.md",
-          "layers": []
-        },
-        {
-          "id": "npc-proactivity",
           "finalSource": "prompts/source/base/en/system_prompt.md",
           "layers": []
         },
@@ -388,16 +368,6 @@
         },
         {
           "id": "s12-npc-scope-reminder",
-          "finalSource": "prompts/source/layers/local-overrides/en/system_prompt.md",
-          "layers": [
-            {
-              "layer": "local-overrides",
-              "op": "content-replace"
-            }
-          ]
-        },
-        {
-          "id": "npc-proactivity",
           "finalSource": "prompts/source/layers/local-overrides/en/system_prompt.md",
           "layers": [
             {
