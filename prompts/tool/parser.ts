@@ -152,6 +152,8 @@ function parseLines(filePath: string, lines: string[]): { ast: InternalAst; diag
             level: 'error', file: filePath, line: lineNum,
             message: `slot '${inSlot.id}' crosses fence boundary (open at line ${inSlot.startLine} fence-depth ${inSlot.fenceDepthAtOpen}, close fence-depth ${fenceDepth})`,
           });
+          inSlot = null;
+          continue;
         }
         recordSlot(
           {

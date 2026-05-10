@@ -129,6 +129,18 @@ describe('config validation', () => {
   });
 });
 
+describe('orphaned layer file warning', () => {
+  it('warns when a layer .md has no matching base file (typo / dangling override)', () => {
+    const rel = (p: string) => join(tmpDir, p);
+    write('base/zh-tw/x.md', '<!--@slot:s-->\nbase\n<!--@end-->\n');
+    write('layers/cloud/zh-tw/x.md', '<!--@slot:s-->\nover\n<!--@end-->\n');
+    write('layers/cloud/zh-tw/typo.md', '<!--@slot:t-->\noops\n<!--@end-->\n');
+    const cfg = configIn(rel);
+    const out = runPipeline(cfg);
+    expect(out.diagnostics.some(d => d.level === 'warning' && d.message.includes('orphaned'))).toBe(true);
+  });
+});
+
 describe('idempotent on existing output', () => {
   it('rebuild over existing output produces same bytes', () => {
     const rel = (p: string) => join(tmpDir, p);

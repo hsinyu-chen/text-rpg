@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 
-import { manifestEntriesEqual, PipelineOutput } from './pipeline';
+import { manifestEntriesEqual, PipelineOutput, readUtf8Lf } from './pipeline';
 import { Diagnostic, Manifest } from './types';
 
 export interface CheckOptions {
@@ -21,7 +21,7 @@ export function runCheck(
       });
       continue;
     }
-    const onDisk = readFileSync(filePath, 'utf8').replace(/\r\n/g, '\n');
+    const onDisk = readUtf8Lf(filePath);
     if (onDisk !== expected) {
       out.push({
         level: 'error', file: filePath,

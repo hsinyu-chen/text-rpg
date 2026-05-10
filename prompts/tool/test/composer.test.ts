@@ -158,6 +158,25 @@ describe('heading + content blank-line preservation', () => {
   });
 });
 
+describe('heading injection on headerless base', () => {
+  it('heading-replace on a slot that lacks a heading still emits a newline (no squash)', () => {
+    const base = baseAst({ s: 'body' });
+    const r = compose(base, [layer('L', [{ id: 's', op: 'heading-replace', body: '## Title' }])]);
+    expect(r.finalAst.slots.get('s')!.body).toBe('## Title\nbody');
+  });
+});
+
+describe('remove conflict warning', () => {
+  it('remove after a content modification warns (silently discards prior edit)', () => {
+    const base = baseAst({ s: 'body' });
+    const r = compose(base, [
+      layer('A', [{ id: 's', op: 'content-replace', body: 'modified' }]),
+      layer('B', [{ id: 's', op: 'remove', body: '' }]),
+    ]);
+    expect(r.diagnostics.some(d => d.level === 'warning' && /'A'.+'B'/.test(d.message))).toBe(true);
+  });
+});
+
 describe('paragraph preservation', () => {
   it('content-prepend joins with single newline when neither side has trailing/leading newline', () => {
     const base = baseAst({ s: 'old' });

@@ -59,7 +59,7 @@ export function compose(
       const writesHeading = (k: OpKind): boolean =>
         k === 'heading-replace' || k === 'full-replace';
       const conflictsWith = (prior: OpKind, next: OpKind): boolean => {
-        if (next === 'full-replace') return true;
+        if (next === 'full-replace' || next === 'remove') return true;
         if (next === 'content-replace') return writesContent(prior);
         if (next === 'heading-replace') return writesHeading(prior);
         return false;
@@ -148,8 +148,11 @@ export function splitHeading(body: string): {
 function combine(heading: string, separator: string, content: string): string {
   if (!heading) return content;
   if (!content) return heading;
+  // Default to a single newline when base had no heading (separator='') so a
+  // freshly-injected heading doesn't squash onto the first line of content.
+  const sep = separator || '\n';
   return collapseBlankRuns(
-    heading.replace(/\n+$/, '') + separator + content.replace(/^\n+/, ''),
+    heading.replace(/\n+$/, '') + sep + content.replace(/^\n+/, ''),
   );
 }
 
