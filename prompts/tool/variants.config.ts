@@ -21,5 +21,7 @@ export const config: VariantConfig = {
     'en/default': 'public/assets/system_files/en',
     'en/local': 'public/assets/system_files/en/profiles/local',
   },
-  per_file: {},
+  per_file: {
+    'injection_correction.md': { passthrough: true },
+  },
 };
