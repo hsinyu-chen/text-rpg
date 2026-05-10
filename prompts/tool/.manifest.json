@@ -21,6 +21,58 @@
       "passthrough": true
     },
     {
+      "variantKey": "zh-tw/default",
+      "filePath": "public/assets/system_files/zh-tw/system_prompt.md",
+      "passthrough": false,
+      "slots": [
+        {
+          "id": "s11-npc-scope",
+          "finalSource": "prompts/source/base/zh-tw/system_prompt.md",
+          "layers": []
+        },
+        {
+          "id": "s11-npc-scope-reminder",
+          "finalSource": "prompts/source/base/zh-tw/system_prompt.md",
+          "layers": []
+        },
+        {
+          "id": "s12-npc-scope",
+          "finalSource": "prompts/source/base/zh-tw/system_prompt.md",
+          "layers": []
+        },
+        {
+          "id": "s12-npc-scope-reminder",
+          "finalSource": "prompts/source/base/zh-tw/system_prompt.md",
+          "layers": []
+        },
+        {
+          "id": "npc-proactivity",
+          "finalSource": "prompts/source/base/zh-tw/system_prompt.md",
+          "layers": []
+        },
+        {
+          "id": "creative-permission-extra",
+          "finalSource": "prompts/source/layers/cloud-overrides/zh-tw/system_prompt.md",
+          "layers": [
+            {
+              "layer": "cloud-overrides",
+              "op": "content-replace"
+            }
+          ]
+        },
+        {
+          "id": "non-refusal-principle",
+          "finalSource": "prompts/source/layers/cloud-overrides/zh-tw/system_prompt.md",
+          "layers": [
+            {
+              "layer": "cloud-overrides",
+              "op": "content-replace"
+            }
+          ]
+        }
+      ]
+    },
+    {
       "variantKey": "zh-tw/local",
       "filePath": "public/assets/system_files/zh-tw/profiles/local/injection_correction.md",
       "passthrough": true
@@ -39,6 +91,73 @@
       "variantKey": "zh-tw/local",
       "filePath": "public/assets/system_files/zh-tw/profiles/local/injection_protocol_single.md",
       "passthrough": true
+    },
+    {
+      "variantKey": "zh-tw/local",
+      "filePath": "public/assets/system_files/zh-tw/profiles/local/system_prompt.md",
+      "passthrough": false,
+      "slots": [
+        {
+          "id": "s11-npc-scope",
+          "finalSource": "prompts/source/layers/local-overrides/zh-tw/system_prompt.md",
+          "layers": [
+            {
+              "layer": "local-overrides",
+              "op": "content-replace"
+            }
+          ]
+        },
+        {
+          "id": "s11-npc-scope-reminder",
+          "finalSource": "prompts/source/layers/local-overrides/zh-tw/system_prompt.md",
+          "layers": [
+            {
+              "layer": "local-overrides",
+              "op": "content-replace"
+            }
+          ]
+        },
+        {
+          "id": "s12-npc-scope",
+          "finalSource": "prompts/source/layers/local-overrides/zh-tw/system_prompt.md",
+          "layers": [
+            {
+              "layer": "local-overrides",
+              "op": "content-replace"
+            }
+          ]
+        },
+        {
+          "id": "s12-npc-scope-reminder",
+          "finalSource": "prompts/source/layers/local-overrides/zh-tw/system_prompt.md",
+          "layers": [
+            {
+              "layer": "local-overrides",
+              "op": "content-replace"
+            }
+          ]
+        },
+        {
+          "id": "npc-proactivity",
+          "finalSource": "prompts/source/layers/local-overrides/zh-tw/system_prompt.md",
+          "layers": [
+            {
+              "layer": "local-overrides",
+              "op": "content-replace"
+            }
+          ]
+        },
+        {
+          "id": "creative-permission-extra",
+          "finalSource": "prompts/source/base/zh-tw/system_prompt.md",
+          "layers": []
+        },
+        {
+          "id": "non-refusal-principle",
+          "finalSource": "prompts/source/base/zh-tw/system_prompt.md",
+          "layers": []
+        }
+      ]
     },
     {
       "variantKey": "en/default",
@@ -61,6 +180,58 @@
       "passthrough": true
     },
     {
+      "variantKey": "en/default",
+      "filePath": "public/assets/system_files/en/system_prompt.md",
+      "passthrough": false,
+      "slots": [
+        {
+          "id": "s11-npc-scope",
+          "finalSource": "prompts/source/base/en/system_prompt.md",
+          "layers": []
+        },
+        {
+          "id": "s11-npc-scope-reminder",
+          "finalSource": "prompts/source/base/en/system_prompt.md",
+          "layers": []
+        },
+        {
+          "id": "s12-npc-scope",
+          "finalSource": "prompts/source/base/en/system_prompt.md",
+          "layers": []
+        },
+        {
+          "id": "s12-npc-scope-reminder",
+          "finalSource": "prompts/source/base/en/system_prompt.md",
+          "layers": []
+        },
+        {
+          "id": "npc-proactivity",
+          "finalSource": "prompts/source/base/en/system_prompt.md",
+          "layers": []
+        },
+        {
+          "id": "creative-permission-extra",
+          "finalSource": "prompts/source/layers/cloud-overrides/en/system_prompt.md",
+          "layers": [
+            {
+              "layer": "cloud-overrides",
+              "op": "content-replace"
+            }
+          ]
+        },
+        {
+          "id": "non-refusal-principle",
+          "finalSource": "prompts/source/layers/cloud-overrides/en/system_prompt.md",
+          "layers": [
+            {
+              "layer": "cloud-overrides",
+              "op": "content-replace"
+            }
+          ]
+        }
+      ]
+    },
+    {
       "variantKey": "en/local",
       "filePath": "public/assets/system_files/en/profiles/local/injection_correction.md",
       "passthrough": true
@@ -79,6 +250,73 @@
       "variantKey": "en/local",
       "filePath": "public/assets/system_files/en/profiles/local/injection_protocol_single.md",
       "passthrough": true
+    },
+    {
+      "variantKey": "en/local",
+      "filePath": "public/assets/system_files/en/profiles/local/system_prompt.md",
+      "passthrough": false,
+      "slots": [
+        {
+          "id": "s11-npc-scope",
+          "finalSource": "prompts/source/layers/local-overrides/en/system_prompt.md",
+          "layers": [
+            {
+              "layer": "local-overrides",
+              "op": "content-replace"
+            }
+          ]
+        },
+        {
+          "id": "s11-npc-scope-reminder",
+          "finalSource": "prompts/source/layers/local-overrides/en/system_prompt.md",
+          "layers": [
+            {
+              "layer": "local-overrides",
+              "op": "content-replace"
+            }
+          ]
+        },
+        {
+          "id": "s12-npc-scope",
+          "finalSource": "prompts/source/layers/local-overrides/en/system_prompt.md",
+          "layers": [
+            {
+              "layer": "local-overrides",
+              "op": "content-replace"
+            }
+          ]
+        },
+        {
+          "id": "s12-npc-scope-reminder",
+          "finalSource": "prompts/source/layers/local-overrides/en/system_prompt.md",
+          "layers": [
+            {
+              "layer": "local-overrides",
+              "op": "content-replace"
+            }
+          ]
+        },
+        {
+          "id": "npc-proactivity",
+          "finalSource": "prompts/source/layers/local-overrides/en/system_prompt.md",
+          "layers": [
+            {
+              "layer": "local-overrides",
+              "op": "content-replace"
+            }
+          ]
+        },
+        {
+          "id": "creative-permission-extra",
+          "finalSource": "prompts/source/base/en/system_prompt.md",
+          "layers": []
+        },
+        {
+          "id": "non-refusal-principle",
+          "finalSource": "prompts/source/base/en/system_prompt.md",
+          "layers": []
+        }
+      ]
     }
   ]
 }
