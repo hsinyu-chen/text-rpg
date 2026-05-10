@@ -1,8 +1,14 @@
 import { readFileSync } from 'node:fs';
+
 import {
   AstBlock, Diagnostic, FileAst, LayerAst, LayerOp,
   OP_KINDS, OpKind, SlotNode,
 } from './types';
+
+/** Read a file as UTF-8 with CRLF normalized to LF. */
+export function readUtf8Lf(path: string): string {
+  return readFileSync(path, 'utf8').replace(/\r\n/g, '\n');
+}
 
 const SLOT_OPEN_RE = /^\s*<!--@slot:([a-z][a-z0-9-]*)(?:\s+([^>]*?))?\s*-->\s*$/;
 const SLOT_END_RE = /^\s*<!--@end-->\s*$/;
@@ -24,9 +30,8 @@ interface InternalAst {
 }
 
 export function readSource(path: string): { lines: string[]; raw: string } {
-  const raw = readFileSync(path, 'utf8');
-  const normalized = raw.replace(/\r\n/g, '\n');
-  const stripped = normalized.endsWith('\n') ? normalized.slice(0, -1) : normalized;
+  const raw = readUtf8Lf(path);
+  const stripped = raw.endsWith('\n') ? raw.slice(0, -1) : raw;
   return { lines: stripped.split('\n'), raw };
 }
 

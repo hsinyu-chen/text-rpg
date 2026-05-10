@@ -1,8 +1,8 @@
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 
 import { compose } from './composer';
-import { parseBaseFile, parseLayerFile } from './parser';
+import { parseBaseFile, parseLayerFile, readUtf8Lf } from './parser';
 import { render } from './renderer';
 import { config } from './variants.config';
 import {
@@ -11,10 +11,7 @@ import {
 
 export const REPO_ROOT = resolve(__dirname, '..', '..');
 
-/** Read a file as UTF-8 with CRLF normalized to LF. Used at every disk boundary. */
-export function readUtf8Lf(path: string): string {
-  return readFileSync(path, 'utf8').replace(/\r\n/g, '\n');
-}
+export { readUtf8Lf };
 
 export interface PipelineOutput {
   files: Map<string, string>;
@@ -109,6 +106,17 @@ export function runPipeline(cfg: VariantConfig = config): PipelineOutput {
     const layerDir = cfg.layer_dirs[layerName];
     if (!layerDir) continue;
     const absLayerDir = abs(layerDir);
+    if (!existsSync(absLayerDir)) continue;
+
+    // Stray .md at layer root (forgot the <lang>/ subfolder)
+    for (const fileName of listMdFiles(absLayerDir)) {
+      diagnostics.push({
+        level: 'warning',
+        file: relRepo(join(absLayerDir, fileName)),
+        message: `stray layer file at layer root (missing <lang>/ subfolder): '${fileName}'`,
+      });
+    }
+
     for (const lang of langs) {
       const langDir = join(absLayerDir, lang);
       if (!existsSync(langDir)) continue;

@@ -32,9 +32,9 @@ async function main(): Promise<void> {
 
   const earlyErrors = summarize(diagnostics).errors;
 
-  if (checkMode) {
+  if (checkMode && earlyErrors === 0) {
     diagnostics.push(...runCheck(output, { manifestPath: MANIFEST_PATH }));
-  } else if (earlyErrors === 0) {
+  } else if (!checkMode && earlyErrors === 0) {
     for (const [path, content] of output.files) {
       mkdirSync(dirname(path), { recursive: true });
       writeFileSync(path, content, { encoding: 'utf8' });
