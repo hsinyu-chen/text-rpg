@@ -24,5 +24,6 @@ export const config: VariantConfig = {
   per_file: {
     'injection_correction.md': { passthrough: true },
     'injection_protocol_narrator.md': { passthrough: true },
+    'injection_protocol_resolver.md': { passthrough: true },
   },
 };

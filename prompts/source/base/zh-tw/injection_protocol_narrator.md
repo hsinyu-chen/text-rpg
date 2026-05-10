@@ -1,4 +1,4 @@
-# 敘事協議（Call 2 — Narrator）
+# 敘事協議
 
 {{HISTORICAL_CORRECTION_RULE}}
 

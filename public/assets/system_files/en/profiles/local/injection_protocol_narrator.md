@@ -1,4 +1,4 @@
-# Narration Protocol (Call 2 — Narrator)
+# Narration Protocol
 
 {{HISTORICAL_CORRECTION_RULE}}
 
