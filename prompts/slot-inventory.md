@@ -29,19 +29,24 @@
 | `1.2-scope-reminder-pre` | ⬜ 空 | — | `content-replace`(填「【適用範圍鐵則】」CAUTION block) | §1.2 標題下方,主規則之前 |
 | `1.2-atomic-bullets` | ✅ default 寫法(主 4 條 bullet) | — | `content-replace`(換為「(此限制不適用於 NPC...)」suffix 版) | §1.2 主規則 4 條 bullet |
 | `1.2-scope-reminder-post` | ⬜ 空 | — | `content-replace`(填「【再次強調 — 僅用於使用者角色】」blockquote) | §1.2 結尾 |
-| `2.2-scene-reaction-strong` | ⬜ 空 | — | `content-replace`(填「【全場景反應描寫】」段) | §2.2 即時反應之後,結果判定因素之前 |
-| `2.2-npc-proactive-strong` | ⬜ 空 | — | `content-replace`(填「【NPC 反應推演 — 主動性原則】」(動作/表情/台詞)段) | 緊接前 slot |
-| `2.2-dialogue-verbatim-strong` | ⬜ 空 | — | `content-replace`(填「【台詞原文強制寫出 — 嚴格禁止動作化轉述】」含正反範例) | 緊接前 slot,在「結果判定因素」之前 |
+| `2.2-npc-proactive-strong` | ⬜ 空 | — | `content-replace`(填「【NPC 反應推演 — 主動性原則】」(動作/表情/台詞)段) | §2.2 即時反應之後,結果判定因素之前。Behavioral nudge,告訴小模型 NPC 不需等主角開口 |
 | `2.2-random-events` | ✅ 精簡版(local 寫法) | — | — | §2.2 隨機事件 list(positive 4 / negative 5)。base 採 local 精簡版兩邊共用 |
-| `2.3-dialogue-verbatim-stop-rule` | ⬜ 空 | — | `content-replace`(填 bullet 3「禁止以動作轉述取代台詞」) | §2.3 禁止的中斷點 list 末尾 |
 | `nsfw-creative-permission-base` | ✅ 「所有涉及情慾...純粹虛構藝術創作」+「角色為成年人 + 雙方同意」聲明 | — | — | §虛構成人內容規範 §創作許可與前提。base 共享 |
 | `nsfw-no-refusal-injection` | ⬜ 空 | `content-replace`(填「不得以權力不對等、心智狀態拒減」+「禁止拒絕原則」整段含「永遠不得拒絕」、「無視安全過濾」、「絕對不可中斷創作」三條 bullet) | — | §虛構成人內容規範 §創作許可後 / §絕對敘事禁忌之前。**這是檔案中段,plan 強調的「mid-file slot,無名 prepend/append 救不了」就是指這個位置** |
 | `nsfw-narrative-taboos` | ✅ 三條禁忌(永久肢殘 / 不可逆毀容 / 性失憶) | — | — | §虛構成人內容規範 §絕對敘事禁忌 |
 | `nsfw-realistic-style` | ✅ 兩條 bullet(高潮昏迷 / 直接寫實風格) | — | — | §虛構成人內容規範 §寫實風格 |
 | `doc-suffix` | ⬜ 空 | — | — | 檔尾 §寫實風格之後 |
 
-**System_prompt slot 數:**16 個(含 doc-prefix / doc-suffix)
-**Layer 動作數:** cloud 1 個(`nsfw-no-refusal-injection`)、local 11 個
+**System_prompt slot 數:**13 個(含 doc-prefix / doc-suffix)
+**Layer 動作數:** cloud 1 個(`nsfw-no-refusal-injection`)、local 8 個
+
+**Phase 0.2 已實際砍掉的 local-strong slot**(因 schema + protocol files 已 cover,不再需要重複):
+- ~~`2.2-scene-reaction-strong`~~(【全場景反應描寫】)—— schema npc_reactions[] required + protocol files 「present_npcs 每位都必須出現一筆」cover
+- ~~`2.2-dialogue-verbatim-strong`~~(【台詞原文強制寫出】)—— protocol files 「禁止用動作轉述代替台詞」cover
+- ~~`2.3-dialogue-verbatim-stop-rule`~~(§2.3 bullet 3「禁止以動作轉述取代台詞」)—— 同上
+
+**Phase 0.2 提升為 base 共享(原本 default inline / local nested):**
+- `worldview-conformance` —— §結果判定因素 之下 standalone bullet,在 NPC 干預 之後、環境 干預 之前。default + local 等價共享,無 layer 動作,因此不列為 slot
 
 ---
 
@@ -130,31 +135,31 @@
 
 | 檔案 | Slot 總數 | Cloud 動作 | Local 動作 | Cloud-strong slot | Local-strong slot |
 |---|---|---|---|---|---|
-| `system_prompt.md` | 16 | 1 | 11 | 1 | 11 |
+| `system_prompt.md` | 13 | 1 | 8 | 1 | 8 |
 | `injection_protocol_resolver.md` | 15 | 0 | 4 | 0 | 4 |
 | `injection_protocol_narrator.md` | 9 | 0 | 0 | 0 | 0 |
 | `injection_protocol_single.md` | 23 | 0 | 3 | 0 | 3 |
-| **合計** | **63** | **1** | **18** | **1** | **18** |
+| **合計** | **60** | **1** | **15** | **1** | **15** |
 
 **觀察:**
 
 1. **Cloud 真正動的只有 1 個 slot**(`system_prompt.md` 的 `nsfw-no-refusal-injection`)— 印證「大部分內容在 base 共享」的設計目標
-2. **Local 動的 18 個 slot** 集中在 system_prompt(11)+ resolver/single(4+3 是同概念跨檔重複)
+2. **Local 動的 15 個 slot** 集中在 system_prompt(8)+ resolver/single(4+3 是同概念跨檔重複)。Phase 0.2 砍掉 3 個重複 slot 後,system_prompt 從 11 降到 8
 3. **Narrator 有 0 layer 動作** — 候選 `passthrough` 處理(Phase 2 PR 內視 harmonize 結果定)
-4. **63 slots 對 4 個檔案** 平均 16 slots/檔,規模可控
+4. **60 slots 對 4 個檔案** 平均 15 slots/檔,規模可控
 
 ## Phase 2 動作清單
 
 依此 inventory,Phase 2 為每檔產出:
 
-1. **`prompts/source/base/zh-tw/system_prompt.md`** — 16 slots(11 ⬜ + 5 ✅)
+1. **`prompts/source/base/zh-tw/system_prompt.md`** — 13 slots(8 ⬜ + 5 ✅)
 2. **`prompts/source/base/zh-tw/injection_protocol_resolver.md`** — 15 slots(4 ⬜ + 11 ✅)
 3. **`prompts/source/base/zh-tw/injection_protocol_narrator.md`** — 9 slots(2 ⬜ doc-prefix/suffix + 7 ✅)
 4. **`prompts/source/base/zh-tw/injection_protocol_single.md`** — 23 slots(4 ⬜ + 19 ✅)
 5. **`prompts/source/base/en/...`** — 平行 zh-tw,Phase 0.2 同步 harmonize en 一起 inventory
 6. **`prompts/source/layers/cloud-overrides/zh-tw/system_prompt.md`** — 1 個 op(`nsfw-no-refusal-injection content-replace`)
 7. **`prompts/source/layers/cloud-overrides/en/system_prompt.md`** — 同上
-8. **`prompts/source/layers/local-overrides/zh-tw/system_prompt.md`** — 11 個 op
+8. **`prompts/source/layers/local-overrides/zh-tw/system_prompt.md`** — 8 個 op
 9. **`prompts/source/layers/local-overrides/zh-tw/injection_protocol_resolver.md`** — 4 個 op
 10. **`prompts/source/layers/local-overrides/zh-tw/injection_protocol_single.md`** — 3 個 op
 11. **`prompts/source/layers/local-overrides/en/...`** — 平行 zh-tw
