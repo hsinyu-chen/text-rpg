@@ -14,6 +14,10 @@ yarn-error.log
 # aider local-LLM review tool runtime artifacts
 .aider*
 
+# CLI plan-review staging area (CLI sandbox can't reach sibling TextRPG_Plans/)
+.tmp-review/
+.tmp-plan-review-prompt.txt
+
 # IDEs and editors
 .idea/
 .project
