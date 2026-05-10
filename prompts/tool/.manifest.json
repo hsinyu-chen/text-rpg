@@ -3,75 +3,22 @@
     {
       "variantKey": "zh-tw/default",
       "filePath": "public/assets/system_files/zh-tw/injection_correction.md",
-      "passthrough": false,
-      "slots": [
-        {
-          "id": "rerun-rules",
-          "finalSource": "prompts/source/layers/cloud-overrides/zh-tw/injection_correction.md",
-          "layers": [
-            {
-              "layer": "cloud-overrides",
-              "op": "content-replace"
-            }
-          ]
-        }
-      ]
+      "passthrough": true
     },
     {
       "variantKey": "zh-tw/local",
       "filePath": "public/assets/system_files/zh-tw/profiles/local/injection_correction.md",
-      "passthrough": false,
-      "slots": [
-        {
-          "id": "rerun-rules",
-          "finalSource": "prompts/source/base/zh-tw/injection_correction.md",
-          "layers": []
-        }
-      ]
+      "passthrough": true
     },
     {
       "variantKey": "en/default",
       "filePath": "public/assets/system_files/en/injection_correction.md",
-      "passthrough": false,
-      "slots": [
-        {
-          "id": "correction-intro",
-          "finalSource": "prompts/source/layers/cloud-overrides/en/injection_correction.md",
-          "layers": [
-            {
-              "layer": "cloud-overrides",
-              "op": "content-replace"
-            }
-          ]
-        },
-        {
-          "id": "rerun-rules",
-          "finalSource": "prompts/source/layers/cloud-overrides/en/injection_correction.md",
-          "layers": [
-            {
-              "layer": "cloud-overrides",
-              "op": "content-replace"
-            }
-          ]
-        }
-      ]
+      "passthrough": true
     },
     {
       "variantKey": "en/local",
       "filePath": "public/assets/system_files/en/profiles/local/injection_correction.md",
-      "passthrough": false,
-      "slots": [
-        {
-          "id": "correction-intro",
-          "finalSource": "prompts/source/base/en/injection_correction.md",
-          "layers": []
-        },
-        {
-          "id": "rerun-rules",
-          "finalSource": "prompts/source/base/en/injection_correction.md",
-          "layers": []
-        }
-      ]
+      "passthrough": true
     }
   ]
 }
