@@ -42,7 +42,6 @@
    - 首次登場或實際變化 ⇒ 寫進場景描寫
 6. **`kind: "random_event"` 步驟** ⇒ 與 user_intent 步驟相同方式敘述，依其在 `steps[]` 中的時序位置融入正文，不另起標題。
 7. **`scene_snapshot.environment`** ⇒ 在正文開頭或步驟間自然滲入；不要列點羅列。
-8. 套用 `system_prompt.md` 的【世界反應：劇情演出】與【寫作風格】所有規則。
 
 ### `interrupted=true` 處理
 
