@@ -122,6 +122,20 @@ describe('warnings', () => {
   });
 });
 
+describe('heading + content blank-line preservation', () => {
+  it('content-replace preserves blank line between heading and content if base had one', () => {
+    const base = baseAst({ s: '## Title\n\nold' });
+    const r = compose(base, [layer('L', [{ id: 's', op: 'content-replace', body: 'new' }])]);
+    expect(r.finalAst.slots.get('s')!.body).toBe('## Title\n\nnew');
+  });
+
+  it('content-replace keeps single-newline join when base had no blank line', () => {
+    const base = baseAst({ s: '## Title\nold' });
+    const r = compose(base, [layer('L', [{ id: 's', op: 'content-replace', body: 'new' }])]);
+    expect(r.finalAst.slots.get('s')!.body).toBe('## Title\nnew');
+  });
+});
+
 describe('paragraph preservation', () => {
   it('content-prepend joins with single newline when neither side has trailing/leading newline', () => {
     const base = baseAst({ s: 'old' });

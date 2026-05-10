@@ -126,6 +126,7 @@ function parseLines(filePath: string, lines: string[]): { ast: InternalAst; diag
         level: 'error', file: filePath, line,
         message: `duplicate slot id '${slot.id}' (also at line ${existing.startLine})`,
       });
+      return;
     }
     slots.set(slot.id, slot);
     blocks.push({ kind: 'slot-ref', slotId: slot.id });

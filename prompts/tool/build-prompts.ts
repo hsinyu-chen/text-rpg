@@ -30,9 +30,11 @@ async function main(): Promise<void> {
   const output = runPipeline();
   const diagnostics: Diagnostic[] = [...output.diagnostics];
 
+  const earlyErrors = summarize(diagnostics).errors;
+
   if (checkMode) {
     diagnostics.push(...runCheck(output, { manifestPath: MANIFEST_PATH }));
-  } else {
+  } else if (earlyErrors === 0) {
     for (const [path, content] of output.files) {
       mkdirSync(dirname(path), { recursive: true });
       writeFileSync(path, content, { encoding: 'utf8' });
@@ -49,6 +51,9 @@ async function main(): Promise<void> {
 
   if (errors > 0 || warnings > 0) {
     process.stderr.write(`\n${errors} error(s), ${warnings} warning(s)\n`);
+    if (!checkMode && earlyErrors > 0) {
+      process.stderr.write('Build aborted before writing output (parser/composer errors).\n');
+    }
   } else {
     process.stderr.write(checkMode ? 'prompts:check OK\n' : 'prompts:build OK\n');
   }

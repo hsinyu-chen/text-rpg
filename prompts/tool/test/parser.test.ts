@@ -194,10 +194,14 @@ describe('edge cases', () => {
     expect(ast.slots.get('s')!.body).toBe('');
   });
 
-  it('errors on duplicate slot id within same file', () => {
+  it('errors on duplicate slot id within same file (and does not double-render)', async () => {
+    const { render } = await import('../renderer');
     const f = write('t.md', '<!--@slot:s-->\nx\n<!--@end-->\n<!--@slot:s-->\ny\n<!--@end-->\n');
-    const { diagnostics } = parseBaseFile(f);
+    const { ast, diagnostics } = parseBaseFile(f);
     expect(diagnostics.some(d => d.level === 'error' && d.message.includes('duplicate'))).toBe(true);
+    // The duplicate must not produce a second slot-ref; renderer output should contain 'x' once, not 'y' twice.
+    const out = render(ast);
+    expect((out.match(/y/g) ?? []).length).toBeLessThanOrEqual(1);
   });
 
   it('errors on nested slot', () => {

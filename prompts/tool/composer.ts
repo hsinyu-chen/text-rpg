@@ -87,20 +87,20 @@ function applyOp(parent: SlotNode, op: LayerOp): SlotNode {
   if (op.op === 'full-replace') {
     return { ...parent, body: op.body, isRemove: false, source: op.source };
   }
-  const { heading, content } = splitHeading(parent.body);
+  const { heading, separator, content } = splitHeading(parent.body);
   let newBody: string;
   switch (op.op) {
     case 'heading-replace':
-      newBody = combine(op.body, content);
+      newBody = combine(op.body, separator, content);
       break;
     case 'content-replace':
-      newBody = combine(heading, op.body);
+      newBody = combine(heading, separator, op.body);
       break;
     case 'content-prepend':
-      newBody = combine(heading, joinPreserveParagraphs(op.body, content));
+      newBody = combine(heading, separator, joinPreserveParagraphs(op.body, content));
       break;
     case 'content-append':
-      newBody = combine(heading, joinPreserveParagraphs(content, op.body));
+      newBody = combine(heading, separator, joinPreserveParagraphs(content, op.body));
       break;
     default: {
       const _exhaustive: never = op.op;
@@ -111,23 +111,33 @@ function applyOp(parent: SlotNode, op: LayerOp): SlotNode {
   return { ...parent, body: newBody, isRemove: false, source: op.source };
 }
 
-export function splitHeading(body: string): { heading: string; content: string } {
+export function splitHeading(body: string): {
+  heading: string; separator: string; content: string;
+} {
   const lines = body.split('\n');
   let i = 0;
   while (i < lines.length && lines[i].trim() === '') i++;
   if (i < lines.length && /^\s*#+\s/.test(lines[i])) {
-    return {
-      heading: lines.slice(0, i + 1).join('\n'),
-      content: lines.slice(i + 1).join('\n'),
-    };
+    const headingLine = lines[i];
+    let j = i + 1;
+    let blanks = 0;
+    while (j < lines.length && lines[j] === '') {
+      blanks++;
+      j++;
+    }
+    const separator = blanks > 0 ? '\n\n' : (j < lines.length ? '\n' : '');
+    const content = lines.slice(j).join('\n');
+    return { heading: headingLine, separator, content };
   }
-  return { heading: '', content: body };
+  return { heading: '', separator: '', content: body };
 }
 
-function combine(heading: string, content: string): string {
+function combine(heading: string, separator: string, content: string): string {
   if (!heading) return content;
   if (!content) return heading;
-  return heading.replace(/\n+$/, '') + '\n' + content.replace(/^\n+/, '');
+  return collapseBlankRuns(
+    heading.replace(/\n+$/, '') + separator + content.replace(/^\n+/, ''),
+  );
 }
 
 function joinPreserveParagraphs(a: string, b: string): string {
