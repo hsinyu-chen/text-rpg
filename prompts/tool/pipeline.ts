@@ -45,9 +45,20 @@ export function runPipeline(cfg: VariantConfig = config): PipelineOutput {
     }
   }
 
-  // Cache parsed layer files — multiple variants may share the same layer
-  // (e.g. cloud-overrides used by zh-tw/default and en/default), and re-parsing
-  // duplicates diagnostics in the output.
+  // Cache parsed source files — multiple variants share base + layer dirs
+  // (e.g. zh-tw/default and zh-tw/local share the same base; cloud-overrides
+  // serves both zh-tw/default and en/default). Re-parsing duplicates
+  // diagnostics in the output.
+  const baseCache = new Map<string, ReturnType<typeof parseBaseFile>>();
+  const cachedParseBase = (baseFile: string) => {
+    let entry = baseCache.get(baseFile);
+    if (!entry) {
+      entry = parseBaseFile(baseFile);
+      baseCache.set(baseFile, entry);
+      diagnostics.push(...entry.diagnostics);
+    }
+    return entry;
+  };
   const layerCache = new Map<string, ReturnType<typeof parseLayerFile>>();
   const cachedParseLayer = (layerFile: string) => {
     let entry = layerCache.get(layerFile);
@@ -81,8 +92,7 @@ export function runPipeline(cfg: VariantConfig = config): PipelineOutput {
         continue;
       }
 
-      const baseParse = parseBaseFile(baseFile);
-      diagnostics.push(...baseParse.diagnostics);
+      const baseParse = cachedParseBase(baseFile);
 
       const layerAsts: Array<{ name: string; ast: LayerAst }> = [];
       for (const layerName of variantDef.layers) {
@@ -156,11 +166,29 @@ export function runPipeline(cfg: VariantConfig = config): PipelineOutput {
 export function validateConfig(cfg: VariantConfig): Diagnostic[] {
   const out: Diagnostic[] = [];
 
+  const isDir = (p: string): boolean => {
+    try {
+      return statSync(abs(p)).isDirectory();
+    } catch {
+      return false;
+    }
+  };
+
   for (const [key, p] of Object.entries(cfg.base_dirs)) {
-    if (!existsSync(abs(p))) {
+    if (!isDir(p)) {
       out.push({
         level: 'error', file: 'variants.config.ts',
-        message: `base_dir '${key}' not found: ${p}`,
+        message: `base_dir '${key}' not found or not a directory: ${p}`,
+      });
+    }
+  }
+  // layer_dirs may be missing in v1 (empty layer = passthrough). Only warn,
+  // and only if path exists as a non-directory (real misconfiguration).
+  for (const [key, p] of Object.entries(cfg.layer_dirs)) {
+    if (existsSync(abs(p)) && !isDir(p)) {
+      out.push({
+        level: 'error', file: 'variants.config.ts',
+        message: `layer_dir '${key}' is not a directory: ${p}`,
       });
     }
   }
