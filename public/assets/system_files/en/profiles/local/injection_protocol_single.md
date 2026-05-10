@@ -6,7 +6,7 @@ Strictly follow these JSON field definitions. **Flat top-level shape**: `{ analy
   - **[Format]**: This field is a JSON **object** (not a string / markdown).
   - **[Behaviour by intent]**:
     - When input is `<Action Intent>`, `<Fast Forward>`, `<System> Correction`, or `<Continue>`: emit a **full StructuredAnalysis** (see below).
-    - For other commands (`<System>` general Q&A, `<Save>`): still emit the schema shape, but as a **skeleton** — empty `scene_snapshot` fields, `steps: []`.
+    - For other commands (`<System>` general Q&A, `<Save>`): still emit the schema shape, but as a **skeleton** — empty `scene_snapshot` fields, `steps: []`. The skeleton renders to nothing in the UI.
   - **DO NOT** echo analysis text into `story`.
 
   ## `analysis` structure
@@ -15,39 +15,51 @@ Strictly follow these JSON field definitions. **Flat top-level shape**: `{ analy
 
   The program assembles the scene header `[<date_in_world> <time_hhmm> / <location> / <chars>]` from these fields. **DO NOT** write the `[...]` line in `story`.
 
-  - `date_in_world`: single string with calendar prefix + date + weekday. e.g. `"Space Calendar 1000/04/02 Tue"`. Calendar from `{{FILE_BASIC_SETTINGS}}`. **Across midnight the date MUST advance**.
-  - `time_hhmm`: in-world time at the **end of this turn**, "HH:MM" precision. Estimate from prior turn + this turn's actions; minute-precise; never repeated across consecutive turns.
-  - `location`: where the scene happens, e.g. `"Adventurer Guild counter"` / `"Inn 1F"`. Used in the assembled header.
-  - `environment`: free prose merging weather / ambience / special conditions. e.g. `"Heavy rain, poor visibility, slippery floor"`. **Different from `location`** — sensory atmosphere, not place name. Empty `""` allowed.
-  - `pc_in_header`: PC representation in header with optional alias / state. e.g. `"Cheng Yangzong"` / `"Cheng Yangzong[Loser]"` / `"Cheng Yangzong(Disguised)"`.
-  - `present_npcs[]`: every on-scene NPC. Each `{name, state}`:
-    - `name`: aliases use `[]` (`"Lita[Silver Moon]"`); unknown names use `???` (`"Strange Man???"`); generic titles plain (`"Senior Adventurer"`).
-    - `state`: **fog-of-war / consciousness** — gates whether this NPC has the **capacity to react** to the environment / PC actions this turn. Free-form short tag CONSTRAINED to that domain. Common: `"unconscious"` / `"asleep"` / `"paralyzed"` / `"hidden"` / `"comms"`; same-domain inventions like `"illusion"` / `"astral-projecting"` / `"light sleep (wakes on loud noise)"` allowed. `""` = fully reactive (conscious and on-scene; default). **NEVER emotion, current activity, or behavior** — `"observing"` / `"chatting"` / `"holding X"` / `"hostile"` describe a fully-reactive NPC's choices and belong in `npc_reactions[].physical` / `motivation`.
-  - `key_objects[]`: important environmental objects (mechanisms / traps / key items). `{name, state}`. Plain furniture excluded. Empty `[]`.
+  | Field | Spec |
+  |---|---|
+  | `date_in_world` | Single string with calendar prefix + date + weekday. Calendar from `{{FILE_BASIC_SETTINGS}}`. **Across midnight the date MUST advance**. |
+  | `time_hhmm` | In-world time at **end of this turn**, "HH:MM" precision. Estimate from prior turn + this turn's actions. NEVER repeat the previous turn's value across consecutive turns. |
+  | `location` | Where the scene happens. Used in the assembled header. |
+  | `environment` | Free prose merging weather / ambience / special conditions. **Different from `location`** — sensory atmosphere, not place name. Empty `""` allowed. |
+  | `pc_in_header` | PC representation in header with optional alias `[]` / state `()`. |
+  | `present_npcs[]` | Every on-scene NPC. `{name, state}`. |
+  | `key_objects[]` | Important environmental objects (mechanisms / traps / key items). `{name, state}`. Plain furniture excluded. Empty `[]`. |
+
+  **About `present_npcs[].state`**: **fog-of-war / consciousness** — gates whether this NPC has the **capacity to react** to the environment / PC actions this turn. Free-form short tag CONSTRAINED to that domain. Common: `"unconscious"` / `"asleep"` / `"paralyzed"` / `"hidden"` / `"comms"`; same-domain inventions like `"illusion"` / `"astral-projecting"` / `"light sleep (wakes on loud noise)"` allowed. `""` = fully reactive (conscious and on-scene; default). **NEVER emotion, current activity, or behavior** — `"observing"` / `"chatting"` / `"holding X"` / `"hostile"` describe a fully-reactive NPC's choices and belong in `npc_reactions[].physical` / `motivation`.
 
   ### `steps[]`
 
   `steps[]` mixes user-intent steps (`kind: "user_intent"`) and random-event steps (`kind: "random_event"`) in chronological order. Insert event steps at the position where they interrupt or affect the user's planned sequence.
 
-  **Stop emitting at the first `breaks_ideal=true`** — fully render that breaking step, then terminate `steps[]`. Do NOT list any subsequent steps.
+  **Stop emitting at the first `breaks_ideal=true`** — fully render that breaking step (with `npc_reactions`, `object_reactions`, and `outcome`), then terminate `steps[]`. Do NOT list any subsequent steps.
 
-  Each step:
+  | Field | Content |
+  |---|---|
+  | `kind` | `"user_intent"` (the user described this action) or `"random_event"` (you injected — NPC arrival, environmental shift, third-party intervention). |
+  | `action` | user_intent: verb-phrase description, do NOT echo input verbatim. random_event: one-sentence description of the event itself. |
+  | `pc_dialogue` | user_intent: verbatim PC line, `""` if none, **no paraphrase / polish**. random_event: always `""`. |
+  | `mood` | user_intent: PC mood mirroring the `[mood]` tag, `""` if none. random_event: always `""`. |
+  | `risk_factors[]` | user_intent: list of risks, list even when outcome is success. random_event: usually empty. |
+  | `outcome` | Single free-text judgment. Wording starts with "success / partial success / costly success / failure", followed by a concise cause clause. |
+  | `breaks_ideal` | Boolean. `true` ⇒ action did not enter resolution (see triggers below); `false` ⇒ action happened (incl. success / partial / costly). For random_event: `true` when the event's nature interrupts the user's planned sequence; `false` for neutral / supportive events. When `true`, `outcome` starts with "failure"; when `false`, with "success / partial success / costly success". |
+  | `npc_reactions[]` | **EVERY `scene_snapshot.present_npcs` entry must appear here** (incl. silent / unconscious / remote-comm). Random-event steps must also include reactions for every present NPC. |
+  | `object_reactions[]` | **EVERY `scene_snapshot.key_objects` entry must appear here** (incl. `"unchanged"`). |
 
-  - **`kind`**: `"user_intent"` (the user described this action) or `"random_event"` (you injected — NPC arrival, environmental shift, third-party intervention).
-  - **`action`**: user_intent: verb-phrase description, do NOT echo input verbatim. random_event: one-sentence description of the event itself.
-  - **`pc_dialogue`**: user_intent: verbatim PC line, `""` if none, **no paraphrase / polish**. random_event: always `""`.
-  - **`mood`**: user_intent: PC mood, `""` if none. random_event: always `""`.
-  - **`risk_factors[]`**: user_intent: list of risks, list even when outcome is success. random_event: usually empty.
-  - **`outcome`**: single free-text judgment. user_intent examples: `"success - barely held footing"` / `"partial success - achieved A but B refused"` / `"costly success - climbed but twisted ankle"` / `"failure - Lifey dodged and counterattacked"`. random_event examples: `"success - Kyle blocks the path to the counter"` / `"failure - alarm trips, all nearby guards on alert"`.
-  - **`breaks_ideal`**: boolean. For random_event: `true` when the event's nature interrupts the user's planned sequence; `false` for neutral / supportive events. When `true`, `outcome` should start with "failure"; when `false`, with "success / partial success / costly success".
-  - **`npc_reactions[]`**: **EVERY `scene_snapshot.present_npcs` entry must appear here** (incl. silent / unconscious / remote-comm). Random-event steps must also include reactions for every present NPC.
-    - `actor`: matches a `present_npcs[].name`.
-    - `physical`: gesture / posture / expression / gaze. Even silent / unconscious NPCs need a status line.
-    - `dialogue`: NPC verbatim line, `""` if NPC says nothing. **When NPC speaks, this MUST be the actual line** — DO NOT substitute "responded warmly" / "mocked aloud" for dialogue. **World-consistent**: word choice, metaphors, and concepts must match `{{FILE_BASIC_SETTINGS}}` / `{{FILE_WORLD_FACTIONS}}`. Modern objects, institutions, or metaphors are forbidden.
-    - `motivation`: motivation tag (`"combat instinct + hostility"` / `"fear + flee"` etc.). Empty allowed.
-  - **`object_reactions[]`**: **EVERY `scene_snapshot.key_objects` entry must appear here** (incl. `"unchanged"`).
-    - `name`: matches a `key_objects[].name`.
-    - `change`: when unchanged AND not interacted: reserved literal `"unchanged"` (`story` skips). First appearance: detailed initial state. Change/interaction: concrete change.
+  #### `npc_reactions[]` element
+
+  | Field | Content |
+  |---|---|
+  | `actor` | Must match a `present_npcs[].name`. |
+  | `physical` | Gesture / posture / expression / gaze. Even silent / unconscious NPCs need a status line. |
+  | `dialogue` | Verbatim NPC line. `""` if NPC says nothing. **When NPC speaks, this MUST be the actual line** — DO NOT substitute action-paraphrases like "responded warmly" / "mocked aloud" in place of dialogue. **World-consistent**: word choice, metaphors, and concepts must match the era / culture defined in `{{FILE_BASIC_SETTINGS}}` and `{{FILE_WORLD_FACTIONS}}`. Modern objects, institutions, or metaphors are forbidden. |
+  | `motivation` | Motivation tag (short combinations like combat instinct + hostility / fear + flee). Empty `""` allowed. |
+
+  #### `object_reactions[]` element
+
+  | Field | Content |
+  |---|---|
+  | `name` | Must match a `key_objects[].name`. |
+  | `change` | When unchanged AND not interacted with: reserved literal `"unchanged"` (`story` skips). First appearance: detailed initial state. Change / interaction: concrete change. |
 
   ## `breaks_ideal=true` triggers
 
@@ -82,55 +94,90 @@ Strictly follow these JSON field definitions. **Flat top-level shape**: `{ analy
 - **story (Narrative Content)**:
   - The **ONLY** content visible to the user. Use [World Reaction] techniques.
   - **[Full-Scene rendering]**: weave `analysis.steps[].npc_reactions[]` and `object_reactions[]` into prose:
-    - **NPC**: every present NPC must surface in prose; even silent observers get one sentence on posture / expression / gaze. When `dialogue` is non-empty, the prose MUST quote it verbatim. **DO NOT** substitute "responded warmly", "mocked aloud", "thanked aloud" for dialogue.
+    - **NPC**: every present NPC must surface in prose, even silent observers (one sentence on posture / expression / gaze). When `dialogue` is non-empty, the prose MUST quote it verbatim. **DO NOT** substitute action-paraphrases like "responded warmly", "mocked aloud", "thanked aloud" for dialogue.
     - **Objects**: skip when `change == "unchanged"`. Render only on first appearance, change, or interaction.
     - **Random-event step**: a `kind: "random_event"` step is woven into the prose the same way as a user-intent step, at its chronological position in `steps[]`.
   - **Mandatory Marker**: `story`'s first line MUST be `<CREATIVE FICTION CONTEXT>` (its own line), immediately followed by the body. **DO NOT** write the `[Calendar / Location / Characters]` line yourself — the program assembles and prepends it.
-    - Example:
-      ```
-      <CREATIVE FICTION CONTEXT>
-      Cheng Yangzong pushed open the tavern's wooden door...
-      ```
 
 **[Universal Rule - summary & all *_log fields]**:
-- Only record THIS TURN's new changes. Check history blocks (`Turn Update`, `Inventory Changes`, `Character Changes`, `Plan & Quest Updates`, `World & Setting Updates`).
+- Only record THIS TURN's new changes. Check history blocks (`Turn Update`, `Inventory Changes`, `Character Changes`, `Plan & Quest Updates`, `World & Setting Updates`); never duplicate already-recorded content.
 - Only update on `<Action Intent>`, `<Fast Forward>`, `<Continue>`, or `<System> Correction`. Otherwise summary = `""`, logs = `[]`.
 
 - **summary (High-Density Context Log)**:
-  - LLM reference ONLY. Keyword-dense, telegraphic style.
-  - Required structure:
-    - `[EVT]`: cause→effect chains (e.g., `ambushed_by_3bandits→PC_fought→killed_2/1_fled`)
-    - `[NPC]`: character interactions (e.g., `Lita:revealed_father_missing/asked_PC_help`)
-    - `[PLOT]`: revelations, twists (e.g., `revealed:merchant_guild=smuggling_ring`)
-  - Synthesize `analysis.steps` conclusions; capture hidden intent / strategic impact in parentheses.
+  - **Purpose**: LLM reference ONLY. NOT for human reading. Prioritize **information density and event detail**.
+  - **Format**: keyword-dense, telegraphic style. Use `|` / `/` / `→` / `:`.
+  - **Required structure** (use exact labels):
+    - `[EVT]`: cause→effect chain based on `analysis.steps`
+    - `[NPC]`: character interactions context & results
+    - `[PLOT]`: revelations, twists, discoveries
+  - **Detail rule**: capture Hidden Intent, Strategic Impact, Atmosphere in parentheses.
+  - **Exclusions**: NO items/quest/state logging (use dedicated `*_log` fields). NO prose or filler.
 
 - **inventory_log**:
-  - `string[]`. Tags:
-    - `Gained` / `Lost/Handed Over` / `Consumed/Used` / `Moved` / `Deposited` / `Retrieved` (with optional `(Equipped)`) / `Equipped` / `Unequipped` / `Corrected` (only when `correction` is non-empty).
-  - Protagonist-owned only. NPC private items go to `character_log`'s `Possession Change:`. Even when sheltered/lodged/kept, host belongings are NOT protagonist-owned.
-  - Carried = `{{FILE_INVENTORY}}`; non-carried (money, real estate, deposits) = `{{FILE_ASSETS}}`.
-  - Do NOT label simple movements as "Consumed". No storage = no log. Scene consumables = no log.
-  - **Mandatory Double-Write**: `Equipped` / `Unequipped` / `Retrieved (Equipped)` MUST also write `Equipment Change:` to `character_log`.
-  - Example: `["Gained Rusty Sword", "Consumed Health Potion / 1", "Moved to Dimensional Box / Arcane Crystal x3", "Retrieved from Manor Cellar / Battle Armor x1 (Equipped)", "Equipped Rusty Sword", "Unequipped Steel Breastplate"]`
+  - `string[]`.
+  - Record **THIS TURN'S** changes to items and assets **owned by the protagonist**. Use precise labels based on the action:
+    - **Gained**: protagonist acquires a new item and stores it on-person.
+    - **Lost/Handed Over**: items leaving the protagonist's ownership.
+    - **Consumed/Used**: items used up or destroyed.
+    - **Moved**: items moved into a portable on-person storage.
+    - **Deposited**: items placed in long-term storage at a base owned by the protagonist, OR stored at an inn / third-party safekeeping.
+    - **Retrieved**: items retrieved from a deposit / non-carried location back on-person. Append `(Equipped)` for direct donning.
+    - **Equipped**: don a piece of equipment (clothing / accessories / weapons / gear).
+    - **Unequipped**: take off an equipped item back into carried storage.
+    - **Corrected**: item-state correction caused by a story correction. **ONLY allowed when `correction` is non-empty**.
+  - **[Protagonist-Owned Only]**: ONLY items personally owned by the protagonist. Companions / love interests / employers / hosts use `character_log`'s `Possession Change:` label. Even when the protagonist is short-term sheltered, lodged, or kept by another, the host's belongings **MUST NOT** be treated as protagonist-owned.
+  - **[Carried vs Non-Carried]**: carried = `{{FILE_INVENTORY}}`; non-carried (money, real estate, deposits) = `{{FILE_ASSETS}}`.
+  - **Core**: do not label simple movements as "Consumed". Use "Consumed" ONLY when an item is actually used up or destroyed.
+  - **No Storage = No Log**: if not explicitly stored, do NOT log "Gained".
+  - **Scene Consumables = No Log**.
+  - **[Equip Scope]**: `Equipped` / `Unequipped` apply to clothing / equipment / accessories / weapons / gear (incl. armor / helmet / cloak / coat / necklace / ring / gloves / weapon). Briefly taking out and putting back (e.g., glancing at a pocket watch) is not a state change.
+  - **[Mandatory Double-Write for Equip/Unequip]**: When using `Equipped` / `Unequipped` / `Retrieved (Equipped)`, you **MUST** also write a corresponding `Equipment Change:` entry in `character_log`. Both fields required.
+  - **No Prediction**: Only log AFTER confirmation.
+  - Empty `[]` if no change.
 
 - **quest_log**:
-  - `string[]`. Triggers: New Quest Accepted / Substantive Progress / Plan Actively Changed.
-  - Example: `["New Quest: Find the Missing Black Cat", "Goal Achieved: Obtain Ghost Dust", "Plan Change: Head to the Harbor"]`
+  - `string[]`. Record THIS TURN'S quest / long-term-plan changes (`{{FILE_PLANS}}`).
+  - **Trigger Conditions**: New Quest Accepted / Substantive Progress / Plan Actively Changed.
+  - **STRICTLY PROHIBIT**: routine actions without progress, repeating recorded states, or unaccepted potential quests.
+  - Empty `[]` if no change.
 
 - **character_log**:
-  - `string[]`. Protagonist + named noteworthy NPCs' state changes.
-  - **Protagonist Equipment Change — Mandatory Double-Write**: `Equipment Change: Protagonist_Name (...)` in character_log + matching `inventory_log` entries.
-  - **No Mob/Generic Logging**: Guard A / Villager / Bandit excluded. Protagonist exempt.
-  - **Possession Change — NPC Personal Items Only**: `Possession Change: NPC_Name (Add/Lose/Trade: Item x_Qty, Source/Use)`. Protagonist's non-equipment items go in `inventory_log`.
-  - Example: `["New Character: Lita (elf girl)", "Status Change: Alwin (critically injured)", "Possession Change: Lita (Add: heirloom necklace x1, Source: hidden compartment)", "Equipment Change: Cheng Yang-Zong (Equipped: Steel Breastplate)"]`
+  - `string[]`. THIS TURN'S state changes for protagonist + named noteworthy NPCs (vitality, injury, mood, relationship, goal, location, equipment, **possession of important items** etc.).
+  - **[Protagonist Scope]**: this field also records protagonist's own state changes (injuries, emotions, goals, location, equipment). Plain item gain / consumption / move / deposit / retrieval go to `inventory_log`.
+  - **[Protagonist Equipment Change — Mandatory Double-Write]**: when equipping / unequipping / swapping / drawing / sheathing, you **MUST**:
+    1. Write `Equipment Change: Protagonist_Name (Action1: Item1, Action2: Item2, ...)` in `character_log` (action ∈ Equipped / Unequipped / Swapped / Drawn / Sheathed).
+    2. ALSO write the corresponding entry in `inventory_log`: "Drawn" → "Equipped", "Sheathed" → "Unequipped", "Swap A for B" → two entries `Unequipped A` + `Equipped B`; plain "Equipped" / "Unequipped" map by name.
+    Both required.
+  - **[NPC Scope]**: all NPC changes (state, location, possession changes) belong here, no double-write to `inventory_log` needed.
+  - **[No Mob/Generic Logging]**: **STRICTLY DO NOT** log passers-by, Guard A/B, villagers, bandits, or any one-shot NPC.
+    - **Test**: if an NPC's name is only "generic title + index/code" (Guard A, Bandit-Alpha) or unnamed (Nameless Soldier), treat as mob and **MUST NOT** appear in `character_log`.
+    - **Content limit**: `Character Log` contains only **named NPCs with material story impact**, or specific targets the protagonist actively pursues by name. Protagonist exempt.
+  - **[Possession Change — NPC Personal Items Only]**: when the protagonist observes / deduces / is told that a named NPC holds a story-relevant item (weapon, token, key document, wealth, special prop), record `Possession Change: NPC_Name (Add/Lose/Trade: Item_Name x_Qty, Source/Use)`. Mobs and one-shot NPCs excluded. **Note**: protagonist's own (non-equipment) items go in `inventory_log`, NOT here.
+  - Empty `[]` if no change.
 
 - **world_log**:
-  - `string[]`. World events / faction moves / world-view expansions / Equipment Tech / Magic & Skills.
-  - No re-discovery of items already in `{{FILE_BASIC_SETTINGS}}` (only on significant status change).
-  - Example: `["Discovery[Faction]: Silver Moon Guild", "Develop[Equipment]: Reinforced Crossbow", "Status Change: North Gate Fortress (fallen, now enemy-occupied)"]`
+  - `string[]`. World events / faction moves / world-view expansions (`{{FILE_WORLD_FACTIONS}}`), Equipment Tech (`{{FILE_TECH_EQUIPMENT}}`), Magic & Skills (`{{FILE_MAGIC_SKILLS}}`).
+  - **[`{{FILE_WORLD_FACTIONS}}` scope]**:
+    - **Faction dynamics**: major / minor / retired faction nature and current status
+    - **Core worldview**: major world settings (threat origins, artifact backgrounds)
+    - **Key items**: story-critical props, sacred objects, relics (not held by protagonist)
+    - **Special materials**: new rare material sources and processing methods
+    - **Otherworld mappings**: spice / plant / ingredient correspondences between worlds and Earth
+    - **Discovered landmarks**: cities, locations, shops protagonist discovers
+    - **Landmark status changes**: key location state changes (destroyed, rebuilt, occupied, etc.)
+  - **[Classification]**:
+    - **Equipment Tech development**: output is specs / blueprints / detailed settings (physical items, weapons, tools).
+    - **Magic development**: output is mastered or actively researched principles, spell models, incantation logic (protagonist side).
+  - **[No Redundant Settings]**: **STRICTLY DO NOT** record items already in `{{FILE_BASIC_SETTINGS}}` as "newly discovered". Unless the location / faction undergoes a significant status change (destroyed, occupied, rebuilt), do not record.
+  - Empty `[]` if no change.
 
 - **correction** (Optional):
-  - `string`, default `""`. Fill ONLY on `<System>` Story Correction acceptance.
-  - 1–2 sentences as a rule statement (what was wrong + corrected rule going forward).
-  - When non-empty: `story` is full corrected; `analysis` and `summary` corrected; equipment/item/state errors mandate `Corrected` entries in `inventory_log` or matching `character_log` updates.
-  - **Historical correction = hard rule**: prior `correction:` entries are hard overrides; never repeat the same mistake.
+  - `string`, default `""`.
+  - Fill **ONLY** when user requests a Story Correction via `<System>` AND you accept it.
+  - **Content**: 1–2 sentences as a rule statement (what was wrong + corrected rule going forward).
+  - When non-empty:
+    - `story` MUST be the full corrected version; `analysis` and `summary` corrected too.
+    - Equipment / item / state errors mandate `Corrected` entries in `inventory_log` or matching `character_log` updates.
+    - System auto-marks prior story as "reference only".
+  - If `<System>` is only asking a question or doing general chat, keep `correction` as `""`.
+  - **[Historical correction = hard rule]**: history's `correction:` entries are hard overrides; all subsequent narrative + logs must conform; never repeat the same mistake.

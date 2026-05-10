@@ -25,5 +25,6 @@ export const config: VariantConfig = {
     'injection_correction.md': { passthrough: true },
     'injection_protocol_narrator.md': { passthrough: true },
     'injection_protocol_resolver.md': { passthrough: true },
+    'injection_protocol_single.md': { passthrough: true },
   },
 };
