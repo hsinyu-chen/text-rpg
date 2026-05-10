@@ -8,8 +8,12 @@
 
 # Node
 /node_modules
+**/node_modules
 npm-debug.log
 yarn-error.log
+
+# Prompts pipeline cache (vitest sub-config sets prompts/tool/ as root, creating local node_modules/.vite)
+/prompts/tool/node_modules/
 
 # aider local-LLM review tool runtime artifacts
 .aider*
