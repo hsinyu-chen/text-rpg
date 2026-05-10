@@ -14,7 +14,9 @@
     "build:desktop:bin": "tauri build --no-bundle",
     "lint": "ng lint --fix",
     "test": "ng test",
-    "gen:icons": "node tools/gen-icons.cjs"
+    "gen:icons": "node tools/gen-icons.cjs",
+    "prompts:build": "tsx prompts/tool/build-prompts.ts",
+    "prompts:check": "tsx prompts/tool/build-prompts.ts --check"
   },
   "prettier": {
     "printWidth": 100,
@@ -71,6 +73,7 @@
     "eslint": "^9.39.1",
     "happy-dom": "^20.9.0",
     "sharp": "^0.34.5",
+    "tsx": "^4.21.0",
     "typescript": "~5.9.2",
     "typescript-eslint": "8.47.0",
     "vitest": "^4.1.5"
