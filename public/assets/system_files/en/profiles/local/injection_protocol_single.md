@@ -107,7 +107,7 @@ Strictly follow these JSON field definitions. **Flat top-level shape**: `{ analy
 - **inventory_log**:
   - `string[]`. Tags:
     - `Gained` / `Lost/Handed Over` / `Consumed/Used` / `Moved` / `Deposited` / `Retrieved` (with optional `(Equipped)`) / `Equipped` / `Unequipped` / `Corrected` (only when `correction` is non-empty).
-  - Protagonist-owned only. NPC private items go to `character_log`'s `Possession Change:`.
+  - Protagonist-owned only. NPC private items go to `character_log`'s `Possession Change:`. Even when sheltered/lodged/kept, host belongings are NOT protagonist-owned.
   - Carried = `{{FILE_INVENTORY}}`; non-carried (money, real estate, deposits) = `{{FILE_ASSETS}}`.
   - Do NOT label simple movements as "Consumed". No storage = no log. Scene consumables = no log.
   - **Mandatory Double-Write**: `Equipped` / `Unequipped` / `Retrieved (Equipped)` MUST also write `Equipment Change:` to `character_log`.

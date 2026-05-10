@@ -42,7 +42,6 @@
    - 首次登場或實際變化 ⇒ 寫進場景描寫
 6. **`kind: "random_event"` 步驟** ⇒ 與 user_intent 步驟相同方式敘述，依其在 `steps[]` 中的時序位置融入正文，不另起標題。
 7. **`scene_snapshot.environment`** ⇒ 在正文開頭或步驟間自然滲入；不要列點羅列。
-8. 套用 `system_prompt.md` 的【世界反應：劇情演出】與【寫作風格】所有規則。
 
 ### `interrupted=true` 處理
 
@@ -59,7 +58,7 @@
 
 ### 其他欄位
 
-- **`summary`** — `[EVT] | [NPC] | [PLOT]` 電報式，依 `system_prompt.md`。
+- **`summary`** — `[EVT] | [NPC] | [PLOT]` 電報式：`[EVT]` 事件因果鏈、`[NPC]` 角色互動、`[PLOT]` 揭露／轉折。關鍵字密集、省代名詞，用 `|` `/` `→` `:` 分隔。**禁止**記錄物品／任務／狀態（改用 `*_log`），**禁止**散文。
 - **`character_log[]`** — 具名 NPC + 主角的狀態變化／位置／持有／裝備變更。雜魚（衛兵 A／村民甲）不記。
 - **`inventory_log[]`** — 主角擁有物（獲得 / 消耗 / 移入 / 寄存 / 取回 / 穿戴 / 卸下 / 校正）；裝備須與 `character_log` 雙寫。
 - **`quest_log[]`** / **`world_log[]`** — 依 single-call 語意。

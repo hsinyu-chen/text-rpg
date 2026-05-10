@@ -42,7 +42,6 @@ Cheng Yangzong pushed open the tavern's wooden door...
    - first appearance or actual change ⇒ render in scene description
 6. **`kind: "random_event"` steps** ⇒ narrate the same way as user_intent steps, woven into the prose at their chronological position in `steps[]`; no separate heading.
 7. **`scene_snapshot.environment`** ⇒ permeate naturally through opening / between-step transitions; do not list-bullet.
-8. Apply every rule from `system_prompt.md` § *World Reaction: Scene Performance* and § *Writing Style*.
 
 ### `interrupted=true` handling
 
@@ -59,7 +58,7 @@ Narrate only the steps in `analysis.steps`.
 
 ### Other fields
 
-- **`summary`** — telegraphic `[EVT] | [NPC] | [PLOT]` log per `system_prompt.md`.
+- **`summary`** — telegraphic `[EVT] | [NPC] | [PLOT]` log: `[EVT]` event chains, `[NPC]` interactions, `[PLOT]` revelations/turns. Keyword-dense, omit articles/pronouns, use `|` `/` `→` `:` as separators. Do NOT record items/quests/status (use `*_log` instead); no prose.
 - **`character_log[]`** — named NPC + protagonist state changes / location / possession / equipment changes. Mob NPCs (Guard A / Villager甲) excluded.
 - **`inventory_log[]`** — protagonist-owned items (Gained / Consumed / Moved / Deposited / Retrieved / Equipped / Unequipped / Corrected); equipment changes mandatorily double-written with `character_log`.
 - **`quest_log[]`** / **`world_log[]`** — single-call semantics.

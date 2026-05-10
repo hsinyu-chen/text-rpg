@@ -1,0 +1,9 @@
+# Force LF for prompt source / generated artifacts so build pipeline output
+# is byte-identical across Windows / macOS / Linux (matches build script's
+# explicit `\n` writes; protects against autocrlf flipping on checkout).
+*.md text eol=lf
+
+# Tool source — same reasoning (prompts/tool/, etc.)
+*.ts text eol=lf
+*.cjs text eol=lf
+*.mjs text eol=lf
