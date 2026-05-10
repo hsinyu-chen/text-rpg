@@ -22,9 +22,14 @@ export function compose(
     slotHistory.set(id, []);
   }
 
-  let touched = false;
   for (const { name, ast: layerAst } of layerAsts) {
-    let layerEffective = false;
+    if (layerAst.ops.length === 0) {
+      diagnostics.push({
+        level: 'warning', file: layerAst.filePath,
+        message: `empty layer file (no ops)`,
+      });
+      continue;
+    }
     for (const op of layerAst.ops) {
       const parent = finalSlots.get(op.slotId);
       if (!parent) {
@@ -44,42 +49,28 @@ export function compose(
         continue;
       }
 
-      const isReplaceOp = (k: OpKind) =>
-        k === 'full-replace' || k === 'content-replace' || k === 'heading-replace';
-      if (isReplaceOp(op.op)) {
-        const prevReplace = [...history].reverse().find(h => isReplaceOp(h.op));
-        if (prevReplace) {
-          diagnostics.push({
-            level: 'warning', file: op.source, line: op.startLine,
-            message: `slot '${op.slotId}' replaced by both '${prevReplace.layer}' and '${name}'; '${name}' wins`,
-          });
-        }
+      const conflictsWith = (a: OpKind, b: OpKind): boolean => {
+        if (a === 'full-replace' || b === 'full-replace') return true;
+        return a === b && (a === 'content-replace' || a === 'heading-replace');
+      };
+      const prevConflict = [...history].reverse().find(h => conflictsWith(h.op, op.op));
+      if (prevConflict) {
+        diagnostics.push({
+          level: 'warning', file: op.source, line: op.startLine,
+          message: `slot '${op.slotId}' replaced by both '${prevConflict.layer}' (${prevConflict.op}) and '${name}' (${op.op}); '${name}' wins`,
+        });
       }
 
       finalSlots.set(op.slotId, applyOp(parent, op));
       history.push({ layer: name, op: op.op });
       slotHistory.set(op.slotId, history);
-      layerEffective = true;
-      touched = true;
-    }
-    if (!layerEffective && layerAst.ops.length === 0) {
-      diagnostics.push({
-        level: 'warning', file: layerAst.filePath,
-        message: `layer file has no effective op`,
-      });
     }
   }
-
-  void touched;
 
   const manifest: ManifestSlotEntry[] = [];
   for (const [id, slot] of finalSlots) {
     const history = slotHistory.get(id) ?? [];
-    const finalSource = history.length === 0
-      ? slot.source
-      : findLayerFilePath(layerAsts, history[history.length - 1].layer)
-        ?? slot.source;
-    manifest.push({ id, finalSource, layers: history });
+    manifest.push({ id, finalSource: slot.source, layers: history });
   }
 
   return {
@@ -87,13 +78,6 @@ export function compose(
     manifest,
     diagnostics,
   };
-}
-
-function findLayerFilePath(
-  layerAsts: ReadonlyArray<{ name: string; ast: LayerAst }>,
-  name: string,
-): string | undefined {
-  return layerAsts.find(l => l.name === name)?.ast.filePath;
 }
 
 function applyOp(parent: SlotNode, op: LayerOp): SlotNode {
@@ -113,10 +97,10 @@ function applyOp(parent: SlotNode, op: LayerOp): SlotNode {
       newBody = combine(heading, op.body);
       break;
     case 'content-prepend':
-      newBody = combine(heading, joinSegments([op.body, content]));
+      newBody = combine(heading, joinPreserveParagraphs(op.body, content));
       break;
     case 'content-append':
-      newBody = combine(heading, joinSegments([content, op.body]));
+      newBody = combine(heading, joinPreserveParagraphs(content, op.body));
       break;
     default: {
       const _exhaustive: never = op.op;
@@ -146,9 +130,13 @@ function combine(heading: string, content: string): string {
   return heading.replace(/\n+$/, '') + '\n' + content.replace(/^\n+/, '');
 }
 
-function joinSegments(parts: ReadonlyArray<string>): string {
-  const cleaned = parts
-    .map(p => p.replace(/^\n+/, '').replace(/\n+$/, ''))
-    .filter(p => p.length > 0);
-  return cleaned.join('\n');
+function joinPreserveParagraphs(a: string, b: string): string {
+  if (!a) return collapseBlankRuns(b);
+  if (!b) return collapseBlankRuns(a);
+  const needSep = !a.endsWith('\n') && !b.startsWith('\n');
+  return collapseBlankRuns(a + (needSep ? '\n' : '') + b);
+}
+
+function collapseBlankRuns(s: string): string {
+  return s.replace(/\n{3,}/g, '\n\n');
 }

@@ -112,6 +112,23 @@ describe('fence handling', () => {
     expect(diagnostics).toEqual([]);
   });
 
+  it('handles nested fences (closing length must be >= opening)', () => {
+    // Outer fence is 4 backticks; inner ``` should NOT close it.
+    const src = [
+      '<!--@slot:s-->',
+      '````',
+      '```',
+      'inner code',
+      '```',
+      '````',
+      '<!--@end-->',
+      '',
+    ].join('\n');
+    const f = write('t.md', src);
+    const { diagnostics } = parseBaseFile(f);
+    expect(diagnostics).toEqual([]);
+  });
+
   it('errors on slot crossing fence boundary', () => {
     const src = [
       '<!--@slot:s-->',
@@ -150,6 +167,13 @@ describe('op attribute parsing', () => {
 
   it('recognizes bareword `remove` (single-tag, no end)', () => {
     const f = write('layer.md', '<!--@slot:s remove-->\n');
+    const { ast, diagnostics } = parseLayerFile(f);
+    expect(diagnostics).toEqual([]);
+    expect(ast.ops[0].op).toBe('remove');
+  });
+
+  it('op="remove" form also treats slot as single-tag (no <!--@end--> required)', () => {
+    const f = write('layer.md', '<!--@slot:s op="remove"-->\n');
     const { ast, diagnostics } = parseLayerFile(f);
     expect(diagnostics).toEqual([]);
     expect(ast.ops[0].op).toBe('remove');

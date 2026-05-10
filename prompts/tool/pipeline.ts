@@ -76,7 +76,10 @@ export function runPipeline(cfg: VariantConfig = config): PipelineOutput {
         variantKey,
         filePath: relRepo(outFile),
         passthrough: false,
-        slots: composeResult.manifest,
+        slots: composeResult.manifest.map(s => ({
+          ...s,
+          finalSource: relRepo(s.finalSource),
+        })),
       });
     }
   }

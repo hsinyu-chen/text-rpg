@@ -75,7 +75,17 @@ describe('multi-layer composition', () => {
       layer('B', [{ id: 's', op: 'content-replace', body: 'b' }]),
     ]);
     expect(r.finalAst.slots.get('s')!.body).toBe('## T\nb');
-    expect(r.diagnostics.some(d => d.level === 'warning' && d.message.includes("'A' and 'B'"))).toBe(true);
+    expect(r.diagnostics.some(d => d.level === 'warning' && /'A'.+'B'/.test(d.message))).toBe(true);
+  });
+
+  it('heading-replace + content-replace are orthogonal — both apply, no warning', () => {
+    const base = baseAst({ s: '## Old\nbody' });
+    const r = compose(base, [
+      layer('A', [{ id: 's', op: 'heading-replace', body: '## New' }]),
+      layer('B', [{ id: 's', op: 'content-replace', body: 'new body' }]),
+    ]);
+    expect(r.finalAst.slots.get('s')!.body).toBe('## New\nnew body');
+    expect(r.diagnostics.filter(d => d.level === 'warning')).toEqual([]);
   });
 
   it('replace then prepend — order semantics, no warning', () => {
@@ -105,23 +115,35 @@ describe('warnings', () => {
     expect(r.diagnostics.some(d => d.level === 'warning' && d.message.includes('not found in base'))).toBe(true);
   });
 
-  it('layer with zero ops — warning (no effective op)', () => {
+  it('layer with zero ops — warning (empty layer file)', () => {
     const base = baseAst({ s: 'body' });
     const r = compose(base, [layer('L', [])]);
-    expect(r.diagnostics.some(d => d.level === 'warning' && d.message.includes('no effective op'))).toBe(true);
+    expect(r.diagnostics.some(d => d.level === 'warning' && d.message.includes('empty layer file'))).toBe(true);
   });
 });
 
-describe('normalize', () => {
-  it('content-prepend strips leading/trailing newlines from chunk', () => {
+describe('paragraph preservation', () => {
+  it('content-prepend joins with single newline when neither side has trailing/leading newline', () => {
     const base = baseAst({ s: 'old' });
-    const r = compose(base, [layer('L', [{ id: 's', op: 'content-prepend', body: '\n\nchunk\n\n' }])]);
+    const r = compose(base, [layer('L', [{ id: 's', op: 'content-prepend', body: 'chunk' }])]);
     expect(r.finalAst.slots.get('s')!.body).toBe('chunk\nold');
   });
 
-  it('content-append strips leading/trailing newlines from chunk', () => {
+  it('content-prepend preserves paragraph break when chunk ends with two newlines', () => {
+    const base = baseAst({ s: 'para A\n\npara B' });
+    const r = compose(base, [layer('L', [{ id: 's', op: 'content-prepend', body: 'para X\n\n' }])]);
+    expect(r.finalAst.slots.get('s')!.body).toBe('para X\n\npara A\n\npara B');
+  });
+
+  it('content-append preserves paragraph break when chunk starts with two newlines', () => {
+    const base = baseAst({ s: 'para A\n\npara B' });
+    const r = compose(base, [layer('L', [{ id: 's', op: 'content-append', body: '\n\npara X' }])]);
+    expect(r.finalAst.slots.get('s')!.body).toBe('para A\n\npara B\n\npara X');
+  });
+
+  it('collapses excessive blank runs (3+) to paragraph separator (2)', () => {
     const base = baseAst({ s: 'old' });
-    const r = compose(base, [layer('L', [{ id: 's', op: 'content-append', body: '\n\nchunk\n\n' }])]);
-    expect(r.finalAst.slots.get('s')!.body).toBe('old\nchunk');
+    const r = compose(base, [layer('L', [{ id: 's', op: 'content-prepend', body: 'chunk\n\n\n\n' }])]);
+    expect(r.finalAst.slots.get('s')!.body).toBe('chunk\n\nold');
   });
 });

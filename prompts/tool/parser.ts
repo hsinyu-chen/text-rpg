@@ -96,6 +96,7 @@ function parseLines(filePath: string, lines: string[]): { ast: InternalAst; diag
     | null = null;
   let fenceDepth = 0;
   let fenceMarker = '';
+  let fenceOpenLength = 0;
 
   const flushInvariant = () => {
     blocks.push({ kind: 'invariant', lines: invariantBuf });
@@ -106,12 +107,15 @@ function parseLines(filePath: string, lines: string[]): { ast: InternalAst; diag
     const m = line.match(FENCE_RE);
     if (!m) return;
     const marker = m[2][0];
+    const length = m[2].length;
     if (fenceDepth === 0) {
       fenceDepth = 1;
       fenceMarker = marker;
-    } else if (m[2][0] === fenceMarker && m[2].length >= 3) {
+      fenceOpenLength = length;
+    } else if (marker === fenceMarker && length >= fenceOpenLength) {
       fenceDepth = 0;
       fenceMarker = '';
+      fenceOpenLength = 0;
     }
   };
 
@@ -132,6 +136,13 @@ function parseLines(filePath: string, lines: string[]): { ast: InternalAst; diag
     const lineNum = i + 1;
     const slotOpen = line.match(SLOT_OPEN_RE);
     const slotEnd = line.match(SLOT_END_RE);
+
+    if (!slotOpen && !slotEnd && looksLikeUnknownAnchor(line)) {
+      diagnostics.push({
+        level: 'error', file: filePath, line: lineNum,
+        message: `unknown anchor: ${line.trim()}`,
+      });
+    }
 
     if (inSlot) {
       if (slotEnd) {
@@ -161,12 +172,6 @@ function parseLines(filePath: string, lines: string[]): { ast: InternalAst; diag
           message: `nested slot '${slotOpen[1]}' inside '${inSlot.id}' (v1 unsupported)`,
         });
         continue;
-      }
-      if (looksLikeUnknownAnchor(line)) {
-        diagnostics.push({
-          level: 'error', file: filePath, line: lineNum,
-          message: `unknown anchor: ${line.trim()}`,
-        });
       }
       trackFence(line);
       inSlot.bodyLines.push(line);
@@ -200,13 +205,6 @@ function parseLines(filePath: string, lines: string[]): { ast: InternalAst; diag
         message: `unmatched <!--@end--> (no open slot)`,
       });
       continue;
-    }
-
-    if (looksLikeUnknownAnchor(line)) {
-      diagnostics.push({
-        level: 'error', file: filePath, line: lineNum,
-        message: `unknown anchor: ${line.trim()}`,
-      });
     }
 
     trackFence(line);
@@ -257,6 +255,7 @@ function parseAttrs(
         continue;
       }
       result.op = v as OpKind;
+      if (v === 'remove') result.isRemove = true;
       continue;
     }
     diagnostics.push({
