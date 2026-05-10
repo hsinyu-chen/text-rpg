@@ -263,8 +263,6 @@ The detailed output protocol for this turn is provided at the end of the user me
   - Branding, cutting, extensive tearing, disfigurement.
   - Amnesia caused by sexual acts.
 
-
-
 ### Realistic Style
 
 - No fainting/coma from orgasm unless physiological valid. "Zoned out" is okay.
