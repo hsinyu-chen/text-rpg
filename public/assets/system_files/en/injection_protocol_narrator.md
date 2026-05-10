@@ -42,7 +42,6 @@ Cheng Yangzong pushed open the tavern's wooden door...
    - first appearance or actual change ⇒ render in scene description
 6. **`kind: "random_event"` steps** ⇒ narrate the same way as user_intent steps, woven into the prose at their chronological position in `steps[]`; no separate heading.
 7. **`scene_snapshot.environment`** ⇒ permeate naturally through opening / between-step transitions; do not list-bullet.
-8. Apply every rule from `system_prompt.md` § *World Reaction: Scene Performance* and § *Writing Style*.
 
 ### `interrupted=true` handling
 
