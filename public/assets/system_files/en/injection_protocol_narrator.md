@@ -58,7 +58,7 @@ Narrate only the steps in `analysis.steps`.
 
 ### Other fields
 
-- **`summary`** — telegraphic `[EVT] | [NPC] | [PLOT]` log per `system_prompt.md`.
+- **`summary`** — telegraphic `[EVT] | [NPC] | [PLOT]` log; format defined in `injection_protocol_single.md`.
 - **`character_log[]`** — named NPC + protagonist state changes / location / possession / equipment changes. Mob NPCs (Guard A / Villager甲) excluded.
 - **`inventory_log[]`** — protagonist-owned items (Gained / Consumed / Moved / Deposited / Retrieved / Equipped / Unequipped / Corrected); equipment changes mandatorily double-written with `character_log`.
 - **`quest_log[]`** / **`world_log[]`** — single-call semantics.

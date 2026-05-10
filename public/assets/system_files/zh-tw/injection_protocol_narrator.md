@@ -58,7 +58,7 @@
 
 ### 其他欄位
 
-- **`summary`** — `[EVT] | [NPC] | [PLOT]` 電報式，依 `system_prompt.md`。
+- **`summary`** — `[EVT] | [NPC] | [PLOT]` 電報式，格式詳見 `injection_protocol_single.md`。
 - **`character_log[]`** — 具名 NPC + 主角的狀態變化／位置／持有／裝備變更。雜魚（衛兵 A／村民甲）不記。
 - **`inventory_log[]`** — 主角擁有物（獲得 / 消耗 / 移入 / 寄存 / 取回 / 穿戴 / 卸下 / 校正）；裝備須與 `character_log` 雙寫。
 - **`quest_log[]`** / **`world_log[]`** — 依 single-call 語意。
