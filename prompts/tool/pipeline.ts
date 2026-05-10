@@ -45,6 +45,20 @@ export function runPipeline(cfg: VariantConfig = config): PipelineOutput {
     }
   }
 
+  // Cache parsed layer files — multiple variants may share the same layer
+  // (e.g. cloud-overrides used by zh-tw/default and en/default), and re-parsing
+  // duplicates diagnostics in the output.
+  const layerCache = new Map<string, ReturnType<typeof parseLayerFile>>();
+  const cachedParseLayer = (layerFile: string) => {
+    let entry = layerCache.get(layerFile);
+    if (!entry) {
+      entry = parseLayerFile(layerFile);
+      layerCache.set(layerFile, entry);
+      diagnostics.push(...entry.diagnostics);
+    }
+    return entry;
+  };
+
   for (const [variantKey, variantDef] of Object.entries(cfg.variants)) {
     const baseDir = abs(cfg.base_dirs[variantDef.base]);
     if (!existsSync(baseDir)) continue;
@@ -76,8 +90,7 @@ export function runPipeline(cfg: VariantConfig = config): PipelineOutput {
         const layerFile = join(layerDir, variantDef.base, fileName);
         if (!existsSync(layerFile)) continue;
         referencedLayerFiles.add(layerFile);
-        const layerParse = parseLayerFile(layerFile);
-        diagnostics.push(...layerParse.diagnostics);
+        const layerParse = cachedParseLayer(layerFile);
         layerAsts.push({ name: layerName, ast: layerParse.ast });
       }
 

@@ -6,7 +6,10 @@ import { FileAst, LayerAst, OpKind, SlotNode } from '../types';
 function baseAst(slots: Record<string, string>): FileAst {
   const map = new Map<string, SlotNode>();
   for (const [id, body] of Object.entries(slots)) {
-    map.set(id, { id, body, isRemove: false, startLine: 1, source: 'base.md' });
+    map.set(id, {
+      id, body, isRemove: false, insideFence: false,
+      startLine: 1, source: 'base.md',
+    });
   }
   return {
     filePath: 'base.md',
@@ -120,7 +123,7 @@ describe('multi-layer composition', () => {
 describe('base-level remove', () => {
   it('base slot with isRemove=true cannot be silently revived by a layer op', () => {
     const slots = new Map();
-    slots.set('s', { id: 's', body: '', isRemove: true, startLine: 1, source: 'base.md' });
+    slots.set('s', { id: 's', body: '', isRemove: true, insideFence: false, startLine: 1, source: 'base.md' });
     const base: import('../types').FileAst = {
       filePath: 'base.md', slots,
       blocks: [{ kind: 'slot-ref', slotId: 's' }],
@@ -155,6 +158,36 @@ describe('heading + content blank-line preservation', () => {
     const base = baseAst({ s: '## Title\nold' });
     const r = compose(base, [layer('L', [{ id: 's', op: 'content-replace', body: 'new' }])]);
     expect(r.finalAst.slots.get('s')!.body).toBe('## Title\nnew');
+  });
+});
+
+describe('inside-fence slot heading detection', () => {
+  it('does not auto-detect a heading from a slot opened inside a fence (code, not markdown)', () => {
+    const slots = new Map();
+    slots.set('s', {
+      id: 's', body: '# bash comment\necho hi', isRemove: false,
+      insideFence: true, startLine: 1, source: 'base.md',
+    });
+    const base: import('../types').FileAst = {
+      filePath: 'base.md', slots,
+      blocks: [{ kind: 'slot-ref', slotId: 's' }],
+    };
+    const r = compose(base, [layer('L', [{ id: 's', op: 'content-replace', body: 'echo bye' }])]);
+    expect(r.finalAst.slots.get('s')!.body).toBe('echo bye');
+  });
+
+  it('preserves internal blank-line runs in code blocks (no global collapse)', () => {
+    const slots = new Map();
+    slots.set('s', {
+      id: 's', body: 'line1\n\n\n\n\nline2', isRemove: false,
+      insideFence: false, startLine: 1, source: 'base.md',
+    });
+    const base: import('../types').FileAst = {
+      filePath: 'base.md', slots,
+      blocks: [{ kind: 'slot-ref', slotId: 's' }],
+    };
+    const r = compose(base, [layer('L', [{ id: 's', op: 'content-append', body: 'tail' }])]);
+    expect(r.finalAst.slots.get('s')!.body).toBe('line1\n\n\n\n\nline2\ntail');
   });
 });
 

@@ -98,7 +98,11 @@ function applyOp(parent: SlotNode, op: LayerOp): SlotNode {
   if (op.op === 'full-replace') {
     return { ...parent, body: op.body, isRemove: false, source: op.source };
   }
-  const { heading, separator, content } = splitHeading(parent.body);
+  // Slots opened inside a fence carry code, not markdown — heading auto-detect
+  // would mistake bash/python `# ...` comments for headings.
+  const { heading, separator, content } = parent.insideFence
+    ? { heading: '', separator: '', content: parent.body }
+    : splitHeading(parent.body);
   let newBody: string;
   switch (op.op) {
     case 'heading-replace':
@@ -151,18 +155,20 @@ function combine(heading: string, separator: string, content: string): string {
   // Default to a single newline when base had no heading (separator='') so a
   // freshly-injected heading doesn't squash onto the first line of content.
   const sep = separator || '\n';
-  return collapseBlankRuns(
-    heading.replace(/\n+$/, '') + sep + content.replace(/^\n+/, ''),
-  );
+  return heading.replace(/\n+$/, '') + sep + content.replace(/^\n+/, '');
 }
 
+/**
+ * Concat two slot fragments, normalizing only the SEAM newlines.
+ * Internal \n+ runs (e.g., intentional blank lines inside a code block) are
+ * preserved — only the boundary between a and b is collapsed.
+ */
 function joinPreserveParagraphs(a: string, b: string): string {
-  if (!a) return collapseBlankRuns(b);
-  if (!b) return collapseBlankRuns(a);
-  const needSep = !a.endsWith('\n') && !b.startsWith('\n');
-  return collapseBlankRuns(a + (needSep ? '\n' : '') + b);
-}
-
-function collapseBlankRuns(s: string): string {
-  return s.replace(/\n{3,}/g, '\n\n');
+  if (!a) return b;
+  if (!b) return a;
+  const trailA = a.match(/\n+$/)?.[0]?.length ?? 0;
+  const leadB = b.match(/^\n+/)?.[0]?.length ?? 0;
+  const totalSeam = trailA + leadB;
+  const sep = totalSeam >= 2 ? '\n\n' : '\n';
+  return a.replace(/\n+$/, '') + sep + b.replace(/^\n+/, '');
 }

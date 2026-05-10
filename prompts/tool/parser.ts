@@ -18,6 +18,7 @@ interface InternalSlot {
   id: string;
   body: string;
   isRemove: boolean;
+  insideFence: boolean;
   parsedOp?: OpKind;
   startLine: number;
   source: string;
@@ -42,6 +43,7 @@ export function parseBaseFile(filePath: string): { ast: FileAst; diagnostics: Di
   for (const [id, s] of internal.slots) {
     slots.set(id, {
       id: s.id, body: s.body, isRemove: s.isRemove,
+      insideFence: s.insideFence,
       startLine: s.startLine, source: s.source,
     });
   }
@@ -143,7 +145,9 @@ function parseLines(filePath: string, lines: string[]): { ast: InternalAst; diag
     const slotOpen = line.match(SLOT_OPEN_RE);
     const slotEnd = line.match(SLOT_END_RE);
 
-    if (!slotOpen && !slotEnd && looksLikeUnknownAnchor(line)) {
+    // Unknown-anchor diagnostic only fires outside slots and outside fences:
+    // anchor-shaped strings inside slot bodies or code fences are content.
+    if (!inSlot && fenceDepth === 0 && !slotOpen && !slotEnd && looksLikeUnknownAnchor(line)) {
       diagnostics.push({
         level: 'error', file: filePath, line: lineNum,
         message: `unknown anchor: ${line.trim()}`,
@@ -165,6 +169,7 @@ function parseLines(filePath: string, lines: string[]): { ast: InternalAst; diag
             id: inSlot.id,
             body: inSlot.bodyLines.join('\n'),
             isRemove: false,
+            insideFence: inSlot.fenceDepthAtOpen > 0,
             parsedOp: inSlot.parsedOp,
             startLine: inSlot.startLine,
             source: filePath,
@@ -193,7 +198,8 @@ function parseLines(filePath: string, lines: string[]): { ast: InternalAst; diag
       if (attrs.isRemove) {
         recordSlot(
           {
-            id, body: '', isRemove: true, parsedOp: 'remove',
+            id, body: '', isRemove: true, insideFence: fenceDepth > 0,
+            parsedOp: 'remove',
             startLine: lineNum, source: filePath,
           },
           lineNum,

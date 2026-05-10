@@ -19,6 +19,9 @@ export interface SlotNode {
   id: string;
   body: string;
   isRemove: boolean;
+  /** True if the slot opened while inside a markdown code fence — body is code,
+   *  heading auto-detection should be skipped. */
+  insideFence: boolean;
   startLine: number;
   source: string;
 }
