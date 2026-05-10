@@ -80,6 +80,5 @@ export interface ManifestEntry {
 }
 
 export interface Manifest {
-  generatedAt: string;
   entries: ManifestEntry[];
 }

@@ -282,7 +282,8 @@ function parseAttrs(
 
 function tokenizeAttrs(s: string): string[] {
   const out: string[] = [];
-  const re = /\S+="[^"]*"|\S+/g;
+  // Accept escaped backslash-anything inside quoted attribute values.
+  const re = /\S+="(?:\\[\s\S]|[^"])*"|\S+/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(s)) !== null) out.push(m[0]);
   return out;

@@ -28,7 +28,7 @@ export function runPipeline(cfg: VariantConfig = config): PipelineOutput {
   if (diagnostics.some(d => d.level === 'error')) {
     return {
       files,
-      manifest: { generatedAt: '', entries },
+      manifest: { entries },
       diagnostics,
     };
   }
@@ -156,11 +156,13 @@ export function runPipeline(cfg: VariantConfig = config): PipelineOutput {
     }
   }
 
-  const manifest: Manifest = {
-    generatedAt: new Date().toISOString(),
-    entries,
-  };
-  return { files, manifest, diagnostics };
+  const manifest: Manifest = { entries };
+  // Normalize absolute file paths in diagnostics to repo-relative so terminal
+  // output (and any CI surfaces) stays portable across dev machines.
+  const portableDiagnostics = diagnostics.map(d =>
+    d.file.startsWith(REPO_ROOT) ? { ...d, file: relRepo(d.file) } : d,
+  );
+  return { files, manifest, diagnostics: portableDiagnostics };
 }
 
 export function validateConfig(cfg: VariantConfig): Diagnostic[] {
