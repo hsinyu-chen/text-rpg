@@ -852,7 +852,7 @@ export const zhTW: TranslationDict = {
             importTooltip: '貼上 JSON 設定來填入欄位',
             requiredFieldsMissing: '請填寫所有必填的 S3 欄位。',
             configSaved: 'S3 設定已儲存。',
-            invalidJson: '無效的 JSON:{{error}}',
+            invalidJson: '無效的 JSON: {{error}}',
             configMustBeObject: '設定必須是 JSON 物件。',
             importedAndSaved: '已匯入並儲存。',
             importedButIncomplete: '已匯入。部分必填欄位是空的 — 請填好後按儲存。',

@@ -109,7 +109,7 @@ export class FileBackendConfigComponent {
                 const msg = e instanceof FileBackendNoHandleError
                     ? this.i18n.translate('sync.file.pickFolderFirst')
                     : e instanceof FileBackendPermissionDeniedError
-                        ? e.message
+                        ? this.i18n.translate(e.messageKey)
                         : this.errMsg(e);
                 this.snackBar.open(this.i18n.translate('sync.autoSync.cannotEnable', { error: msg }), this.i18n.translate('ui.CLOSE'), {
                     duration: 5000,
