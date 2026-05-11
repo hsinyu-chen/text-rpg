@@ -11,6 +11,8 @@ User requests an analysis of plot progress **since the `--- ACT START ---` marke
 > [!CAUTION]
 > **COMPLETENESS IS MANDATORY**: Partial or lazy updates will **corrupt game state** and cause continuity errors. You MUST process ALL accumulated LOGs exhaustively. There is NO "save for later" - anything missed is PERMANENTLY LOST.
 
+> **User scope override**: If the `<Save>` input explicitly narrows scope (e.g., "save only inventory", "update just the location", "fix only X"), the user's specified scope **supersedes** the completeness mandate — produce ONLY the requested updates and omit the rest. Completeness applies to the default unscoped save.
+
 ### Mandatory Completeness Checklist
 Before outputting, verify you have processed:
 - [ ] **ALL** `inventory_log` entries → corresponding file updates
@@ -192,6 +194,8 @@ If the current ACT (starting from `--- ACT START ---`) has LOG content, you **MU
   - **Permanent Departure**: If a character has "permanently left the stage", move to `# Historical Figures` or delete.
 
 - **Possession Change Handling**: Each `Possession Change:` entry in `character_log` MUST be written into the `### Known Significant Possessions` subsection under that NPC's entry, and the subsection's `**Last Updated**` line MUST be refreshed to the current turn's timestamp. If the NPC entry has no such subsection, add it in the same position as `### Core Values and Behavior Guidelines` (immediately before it).
+
+- **Learned Capability Handling**: When `character_log` records a capability the protagonist has acquired (any skill, magic ability, sensory perception, technique, or similar trait that fits the schema of `{{FILE_MAGIC_SKILLS}}` by nature), route the entry to `{{FILE_MAGIC_SKILLS}}` as a new Magic or Skill entry per the file's schema (choose by nature: martial / weapon / movement / body technique → Skill; magical formula / sensory awareness / mana operation → Magic). **Do NOT** duplicate the entry into `{{FILE_CHARACTER_STATUS}}` — `{{FILE_MAGIC_SKILLS}}` is the canonical home for learned capabilities. If the log line names a source (typically a Story Trigger), preserve it as a `**Source**` / `**Acquired Via**` note on the new entry.
 
 ### `quest_log` → `{{FILE_PLANS}}`
 - Quests/Plans
