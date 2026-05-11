@@ -3,6 +3,8 @@ export interface BuildSystemInstructionLangs {
   uiLanguage?: string;
   /** Engine output-language setting — the language the in-game narrative is in. */
   narrativeLanguage?: string;
+  /** When true, the executor rejects every write tool — surface this in the prompt so the LLM doesn't waste a round-trip attempting one. */
+  readOnly?: boolean;
 }
 
 export function buildSystemInstruction(
@@ -187,5 +189,14 @@ These tools error with "No chat history available" when the agent runs outside a
 - **UI (response) language**: \`${uiLang}\` — write submitResponse / reportProgress / commentary in THIS language. Identifiers, filenames, KB headings, quoted source stay verbatim.
 - **Narrative language (in-game chat)**: \`${narrLang}\` — match THIS language in searchChatMessages patterns, even if the user asked in a different language. Proper names / numerals / summary tokens work in either.`;
 
-  return [header, langsBlock, modeBlock, workflowRules, progressBlock, searchGuide, sectionGuide, chatGuide, commonRecipes].join('\n\n');
+  const readOnlyBlock = langs.readOnly
+    ? `## READ-ONLY SURFACE
+You are running from the main game screen, which has no editor view. Write tools (replaceFile, searchReplace, replaceSection, insertSection, insertIntoSection) are DISABLED here and the executor will reject them outright. Q&A and consultation work the same as elsewhere.
+
+If the user asks for an edit, do NOT attempt a write tool. Use submitResponse to tell them to open the KB editor (the file-viewer dialog from the sidebar) and re-issue the request from its agent panel, where the change is reviewable and saveable.`
+    : '';
+
+  const blocks = [header, langsBlock, modeBlock, workflowRules, progressBlock, searchGuide, sectionGuide, chatGuide, commonRecipes];
+  if (readOnlyBlock) blocks.splice(2, 0, readOnlyBlock); // inject right after langsBlock so it's seen early
+  return blocks.join('\n\n');
 }

@@ -37,10 +37,20 @@ function checkLatex(content: string, label: string): { content: string } | { err
   return latexViolationError(remaining, label);
 }
 
+/** Tools that mutate files. Rejected when context.readOnly is set. */
+const WRITE_ACTIONS = new Set([
+  'replaceFile', 'searchReplace', 'replaceSection', 'insertSection', 'insertIntoSection'
+]);
+
+const READ_ONLY_REJECTION = 'This agent surface is read-only and cannot edit files — the user is on the main game screen, which has no editor view, so silent file mutations would be invisible to them. Do NOT retry write tools here. Use submitResponse to tell the user: open the KB editor (the file-viewer dialog from the sidebar) and re-issue the request there, where they can review and save the changes.';
+
 export function executeFileTool(
   action: ParsedAction,
   context: FileAgentContext
 ): ToolExecutionResult {
+  if (context.readOnly && WRITE_ACTIONS.has(action.action)) {
+    return { response: { error: READ_ONLY_REJECTION } };
+  }
   switch (action.action) {
     case 'readFile':
       return readFile(action.args, context);

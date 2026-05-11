@@ -38,7 +38,8 @@
                 @if (isAgentSidebarOpen()) {
                     <app-agent-console
                         [files]="agentFiles()"
-                        [chatMessages]="state.messages()" />
+                        [chatMessages]="state.messages()"
+                        [readOnly]="true" />
                 }
             </mat-sidenav>
 

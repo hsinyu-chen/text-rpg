@@ -381,7 +381,8 @@ export class FileAgentService {
     const allowParallel = mode === 'native' && this.capability.effectiveSupportsParallelToolCalls();
     const systemInstruction = buildSystemInstruction(fileList, mode, allowParallel, {
       uiLanguage: context.uiLanguage,
-      narrativeLanguage: context.narrativeLanguage
+      narrativeLanguage: context.narrativeLanguage,
+      readOnly: context.readOnly
     });
 
     const genConfig: Record<string, unknown> = mode === 'native'

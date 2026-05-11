@@ -15,6 +15,14 @@ export interface FileAgentContext {
   uiLanguage?: string;
   /** Engine output-language setting (e.g. "zh-TW", "en", "default") — the language the in-game narrative is being written in. Surfaced so chat-aware searches don't waste turns on the wrong language. */
   narrativeLanguage?: string;
+  /**
+   * Read-only mode: write tools (replaceFile, searchReplace, replaceSection,
+   * insertSection, insertIntoSection) are rejected at dispatch with an error
+   * directing the user to the KB editor. Used on the main-screen agent surface
+   * where there is no editor view — silently mutating files would mean edits
+   * happen invisibly and the user can't review them before they hit the engine.
+   */
+  readOnly?: boolean;
 }
 
 export type ToolCallMode = 'auto' | 'native' | 'json';

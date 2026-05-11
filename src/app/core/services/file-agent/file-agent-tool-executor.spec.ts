@@ -25,6 +25,31 @@ describe('executeFileTool dispatch', () => {
     expect(run({ action: 'submitResponse', args: { message: 'x' } }, context).response).toEqual({ status: 'acknowledged' });
     expect(onFileReplaced).not.toHaveBeenCalled();
   });
+
+  it('rejects every write tool when context.readOnly is set, with a message redirecting the user to the editor', () => {
+    const ctx = makeContext({ 'a.md': '# A\nbody' });
+    ctx.context.readOnly = true;
+    const writeActions: { action: ParsedAction['action']; args: Record<string, unknown> }[] = [
+      { action: 'replaceFile', args: { filename: 'a.md', content: 'x' } },
+      { action: 'searchReplace', args: { filename: 'a.md', replacements: [{ pattern: 'body', replacement: 'new' }] } },
+      { action: 'replaceSection', args: { filename: 'a.md', updates: [{ sectionPath: 'A', content: 'x' }] } },
+      { action: 'insertSection', args: { filename: 'a.md', heading: '## X', content: 'x' } },
+      { action: 'insertIntoSection', args: { filename: 'a.md', sectionPath: 'A', content: 'x', position: 'end' } }
+    ];
+    for (const a of writeActions) {
+      const r = run(a as ParsedAction, ctx.context);
+      expect(r.response).toMatchObject({ error: expect.stringMatching(/read-only.*KB editor/) });
+    }
+    expect(ctx.onFileReplaced).not.toHaveBeenCalled();
+  });
+
+  it('still allows read tools when context.readOnly is set', () => {
+    const ctx = makeContext({ 'a.md': 'hello' });
+    ctx.context.readOnly = true;
+    expect(run({ action: 'readFile', args: { filename: 'a.md' } }, ctx.context).response).toMatchObject({ content: 'hello' });
+    expect(run({ action: 'grep', args: { pattern: 'hel' } }, ctx.context).response).toMatchObject({ count: 1 });
+    expect(run({ action: 'getFileOutline', args: { filename: 'a.md' } }, ctx.context).response).toMatchObject({ outline: expect.any(Array) });
+  });
 });
 
 describe('readFile', () => {

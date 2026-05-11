@@ -48,6 +48,8 @@ export class AgentConsoleComponent implements OnDestroy {
   initialPrompt = input<string>('');
   /** Optional in-game chat snapshot for chat-aware tools. Omit (or pass undefined) when no game is active — chat-aware tools degrade with a "no chat history available" error. */
   chatMessages = input<ChatMessage[] | undefined>(undefined);
+  /** When true, write tools are rejected at the executor and the prompt notes the read-only constraint. Used on the main-screen surface where there is no editor view to review edits. */
+  readOnly = input<boolean>(false);
 
   // Injected services
   agentService = inject(FileAgentService);
@@ -183,7 +185,8 @@ export class AgentConsoleComponent implements OnDestroy {
       },
       chatMessages: this.chatMessages(),
       uiLanguage: this.i18n.currentLang(),
-      narrativeLanguage: this.appConfig.outputLanguage()
+      narrativeLanguage: this.appConfig.outputLanguage(),
+      readOnly: this.readOnly()
     });
   }
 
