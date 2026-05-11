@@ -795,6 +795,8 @@ export const en: TranslationDict = {
             tooltipReady: 'Sync ~60s after each save, plus on tab hide / focus.',
             disabledAfterFailures: 'Auto-sync disabled after {{max}} failures. Re-enable in Settings once fixed.',
             permissionRegrantNeeded: 'Auto-sync disabled — {{label}} needs permission re-granted.',
+            cannotEnablePrefix: 'Cannot enable auto-sync: ',
+            connectionFailedFallback: 'connection failed',
         },
         provider: {
             unavailable: 'Unavailable',
@@ -819,9 +821,7 @@ export const en: TranslationDict = {
             folderAccessOK: 'Folder access OK.',
             bindFolderFailedPrefix: 'Failed to bind folder: ',
             accessFailedPrefix: 'Access failed: ',
-            cannotEnableAutoSyncPrefix: 'Cannot enable auto-sync: ',
             pickFolderFirst: 'Pick a folder first.',
-            connectionFailedFallback: 'connection failed',
         },
         gdrive: {
             unconfiguredWithInputs: 'Google Drive is not configured. Paste your own OAuth Client ID below.',

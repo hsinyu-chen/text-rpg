@@ -795,6 +795,8 @@ export const zhTW: TranslationDict = {
             tooltipReady: '每次儲存後約 60 秒同步一次,分頁隱藏 / 取得焦點時也會同步。',
             disabledAfterFailures: '連續失敗 {{max}} 次,已停用自動同步。修好後請至設定重新啟用。',
             permissionRegrantNeeded: '自動同步已停用 — {{label}} 需要重新授權。',
+            cannotEnablePrefix: '無法啟用自動同步:',
+            connectionFailedFallback: '連線失敗',
         },
         provider: {
             unavailable: '無法使用',
@@ -819,9 +821,7 @@ export const zhTW: TranslationDict = {
             folderAccessOK: '資料夾存取正常。',
             bindFolderFailedPrefix: '綁定資料夾失敗:',
             accessFailedPrefix: '存取失敗:',
-            cannotEnableAutoSyncPrefix: '無法啟用自動同步:',
             pickFolderFirst: '請先挑選資料夾。',
-            connectionFailedFallback: '連線失敗',
         },
         gdrive: {
             unconfiguredWithInputs: '尚未設定 Google Drive。在下方貼上你自己的 OAuth Client ID。',

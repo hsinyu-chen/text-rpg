@@ -267,7 +267,7 @@ export class ChatReplaceDialogComponent {
         });
 
         await this.history.commitMessages(updatedMessages);
-        this.snackBar.open(this.lang.t('REPLACE_COUNT', { count: matches.length.toString() }), this.lang.t('CLOSE'), { duration: 3000 });
+        this.snackBar.open(this.lang.t('REPLACE_COUNT', { count: matches.length.toString() }), this.i18n.translate('dialog.ok'), { duration: 3000 });
         this.searchResource.reload();
     }
 

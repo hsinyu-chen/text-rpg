@@ -154,7 +154,7 @@ export class S3ConfigComponent {
                 await this.s3Backend.testConfig(this.buildConfig());
             } catch (e) {
                 this.snackBar.open(
-                    this.i18n.translate('sync.file.cannotEnableAutoSyncPrefix') + ((e as { message?: string })?.message || this.i18n.translate('sync.file.connectionFailedFallback')),
+                    this.i18n.translate('sync.autoSync.cannotEnablePrefix') + ((e as { message?: string })?.message || this.i18n.translate('sync.autoSync.connectionFailedFallback')),
                     this.i18n.translate('ui.CLOSE'),
                     { duration: 5000 }
                 );

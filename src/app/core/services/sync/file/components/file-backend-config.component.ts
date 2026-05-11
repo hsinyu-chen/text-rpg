@@ -111,7 +111,7 @@ export class FileBackendConfigComponent {
                     : e instanceof FileBackendPermissionDeniedError
                         ? e.message
                         : this.errMsg(e);
-                this.snackBar.open(this.i18n.translate('sync.file.cannotEnableAutoSyncPrefix') + msg, this.i18n.translate('ui.CLOSE'), {
+                this.snackBar.open(this.i18n.translate('sync.autoSync.cannotEnablePrefix') + msg, this.i18n.translate('ui.CLOSE'), {
                     duration: 5000,
                     panelClass: ['snackbar-error']
                 });
