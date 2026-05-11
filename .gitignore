@@ -15,6 +15,12 @@ yarn-error.log
 # Prompts pipeline cache (vitest sub-config sets prompts/tool/ as root, creating local node_modules/.vite)
 /prompts/tool/node_modules/
 
+# Prompts pipeline generated artifacts (SoT is prompts/source/; run `npm run prompts:build`)
+/public/assets/system_files/*/system_prompt.md
+/public/assets/system_files/*/injection_*.md
+/public/assets/system_files/*/profiles/local/system_prompt.md
+/public/assets/system_files/*/profiles/local/injection_*.md
+
 # aider local-LLM review tool runtime artifacts
 .aider*
 

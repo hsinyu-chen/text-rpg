@@ -18,6 +18,11 @@ description: Project Coding Standards and Rules
 - Windows, Powershell
 - use git grep for search
 
+## Prompts Source of Truth
+- **Edit `prompts/source/`** (base + `layers/{cloud,local}-overrides/`), **NEVER** `public/assets/system_files/{zh-tw,en}/**/*.md` — the latter is gitignored generated output, overwritten by `npm run prompts:build`.
+- `npm start` runs `prompts:watch` concurrently with `ng serve` (live rebuild on source change). `npm run build` / `npm test` / `npm run watch` chain `prompts:build` via `prebuild` / `pretest` / `prewatch` hooks.
+- `npm run prompts:check` is the CI gate (errors on warnings; compares manifest in git against build output).
+
 # ANGULAR 21+ CODING STANDARDS
 **THIS IS ZONELESS PROJECT**
 
