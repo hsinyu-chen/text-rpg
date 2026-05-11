@@ -12,8 +12,13 @@ export class FolderHandleNoHandleError extends Error {
 }
 
 export class FolderHandlePermissionDeniedError extends Error {
-    constructor(message: string) {
-        super(message);
+    /**
+     * Translation key (e.g. 'sync.file.errAccessDenied') that the UI layer
+     * passes through I18nService. The Error.message is set to the same key
+     * as a developer-readable fallback for logs / non-localized callers.
+     */
+    constructor(readonly messageKey: string) {
+        super(messageKey);
         this.name = 'FolderHandlePermissionDeniedError';
     }
 }
@@ -58,9 +63,7 @@ export abstract class FolderHandleBaseService {
     async pickFolder(): Promise<FileSystemDirectoryHandle> {
         await this.restoredOnce;
         if (typeof this.win.showDirectoryPicker !== 'function') {
-            throw new FolderHandlePermissionDeniedError(
-                'File System Access API is not available in this browser.'
-            );
+            throw new FolderHandlePermissionDeniedError('sync.file.errFsaUnavailable');
         }
         const picked = await this.win.showDirectoryPicker({ mode: 'readwrite' });
         await this.handles.set(this.handleKey, picked);
@@ -82,8 +85,8 @@ export abstract class FolderHandleBaseService {
         if (state !== 'granted') {
             throw new FolderHandlePermissionDeniedError(
                 state === 'denied'
-                    ? 'Folder access was denied. Re-pick the folder.'
-                    : 'Folder access could not be granted. Try again from a user-triggered action.'
+                    ? 'sync.file.errAccessDenied'
+                    : 'sync.file.errAccessNotGranted'
             );
         }
         return h;

@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { CORE_MAT } from '@app/shared/material/material-groups';
+import { I18nService, TranslatePipe } from '@app/core/i18n';
 import { SyncService } from '../../sync.service';
 import { SyncBackendResolver } from '../../sync-backend-resolver.service';
 import {
@@ -14,7 +15,7 @@ import {
 @Component({
     selector: 'app-file-backend-config',
     standalone: true,
-    imports: [...CORE_MAT, MatSlideToggleModule, FormsModule],
+    imports: [...CORE_MAT, MatSlideToggleModule, FormsModule, TranslatePipe],
     templateUrl: './file-backend-config.component.html',
     styleUrl: './file-backend-config.component.scss',
     changeDetection: ChangeDetectionStrategy.OnPush
@@ -24,15 +25,25 @@ export class FileBackendConfigComponent {
     private snackBar = inject(MatSnackBar);
     private sync = inject(SyncService);
     private backends = inject(SyncBackendResolver);
+    private i18n = inject(I18nService);
 
     folderName = computed(() => this.permission.handle()?.name ?? null);
 
-    /** UI label for the permission badge — collapses 'unknown' to 'prompt'
-     *  for users (the practical effect is identical: they need to grant). */
-    permissionLabel = computed(() => {
+    /** Raw permission state used for the [data-state] attribute (kept as
+     *  the FSA enum so CSS selectors don't change). Collapses 'unknown' to
+     *  'prompt' since the practical effect is identical: user needs to grant. */
+    permissionStateKey = computed<'granted' | 'denied' | 'prompt'>(() => {
         const s = this.permission.permissionState();
-        if (s === 'unknown') return 'prompt';
-        return s;
+        return s === 'unknown' ? 'prompt' : s;
+    });
+
+    /** Translated label for the permission badge text. */
+    permissionLabel = computed(() => {
+        const key = this.permissionStateKey();
+        const dictKey = key === 'granted' ? 'sync.file.permissionStateGranted'
+            : key === 'denied' ? 'sync.file.permissionStateDenied'
+            : 'sync.file.permissionStatePrompt';
+        return this.i18n.translate(dictKey);
     });
 
     autoSync = computed(() => this.backends.autoSyncEnabled().file);
@@ -48,13 +59,13 @@ export class FileBackendConfigComponent {
     async pickFolder(): Promise<void> {
         try {
             await this.permission.pickFolder();
-            this.snackBar.open('Folder bound — File sync ready.', 'OK', { duration: 3000 });
+            this.snackBar.open(this.i18n.translate('sync.file.folderBoundSuccess'), this.i18n.translate('dialog.ok'), { duration: 3000 });
         } catch (e) {
             if (e instanceof DOMException && e.name === 'AbortError') return;
             console.error('[FileBackendConfig] pickFolder failed', e);
             this.snackBar.open(
-                'Failed to bind folder: ' + this.errMsg(e),
-                'Close',
+                this.i18n.translate('sync.file.bindFolderFailed', { error: this.errMsg(e) }),
+                this.i18n.translate('ui.CLOSE'),
                 { panelClass: ['snackbar-error'] }
             );
         }
@@ -63,7 +74,7 @@ export class FileBackendConfigComponent {
     async unbind(): Promise<void> {
         await this.permission.clear();
         this.sync.setAutoSyncEnabled('file', false);
-        this.snackBar.open('Folder unbound.', 'OK', { duration: 2000 });
+        this.snackBar.open(this.i18n.translate('sync.file.folderUnboundSuccess'), this.i18n.translate('dialog.ok'), { duration: 2000 });
     }
 
     /**
@@ -74,14 +85,14 @@ export class FileBackendConfigComponent {
     async testAccess(): Promise<void> {
         try {
             await this.permission.ensurePermission();
-            this.snackBar.open('Folder access OK.', 'OK', { duration: 2000 });
+            this.snackBar.open(this.i18n.translate('sync.file.folderAccessOK'), this.i18n.translate('dialog.ok'), { duration: 2000 });
         } catch (e) {
             const msg = e instanceof FileBackendNoHandleError
-                ? 'Pick a folder first.'
+                ? this.i18n.translate('sync.file.pickFolderFirst')
                 : e instanceof FileBackendPermissionDeniedError
-                    ? e.message
+                    ? this.i18n.translate(e.messageKey)
                     : this.errMsg(e);
-            this.snackBar.open('Access failed: ' + msg, 'Close', {
+            this.snackBar.open(this.i18n.translate('sync.file.accessFailed', { error: msg }), this.i18n.translate('ui.CLOSE'), {
                 panelClass: ['snackbar-error']
             });
         }
@@ -96,11 +107,11 @@ export class FileBackendConfigComponent {
                 await this.permission.ensurePermission();
             } catch (e) {
                 const msg = e instanceof FileBackendNoHandleError
-                    ? 'Pick a folder first.'
+                    ? this.i18n.translate('sync.file.pickFolderFirst')
                     : e instanceof FileBackendPermissionDeniedError
-                        ? e.message
+                        ? this.i18n.translate(e.messageKey)
                         : this.errMsg(e);
-                this.snackBar.open('Cannot enable auto-sync: ' + msg, 'Close', {
+                this.snackBar.open(this.i18n.translate('sync.autoSync.cannotEnable', { error: msg }), this.i18n.translate('ui.CLOSE'), {
                     duration: 5000,
                     panelClass: ['snackbar-error']
                 });

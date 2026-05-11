@@ -7,6 +7,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { I18nService, TranslatePipe } from '@app/core/i18n';
 
 export type S3JsonDialogMode = 'import' | 'export';
 
@@ -25,7 +26,8 @@ export interface S3ConfigJsonDialogData {
         MatButtonModule,
         MatFormFieldModule,
         MatInputModule,
-        MatIconModule
+        MatIconModule,
+        TranslatePipe
     ],
     templateUrl: './s3-config-json-dialog.component.html',
     styleUrl: './s3-config-json-dialog.component.scss',
@@ -36,6 +38,7 @@ export class S3ConfigJsonDialogComponent {
     data = inject<S3ConfigJsonDialogData>(MAT_DIALOG_DATA);
     private snackBar = inject(MatSnackBar);
     private clipboard = inject(Clipboard);
+    private i18n = inject(I18nService);
 
     text = signal(this.data.initial ?? '');
 
@@ -54,9 +57,9 @@ export class S3ConfigJsonDialogComponent {
     copy(): void {
         const ok = this.clipboard.copy(this.text());
         if (ok) {
-            this.snackBar.open('Copied to clipboard.', 'OK', { duration: 2000 });
+            this.snackBar.open(this.i18n.translate('sync.s3.json.copiedSnackbar'), this.i18n.translate('dialog.ok'), { duration: 2000 });
         } else {
-            this.snackBar.open('Copy failed; select text manually.', 'Close', { duration: 3000 });
+            this.snackBar.open(this.i18n.translate('sync.s3.json.copyFailedManual'), this.i18n.translate('ui.CLOSE'), { duration: 3000 });
         }
     }
 }

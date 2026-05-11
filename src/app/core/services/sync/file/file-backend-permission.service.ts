@@ -16,8 +16,8 @@ export class FileBackendNoHandleError extends FolderHandleNoHandleError {
 }
 
 export class FileBackendPermissionDeniedError extends FolderHandlePermissionDeniedError {
-    constructor(message: string) {
-        super(message);
+    constructor(messageKey: string) {
+        super(messageKey);
         this.name = 'FileBackendPermissionDeniedError';
     }
 }

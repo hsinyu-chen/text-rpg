@@ -10,6 +10,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ScrollingModule } from '@angular/cdk/scrolling';
+import { I18nService, TranslatePipe } from '@app/core/i18n';
 import { S3SyncBackend } from '../s3-sync-backend';
 import { RemoteEntry, SyncResource } from '../../sync.types';
 
@@ -36,7 +37,8 @@ interface DisplayEntry extends RemoteEntry {
         MatProgressSpinnerModule,
         MatFormFieldModule,
         MatInputModule,
-        ScrollingModule
+        ScrollingModule,
+        TranslatePipe
     ],
     templateUrl: './s3-file-viewer-dialog.component.html',
     styleUrl: './s3-file-viewer-dialog.component.scss',
@@ -46,6 +48,7 @@ export class S3FileViewerDialogComponent {
     private s3 = inject(S3SyncBackend);
     private snackBar = inject(MatSnackBar);
     private clipboard = inject(Clipboard);
+    private i18n = inject(I18nService);
     dialogRef = inject(MatDialogRef<S3FileViewerDialogComponent>);
 
     constructor() {
@@ -180,7 +183,8 @@ export class S3FileViewerDialogComponent {
             const initialIds = entries.slice(0, S3FileViewerDialogComponent.HYDRATION_VIEWPORT_AHEAD).map(e => e.id);
             this.enqueueHydration(resource, initialIds);
         } catch (e) {
-            this.snackBar.open('Failed to list: ' + ((e as { message?: string })?.message || 'Unknown'), 'Close', { duration: 5000 });
+            const errorMsg = (e as { message?: string })?.message || this.i18n.translate('sync.common.unknownError');
+            this.snackBar.open(this.i18n.translate('sync.s3.viewer.failedList', { error: errorMsg }), this.i18n.translate('ui.CLOSE'), { duration: 5000 });
         } finally {
             this.listLoading.set(false);
         }
@@ -311,9 +315,9 @@ export class S3FileViewerDialogComponent {
         const text = this.isSingleFileTab() ? (this.singleFileContent() ?? '') : (this.detailPretty() ?? '');
         if (!text) return;
         if (this.clipboard.copy(text)) {
-            this.snackBar.open('Copied.', 'OK', { duration: 1500 });
+            this.snackBar.open(this.i18n.translate('sync.s3.viewer.copiedSnackbar'), this.i18n.translate('dialog.ok'), { duration: 1500 });
         } else {
-            this.snackBar.open('Copy failed.', 'Close', { duration: 3000 });
+            this.snackBar.open(this.i18n.translate('sync.s3.viewer.copyFailedSnackbar'), this.i18n.translate('ui.CLOSE'), { duration: 3000 });
         }
     }
 

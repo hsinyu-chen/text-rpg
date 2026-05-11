@@ -6,6 +6,7 @@ import { EMPTY, Subject, from, of, timer } from 'rxjs';
 import { catchError, concatMap, debounce, filter, tap } from 'rxjs/operators';
 import { SessionService } from '../session.service';
 import { SyncBackendResolver } from './sync-backend-resolver.service';
+import { I18nService } from '@app/core/i18n';
 
 const DEBOUNCE_MS = 60_000;
 const VISIBILITY_COOLDOWN_MS = 30_000;
@@ -34,6 +35,7 @@ export class AutoSyncScheduler {
     private readonly session = inject(SessionService);
     private readonly backends = inject(SyncBackendResolver);
     private readonly snackBar = inject(MatSnackBar);
+    private readonly i18n = inject(I18nService);
 
     private readonly trigger$ = new Subject<Trigger>();
     private lastSyncAt = 0;
@@ -185,8 +187,8 @@ export class AutoSyncScheduler {
             const id = this.backends.activeBackendId();
             this.backends.setAutoSyncEnabled(id, false);
             this.snackBar.open(
-                `Auto-sync disabled after ${MAX_FAILURES} failures. Re-enable in Settings once fixed.`,
-                'Close',
+                this.i18n.translate('sync.autoSync.disabledAfterFailures', { max: MAX_FAILURES }),
+                this.i18n.translate('ui.CLOSE'),
                 { duration: 8000 }
             );
         }
@@ -303,8 +305,8 @@ export class AutoSyncScheduler {
                     untracked(() => {
                         this.backends.setAutoSyncEnabled(b.id, false);
                         this.snackBar.open(
-                            `Auto-sync disabled — ${b.label} needs permission re-granted.`,
-                            'Close',
+                            this.i18n.translate('sync.autoSync.permissionRegrantNeeded', { label: b.label }),
+                            this.i18n.translate('ui.CLOSE'),
                             { duration: 6000 }
                         );
                     });

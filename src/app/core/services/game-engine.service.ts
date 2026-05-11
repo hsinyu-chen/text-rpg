@@ -230,9 +230,9 @@ export class GameEngineService {
                 ? `${this.i18n.translate('ui.LEGACY_PROFILE_AUTOSWITCH')}\n\n`
                 : '';
             const errorCore = sessionExpired
-                ? 'Session Expired: Please reload your Knowledge Base folder to continue.'
-                : `Error: ${e instanceof Error ? e.message : 'Unknown error during cache refresh'}`;
-            this.snackBar.open(autoswitchPrefix + errorCore, 'Close', {
+                ? this.i18n.translate('ui.SESSION_EXPIRED_KB_RELOAD')
+                : this.i18n.translate('ui.SNACK_ERROR_PREFIX', { error: e instanceof Error ? e.message : this.i18n.translate('ui.CONN_ERROR') });
+            this.snackBar.open(autoswitchPrefix + errorCore, this.i18n.translate('ui.CLOSE'), {
                 duration: sessionExpired ? 10000 : 5000,
                 panelClass: ['snackbar-error']
             });

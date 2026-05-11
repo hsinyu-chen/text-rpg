@@ -114,8 +114,9 @@ export class SyncDialogComponent {
             this.dialogRef.close(true);
         } catch (error) {
             console.error(error);
+            const errorMsg = (error as { message?: string })?.message || this.i18n.translate('sync.common.unknownError');
             this.snackBar.open(
-                this.i18n.translate('dialog.syncFailedPrefix') + ((error as { message?: string })?.message || 'Unknown error'),
+                this.i18n.translate('dialog.syncFailedMessage', { error: errorMsg }),
                 this.i18n.translate('ui.CLOSE'),
             );
         } finally {

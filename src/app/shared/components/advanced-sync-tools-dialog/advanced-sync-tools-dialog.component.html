@@ -130,7 +130,7 @@
           </ng-container>
 
           <ng-container matColumnDef="actions">
-            <th mat-header-cell *matHeaderCellDef>Actions</th>
+            <th mat-header-cell *matHeaderCellDef>{{ 'sync.advanced.actionsHeader' | translate }}</th>
             <td mat-cell *matCellDef="let s" class="actions-cell">
               <button mat-icon-button color="primary"
                   [disabled]="state.isBusy() || busy()"

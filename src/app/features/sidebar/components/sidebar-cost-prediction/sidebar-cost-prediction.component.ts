@@ -258,7 +258,7 @@ export class SidebarCostPredictionComponent {
             const totalCost = transactionCost + sunkTransactionCost + modelStorageCost;
 
             const costFormatted = (totalCost * exchangeRate).toFixed(currency === 'USD' ? 4 : 2);
-            const status = isActive ? '✅ Active' : '';
+            const status = isActive ? this.i18n.translate('ui.ACTIVE_BADGE_EMOJI') : '';
             markdown += `| ${model.name} | ${currency} ${costFormatted} | ${status} |\n`;
         });
 

@@ -8,6 +8,7 @@ import { CORE_MAT } from '@app/shared/material/material-groups';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatDialog } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
+import { I18nService, TranslatePipe } from '@app/core/i18n';
 import { SyncService } from '../../sync.service';
 import { S3Config } from '../../sync.types';
 import { S3ConfigService } from '../s3-config.service';
@@ -28,7 +29,8 @@ import { S3FileViewerDialogComponent } from './s3-file-viewer-dialog.component';
         MatInputModule,
         MatSlideToggleModule,
         MatProgressSpinnerModule,
-        FormsModule
+        FormsModule,
+        TranslatePipe
     ],
     templateUrl: './s3-config.component.html',
     styleUrl: './s3-config.component.scss',
@@ -41,6 +43,7 @@ export class S3ConfigComponent {
     private backends = inject(SyncBackendResolver);
     private snackBar = inject(MatSnackBar);
     private matDialog = inject(MatDialog);
+    private i18n = inject(I18nService);
 
     endpoint = signal('');
     region = signal('us-east-1');
@@ -88,11 +91,11 @@ export class S3ConfigComponent {
 
     save(): void {
         if (!this.isValid()) {
-            this.snackBar.open('Please fill in all required S3 fields.', 'Close', { duration: 3000 });
+            this.snackBar.open(this.i18n.translate('sync.s3.requiredFieldsMissing'), this.i18n.translate('ui.CLOSE'), { duration: 3000 });
             return;
         }
         this.s3Cfg.save(this.buildConfig());
-        this.snackBar.open('S3 configuration saved.', 'OK', { duration: 2000 });
+        this.snackBar.open(this.i18n.translate('sync.s3.configSaved'), this.i18n.translate('dialog.ok'), { duration: 2000 });
     }
 
     openExportDialog(): void {
@@ -115,11 +118,11 @@ export class S3ConfigComponent {
         try {
             parsed = JSON.parse(raw) as Partial<S3Config>;
         } catch (e) {
-            this.snackBar.open('Invalid JSON: ' + (e as Error).message, 'Close', { duration: 4000 });
+            this.snackBar.open(this.i18n.translate('sync.s3.invalidJson', { error: (e as Error).message }), this.i18n.translate('ui.CLOSE'), { duration: 4000 });
             return;
         }
         if (typeof parsed !== 'object' || parsed === null) {
-            this.snackBar.open('Config must be a JSON object.', 'Close', { duration: 3000 });
+            this.snackBar.open(this.i18n.translate('sync.s3.configMustBeObject'), this.i18n.translate('ui.CLOSE'), { duration: 3000 });
             return;
         }
         if (typeof parsed.endpoint === 'string') this.endpoint.set(parsed.endpoint);
@@ -132,9 +135,9 @@ export class S3ConfigComponent {
         // Auto-persist: the import dialog's Save means "apply", not "fill the form for me to save again".
         if (this.isValid()) {
             this.s3Cfg.save(this.buildConfig());
-            this.snackBar.open('Imported and saved.', 'OK', { duration: 2500 });
+            this.snackBar.open(this.i18n.translate('sync.s3.importedAndSaved'), this.i18n.translate('dialog.ok'), { duration: 2500 });
         } else {
-            this.snackBar.open('Imported. Some required fields are empty — fill them and click Save.', 'Close', { duration: 4000 });
+            this.snackBar.open(this.i18n.translate('sync.s3.importedButIncomplete'), this.i18n.translate('ui.CLOSE'), { duration: 4000 });
         }
     }
 
@@ -143,16 +146,17 @@ export class S3ConfigComponent {
             // Don't let users enable auto-sync until creds are confirmed working —
             // otherwise we'd silently rack up failures and disable it again.
             if (!this.s3Configured()) {
-                this.snackBar.open('Save and test your S3 connection first.', 'Close', { duration: 3000 });
+                this.snackBar.open(this.i18n.translate('sync.s3.saveAndTestFirst'), this.i18n.translate('ui.CLOSE'), { duration: 3000 });
                 return;
             }
             this.testing.set(true);
             try {
                 await this.s3Backend.testConfig(this.buildConfig());
             } catch (e) {
+                const errorMsg = (e as { message?: string })?.message || this.i18n.translate('sync.autoSync.connectionFailedFallback');
                 this.snackBar.open(
-                    'Cannot enable auto-sync: ' + ((e as { message?: string })?.message || 'connection failed'),
-                    'Close',
+                    this.i18n.translate('sync.autoSync.cannotEnable', { error: errorMsg }),
+                    this.i18n.translate('ui.CLOSE'),
                     { duration: 5000 }
                 );
                 return;
@@ -165,7 +169,7 @@ export class S3ConfigComponent {
 
     openFileViewer(): void {
         if (!this.s3Configured()) {
-            this.snackBar.open('Save and test your S3 connection first.', 'Close', { duration: 3000 });
+            this.snackBar.open(this.i18n.translate('sync.s3.saveAndTestFirst'), this.i18n.translate('ui.CLOSE'), { duration: 3000 });
             return;
         }
         this.matDialog.open(S3FileViewerDialogComponent, {
@@ -176,16 +180,17 @@ export class S3ConfigComponent {
 
     async testConnection(): Promise<void> {
         if (!this.isValid()) {
-            this.snackBar.open('Please fill in all required S3 fields.', 'Close', { duration: 3000 });
+            this.snackBar.open(this.i18n.translate('sync.s3.requiredFieldsMissing'), this.i18n.translate('ui.CLOSE'), { duration: 3000 });
             return;
         }
         this.testing.set(true);
         try {
             await this.s3Backend.testConfig(this.buildConfig());
-            this.snackBar.open('S3 connection OK.', 'OK', { duration: 3000 });
+            this.snackBar.open(this.i18n.translate('sync.s3.connectionOK'), this.i18n.translate('dialog.ok'), { duration: 3000 });
         } catch (e) {
             console.error('[S3Config] Test failed', e);
-            this.snackBar.open('S3 connection failed: ' + ((e as { message?: string })?.message || 'Unknown error'), 'Close', { duration: 5000 });
+            const errorMsg = (e as { message?: string })?.message || this.i18n.translate('sync.common.unknownError');
+            this.snackBar.open(this.i18n.translate('sync.s3.connectionFailed', { error: errorMsg }), this.i18n.translate('ui.CLOSE'), { duration: 5000 });
         } finally {
             this.testing.set(false);
         }
