@@ -183,7 +183,8 @@ export class S3FileViewerDialogComponent {
             const initialIds = entries.slice(0, S3FileViewerDialogComponent.HYDRATION_VIEWPORT_AHEAD).map(e => e.id);
             this.enqueueHydration(resource, initialIds);
         } catch (e) {
-            this.snackBar.open(this.i18n.translate('sync.s3.viewer.failedListPrefix') + ((e as { message?: string })?.message || this.i18n.translate('sync.common.unknownError')), this.i18n.translate('ui.CLOSE'), { duration: 5000 });
+            const errorMsg = (e as { message?: string })?.message || this.i18n.translate('sync.common.unknownError');
+            this.snackBar.open(this.i18n.translate('sync.s3.viewer.failedList', { error: errorMsg }), this.i18n.translate('ui.CLOSE'), { duration: 5000 });
         } finally {
             this.listLoading.set(false);
         }

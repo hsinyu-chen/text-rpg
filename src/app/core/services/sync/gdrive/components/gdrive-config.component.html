@@ -8,7 +8,7 @@
         } @else {
             <div class="status warn">
                 <mat-icon>error_outline</mat-icon>
-                <span>{{ 'sync.gdrive.unconfiguredEnvPrefix' | translate }}<code>gcpOauthAppId</code>{{ 'sync.gdrive.unconfiguredEnvSuffix' | translate }}</span>
+                <span [innerHTML]="'sync.gdrive.unconfiguredEnv' | translate"></span>
             </div>
         }
     }
@@ -31,9 +31,7 @@
 
 @if (showInputs()) {
     <div class="byo-oauth">
-        <p class="hint">
-            {{ 'sync.gdrive.byoHintIntro' | translate }}<em>{{ 'sync.gdrive.byoHintQuestionPrefix' | translate }}<code>drive.appdata</code>{{ 'sync.gdrive.byoHintQuestionSuffix' | translate }}</em>
-        </p>
+        <p class="hint" [innerHTML]="'sync.gdrive.byoHint' | translate"></p>
 
         <div class="redirect-uri">
             <span class="label">{{ 'sync.gdrive.redirectOriginsLabel' | translate }}</span>

@@ -118,7 +118,7 @@ export class S3ConfigComponent {
         try {
             parsed = JSON.parse(raw) as Partial<S3Config>;
         } catch (e) {
-            this.snackBar.open(this.i18n.translate('sync.s3.invalidJsonPrefix') + (e as Error).message, this.i18n.translate('ui.CLOSE'), { duration: 4000 });
+            this.snackBar.open(this.i18n.translate('sync.s3.invalidJson', { error: (e as Error).message }), this.i18n.translate('ui.CLOSE'), { duration: 4000 });
             return;
         }
         if (typeof parsed !== 'object' || parsed === null) {
@@ -153,8 +153,9 @@ export class S3ConfigComponent {
             try {
                 await this.s3Backend.testConfig(this.buildConfig());
             } catch (e) {
+                const errorMsg = (e as { message?: string })?.message || this.i18n.translate('sync.autoSync.connectionFailedFallback');
                 this.snackBar.open(
-                    this.i18n.translate('sync.autoSync.cannotEnablePrefix') + ((e as { message?: string })?.message || this.i18n.translate('sync.autoSync.connectionFailedFallback')),
+                    this.i18n.translate('sync.autoSync.cannotEnable', { error: errorMsg }),
                     this.i18n.translate('ui.CLOSE'),
                     { duration: 5000 }
                 );
@@ -188,7 +189,8 @@ export class S3ConfigComponent {
             this.snackBar.open(this.i18n.translate('sync.s3.connectionOK'), this.i18n.translate('dialog.ok'), { duration: 3000 });
         } catch (e) {
             console.error('[S3Config] Test failed', e);
-            this.snackBar.open(this.i18n.translate('sync.s3.connectionFailedPrefix') + ((e as { message?: string })?.message || this.i18n.translate('sync.common.unknownError')), this.i18n.translate('ui.CLOSE'), { duration: 5000 });
+            const errorMsg = (e as { message?: string })?.message || this.i18n.translate('sync.common.unknownError');
+            this.snackBar.open(this.i18n.translate('sync.s3.connectionFailed', { error: errorMsg }), this.i18n.translate('ui.CLOSE'), { duration: 5000 });
         } finally {
             this.testing.set(false);
         }

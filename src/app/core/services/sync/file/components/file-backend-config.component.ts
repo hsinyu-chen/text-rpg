@@ -64,7 +64,7 @@ export class FileBackendConfigComponent {
             if (e instanceof DOMException && e.name === 'AbortError') return;
             console.error('[FileBackendConfig] pickFolder failed', e);
             this.snackBar.open(
-                this.i18n.translate('sync.file.bindFolderFailedPrefix') + this.errMsg(e),
+                this.i18n.translate('sync.file.bindFolderFailed', { error: this.errMsg(e) }),
                 this.i18n.translate('ui.CLOSE'),
                 { panelClass: ['snackbar-error'] }
             );
@@ -92,7 +92,7 @@ export class FileBackendConfigComponent {
                 : e instanceof FileBackendPermissionDeniedError
                     ? e.message
                     : this.errMsg(e);
-            this.snackBar.open(this.i18n.translate('sync.file.accessFailedPrefix') + msg, this.i18n.translate('ui.CLOSE'), {
+            this.snackBar.open(this.i18n.translate('sync.file.accessFailed', { error: msg }), this.i18n.translate('ui.CLOSE'), {
                 panelClass: ['snackbar-error']
             });
         }
@@ -111,7 +111,7 @@ export class FileBackendConfigComponent {
                     : e instanceof FileBackendPermissionDeniedError
                         ? e.message
                         : this.errMsg(e);
-                this.snackBar.open(this.i18n.translate('sync.autoSync.cannotEnablePrefix') + msg, this.i18n.translate('ui.CLOSE'), {
+                this.snackBar.open(this.i18n.translate('sync.autoSync.cannotEnable', { error: msg }), this.i18n.translate('ui.CLOSE'), {
                     duration: 5000,
                     panelClass: ['snackbar-error']
                 });

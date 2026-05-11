@@ -27,7 +27,7 @@
             @if (detailLoading()) {
                 <div class="placeholder"><mat-progress-spinner mode="indeterminate" diameter="32"></mat-progress-spinner></div>
             } @else if (detailError()) {
-                <div class="placeholder error">{{ 'sync.s3.viewer.readFailedPrefix' | translate }}{{ detailError() }}</div>
+                <div class="placeholder error">{{ 'sync.s3.viewer.readFailedMessage' | translate: { error: detailError() ?? '' } }}</div>
             } @else if (singleFileContent() === null) {
                 <div class="placeholder">{{ (activeTab() === 'settings' ? 'sync.s3.viewer.noSettingsOnCloud' : 'sync.s3.viewer.noPromptsOnCloud') | translate }}</div>
             } @else {
@@ -69,7 +69,7 @@
                 @if (detailLoading()) {
                     <div class="placeholder"><mat-progress-spinner mode="indeterminate" diameter="32"></mat-progress-spinner></div>
                 } @else if (detailError()) {
-                    <div class="placeholder error">{{ 'sync.s3.viewer.readFailedPrefix' | translate }}{{ detailError() }}</div>
+                    <div class="placeholder error">{{ 'sync.s3.viewer.readFailedMessage' | translate: { error: detailError() ?? '' } }}</div>
                 } @else if (!selectedId()) {
                     <div class="placeholder">{{ 'sync.s3.viewer.selectAnEntry' | translate }}</div>
                 } @else {
