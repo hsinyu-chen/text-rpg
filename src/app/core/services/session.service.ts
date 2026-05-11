@@ -52,6 +52,27 @@ function migrateLegacyCorrection(raw: ChatMessage & { isCorrection?: boolean }):
     return m;
 }
 
+/**
+ * Build a stats block for a brand-new Book — zero usage, no cache, no
+ * accumulated storage. Shared by createNextBook / createSceneBook /
+ * forkBookFromMessage so the three "spawn a new Book" entry points stay
+ * in lockstep on what "fresh" means.
+ */
+function buildFreshBookStats(): Book['stats'] {
+    return {
+        tokenUsage: { freshInput: 0, cached: 0, output: 0, total: 0 },
+        estimatedCost: 0,
+        historyStorageUsage: 0,
+        sunkUsageHistory: [],
+        kbStorageUsageAcc: 0,
+        kbCacheName: null,
+        kbCacheExpireTime: null,
+        kbCacheTokens: 0,
+        estimatedKbTokens: 0,
+        kbCacheHash: null,
+    };
+}
+
 @Injectable({
     providedIn: 'root'
 })
@@ -660,18 +681,7 @@ export class SessionService {
             preview: 'New Chapter',
             messages: [],
             files: files, // COPIED KB
-            stats: {
-                tokenUsage: { freshInput: 0, cached: 0, output: 0, total: 0 },
-                estimatedCost: 0,
-                historyStorageUsage: 0, // Reset for new book
-                sunkUsageHistory: [],
-                kbStorageUsageAcc: 0,
-                kbCacheName: null,
-                kbCacheExpireTime: null,
-                kbCacheTokens: 0,
-                estimatedKbTokens: 0, // Reset for new book
-                kbCacheHash: null
-            }
+            stats: buildFreshBookStats(),
         };
 
         await this.books.save(newBook);
@@ -717,18 +727,7 @@ export class SessionService {
             preview: 'New Scene',
             messages: [],
             files: filesArr,
-            stats: {
-                tokenUsage: { freshInput: 0, cached: 0, output: 0, total: 0 },
-                estimatedCost: 0,
-                historyStorageUsage: 0,
-                sunkUsageHistory: [],
-                kbStorageUsageAcc: 0,
-                kbCacheName: null,
-                kbCacheExpireTime: null,
-                kbCacheTokens: 0,
-                estimatedKbTokens: 0,
-                kbCacheHash: null
-            }
+            stats: buildFreshBookStats(),
         };
 
         await this.books.save(newBook);
