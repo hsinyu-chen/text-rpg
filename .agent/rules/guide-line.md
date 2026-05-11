@@ -20,7 +20,7 @@ description: Project Coding Standards and Rules
 
 ## Prompts Source of Truth
 - **Edit `prompts/source/`** (base + `layers/{cloud,local}-overrides/`), **NEVER** `public/assets/system_files/{zh-tw,en}/**/*.md` — the latter is gitignored generated output, overwritten by `npm run prompts:build`.
-- `npm start` runs `prompts:watch` concurrently with `ng serve` (live rebuild on source change). `npm run build` / `npm test` / `npm run watch` chain `prompts:build` via `prebuild` / `pretest` / `prewatch` hooks.
+- `npm start` runs the prompts watcher in-process alongside `ng serve` (via `tools/dev.ts`; live rebuild on source change). `npm run build` / `npm test` / `npm run watch` chain `prompts:build` via `prebuild` / `pretest` / `prewatch` hooks.
 - `npm run prompts:check` is the CI gate (errors on warnings; compares manifest in git against build output).
 
 # ANGULAR 21+ CODING STANDARDS

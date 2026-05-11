@@ -29,7 +29,11 @@ const shutdown = (code: number): void => {
 
 process.on('SIGINT', () => shutdown(130));
 process.on('SIGTERM', () => shutdown(143));
+child.on('error', (err) => {
+  process.stderr.write(`ng serve spawn failed: ${err.message}\n`);
+  shutdown(1);
+});
 child.on('exit', (code, signal) => {
-  const exitCode = code ?? (signal === 'SIGINT' ? 130 : signal === 'SIGTERM' ? 143 : 0);
+  const exitCode = code ?? (signal === 'SIGINT' ? 130 : signal === 'SIGTERM' ? 143 : 1);
   shutdown(exitCode);
 });
