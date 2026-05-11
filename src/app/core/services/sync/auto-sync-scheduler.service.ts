@@ -1,4 +1,4 @@
-import { DestroyRef, Injectable, effect, inject } from '@angular/core';
+import { DestroyRef, Injectable, effect, inject, untracked } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DOCUMENT } from '@angular/common';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -287,15 +287,27 @@ export class AutoSyncScheduler {
                 const fp = b.configFingerprint();
                 const prev = lastFingerprints.get(b.id);
                 lastFingerprints.set(b.id, fp);
-                if (prev === undefined || prev === fp) continue;
+                // Skip by value, not by `prev === undefined`: if the
+                // backend's async restore() resolves before this effect's
+                // first tick, prev would be undefined yet fp would already
+                // be in its resolved state. Treating that as "no change"
+                // would miss a real auth lapse (e.g. autoSync=on from KV
+                // but FSA transient grant already dropped to 'prompt').
+                if (prev === fp) continue;
+                if (fp === '' || fp.endsWith(':unknown')) continue;
                 this.failureCount = 0;
                 if (this.backends.autoSyncEnabled()[b.id] && !b.isAuthenticated()) {
-                    this.backends.setAutoSyncEnabled(b.id, false);
-                    this.snackBar.open(
-                        `Auto-sync disabled — ${b.label} needs permission re-granted.`,
-                        'Close',
-                        { duration: 6000 }
-                    );
+                    // untracked: this effect READS autoSyncEnabled() above
+                    // for the condition; writing it from inside would form
+                    // a self-trigger cycle without untracked.
+                    untracked(() => {
+                        this.backends.setAutoSyncEnabled(b.id, false);
+                        this.snackBar.open(
+                            `Auto-sync disabled — ${b.label} needs permission re-granted.`,
+                            'Close',
+                            { duration: 6000 }
+                        );
+                    });
                 }
             }
         });
