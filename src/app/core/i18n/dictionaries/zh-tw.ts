@@ -822,6 +822,9 @@ export const zhTW: TranslationDict = {
             bindFolderFailed: '綁定資料夾失敗：{{error}}',
             accessFailed: '存取失敗：{{error}}',
             pickFolderFirst: '請先挑選資料夾。',
+            errFsaUnavailable: '此瀏覽器不支援 File System Access API。',
+            errAccessDenied: '資料夾存取被拒。請重新選擇資料夾。',
+            errAccessNotGranted: '無法取得資料夾存取權。請從使用者觸發的動作重試。',
         },
         gdrive: {
             unconfiguredWithInputs: '尚未設定 Google Drive。在下方貼上你自己的 OAuth Client ID。',
@@ -892,7 +895,7 @@ export const zhTW: TranslationDict = {
                 importHint: '貼上從另一個裝置匯出的 JSON 設定。按儲存把表單填好，再按表單的儲存來持久化。',
                 jsonLabel: 'JSON',
                 copiedSnackbar: '已複製到剪貼簿。',
-                copyFailedManual: '複製失敗;請手動選取文字。',
+                copyFailedManual: '複製失敗，請手動選取文字。',
             },
         },
         advanced: {

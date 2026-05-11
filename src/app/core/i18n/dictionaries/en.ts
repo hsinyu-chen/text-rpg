@@ -822,6 +822,9 @@ export const en: TranslationDict = {
             bindFolderFailed: 'Failed to bind folder: {{error}}',
             accessFailed: 'Access failed: {{error}}',
             pickFolderFirst: 'Pick a folder first.',
+            errFsaUnavailable: 'File System Access API is not available in this browser.',
+            errAccessDenied: 'Folder access was denied. Re-pick the folder.',
+            errAccessNotGranted: 'Folder access could not be granted. Try again from a user-triggered action.',
         },
         gdrive: {
             unconfiguredWithInputs: 'Google Drive is not configured. Paste your own OAuth Client ID below.',

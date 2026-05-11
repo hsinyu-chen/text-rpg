@@ -84,7 +84,7 @@ export class SettingsSyncService {
             this.snackBar.open(this.i18n.translate('settings.snapshotUploadOK', { count }), this.i18n.translate('dialog.ok'), { duration: 3000 });
         } catch (error) {
             console.error('[SettingsSync] Upload failed', error);
-            this.snackBar.open(this.i18n.translate('settings.snapshotUploadFailed', { error: (error as { message?: string })?.message || '' }), this.i18n.translate('ui.CLOSE'), { duration: 5000 });
+            this.snackBar.open(this.i18n.translate('settings.snapshotUploadFailed', { error: (error as { message?: string })?.message || this.i18n.translate('sync.common.unknownError') }), this.i18n.translate('ui.CLOSE'), { duration: 5000 });
             throw error;
         } finally {
             this.loading.hide();
@@ -107,7 +107,7 @@ export class SettingsSyncService {
             return true;
         } catch (error) {
             console.error('[SettingsSync] Download failed', error);
-            this.snackBar.open(this.i18n.translate('settings.snapshotDownloadFailed', { error: (error as { message?: string })?.message || '' }), this.i18n.translate('ui.CLOSE'), { duration: 5000 });
+            this.snackBar.open(this.i18n.translate('settings.snapshotDownloadFailed', { error: (error as { message?: string })?.message || this.i18n.translate('sync.common.unknownError') }), this.i18n.translate('ui.CLOSE'), { duration: 5000 });
             throw error;
         } finally {
             this.loading.hide();
