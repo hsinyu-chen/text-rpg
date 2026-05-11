@@ -18,9 +18,10 @@
 <p class="hint">
     Books, Collections, and Snapshots will live in your chosen folder. Pair
     it with a folder synced by Dropbox / Syncthing / iCloud Drive to share
-    state across devices. <strong>Auto-sync is disabled for this backend</strong>
-    — folder access has to be re-granted after each page reload, so every
-    sync is triggered from a click.
+    state across devices. For auto-sync to survive page reloads, choose
+    <strong>"Allow on every visit"</strong> in the browser's permission
+    prompt — transient grants expire and the scheduler will stay dormant
+    until you grant again.
 </p>
 
 <div class="actions">
@@ -40,3 +41,13 @@
         </button>
     }
 </div>
+
+@if (folderName()) {
+    <mat-slide-toggle [ngModel]="autoSync()" (ngModelChange)="toggleAutoSync($event)"
+        [disabled]="!canEnableAutoSync() && !autoSync()"
+        [matTooltip]="canEnableAutoSync()
+            ? 'Sync ~60s after each save, plus on tab hide / focus.'
+            : 'Grant folder permission first (Test access). Choose &quot;Allow on every visit&quot; for auto-sync to persist across reloads.'">
+        Auto-sync in background
+    </mat-slide-toggle>
+}
