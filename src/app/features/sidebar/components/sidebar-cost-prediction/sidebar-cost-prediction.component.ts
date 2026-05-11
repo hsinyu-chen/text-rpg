@@ -104,6 +104,16 @@ export class SidebarCostPredictionComponent {
         return this.providerRegistry.getActiveModelId() || 'unknown';
     }
 
+    // True iff the active model defines any non-zero pricing — used to hide
+    // cost rows for free/local profiles where every figure would render $0.
+    hasCostProfile = computed(() => {
+        const modelId = this.getModelIdForCost();
+        const model = this.providerRegistry.getActiveModels().find(m => m.id === modelId);
+        if (!model) return false;
+        const rates = model.getRates(0);
+        return (rates.input || 0) > 0 || (rates.output || 0) > 0 || (rates.cached || 0) > 0;
+    });
+
     lastTurnCost = computed(() => {
         const turn = this.computedLastTurnUsage();
         if (!turn) return 0;

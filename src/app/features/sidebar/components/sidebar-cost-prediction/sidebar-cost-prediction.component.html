@@ -42,11 +42,13 @@
         </div>
         <div class="stat-row turn"><span>{{ 'sidebar.costPrediction.outputLabel' | translate }}</span> <span class="val">{{ turn.candidates | number }}</span>
         </div>
+        @if (hasCostProfile()) {
         <div class="stat-row turn-total">
             <span>{{ 'sidebar.costPrediction.lastTurnCostLabel' | translate }}</span>
             <span class="val">{{ (lastTurnCost() * displayRate()) |
                 currency:displayCurrency():'symbol-narrow':(displayCurrency() === 'USD' ? '1.4-6' : '1.2-2') }}</span>
         </div>
+        }
         }
     </div>
 
@@ -91,12 +93,14 @@
         }
 
         <div class="stat-row total" [matTooltip]="'sidebar.costPrediction.totalSentTooltip' | translate"><span>{{ 'sidebar.costPrediction.totalSentLabel' | translate }}</span> <span class="val">{{ usage.total | number }}</span></div>
+        @if (hasCostProfile()) {
         <div class="stat-row cost"
             [matTooltip]="'sidebar.costPrediction.totalEstCostTooltip' | translate: { currency: displayCurrency() }">
             <span>{{ 'sidebar.costPrediction.totalEstCostLabel' | translate: { currency: displayCurrency() } }}</span>
             <span class="val">{{ (totalSessionCost() * displayRate()) |
                 currency:displayCurrency():'symbol-narrow':(displayCurrency() === 'USD' ? '1.4-6' : '1.2-2') }}</span>
         </div>
+        }
         <div class="stat-actions">
             <button mat-icon-button class="action-btn" (click)="openCostComparison()" [matTooltip]="'sidebar.costPrediction.compareModelsTooltip' | translate">
                 <mat-icon>compare_arrows</mat-icon>
