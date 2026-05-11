@@ -432,6 +432,10 @@ export const en: TranslationDict = {
         contextRecentHint: 'Recent turns sent verbatim (smart-context window).',
         contextBufferHint: "Reserved for next user input + CoT thinking + model output. Calibrated from the last turn's observed total; floor 5,000.",
         totalLabel: 'Total',
+        contextLimitUnknown: 'Context limit unknown — model not yet resolved',
+        contextCompactTooltip: 'Context: {{used}} / {{size}} tk ({{percent}}%)',
+        contextInjectionTooltipTwoCall: 'max(resolver, narrator) — 2-call worst case',
+        contextInjectionTooltipSingle: 'protocol_single + action injection',
     },
     settings: {
         title: 'Configuration',

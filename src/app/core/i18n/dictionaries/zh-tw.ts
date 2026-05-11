@@ -432,6 +432,10 @@ export const zhTW: TranslationDict = {
         contextRecentHint: '最近的回合會原文送出（smart-context 視窗範圍）。',
         contextBufferHint: '保留給：下一筆使用者輸入 + CoT 思考 + 模型輸出。以上一回合的實際總量校準；下限 5,000。',
         totalLabel: '總計',
+        contextLimitUnknown: '尚未解析模型 — context 上限未知',
+        contextCompactTooltip: 'Context:{{used}} / {{size}} tk({{percent}}%)',
+        contextInjectionTooltipTwoCall: 'max(resolver, narrator) — 2-call 最壞情況',
+        contextInjectionTooltipSingle: 'protocol_single + action 注入',
     },
     settings: {
         title: '設定',

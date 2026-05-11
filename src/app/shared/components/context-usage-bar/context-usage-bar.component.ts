@@ -7,7 +7,7 @@ import { GameStateService } from '@app/core/services/game-state.service';
 import { LLMProviderRegistryService } from '@app/core/services/llm-provider-registry.service';
 import { ContextCompositionService } from '@app/core/services/context-composition.service';
 import { AppConfigStore } from '@app/core/services/app-config-store';
-import { TranslatePipe } from '@app/core/i18n';
+import { I18nService, TranslatePipe } from '@app/core/i18n';
 
 /**
  * Renders a five-segment context-window usage bar (system / KB / chat history
@@ -41,6 +41,7 @@ export class ContextUsageBarComponent {
     private providerRegistry = inject(LLMProviderRegistryService);
     public composition = inject(ContextCompositionService);
     public appConfig = inject(AppConfigStore);
+    private i18n = inject(I18nService);
 
     readonly variant = input<'full' | 'compact'>('full');
 
@@ -101,17 +102,21 @@ export class ContextUsageBarComponent {
             // raw `used` number without a denominator just adds noise
             // (a 50K KB looks alarming until you realize there's no limit
             // resolved). Keep the chip discoverable but say what's wrong.
-            return 'Context limit unknown — model not yet resolved';
+            return this.i18n.translate('dialog.contextLimitUnknown');
         }
         const used = this.contextUsed();
         const pct = this.contextUsagePercent();
-        return `Context: ${used.toLocaleString()} / ${size.toLocaleString()} tk (${pct.toFixed(1)}%)`;
+        return this.i18n.translate('dialog.contextCompactTooltip', {
+            used: used.toLocaleString(),
+            size: size.toLocaleString(),
+            percent: pct.toFixed(1),
+        });
     });
 
     // Engine-mode aware tooltip for the injection breakdown row.
     injectionBreakdownTooltip = computed(() =>
-        this.appConfig.engineMode() === 'two-call'
-            ? 'max(resolver, narrator) — 2-call worst case'
-            : 'protocol_single + action injection'
+        this.i18n.translate(this.appConfig.engineMode() === 'two-call'
+            ? 'dialog.contextInjectionTooltipTwoCall'
+            : 'dialog.contextInjectionTooltipSingle')
     );
 }
