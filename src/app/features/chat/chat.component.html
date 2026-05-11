@@ -22,9 +22,24 @@
                         <mat-icon>close</mat-icon>
                     </button>
                 </div>
-                <app-agent-console
-                    [files]="agentFiles()"
-                    [chatMessages]="state.messages()" />
+                <!--
+                    Lazy-mount the agent-console: app boot eagerly renders
+                    chat.component, and an eager <app-agent-console> here
+                    would inject FileAgentService too early — before the LLM
+                    provider registry has finished registering probe hooks.
+                    The constructor effect would then no-op the probe but
+                    still set lastSynced, so the instance never retried.
+                    Mounting on first sidenav-open delays construction to a
+                    moment when providers are ready; file-agent state
+                    (agentLogs / agentHistory) still survives close/reopen
+                    because FileAgentService is provided at chat.component
+                    scope, not on the agent-console.
+                -->
+                @if (isAgentSidebarOpen()) {
+                    <app-agent-console
+                        [files]="agentFiles()"
+                        [chatMessages]="state.messages()" />
+                }
             </mat-sidenav>
 
             <mat-sidenav-content class="chat-container">
