@@ -156,6 +156,38 @@ on `AppConfigShape`.
 auto-switch to default at turn time (with a snackbar) — driving turns on a
 legacy profile via `Send-BridgeAction` will silently land on default.
 
+### Fork the active Book at a message + switch between Books
+
+When you want to keep the current playthrough as a baseline and try the next
+turn differently — instead of `Remove-BridgeMessage` (which is destructive),
+fork the Book at that message and keep going on the fork. The original Book
+stays intact and is reachable via `Set-BridgeBook`.
+
+```pwsh
+. ./.claude/skills/dev-bridge/bridge.ps1
+$original = Get-BridgeBook          # capture id BEFORE fork — fork switches active
+$last = (Get-BridgeMessages -Limit 1)[0]
+$fork = Invoke-BridgeBookFork -MessageId $last.id -NewName 'experiment-A'
+# Active is now experiment-A; run your test.
+Send-BridgeAction -UserInput '...' -Intent action
+# Compare against baseline by switching back.
+Set-BridgeBook -Id $original.id | Out-Null
+```
+
+`Get-BridgeBooks` lists every persisted Book (id / name / messageCount /
+isActive) without loading any of them. `Get-BridgeBook` returns just the
+currently active Book's id + name + messageCount — cheaper than filtering
+the full list when you only need the active id.
+
+`Invoke-BridgeBookFork` truncates inclusively (the target message stays in
+the new Book). KB files are deep-copied; stats reset to zero so the two
+Books never collide on a shared server-side cache. `-NewName` is optional —
+omit to default to `<source name> (fork)`.
+
+`Set-BridgeBook -Id <id>` is the playthrough-level analogue of
+`Set-BridgeProfile` — it loads a different Book as the active session.
+Don't call it mid-turn (`busy` error).
+
 ### Two-call timing
 
 Bridge `RequestTimeout` is 600s and PS helper `Invoke-Bridge` defaults match —
@@ -173,6 +205,9 @@ processes.
 | `app_error` with `detail: "busy"` | App is mid-turn from another source | Wait passively; do NOT retry-loop, every retry queues another turn |
 | `app_error` with `detail: "no_pair_produced"` | Engine returned without producing a model message (e.g. empty userInput on ACTION intent) | Check `userInput` — engine ignores empty strings on ACTION/FAST_FORWARD/SYSTEM |
 | `���` in `pair.user.content` | UTF-8 encoding bug — you used `curl -d` instead of the PS helpers | Delete the pair, retry through `Send-BridgeAction` |
+| `book_fork` returns `no_active_book` | App has no Book loaded (fresh install / book deleted) | Tell user to load or create a Book first |
+| `book_fork` returns `message_not_found` | Target id not in active Book's history | `Get-BridgeMessages` to re-verify the id; the user may have edited history under you |
+| `book_switch` returns `unknown_book` | Book id doesn't exist in IDB | `Get-BridgeBooks` to see actual ids — the user may have deleted it |
 
 ## Don't
 

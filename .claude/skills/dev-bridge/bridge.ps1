@@ -112,6 +112,37 @@ function Get-BridgeConfig {
     Invoke-Bridge -Path '/config/get' -Body @{} -TimeoutSec 30
 }
 
+function Get-BridgeBooks {
+    [CmdletBinding()]
+    param()
+    (Invoke-Bridge -Path '/book/list' -Body @{} -TimeoutSec 30).books
+}
+
+function Get-BridgeBook {
+    [CmdletBinding()]
+    param()
+    Invoke-Bridge -Path '/book/active' -Body @{} -TimeoutSec 30
+}
+
+function Invoke-BridgeBookFork {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string] $MessageId,
+        [string] $NewName
+    )
+    $body = @{ messageId = $MessageId }
+    if ($PSBoundParameters.ContainsKey('NewName')) { $body.newName = $NewName }
+    # forkBookFromMessage flushes the source, writes a new Book, then loadBook()s
+    # it — usually < 2s, but a large saved book + cold IDB can stretch.
+    Invoke-Bridge -Path '/book/fork' -Body $body -TimeoutSec 60
+}
+
+function Set-BridgeBook {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [string] $Id)
+    Invoke-Bridge -Path '/book/switch' -Body @{ id = $Id } -TimeoutSec 60
+}
+
 function Set-BridgeConfig {
     [CmdletBinding()]
     param(

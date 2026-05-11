@@ -7,6 +7,7 @@ import { PromptProfileRegistryService } from '../prompt-profile-registry.service
 import { ConfigService } from '../config.service';
 import { LLMProviderRegistryService } from '../llm-provider-registry.service';
 import { AppConfigStore, AppConfigShape } from '../app-config-store';
+import { BookRepository } from '../storage/book.repository';
 import { isValidInterfaceLanguage } from '../../i18n/ui-locales';
 import { GAME_INTENTS } from '@app/core/constants/game-intents';
 import { ChatMessage } from '@app/core/models/types';
@@ -34,6 +35,13 @@ import { isSystemMainCompatible } from '../profile-compat';
  *   kb_list           — knowledge-base files loaded in the active book
  *                       (filename + content size + tokenCount)
  *   kb_read           — full content of one KB file by filename
+ *   book_list         — every persisted Book (id / name / messageCount /
+ *                       isActive flag); does NOT include messages — agents
+ *                       fetch those via `list` against the active Book
+ *   book_get_active   — id + name + messageCount of the currently loaded Book
+ *   book_fork         — clones the active Book truncated to a target message
+ *                       (inclusive), switches to the new Book
+ *   book_switch       — loads a different Book as the active session
  */
 
 const STORAGE_URL = 'app_debug_bridge_url';
@@ -82,6 +90,15 @@ interface KbReadFrame extends BridgeFrame {
     filename?: string;
 }
 
+interface BookForkFrame extends BridgeFrame {
+    messageId?: string;
+    newName?: string;
+}
+
+interface BookSwitchFrame extends BridgeFrame {
+    id?: string;
+}
+
 type FieldValidator<K extends keyof AppConfigShape> = (raw: unknown) => AppConfigShape[K] | undefined;
 
 const BRIDGE_SETTABLE_FIELDS: { [K in keyof AppConfigShape]?: FieldValidator<K> } = {
@@ -112,6 +129,7 @@ export class BridgeService {
     private destroyRef = inject(DestroyRef);
     private win = inject(WINDOW);
     private kv = inject(KVStore);
+    private books = inject(BookRepository);
 
     private static readonly VALID_INTENTS: ReadonlySet<string> = new Set(Object.values(GAME_INTENTS));
 
@@ -289,8 +307,132 @@ export class BridgeService {
             case 'kb_read':
                 this.handleKbRead(frame as KbReadFrame);
                 break;
+            case 'book_list':
+                void this.handleBookList(frame);
+                break;
+            case 'book_get_active':
+                void this.handleBookGetActive(frame);
+                break;
+            case 'book_fork':
+                void this.handleBookFork(frame as BookForkFrame);
+                break;
+            case 'book_switch':
+                void this.handleBookSwitch(frame as BookSwitchFrame);
+                break;
             default:
                 console.warn('[bridge] unknown frame type', type, frame);
+        }
+    }
+
+    private async handleBookList(frame: BridgeFrame): Promise<void> {
+        const { requestId } = frame;
+        if (!requestId) return;
+        const all = await this.books.list();
+        const activeId = this.session.currentBookId();
+        // The active Book's in-memory messages can be ahead of what's on disk
+        // (edits not yet flushed). Surface the live count for it so an agent
+        // doesn't see a stale snapshot when polling right after a turn.
+        const liveMessageCount = this.state.messages().length;
+        const books = all.map(b => ({
+            id: b.id,
+            name: b.name,
+            collectionId: b.collectionId,
+            createdAt: b.createdAt,
+            lastActiveAt: b.lastActiveAt,
+            messageCount: b.id === activeId ? liveMessageCount : b.messages.length,
+            isActive: b.id === activeId,
+        }));
+        this.send({ type: 'book_list_response', requestId, activeId, books });
+    }
+
+    private async handleBookGetActive(frame: BridgeFrame): Promise<void> {
+        const { requestId } = frame;
+        if (!requestId) return;
+        const id = this.session.currentBookId();
+        if (!id) {
+            this.send({ type: 'book_get_active_response', requestId, id: null });
+            return;
+        }
+        const book = await this.books.get(id);
+        this.send({
+            type: 'book_get_active_response',
+            requestId,
+            id,
+            name: book?.name ?? null,
+            collectionId: book?.collectionId ?? null,
+            messageCount: this.state.messages().length,
+            lastActiveAt: book?.lastActiveAt ?? null,
+        });
+    }
+
+    private async handleBookFork(frame: BookForkFrame): Promise<void> {
+        const { requestId, messageId, newName } = frame;
+        if (!requestId) return;
+        if (this.state.isBusy()) {
+            this.send({ type: 'action_error', requestId, error: 'busy' });
+            return;
+        }
+        const sourceId = this.session.currentBookId();
+        if (!sourceId) {
+            this.send({ type: 'action_error', requestId, error: 'no_active_book' });
+            return;
+        }
+        if (typeof messageId !== 'string' || !messageId) {
+            this.send({ type: 'action_error', requestId, error: 'invalid_messageId' });
+            return;
+        }
+        if (!this.state.messages().some(m => m.id === messageId)) {
+            this.send({ type: 'action_error', requestId, error: 'message_not_found' });
+            return;
+        }
+        let name = (typeof newName === 'string' ? newName.trim() : '');
+        if (!name) {
+            const source = await this.books.get(sourceId);
+            name = `${source?.name ?? 'Book'} (fork)`;
+        }
+        try {
+            const newBookId = await this.session.forkBookFromMessage(sourceId, messageId, name);
+            this.send({
+                type: 'book_fork_response',
+                requestId,
+                newBookId,
+                name,
+                switched: true,
+            });
+        } catch (e) {
+            const detail = e instanceof Error ? e.message : 'unknown';
+            this.send({ type: 'action_error', requestId, error: 'fork_failed', detail });
+        }
+    }
+
+    private async handleBookSwitch(frame: BookSwitchFrame): Promise<void> {
+        const { requestId, id } = frame;
+        if (!requestId) return;
+        if (this.state.isBusy()) {
+            this.send({ type: 'action_error', requestId, error: 'busy' });
+            return;
+        }
+        if (typeof id !== 'string' || !id) {
+            this.send({ type: 'action_error', requestId, error: 'invalid_id' });
+            return;
+        }
+        const book = await this.books.get(id);
+        if (!book) {
+            this.send({ type: 'action_error', requestId, error: 'unknown_book' });
+            return;
+        }
+        try {
+            await this.session.loadBook(id);
+            this.send({
+                type: 'book_switch_response',
+                requestId,
+                activeBookId: id,
+                name: book.name,
+                messageCount: this.state.messages().length,
+            });
+        } catch (e) {
+            const detail = e instanceof Error ? e.message : 'unknown';
+            this.send({ type: 'action_error', requestId, error: 'switch_failed', detail });
         }
     }
 
