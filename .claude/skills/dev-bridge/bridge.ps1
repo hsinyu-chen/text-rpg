@@ -143,6 +143,30 @@ function Set-BridgeBook {
     Invoke-Bridge -Path '/book/switch' -Body @{ id = $Id } -TimeoutSec 60
 }
 
+# LLM profile selectors (model/API endpoint — distinct from prompt profile).
+# Set-BridgeLLMProfile REQUIRES -ConfirmPaid when the target profile is not
+# local; this is the agent-side gate that complements the app's confirmPaid
+# guard. Don't bypass it from helpers.
+
+function Get-BridgeLLMProfiles {
+    (Invoke-Bridge -Path '/llm/list' -Body @{} -TimeoutSec 30).profiles
+}
+
+function Get-BridgeLLMProfile {
+    Invoke-Bridge -Path '/llm/active' -Body @{} -TimeoutSec 30
+}
+
+function Set-BridgeLLMProfile {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string] $Id,
+        [switch] $ConfirmPaid
+    )
+    $body = @{ id = $Id }
+    if ($ConfirmPaid) { $body.confirmPaid = $true }
+    Invoke-Bridge -Path '/llm/switch' -Body $body -TimeoutSec 30
+}
+
 function Set-BridgeConfig {
     [CmdletBinding()]
     param(

@@ -6,6 +6,7 @@ import { InjectionService } from '../injection.service';
 import { PromptProfileRegistryService } from '../prompt-profile-registry.service';
 import { ConfigService } from '../config.service';
 import { LLMProviderRegistryService } from '../llm-provider-registry.service';
+import { LLMConfigService } from '../llm-config.service';
 import { AppConfigStore, AppConfigShape } from '../app-config-store';
 import { BookRepository } from '../storage/book.repository';
 import { isValidInterfaceLanguage } from '../../i18n/ui-locales';
@@ -42,6 +43,16 @@ import { isSystemMainCompatible } from '../profile-compat';
  *   book_fork         — clones the active Book truncated to a target message
  *                       (inclusive), switches to the new Book
  *   book_switch       — loads a different Book as the active session
+ *   llm_list          — every LLM profile + per-profile `isLocal` flag
+ *                       (= provider's `LLMProviderCapabilities.isLocalProvider`,
+ *                       used as the paid/free proxy for the confirm guard)
+ *   llm_get_active    — active LLM profile id + name + provider + modelId + isLocal
+ *   llm_switch        — switch active LLM profile by id. Requires
+ *                       `confirmPaid: true` when the target profile is NOT
+ *                       local — guards against accidentally driving turns
+ *                       through a paid model. Local→local & local→paid w/
+ *                       confirm & paid→paid w/ confirm all pass; paid w/o
+ *                       confirm returns `paid_requires_confirm` + target meta
  */
 
 const STORAGE_URL = 'app_debug_bridge_url';
@@ -99,6 +110,11 @@ interface BookSwitchFrame extends BridgeFrame {
     id?: string;
 }
 
+interface LLMSwitchFrame extends BridgeFrame {
+    id?: string;
+    confirmPaid?: boolean;
+}
+
 type FieldValidator<K extends keyof AppConfigShape> = (raw: unknown) => AppConfigShape[K] | undefined;
 
 const BRIDGE_SETTABLE_FIELDS: { [K in keyof AppConfigShape]?: FieldValidator<K> } = {
@@ -126,6 +142,7 @@ export class BridgeService {
     private config = inject(ConfigService);
     private appConfig = inject(AppConfigStore);
     private providerRegistry = inject(LLMProviderRegistryService);
+    private llmConfig = inject(LLMConfigService);
     private destroyRef = inject(DestroyRef);
     private win = inject(WINDOW);
     private kv = inject(KVStore);
@@ -319,6 +336,15 @@ export class BridgeService {
             case 'book_switch':
                 void this.handleBookSwitch(frame as BookSwitchFrame);
                 break;
+            case 'llm_list':
+                this.handleLLMList(frame);
+                break;
+            case 'llm_get_active':
+                this.handleLLMGetActive(frame);
+                break;
+            case 'llm_switch':
+                this.handleLLMSwitch(frame as LLMSwitchFrame);
+                break;
             default:
                 console.warn('[bridge] unknown frame type', type, frame);
         }
@@ -434,6 +460,71 @@ export class BridgeService {
             const detail = e instanceof Error ? e.message : 'unknown';
             this.send({ type: 'action_error', requestId, error: 'switch_failed', detail });
         }
+    }
+
+    // getCapabilities() may be config-dependent at runtime (e.g. some providers
+    // gate caching by additionalSettings), but `isLocalProvider` is a fixed
+    // property of the provider class — safe to read without supplying config.
+    private isProfileLocal(providerName: string): boolean {
+        return this.providerRegistry.getProvider(providerName)?.getCapabilities()?.isLocalProvider ?? false;
+    }
+
+    private llmProfileMeta(p: { id: string; name: string; provider: string; settings: { modelId?: string } }) {
+        return {
+            id: p.id,
+            name: p.name,
+            provider: p.provider,
+            modelId: p.settings.modelId ?? null,
+            isLocal: this.isProfileLocal(p.provider),
+        };
+    }
+
+    private handleLLMList(frame: BridgeFrame): void {
+        const { requestId } = frame;
+        if (!requestId) return;
+        const profiles = this.llmConfig.profiles().map(p => this.llmProfileMeta(p));
+        this.send({
+            type: 'llm_list_response',
+            requestId,
+            active: this.llmConfig.activeProfileId(),
+            profiles,
+        });
+    }
+
+    private handleLLMGetActive(frame: BridgeFrame): void {
+        const { requestId } = frame;
+        if (!requestId) return;
+        const active = this.llmConfig.activeProfile();
+        if (!active) {
+            this.send({ type: 'llm_get_active_response', requestId, id: null });
+            return;
+        }
+        this.send({ type: 'llm_get_active_response', requestId, ...this.llmProfileMeta(active) });
+    }
+
+    private handleLLMSwitch(frame: LLMSwitchFrame): void {
+        const { requestId, id, confirmPaid } = frame;
+        if (!requestId) return;
+        if (this.state.isBusy()) {
+            this.send({ type: 'action_error', requestId, error: 'busy' });
+            return;
+        }
+        if (typeof id !== 'string' || !id) {
+            this.send({ type: 'action_error', requestId, error: 'invalid_id' });
+            return;
+        }
+        const target = this.llmConfig.profiles().find(p => p.id === id);
+        if (!target) {
+            this.send({ type: 'action_error', requestId, error: 'unknown_profile' });
+            return;
+        }
+        const meta = this.llmProfileMeta(target);
+        if (!meta.isLocal && confirmPaid !== true) {
+            this.send({ type: 'action_error', requestId, error: 'paid_requires_confirm', target: meta });
+            return;
+        }
+        this.llmConfig.setActiveProfileId(id);
+        this.send({ type: 'llm_switch_response', requestId, ...meta });
     }
 
     private async handleProfileList(frame: BridgeFrame): Promise<void> {

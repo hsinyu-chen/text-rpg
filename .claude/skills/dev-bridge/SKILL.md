@@ -156,6 +156,30 @@ on `AppConfigShape`.
 auto-switch to default at turn time (with a snackbar) — driving turns on a
 legacy profile via `Send-BridgeAction` will silently land on default.
 
+### Switch the LLM profile (model + API endpoint)
+
+Prompt profile (`Set-BridgeProfile`) selects which **prompts** the engine
+uses; **LLM profile** selects which **model + API endpoint** it calls (local
+llama.cpp vs Gemini / OpenAI / etc). These are separate axes — switch one
+without the other when you want to isolate which variable matters.
+
+```pwsh
+. ./.claude/skills/dev-bridge/bridge.ps1
+Get-BridgeLLMProfile          # active LLM profile (id + name + provider + modelId + isLocal)
+Get-BridgeLLMProfiles         # all LLM profiles with isLocal flag
+Set-BridgeLLMProfile -Id <local-profile-id>                  # local → free, no guard
+Set-BridgeLLMProfile -Id <gemini-profile-id> -ConfirmPaid    # paid → requires explicit flag
+```
+
+**Paid model guard**: switching to any profile where the provider's
+`isLocalProvider` is `false` (Gemini, OpenAI, etc) requires `-ConfirmPaid` on
+the PS helper AND `confirmPaid: true` in the underlying bridge body. Without
+the flag the app returns `paid_requires_confirm` and refuses to switch — this
+prevents accidentally driving turns through a paid model. **Do not pass
+`-ConfirmPaid` unless the user has explicitly asked to use a paid model in
+the current request** (e.g. "test on Gemini", "switch to cloud model"). A
+generic "switch profile" without naming the model is NOT consent.
+
 ### Fork the active Book at a message + switch between Books
 
 When you want to keep the current playthrough as a baseline and try the next
