@@ -3,7 +3,9 @@
   "version": "0.0.0",
   "scripts": {
     "ng": "ng",
+    "prestart": "npm run prompts:build",
     "start": "node tools/dev-cert.cjs && concurrently -n prompts,web -c blue,green --kill-others-on-fail \"npm run prompts:watch\" \"ng serve --ssl --ssl-cert .certs/dev.pem --ssl-key .certs/dev-key.pem --host 0.0.0.0\"",
+    "prestart:plain": "npm run prompts:build",
     "start:plain": "concurrently -n prompts,web -c blue,green --kill-others-on-fail \"npm run prompts:watch\" \"ng serve\"",
     "start:pwa": "npm run build && node tools/dev-cert.cjs && node tools/serve-dist.cjs",
     "prebuild": "npm run prompts:build",
@@ -74,6 +76,7 @@
     "@tauri-apps/cli": "^2.9.6",
     "@types/katex": "^0.16.8",
     "angular-eslint": "21.1.0",
+    "chokidar": "^4.0.3",
     "concurrently": "^9.2.1",
     "eslint": "^9.39.1",
     "happy-dom": "^20.9.0",

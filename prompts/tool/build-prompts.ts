@@ -1,5 +1,7 @@
-import { mkdirSync, writeFileSync, watch } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
+
+import chokidar from 'chokidar';
 
 import { runCheck } from './check';
 import { REPO_ROOT, runPipeline } from './pipeline';
@@ -91,12 +93,19 @@ function startWatch(): void {
     pending = setTimeout(() => { pending = null; triggerBuild(); }, WATCH_DEBOUNCE_MS);
   };
 
-  const watcher = watch(SOURCE_DIR, { recursive: true }, schedule);
-  const configWatcher = watch(CONFIG_FILE, schedule);
+  const watcher = chokidar.watch([SOURCE_DIR, CONFIG_FILE], {
+    ignoreInitial: true,
+    awaitWriteFinish: { stabilityThreshold: 50, pollInterval: 10 },
+  });
+  watcher.on('add', schedule);
+  watcher.on('change', schedule);
+  watcher.on('unlink', schedule);
+  watcher.on('error', (err) => {
+    process.stderr.write(`watch error: ${(err as Error).message}\n`);
+  });
 
   const close = (): void => {
-    watcher.close();
-    configWatcher.close();
+    void watcher.close();
     process.exit(0);
   };
   process.on('SIGINT', close);
