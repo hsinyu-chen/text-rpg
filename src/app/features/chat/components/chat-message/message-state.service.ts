@@ -5,6 +5,8 @@ import { GameEngineService } from '@app/core/services/game-engine.service';
 import { GameStateService } from '@app/core/services/game-state.service';
 import { AppConfigStore } from '@app/core/services/app-config-store';
 import { DialogService } from '@app/core/services/dialog.service';
+import { SessionService } from '@app/core/services/session.service';
+import { BookRepository } from '@app/core/services/storage/book.repository';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { FileUpdateService } from '@app/core/services/file-update.service';
@@ -19,6 +21,8 @@ export class MessageStateService {
     private gameState = inject(GameStateService);
     private appConfig = inject(AppConfigStore);
     private dialog = inject(DialogService);
+    private session = inject(SessionService);
+    private books = inject(BookRepository);
     private matDialog = inject(MatDialog);
     private snackBar = inject(MatSnackBar);
     private updateService = inject(FileUpdateService);
@@ -104,6 +108,35 @@ export class MessageStateService {
     async deleteMessageAndFollowing() {
         const ok = await this.dialog.confirm(this.i18n.translate('ui.DELETE_ALL_FOLLOWING_CONFIRM'));
         if (ok) await this.engine.deleteFrom(this.message().id);
+    }
+
+    async forkFromHere() {
+        const sourceId = this.session.currentBookId();
+        if (!sourceId) return;
+        const sourceBook = await this.books.get(sourceId);
+        const defaultName = sourceBook?.name
+            ? this.i18n.translate('ui.FORK_FROM_HERE_DEFAULT_NAME', { name: sourceBook.name })
+            : 'Fork';
+        const name = await this.dialog.prompt(this.i18n.translate('ui.FORK_FROM_HERE_PROMPT'), {
+            title: this.i18n.translate('ui.FORK_FROM_HERE_TITLE'),
+            defaultValue: defaultName,
+        });
+        if (!name) return;
+        try {
+            await this.session.forkBookFromMessage(sourceId, this.message().id, name);
+            this.snackBar.open(
+                this.i18n.translate('ui.FORK_FROM_HERE_SUCCESS', { name }),
+                this.i18n.translate('ui.CLOSE'),
+                { duration: 3000 },
+            );
+        } catch (e) {
+            console.error('[MessageStateService] forkFromHere failed', e);
+            this.snackBar.open(
+                this.i18n.translate('ui.FORK_FROM_HERE_FAILED'),
+                this.i18n.translate('ui.CLOSE'),
+                { duration: 3000 },
+            );
+        }
     }
 
     enterEditMode() {

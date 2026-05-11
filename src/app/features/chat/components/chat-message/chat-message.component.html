@@ -17,6 +17,10 @@
             </button>
             }
 
+            <button mat-icon-button class="mini-btn" (click)="state.forkFromHere()" [disabled]="isBusy()"
+                [matTooltip]="'ui.FORK_FROM_HERE_TOOLTIP' | translate">
+                <mat-icon>call_split</mat-icon>
+            </button>
             <button mat-icon-button class="mini-btn delete-btn" (click)="state.deleteMessageAndFollowing()"
                 [disabled]="isBusy()" [matTooltip]="'ui.DELETE_ALL_FOLLOWING' | translate">
                 <mat-icon>delete_sweep</mat-icon>
@@ -78,6 +82,10 @@
                     <button mat-icon-button class="mini-btn" (click)="state.toggleRefOnly()" [disabled]="isBusy()"
                         [matTooltip]="(msg.isRefOnly ? 'ui.INCLUDE_IN_STORY' : 'ui.MARK_AS_REF_ONLY') | translate">
                         <mat-icon>{{ msg.isRefOnly ? 'link' : 'link_off' }}</mat-icon>
+                    </button>
+                    <button mat-icon-button class="mini-btn" (click)="state.forkFromHere()" [disabled]="isBusy()"
+                        [matTooltip]="'ui.FORK_FROM_HERE_TOOLTIP' | translate">
+                        <mat-icon>call_split</mat-icon>
                     </button>
                     <button mat-icon-button class="mini-btn delete-btn" (click)="state.deleteMessageAndFollowing()"
                         [disabled]="isBusy()" [matTooltip]="'ui.DELETE_ALL_FOLLOWING' | translate">
