@@ -11,6 +11,15 @@
     overflow: hidden;
 }
 
+// Nested container that hosts the agent sidenav alongside the chat content.
+// See chat.component.html for why this nesting exists (Angular Material
+// disallows two sidenavs at the same position in one container).
+.agent-host-container {
+    width: 100%;
+    height: 100%;
+    background: transparent;
+}
+
 .turn-update-sidebar {
     width: 350px;
     max-width: 90vw;
