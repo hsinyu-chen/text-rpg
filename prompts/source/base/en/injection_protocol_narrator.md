@@ -63,6 +63,7 @@ Narrate only the steps in `analysis.steps`.
 - **`character_log[]`** — named NPC + protagonist state changes / location / possession / equipment changes. Mob NPCs (Guard A / Villager) excluded.
 - **`inventory_log[]`** — protagonist-owned items (Gained / Consumed / Moved / Deposited / Retrieved / Equipped / Unequipped / Corrected); equipment changes mandatorily double-written with `character_log`.
 - **`quest_log[]`** / **`world_log[]`** — single-call semantics.
+- **Story Trigger fulfillment** — when this turn's events satisfy a Condition declared under `{{FILE_STORY_OUTLINE}}` `## Story Triggers`, each consequent **Knowledge Acquired** item MUST be written into the appropriate log this turn, **chosen by the nature of the item**: `character_log` for protagonist capability / sensory / mental / state gains; `inventory_log` for tangible items; `world_log` for world / faction / setting facts; `quest_log` for quest-related unlocks or plot-progression beats. Phrase as data, e.g. `Capability Gained: Protagonist_Name (<knowledge> per <Trigger Name>)`. This routes the acquisition through save flow's existing `*_log → file` mapping. **Do NOT** surface trigger fulfillment as a system-message or game-mechanic announcement in the prose.
 - **`interrupted_acknowledged`** — required boolean, echoes input `interrupted`.
 
 ## Style

@@ -171,6 +171,11 @@ Strictly follow these JSON field definitions. **Flat top-level shape**: `{ analy
   - **[No Redundant Settings]**: **STRICTLY DO NOT** record items already in `{{FILE_BASIC_SETTINGS}}` as "newly discovered". Unless the location / faction undergoes a significant status change (destroyed, occupied, rebuilt), do not record.
   - Empty `[]` if no change.
 
+- **Story Trigger fulfillment** (cross-cutting):
+  - When this turn's events satisfy a Condition declared under `{{FILE_STORY_OUTLINE}}` `## Story Triggers`, each consequent **Knowledge Acquired** item MUST be written into the appropriate log this turn, **chosen by the nature of the item**: `character_log` for protagonist capability / sensory / mental / state gains; `inventory_log` for tangible items; `world_log` for world / faction / setting facts; `quest_log` for quest-related unlocks or plot-progression beats.
+  - Phrase as data, e.g. `Capability Gained: Protagonist_Name (<knowledge> per <Trigger Name>)`. This routes the acquisition through save flow's existing `*_log → file` mapping.
+  - **Do NOT** surface trigger fulfillment as a system-message or game-mechanic announcement in `story` prose.
+
 - **correction** (Optional):
   - `string`, default `""`.
   - Fill **ONLY** when user requests a Story Correction via `<System>` AND you accept it.

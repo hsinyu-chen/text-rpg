@@ -176,6 +176,11 @@
   - **【禁止重複設定】**：**嚴禁**將已存在於 `{{FILE_BASIC_SETTINGS}}` 的地點、物產、勢力等記錄為「新發現」。除非該地點/勢力發生**重大狀態變更**（如被摧毀、占領、改建等），否則不應記錄。
   - 若本回合無變更，請回傳空陣列 `[]`。
 
+- **Story Trigger 觸發紀錄（跨欄位規則）**:
+  - 當本回合事件滿足 `{{FILE_STORY_OUTLINE}}` `## Story Triggers` 中宣告的某個 Condition 時，該 trigger 的每一條 **Knowledge Acquired** 必須在本回合寫入相應的 log，**依該項目性質決定**：`character_log` 用於主角的能力／感知／心智／狀態獲得；`inventory_log` 用於實體物品；`world_log` 用於世界／勢力／設定事實；`quest_log` 用於任務解鎖或劇情推進節點。
+  - 以資料形式表述（如 `Capability Gained: 主角名 (<獲得內容> per <Trigger 名稱>)`）。此舉讓 save 流程現有的 `*_log → 檔案` 規則接管落盤。
+  - **禁止**在 `story` 散文中以系統訊息或遊戲機制公告形式呈現 trigger 達成。
+
 - **correction (劇情修正紀要 - 選填)**:
   - 字串欄位，預設為 `""`。
   - **僅**當使用者使用 `<系統>` 要求**修正劇情**且你選擇接受修正時填寫。

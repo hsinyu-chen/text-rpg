@@ -28,14 +28,7 @@
     {
       "variantKey": "zh-tw/default",
       "filePath": "public/assets/system_files/zh-tw/injection_protocol_resolver.md",
-      "passthrough": false,
-      "slots": [
-        {
-          "id": "cap-gap-extra",
-          "finalSource": "prompts/source/base/zh-tw/injection_protocol_resolver.md",
-          "layers": []
-        }
-      ]
+      "passthrough": true
     },
     {
       "variantKey": "zh-tw/default",
@@ -127,19 +120,7 @@
     {
       "variantKey": "zh-tw/local",
       "filePath": "public/assets/system_files/zh-tw/profiles/local/injection_protocol_resolver.md",
-      "passthrough": false,
-      "slots": [
-        {
-          "id": "cap-gap-extra",
-          "finalSource": "prompts/source/layers/local-overrides/zh-tw/injection_protocol_resolver.md",
-          "layers": [
-            {
-              "layer": "local-overrides",
-              "op": "content-replace"
-            }
-          ]
-        }
-      ]
+      "passthrough": true
     },
     {
       "variantKey": "zh-tw/local",
@@ -241,14 +222,7 @@
     {
       "variantKey": "en/default",
       "filePath": "public/assets/system_files/en/injection_protocol_resolver.md",
-      "passthrough": false,
-      "slots": [
-        {
-          "id": "cap-gap-extra",
-          "finalSource": "prompts/source/base/en/injection_protocol_resolver.md",
-          "layers": []
-        }
-      ]
+      "passthrough": true
     },
     {
       "variantKey": "en/default",
@@ -340,19 +314,7 @@
     {
       "variantKey": "en/local",
       "filePath": "public/assets/system_files/en/profiles/local/injection_protocol_resolver.md",
-      "passthrough": false,
-      "slots": [
-        {
-          "id": "cap-gap-extra",
-          "finalSource": "prompts/source/layers/local-overrides/en/injection_protocol_resolver.md",
-          "layers": [
-            {
-              "layer": "local-overrides",
-              "op": "content-replace"
-            }
-          ]
-        }
-      ]
+      "passthrough": true
     },
     {
       "variantKey": "en/local",

@@ -63,6 +63,7 @@
 - **`character_log[]`**：具名 NPC + 主角的狀態變化／位置／持有／裝備變更。雜魚（衛兵 A／村民甲）不記。
 - **`inventory_log[]`**：主角擁有物（獲得 / 消耗 / 移入 / 寄存 / 取回 / 穿戴 / 卸下 / 校正）；裝備須與 `character_log` 雙寫。
 - **`quest_log[]`** / **`world_log[]`**：依 single-call 語意。
+- **Story Trigger 觸發紀錄**：當本回合事件滿足 `{{FILE_STORY_OUTLINE}}` `## Story Triggers` 中宣告的某個 Condition 時，該 trigger 的每一條 **Knowledge Acquired** 必須在本回合寫入相應的 log，**依該項目性質決定**：`character_log` 用於主角的能力／感知／心智／狀態獲得；`inventory_log` 用於實體物品；`world_log` 用於世界／勢力／設定事實；`quest_log` 用於任務解鎖或劇情推進節點。以資料形式表述（如 `Capability Gained: 主角名 (<獲得內容> per <Trigger 名稱>)`）。此舉讓 save 流程現有的 `*_log → 檔案` 規則接管落盤。**禁止**在敘事散文中以系統訊息或遊戲機制公告形式呈現 trigger 達成。
 - **`interrupted_acknowledged`**：必填 boolean，回填輸入 `interrupted` 的值。
 
 ## 風格
