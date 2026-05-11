@@ -5,8 +5,14 @@
             (closePanel)="toggleSidebar()" />
     </mat-sidenav>
 
-    <mat-sidenav position="end" [opened]="isAgentSidebarOpen()" mode="over" class="agent-sidebar"
-        [fixedInViewport]="false" (closed)="isAgentSidebarOpen.set(false)">
+    <mat-sidenav position="end" [opened]="isAgentSidebarOpen()" mode="over"
+        class="agent-sidebar" [fixedInViewport]="false" (closed)="isAgentSidebarOpen.set(false)">
+        <div class="agent-sidebar-header">
+            <button mat-icon-button (click)="isAgentSidebarOpen.set(false)"
+                [matTooltip]="'ui.AGENT_PANEL_CLOSE' | translate">
+                <mat-icon>close</mat-icon>
+            </button>
+        </div>
         <app-agent-console
             [files]="agentFiles()"
             [chatMessages]="state.messages()" />

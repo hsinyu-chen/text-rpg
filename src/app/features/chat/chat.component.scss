@@ -35,6 +35,13 @@
         height: 100%;
     }
 
+    .agent-sidebar-header {
+        display: flex;
+        justify-content: flex-end;
+        padding: 4px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
     app-agent-console {
         flex: 1;
         min-height: 0;

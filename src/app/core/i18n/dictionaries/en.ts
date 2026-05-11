@@ -208,6 +208,7 @@ export const en: TranslationDict = {
         VIEW_TURN_UPDATES_TOOLTIP: 'View Turn Updates',
         AGENT_PANEL_MENU: 'AI Agent',
         AGENT_PANEL_TOOLTIP: 'Toggle AI Agent Panel (query / edit KB)',
+        AGENT_PANEL_CLOSE: 'Close AI Agent Panel',
         EDITING_MODE_HINT: 'Editing Mode. Ctrl+Enter to save.',
         NO_ACTIVE_SESSION_PLACEHOLDER: 'No active session. Create or select a book.',
         CANCEL_EDIT_TOOLTIP: 'Cancel Edit',

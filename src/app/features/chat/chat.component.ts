@@ -3,6 +3,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSidenavModule } from '@angular/material/sidenav';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { BreakpointObserver } from '@angular/cdk/layout';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { map } from 'rxjs';
@@ -26,6 +27,7 @@ import { AppConfigStore } from '@app/core/services/app-config-store';
         MatIconModule,
         MatProgressSpinnerModule,
         MatSidenavModule,
+        MatTooltipModule,
         ChatMessageComponent,
         ChatInputComponent,
         TurnUpdatePanelComponent,
