@@ -9,9 +9,10 @@ import { LLMProviderRegistryService } from '../llm-provider-registry.service';
 import { LLMConfigService } from '../llm-config.service';
 import { AppConfigStore, AppConfigShape } from '../app-config-store';
 import { BookRepository } from '../storage/book.repository';
+import { FileRepository } from '../storage/file.repository';
 import { isValidInterfaceLanguage } from '../../i18n/ui-locales';
 import { GAME_INTENTS } from '@app/core/constants/game-intents';
-import { ChatMessage } from '@app/core/models/types';
+import { ChatMessage, Scenario } from '@app/core/models/types';
 import { WINDOW } from '@app/core/tokens/window.token';
 import { KVStore } from '../kv/kv-store';
 import { isSystemMainCompatible } from '../profile-compat';
@@ -53,6 +54,12 @@ import { isSystemMainCompatible } from '../profile-compat';
  *                       through a paid model. Local→local & local→paid w/
  *                       confirm & paid→paid w/ confirm all pass; paid w/o
  *                       confirm returns `paid_requires_confirm` + target meta
+ *   book_repair_kb    — fill in scenario files missing from the active Book's
+ *                       KB. Only ADDS missing filenames (per the named
+ *                       scenario's manifest); existing KB entries are
+ *                       preserved untouched. Recovery path for books built
+ *                       from a scenario whose manifest was incomplete at
+ *                       creation time (e.g. stale scenarios.json filenames).
  */
 
 const STORAGE_URL = 'app_debug_bridge_url';
@@ -115,6 +122,10 @@ interface LLMSwitchFrame extends BridgeFrame {
     confirmPaid?: boolean;
 }
 
+interface BookRepairKbFrame extends BridgeFrame {
+    scenarioId?: string;
+}
+
 type FieldValidator<K extends keyof AppConfigShape> = (raw: unknown) => AppConfigShape[K] | undefined;
 
 const BRIDGE_SETTABLE_FIELDS: { [K in keyof AppConfigShape]?: FieldValidator<K> } = {
@@ -147,6 +158,7 @@ export class BridgeService {
     private win = inject(WINDOW);
     private kv = inject(KVStore);
     private books = inject(BookRepository);
+    private files = inject(FileRepository);
 
     private static readonly VALID_INTENTS: ReadonlySet<string> = new Set(Object.values(GAME_INTENTS));
 
@@ -345,6 +357,9 @@ export class BridgeService {
             case 'llm_switch':
                 this.handleLLMSwitch(frame as LLMSwitchFrame);
                 break;
+            case 'book_repair_kb':
+                void this.handleBookRepairKb(frame as BookRepairKbFrame);
+                break;
             default:
                 console.warn('[bridge] unknown frame type', type, frame);
         }
@@ -525,6 +540,80 @@ export class BridgeService {
         }
         this.llmConfig.setActiveProfileId(id);
         this.send({ type: 'llm_switch_response', requestId, ...meta });
+    }
+
+    private async handleBookRepairKb(frame: BookRepairKbFrame): Promise<void> {
+        const { requestId, scenarioId } = frame;
+        if (!requestId) return;
+        if (this.state.isBusy()) {
+            this.send({ type: 'action_error', requestId, error: 'busy' });
+            return;
+        }
+        const bookId = this.session.currentBookId();
+        if (!bookId) {
+            this.send({ type: 'action_error', requestId, error: 'no_active_book' });
+            return;
+        }
+        if (typeof scenarioId !== 'string' || !scenarioId) {
+            this.send({ type: 'action_error', requestId, error: 'invalid_scenarioId' });
+            return;
+        }
+
+        let scenarios: Scenario[];
+        try {
+            const resp = await fetch('assets/system_files/scenario/scenarios.json');
+            if (!resp.ok) throw new Error(`scenarios.json HTTP ${resp.status}`);
+            scenarios = await resp.json() as Scenario[];
+        } catch (e) {
+            const detail = e instanceof Error ? e.message : 'unknown';
+            this.send({ type: 'action_error', requestId, error: 'scenarios_json_unreachable', detail });
+            return;
+        }
+        const scenario = scenarios.find(s => s.id === scenarioId);
+        if (!scenario) {
+            this.send({ type: 'action_error', requestId, error: 'unknown_scenario', scenarioId });
+            return;
+        }
+
+        const current = this.state.loadedFiles();
+        const newMap = new Map(current);
+        const updates: { filename: string; key: string; status: 'added' | 'skipped_existing' | 'fetch_failed'; detail?: string }[] = [];
+
+        for (const [key, filename] of Object.entries(scenario.files)) {
+            if (current.has(filename)) {
+                updates.push({ key, filename, status: 'skipped_existing' });
+                continue;
+            }
+            try {
+                const fileResp = await fetch(`${scenario.baseDir}/${filename}`);
+                if (!fileResp.ok) throw new Error(`HTTP ${fileResp.status}`);
+                const content = await fileResp.text();
+                await this.files.save(filename, content);
+                newMap.set(filename, content);
+                updates.push({ key, filename, status: 'added' });
+            } catch (e) {
+                const detail = e instanceof Error ? e.message : 'unknown';
+                updates.push({ key, filename, status: 'fetch_failed', detail });
+            }
+        }
+
+        const added = updates.filter(u => u.status === 'added').length;
+        if (added > 0) {
+            this.state.loadedFiles.set(newMap);
+            // Persist the in-memory KB into the active Book record so the
+            // recovered files survive a reload (FileRepository.save handles
+            // the per-file IDB write; this flush rewrites the Book aggregate).
+            await this.session.saveCurrentSessionToBook({ bumpTimestamp: false });
+        }
+
+        this.send({
+            type: 'book_repair_kb_response',
+            requestId,
+            bookId,
+            scenarioId,
+            addedCount: added,
+            updates,
+        });
     }
 
     private async handleProfileList(frame: BridgeFrame): Promise<void> {

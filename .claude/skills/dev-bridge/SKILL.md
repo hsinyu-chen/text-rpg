@@ -212,6 +212,31 @@ omit to default to `<source name> (fork)`.
 `Set-BridgeProfile` — it loads a different Book as the active session.
 Don't call it mid-turn (`busy` error).
 
+### Repair a Book's KB (recover scenario files that never loaded)
+
+When a Book was created from a scenario whose `scenarios.json` had stale
+filenames (e.g. JSON pointed at `7.Magic.md` but the file on disk was
+`7.Magic_and_Skills.md`), the engine logs a `console.error` and silently
+omits the file — the Book lives without it for its whole life. After
+fixing `scenarios.json`, existing Books still miss the file.
+
+`Invoke-BridgeBookRepairKb -ScenarioId <id>` re-fetches every file declared
+in that scenario's manifest and **adds the ones the active Book doesn't
+already have**. Existing KB entries are never overwritten (so player edits
+and trigger-driven changes survive). The repaired KB is then persisted to
+the Book record so the recovery survives a reload.
+
+```pwsh
+. ./.claude/skills/dev-bridge/bridge.ps1
+Get-BridgeKBFiles                                      # before — see what's missing
+Invoke-BridgeBookRepairKb -ScenarioId demo_world_en    # add missing files
+Get-BridgeKBFiles                                      # after — confirm
+```
+
+The response includes a per-file `updates[]` with status `added` /
+`skipped_existing` / `fetch_failed`. Book has no stored scenario id —
+caller must supply the right one.
+
 ### Two-call timing
 
 Bridge `RequestTimeout` is 600s and PS helper `Invoke-Bridge` defaults match —

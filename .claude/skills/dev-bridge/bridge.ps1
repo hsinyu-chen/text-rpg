@@ -143,6 +143,12 @@ function Set-BridgeBook {
     Invoke-Bridge -Path '/book/switch' -Body @{ id = $Id } -TimeoutSec 60
 }
 
+function Invoke-BridgeBookRepairKb {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [string] $ScenarioId)
+    Invoke-Bridge -Path '/book/repair-kb' -Body @{ scenarioId = $ScenarioId } -TimeoutSec 60
+}
+
 # LLM profile selectors (model/API endpoint — distinct from prompt profile).
 # Set-BridgeLLMProfile REQUIRES -ConfirmPaid when the target profile is not
 # local; this is the agent-side gate that complements the app's confirmPaid
