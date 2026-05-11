@@ -31,6 +31,9 @@ import { isSystemMainCompatible } from '../profile-compat';
  *   config_set        — partial-patch writes covering every AppConfigShape
  *                       field (per-field validator); invalid keys are reported
  *                       under `rejected` rather than silently dropped
+ *   kb_list           — knowledge-base files loaded in the active book
+ *                       (filename + content size + tokenCount)
+ *   kb_read           — full content of one KB file by filename
  */
 
 const STORAGE_URL = 'app_debug_bridge_url';
@@ -74,6 +77,10 @@ interface ProfileSwitchFrame extends BridgeFrame {
 // Any AppConfigShape field; handleConfigSet validates per-field and reports
 // unknown / mistyped keys via `rejected` in the response.
 type ConfigSetFrame = BridgeFrame & Record<string, unknown>;
+
+interface KbReadFrame extends BridgeFrame {
+    filename?: string;
+}
 
 type FieldValidator<K extends keyof AppConfigShape> = (raw: unknown) => AppConfigShape[K] | undefined;
 
@@ -276,6 +283,12 @@ export class BridgeService {
             case 'config_set':
                 void this.handleConfigSet(frame as ConfigSetFrame);
                 break;
+            case 'kb_list':
+                this.handleKbList(frame);
+                break;
+            case 'kb_read':
+                this.handleKbRead(frame as KbReadFrame);
+                break;
             default:
                 console.warn('[bridge] unknown frame type', type, frame);
         }
@@ -347,6 +360,40 @@ export class BridgeService {
             requestId,
             active,
             compat: this.state.activeProfileCompat(),
+        });
+    }
+
+    private handleKbList(frame: BridgeFrame): void {
+        const { requestId } = frame;
+        if (!requestId) return;
+        const files = this.state.loadedFiles();
+        const tokens = this.state.fileTokenCounts();
+        const entries = Array.from(files.entries()).map(([filename, content]) => ({
+            filename,
+            size: content.length,
+            tokenCount: tokens.get(filename) ?? null,
+        }));
+        this.send({ type: 'kb_list_response', requestId, files: entries });
+    }
+
+    private handleKbRead(frame: KbReadFrame): void {
+        const { requestId, filename } = frame;
+        if (!requestId) return;
+        if (typeof filename !== 'string' || !filename) {
+            this.send({ type: 'action_error', requestId, error: 'invalid_filename' });
+            return;
+        }
+        const content = this.state.loadedFiles().get(filename);
+        if (content === undefined) {
+            this.send({ type: 'action_error', requestId, error: 'not_found' });
+            return;
+        }
+        this.send({
+            type: 'kb_read_response',
+            requestId,
+            filename,
+            content,
+            tokenCount: this.state.fileTokenCounts().get(filename) ?? null,
         });
     }
 

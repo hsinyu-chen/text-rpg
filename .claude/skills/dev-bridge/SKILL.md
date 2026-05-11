@@ -101,6 +101,31 @@ Send-BridgeAction -UserInput "([緊張]說)等一下，先別走" -Intent action
 
 Pass `-AlsoDeletePair:$false` if you really want to remove only one side (rare).
 
+### Read the active book's KB files
+
+When debugging save-XML output, prompt-grounding issues, or anything that
+depends on what the engine currently sees as the world state, fetch the
+loaded knowledge-base files directly. Same content the engine reads —
+no IndexedDB / disk-sync detour.
+
+```pwsh
+. ./.claude/skills/dev-bridge/bridge.ps1
+Get-BridgeKBFiles | Format-Table filename, size, tokenCount
+Get-BridgeKBFile -Filename '6.Factions_and_World.md'      # content string
+Get-BridgeKBFile -Filename '2.Story_Outline.md' -Raw      # full response object
+```
+
+`Get-BridgeKBFiles` returns the in-memory `state.loadedFiles` map, so it
+reflects edits made through the File Viewer / file-agent without a save.
+`not_found` comes back if the filename doesn't match any loaded entry —
+filenames are language-bucketed (`2.Story_Outline.md` vs `2.劇情綱要.md`)
+so check the list first if you're unsure.
+
+This endpoint is **read-only** — there is no `Set-BridgeKBFile` because
+KB writes already have a richer in-app path (File Viewer Monaco editor,
+`<Save>` auto-update flow, file-agent `searchReplace`). The bridge isn't
+the right surface for blind in-place edits.
+
 ### Inspect / change profile + engine config
 
 When verifying which prompt profile is active, switching profiles, or toggling

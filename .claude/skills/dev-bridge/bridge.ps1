@@ -88,6 +88,24 @@ function Set-BridgeProfile {
     Invoke-Bridge -Path '/profile/switch' -Body @{ id = $Id } -TimeoutSec 30
 }
 
+function Get-BridgeKBFiles {
+    [CmdletBinding()]
+    param()
+    (Invoke-Bridge -Path '/kb/list' -Body @{} -TimeoutSec 30).files
+}
+
+function Get-BridgeKBFile {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string] $Filename,
+        # Default returns the file content string; -Raw returns the full
+        # response object (filename / content / tokenCount).
+        [switch] $Raw
+    )
+    $resp = Invoke-Bridge -Path '/kb/read' -Body @{ filename = $Filename } -TimeoutSec 30
+    if ($Raw) { $resp } else { $resp.content }
+}
+
 function Get-BridgeConfig {
     [CmdletBinding()]
     param()
