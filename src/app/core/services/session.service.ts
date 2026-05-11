@@ -741,6 +741,65 @@ export class SessionService {
         return newBookId;
     }
 
+    /**
+     * Forks an existing Book into a new Book whose history is truncated to
+     * include the target message (inclusive). KB files are deep-copied; stats
+     * reset to zero — the new Book starts a clean usage / cache slate so the
+     * two playthroughs never share server-side cache state. Switches to the
+     * new Book on success.
+     *
+     * If `sourceBookId` is the active Book, the current session is flushed
+     * first so the fork operates on the persisted snapshot, not stale memory.
+     *
+     * @throws if the source Book or messageId is not found.
+     */
+    async forkBookFromMessage(sourceBookId: string, messageId: string, newName: string): Promise<string> {
+        if (!newName || !newName.trim()) {
+            throw new Error('Fork name is required');
+        }
+
+        // If forking the active Book, flush in-memory edits to disk first so
+        // the truncation works against the latest saved snapshot. Re-fetching
+        // after unload guarantees we read what was just written.
+        if (this.currentBookId() === sourceBookId) {
+            await this.unloadCurrentSession(true);
+        }
+
+        const source = await this.books.get(sourceBookId);
+        if (!source) {
+            throw new Error(`Source book ${sourceBookId} not found`);
+        }
+
+        const cutoff = source.messages.findIndex(m => m.id === messageId);
+        if (cutoff === -1) {
+            throw new Error(`Message ${messageId} not found in book ${sourceBookId}`);
+        }
+
+        // Deep clone so future edits to either Book's messages don't mutate
+        // the other through shared references (parts arrays, log arrays).
+        const truncatedMessages: ChatMessage[] = source.messages
+            .slice(0, cutoff + 1)
+            .map(m => structuredClone(m));
+        const clonedFiles = source.files.map(f => ({ ...f }));
+
+        const newBookId = crypto.randomUUID();
+        const newBook: Book = {
+            id: newBookId,
+            name: newName.trim(),
+            collectionId: source.collectionId,
+            createdAt: Date.now(),
+            lastActiveAt: Date.now(),
+            preview: source.preview,
+            messages: truncatedMessages,
+            files: clonedFiles,
+            stats: buildFreshBookStats(),
+        };
+
+        await this.books.save(newBook);
+        await this.loadBook(newBookId);
+        return newBookId;
+    }
+
     async deleteBook(id: string) {
         console.log(`[SessionService] Deleting book ${id} `);
         // If it's the current book, unload strictly without saving
