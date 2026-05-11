@@ -95,7 +95,7 @@ function startWatch(): void {
 
   const watcher = chokidar.watch([SOURCE_DIR, CONFIG_FILE], {
     ignoreInitial: true,
-    awaitWriteFinish: { stabilityThreshold: 50, pollInterval: 10 },
+    awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 10 },
   });
   watcher.on('add', schedule);
   watcher.on('change', schedule);
