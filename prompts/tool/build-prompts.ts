@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
-import chokidar from 'chokidar';
+import { watch } from 'chokidar';
 
 import { runCheck } from './check';
 import { REPO_ROOT, runPipeline } from './pipeline';
@@ -93,7 +93,7 @@ function startWatch(): void {
     pending = setTimeout(() => { pending = null; triggerBuild(); }, WATCH_DEBOUNCE_MS);
   };
 
-  const watcher = chokidar.watch([SOURCE_DIR, CONFIG_FILE], {
+  const watcher = watch([SOURCE_DIR, CONFIG_FILE], {
     ignoreInitial: true,
     awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 10 },
   });

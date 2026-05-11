@@ -3,9 +3,7 @@
   "version": "0.0.0",
   "scripts": {
     "ng": "ng",
-    "prestart": "npm run prompts:build",
     "start": "node tools/dev-cert.cjs && concurrently -n prompts,web -c blue,green --kill-others-on-fail \"npm run prompts:watch\" \"ng serve --ssl --ssl-cert .certs/dev.pem --ssl-key .certs/dev-key.pem --host 0.0.0.0\"",
-    "prestart:plain": "npm run prompts:build",
     "start:plain": "concurrently -n prompts,web -c blue,green --kill-others-on-fail \"npm run prompts:watch\" \"ng serve\"",
     "start:pwa": "npm run build && node tools/dev-cert.cjs && node tools/serve-dist.cjs",
     "prebuild": "npm run prompts:build",
