@@ -662,10 +662,19 @@ function searchChatMessages(args: SearchChatMessagesArgs, context: FileAgentCont
       keep[keep.length - 1] = { ...keep[keep.length - 1], moreInSameMessage: perMessageHits.length - PER_MESSAGE_CAP };
     }
     for (const h of keep) {
+      // Limit check BEFORE push, so `truncated` only flips when there's at
+      // least one keep entry we genuinely cannot include. A pump that fills
+      // hits to exactly `limit` on the last available hit ends the outer
+      // loop naturally (no more matching messages → no re-entry of this
+      // inner block) and truncated stays false.
       if (hits.length >= limit) { truncated = true; break outer; }
       hits.push(h);
     }
   }
+
+  const notes: string[] = [];
+  if (truncated) notes.push(`Stopped at limit=${limit}; at least one further match was not returned. Raise limit or narrow the pattern.`);
+  if (suppressedSaves > 0) notes.push(`${suppressedSaves} save-intent turn(s) skipped (administrative file-update turns). Pass includeSaves:true to include them.`);
 
   return {
     response: {
@@ -673,9 +682,7 @@ function searchChatMessages(args: SearchChatMessagesArgs, context: FileAgentCont
       count: hits.length,
       truncated,
       suppressedSaves: suppressedSaves > 0 ? suppressedSaves : undefined,
-      note: suppressedSaves > 0
-        ? `${suppressedSaves} save-intent turn(s) skipped (administrative file-update turns). Pass includeSaves:true to include them.`
-        : undefined
+      note: notes.length ? notes.join(' ') : undefined
     }
   };
 }

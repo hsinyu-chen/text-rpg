@@ -648,6 +648,36 @@ describe('searchChatMessages', () => {
     expect(hits[1].moreInSameMessage).toBeUndefined();
     expect(hits[2].moreInSameMessage).toBe(2);
   });
+
+  it('does NOT flag truncated when hits fill exactly to limit on the last available match', () => {
+    // limit=2, two messages, one hit each → exactly fills; no further match
+    // exists, so truncated must stay false (the algorithm only flips when
+    // there is a real unshown hit). Pins Gemini's truncated-semantic concern.
+    const chat: ChatMessage[] = [
+      { id: 'a', role: 'user', content: 'apple' },
+      { id: 'b', role: 'model', content: 'apple' }
+    ];
+    const { context } = makeContext({}, chat);
+    const r = run({ action: 'searchChatMessages', args: { reason: 'check', pattern: 'apple', limit: 2 } }, context);
+    const resp = r.response as { hits: unknown[]; truncated: boolean; note?: string };
+    expect(resp.hits).toHaveLength(2);
+    expect(resp.truncated).toBe(false);
+    expect(resp.note).toBeUndefined();
+  });
+
+  it('flags truncated with a guidance note when a further match exists past limit', () => {
+    const chat: ChatMessage[] = [
+      { id: 'a', role: 'user', content: 'apple' },
+      { id: 'b', role: 'model', content: 'apple' },
+      { id: 'c', role: 'user', content: 'apple' }
+    ];
+    const { context } = makeContext({}, chat);
+    const r = run({ action: 'searchChatMessages', args: { reason: 'check', pattern: 'apple', limit: 2 } }, context);
+    const resp = r.response as { hits: unknown[]; truncated: boolean; note?: string };
+    expect(resp.hits).toHaveLength(2);
+    expect(resp.truncated).toBe(true);
+    expect(resp.note).toMatch(/limit=2/);
+  });
 });
 
 describe('readChatMessage', () => {
