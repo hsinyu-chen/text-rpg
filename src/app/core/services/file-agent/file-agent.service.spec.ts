@@ -8,17 +8,28 @@ import { InMemoryKVStore } from '../../testing/in-memory-kv-store';
 import { LLMConfigService } from '../llm-config.service';
 import { LLMProviderRegistryService } from '../llm-provider-registry.service';
 
-function setup(opts: { kvSeed?: Record<string, string>; mainChatActive?: string | null } = {}): {
+function setup(opts: {
+  kvSeed?: Record<string, string>;
+  mainChatActive?: string | null;
+  profiles?: { id: string; provider: string; settings: Record<string, unknown> }[];
+  providerCaps?: { supportsNativeToolCalls?: boolean };
+} = {}): {
   svc: FileAgentService;
   kv: InMemoryKVStore;
 } {
   TestBed.resetTestingModule();
   const kv = new InMemoryKVStore(opts.kvSeed);
   const llmConfigMock = {
-    profiles: signal([]),
+    profiles: signal(opts.profiles ?? []),
     activeProfileId: signal(opts.mainChatActive ?? null)
   };
-  const registryMock = { getProvider: () => null };
+  const registryMock = {
+    getProvider: () => ({
+      getCapabilities: () => ({ supportsNativeToolCalls: !!opts.providerCaps?.supportsNativeToolCalls }),
+      probeNativeToolSupport: undefined,
+      probeParallelToolSupport: undefined
+    })
+  };
   TestBed.configureTestingModule({
     providers: [
       FileAgentService,
@@ -69,6 +80,28 @@ describe('FileAgentService — profile persistence', () => {
     // store's — so any second instance reading svc.selectedProfileId() sees
     // the live shared value, no per-instance staleness.
     expect(first.selectedProfileId).toBe(store.selectedProfileId);
+  });
+
+  it('resolver sees a probe verdict the store recorded (probe sharing end-to-end)', () => {
+    // Reproduce the live bug: two surfaces of the file-agent must converge
+    // on the same "Auto: Native (probed)" reason once any one of them has
+    // landed a probe verdict for the active profile.
+    const profile = { id: 'p-1', provider: 'test-provider', settings: {} };
+    const { svc } = setup({
+      mainChatActive: 'p-1',
+      profiles: [profile],
+      providerCaps: { supportsNativeToolCalls: false } // static default would say JSON
+    });
+
+    // Before any probe: falls back to the provider's static cap → JSON (default).
+    expect(svc.capability.effectiveToolCallReason()).toBe('Auto: JSON (default)');
+
+    // Sibling instance (or this one's own probe) records native=true in the store.
+    const store = TestBed.inject(FileAgentSettingsStore);
+    store.recordProbeResult('p-1', true);
+
+    // Resolver's computed must immediately reflect the shared verdict.
+    expect(svc.capability.effectiveToolCallReason()).toBe('Auto: Native (probed)');
   });
 
   it('subsequent service instance picks up the KV choice (cross-invocation sharing)', () => {
