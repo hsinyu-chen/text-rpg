@@ -13,6 +13,7 @@ function setup(opts: {
   mainChatActive?: string | null;
   profiles?: { id: string; provider: string; settings: Record<string, unknown> }[];
   providerCaps?: { supportsNativeToolCalls?: boolean };
+  probeNativeToolSupport?: (settings: unknown) => Promise<boolean>;
 } = {}): {
   svc: FileAgentService;
   kv: InMemoryKVStore;
@@ -26,7 +27,7 @@ function setup(opts: {
   const registryMock = {
     getProvider: () => ({
       getCapabilities: () => ({ supportsNativeToolCalls: !!opts.providerCaps?.supportsNativeToolCalls }),
-      probeNativeToolSupport: undefined,
+      probeNativeToolSupport: opts.probeNativeToolSupport,
       probeParallelToolSupport: undefined
     })
   };
@@ -80,6 +81,42 @@ describe('FileAgentService — profile persistence', () => {
     // store's — so any second instance reading svc.selectedProfileId() sees
     // the live shared value, no per-instance staleness.
     expect(first.selectedProfileId).toBe(store.selectedProfileId);
+  });
+
+  it('parallel kickToolSupportProbe calls dedupe via the store inflight set', async () => {
+    let calls = 0;
+    let release!: (v: boolean) => void;
+    const probe = (): Promise<boolean> => {
+      calls++;
+      return new Promise<boolean>(r => { release = r; });
+    };
+
+    const profile = { id: 'p-1', provider: 'test-provider', settings: {} };
+    const { svc } = setup({
+      mainChatActive: 'p-1',
+      profiles: [profile],
+      probeNativeToolSupport: probe
+    });
+
+    // Two parallel kicks from the same resolver (simulates two sibling
+    // FileAgentService instances both reacting to the shared selectedProfileId
+    // signal). The inflight Set on the shared store must short-circuit the
+    // second one — only ONE probe should actually fire.
+    const p1 = svc.capability.kickToolSupportProbe('p-1');
+    const p2 = svc.capability.kickToolSupportProbe('p-1');
+    expect(calls).toBe(1);
+
+    release(true);
+    await Promise.all([p1, p2]);
+
+    // Verdict recorded once; second call short-circuited.
+    const store = TestBed.inject(FileAgentSettingsStore);
+    expect(store.probeResults()['p-1']).toBe(true);
+
+    // After the in-flight promise resolves, a follow-up kick should also
+    // short-circuit (via `alreadyProbed`) without re-invoking the probe.
+    await svc.capability.kickToolSupportProbe('p-1');
+    expect(calls).toBe(1);
   });
 
   it('resolver sees a probe verdict the store recorded (probe sharing end-to-end)', () => {

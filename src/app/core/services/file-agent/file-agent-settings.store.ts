@@ -38,6 +38,18 @@ export class FileAgentSettingsStore {
   /** Per-profile parallel-tool-call probe verdict. */
   readonly parallelProbeResults = signal<Record<string, boolean>>({});
 
+  /**
+   * Per-profile in-flight markers used to dedupe concurrent probe attempts
+   * across sibling FileAgentService instances. The synchronous `in probeResults`
+   * check inside the resolver doesn't block races: two instances can both
+   * see the entry missing, both launch the (often network-backed) probe,
+   * both write the same answer. These sets short-circuit the second caller.
+   * Plain Sets, not signals — only the call-site inside kickToolSupportProbe
+   * touches them and we don't want to thrash the reactive graph.
+   */
+  readonly probeInflight = new Set<string>();
+  readonly parallelProbeInflight = new Set<string>();
+
   selectProfile(profileId: string | null): void {
     this.selectedProfileId.set(profileId);
     if (profileId) this.kv.set(FILE_AGENT_PROFILE_KEY, profileId);

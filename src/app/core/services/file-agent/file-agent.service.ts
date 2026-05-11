@@ -86,7 +86,9 @@ export class FileAgentService {
     probeResults: this.settings.probeResults,
     parallelProbeResults: this.settings.parallelProbeResults,
     recordProbeResult: (id, n) => this.settings.recordProbeResult(id, n),
-    recordParallelProbeResult: (id, s) => this.settings.recordParallelProbeResult(id, s)
+    recordParallelProbeResult: (id, s) => this.settings.recordParallelProbeResult(id, s),
+    probeInflight: this.settings.probeInflight,
+    parallelProbeInflight: this.settings.parallelProbeInflight
   });
 
   private pushToolResultLog(response: Record<string, unknown>, toolName?: string): void {

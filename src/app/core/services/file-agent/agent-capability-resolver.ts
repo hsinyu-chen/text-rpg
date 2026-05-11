@@ -16,6 +16,9 @@ export interface AgentCapabilityResolverDeps {
     parallelProbeResults: Signal<Record<string, boolean>>;
     recordProbeResult: (profileId: string, native: boolean) => void;
     recordParallelProbeResult: (profileId: string, supports: boolean) => void;
+    /** Cross-instance in-flight markers — set true while a probe is awaiting, so a sibling instance doesn't fire a duplicate request. */
+    probeInflight: Set<string>;
+    parallelProbeInflight: Set<string>;
 }
 
 /**
@@ -124,26 +127,36 @@ export class AgentCapabilityResolver {
         const provider = this.deps.llmProviderRegistry.getProvider(profile.provider);
         if (!provider) return;
 
-        // Skip if a sibling instance already cached a verdict for this profile —
-        // probes share state via FileAgentSettingsStore now.
+        // Skip when a verdict is already cached (sibling instance recorded it)
+        // OR when a sibling probe is in-flight for this profile. The
+        // inflight short-circuit prevents the race where two instances both
+        // see no cached result, both fire the (network-backed) probe in
+        // parallel, and both write the same answer. Sets live on the shared
+        // FileAgentSettingsStore so every sibling consults the same marker.
         const alreadyProbed = profileId in this.deps.probeResults();
-        if (readExplicitNativeFlag(profile.settings) === undefined && provider.probeNativeToolSupport && !alreadyProbed) {
+        if (readExplicitNativeFlag(profile.settings) === undefined && provider.probeNativeToolSupport && !alreadyProbed && !this.deps.probeInflight.has(profileId)) {
+            this.deps.probeInflight.add(profileId);
             try {
                 const result = await provider.probeNativeToolSupport(profile.settings);
                 this.deps.recordProbeResult(profileId, result);
             } catch {
                 // Probe failures are non-fatal; fall back to defaults.
+            } finally {
+                this.deps.probeInflight.delete(profileId);
             }
         }
 
         const parallelExplicit = profile.settings.additionalSettings?.['supportsParallelToolCalls'];
         const alreadyProbedParallel = profileId in this.deps.parallelProbeResults();
-        if (typeof parallelExplicit !== 'boolean' && provider.probeParallelToolSupport && !alreadyProbedParallel) {
+        if (typeof parallelExplicit !== 'boolean' && provider.probeParallelToolSupport && !alreadyProbedParallel && !this.deps.parallelProbeInflight.has(profileId)) {
+            this.deps.parallelProbeInflight.add(profileId);
             try {
                 const result = await provider.probeParallelToolSupport(profile.settings);
                 this.deps.recordParallelProbeResult(profileId, result);
             } catch {
                 // Probe failures are non-fatal; fall back to defaults.
+            } finally {
+                this.deps.parallelProbeInflight.delete(profileId);
             }
         }
     }
