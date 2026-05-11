@@ -6,10 +6,10 @@
             <div class="radio-label">
                 <span class="label">{{ entry.label }}</span>
                 @if (entry.description) {
-                    <span class="hint">{{ entry.description }}</span>
+                    <span class="hint">{{ entry.description | translate }}</span>
                 }
                 @if (!isAvailable(entry)) {
-                    <span class="hint warn">Unavailable</span>
+                    <span class="hint warn">{{ 'sync.provider.unavailable' | translate }}</span>
                 }
             </div>
         </mat-radio-button>

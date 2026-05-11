@@ -8,6 +8,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { GoogleOAuthService } from '@app/core/services/google-oauth.service';
+import { I18nService, TranslatePipe } from '@app/core/i18n';
 
 @Component({
     selector: 'app-gdrive-config',
@@ -17,7 +18,8 @@ import { GoogleOAuthService } from '@app/core/services/google-oauth.service';
         MatButtonModule,
         MatIconModule,
         MatFormFieldModule,
-        MatInputModule
+        MatInputModule,
+        TranslatePipe
     ],
     templateUrl: './gdrive-config.component.html',
     styleUrl: './gdrive-config.component.scss',
@@ -28,6 +30,7 @@ export class GDriveConfigComponent {
     private snackBar = inject(MatSnackBar);
     private clipboard = inject(Clipboard);
     private readonly win = inject(WINDOW);
+    private i18n = inject(I18nService);
 
     clientId = signal<string>(this.oauth.getOAuthClientIdSnapshot());
     redirectUri = this.win.location.origin;
@@ -51,12 +54,12 @@ export class GDriveConfigComponent {
 
     save(): void {
         this.oauth.saveOAuthClientId(this.clientId());
-        this.snackBar.open('OAuth Client ID saved. Sign in again to apply.', 'OK', { duration: 3000 });
+        this.snackBar.open(this.i18n.translate('sync.gdrive.oauthSavedSnackbar'), this.i18n.translate('dialog.ok'), { duration: 3000 });
     }
 
     copyRedirectUri(): void {
         if (this.clipboard.copy(this.redirectUri)) {
-            this.snackBar.open('Redirect URI copied.', 'OK', { duration: 1500 });
+            this.snackBar.open(this.i18n.translate('sync.gdrive.redirectCopiedSnackbar'), this.i18n.translate('dialog.ok'), { duration: 1500 });
         }
     }
 }

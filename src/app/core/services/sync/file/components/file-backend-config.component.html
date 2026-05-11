@@ -3,41 +3,34 @@
         <mat-icon>folder</mat-icon>
         <div class="folder">
             <span class="name">{{ name }}</span>
-            <span class="perm" [attr.data-state]="permissionLabel()">
-                permission: {{ permissionLabel() }}
+            <span class="perm" [attr.data-state]="permissionStateKey()">
+                {{ 'sync.file.permissionLabel' | translate: { state: permissionLabel() } }}
             </span>
         </div>
     </div>
 } @else {
     <div class="status warn">
         <mat-icon>folder_off</mat-icon>
-        <span>No folder bound. Pick a folder below to enable File sync.</span>
+        <span>{{ 'sync.file.noFolderBound' | translate }}</span>
     </div>
 }
 
-<p class="hint">
-    Books, Collections, and Snapshots will live in your chosen folder. Pair
-    it with a folder synced by Dropbox / Syncthing / iCloud Drive to share
-    state across devices. For auto-sync to survive page reloads, choose
-    <strong>"Allow on every visit"</strong> in the browser's permission
-    prompt — transient grants expire and the scheduler will stay dormant
-    until you grant again.
-</p>
+<p class="hint">{{ 'sync.file.hintParagraph' | translate }}</p>
 
 <div class="actions">
     <button mat-stroked-button color="primary" (click)="pickFolder()">
         <mat-icon>folder_open</mat-icon>
-        {{ folderName() ? 'Change folder' : 'Pick folder' }}
+        {{ (folderName() ? 'sync.file.changeFolderBtn' : 'sync.file.pickFolderBtn') | translate }}
     </button>
 
     @if (folderName()) {
         <button mat-stroked-button (click)="testAccess()">
             <mat-icon>verified</mat-icon>
-            Test access
+            {{ 'sync.file.testAccessBtn' | translate }}
         </button>
         <button mat-stroked-button color="warn" (click)="unbind()">
             <mat-icon>link_off</mat-icon>
-            Unbind
+            {{ 'sync.file.unbindBtn' | translate }}
         </button>
     }
 </div>
@@ -45,9 +38,7 @@
 @if (folderName()) {
     <mat-slide-toggle [ngModel]="autoSync()" (ngModelChange)="toggleAutoSync($event)"
         [disabled]="!canEnableAutoSync() && !autoSync()"
-        [matTooltip]="canEnableAutoSync()
-            ? 'Sync ~60s after each save, plus on tab hide / focus.'
-            : 'Grant folder permission first (Test access). Choose &quot;Allow on every visit&quot; for auto-sync to persist across reloads.'">
-        Auto-sync in background
+        [matTooltip]="(canEnableAutoSync() ? 'sync.autoSync.tooltipReady' : 'sync.file.autoSyncBlockedTooltip') | translate">
+        {{ 'sync.autoSync.label' | translate }}
     </mat-slide-toggle>
 }

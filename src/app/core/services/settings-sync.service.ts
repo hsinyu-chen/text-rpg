@@ -4,6 +4,7 @@ import { LoadingService } from './loading.service';
 import { SyncService } from './sync/sync.service';
 import { WINDOW } from '../tokens/window.token';
 import { KVStore } from './kv/kv-store';
+import { I18nService } from '../i18n';
 
 const SNAPSHOT_VERSION = 1;
 
@@ -36,6 +37,7 @@ export class SettingsSyncService {
     private snackBar = inject(MatSnackBar);
     private readonly win = inject(WINDOW);
     private kv = inject(KVStore);
+    private i18n = inject(I18nService);
 
     buildSnapshot(): SettingsSnapshot {
         const entries: Record<string, string> = {};
@@ -73,16 +75,16 @@ export class SettingsSyncService {
     }
 
     async upload(): Promise<void> {
-        this.loading.show('Uploading settings...');
+        this.loading.show(this.i18n.translate('settings.snapshotUploadingProgress'));
         try {
             const snapshot = this.buildSnapshot();
             const content = JSON.stringify(snapshot, null, 2);
             await this.sync.uploadSettings(content);
             const count = Object.keys(snapshot.entries).length;
-            this.snackBar.open(`Settings uploaded (${count} entries).`, 'OK', { duration: 3000 });
+            this.snackBar.open(this.i18n.translate('settings.snapshotUploadOK', { count }), this.i18n.translate('dialog.ok'), { duration: 3000 });
         } catch (error) {
             console.error('[SettingsSync] Upload failed', error);
-            this.snackBar.open('Settings upload failed: ' + ((error as { message?: string })?.message || ''), 'Close', { duration: 5000 });
+            this.snackBar.open(this.i18n.translate('settings.snapshotUploadFailedPrefix') + ((error as { message?: string })?.message || ''), this.i18n.translate('ui.CLOSE'), { duration: 5000 });
             throw error;
         } finally {
             this.loading.hide();
@@ -90,22 +92,22 @@ export class SettingsSyncService {
     }
 
     async download(): Promise<boolean> {
-        this.loading.show('Downloading settings...');
+        this.loading.show(this.i18n.translate('settings.snapshotDownloadingProgress'));
         try {
             const content = await this.sync.downloadSettings();
             if (!content) {
-                this.snackBar.open('No settings found on the active sync provider.', 'Close', { duration: 3000 });
+                this.snackBar.open(this.i18n.translate('settings.snapshotNoneFound'), this.i18n.translate('ui.CLOSE'), { duration: 3000 });
                 return false;
             }
             const snapshot = JSON.parse(content) as SettingsSnapshot;
             const applied = this.applySnapshot(snapshot);
 
-            this.snackBar.open(`Imported ${applied} settings. Reloading...`, 'OK', { duration: 2500 });
+            this.snackBar.open(this.i18n.translate('settings.snapshotImportedReloading', { count: applied }), this.i18n.translate('dialog.ok'), { duration: 2500 });
             setTimeout(() => this.win.location.reload(), 800);
             return true;
         } catch (error) {
             console.error('[SettingsSync] Download failed', error);
-            this.snackBar.open('Settings download failed: ' + ((error as { message?: string })?.message || ''), 'Close', { duration: 5000 });
+            this.snackBar.open(this.i18n.translate('settings.snapshotDownloadFailedPrefix') + ((error as { message?: string })?.message || ''), this.i18n.translate('ui.CLOSE'), { duration: 5000 });
             throw error;
         } finally {
             this.loading.hide();

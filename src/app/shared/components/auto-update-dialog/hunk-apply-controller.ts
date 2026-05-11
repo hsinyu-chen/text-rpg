@@ -324,7 +324,7 @@ export class HunkApplyController {
       this.filesLoaded.set(true);
     } catch (err) {
       console.error('[AutoUpdateDialog] Error grouping updates:', err);
-      this.snackBar.open('Error processing updates', 'Close');
+      this.snackBar.open(this.t('errorProcessingUpdates'), this.i18n.translate('ui.CLOSE'));
     } finally {
       this.groupingComplete.set(true);
     }

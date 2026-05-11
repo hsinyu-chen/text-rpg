@@ -1,14 +1,14 @@
-<h2 mat-dialog-title>{{ isExport ? 'Export S3 Config' : 'Import S3 Config' }}</h2>
+<h2 mat-dialog-title>{{ (isExport ? 'sync.s3.json.exportTitle' : 'sync.s3.json.importTitle') | translate }}</h2>
 <mat-dialog-content>
     <p class="hint">
         @if (isExport) {
-            Copy this JSON to share or back up the current S3 settings. Includes secret access key.
+            {{ 'sync.s3.json.exportHint' | translate }}
         } @else {
-            Paste a JSON config exported from another device. Click Save to fill the form, then Save the form to persist.
+            {{ 'sync.s3.json.importHint' | translate }}
         }
     </p>
     <mat-form-field appearance="outline" class="full-width">
-        <mat-label>JSON</mat-label>
+        <mat-label>{{ 'sync.s3.json.jsonLabel' | translate }}</mat-label>
         <textarea matInput rows="10" spellcheck="false"
             [readonly]="isExport"
             [ngModel]="text()" (ngModelChange)="text.set($event)"
@@ -17,12 +17,12 @@
 </mat-dialog-content>
 <mat-dialog-actions align="end">
     @if (isExport) {
-        <button mat-button (click)="cancel()">Close</button>
+        <button mat-button (click)="cancel()">{{ 'ui.CLOSE' | translate }}</button>
         <button mat-flat-button color="primary" (click)="copy()">
-            <mat-icon>content_copy</mat-icon> Copy
+            <mat-icon>content_copy</mat-icon> {{ 'sync.common.copyBtn' | translate }}
         </button>
     } @else {
-        <button mat-button (click)="cancel()">Cancel</button>
-        <button mat-flat-button color="primary" [disabled]="!text().trim()" (click)="save()">Save</button>
+        <button mat-button (click)="cancel()">{{ 'dialog.cancel' | translate }}</button>
+        <button mat-flat-button color="primary" [disabled]="!text().trim()" (click)="save()">{{ 'sync.common.saveBtn' | translate }}</button>
     }
 </mat-dialog-actions>

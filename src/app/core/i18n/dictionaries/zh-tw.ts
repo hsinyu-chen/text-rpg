@@ -794,10 +794,16 @@ export const zhTW: TranslationDict = {
         },
         provider: {
             unavailable: '無法使用',
+            gdriveDescription: '存放在 Drive App Data 資料夾。',
+            s3Description: 'SeaweedFS / MinIO / Cloudflare R2 / AWS S3。',
+            fileDescription: '同步到此裝置上的資料夾。搭配 Dropbox / Syncthing 可跨裝置共用。',
         },
         file: {
             noFolderBound: '尚未綁定資料夾。從下方挑一個資料夾以啟用 File sync。',
             permissionLabel: '權限:{{state}}',
+            permissionStateGranted: '已授權',
+            permissionStateDenied: '已拒絕',
+            permissionStatePrompt: '待授權',
             hintParagraph: 'Books、Collections 與 Snapshots 會儲存在你選的資料夾。搭配 Dropbox / Syncthing / iCloud Drive 同步資料夾就能在多裝置共享狀態。若要讓自動同步在重新整理後存活,瀏覽器權限提示請選「每次造訪都允許」— 暫時授權會過期,排程器會停下來直到再次授權。',
             changeFolderBtn: '換資料夾',
             pickFolderBtn: '挑選資料夾',

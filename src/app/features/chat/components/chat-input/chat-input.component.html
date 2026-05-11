@@ -68,7 +68,7 @@
             <button mat-menu-item (click)="openConfigDialog()">
                 <mat-icon [matBadge]="state.hasAnyPromptUpdate() ? '!' : ''" matBadgeColor="warn"
                     [matBadgeHidden]="!state.hasAnyPromptUpdate()" aria-hidden="false"
-                    aria-label="Settings notification">settings</mat-icon>
+                    [attr.aria-label]="'ui.SETTINGS_NOTIFICATION_LABEL' | translate">settings</mat-icon>
                 <span>{{ 'ui.CONFIG_MENU' | translate }}</span>
             </button>
             <button mat-menu-item (click)="exportToMarkdown()">

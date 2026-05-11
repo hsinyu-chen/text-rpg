@@ -15,7 +15,7 @@ export class SyncProviderInitService {
     initialize(): void {
         this.registry.register('gdrive', {
             label: 'Google Drive',
-            description: 'Stores in Drive App Data folder.',
+            description: 'sync.provider.gdriveDescription',
             configComponent: GDriveConfigComponent,
             // Show the entry whenever the user can either use existing creds
             // or paste their own — otherwise BYO-OAuth builds would hide the
@@ -25,13 +25,13 @@ export class SyncProviderInitService {
 
         this.registry.register('s3', {
             label: 'S3-compatible',
-            description: 'SeaweedFS / MinIO / Cloudflare R2 / AWS S3.',
+            description: 'sync.provider.s3Description',
             configComponent: S3ConfigComponent
         });
 
         this.registry.register('file', {
             label: 'Local Folder',
-            description: 'Sync to a folder on this device. Pair with Dropbox / Syncthing for multi-device.',
+            description: 'sync.provider.fileDescription',
             configComponent: FileBackendConfigComponent,
             // File System Access API is Chromium-only as of 2026. Firefox
             // and Safari hide this radio entirely; Chromium / Edge / WebView2

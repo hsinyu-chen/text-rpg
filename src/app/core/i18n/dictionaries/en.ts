@@ -794,10 +794,16 @@ export const en: TranslationDict = {
         },
         provider: {
             unavailable: 'Unavailable',
+            gdriveDescription: 'Stores in Drive App Data folder.',
+            s3Description: 'SeaweedFS / MinIO / Cloudflare R2 / AWS S3.',
+            fileDescription: 'Sync to a folder on this device. Pair with Dropbox / Syncthing for multi-device.',
         },
         file: {
             noFolderBound: 'No folder bound. Pick a folder below to enable File sync.',
             permissionLabel: 'permission: {{state}}',
+            permissionStateGranted: 'granted',
+            permissionStateDenied: 'denied',
+            permissionStatePrompt: 'prompt',
             hintParagraph: 'Books, Collections, and Snapshots will live in your chosen folder. Pair it with a folder synced by Dropbox / Syncthing / iCloud Drive to share state across devices. For auto-sync to survive page reloads, choose "Allow on every visit" in the browser\'s permission prompt — transient grants expire and the scheduler will stay dormant until you grant again.',
             changeFolderBtn: 'Change folder',
             pickFolderBtn: 'Pick folder',
