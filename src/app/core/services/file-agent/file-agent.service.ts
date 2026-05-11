@@ -517,10 +517,22 @@ export class FileAgentService {
 
     // finishCall.action === 'submitResponse' narrows args to SubmitResponseArgs.
     const toolMsg = (finishCall.action === 'submitResponse' ? (finishCall.args.message ?? '') : '');
-    // Merge commentary and tool message when both exist and differ.
-    const finalMsg = (ctx.accumulatedText.trim() && toolMsg.trim() && ctx.accumulatedText.trim() !== toolMsg.trim())
-      ? `${ctx.accumulatedText.trim()}\n\n${toolMsg.trim()}`
-      : (toolMsg || ctx.accumulatedText || '(no response)');
+    // In native mode, accumulatedText is genuine commentary that lives
+    // alongside the structured function call — merge with toolMsg when both
+    // are present and distinct. In JSON mode, accumulatedText IS the raw
+    // JSON tool-call body (the model's entire response), so showing it
+    // duplicates the parsed toolMsg verbatim; only render the parsed
+    // message.
+    const finalMsg = (() => {
+      if (mode === 'native') {
+        const commentary = ctx.accumulatedText.trim();
+        if (commentary && toolMsg.trim() && commentary !== toolMsg.trim()) {
+          return `${commentary}\n\n${toolMsg.trim()}`;
+        }
+        return toolMsg || ctx.accumulatedText || '(no response)';
+      }
+      return toolMsg || '(no response)';
+    })();
 
     this.updateLogAt(ctx.currentLogIndex, e => ({ ...e, text: finalMsg, isToolCall: false }));
     this.isAgentRunning.set(false);
