@@ -19,6 +19,30 @@
     box-shadow: -4px 0 10px rgba(0, 0, 0, 0.3);
 }
 
+.agent-sidebar {
+    width: min(480px, 92vw);
+    min-width: 320px;
+    background: #1e1e1e;
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: -4px 0 10px rgba(0, 0, 0, 0.3);
+
+    // Material projects content into .mat-drawer-inner-container with default
+    // display: block, which doesn't stretch <app-agent-console> to fill height.
+    // Make the inner container flex so the agent console fills the drawer.
+    ::ng-deep .mat-drawer-inner-container {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+    }
+
+    app-agent-console {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+    }
+}
+
 .chat-container {
     display: flex;
     flex-direction: column;

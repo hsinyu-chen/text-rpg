@@ -86,6 +86,7 @@ export class ChatInputComponent {
     messageSent = output<void>();
     editCancelled = output<void>();
     toggleSidebar = output<void>();
+    toggleAgentSidebar = output<void>();
 
     // Local State
     intents = Object.values(GAME_INTENTS);

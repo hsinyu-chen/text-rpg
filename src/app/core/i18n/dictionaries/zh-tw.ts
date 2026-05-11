@@ -206,6 +206,8 @@ export const zhTW: TranslationDict = {
         CHAT_CONFIG_TOOLTIP: '聊天設定（思考注入）',
         EXPORT_STORY_TOOLTIP: '把故事匯出成 MD',
         VIEW_TURN_UPDATES_TOOLTIP: '檢視回合更新',
+        AGENT_PANEL_MENU: 'AI 代理',
+        AGENT_PANEL_TOOLTIP: '開關 AI 代理面板(查詢 / 編輯 KB)',
         EDITING_MODE_HINT: '編輯模式。按 Ctrl+Enter 儲存。',
         NO_ACTIVE_SESSION_PLACEHOLDER: '尚無作用中的工作階段。請建立或選擇一本書。',
         CANCEL_EDIT_TOOLTIP: '取消編輯',

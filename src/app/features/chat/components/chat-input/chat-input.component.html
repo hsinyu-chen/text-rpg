@@ -60,6 +60,10 @@
                 <mat-icon>history</mat-icon>
                 <span>{{ 'ui.TURN_UPDATES_MENU' | translate }}</span>
             </button>
+            <button mat-menu-item (click)="toggleAgentSidebar.emit()">
+                <mat-icon>smart_toy</mat-icon>
+                <span>{{ 'ui.AGENT_PANEL_MENU' | translate }}</span>
+            </button>
             <button mat-menu-item (click)="saveProgress()">
                 <mat-icon [matBadge]="state.shouldPromptSave() ? '!' : ''" matBadgeColor="warn"
                     [matBadgeHidden]="!state.shouldPromptSave()">save</mat-icon>
@@ -121,6 +125,12 @@
         <button mat-mini-fab class="history-btn desktop-only" [disabled]="state.status() === 'generating'"
             (click)="toggleSidebar.emit()" [matTooltip]="'ui.VIEW_TURN_UPDATES_TOOLTIP' | translate">
             <mat-icon>history</mat-icon>
+        </button>
+
+        <!-- AI Agent Panel Button -->
+        <button mat-mini-fab class="agent-btn desktop-only" [disabled]="state.status() === 'generating'"
+            (click)="toggleAgentSidebar.emit()" [matTooltip]="'ui.AGENT_PANEL_TOOLTIP' | translate">
+            <mat-icon>smart_toy</mat-icon>
         </button>
 
         <mat-form-field appearance="outline" class="intent-select">
