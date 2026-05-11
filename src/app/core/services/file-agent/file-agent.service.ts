@@ -544,11 +544,19 @@ export class FileAgentService {
     }
 
     const toolEntry = buildToolCallLogEntry(a);
-    if (ctx.accumulatedText.trim()) {
+    // In JSON mode `accumulatedText` IS the raw JSON tool-call body — not
+    // real commentary — so splitting into two log entries produced visually
+    // identical "MODEL" + "MODEL [TOOL CALL]" pairs in copyDebugLog. Only
+    // treat accumulatedText as commentary when we're in native mode, where
+    // function calls travel as structured parts and any text alongside is
+    // genuine narration.
+    const hasUsefulCommentary = mode === 'native' && ctx.accumulatedText.trim().length > 0;
+    if (hasUsefulCommentary) {
       // Commentary present: leave it in the current entry, append a new one.
       this.agentLogs.update(logs => [...logs, toolEntry]);
     } else {
-      // No commentary: overwrite the (likely empty) streaming entry.
+      // No commentary (or JSON mode where the text is the JSON itself):
+      // overwrite the streaming entry with the parsed tool-call view.
       this.updateLogAt(ctx.currentLogIndex, e => ({ ...e, ...toolEntry }));
     }
 
