@@ -1,4 +1,4 @@
-# 敘事協議（Call 2 — Narrator / 本地版）
+# 敘事協議
 
 {{HISTORICAL_CORRECTION_RULE}}
 
@@ -8,10 +8,10 @@
 
 | 欄位 | 內容 |
 |---|---|
-| `ideal_outcome` | 一句話寫使用者本回合想達成什麼。 |
+| `ideal_outcome` | 使用者整串輸入想達成什麼。 |
 | `ideal_strength` | `perfectionist` / `pragmatic` / `desperate`。影響張力處理：完美主義者面對部分成功要寫出落差；務實者寫出滿足；絕望者寫出「至少活下來」的味道。 |
 | `interrupted` | 是否有步驟被截斷。`true` ⇒ `analysis.steps` 最後一筆是 `breaks_ideal=true` 的破壞點。 |
-| `analysis` | 已截斷的結構化分析（`scene_snapshot` + `steps[]`）。`steps[]` 元素的 `kind` 為 `"user_intent"` 或 `"random_event"`，兩種以相同方式敘述。 |
+| `analysis` | 結構化分析：`scene_snapshot`（date_in_world / time_hhmm / location / environment / pc_in_header / present_npcs[] / key_objects[]）+ `steps[]`（每筆含 action / pc_dialogue / mood / risk_factors / outcome / breaks_ideal / npc_reactions / object_reactions）。`steps[]` 元素的 `kind` 可能為 `"user_intent"`（使用者動作）或 `"random_event"`（resolver 插入的事件，如 NPC 闖入、警鈴觸發）；兩種以相同方式敘述，差別只在 step 的來源。 |
 | `correction`（選填） | 歷史劇情修正規則，必須遵守。 |
 
 ## 輸出（依 narrator schema）
@@ -29,13 +29,13 @@
 **正文**：
 
 1. **依 `analysis.steps` 順序**，每步寫一段散文。不可重排、合併、跳過。
-2. **每步 ≥ 50 字**（不含對話原文）。step 是場景節拍不是動詞清單；要含動作細節、NPC 姿態表情、環境觸感、節奏轉換。
+2. **每步 ≥ 50 字**（不含對話原文）。step 是場景節拍不是動詞清單；要含動作細節、NPC 姿態表情、環境觸感、節奏轉換、`risk_factors` 帶出的張力。
 3. **`pc_dialogue` 非空時**，正文必須以引號完整引用該句原文。**禁止改寫、意譯、增刪字句**（除非 correction 明示）。
 4. **`npc_reactions[]` 每筆都要在正文出現**：
    - `physical` ⇒ 寫進姿態／動作／表情／眼神
    - `dialogue` 非空 ⇒ **必須以引號完整引用台詞原文**。**禁止**用「用某某口吻回應」「嘲笑著說」「主動開口致謝」這類動作轉述代替台詞。
-   - `motivation` ⇒ 揉進敘事讓動機浮現，不必直譯（如「她的眼神透出戒備」）
-   - 沉默 NPC（`dialogue=""`）也要寫一句帶出狀態
+   - `motivation` ⇒ 揉進敘事讓動機浮現，不必直譯
+   - 沉默 NPC（`dialogue=""`）也要寫一句帶出姿態／表情／眼神
 5. **`object_reactions[]` 處理**：
    - `change == "無變化"` ⇒ 不寫進 story
    - 首次登場或實際變化 ⇒ 寫進場景描寫
@@ -60,7 +60,7 @@
 ### 其他輸出欄位
 
 - **`summary`**：`[EVT] | [NPC] | [PLOT]` 電報式，依 `system_prompt.md` 規範。
-- **`character_log[]`**：具名 NPC + 主角的狀態變化／位置／持有／裝備變更。雜魚（衛兵 A／村民甲等）不記。
+- **`character_log[]`**：具名 NPC + 主角的狀態變化／位置／持有／裝備變更。雜魚（衛兵 A／村民甲）不記。
 - **`inventory_log[]`**：主角擁有物（獲得 / 消耗 / 移入 / 寄存 / 取回 / 穿戴 / 卸下 / 校正）；裝備須與 `character_log` 雙寫。
 - **`quest_log[]`** / **`world_log[]`**：依 single-call 語意。
 - **`interrupted_acknowledged`**：必填 boolean，回填輸入 `interrupted` 的值。
