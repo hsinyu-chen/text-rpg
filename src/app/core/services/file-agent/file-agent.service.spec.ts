@@ -2,12 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { FileAgentService } from './file-agent.service';
+import { FileAgentSettingsStore, FILE_AGENT_PROFILE_KEY } from './file-agent-settings.store';
 import { KVStore } from '../kv/kv-store';
 import { InMemoryKVStore } from '../../testing/in-memory-kv-store';
 import { LLMConfigService } from '../llm-config.service';
 import { LLMProviderRegistryService } from '../llm-provider-registry.service';
-
-const FILE_AGENT_PROFILE_KEY = 'file_agent_profile_id';
 
 function setup(opts: { kvSeed?: Record<string, string>; mainChatActive?: string | null } = {}): {
   svc: FileAgentService;
@@ -55,6 +54,21 @@ describe('FileAgentService — profile persistence', () => {
     svc.selectProfile('p-new');
     expect(svc.selectedProfileId()).toBe('p-new');
     expect(kv.get(FILE_AGENT_PROFILE_KEY)).toBe('p-new');
+  });
+
+  it('shares the selectedProfileId signal across instances via FileAgentSettingsStore', () => {
+    // Same TestBed → same root injector → same FileAgentSettingsStore singleton.
+    // Both FileAgentService instances must observe the SAME signal value when
+    // either one calls selectProfile, not a per-instance cached copy.
+    const { svc: first } = setup({ mainChatActive: 'p-main' });
+    const store = TestBed.inject(FileAgentSettingsStore);
+
+    first.selectProfile('p-shared');
+    expect(store.selectedProfileId()).toBe('p-shared');
+    // FileAgentService.selectedProfileId is the SAME signal object as the
+    // store's — so any second instance reading svc.selectedProfileId() sees
+    // the live shared value, no per-instance staleness.
+    expect(first.selectedProfileId).toBe(store.selectedProfileId);
   });
 
   it('subsequent service instance picks up the KV choice (cross-invocation sharing)', () => {

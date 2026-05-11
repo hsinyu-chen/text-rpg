@@ -13,6 +13,7 @@ import {
 } from './agent-stream-processor';
 import { AgentCapabilityResolver } from './agent-capability-resolver';
 import { KVStore } from '../kv/kv-store';
+import { FileAgentSettingsStore } from './file-agent-settings.store';
 
 /**
  * Mutable per-turn context shared across phase helpers (stream consumer,
@@ -54,14 +55,12 @@ export type { FileAgentContext, ToolCallMode } from './file-agent.types';
  *    +----------------------------------------+
  *      (Inject tool result & next turn)
  */
-/** Persisted across all file-agent invocations (dialog + future main-screen). Independent of LLMConfigService.activeProfileId, which is the main-chat selection. */
-const FILE_AGENT_PROFILE_KEY = 'file_agent_profile_id';
-
 @Injectable()
 export class FileAgentService {
   private llmConfigService = inject(LLMConfigService);
   private llmProviderRegistry = inject(LLMProviderRegistryService);
   private kv = inject(KVStore);
+  private settings = inject(FileAgentSettingsStore);
   private completionValidator: WorldCompletionValidator | null = null;
 
   setCompletionValidator(v: WorldCompletionValidator): void {
@@ -69,11 +68,8 @@ export class FileAgentService {
   }
 
   agentProfiles = this.llmConfigService.profiles;
-  // KV-stored choice wins; main-chat active profile is the seed when no
-  // file-agent choice was ever made. Subsequent selectProfile() persists.
-  selectedProfileId = signal<string | null>(
-    this.kv.get(FILE_AGENT_PROFILE_KEY) ?? this.llmConfigService.activeProfileId()
-  );
+  /** Shared across all file-agent surfaces (dialog + main-screen) via FileAgentSettingsStore. */
+  selectedProfileId = this.settings.selectedProfileId;
   agentLogs = signal<AgentLogEntry[]>([]);
   lastFilesReplaced = signal<{ filename: string; content: string }[]>([]);
 
@@ -86,7 +82,11 @@ export class FileAgentService {
     selectedProfileId: this.selectedProfileId,
     agentProfiles: this.agentProfiles,
     llmProviderRegistry: this.llmProviderRegistry,
-    kv: this.kv
+    kv: this.kv,
+    probeResults: this.settings.probeResults,
+    parallelProbeResults: this.settings.parallelProbeResults,
+    recordProbeResult: (id, n) => this.settings.recordProbeResult(id, n),
+    recordParallelProbeResult: (id, s) => this.settings.recordParallelProbeResult(id, s)
   });
 
   private pushToolResultLog(response: Record<string, unknown>, toolName?: string): void {
@@ -163,18 +163,24 @@ export class FileAgentService {
   private abortController: AbortController | null = null;
 
   constructor() {
-    // Kick a tool-support probe whenever the selected profile resolves to a
-    // populated profile object. Listening to both signals handles two
-    // initialization races: (a) selectedProfileId is set before the profile
-    // list has loaded from IndexedDB, and (b) the profile list reload that
-    // follows a save in the settings UI.
-    let lastProbed = '';
+    // React to shared selectedProfileId changes (this instance's user picks
+    // a profile in its UI, OR a sibling instance does and the shared signal
+    // propagates). Two responsibilities:
+    //  (a) kick the tool-support probe for the new profile,
+    //  (b) reload this instance's toolCallMode signal from KV — without this,
+    //      a sibling-driven profile switch would leave our resolver pointing
+    //      at the previous profile's mode setting.
+    // Listening to both signals also handles two startup races: selectedProfileId
+    // resolving before the profile list loads from IndexedDB, and the
+    // post-save profile-list reload.
+    let lastSynced = '';
     effect(() => {
       const id = this.selectedProfileId();
       const list = this.agentProfiles();
-      if (!id || lastProbed === id) return;
+      if (!id || lastSynced === id) return;
       if (!list.find(p => p.id === id)) return;
-      lastProbed = id;
+      lastSynced = id;
+      this.capability.syncToolCallModeForProfile(id);
       void this.capability.kickToolSupportProbe(id);
     });
   }
@@ -235,8 +241,7 @@ export class FileAgentService {
   });
 
   selectProfile(profileId: string): void {
-    this.selectedProfileId.set(profileId);
-    this.kv.set(FILE_AGENT_PROFILE_KEY, profileId);
+    this.settings.selectProfile(profileId);
     this.capability.syncToolCallModeForProfile(profileId);
   }
 
