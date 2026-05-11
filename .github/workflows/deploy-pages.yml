@@ -31,6 +31,9 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Build prompts
+        run: npm run prompts:build
+
       - name: Build
         run: npx ng build --base-href /text-rpg/
 

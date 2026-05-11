@@ -11,8 +11,6 @@ import {
 
 export const REPO_ROOT = resolve(__dirname, '..', '..');
 
-export { readUtf8Lf };
-
 export interface PipelineOutput {
   files: Map<string, string>;
   manifest: Manifest;
