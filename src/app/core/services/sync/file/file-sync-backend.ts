@@ -56,9 +56,12 @@ export class FileSyncBackend extends GenericSyncBackend {
         super({
             id: 'file',
             label: 'Local Folder',
-            // FSA permission re-acquisition needs a user gesture on
-            // every reload; auto-sync is impossible.
-            supportsBackgroundSync: false,
+            // Auto-sync only runs while the FSA grant is 'granted' — see
+            // AutoSyncScheduler.isActive(), which gates on isAuthenticated().
+            // Persistent grants ("Allow on every visit") survive reload;
+            // transient grants don't, and the scheduler stays dormant
+            // until the user re-grants from a click.
+            supportsBackgroundSync: true,
             blob,
             lifecycle: makeFileLifecycle(permission),
             entryPathFor: entryPath,
@@ -82,7 +85,13 @@ function makeFileLifecycle(permission: FileBackendPermissionService): ClientLife
             // No lazy module to load; the FSA handle is already in
             // memory after the user picked the folder.
         },
-        configFingerprint: () => permission.handle() ? 'bound' : ''
+        // Include permission state so the scheduler's fingerprint effect
+        // observes auth lapses (e.g. transient grant expiring after a
+        // reload: 'bound:granted' → 'bound:prompt') and can auto-disable
+        // the auto-sync flag.
+        configFingerprint: () => permission.handle()
+            ? `bound:${permission.permissionState()}`
+            : ''
     };
 }
 

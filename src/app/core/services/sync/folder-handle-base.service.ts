@@ -42,18 +42,16 @@ export abstract class FolderHandleBaseService {
     private async restore(): Promise<void> {
         try {
             const stored = await this.handles.get(this.handleKey);
-            if (!stored) {
-                this.handle.set(null);
-                this.permissionState.set('unknown');
-                return;
-            }
-            this.handle.set(stored);
+            if (!stored) return; // initial signal values (null / 'unknown') already correct
+            // Atomic publish: query permission BEFORE writing either signal,
+            // so observers (e.g. AutoSyncScheduler's fingerprint effect)
+            // never see the (handle=bound, state=unknown) intermediate that
+            // would look like an auth lapse and trip auto-disable logic.
             const state = await stored.queryPermission({ mode: 'readwrite' });
+            this.handle.set(stored);
             this.permissionState.set(state);
         } catch (e) {
             console.warn(`[FolderHandle:${this.handleKey}] restore() failed`, e);
-            this.handle.set(null);
-            this.permissionState.set('unknown');
         }
     }
 

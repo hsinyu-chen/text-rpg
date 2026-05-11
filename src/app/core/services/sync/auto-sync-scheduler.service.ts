@@ -1,4 +1,4 @@
-import { DestroyRef, Injectable, effect, inject } from '@angular/core';
+import { DestroyRef, Injectable, effect, inject, untracked } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DOCUMENT } from '@angular/common';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -89,15 +89,22 @@ export class AutoSyncScheduler {
 
     /**
      * True iff the active backend supports background sync, is ready,
-     * and SyncService's precondition allows it. Used by both UI ("is
-     * auto-sync currently effective?") and the pipeline filter.
+     * is authenticated, and SyncService's precondition allows it. Used
+     * by both UI ("is auto-sync currently effective?") and the pipeline
+     * filter.
+     *
+     * `isAuthenticated()` matters for backends whose auth lapses outside
+     * a user gesture (File: FSA transient grant; future: GDrive OAuth
+     * with expired token). Without this check the scheduler would burn
+     * the circuit breaker hitting an unauthenticated backend on every
+     * save.
      */
     isActive(): boolean {
         if (!this.precondition()) return false;
         const id = this.backends.activeBackendId();
         if (!this.backends.autoSyncEnabled()[id]) return false;
         const b = this.backends.get(id);
-        return !!b?.supportsBackgroundSync && b.isReady();
+        return !!b?.supportsBackgroundSync && b.isReady() && b.isAuthenticated();
     }
 
     schedule(immediate = false): void {
@@ -267,14 +274,40 @@ export class AutoSyncScheduler {
         // disabled for the new one. Routed through SyncBackend.
         // configFingerprint() so the scheduler doesn't have to know
         // backend-specific config services.
+        //
+        // Same effect also auto-disables the auto-sync flag when an
+        // already-enabled backend loses authentication — e.g. an FSA
+        // transient grant expires after a reload. Otherwise the toggle
+        // would stay on while the pipeline's isActive() silently drops
+        // every emission, and the user wouldn't know background sync
+        // had stopped.
         const lastFingerprints = new Map<string, string>();
         effect(() => {
             for (const b of this.backends.list()) {
                 const fp = b.configFingerprint();
                 const prev = lastFingerprints.get(b.id);
                 lastFingerprints.set(b.id, fp);
-                if (prev !== undefined && prev !== fp) {
-                    this.failureCount = 0;
+                // Skip by value, not by `prev === undefined`: if the
+                // backend's async restore() resolves before this effect's
+                // first tick, prev would be undefined yet fp would already
+                // be in its resolved state. Treating that as "no change"
+                // would miss a real auth lapse (e.g. autoSync=on from KV
+                // but FSA transient grant already dropped to 'prompt').
+                if (prev === fp) continue;
+                if (fp === '' || fp.endsWith(':unknown')) continue;
+                this.failureCount = 0;
+                if (this.backends.autoSyncEnabled()[b.id] && !b.isAuthenticated()) {
+                    // untracked: this effect READS autoSyncEnabled() above
+                    // for the condition; writing it from inside would form
+                    // a self-trigger cycle without untracked.
+                    untracked(() => {
+                        this.backends.setAutoSyncEnabled(b.id, false);
+                        this.snackBar.open(
+                            `Auto-sync disabled — ${b.label} needs permission re-granted.`,
+                            'Close',
+                            { duration: 6000 }
+                        );
+                    });
                 }
             }
         });
