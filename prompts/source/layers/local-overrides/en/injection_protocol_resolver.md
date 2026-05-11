@@ -1,0 +1,3 @@
+<!--@slot:cap-gap-extra-->
+Before judging this step, **explicitly enumerate** any *specialized* skills / training / prior experience the action requires beyond the baseline competencies inherent to the character's species / age / lifestyle as established in `{{FILE_BASIC_SETTINGS}}`, then verify each against `{{FILE_CHARACTER_STATUS}}` / `{{FILE_MAGIC_SKILLS}}`. Required specialized attributes not documented are **absent**. When absent and no environmental factor offsets the gap, the outcome cannot be clean success — at minimum partial / costly, escalating to `breaks_ideal=true` when the gap is total. Actions wholly composed of baseline competencies skip this check.
+<!--@end-->

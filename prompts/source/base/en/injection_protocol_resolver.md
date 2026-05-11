@@ -78,6 +78,9 @@ The program assembles the user-facing scene header `[<date_in_world> <time_hhmm>
 For each step, run all five checks below. Any trigger fires → `breaks_ideal=true`:
 
 1. **Capability gap** — judged against `{{FILE_BASIC_SETTINGS}}` / `{{FILE_CHARACTER_STATUS}}` / `{{FILE_MAGIC_SKILLS}}` / `{{FILE_INVENTORY}}` / basic physics.
+   **Possession ≠ proficiency**: owning equipment or having a skill listed does not imply competent use. You must reasonably evaluate the protagonist's background, training, and documented experience before judging capability.
+   <!--@slot:cap-gap-extra-->
+   <!--@end-->
    - The required class skill / equipment / physique is **absent** AND **no environmental substitute** exists → `breaks_ideal=true`
    - Required attribute is missing but environment provides partial substitute → does NOT break, but `outcome` MUST be downgraded to "partial success" or "costly success". **Do NOT** let environmental factors fully compensate a no-skill attempt into clean "success".
 2. **NPC autonomous refusal** — judged against `{{FILE_CHARACTER_STATUS}}` personality + relationship stage + motive. Strong personality / relationship / motive conflict with the requested action → `breaks_ideal=true`. **Exception**: when the PC's intent is coercive (threat / force / mind-affecting magic) AND the PC has the capability to enforce it (per check #1), NPC autonomy is overridden and this trigger does NOT fire. If the PC tries to coerce but lacks the capability, this trigger still fires.
