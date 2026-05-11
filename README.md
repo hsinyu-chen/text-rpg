@@ -348,6 +348,9 @@ npm run start
 npm run desktop
 ```
 
+> [!NOTE]
+> **System prompts are generated.** Files under `public/assets/system_files/**/*.md` are built from [prompts/source/](prompts/source/) (base + layer slots) by `npm run prompts:build`, which is auto-run by `npm start` and `npm run build` via `prestart` / `prebuild` hooks. Edit `prompts/source/`, never the generated copies. CI gates source/generated consistency via `npm run prompts:check`.
+
 ### Configuration
 On first launch, configure via the Settings panel:
 *   **API Key**: Google Gemini API Key.

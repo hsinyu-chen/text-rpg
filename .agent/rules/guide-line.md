@@ -18,6 +18,10 @@ description: Project Coding Standards and Rules
 - Windows, Powershell
 - use git grep for search
 
+## Prompts Source of Truth
+- **Edit `prompts/source/`** (base + `layers/{cloud,local}-overrides/`), **NEVER** `public/assets/system_files/**/*.md` — the latter is generated and overwritten by `npm run prompts:build`.
+- `npm run prompts:build` (auto-run by `npm start` / `npm run build` via `prestart` / `prebuild`) composes base + layers into the runtime paths. `npm run prompts:check` is the CI gate (errors on warnings too).
+
 # ANGULAR 21+ CODING STANDARDS
 **THIS IS ZONELESS PROJECT**
 

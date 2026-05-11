@@ -58,7 +58,8 @@ async function main(): Promise<void> {
     process.stderr.write(checkMode ? 'prompts:check OK\n' : 'prompts:build OK\n');
   }
 
-  process.exit(errors === 0 ? 0 : 1);
+  const failed = errors > 0 || (checkMode && warnings > 0);
+  process.exit(failed ? 1 : 0);
 }
 
 main().catch((e: unknown) => {
