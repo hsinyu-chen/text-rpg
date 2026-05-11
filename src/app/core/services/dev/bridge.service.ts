@@ -6,7 +6,8 @@ import { InjectionService } from '../injection.service';
 import { PromptProfileRegistryService } from '../prompt-profile-registry.service';
 import { ConfigService } from '../config.service';
 import { LLMProviderRegistryService } from '../llm-provider-registry.service';
-import { AppConfigStore } from '../app-config-store';
+import { AppConfigStore, AppConfigShape } from '../app-config-store';
+import { isValidInterfaceLanguage } from '../../i18n/ui-locales';
 import { GAME_INTENTS } from '@app/core/constants/game-intents';
 import { ChatMessage } from '@app/core/models/types';
 import { WINDOW } from '@app/core/tokens/window.token';
@@ -26,8 +27,10 @@ import { isSystemMainCompatible } from '../profile-compat';
  *   profile_list      — built-in + user profiles with per-profile compat tag
  *   profile_get_active— active id + meta + compat
  *   profile_switch    — switches active profile by id
- *   config_get        — engineMode + outputLanguage + modelId
- *   config_set        — whitelisted writes (engineMode + outputLanguage only)
+ *   config_get        — full AppConfigShape snapshot + modelId (read-only echo)
+ *   config_set        — partial-patch writes covering every AppConfigShape
+ *                       field (per-field validator); invalid keys are reported
+ *                       under `rejected` rather than silently dropped
  */
 
 const STORAGE_URL = 'app_debug_bridge_url';
@@ -68,10 +71,26 @@ interface ProfileSwitchFrame extends BridgeFrame {
     id?: string;
 }
 
-interface ConfigSetFrame extends BridgeFrame {
-    engineMode?: 'single' | 'two-call';
-    outputLanguage?: string;
-}
+// Any AppConfigShape field; handleConfigSet validates per-field and reports
+// unknown / mistyped keys via `rejected` in the response.
+type ConfigSetFrame = BridgeFrame & Record<string, unknown>;
+
+type FieldValidator<K extends keyof AppConfigShape> = (raw: unknown) => AppConfigShape[K] | undefined;
+
+const BRIDGE_SETTABLE_FIELDS: { [K in keyof AppConfigShape]?: FieldValidator<K> } = {
+    engineMode:             v => (v === 'single' || v === 'two-call') ? v : undefined,
+    outputLanguage:         v => (typeof v === 'string' && v.length > 0) ? v : undefined,
+    fontSize:               v => (typeof v === 'number' && Number.isFinite(v) && v > 0) ? v : undefined,
+    fontFamily:             v => (typeof v === 'string' && v.length > 0) ? v : undefined,
+    screensaverType:        v => (v === 'invaders' || v === 'code') ? v : undefined,
+    currency:               v => (typeof v === 'string' && v.length > 0) ? v : undefined,
+    enableConversion:       v => typeof v === 'boolean' ? v : undefined,
+    idleOnBlur:             v => typeof v === 'boolean' ? v : undefined,
+    enableAdultDeclaration: v => typeof v === 'boolean' ? v : undefined,
+    exchangeRate:           v => (typeof v === 'number' && Number.isFinite(v) && v > 0) ? v : undefined,
+    interfaceLanguage:      v => isValidInterfaceLanguage(v) ? v : undefined,
+    smartContextTurns:      v => (typeof v === 'number' && Number.isInteger(v) && v > 0) ? v : undefined,
+};
 
 @Injectable({ providedIn: 'root' })
 export class BridgeService {
@@ -337,35 +356,45 @@ export class BridgeService {
         this.send({
             type: 'config_get_response',
             requestId,
-            engineMode: this.appConfig.engineMode(),
-            outputLanguage: this.appConfig.outputLanguage(),
+            ...this.appConfig.snapshot(),
             modelId: this.providerRegistry.getActiveModelId() || null,
         });
     }
 
     private async handleConfigSet(frame: ConfigSetFrame): Promise<void> {
-        const { requestId, engineMode, outputLanguage } = frame;
+        const { requestId } = frame;
         if (!requestId) return;
         if (this.state.isBusy()) {
             // engineMode swap mid-turn could change dispatch under a live call.
             this.send({ type: 'action_error', requestId, error: 'busy' });
             return;
         }
-        // Whitelist — accept only fields that are safe to change at runtime
-        // from a test harness. apiKey / modelId / fonts etc. stay UI-only.
-        const patch: { engineMode?: 'single' | 'two-call'; outputLanguage?: string } = {};
-        if (engineMode === 'single' || engineMode === 'two-call') patch.engineMode = engineMode;
-        if (typeof outputLanguage === 'string' && outputLanguage) patch.outputLanguage = outputLanguage;
+        const patch: Partial<AppConfigShape> = {};
+        const rejected: string[] = [];
+        for (const key of Object.keys(frame)) {
+            if (key === 'type' || key === 'requestId' || key === 'id') continue;
+            const validator = BRIDGE_SETTABLE_FIELDS[key as keyof AppConfigShape];
+            if (!validator) {
+                rejected.push(key);
+                continue;
+            }
+            const value = (validator as (raw: unknown) => unknown)(frame[key]);
+            if (value === undefined) {
+                rejected.push(key);
+                continue;
+            }
+            (patch as Record<string, unknown>)[key] = value;
+        }
         if (Object.keys(patch).length === 0) {
-            this.send({ type: 'action_error', requestId, error: 'no_valid_fields' });
+            this.send({ type: 'action_error', requestId, error: 'no_valid_fields', rejected });
             return;
         }
         await this.config.saveConfig(patch);
         this.send({
             type: 'config_set_response',
             requestId,
-            engineMode: this.appConfig.engineMode(),
-            outputLanguage: this.appConfig.outputLanguage(),
+            applied: this.appConfig.snapshot(),
+            rejected: rejected.length > 0 ? rejected : undefined,
         });
     }
 

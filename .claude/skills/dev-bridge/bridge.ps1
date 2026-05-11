@@ -98,10 +98,30 @@ function Set-BridgeConfig {
     [CmdletBinding()]
     param(
         [ValidateSet('single', 'two-call')] [string] $EngineMode,
-        [string] $OutputLanguage
+        [string] $OutputLanguage,
+        [int] $FontSize,
+        [string] $FontFamily,
+        [ValidateSet('invaders', 'code')] [string] $ScreensaverType,
+        [string] $Currency,
+        [bool] $EnableConversion,
+        [bool] $IdleOnBlur,
+        [bool] $EnableAdultDeclaration,
+        [double] $ExchangeRate,
+        [string] $InterfaceLanguage,
+        [int] $SmartContextTurns
     )
     $body = @{}
-    if ($PSBoundParameters.ContainsKey('EngineMode')) { $body.engineMode = $EngineMode }
-    if ($PSBoundParameters.ContainsKey('OutputLanguage')) { $body.outputLanguage = $OutputLanguage }
+    if ($PSBoundParameters.ContainsKey('EngineMode'))             { $body.engineMode             = $EngineMode }
+    if ($PSBoundParameters.ContainsKey('OutputLanguage'))         { $body.outputLanguage         = $OutputLanguage }
+    if ($PSBoundParameters.ContainsKey('FontSize'))               { $body.fontSize               = $FontSize }
+    if ($PSBoundParameters.ContainsKey('FontFamily'))             { $body.fontFamily             = $FontFamily }
+    if ($PSBoundParameters.ContainsKey('ScreensaverType'))        { $body.screensaverType        = $ScreensaverType }
+    if ($PSBoundParameters.ContainsKey('Currency'))               { $body.currency               = $Currency }
+    if ($PSBoundParameters.ContainsKey('EnableConversion'))       { $body.enableConversion       = $EnableConversion }
+    if ($PSBoundParameters.ContainsKey('IdleOnBlur'))             { $body.idleOnBlur             = $IdleOnBlur }
+    if ($PSBoundParameters.ContainsKey('EnableAdultDeclaration')) { $body.enableAdultDeclaration = $EnableAdultDeclaration }
+    if ($PSBoundParameters.ContainsKey('ExchangeRate'))           { $body.exchangeRate           = $ExchangeRate }
+    if ($PSBoundParameters.ContainsKey('InterfaceLanguage'))      { $body.interfaceLanguage      = $InterfaceLanguage }
+    if ($PSBoundParameters.ContainsKey('SmartContextTurns'))      { $body.smartContextTurns      = $SmartContextTurns }
     Invoke-Bridge -Path '/config/set' -Body $body -TimeoutSec 30
 }

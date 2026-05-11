@@ -112,10 +112,19 @@ Get-BridgeProfile             # active profile id + displayName + compat
 Get-BridgeProfiles            # full list (built-in + user) with compat tags
 Set-BridgeProfile -Id cloud   # switch active
 
-Get-BridgeConfig                            # engineMode / outputLanguage / modelId
+Get-BridgeConfig                            # full AppConfigShape snapshot + modelId
 Set-BridgeConfig -EngineMode two-call       # toggle two-call mode
-Set-BridgeConfig -OutputLanguage default    # only `engineMode` and `outputLanguage` are whitelisted
+Set-BridgeConfig -OutputLanguage default    # partial patch — only listed params are sent
+Set-BridgeConfig -FontSize 18 -FontFamily 'serif'   # any AppConfigShape field is settable
 ```
+
+`Set-BridgeConfig` accepts every `AppConfigShape` field (engineMode, outputLanguage,
+fontSize, fontFamily, screensaverType, currency, enableConversion, idleOnBlur,
+enableAdultDeclaration, exchangeRate, interfaceLanguage, smartContextTurns). The
+handler is a per-field validator: unknown keys or wrong types come back under
+`rejected` in the response instead of being silently dropped. `apiKey` / `modelId`
+/ thinking levels are NOT in scope — those live on the active LLM profile, not
+on `AppConfigShape`.
 
 `compat` is `'compatible'` when the profile's `system_main` carries the current
 `@system-main-version` marker, `'legacy'` for pre-PR-#28 forks. Legacy profiles
