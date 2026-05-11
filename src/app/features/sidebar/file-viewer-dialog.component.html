@@ -188,7 +188,8 @@
             @if (sidebarView() === 'agent') {
               <app-agent-console
                 [files]="data.files"
-                [initialPrompt]="data.initialAgentPrompt || ''" />
+                [initialPrompt]="data.initialAgentPrompt || ''"
+                [chatMessages]="chatMessagesForAgent()" />
             }
         </div>
 

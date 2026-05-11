@@ -9,8 +9,15 @@ import {
   ReadSectionArgs,
   ReplaceSectionArgs,
   InsertSectionArgs,
-  InsertIntoSectionArgs
+  InsertIntoSectionArgs,
+  ListChatMessagesArgs,
+  SearchChatMessagesArgs,
+  ReadChatMessageArgs,
+  ReadTurnLogsArgs,
+  ChatReadField,
+  TurnLogKind
 } from './file-agent.types';
+import type { ChatMessage } from '@app/core/models/types';
 import {
   parseMarkdownOutline,
   resolveSection,
@@ -53,6 +60,14 @@ export function executeFileTool(
       return insertSection(action.args, context);
     case 'insertIntoSection':
       return insertIntoSection(action.args, context);
+    case 'listChatMessages':
+      return listChatMessages(action.args, context);
+    case 'searchChatMessages':
+      return searchChatMessages(action.args, context);
+    case 'readChatMessage':
+      return readChatMessage(action.args, context);
+    case 'readTurnLogs':
+      return readTurnLogs(action.args, context);
     case 'reportProgress':
     case 'submitResponse':
       return { response: { status: 'acknowledged' } };
@@ -512,6 +527,219 @@ function insertSection(args: InsertSectionArgs, context: FileAgentContext): Tool
       totalLines: result.newContent.split('\n').length
     },
     infoLog: `Inserted section "${args.heading}" in ${args.filename}`
+  };
+}
+
+// ===== Chat-aware tools ======================================================
+
+const NO_CHAT_HISTORY = 'No chat history available. The agent is running outside an in-game session (e.g. world creation mode) or no turns have been played yet.';
+
+function requireChat(context: FileAgentContext): ChatMessage[] | { response: Record<string, unknown> } {
+  const msgs = context.chatMessages;
+  if (!msgs || msgs.length === 0) return { response: { error: NO_CHAT_HISTORY } };
+  return msgs;
+}
+
+function logKindToField(kind: TurnLogKind): keyof ChatMessage {
+  switch (kind) {
+    case 'character': return 'character_log';
+    case 'world': return 'world_log';
+    case 'inventory': return 'inventory_log';
+    case 'quest': return 'quest_log';
+  }
+}
+
+function listChatMessages(args: ListChatMessagesArgs, context: FileAgentContext): ToolExecutionResult {
+  const chat = requireChat(context);
+  if (!Array.isArray(chat)) return chat as ToolExecutionResult;
+
+  const limit = Math.min(100, Math.max(1, Math.floor(args.limit ?? 30)));
+  const includeHidden = !!args.includeHidden;
+
+  // Filter to visible by default; pagination cursor is "before" id (exclusive).
+  let pool = includeHidden ? chat : chat.filter(m => !m.isHidden);
+  if (args.before) {
+    const cutIdx = pool.findIndex(m => m.id === args.before);
+    if (cutIdx === -1) {
+      return { response: { error: `before id "${args.before}" not found in current chat history` } };
+    }
+    pool = pool.slice(0, cutIdx);
+  }
+
+  const slice = pool.slice(Math.max(0, pool.length - limit));
+  const messages = slice.map(m => {
+    const hasLogs = !!(m.character_log?.length || m.world_log?.length || m.inventory_log?.length || m.quest_log?.length);
+    return {
+      id: m.id,
+      role: m.role,
+      charCount: (m.content ?? '').length,
+      summary: m.summary || undefined,
+      intent: m.intent || undefined,
+      hasLogs
+    };
+  });
+
+  return {
+    response: {
+      messages,
+      returned: messages.length,
+      totalVisible: pool.length,
+      totalAll: chat.length,
+      olderRemaining: pool.length - messages.length,
+      oldestReturnedId: messages[0]?.id,
+      newestReturnedId: messages[messages.length - 1]?.id
+    }
+  };
+}
+
+function searchChatMessages(args: SearchChatMessagesArgs, context: FileAgentContext): ToolExecutionResult {
+  const chat = requireChat(context);
+  if (!Array.isArray(chat)) return chat as ToolExecutionResult;
+
+  if (typeof args.pattern !== 'string' || args.pattern.length === 0) {
+    return { response: { error: 'pattern is required and must be a non-empty string' } };
+  }
+  let regex: RegExp;
+  try {
+    regex = new RegExp(args.pattern, args.caseInsensitive ? 'gi' : 'g');
+  } catch (e) {
+    return { response: { error: `Invalid regex: ${e instanceof Error ? e.message : String(e)}` } };
+  }
+
+  const scope = args.scope ?? 'content';
+  const limit = Math.min(300, Math.max(1, Math.floor(args.limit ?? 100)));
+  const contextChars = Math.min(400, Math.max(0, Math.floor(args.contextChars ?? 80)));
+
+  const fieldsForScope: ('content' | 'thought' | 'summary')[] =
+    scope === 'all' ? ['content', 'thought', 'summary'] : [scope];
+
+  interface Hit { messageId: string; role: string; scope: string; snippet: string; matchIndex: number }
+  const hits: Hit[] = [];
+  let truncated = false;
+
+  outer: for (const m of chat) {
+    if (m.isHidden) continue;
+    for (const field of fieldsForScope) {
+      const raw = (m as unknown as Record<string, unknown>)[field];
+      if (typeof raw !== 'string' || raw.length === 0) continue;
+      // Reset regex lastIndex for each new haystack since /g sticks.
+      regex.lastIndex = 0;
+      let match: RegExpExecArray | null;
+      while ((match = regex.exec(raw)) !== null) {
+        if (hits.length >= limit) { truncated = true; break outer; }
+        const start = Math.max(0, match.index - contextChars);
+        const end = Math.min(raw.length, match.index + match[0].length + contextChars);
+        const snippet = (start > 0 ? '…' : '') + raw.slice(start, end) + (end < raw.length ? '…' : '');
+        hits.push({ messageId: m.id, role: m.role, scope: field, snippet, matchIndex: match.index });
+        // Guard against zero-width regex infinite-loop.
+        if (match.index === regex.lastIndex) regex.lastIndex++;
+      }
+    }
+  }
+
+  return { response: { hits, count: hits.length, truncated } };
+}
+
+function readChatMessage(args: ReadChatMessageArgs, context: FileAgentContext): ToolExecutionResult {
+  const chat = requireChat(context);
+  if (!Array.isArray(chat)) return chat as ToolExecutionResult;
+
+  const ids = args.messageIds;
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return { response: { error: 'messageIds must be a non-empty array' } };
+  }
+
+  const allowed: ChatReadField[] = ['content', 'thought', 'logs', 'analysis', 'summary', 'intent'];
+  const include = (args.include && args.include.length > 0)
+    ? args.include.filter(f => allowed.includes(f))
+    : ['content' as ChatReadField];
+
+  interface Result {
+    id: string;
+    role?: string;
+    content?: string;
+    thought?: string;
+    analysis?: string;
+    summary?: string;
+    intent?: string;
+    logs?: {
+      character?: string[];
+      world?: string[];
+      inventory?: string[];
+      quest?: string[];
+    };
+    error?: string;
+  }
+
+  const byId = new Map(chat.map(m => [m.id, m]));
+  const results: Result[] = ids.map(id => {
+    const m = byId.get(id);
+    if (!m) return { id, error: 'Message not found' };
+    const r: Result = { id, role: m.role };
+    for (const f of include) {
+      if (f === 'logs') {
+        const logs: Result['logs'] = {};
+        if (m.character_log?.length) logs.character = m.character_log;
+        if (m.world_log?.length) logs.world = m.world_log;
+        if (m.inventory_log?.length) logs.inventory = m.inventory_log;
+        if (m.quest_log?.length) logs.quest = m.quest_log;
+        r.logs = logs;
+      } else {
+        const v = (m as unknown as Record<string, unknown>)[f];
+        if (typeof v === 'string' && v.length > 0) {
+          (r as unknown as Record<string, unknown>)[f] = v;
+        }
+      }
+    }
+    return r;
+  });
+
+  return { response: { messages: results } };
+}
+
+function readTurnLogs(args: ReadTurnLogsArgs, context: FileAgentContext): ToolExecutionResult {
+  const chat = requireChat(context);
+  if (!Array.isArray(chat)) return chat as ToolExecutionResult;
+
+  const kindList: TurnLogKind[] = (args.kinds && args.kinds.length > 0)
+    ? args.kinds
+    : ['character', 'world', 'inventory', 'quest'];
+
+  let pool: ChatMessage[];
+  if (args.messageIds && args.messageIds.length > 0) {
+    const byId = new Map(chat.map(m => [m.id, m]));
+    pool = [];
+    const missing: string[] = [];
+    for (const id of args.messageIds) {
+      const m = byId.get(id);
+      if (m) pool.push(m); else missing.push(id);
+    }
+    if (missing.length) {
+      return { response: { error: `Message id(s) not found: ${missing.join(', ')}` } };
+    }
+  } else {
+    const recent = Math.min(100, Math.max(1, Math.floor(args.recent ?? 20)));
+    pool = chat.slice(Math.max(0, chat.length - recent));
+  }
+
+  interface Group { messageId: string; role: string; kind: TurnLogKind; entries: string[] }
+  const groups: Group[] = [];
+  for (const m of pool) {
+    for (const kind of kindList) {
+      const entries = m[logKindToField(kind)] as string[] | undefined;
+      if (entries && entries.length > 0) {
+        groups.push({ messageId: m.id, role: m.role, kind, entries });
+      }
+    }
+  }
+
+  return {
+    response: {
+      groups,
+      count: groups.length,
+      scanned: pool.length,
+      note: groups.length === 0 ? 'No log entries found in the scanned range — none of those turns wrote to character_log / world_log / inventory_log / quest_log.' : undefined
+    }
   };
 }
 

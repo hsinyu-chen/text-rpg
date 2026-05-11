@@ -163,6 +163,71 @@ export const FILE_AGENT_TOOLS: LLMFunctionDeclaration[] = [
     }
   },
   {
+    name: 'listChatMessages',
+    description: 'Outline of recent in-game chat messages — cheap preview WITHOUT message body. Returns each message\'s id, role, character count, and short summary/intent fields that the engine pre-computed. Use this as the FIRST chat-aware tool when the user references "the story" / "the chat" / "what happened" and you do not yet know which turn they mean. Follow up with searchChatMessages (regex) or readChatMessage (pinpoint by id). Pagination: pass "before"=oldest-id-seen to walk further back. Tool errors if no chat history is available (e.g. world-creation mode).',
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: { type: 'string', description: REASON_DESC },
+        limit: { type: 'number', description: 'Maximum number of messages to return, newest first (default 30, capped at 100).' },
+        before: { type: 'string', description: 'Optional. Return only messages older than this message id. Use the oldest id from a prior call to paginate backwards.' },
+        includeHidden: { type: 'boolean', description: 'Optional. Default false. Set true to include messages flagged isHidden (engine-suppressed system turns).' }
+      },
+      required: ['reason']
+    }
+  },
+  {
+    name: 'searchChatMessages',
+    description: 'Regex search across in-game chat messages — the chat-side analogue of grep. Returns hits with messageId, role, the scope that matched, and a snippet. PREFER this over readChatMessage when the user references a phrase, name, item, or event — you can locate the relevant turn(s) without pulling full bodies. scope controls which field is searched: "content" (default — narrative text the user/model wrote), "thought" (model CoT — for "why did the engine decide X"), "summary" (engine-pre-computed one-liner), or "all". Tool errors if no chat history is available.',
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: { type: 'string', description: REASON_DESC },
+        pattern: { type: 'string', description: 'JavaScript regex source — no surrounding slashes, no inline flags.' },
+        scope: { type: 'string', enum: ['content', 'thought', 'summary', 'all'], description: 'Where to search. Default "content".' },
+        caseInsensitive: { type: 'boolean', description: 'Optional. Default false.' },
+        limit: { type: 'number', description: 'Maximum hits to return (default 100, capped at 300).' },
+        contextChars: { type: 'number', description: 'Optional. Default 80. Characters of context around each match in the returned snippet (capped at 400).' }
+      },
+      required: ['reason', 'pattern']
+    }
+  },
+  {
+    name: 'readChatMessage',
+    description: 'Pinpoint-read one or more chat messages by id — the chat-side analogue of readSection. Pass a single id as a one-element array. Use AFTER listChatMessages / searchChatMessages narrow down which turn(s) matter; do not call this with guessed ids. "include" controls which fields come back per message — defaults to ["content"] to keep the response small. Add "thought" to see the model\'s reasoning, "logs" to inspect the *_log arrays (use readTurnLogs if logs are all you want), "analysis"/"summary"/"intent" for engine-computed fields. Tool errors if no chat history is available; per-id "not found" is reported inside the result, not as a top-level error.',
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: { type: 'string', description: REASON_DESC },
+        messageIds: {
+          type: 'array',
+          description: 'One or more chat message ids (from listChatMessages or searchChatMessages).',
+          items: { type: 'string' }
+        },
+        include: {
+          type: 'array',
+          description: 'Fields to include per message. Default ["content"].',
+          items: { type: 'string', enum: ['content', 'thought', 'logs', 'analysis', 'summary', 'intent'] }
+        }
+      },
+      required: ['reason', 'messageIds']
+    }
+  },
+  {
+    name: 'readTurnLogs',
+    description: 'Read the structured per-turn logs (character_log / world_log / inventory_log / quest_log) — these are entries the engine wrote to KB during that turn, the most common ground truth for "the chat says X happened but the KB file says Y" fixes. Returns flattened entries grouped by message + kind. Pass messageIds to inspect specific turns; omit messageIds and use "recent" to scan the latest N turns. "kinds" filters which log types come back. Tool errors if no chat history is available.',
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: { type: 'string', description: REASON_DESC },
+        messageIds: { type: 'array', description: 'Optional. Specific message ids to inspect. If omitted, falls back to the latest "recent" turns.', items: { type: 'string' } },
+        kinds: { type: 'array', description: 'Optional. Which log types to include. Default: all four (character, world, inventory, quest).', items: { type: 'string', enum: ['character', 'world', 'inventory', 'quest'] } },
+        recent: { type: 'number', description: 'Optional. Only used when messageIds is omitted. Number of latest messages to scan (default 20, capped at 100).' }
+      },
+      required: ['reason']
+    }
+  },
+  {
     name: 'reportProgress',
     description: 'Send a progress update to the user mid-task. The agent CONTINUES after this call — use it to narrate ongoing work without yielding control. Do NOT use this when the entire task is complete.',
     parameters: {
@@ -185,6 +250,7 @@ export const FILE_AGENT_TOOLS: LLMFunctionDeclaration[] = [
 const ACTION_ENUM = [
   'readFile', 'replaceFile', 'getFileOutline', 'grep', 'searchReplace',
   'readSection', 'replaceSection', 'insertSection', 'insertIntoSection',
+  'listChatMessages', 'searchChatMessages', 'readChatMessage', 'readTurnLogs',
   'reportProgress', 'submitResponse'
 ];
 
@@ -202,6 +268,10 @@ export function buildJsonSchema(isLocal: boolean): object {
         { properties: { action: { type: 'string', enum: ['replaceSection'] }, args: { type: 'object', properties: { reason: { type: 'string' }, filename: { type: 'string' }, updates: { type: 'array', items: { type: 'object', properties: { sectionPath: { type: 'string' }, content: { type: 'string' }, newTitle: { type: 'string' }, force: { type: 'boolean' } }, required: ['sectionPath', 'content'] } } }, required: ['reason', 'filename', 'updates'], additionalProperties: false } }, required: ['action', 'args'] },
         { properties: { action: { type: 'string', enum: ['insertSection'] }, args: { type: 'object', properties: { reason: { type: 'string' }, filename: { type: 'string' }, heading: { type: 'string' }, content: { type: 'string' }, anchor: { type: 'string', enum: ['prepend', 'before', 'after', 'append-into'] }, anchorSectionPath: { type: 'string' } }, required: ['reason', 'filename', 'heading'], additionalProperties: false } }, required: ['action', 'args'] },
         { properties: { action: { type: 'string', enum: ['insertIntoSection'] }, args: { type: 'object', properties: { reason: { type: 'string' }, filename: { type: 'string' }, sectionPath: { type: 'string' }, content: { type: 'string' }, position: { type: 'string', enum: ['start', 'end'] } }, required: ['reason', 'filename', 'sectionPath', 'content', 'position'], additionalProperties: false } }, required: ['action', 'args'] },
+        { properties: { action: { type: 'string', enum: ['listChatMessages'] }, args: { type: 'object', properties: { reason: { type: 'string' }, limit: { type: 'number' }, before: { type: 'string' }, includeHidden: { type: 'boolean' } }, required: ['reason'], additionalProperties: false } }, required: ['action', 'args'] },
+        { properties: { action: { type: 'string', enum: ['searchChatMessages'] }, args: { type: 'object', properties: { reason: { type: 'string' }, pattern: { type: 'string' }, scope: { type: 'string', enum: ['content', 'thought', 'summary', 'all'] }, caseInsensitive: { type: 'boolean' }, limit: { type: 'number' }, contextChars: { type: 'number' } }, required: ['reason', 'pattern'], additionalProperties: false } }, required: ['action', 'args'] },
+        { properties: { action: { type: 'string', enum: ['readChatMessage'] }, args: { type: 'object', properties: { reason: { type: 'string' }, messageIds: { type: 'array', items: { type: 'string' } }, include: { type: 'array', items: { type: 'string', enum: ['content', 'thought', 'logs', 'analysis', 'summary', 'intent'] } } }, required: ['reason', 'messageIds'], additionalProperties: false } }, required: ['action', 'args'] },
+        { properties: { action: { type: 'string', enum: ['readTurnLogs'] }, args: { type: 'object', properties: { reason: { type: 'string' }, messageIds: { type: 'array', items: { type: 'string' } }, kinds: { type: 'array', items: { type: 'string', enum: ['character', 'world', 'inventory', 'quest'] } }, recent: { type: 'number' } }, required: ['reason'], additionalProperties: false } }, required: ['action', 'args'] },
         { properties: { action: { type: 'string', enum: ['reportProgress'] }, args: { type: 'object', properties: { message: { type: 'string' } }, required: ['message'], additionalProperties: false } }, required: ['action', 'args'] },
         { properties: { action: { type: 'string', enum: ['submitResponse'] }, args: { type: 'object', properties: { message: { type: 'string' } }, required: ['message'], additionalProperties: false } }, required: ['action', 'args'] }
       ]
@@ -235,7 +305,16 @@ export function buildJsonSchema(isLocal: boolean): object {
           heading: { type: 'string' },
           anchor: { type: 'string' },
           anchorSectionPath: { type: 'string' },
-          position: { type: 'string' }
+          position: { type: 'string' },
+          limit: { type: 'number' },
+          before: { type: 'string' },
+          includeHidden: { type: 'boolean' },
+          scope: { type: 'string' },
+          messageIds: { type: 'array', items: { type: 'string' } },
+          include: { type: 'array', items: { type: 'string' } },
+          kinds: { type: 'array', items: { type: 'string' } },
+          recent: { type: 'number' },
+          contextChars: { type: 'number' }
         }
       }
     },

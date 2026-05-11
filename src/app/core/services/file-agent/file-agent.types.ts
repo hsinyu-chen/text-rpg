@@ -1,6 +1,16 @@
+import type { ChatMessage } from '@app/core/models/types';
+
 export interface FileAgentContext {
   files: Map<string, string>;
   onFileReplaced: (filename: string, content: string) => void;
+  /**
+   * In-game chat snapshot for the chat-aware tools (listChatMessages,
+   * searchChatMessages, readChatMessage, readTurnLogs). Snapshot, not signal —
+   * the agent turn is short and the executor is synchronous. Omit (or pass
+   * an empty array) when no game is active, e.g. createWorldMode: chat-aware
+   * tools degrade to a "no chat history available" error.
+   */
+  chatMessages?: ChatMessage[];
 }
 
 export type ToolCallMode = 'auto' | 'native' | 'json';
@@ -100,6 +110,35 @@ export interface SubmitResponseArgs {
   message: string;
 }
 
+export type ChatSearchScope = 'content' | 'thought' | 'summary' | 'all';
+export type ChatReadField = 'content' | 'thought' | 'logs' | 'analysis' | 'summary' | 'intent';
+export type TurnLogKind = 'character' | 'world' | 'inventory' | 'quest';
+
+export interface ListChatMessagesArgs extends FileToolArgsBase {
+  limit?: number;
+  before?: string;
+  includeHidden?: boolean;
+}
+
+export interface SearchChatMessagesArgs extends FileToolArgsBase {
+  pattern: string;
+  scope?: ChatSearchScope;
+  caseInsensitive?: boolean;
+  limit?: number;
+  contextChars?: number;
+}
+
+export interface ReadChatMessageArgs extends FileToolArgsBase {
+  messageIds: string[];
+  include?: ChatReadField[];
+}
+
+export interface ReadTurnLogsArgs extends FileToolArgsBase {
+  messageIds?: string[];
+  kinds?: TurnLogKind[];
+  recent?: number;
+}
+
 export type ParsedAction =
   | { action: 'readFile'; args: ReadFileArgs; callId?: string }
   | { action: 'grep'; args: GrepArgs; callId?: string }
@@ -110,6 +149,10 @@ export type ParsedAction =
   | { action: 'replaceSection'; args: ReplaceSectionArgs; callId?: string }
   | { action: 'insertSection'; args: InsertSectionArgs; callId?: string }
   | { action: 'insertIntoSection'; args: InsertIntoSectionArgs; callId?: string }
+  | { action: 'listChatMessages'; args: ListChatMessagesArgs; callId?: string }
+  | { action: 'searchChatMessages'; args: SearchChatMessagesArgs; callId?: string }
+  | { action: 'readChatMessage'; args: ReadChatMessageArgs; callId?: string }
+  | { action: 'readTurnLogs'; args: ReadTurnLogsArgs; callId?: string }
   | { action: 'reportProgress'; args: ReportProgressArgs; callId?: string }
   | { action: 'submitResponse'; args: SubmitResponseArgs; callId?: string };
 

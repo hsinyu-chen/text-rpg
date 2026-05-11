@@ -21,6 +21,7 @@ import { FileAgentService } from '@app/core/services/file-agent/file-agent.servi
 import { BuiltInPromptsService } from '@app/core/services/file-agent/built-in-prompts.service';
 import { I18nService, TranslatePipe } from '@app/core/i18n';
 import { CORE_MAT, FORM_MAT } from '@app/shared/material/material-groups';
+import type { ChatMessage } from '@app/core/models/types';
 
 @Component({
   selector: 'app-agent-console',
@@ -44,6 +45,8 @@ export class AgentConsoleComponent implements OnDestroy {
   // Inputs
   files = input.required<Map<string, string>>();
   initialPrompt = input<string>('');
+  /** Optional in-game chat snapshot for chat-aware tools. Omit (or pass undefined) when no game is active — chat-aware tools degrade with a "no chat history available" error. */
+  chatMessages = input<ChatMessage[] | undefined>(undefined);
 
   // Injected services
   agentService = inject(FileAgentService);
@@ -175,7 +178,8 @@ export class AgentConsoleComponent implements OnDestroy {
       files: this.files(),
       onFileReplaced: (filename, content) => {
         this.files().set(filename, content);
-      }
+      },
+      chatMessages: this.chatMessages()
     });
   }
 

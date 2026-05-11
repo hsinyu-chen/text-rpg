@@ -107,6 +107,17 @@ export class FileViewerDialogComponent implements OnDestroy {
 
   // Sidebar view mode: 'files' or 'search' or 'agent'
   sidebarView = signal<'files' | 'search' | 'agent'>('files');
+
+  /**
+   * In-game chat snapshot passed to the agent console so the chat-aware tools
+   * (listChatMessages, searchChatMessages, readChatMessage, readTurnLogs) can
+   * verify "what the story actually said" before mutating KB files. Undefined
+   * in createWorldMode — there is no game yet, so the tools should report no
+   * chat history rather than scan an empty array.
+   */
+  chatMessagesForAgent = computed(() =>
+    this.data.createWorldMode ? undefined : this.state.messages()
+  );
   
   // Manual toggle for diff view (independent of sidebar mode)
   isDiffView = signal(false);
