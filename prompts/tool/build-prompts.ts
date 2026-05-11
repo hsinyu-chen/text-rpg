@@ -28,13 +28,13 @@ function summarize(diagnostics: ReadonlyArray<Diagnostic>): { errors: number; wa
   return { errors, warnings };
 }
 
-interface RunResult {
+export interface RunResult {
   errors: number;
   warnings: number;
   earlyErrors: number;
 }
 
-function runOnce(checkMode: boolean): RunResult {
+export function runOnce(checkMode: boolean): RunResult {
   const output = runPipeline();
   const diagnostics: Diagnostic[] = [...output.diagnostics];
   const earlyErrors = summarize(diagnostics).errors;
@@ -68,7 +68,7 @@ function runOnce(checkMode: boolean): RunResult {
   return { errors, warnings, earlyErrors };
 }
 
-function startWatch(): void {
+export function startWatch(): () => Promise<void> {
   process.stderr.write(`prompts:watch — watching ${SOURCE_DIR}\n`);
 
   let pending: NodeJS.Timeout | null = null;
@@ -104,12 +104,10 @@ function startWatch(): void {
     process.stderr.write(`watch error: ${(err as Error).message}\n`);
   });
 
-  const close = (): void => {
-    void watcher.close();
-    process.exit(0);
+  return async (): Promise<void> => {
+    if (pending) { clearTimeout(pending); pending = null; }
+    await watcher.close();
   };
-  process.on('SIGINT', close);
-  process.on('SIGTERM', close);
 }
 
 async function main(): Promise<void> {
@@ -125,7 +123,12 @@ async function main(): Promise<void> {
   const result = runOnce(checkMode);
 
   if (watchMode) {
-    startWatch();
+    const close = startWatch();
+    const shutdown = (): void => {
+      void close().finally(() => process.exit(0));
+    };
+    process.on('SIGINT', shutdown);
+    process.on('SIGTERM', shutdown);
     return;
   }
 
@@ -133,7 +136,9 @@ async function main(): Promise<void> {
   process.exit(failed ? 1 : 0);
 }
 
-main().catch((e: unknown) => {
-  process.stderr.write(`fatal: ${(e as Error).message}\n${(e as Error).stack ?? ''}\n`);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((e: unknown) => {
+    process.stderr.write(`fatal: ${(e as Error).message}\n${(e as Error).stack ?? ''}\n`);
+    process.exit(1);
+  });
+}

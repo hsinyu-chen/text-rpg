@@ -3,8 +3,8 @@
   "version": "0.0.0",
   "scripts": {
     "ng": "ng",
-    "start": "node tools/dev-cert.cjs && concurrently -n prompts,web -c blue,green --kill-others-on-fail \"npm run prompts:watch\" \"ng serve --ssl --ssl-cert .certs/dev.pem --ssl-key .certs/dev-key.pem --host 0.0.0.0\"",
-    "start:plain": "concurrently -n prompts,web -c blue,green --kill-others-on-fail \"npm run prompts:watch\" \"ng serve\"",
+    "start": "node tools/dev-cert.cjs && tsx tools/dev.ts --ssl --ssl-cert .certs/dev.pem --ssl-key .certs/dev-key.pem --host 0.0.0.0",
+    "start:plain": "tsx tools/dev.ts",
     "start:pwa": "npm run build && node tools/dev-cert.cjs && node tools/serve-dist.cjs",
     "prebuild": "npm run prompts:build",
     "build": "ng build",
@@ -75,7 +75,6 @@
     "@types/katex": "^0.16.8",
     "angular-eslint": "21.1.0",
     "chokidar": "^4.0.3",
-    "concurrently": "^9.2.1",
     "eslint": "^9.39.1",
     "happy-dom": "^20.9.0",
     "sharp": "^0.34.5",
