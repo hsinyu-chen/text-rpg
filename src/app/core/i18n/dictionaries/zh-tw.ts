@@ -581,6 +581,8 @@ export const zhTW: TranslationDict = {
             hideFiles: '收合檔案列',
             showNormalView: '切換為正常檢視',
             showDiffView: '切換為差異檢視',
+            showAgent: '開啟 AI 代理面板',
+            hideAgent: '關閉 AI 代理面板',
             close: '關閉',
             filesTab: '檔案',
             searchTab: '搜尋與取代',

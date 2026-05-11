@@ -47,6 +47,11 @@
             color: #ffd33d;
             background: rgba(255, 211, 61, 0.1);
         }
+
+        .active-agent {
+            color: #8be9fd;
+            background: rgba(139, 233, 253, 0.1);
+        }
     }
 }
 
@@ -638,6 +643,23 @@
     }
 }
 
+.agent-panel {
+    width: min(35vw, 480px);
+    min-width: 320px;
+    display: flex;
+    flex-direction: column;
+    background: rgba(30, 30, 30, 0.95);
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+    overflow: hidden;
+
+    app-agent-console {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+    }
+}
+
 mat-dialog-actions {
     padding: 8px 16px;
     margin: 0;
@@ -661,6 +683,16 @@ mat-dialog-actions {
             transform: translateX(-100%);
             opacity: 1;
         }
+    }
+
+    .agent-panel {
+        position: absolute;
+        right: 0;
+        top: 0;
+        bottom: 0;
+        z-index: 11;
+        width: min(420px, 92vw);
+        min-width: 280px;
     }
 
     .dialog-body {

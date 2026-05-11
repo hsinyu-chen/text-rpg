@@ -581,6 +581,8 @@ export const en: TranslationDict = {
             hideFiles: 'Hide Files',
             showNormalView: 'Show Normal View',
             showDiffView: 'Show Diff View',
+            showAgent: 'Show AI Agent Panel',
+            hideAgent: 'Hide AI Agent Panel',
             close: 'Close',
             filesTab: 'Files',
             searchTab: 'Search & Replace',
