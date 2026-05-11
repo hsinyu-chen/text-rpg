@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, watch } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
 import { runCheck } from './check';
@@ -6,6 +6,9 @@ import { REPO_ROOT, runPipeline } from './pipeline';
 import { Diagnostic } from './types';
 
 const MANIFEST_PATH = resolve(REPO_ROOT, 'prompts/tool/.manifest.json');
+const SOURCE_DIR = resolve(REPO_ROOT, 'prompts/source');
+const CONFIG_FILE = resolve(REPO_ROOT, 'prompts/tool/variants.config.ts');
+const WATCH_DEBOUNCE_MS = 100;
 
 function logDiagnostic(d: Diagnostic): void {
   const tag = d.level === 'error' ? '[error]' : '[warning]';
@@ -23,13 +26,15 @@ function summarize(diagnostics: ReadonlyArray<Diagnostic>): { errors: number; wa
   return { errors, warnings };
 }
 
-async function main(): Promise<void> {
-  const args = process.argv.slice(2);
-  const checkMode = args.includes('--check');
+interface RunResult {
+  errors: number;
+  warnings: number;
+  earlyErrors: number;
+}
 
+function runOnce(checkMode: boolean): RunResult {
   const output = runPipeline();
   const diagnostics: Diagnostic[] = [...output.diagnostics];
-
   const earlyErrors = summarize(diagnostics).errors;
 
   if (checkMode && earlyErrors === 0) {
@@ -58,7 +63,64 @@ async function main(): Promise<void> {
     process.stderr.write(checkMode ? 'prompts:check OK\n' : 'prompts:build OK\n');
   }
 
-  const failed = errors > 0 || (checkMode && warnings > 0);
+  return { errors, warnings, earlyErrors };
+}
+
+function startWatch(): void {
+  process.stderr.write(`prompts:watch — watching ${SOURCE_DIR}\n`);
+
+  let pending: NodeJS.Timeout | null = null;
+  let running = false;
+  let queued = false;
+
+  const triggerBuild = (): void => {
+    if (running) { queued = true; return; }
+    running = true;
+    try {
+      runOnce(false);
+    } catch (e) {
+      process.stderr.write(`watch: build threw: ${(e as Error).message}\n`);
+    } finally {
+      running = false;
+      if (queued) { queued = false; setImmediate(triggerBuild); }
+    }
+  };
+
+  const schedule = (): void => {
+    if (pending) clearTimeout(pending);
+    pending = setTimeout(() => { pending = null; triggerBuild(); }, WATCH_DEBOUNCE_MS);
+  };
+
+  const watcher = watch(SOURCE_DIR, { recursive: true }, schedule);
+  const configWatcher = watch(CONFIG_FILE, schedule);
+
+  const close = (): void => {
+    watcher.close();
+    configWatcher.close();
+    process.exit(0);
+  };
+  process.on('SIGINT', close);
+  process.on('SIGTERM', close);
+}
+
+async function main(): Promise<void> {
+  const args = process.argv.slice(2);
+  const checkMode = args.includes('--check');
+  const watchMode = args.includes('--watch');
+
+  if (watchMode && checkMode) {
+    process.stderr.write('--watch and --check are mutually exclusive\n');
+    process.exit(2);
+  }
+
+  const result = runOnce(checkMode);
+
+  if (watchMode) {
+    startWatch();
+    return;
+  }
+
+  const failed = result.errors > 0 || (checkMode && result.warnings > 0);
   process.exit(failed ? 1 : 0);
 }
 

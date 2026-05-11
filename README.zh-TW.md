@@ -348,7 +348,7 @@ npm run desktop
 ```
 
 > [!NOTE]
-> **系統 Prompt 是 generated 檔案。** `public/assets/system_files/**/*.md` 由 [prompts/source/](prompts/source/)（base + layer slots）透過 `npm run prompts:build` 產生，已透過 `prestart` / `prebuild` hook 自動串在 `npm start` 與 `npm run build` 之前。請編輯 `prompts/source/`，**勿**直接改 generated 檔（下次 build 會被覆寫）。CI 用 `npm run prompts:check` 把關 source 與 generated 是否一致。
+> **系統 Prompt 是 generated 檔案。** Source of truth 為 [prompts/source/](prompts/source/)（base + layer slots）。`public/assets/system_files/{zh-tw,en}/...` 底下的 runtime 檔案是 gitignored build artifact —— 由 `npm run prompts:build` 產生；`npm start` 會用 concurrently 同時跑 `prompts:watch` 與 `ng serve`，編輯 `prompts/source/` 會自動 rebuild。`npm run build` / `npm test` / `npm run watch` 透過 `prebuild` / `pretest` / `prewatch` hook 自動串 `prompts:build`。**請編輯 `prompts/source/`，勿動 generated 檔（gitignored，下次 build 會被覆寫）。** CI 用 `npm run prompts:check` 把關 source 與 manifest 是否一致。
 
 ### 配置說明
 首次啟動需在 Settings 面板配置：

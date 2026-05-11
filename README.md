@@ -349,7 +349,7 @@ npm run desktop
 ```
 
 > [!NOTE]
-> **System prompts are generated.** Files under `public/assets/system_files/**/*.md` are built from [prompts/source/](prompts/source/) (base + layer slots) by `npm run prompts:build`, which is auto-run by `npm start` and `npm run build` via `prestart` / `prebuild` hooks. Edit `prompts/source/`, never the generated copies. CI gates source/generated consistency via `npm run prompts:check`.
+> **System prompts are generated.** Source of truth is [prompts/source/](prompts/source/) (base + layer slots). The composed runtime files under `public/assets/system_files/{zh-tw,en}/...` are gitignored build artifacts — `npm run prompts:build` produces them, and `npm start` runs `prompts:watch` concurrently with `ng serve` so edits to `prompts/source/` rebuild automatically. `npm run build` / `npm test` / `npm run watch` chain `prompts:build` via `prebuild` / `pretest` / `prewatch` hooks. **Edit `prompts/source/`, never the generated copies.** CI gates source/manifest consistency via `npm run prompts:check`.
 
 ### Configuration
 On first launch, configure via the Settings panel:
