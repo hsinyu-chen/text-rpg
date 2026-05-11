@@ -366,7 +366,10 @@ export class FileAgentService {
     // Fresh totalLines is returned in every read/write tool response instead.
     const fileList = Array.from(context.files.keys()).map(name => `- ${name}`).join('\n');
     const allowParallel = mode === 'native' && this.capability.effectiveSupportsParallelToolCalls();
-    const systemInstruction = buildSystemInstruction(fileList, mode, allowParallel);
+    const systemInstruction = buildSystemInstruction(fileList, mode, allowParallel, {
+      uiLanguage: context.uiLanguage,
+      narrativeLanguage: context.narrativeLanguage
+    });
 
     const genConfig: Record<string, unknown> = mode === 'native'
       ? { tools: FILE_AGENT_TOOLS, signal: this.abortController?.signal }

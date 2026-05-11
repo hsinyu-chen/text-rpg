@@ -22,6 +22,7 @@ import { BuiltInPromptsService } from '@app/core/services/file-agent/built-in-pr
 import { I18nService, TranslatePipe } from '@app/core/i18n';
 import { CORE_MAT, FORM_MAT } from '@app/shared/material/material-groups';
 import type { ChatMessage } from '@app/core/models/types';
+import { AppConfigStore } from '@app/core/services/app-config-store';
 
 @Component({
   selector: 'app-agent-console',
@@ -54,6 +55,7 @@ export class AgentConsoleComponent implements OnDestroy {
   private clipboard = inject(Clipboard);
   private snackBar = inject(MatSnackBar);
   private i18n = inject(I18nService);
+  private appConfig = inject(AppConfigStore);
 
   // Internal state
   agentPrompt = signal('');
@@ -179,7 +181,9 @@ export class AgentConsoleComponent implements OnDestroy {
       onFileReplaced: (filename, content) => {
         this.files().set(filename, content);
       },
-      chatMessages: this.chatMessages()
+      chatMessages: this.chatMessages(),
+      uiLanguage: this.i18n.currentLang(),
+      narrativeLanguage: this.appConfig.outputLanguage()
     });
   }
 

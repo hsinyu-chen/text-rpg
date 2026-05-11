@@ -555,9 +555,12 @@ function listChatMessages(args: ListChatMessagesArgs, context: FileAgentContext)
 
   const limit = Math.min(100, Math.max(1, Math.floor(args.limit ?? 30)));
   const includeHidden = !!args.includeHidden;
+  const includeSaves = !!args.includeSaves;
 
   // Filter to visible by default; pagination cursor is "before" id (exclusive).
-  let pool = includeHidden ? chat : chat.filter(m => !m.isHidden);
+  let pool = chat;
+  if (!includeHidden) pool = pool.filter(m => !m.isHidden);
+  if (!includeSaves) pool = pool.filter(m => m.intent !== 'save');
   if (args.before) {
     const cutIdx = pool.findIndex(m => m.id === args.before);
     if (cutIdx === -1) {
@@ -567,6 +570,10 @@ function listChatMessages(args: ListChatMessagesArgs, context: FileAgentContext)
   }
 
   const slice = pool.slice(Math.max(0, pool.length - limit));
+  const filteredCounts = {
+    hidden: includeHidden ? 0 : chat.filter(m => m.isHidden).length,
+    save: includeSaves ? 0 : chat.filter(m => m.intent === 'save').length
+  };
   const messages = slice.map(m => {
     const hasLogs = !!(m.character_log?.length || m.world_log?.length || m.inventory_log?.length || m.quest_log?.length);
     return {
@@ -587,7 +594,8 @@ function listChatMessages(args: ListChatMessagesArgs, context: FileAgentContext)
       totalAll: chat.length,
       olderRemaining: pool.length - messages.length,
       oldestReturnedId: messages[0]?.id,
-      newestReturnedId: messages[messages.length - 1]?.id
+      newestReturnedId: messages[messages.length - 1]?.id,
+      filtered: filteredCounts
     }
   };
 }
@@ -609,35 +617,57 @@ function searchChatMessages(args: SearchChatMessagesArgs, context: FileAgentCont
   const scope = args.scope ?? 'content';
   const limit = Math.min(300, Math.max(1, Math.floor(args.limit ?? 100)));
   const contextChars = Math.min(400, Math.max(0, Math.floor(args.contextChars ?? 80)));
+  const includeSaves = !!args.includeSaves;
+  const PER_MESSAGE_CAP = 3;
 
   const fieldsForScope: ('content' | 'thought' | 'summary')[] =
     scope === 'all' ? ['content', 'thought', 'summary'] : [scope];
 
-  interface Hit { messageId: string; role: string; scope: string; snippet: string; matchIndex: number }
+  interface Hit { messageId: string; role: string; scope: string; snippet: string; matchIndex: number; moreInSameMessage?: number }
   const hits: Hit[] = [];
   let truncated = false;
+  let suppressedSaves = 0;
 
   outer: for (const m of chat) {
     if (m.isHidden) continue;
+    if (!includeSaves && m.intent === 'save') { suppressedSaves++; continue; }
+    // Gather all matches for this message first so we can cap + summarize.
+    const perMessageHits: Hit[] = [];
     for (const field of fieldsForScope) {
       const raw = (m as unknown as Record<string, unknown>)[field];
       if (typeof raw !== 'string' || raw.length === 0) continue;
-      // Reset regex lastIndex for each new haystack since /g sticks.
       regex.lastIndex = 0;
       let match: RegExpExecArray | null;
       while ((match = regex.exec(raw)) !== null) {
-        if (hits.length >= limit) { truncated = true; break outer; }
         const start = Math.max(0, match.index - contextChars);
         const end = Math.min(raw.length, match.index + match[0].length + contextChars);
         const snippet = (start > 0 ? '…' : '') + raw.slice(start, end) + (end < raw.length ? '…' : '');
-        hits.push({ messageId: m.id, role: m.role, scope: field, snippet, matchIndex: match.index });
-        // Guard against zero-width regex infinite-loop.
+        perMessageHits.push({ messageId: m.id, role: m.role, scope: field, snippet, matchIndex: match.index });
         if (match.index === regex.lastIndex) regex.lastIndex++;
       }
     }
+    if (perMessageHits.length === 0) continue;
+    const keep = perMessageHits.slice(0, PER_MESSAGE_CAP);
+    if (perMessageHits.length > PER_MESSAGE_CAP) {
+      keep[keep.length - 1] = { ...keep[keep.length - 1], moreInSameMessage: perMessageHits.length - PER_MESSAGE_CAP };
+    }
+    for (const h of keep) {
+      if (hits.length >= limit) { truncated = true; break outer; }
+      hits.push(h);
+    }
   }
 
-  return { response: { hits, count: hits.length, truncated } };
+  return {
+    response: {
+      hits,
+      count: hits.length,
+      truncated,
+      suppressedSaves: suppressedSaves > 0 ? suppressedSaves : undefined,
+      note: suppressedSaves > 0
+        ? `${suppressedSaves} save-intent turn(s) skipped (administrative file-update turns). Pass includeSaves:true to include them.`
+        : undefined
+    }
+  };
 }
 
 function readChatMessage(args: ReadChatMessageArgs, context: FileAgentContext): ToolExecutionResult {

@@ -11,6 +11,10 @@ export interface FileAgentContext {
    * tools degrade to a "no chat history available" error.
    */
   chatMessages?: ChatMessage[];
+  /** Resolved UI locale id (e.g. "zh-TW", "en") — the language the agent should respond IN. Surfaced in the system prompt so the agent doesn't have to guess from the user message. */
+  uiLanguage?: string;
+  /** Engine output-language setting (e.g. "zh-TW", "en", "default") — the language the in-game narrative is being written in. Surfaced so chat-aware searches don't waste turns on the wrong language. */
+  narrativeLanguage?: string;
 }
 
 export type ToolCallMode = 'auto' | 'native' | 'json';
@@ -118,6 +122,8 @@ export interface ListChatMessagesArgs extends FileToolArgsBase {
   limit?: number;
   before?: string;
   includeHidden?: boolean;
+  /** Default false. Save turns (intent === 'save') are engine-administrative file-update turns full of XML tags — usually noise for narrative questions. Set true only when the user is asking about KB-write history itself. */
+  includeSaves?: boolean;
 }
 
 export interface SearchChatMessagesArgs extends FileToolArgsBase {
@@ -126,6 +132,8 @@ export interface SearchChatMessagesArgs extends FileToolArgsBase {
   caseInsensitive?: boolean;
   limit?: number;
   contextChars?: number;
+  /** Default false. See ListChatMessagesArgs.includeSaves. */
+  includeSaves?: boolean;
 }
 
 export interface ReadChatMessageArgs extends FileToolArgsBase {

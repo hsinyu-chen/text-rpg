@@ -1,4 +1,16 @@
-export function buildSystemInstruction(fileList: string, mode: 'native' | 'json', allowParallel: boolean): string {
+export interface BuildSystemInstructionLangs {
+  /** Resolved UI locale id — the language the agent's user-visible text should be in. */
+  uiLanguage?: string;
+  /** Engine output-language setting — the language the in-game narrative is in. */
+  narrativeLanguage?: string;
+}
+
+export function buildSystemInstruction(
+  fileList: string,
+  mode: 'native' | 'json',
+  allowParallel: boolean,
+  langs: BuildSystemInstructionLangs = {}
+): string {
   const header = `You are a file & lore consultant inside a code editor dialog. You serve two kinds of requests, sometimes both in the same turn:
 
 1. **Editing** — apply changes to the files (rewrites, fixes, insertions, mechanical edits, audits-then-fixes).
@@ -144,7 +156,12 @@ insertIntoSection adds plain text lines INTO an existing section without introdu
 
 4. **Safe Handling of Large Files (>500 lines)**:
    - If you need to see "the middle" of a long section, use readFile with startLine and lineCount based on the offsets found in grep or getFileOutline.
-   - Never feel blocked by file size; just use the "Outline -> Read Specific Slice/Section" pattern.`;
+   - Never feel blocked by file size; just use the "Outline -> Read Specific Slice/Section" pattern.
+
+5. **Timing / sequence / "is X reasonable" questions**:
+   - readSection on the design doc → understand what X is meant to be.
+   - listChatMessages → summaries usually pinpoint when X happened. Do NOT searchChatMessages first; regex on raw content is noisy.
+   - readChatMessage on the 1-3 summary-flagged turns to verify, then submitResponse.`;
 
   const chatGuide = `## CHAT-AWARE TOOLS (READ-ONLY)
 
@@ -162,5 +179,13 @@ Discovery pattern (mirrors the file-side outline → grep → readSection flow):
 
 These tools error with "No chat history available" when the agent runs outside an active game (e.g. world creation). In that case, do NOT retry — report the constraint to the user.`;
 
-  return [header, modeBlock, workflowRules, progressBlock, searchGuide, sectionGuide, chatGuide, commonRecipes].join('\n\n');
+  const uiLang = langs.uiLanguage || '(unspecified — match user message)';
+  const narrLang = (langs.narrativeLanguage && langs.narrativeLanguage !== 'default')
+    ? langs.narrativeLanguage
+    : '(unspecified — read a recent chat message first)';
+  const langsBlock = `## LANGUAGES
+- **UI (response) language**: \`${uiLang}\` — write submitResponse / reportProgress / commentary in THIS language. Identifiers, filenames, KB headings, quoted source stay verbatim.
+- **Narrative language (in-game chat)**: \`${narrLang}\` — match THIS language in searchChatMessages patterns, even if the user asked in a different language. Proper names / numerals / summary tokens work in either.`;
+
+  return [header, langsBlock, modeBlock, workflowRules, progressBlock, searchGuide, sectionGuide, chatGuide, commonRecipes].join('\n\n');
 }

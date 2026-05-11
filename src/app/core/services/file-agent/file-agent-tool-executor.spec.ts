@@ -512,6 +512,29 @@ describe('listChatMessages', () => {
     const r = run({ action: 'listChatMessages', args: { reason: 'check', before: 'nope' } }, context);
     expect(r.response).toMatchObject({ error: expect.stringMatching(/not found/) });
   });
+
+  it('excludes intent=save turns by default', () => {
+    const chat = [
+      ...makeChat(),
+      { id: 'save1', role: 'model', content: '<save>...</save>', intent: 'save' }
+    ] as ChatMessage[];
+    const { context } = makeContext({}, chat);
+    const r = run({ action: 'listChatMessages', args: { reason: 'check' } }, context);
+    const resp = r.response as { messages: { id: string }[]; filtered: { save: number } };
+    expect(resp.messages.map(m => m.id)).not.toContain('save1');
+    expect(resp.filtered.save).toBe(1);
+  });
+
+  it('includes save when includeSaves=true', () => {
+    const chat = [
+      ...makeChat(),
+      { id: 'save1', role: 'model', content: '<save>...</save>', intent: 'save' }
+    ] as ChatMessage[];
+    const { context } = makeContext({}, chat);
+    const r = run({ action: 'listChatMessages', args: { reason: 'check', includeSaves: true } }, context);
+    const ids = (r.response as { messages: { id: string }[] }).messages.map(m => m.id);
+    expect(ids).toContain('save1');
+  });
 });
 
 describe('searchChatMessages', () => {
@@ -562,6 +585,43 @@ describe('searchChatMessages', () => {
     const r = run({ action: 'searchChatMessages', args: { reason: 'check', pattern: 'rifle', contextChars: 5 } }, context);
     const snippet = (r.response as { hits: { snippet: string }[] }).hits[0].snippet;
     expect(snippet.length).toBeLessThan('Let me grab the EMP rifle.'.length + 5);
+  });
+
+  it('skips save-intent turns by default and reports suppressedSaves', () => {
+    const chat = [
+      ...makeChat(),
+      { id: 'save1', role: 'model', content: 'EMP rifle EMP rifle EMP rifle', intent: 'save' }
+    ] as ChatMessage[];
+    const { context } = makeContext({}, chat);
+    const r = run({ action: 'searchChatMessages', args: { reason: 'check', pattern: 'EMP' } }, context);
+    const resp = r.response as { hits: { messageId: string }[]; suppressedSaves?: number; note?: string };
+    expect(resp.hits.map(h => h.messageId)).not.toContain('save1');
+    expect(resp.suppressedSaves).toBe(1);
+    expect(resp.note).toMatch(/save-intent/);
+  });
+
+  it('includes save-intent turns when includeSaves=true', () => {
+    const chat = [
+      ...makeChat(),
+      { id: 'save1', role: 'model', content: 'EMP rifle here', intent: 'save' }
+    ] as ChatMessage[];
+    const { context } = makeContext({}, chat);
+    const r = run({ action: 'searchChatMessages', args: { reason: 'check', pattern: 'EMP', includeSaves: true } }, context);
+    const ids = (r.response as { hits: { messageId: string }[] }).hits.map(h => h.messageId);
+    expect(ids).toContain('save1');
+  });
+
+  it('caps hits at 3 per message and marks the last one with moreInSameMessage', () => {
+    const dense: ChatMessage[] = [
+      { id: 'd1', role: 'model', content: 'foo bar foo bar foo bar foo bar foo bar' }
+    ];
+    const { context } = makeContext({}, dense);
+    const r = run({ action: 'searchChatMessages', args: { reason: 'check', pattern: 'foo' } }, context);
+    const hits = (r.response as { hits: { messageId: string; moreInSameMessage?: number }[] }).hits;
+    expect(hits).toHaveLength(3);
+    expect(hits[0].moreInSameMessage).toBeUndefined();
+    expect(hits[1].moreInSameMessage).toBeUndefined();
+    expect(hits[2].moreInSameMessage).toBe(2);
   });
 });
 
