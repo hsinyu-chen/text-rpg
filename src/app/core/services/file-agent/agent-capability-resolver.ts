@@ -140,7 +140,14 @@ export class AgentCapabilityResolver {
                 const result = await provider.probeNativeToolSupport(profile.settings);
                 this.deps.recordProbeResult(profileId, result);
             } catch {
-                // Probe failures are non-fatal; fall back to defaults.
+                // Probe failed (timeout, 404, network blip). Settle the verdict
+                // to the provider's static capability so a flaky endpoint
+                // isn't re-hit on every subsequent signal change — without
+                // this, alreadyProbed stayed false and any later kick
+                // (profile switch, sibling instance constructing) would
+                // relaunch the same failing request.
+                const cap = provider.getCapabilities(profile.settings);
+                this.deps.recordProbeResult(profileId, !!cap?.supportsNativeToolCalls);
             } finally {
                 this.deps.probeInflight.delete(profileId);
             }
@@ -154,7 +161,9 @@ export class AgentCapabilityResolver {
                 const result = await provider.probeParallelToolSupport(profile.settings);
                 this.deps.recordParallelProbeResult(profileId, result);
             } catch {
-                // Probe failures are non-fatal; fall back to defaults.
+                // Same retry-loop fix as the native probe above.
+                const cap = provider.getCapabilities(profile.settings);
+                this.deps.recordParallelProbeResult(profileId, !!cap?.supportsParallelToolCalls);
             } finally {
                 this.deps.parallelProbeInflight.delete(profileId);
             }

@@ -83,6 +83,34 @@ describe('FileAgentService — profile persistence', () => {
     expect(first.selectedProfileId).toBe(store.selectedProfileId);
   });
 
+  it('caches the static-fallback verdict when the probe throws, so a flaky endpoint is not re-hit', async () => {
+    let calls = 0;
+    const failingProbe = (): Promise<boolean> => {
+      calls++;
+      return Promise.reject(new Error('network timeout'));
+    };
+
+    const profile = { id: 'p-1', provider: 'test-provider', settings: {} };
+    const { svc } = setup({
+      mainChatActive: 'p-1',
+      profiles: [profile],
+      providerCaps: { supportsNativeToolCalls: false }, // static fallback says JSON
+      probeNativeToolSupport: failingProbe
+    });
+
+    await svc.capability.kickToolSupportProbe('p-1');
+    expect(calls).toBe(1);
+
+    // Static fallback got cached, so the resolver settles on "Auto: JSON (probed)"
+    // and a follow-up kick short-circuits via alreadyProbed.
+    const store = TestBed.inject(FileAgentSettingsStore);
+    expect(store.probeResults()['p-1']).toBe(false);
+    expect(svc.capability.effectiveToolCallReason()).toBe('Auto: JSON (probed)');
+
+    await svc.capability.kickToolSupportProbe('p-1');
+    expect(calls).toBe(1); // not retried
+  });
+
   it('parallel kickToolSupportProbe calls dedupe via the store inflight set', async () => {
     let calls = 0;
     let release!: (v: boolean) => void;
