@@ -372,7 +372,7 @@ export class BridgeService {
         const patch: Partial<AppConfigShape> = {};
         const rejected: string[] = [];
         for (const key of Object.keys(frame)) {
-            if (key === 'type' || key === 'requestId' || key === 'id') continue;
+            if (key === 'type' || key === 'requestId') continue;
             const validator = BRIDGE_SETTABLE_FIELDS[key as keyof AppConfigShape];
             if (!validator) {
                 rejected.push(key);
