@@ -31,9 +31,10 @@ TextRPG is a **Local-First**, **Bring Your Own Key (BYOK)** web app built around
 
 ## Feature Demo
 
-![Main Game Interface](images/1.png)
-![Auto World Update - Diff Analysis](images/2.png)
-![Auto World Update - Diff Analysis](images/3.png)
+![Main Game Interface — Turn Playback with Analysis Trace](images/1.png)
+![Quest Completion with Multi-NPC Reactions and State Tracking](images/2.png)
+![Auto World Update — Hunk-by-Hunk Review](images/3.png)
+![Auto World Update — Full File Diff View](images/4.png)
 
 ---
 
