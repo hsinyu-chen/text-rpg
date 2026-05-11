@@ -54,6 +54,9 @@ export type { FileAgentContext, ToolCallMode } from './file-agent.types';
  *    +----------------------------------------+
  *      (Inject tool result & next turn)
  */
+/** Persisted across all file-agent invocations (dialog + future main-screen). Independent of LLMConfigService.activeProfileId, which is the main-chat selection. */
+const FILE_AGENT_PROFILE_KEY = 'file_agent_profile_id';
+
 @Injectable()
 export class FileAgentService {
   private llmConfigService = inject(LLMConfigService);
@@ -66,7 +69,11 @@ export class FileAgentService {
   }
 
   agentProfiles = this.llmConfigService.profiles;
-  selectedProfileId = signal<string | null>(this.llmConfigService.activeProfileId());
+  // KV-stored choice wins; main-chat active profile is the seed when no
+  // file-agent choice was ever made. Subsequent selectProfile() persists.
+  selectedProfileId = signal<string | null>(
+    this.kv.get(FILE_AGENT_PROFILE_KEY) ?? this.llmConfigService.activeProfileId()
+  );
   agentLogs = signal<AgentLogEntry[]>([]);
   lastFilesReplaced = signal<{ filename: string; content: string }[]>([]);
 
@@ -229,6 +236,7 @@ export class FileAgentService {
 
   selectProfile(profileId: string): void {
     this.selectedProfileId.set(profileId);
+    this.kv.set(FILE_AGENT_PROFILE_KEY, profileId);
     this.capability.syncToolCallModeForProfile(profileId);
   }
 

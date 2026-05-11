@@ -1,0 +1,80 @@
+import { describe, it, expect } from 'vitest';
+import { TestBed } from '@angular/core/testing';
+import { signal } from '@angular/core';
+import { FileAgentService } from './file-agent.service';
+import { KVStore } from '../kv/kv-store';
+import { InMemoryKVStore } from '../../testing/in-memory-kv-store';
+import { LLMConfigService } from '../llm-config.service';
+import { LLMProviderRegistryService } from '../llm-provider-registry.service';
+
+const FILE_AGENT_PROFILE_KEY = 'file_agent_profile_id';
+
+function setup(opts: { kvSeed?: Record<string, string>; mainChatActive?: string | null } = {}): {
+  svc: FileAgentService;
+  kv: InMemoryKVStore;
+} {
+  TestBed.resetTestingModule();
+  const kv = new InMemoryKVStore(opts.kvSeed);
+  const llmConfigMock = {
+    profiles: signal([]),
+    activeProfileId: signal(opts.mainChatActive ?? null)
+  };
+  const registryMock = { getProvider: () => null };
+  TestBed.configureTestingModule({
+    providers: [
+      FileAgentService,
+      { provide: KVStore, useValue: kv },
+      { provide: LLMConfigService, useValue: llmConfigMock },
+      { provide: LLMProviderRegistryService, useValue: registryMock }
+    ]
+  });
+  return { svc: TestBed.inject(FileAgentService), kv };
+}
+
+describe('FileAgentService — profile persistence', () => {
+  it('uses KV-stored profile id when present, ignoring main-chat active', () => {
+    const { svc } = setup({
+      kvSeed: { [FILE_AGENT_PROFILE_KEY]: 'p-kv' },
+      mainChatActive: 'p-main'
+    });
+    expect(svc.selectedProfileId()).toBe('p-kv');
+  });
+
+  it('falls back to main-chat active profile when KV has no file-agent choice yet', () => {
+    const { svc } = setup({ mainChatActive: 'p-main' });
+    expect(svc.selectedProfileId()).toBe('p-main');
+  });
+
+  it('falls back to null when both KV and main-chat are empty', () => {
+    const { svc } = setup();
+    expect(svc.selectedProfileId()).toBeNull();
+  });
+
+  it('selectProfile() persists the new id to KV', () => {
+    const { svc, kv } = setup({ mainChatActive: 'p-main' });
+    svc.selectProfile('p-new');
+    expect(svc.selectedProfileId()).toBe('p-new');
+    expect(kv.get(FILE_AGENT_PROFILE_KEY)).toBe('p-new');
+  });
+
+  it('subsequent service instance picks up the KV choice (cross-invocation sharing)', () => {
+    // First instance writes its choice.
+    const { svc: first } = setup({ mainChatActive: 'p-main' });
+    first.selectProfile('p-shared');
+
+    // Re-create the service (simulating a fresh file-viewer dialog opening
+    // later) — must read the same KV value, NOT main-chat's active id.
+    TestBed.resetTestingModule();
+    const kv = new InMemoryKVStore({ [FILE_AGENT_PROFILE_KEY]: 'p-shared' });
+    TestBed.configureTestingModule({
+      providers: [
+        FileAgentService,
+        { provide: KVStore, useValue: kv },
+        { provide: LLMConfigService, useValue: { profiles: signal([]), activeProfileId: signal('p-different-main') } },
+        { provide: LLMProviderRegistryService, useValue: { getProvider: () => null } }
+      ]
+    });
+    const second = TestBed.inject(FileAgentService);
+    expect(second.selectedProfileId()).toBe('p-shared');
+  });
+});
