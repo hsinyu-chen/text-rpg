@@ -52,6 +52,27 @@ function migrateLegacyCorrection(raw: ChatMessage & { isCorrection?: boolean }):
     return m;
 }
 
+/**
+ * Build a stats block for a brand-new Book — zero usage, no cache, no
+ * accumulated storage. Shared by createNextBook / createSceneBook /
+ * forkBookFromMessage so the three "spawn a new Book" entry points stay
+ * in lockstep on what "fresh" means.
+ */
+function buildFreshBookStats(): Book['stats'] {
+    return {
+        tokenUsage: { freshInput: 0, cached: 0, output: 0, total: 0 },
+        estimatedCost: 0,
+        historyStorageUsage: 0,
+        sunkUsageHistory: [],
+        kbStorageUsageAcc: 0,
+        kbCacheName: null,
+        kbCacheExpireTime: null,
+        kbCacheTokens: 0,
+        estimatedKbTokens: 0,
+        kbCacheHash: null,
+    };
+}
+
 @Injectable({
     providedIn: 'root'
 })
@@ -660,18 +681,7 @@ export class SessionService {
             preview: 'New Chapter',
             messages: [],
             files: files, // COPIED KB
-            stats: {
-                tokenUsage: { freshInput: 0, cached: 0, output: 0, total: 0 },
-                estimatedCost: 0,
-                historyStorageUsage: 0, // Reset for new book
-                sunkUsageHistory: [],
-                kbStorageUsageAcc: 0,
-                kbCacheName: null,
-                kbCacheExpireTime: null,
-                kbCacheTokens: 0,
-                estimatedKbTokens: 0, // Reset for new book
-                kbCacheHash: null
-            }
+            stats: buildFreshBookStats(),
         };
 
         await this.books.save(newBook);
@@ -717,18 +727,7 @@ export class SessionService {
             preview: 'New Scene',
             messages: [],
             files: filesArr,
-            stats: {
-                tokenUsage: { freshInput: 0, cached: 0, output: 0, total: 0 },
-                estimatedCost: 0,
-                historyStorageUsage: 0,
-                sunkUsageHistory: [],
-                kbStorageUsageAcc: 0,
-                kbCacheName: null,
-                kbCacheExpireTime: null,
-                kbCacheTokens: 0,
-                estimatedKbTokens: 0,
-                kbCacheHash: null
-            }
+            stats: buildFreshBookStats(),
         };
 
         await this.books.save(newBook);
@@ -739,6 +738,87 @@ export class SessionService {
         await this.loadFiles(false);
         await this.saveCurrentSessionToBook();
 
+        return newBookId;
+    }
+
+    /**
+     * Forks an existing Book into a new Book whose history is truncated to
+     * include the target message (inclusive). KB files are deep-copied; stats
+     * reset to zero — the new Book starts a clean usage / cache slate so the
+     * two playthroughs never share server-side cache state. Switches to the
+     * new Book on success.
+     *
+     * If `sourceBookId` is the active Book, the current session is flushed
+     * first so the fork operates on the persisted snapshot, not stale memory.
+     *
+     * @throws if the source Book or messageId is not found.
+     */
+    async forkBookFromMessage(sourceBookId: string, messageId: string, newName: string): Promise<string> {
+        if (!newName || !newName.trim()) {
+            throw new Error('Fork name is required');
+        }
+
+        // Pre-validate WITHOUT side effects. If we let findIndex fail after
+        // unloadCurrentSession(true) the user is dumped into a blank UI with
+        // no active book and no easy path back. When source is the active
+        // Book the in-memory list may be ahead of disk, so probe live state;
+        // otherwise probe the persisted snapshot.
+        const isActive = this.currentBookId() === sourceBookId;
+        const probeSource = isActive ? null : await this.books.get(sourceBookId);
+        if (!isActive && !probeSource) {
+            throw new Error(`Source book ${sourceBookId} not found`);
+        }
+        const probeMessages = isActive ? this.state.messages() : probeSource!.messages;
+        if (!probeMessages.some(m => m.id === messageId)) {
+            throw new Error(`Message ${messageId} not found in book ${sourceBookId}`);
+        }
+
+        // Validation passed — safe to flush the active session if needed.
+        if (isActive) {
+            await this.unloadCurrentSession(true);
+        }
+
+        const source = await this.books.get(sourceBookId);
+        if (!source) {
+            throw new Error(`Source book ${sourceBookId} not found after flush`);
+        }
+        const cutoff = source.messages.findIndex(m => m.id === messageId);
+        if (cutoff === -1) {
+            // Should not happen — pre-check was on the same source data — but
+            // surface a recognizable error if a concurrent IDB write removed
+            // the message between probe and flush.
+            throw new Error(`Message ${messageId} disappeared between probe and flush`);
+        }
+
+        // Deep clone so future edits to either Book's messages don't mutate
+        // the other through shared references (parts arrays, log arrays).
+        const truncatedMessages: ChatMessage[] = source.messages
+            .slice(0, cutoff + 1)
+            .map(m => structuredClone(m));
+        const clonedFiles = source.files.map(f => ({ ...f }));
+
+        // Preview reflects the *new* tail, not the original's tail — otherwise
+        // the Book list would show a "future" preview until the user takes a
+        // turn. Mirrors the rule used in exportSession().
+        const lastModelMsg = [...truncatedMessages].reverse()
+            .find(m => m.role === 'model' && m.content && !m.isRefOnly);
+        const preview = lastModelMsg?.content?.substring(0, 200) || source.preview;
+
+        const newBookId = crypto.randomUUID();
+        const newBook: Book = {
+            id: newBookId,
+            name: newName.trim(),
+            collectionId: source.collectionId,
+            createdAt: Date.now(),
+            lastActiveAt: Date.now(),
+            preview,
+            messages: truncatedMessages,
+            files: clonedFiles,
+            stats: buildFreshBookStats(),
+        };
+
+        await this.books.save(newBook);
+        await this.loadBook(newBookId);
         return newBookId;
     }
 
