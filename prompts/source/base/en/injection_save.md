@@ -49,6 +49,7 @@ The original content to be replaced. MUST match the file content **exactly** (in
 - **Continuity**: Must be a **complete and continuous** block from the file.
 - **Efficiency**: Should contain the **minimum scope** needed for the change.
 - If omitted, content is **Appended** to the end of the `context` node.
+- **Reference-template exclusion**: Content inside any `## Save Format` code fence is documentation for the XML format itself, NOT real data. It MUST NOT appear as `<target>` and MUST NOT be edited. When adding new entries to such files, use the Add operation (omit `<target>`) targeting a sibling section of `## Save Format` under the file root.
 
 #### 4. `<replacement>`
 The new content.
@@ -194,6 +195,7 @@ If the current ACT (starting from `--- ACT START ---`) has LOG content, you **MU
 
 ### `quest_log` → `{{FILE_PLANS}}`
 - Quests/Plans
+- **One-Act exclusion**: If a quest is both opened and resolved within the same ACT and has no narrative extension or follow-up, do NOT create an entry for it in this file. `{{FILE_PLANS}}` tracks ongoing multi-ACT objectives only; one-shot resolved quests are already captured in the Story Outline.
 - **Pruning Mechanism**: Proactively delete items that are **completed** and have no further influence on subsequent plots to prevent file bloat.
 
 ### `world_log` → Target Files
