@@ -111,6 +111,7 @@ export class MessageStateService {
     }
 
     async forkFromHere() {
+        if (this.gameState.isBusy()) return;
         const sourceId = this.session.currentBookId();
         if (!sourceId) return;
         const sourceBook = await this.books.get(sourceId);

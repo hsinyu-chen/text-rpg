@@ -758,21 +758,36 @@ export class SessionService {
             throw new Error('Fork name is required');
         }
 
-        // If forking the active Book, flush in-memory edits to disk first so
-        // the truncation works against the latest saved snapshot. Re-fetching
-        // after unload guarantees we read what was just written.
-        if (this.currentBookId() === sourceBookId) {
+        // Pre-validate WITHOUT side effects. If we let findIndex fail after
+        // unloadCurrentSession(true) the user is dumped into a blank UI with
+        // no active book and no easy path back. When source is the active
+        // Book the in-memory list may be ahead of disk, so probe live state;
+        // otherwise probe the persisted snapshot.
+        const isActive = this.currentBookId() === sourceBookId;
+        const probeSource = isActive ? null : await this.books.get(sourceBookId);
+        if (!isActive && !probeSource) {
+            throw new Error(`Source book ${sourceBookId} not found`);
+        }
+        const probeMessages = isActive ? this.state.messages() : probeSource!.messages;
+        if (!probeMessages.some(m => m.id === messageId)) {
+            throw new Error(`Message ${messageId} not found in book ${sourceBookId}`);
+        }
+
+        // Validation passed — safe to flush the active session if needed.
+        if (isActive) {
             await this.unloadCurrentSession(true);
         }
 
         const source = await this.books.get(sourceBookId);
         if (!source) {
-            throw new Error(`Source book ${sourceBookId} not found`);
+            throw new Error(`Source book ${sourceBookId} not found after flush`);
         }
-
         const cutoff = source.messages.findIndex(m => m.id === messageId);
         if (cutoff === -1) {
-            throw new Error(`Message ${messageId} not found in book ${sourceBookId}`);
+            // Should not happen — pre-check was on the same source data — but
+            // surface a recognizable error if a concurrent IDB write removed
+            // the message between probe and flush.
+            throw new Error(`Message ${messageId} disappeared between probe and flush`);
         }
 
         // Deep clone so future edits to either Book's messages don't mutate
@@ -782,6 +797,13 @@ export class SessionService {
             .map(m => structuredClone(m));
         const clonedFiles = source.files.map(f => ({ ...f }));
 
+        // Preview reflects the *new* tail, not the original's tail — otherwise
+        // the Book list would show a "future" preview until the user takes a
+        // turn. Mirrors the rule used in exportSession().
+        const lastModelMsg = [...truncatedMessages].reverse()
+            .find(m => m.role === 'model' && m.content && !m.isRefOnly);
+        const preview = lastModelMsg?.content?.substring(0, 200) || source.preview;
+
         const newBookId = crypto.randomUUID();
         const newBook: Book = {
             id: newBookId,
@@ -789,7 +811,7 @@ export class SessionService {
             collectionId: source.collectionId,
             createdAt: Date.now(),
             lastActiveAt: Date.now(),
-            preview: source.preview,
+            preview,
             messages: truncatedMessages,
             files: clonedFiles,
             stats: buildFreshBookStats(),
