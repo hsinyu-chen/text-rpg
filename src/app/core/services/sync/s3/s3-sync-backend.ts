@@ -24,7 +24,7 @@ export class S3SyncBackend extends GenericSyncBackend {
         super({
             id: 's3',
             label: 'S3-compatible',
-            authActionLabel: i18n.translate('sync.s3.authenticateBtn'),
+            authActionLabel: () => i18n.translate('sync.s3.authenticateBtn'),
             supportsBackgroundSync: true,
             blob,
             lifecycle: clientSvc,

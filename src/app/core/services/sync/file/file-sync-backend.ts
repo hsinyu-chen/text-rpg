@@ -58,7 +58,7 @@ export class FileSyncBackend extends GenericSyncBackend {
         super({
             id: 'file',
             label: 'Local Folder',
-            authActionLabel: i18n.translate('sync.file.grantPermissionBtn'),
+            authActionLabel: () => i18n.translate('sync.file.grantPermissionBtn'),
             // Auto-sync only runs while the FSA grant is 'granted' — see
             // AutoSyncScheduler.isActive(), which gates on isAuthenticated().
             // Persistent grants ("Allow on every visit") survive reload;

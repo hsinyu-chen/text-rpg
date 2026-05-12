@@ -58,7 +58,7 @@ export class GDriveSyncBackend extends GenericSyncBackend {
         super({
             id: 'gdrive' as SyncBackendId,
             label: 'Google Drive',
-            authActionLabel: i18n.translate('sync.gdrive.authenticateBtn'),
+            authActionLabel: () => i18n.translate('sync.gdrive.authenticateBtn'),
             supportsBackgroundSync: false,
             blob,
             lifecycle: makeGDriveLifecycle(oauth),

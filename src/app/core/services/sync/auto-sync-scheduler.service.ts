@@ -327,7 +327,9 @@ export class AutoSyncScheduler {
         );
 
         ref.onAction().pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
-            void b.authenticate();
+            void b.authenticate().catch(err => {
+                console.error(`[AutoSync] Failed to re-authenticate backend ${b.id}:`, err);
+            });
         });
 
         ref.afterDismissed().pipe(takeUntilDestroyed(this.destroyRef)).subscribe(dismiss => {
