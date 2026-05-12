@@ -28,6 +28,20 @@ import {
 } from './markdown-section.util';
 import { detectLatexViolations, latexViolationError, sanitizeLatexToUnicode } from '@app/core/utils/latex.util';
 
+/**
+ * Coerce an LLM-supplied numeric arg into a bounded int. JSON-mode tool calls
+ * are not schema-validated before reaching here, so a stringy "abc" or null
+ * would slip into Math.floor → NaN and then bypass Math.min/Math.max
+ * (NaN propagates through both). Treat null/undefined/non-finite as "missing,
+ * use default" while still respecting an explicit 0 (e.g. contextChars: 0).
+ */
+function clampInt(value: unknown, min: number, max: number, defaultValue: number): number {
+  if (value === undefined || value === null) return defaultValue;
+  const n = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(n)) return defaultValue;
+  return Math.min(max, Math.max(min, Math.floor(n)));
+}
+
 /** Returns the content to write (original or auto-sanitized), or an error if LaTeX remains after sanitization. */
 function checkLatex(content: string, label: string): { content: string } | { error: string } {
   if (!detectLatexViolations(content).length) return { content };
@@ -563,7 +577,7 @@ function listChatMessages(args: ListChatMessagesArgs, context: FileAgentContext)
   const chat = requireChat(context);
   if (!Array.isArray(chat)) return chat as ToolExecutionResult;
 
-  const limit = Math.min(100, Math.max(1, Math.floor(args.limit ?? 30)));
+  const limit = clampInt(args.limit, 1, 100, 30);
   const includeHidden = !!args.includeHidden;
   const includeSaves = !!args.includeSaves;
 
@@ -625,8 +639,8 @@ function searchChatMessages(args: SearchChatMessagesArgs, context: FileAgentCont
   }
 
   const scope = args.scope ?? 'content';
-  const limit = Math.min(300, Math.max(1, Math.floor(args.limit ?? 100)));
-  const contextChars = Math.min(400, Math.max(0, Math.floor(args.contextChars ?? 80)));
+  const limit = clampInt(args.limit, 1, 300, 100);
+  const contextChars = clampInt(args.contextChars, 0, 400, 80);
   const includeSaves = !!args.includeSaves;
   const PER_MESSAGE_CAP = 3;
 
@@ -641,27 +655,33 @@ function searchChatMessages(args: SearchChatMessagesArgs, context: FileAgentCont
   outer: for (const m of chat) {
     if (m.isHidden) continue;
     if (!includeSaves && m.intent === 'save') { suppressedSaves++; continue; }
-    // Gather all matches for this message first so we can cap + summarize.
+    // Build snippets only up to PER_MESSAGE_CAP; keep counting beyond it so
+    // moreInSameMessage reflects the true overflow without paying the
+    // string-slice cost for every regex hit on long bodies / broad patterns.
     const perMessageHits: Hit[] = [];
+    let totalMessageHits = 0;
     for (const field of fieldsForScope) {
       const raw = (m as unknown as Record<string, unknown>)[field];
       if (typeof raw !== 'string' || raw.length === 0) continue;
       regex.lastIndex = 0;
       let match: RegExpExecArray | null;
       while ((match = regex.exec(raw)) !== null) {
-        const start = Math.max(0, match.index - contextChars);
-        const end = Math.min(raw.length, match.index + match[0].length + contextChars);
-        const snippet = (start > 0 ? '…' : '') + raw.slice(start, end) + (end < raw.length ? '…' : '');
-        perMessageHits.push({ messageId: m.id, role: m.role, scope: field, snippet, matchIndex: match.index });
+        if (perMessageHits.length < PER_MESSAGE_CAP) {
+          const start = Math.max(0, match.index - contextChars);
+          const end = Math.min(raw.length, match.index + match[0].length + contextChars);
+          const snippet = (start > 0 ? '…' : '') + raw.slice(start, end) + (end < raw.length ? '…' : '');
+          perMessageHits.push({ messageId: m.id, role: m.role, scope: field, snippet, matchIndex: match.index });
+        }
+        totalMessageHits++;
         if (match.index === regex.lastIndex) regex.lastIndex++;
       }
     }
     if (perMessageHits.length === 0) continue;
-    const keep = perMessageHits.slice(0, PER_MESSAGE_CAP);
-    if (perMessageHits.length > PER_MESSAGE_CAP) {
-      keep[keep.length - 1] = { ...keep[keep.length - 1], moreInSameMessage: perMessageHits.length - PER_MESSAGE_CAP };
+    if (totalMessageHits > PER_MESSAGE_CAP) {
+      const last = perMessageHits[perMessageHits.length - 1];
+      perMessageHits[perMessageHits.length - 1] = { ...last, moreInSameMessage: totalMessageHits - PER_MESSAGE_CAP };
     }
-    for (const h of keep) {
+    for (const h of perMessageHits) {
       // Limit check BEFORE push, so `truncated` only flips when there's at
       // least one keep entry we genuinely cannot include. A pump that fills
       // hits to exactly `limit` on the last available hit ends the outer
@@ -765,7 +785,7 @@ function readTurnLogs(args: ReadTurnLogsArgs, context: FileAgentContext): ToolEx
       return { response: { error: `Message id(s) not found: ${missing.join(', ')}` } };
     }
   } else {
-    const recent = Math.min(100, Math.max(1, Math.floor(args.recent ?? 20)));
+    const recent = clampInt(args.recent, 1, 100, 20);
     pool = chat.slice(Math.max(0, chat.length - recent));
   }
 
