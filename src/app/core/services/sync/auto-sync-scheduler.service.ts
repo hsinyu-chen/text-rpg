@@ -347,6 +347,9 @@ export class AutoSyncScheduler {
         this.currentAuthSnackbar = ref;
 
         ref.onAction().pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+            // Mirror the afterDismissed guard: a displaced ref shouldn't
+            // drive the auth flow even if its action somehow still fires.
+            if (this.currentAuthSnackbar !== ref) return;
             b.authenticate().then(() => {
                 // Successful re-auth: clear the circuit breaker and kick an
                 // immediate run so the user doesn't have to wait for the
