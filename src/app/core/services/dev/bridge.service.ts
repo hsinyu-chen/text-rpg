@@ -2,8 +2,7 @@ import {
     Injectable, signal, effect, inject, isDevMode, DestroyRef,
     EnvironmentInjector, createEnvironmentInjector
 } from '@angular/core';
-import { MatDialog } from '@angular/material/dialog';
-import { FileViewerDialogComponent } from '@app/features/sidebar/file-viewer-dialog.component';
+import { FILE_VIEWER_OPENER } from './file-viewer-opener.token';
 import { FileAgentService } from '../file-agent/file-agent.service';
 import { I18nService } from '@app/core/i18n';
 import { SessionService } from '../session.service';
@@ -197,7 +196,7 @@ export class BridgeService {
     private kv = inject(KVStore);
     private books = inject(BookRepository);
     private files = inject(FileRepository);
-    private matDialog = inject(MatDialog);
+    private fileViewerOpener = inject(FILE_VIEWER_OPENER);
     private envInjector = inject(EnvironmentInjector);
     private i18nService = inject(I18nService);
 
@@ -627,28 +626,22 @@ export class BridgeService {
             this.send({ type: 'action_error', requestId, error: 'no_loaded_files' });
             return;
         }
-        // Refuse a second concurrent dialog — stacking instances renders the
-        // later ones blank (each has its own FileAgentService + Monaco state,
-        // but Monaco mis-mounts when its host is hidden behind another fullscreen
-        // dialog). Caller should close the existing one first.
-        const existing = this.matDialog.openDialogs.find(
-            d => d.componentInstance instanceof FileViewerDialogComponent
-        );
-        if (existing) {
-            this.send({ type: 'action_error', requestId, error: 'already_open' });
-            return;
-        }
         const fileToOpen = (initialFile && loaded.has(initialFile))
             ? initialFile
             : loaded.keys().next().value as string;
-        this.matDialog.open(FileViewerDialogComponent, {
-            panelClass: 'fullscreen-dialog',
-            data: {
-                files: loaded,
-                initialFile: fileToOpen,
-                openAgentPanelOnInit: true,
-            }
+        // Delegate the dialog open through FILE_VIEWER_OPENER so this Core
+        // service doesn't depend on the FileViewer Feature component
+        // directly. The opener refuses a second concurrent dialog — stacking
+        // mis-mounts Monaco and shows blank on the later instances.
+        const result = this.fileViewerOpener.open({
+            files: loaded,
+            initialFile: fileToOpen,
+            openAgentPanelOnInit: true,
         });
+        if (result.alreadyOpen) {
+            this.send({ type: 'action_error', requestId, error: 'already_open' });
+            return;
+        }
         this.send({ type: 'agent_open_file_viewer_response', requestId, initialFile: fileToOpen });
     }
 

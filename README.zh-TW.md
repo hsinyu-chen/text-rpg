@@ -319,19 +319,7 @@ Agent 有 **兩個 surface**,共用同一套服務:
 | **Chat 側邊面板**(sidebar,**唯讀**) | 從 chat header 切換 | 只能 Q&A 與 UI 引導;寫入工具會在 executor 被擋下,Agent 會引導你到 File Viewer 編輯。 |
 | **File Viewer 面板**(讀 + 寫) | 開啟 File Viewer(側邊欄 **檢視檔案**),從 dialog header 切換 agent panel | 可讀可寫。編輯先進 Monaco in-memory buffer;按 dialog header 的 **Save Changes** 才寫進 IndexedDB。 |
 
-**Agent 系統提示內建的知識**:
-
-*   9 章 KB 結構與**檔案歸類規則** — 例如主角攜帶物進 `Inventory`,若有詳細規格 / lore 一併進 `Tech Equipment`;主角**學會**的魔法進 `Magic`,但只是**觀察**到 NPC 用的魔法進 `Factions & World`。
-*   **遊戲 session 流程** — 每回合 `*_log` 累積、`<Save>` → Auto Update 流程、ACT 概念。
-*   **每則訊息的工具列** — Edit & Resend、Edit text、Mark as ref-only、Fork from here、Delete、Delete all following、Auto Update Files — 含**回溯範圍限制**(Edit & Resend 與 `<System>` 只影響最新一回合;對更早的回合 agent 會推薦劇情推進 / Edit-text 補白 / Fork+重玩,並附具體建議內容)。
-*   三條建立入口 — **開始新遊戲**(預設劇本 / 生成新世界)、**建立下一幕**、**建立場景**。
-*   **KB ↔ chat 同步狀態**意識 — 可調查 KB 是否與 chat 中發生的事一致。若你回報「我 save 完 Inventory 還是空的」,Agent 會先指向「在 save 訊息的工具列點 **Auto Update Files** 重跑」,並反問 dialog 是否出問題,最後才提案直接改檔。
-*   遇到真不知道的事(例如沒記錄的 UI 功能),會**直說不知道**,不會編出聽起來很合理但其實亂湊的答案。
-
-**Agent 可用工具**:
-
-*   *檔案端*: `grep`(可帶 context lines)、`readFile`(可切行)、`getFileOutline`、`readSection` / `replaceSection` / `insertSection` / `insertIntoSection`(以 Markdown heading path 操作,不會破結構)、`replaceFile`、`searchReplace`(支援 regex + dry-run + expected-count 安全網)。
-*   *Chat 端(唯讀)*: `listChatMessages`、`searchChatMessages`(可指定 `content` / `thought` / `summary` / `all`)、`readChatMessage`、`readTurnLogs` — Agent 在提供修正建議前可先確認故事中實際發生了什麼。
+可以把它當成**遊戲內建的 wiki + 編輯器**:有關世界、機制、存檔狀態、KB 結構的任何問題都可以問;在 File Viewer surface 還可以請 Agent 直接改檔。Agent 的系統提示已涵蓋引擎的歸類規則、存檔 / Auto Update 流程、訊息工具列的取捨、KB↔chat 同步診斷,所以下列場景的回答會基於遊戲規則,而不是 generic LLM 猜測。
 
 **常見場景**:
 

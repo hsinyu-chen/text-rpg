@@ -320,19 +320,7 @@ The agent appears in **two surfaces**, backed by the same service:
 | **Chat-side panel** (sidebar, **read-only**) | Toggle from the chat header | Q&A and UI guidance only. Write tools are rejected at the executor — the agent will redirect you to the File Viewer for edits. |
 | **File Viewer agent panel** (read + write) | Open File Viewer (sidebar **View Files**), then toggle the agent panel from the dialog header | Full read + write. Edits land in the Monaco in-memory buffer; click **Save Changes** in the dialog header to commit to IndexedDB. |
 
-**What the agent knows out of the box** (baked into its system prompt):
-
-*   The 9-chapter KB layout and the **routing rules** — e.g. items the protagonist carries go to `Inventory`, items with detailed specs / lore also into `Tech Equipment`, magic the protagonist *learned* into `Magic` but magic merely *observed* on an NPC into `Factions & World`.
-*   The **game session flow** — per-turn `*_log` accumulation, the `<Save>` → Auto-Update pipeline, the ACT concept.
-*   The **per-message toolbar** — Edit & Resend, Edit text, Mark as ref-only, Fork from here, Delete, Delete all following, Auto Update Files — including their *reach-back* limits (Edit & Resend and `<System>` only affect the latest turn; for older turns it recommends in-character continuation, Edit-text retcon, or Fork/Delete + replay, with concrete suggested content for each).
-*   The three creation entry points — **Start New Game** (Pre-build / Generate), **Create Next** (next Act), **Create Scene** (focused KB extract).
-*   **KB ↔ chat sync state** awareness — can investigate whether your KB matches what the chat says happened. If you report "I saved but my inventory looks empty", it'll first surface that the canonical fix is re-running **Auto Update Files** on the save message, ask whether the dialog itself misbehaved, and only offer direct edits as a last resort.
-*   When it genuinely doesn't know something (e.g. an undocumented UI feature), it says so rather than fabricating a confident answer.
-
-**Tools available to the agent**:
-
-*   *File-side*: `grep` (with context lines), `readFile` (line-sliced), `getFileOutline`, `readSection` / `replaceSection` / `insertSection` / `insertIntoSection` (markdown-heading aware so edits don't shred structure), `replaceFile`, `searchReplace` (regex with dry-run + expected-count safety).
-*   *Chat-aware (read-only)*: `listChatMessages`, `searchChatMessages` (across `content` / `thought` / `summary` / `all`), `readChatMessage`, `readTurnLogs` — so the agent can confirm what actually happened in-story before recommending a fix.
+Think of it as an **in-app wiki + editor**: ask anything about your world, mechanics, save state, or KB layout, and (in the File Viewer surface) have it apply edits for you. The agent's system prompt covers the engine's routing rules, save / Auto-Update flow, per-message toolbar trade-offs, and KB↔chat sync diagnosis, so questions like the ones below get grounded answers rather than generic LLM guesses.
 
 **Common asks**:
 
