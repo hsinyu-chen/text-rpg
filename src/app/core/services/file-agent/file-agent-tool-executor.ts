@@ -581,17 +581,20 @@ function listChatMessages(args: ListChatMessagesArgs, context: FileAgentContext)
   const includeHidden = !!args.includeHidden;
   const includeSaves = !!args.includeSaves;
 
-  // Filter to visible by default; pagination cursor is "before" id (exclusive).
-  let pool = chat;
-  if (!includeHidden) pool = pool.filter(m => !m.isHidden);
-  if (!includeSaves) pool = pool.filter(m => m.intent !== 'save');
+  // Resolve the pagination cursor against unfiltered chat first — otherwise a
+  // `before` id that exists but was filtered out (hidden / save-intent) under
+  // this call's flags would 404, even though the LLM legitimately got that id
+  // from a previous call with different flags. Apply filters AFTER the cut.
+  let pool: ChatMessage[] = chat;
   if (args.before) {
-    const cutIdx = pool.findIndex(m => m.id === args.before);
+    const cutIdx = chat.findIndex(m => m.id === args.before);
     if (cutIdx === -1) {
       return { response: { error: `before id "${args.before}" not found in current chat history` } };
     }
-    pool = pool.slice(0, cutIdx);
+    pool = chat.slice(0, cutIdx);
   }
+  if (!includeHidden) pool = pool.filter(m => !m.isHidden);
+  if (!includeSaves) pool = pool.filter(m => m.intent !== 'save');
 
   const slice = pool.slice(Math.max(0, pool.length - limit));
   const filteredCounts = {

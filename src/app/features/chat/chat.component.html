@@ -13,7 +13,7 @@
             chat content in its own mat-sidenav-container gives the agent panel
             its own scope so both can be open simultaneously.
         -->
-        <mat-sidenav-container class="agent-host-container" autosize>
+        <mat-sidenav-container class="agent-host-container">
             <mat-sidenav position="end" [opened]="isAgentSidebarOpen()" mode="over"
                 class="agent-sidebar" [fixedInViewport]="false" (closed)="isAgentSidebarOpen.set(false)">
                 <div class="agent-sidebar-header">
