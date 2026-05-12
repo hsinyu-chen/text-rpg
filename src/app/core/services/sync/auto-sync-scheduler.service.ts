@@ -370,8 +370,8 @@ export class AutoSyncScheduler {
             // snackbar): swallow — the newer one owns the grace period.
             if (this.currentAuthSnackbar !== ref) return;
             this.currentAuthSnackbar = null;
-            // Re-check auth: timeout (8s is short) or user fixing the
-            // grant via the settings page should NOT disable. Only the
+            // Re-check auth: a timeout dismissal, or the user fixing the
+            // grant via the settings page, should NOT disable. Only the
             // user actively ignoring an unresolved prompt does.
             if (!dismiss.dismissedByAction && !b.isAuthenticated()) {
                 this.backends.setAutoSyncEnabled(b.id, false);
