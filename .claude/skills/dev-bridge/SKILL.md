@@ -237,6 +237,59 @@ The response includes a per-file `updates[]` with status `added` /
 `skipped_existing` / `fetch_failed`. Book has no stored scenario id —
 caller must supply the right one.
 
+### Drive the in-app file-agent (handbook validation)
+
+Once a Book is loaded, you can pop the in-app file-agent UI from outside so
+the agent picks up the active KB and chat. Two surfaces, picked by editing
+need:
+
+- `Open-BridgeFileViewer [-InitialFile <name>]` — opens the File Viewer
+  dialog with the agent panel pre-opened. Full read+write surface, lands on
+  `InitialFile` (first KB file if omitted). Use this when you want the
+  agent to actually edit a file or read it side-by-side.
+- `Open-BridgeChatAgentPanel` — pops the chat-side agent panel (read-only
+  sidebar). Use this when interrogating the agent about mechanics or
+  routing without editing — write tools are rejected here, which is exactly
+  what you want for "is the handbook correct?" smoke testing.
+
+```pwsh
+. ./.claude/skills/dev-bridge/bridge.ps1
+Open-BridgeChatAgentPanel                       # pop sidebar agent
+Open-BridgeFileViewer -InitialFile '3.Character_Status.md'
+```
+
+Both return an ack frame; the user still types the actual question into
+the panel that appears.
+
+### Drive the in-app file-agent headlessly (autonomous handbook validation)
+
+When you want to interrogate the in-app agent without the user typing into
+a UI panel, `Send-BridgeAgentAsk` runs a dedicated headless FileAgentService
+turn against the active Book's KB + chat snapshot and returns the full log
+(thoughts, tool calls, tool results, final answer).
+
+```pwsh
+. ./.claude/skills/dev-bridge/bridge.ps1
+$r = Send-BridgeAgentAsk -Prompt "book 跟 scenario 差別?"
+$r.finalResponse              # the agent's final submitResponse text
+$r.logs | Where-Object isToolCall | Select toolName, reason  # what tools fired
+$r.replacements               # files the agent tried to write (snapshot only)
+```
+
+Modes:
+- `-Mode sidebar` (default) — `readOnly: true`. Write tools are rejected
+  by the executor, matching the chat-side agent panel. Best for handbook
+  Q&A validation (where the answer matters, not whether files change).
+- `-Mode fileViewer` — `readOnly: false`. Write tools succeed against an
+  **isolated snapshot Map**; the engine's `state.loadedFiles` is NEVER
+  mutated. `replacements[]` in the response shows what the agent would
+  have written. Safe to use on an active playthrough.
+
+`-KeepHistory` preserves the prior turn's `agentHistory` so you can run a
+follow-up question; default behavior wipes history per call (each Q&A is
+fresh). The agent instance is one-per-bridge — concurrent `agent_ask`
+calls return `agent_busy`.
+
 ### Two-call timing
 
 Bridge `RequestTimeout` is 600s and PS helper `Invoke-Bridge` defaults match —
@@ -257,6 +310,10 @@ processes.
 | `book_fork` returns `no_active_book` | App has no Book loaded (fresh install / book deleted) | Tell user to load or create a Book first |
 | `book_fork` returns `message_not_found` | Target id not in active Book's history | `Get-BridgeMessages` to re-verify the id; the user may have edited history under you |
 | `book_switch` returns `unknown_book` | Book id doesn't exist in IDB | `Get-BridgeBooks` to see actual ids — the user may have deleted it |
+| `agent_open_file_viewer` returns `already_open` | A FileViewer dialog is already open in the app | Tell the user to close the existing one first; don't stack instances (Monaco mis-mounts the second one and shows blank) |
+| `agent_open_file_viewer` returns `no_loaded_files` | No active Book or its KB is empty | Load a Book first via `Set-BridgeBook` or have the user open one |
+| `agent_ask` returns `agent_busy` | A previous `agent_ask` is still running | Wait for the prior call to resolve; do not retry-loop |
+| `agent_ask` returns `agent_failed` | The headless agent threw (no LLM profile, stream error, etc.) | Check `detail` — usually "No LLM profile selected" or a provider error |
 
 ## Don't
 

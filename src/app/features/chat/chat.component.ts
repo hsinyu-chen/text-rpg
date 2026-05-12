@@ -18,6 +18,7 @@ import { I18nService, TranslatePipe } from '@app/core/i18n';
 import { AgentConsoleComponent } from '@app/shared/components/agent-console/agent-console.component';
 import { FileAgentService } from '@app/core/services/file-agent/file-agent.service';
 import { AppConfigStore } from '@app/core/services/app-config-store';
+import { BridgeService } from '@app/core/services/dev/bridge.service';
 
 @Component({
     selector: 'app-chat',
@@ -51,6 +52,7 @@ export class ChatComponent {
     appConfig = inject(AppConfigStore);
     private breakpointObserver = inject(BreakpointObserver);
     private destroyRef = inject(DestroyRef);
+    private bridge = inject(BridgeService);
 
     private scrollContainer = viewChild<ElementRef>('scrollContainer');
     private contentWrapper = viewChild<ElementRef<HTMLElement>>('contentWrapper');
@@ -81,6 +83,19 @@ export class ChatComponent {
     private prevLastCotOpen = false;
 
     constructor() {
+        // Bridge-driven open requests (dev-only). The tick counter increments
+        // every agent_open_chat_agent_panel frame; ignore the first tick on
+        // mount (initial value 0 → we'd open the panel on every chat load
+        // even when the bridge never spoke).
+        let lastTick = this.bridge.openChatAgentPanelTick();
+        effect(() => {
+            const tick = this.bridge.openChatAgentPanelTick();
+            if (tick !== lastTick) {
+                lastTick = tick;
+                this.isAgentSidebarOpen.set(true);
+            }
+        });
+
         // Initial load: force scroll to bottom the first time messages appear,
         // bypassing the smartScroll threshold that would otherwise treat scrollTop=0 as "user scrolled up".
         effect(() => {

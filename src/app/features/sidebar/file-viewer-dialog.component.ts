@@ -40,6 +40,8 @@ export interface FileViewerDialogData {
   completionValidator?: WorldCompletionValidator;
   /** LLM profile ID to pre-select when the agent panel opens (createWorldMode only). */
   initialProfileId?: string;
+  /** Auto-open the right-side agent panel on dialog mount. Used by the dev bridge to land the user directly on the agent surface. */
+  openAgentPanelOnInit?: boolean;
 }
 
 /** Markdown header interface */
@@ -216,7 +218,8 @@ export class FileViewerDialogComponent implements OnDestroy {
     }
 
     // Auto-open agent panel when an initial prompt is supplied (Create World mode)
-    if (this.data.createWorldMode && this.data.initialAgentPrompt) {
+    // or when explicitly requested (e.g. dev-bridge agent_open_file_viewer).
+    if ((this.data.createWorldMode && this.data.initialAgentPrompt) || this.data.openAgentPanelOnInit) {
       this.isAgentPanelOpen.set(true);
     }
 

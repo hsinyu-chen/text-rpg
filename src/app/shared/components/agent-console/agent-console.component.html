@@ -135,7 +135,7 @@
             }
         </mat-menu>
         <mat-form-field appearance="outline" class="agent-input" subscriptSizing="dynamic">
-            <textarea matInput [placeholder]="'dialog.agentPromptPlaceholder' | translate"
+            <textarea matInput [placeholder]="(readOnly() ? 'dialog.agentPromptPlaceholderReadOnly' : 'dialog.agentPromptPlaceholder') | translate"
                      [ngModel]="agentPrompt()" (ngModelChange)="agentPrompt.set($event)"
                      (keydown.enter)="$event.preventDefault(); runAgent()"
                      rows="2"></textarea>

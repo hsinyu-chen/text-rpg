@@ -303,21 +303,56 @@ When you use the `<存檔>` (Save) command, the AI not only saves progress but a
 ### 4. Knowledge Base File Editing (KB File Editing)
 In addition to dialogue and logs, you can directly edit the game's underlying knowledge base (Markdown files):
 *   **Access**: Click the **"View Files"** (Folder Icon) button on the sidebar.
-*   **Feature**: Opens the **File Viewer** dialog, processing all loaded Markdown files on the left.
-*   **Edit**: Select a file and click the **"Edit"** button in the top-right corner to enter edit mode (Monaco Editor).
-*   **Save**: After modification, click **"Save"**. The system immediately writes to the file and updates memory without a restart.
-*   **Navigation**: The editor provides a Markdown **Outline** in the bottom-left corner for quick chapter navigation.
+*   **Feature**: Opens the **File Viewer** dialog with the loaded Markdown files listed on the left and a Monaco editor in the centre.
+*   **Edit**: Files are always editable — pick one in the left list and type directly. Unsaved files show a marker in the list so you don't lose track of pending edits across switches.
+*   **Save**: Click **Save Changes** in the dialog header to commit your edits to IndexedDB; the engine picks them up on the next turn. Closing the dialog with unsaved changes pops a confirm.
+*   **Navigation**: The dialog surfaces a Markdown **Outline** for the active file (toggled from the bottom-left); click headings to jump.
+*   **Search & Replace**: A dedicated **Search** tab in the left panel does cross-file find / replace with regex, case, and whole-word options.
 
-### 5. AI Agent Edit Helper
-The File Viewer dialog includes a built-in AI agent that can read, search, and modify the loaded Markdown files on your behalf.
-*   **Access**: In the File Viewer sidebar, switch to the **AI Agent** tab (robot icon), alongside the Files and Search & Replace tabs.
-*   **Profile**: Select an agent profile from the dropdown. Each profile carries its own model, system prompt, and tool configuration.
-*   **Tool Call Mode**: Choose between **Auto**, **Native** (provider-native function calling), and **JSON** (schema-constrained text). Auto picks the appropriate mode for the active profile.
-*   **Available Tools**: The agent operates on the files currently loaded in the dialog, with a discovery-first workflow — typical tools include directory/file listing, file read, grep with context lines, and `searchReplace` for targeted edits.
-*   **Console**: The execution log shows user prompts, model replies (rendered as Markdown), thinking process, tool execution requests, and tool results. Each thought / tool-call / tool-result block can be collapsed individually.
-*   **Context Usage**: A live bar shows how many tokens of the model's context window are currently in use.
-*   **Controls**: Send a prompt with Enter or the send button; stop a running turn with the stop button; clear the conversation with the broom button.
-*   **Persistence**: Edits the agent applies go through the same write path as manual edits, so changes are reflected in the editor and marked as unsaved until you confirm with **Save Changes**.
+### 5. In-app AI Agent (KB editing + Q&A + UI guidance)
+
+A built-in LLM-driven agent embedded inside the running game. It can edit your KB files for you, answer questions about your world / mechanics / chat history, and point you to the right UI surface for things you haven't found yet. It runs on its own LLM profile (separate from the main-game profile), so you can pair a small cheap model for editing work with a heavier model for storytelling.
+
+The agent appears in **two surfaces**, backed by the same service:
+
+| Surface | How to open | Permissions |
+| :--- | :--- | :--- |
+| **Chat-side panel** (sidebar, **read-only**) | Toggle from the chat header | Q&A and UI guidance only. Write tools are rejected at the executor — the agent will redirect you to the File Viewer for edits. |
+| **File Viewer agent panel** (read + write) | Open File Viewer (sidebar **View Files**), then toggle the agent panel from the dialog header | Full read + write. Edits land in the Monaco in-memory buffer; click **Save Changes** in the dialog header to commit to IndexedDB. |
+
+**What the agent knows out of the box** (baked into its system prompt):
+
+*   The 9-chapter KB layout and the **routing rules** — e.g. items the protagonist carries go to `Inventory`, items with detailed specs / lore also into `Tech Equipment`, magic the protagonist *learned* into `Magic` but magic merely *observed* on an NPC into `Factions & World`.
+*   The **game session flow** — per-turn `*_log` accumulation, the `<Save>` → Auto-Update pipeline, the ACT concept.
+*   The **per-message toolbar** — Edit & Resend, Edit text, Mark as ref-only, Fork from here, Delete, Delete all following, Auto Update Files — including their *reach-back* limits (Edit & Resend and `<System>` only affect the latest turn; for older turns it recommends in-character continuation, Edit-text retcon, or Fork/Delete + replay, with concrete suggested content for each).
+*   The three creation entry points — **Start New Game** (Pre-build / Generate), **Create Next** (next Act), **Create Scene** (focused KB extract).
+*   **KB ↔ chat sync state** awareness — can investigate whether your KB matches what the chat says happened. If you report "I saved but my inventory looks empty", it'll first surface that the canonical fix is re-running **Auto Update Files** on the save message, ask whether the dialog itself misbehaved, and only offer direct edits as a last resort.
+*   When it genuinely doesn't know something (e.g. an undocumented UI feature), it says so rather than fabricating a confident answer.
+
+**Tools available to the agent**:
+
+*   *File-side*: `grep` (with context lines), `readFile` (line-sliced), `getFileOutline`, `readSection` / `replaceSection` / `insertSection` / `insertIntoSection` (markdown-heading aware so edits don't shred structure), `replaceFile`, `searchReplace` (regex with dry-run + expected-count safety).
+*   *Chat-aware (read-only)*: `listChatMessages`, `searchChatMessages` (across `content` / `thought` / `summary` / `all`), `readChatMessage`, `readTurnLogs` — so the agent can confirm what actually happened in-story before recommending a fix.
+
+**Common asks**:
+
+| Ask | What you'll get |
+| :--- | :--- |
+| *"Where in the KB does this enchanted sword go?"* | Routing answer grounded in §4 rules (`Inventory` primary; also `Tech Equipment` if it has detailed specs). |
+| *"My inventory still looks empty after save."* | Investigates the save message + actual KB, recommends re-running **Auto Update Files** from the save message's toolbar, asks if the dialog misbehaved, offers a direct fix only if needed. |
+| *"Two turns ago the NPC didn't mention X — help."* | Presents all three valid paths: in-character continuation (suggested action-intent line), Edit text retcon (with concrete proposed insertion grounded in NPC profile + faction conventions), or Fork / Delete + replay. |
+| *"Compress every NPC in CHARACTER_STATUS to 3 lines"* | File Viewer agent batches `readSection` over all NPC headings, then `replaceSection` for all of them in one turn. |
+
+**Profile and tool-call mode**:
+
+*   Each surface picks an **LLM profile** from the same pool the main game uses (Settings → LLM Profile list). Switch profiles independently for the agent — useful for assigning a small fast model to editing work.
+*   **Tool Call Mode**: **Auto** / **Native** (provider-native function calling) / **JSON** (schema-constrained text). Auto runs a one-time probe per profile to detect native tool support and caches the result.
+
+**Console / controls**:
+
+*   The execution log shows user prompts, model replies (rendered as Markdown), thinking process, tool calls, and tool results — each block collapsible.
+*   A live bar shows context-window usage.
+*   Send with Enter / send button; stop with the stop button; clear the conversation with the broom button.
 
 ---
 

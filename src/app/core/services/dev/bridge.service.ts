@@ -1,4 +1,11 @@
-import { Injectable, signal, effect, inject, isDevMode, DestroyRef } from '@angular/core';
+import {
+    Injectable, signal, effect, inject, isDevMode, DestroyRef,
+    EnvironmentInjector, createEnvironmentInjector
+} from '@angular/core';
+import { MatDialog } from '@angular/material/dialog';
+import { FileViewerDialogComponent } from '@app/features/sidebar/file-viewer-dialog.component';
+import { FileAgentService } from '../file-agent/file-agent.service';
+import { I18nService } from '@app/core/i18n';
 import { SessionService } from '../session.service';
 import { GameStateService } from '../game-state.service';
 import { GameEngineService } from '../game-engine.service';
@@ -60,6 +67,24 @@ import { isSystemMainCompatible } from '../profile-compat';
  *                       preserved untouched. Recovery path for books built
  *                       from a scenario whose manifest was incomplete at
  *                       creation time (e.g. stale scenarios.json filenames).
+ *   agent_open_file_viewer
+ *                     — opens the File Viewer dialog (full read+write KB
+ *                       editor) with the agent panel pre-opened so the user
+ *                       can interrogate / drive the file-agent on a specific
+ *                       file. `initialFile` selects which file is active.
+ *   agent_open_chat_agent_panel
+ *                     — opens the chat-side agent panel (read-only sidebar
+ *                       surface, no editor). ChatComponent watches
+ *                       `openChatAgentPanelTick` and toggles its sidenav
+ *                       open on each increment.
+ *   agent_ask         — runs a headless FileAgentService turn against the
+ *                       active book's KB + chat snapshot, returns the full
+ *                       agent log (tool calls + results + thoughts + final
+ *                       submitResponse). Defaults to sidebar mode (readOnly,
+ *                       write tools rejected). In `fileViewer` mode writes
+ *                       hit a snapshot Map only — the engine's KB is never
+ *                       persisted to, so handbook validation can't trash
+ *                       the active playthrough.
  */
 
 const STORAGE_URL = 'app_debug_bridge_url';
@@ -126,6 +151,19 @@ interface BookRepairKbFrame extends BridgeFrame {
     scenarioId?: string;
 }
 
+interface AgentOpenFileViewerFrame extends BridgeFrame {
+    /** Filename to land on. Omitted = first file in the active KB. */
+    initialFile?: string;
+}
+
+interface AgentAskFrame extends BridgeFrame {
+    prompt?: string;
+    /** sidebar = readOnly (default, handbook Q&A); fileViewer = writes allowed against a snapshot Map (the engine's KB is NOT mutated). */
+    mode?: 'sidebar' | 'fileViewer';
+    /** Default true — wipe prior turn history so each call is a fresh conversation. */
+    clearHistory?: boolean;
+}
+
 type FieldValidator<K extends keyof AppConfigShape> = (raw: unknown) => AppConfigShape[K] | undefined;
 
 const BRIDGE_SETTABLE_FIELDS: { [K in keyof AppConfigShape]?: FieldValidator<K> } = {
@@ -159,6 +197,36 @@ export class BridgeService {
     private kv = inject(KVStore);
     private books = inject(BookRepository);
     private files = inject(FileRepository);
+    private matDialog = inject(MatDialog);
+    private envInjector = inject(EnvironmentInjector);
+    private i18nService = inject(I18nService);
+
+    /**
+     * Lazy headless FileAgentService instance for `agent_ask`. Lives in a
+     * child injector so it doesn't share state with the sidebar / file-viewer
+     * agent panels — their `providers: [FileAgentService]` already gives each
+     * its own instance; the bridge gets a third, dedicated one for outside-
+     * driven Q&A. Created on first use because most sessions never call
+     * agent_ask, and FileAgentService spins up a KV-backed settings store.
+     */
+    private bridgeFileAgent: FileAgentService | null = null;
+    private getBridgeFileAgent(): FileAgentService {
+        if (!this.bridgeFileAgent) {
+            const child = createEnvironmentInjector(
+                [FileAgentService], this.envInjector, 'bridge-file-agent'
+            );
+            this.bridgeFileAgent = child.get(FileAgentService);
+        }
+        return this.bridgeFileAgent;
+    }
+
+    /**
+     * Tick counter that ChatComponent watches via effect to open its
+     * right-side agent sidenav. Counter (not boolean) so successive bridge
+     * calls always re-fire the open even if the panel is already open and
+     * the user just closed it.
+     */
+    readonly openChatAgentPanelTick = signal(0);
 
     private static readonly VALID_INTENTS: ReadonlySet<string> = new Set(Object.values(GAME_INTENTS));
 
@@ -360,6 +428,15 @@ export class BridgeService {
             case 'book_repair_kb':
                 void this.handleBookRepairKb(frame as BookRepairKbFrame);
                 break;
+            case 'agent_open_file_viewer':
+                this.handleAgentOpenFileViewer(frame as AgentOpenFileViewerFrame);
+                break;
+            case 'agent_open_chat_agent_panel':
+                this.handleAgentOpenChatAgentPanel(frame);
+                break;
+            case 'agent_ask':
+                void this.handleAgentAsk(frame as AgentAskFrame);
+                break;
             default:
                 console.warn('[bridge] unknown frame type', type, frame);
         }
@@ -540,6 +617,131 @@ export class BridgeService {
         }
         this.llmConfig.setActiveProfileId(id);
         this.send({ type: 'llm_switch_response', requestId, ...meta });
+    }
+
+    private handleAgentOpenFileViewer(frame: AgentOpenFileViewerFrame): void {
+        const { requestId, initialFile } = frame;
+        if (!requestId) return;
+        const loaded = this.state.loadedFiles();
+        if (loaded.size === 0) {
+            this.send({ type: 'action_error', requestId, error: 'no_loaded_files' });
+            return;
+        }
+        // Refuse a second concurrent dialog — stacking instances renders the
+        // later ones blank (each has its own FileAgentService + Monaco state,
+        // but Monaco mis-mounts when its host is hidden behind another fullscreen
+        // dialog). Caller should close the existing one first.
+        const existing = this.matDialog.openDialogs.find(
+            d => d.componentInstance instanceof FileViewerDialogComponent
+        );
+        if (existing) {
+            this.send({ type: 'action_error', requestId, error: 'already_open' });
+            return;
+        }
+        const fileToOpen = (initialFile && loaded.has(initialFile))
+            ? initialFile
+            : loaded.keys().next().value as string;
+        this.matDialog.open(FileViewerDialogComponent, {
+            panelClass: 'fullscreen-dialog',
+            data: {
+                files: loaded,
+                initialFile: fileToOpen,
+                openAgentPanelOnInit: true,
+            }
+        });
+        this.send({ type: 'agent_open_file_viewer_response', requestId, initialFile: fileToOpen });
+    }
+
+    private handleAgentOpenChatAgentPanel(frame: BridgeFrame): void {
+        const { requestId } = frame;
+        if (!requestId) return;
+        this.openChatAgentPanelTick.update(n => n + 1);
+        this.send({ type: 'agent_open_chat_agent_panel_response', requestId, ok: true });
+    }
+
+    private async handleAgentAsk(frame: AgentAskFrame): Promise<void> {
+        const { requestId, prompt, mode, clearHistory } = frame;
+        if (!requestId) return;
+        if (typeof prompt !== 'string' || !prompt.trim()) {
+            this.send({ type: 'action_error', requestId, error: 'invalid_prompt' });
+            return;
+        }
+        const agent = this.getBridgeFileAgent();
+        if (agent.isAgentRunning()) {
+            this.send({ type: 'action_error', requestId, error: 'agent_busy' });
+            return;
+        }
+        if (clearHistory !== false) agent.clearHistory();
+
+        // Ensure the tool-support probe has settled before runAgent picks
+        // a mode. The FileAgentService constructor kicks the probe via an
+        // effect, but it's fire-and-forget — on a cold first agent_ask
+        // (chat panel never opened, no sibling instance probed yet) the
+        // probeResults cache is empty and resolveToolCallMode would fall
+        // back to the provider's static capability (which for llama.cpp
+        // defaults to JSON until proven). Awaiting here is idempotent:
+        // kickToolSupportProbe short-circuits if a verdict is already cached.
+        const profileId = agent.selectedProfileId();
+        if (profileId) {
+            try { await agent.capability.kickToolSupportProbe(profileId); } catch { /* swallow — probe also swallows */ }
+        }
+
+        // Snapshot the engine's KB for an isolated run — write tools mutate
+        // this Map, never the live state.loadedFiles. The caller gets a
+        // diff via the response so they can see what the agent WOULD have
+        // written, without trashing an active playthrough.
+        const files = new Map(this.state.loadedFiles());
+        const replacements: { filename: string; content: string }[] = [];
+        const readOnly = mode !== 'fileViewer';
+        const context = {
+            files,
+            onFileReplaced: (filename: string, content: string) => {
+                files.set(filename, content);
+                replacements.push({ filename, content });
+            },
+            chatMessages: this.state.messages(),
+            uiLanguage: this.i18nService.currentLang(),
+            narrativeLanguage: this.appConfig.outputLanguage(),
+            readOnly
+        };
+
+        try {
+            await agent.runAgent(prompt, context);
+        } catch (e) {
+            const detail = e instanceof Error ? e.message : 'unknown';
+            this.send({ type: 'action_error', requestId, error: 'agent_failed', detail });
+            return;
+        }
+
+        const logs = agent.agentLogs().map(e => ({
+            role: e.role,
+            type: e.type,
+            text: e.text,
+            ...(e.thought !== undefined ? { thought: e.thought } : {}),
+            ...(e.isToolCall ? { isToolCall: true } : {}),
+            ...(e.isToolResult ? { isToolResult: true } : {}),
+            ...(e.toolName ? { toolName: e.toolName } : {}),
+            ...(e.reason ? { reason: e.reason } : {}),
+        }));
+        // Final agent answer = the last model entry that is NOT a tool call /
+        // tool result. submitResponse overwrites its streaming entry with
+        // the final text + isToolCall=false, so it lands here.
+        const finalEntry = [...agent.agentLogs()]
+            .reverse()
+            .find(e => e.role === 'model' && !e.isToolCall && !e.isToolResult);
+        const finalResponse = finalEntry?.text ?? '';
+        const replacementsSummary = replacements.map(r => ({
+            filename: r.filename,
+            size: r.content.length,
+        }));
+        this.send({
+            type: 'agent_ask_response',
+            requestId,
+            mode: readOnly ? 'sidebar' : 'fileViewer',
+            finalResponse,
+            logs,
+            replacements: replacementsSummary,
+        });
     }
 
     private async handleBookRepairKb(frame: BookRepairKbFrame): Promise<void> {
