@@ -9,7 +9,7 @@ import { CostService } from './cost.service';
 import { LLMProviderRegistryService } from './llm-provider-registry.service';
 import { LLMConfigService } from './llm-config.service';
 import { ActiveProfileStore } from './active-profile-store';
-import { AppConfigStore, AppConfigShape } from './app-config-store';
+import { AppConfigStore, AppConfigShape, isContextMode } from './app-config-store';
 import { isValidInterfaceLanguage } from '../i18n/ui-locales';
 
 @Injectable({
@@ -151,6 +151,8 @@ export class ConfigService {
         if (typeof cfg.enableAdultDeclaration === 'boolean') genConfig.enableAdultDeclaration = cfg.enableAdultDeclaration;
         if (typeof cfg.smartContextTurns === 'number') genConfig.smartContextTurns = cfg.smartContextTurns;
         if (cfg.engineMode === 'single' || cfg.engineMode === 'two-call') genConfig.engineMode = cfg.engineMode;
+        if (isContextMode(cfg.contextMode)) genConfig.contextMode = cfg.contextMode;
+        if (isContextMode(cfg.saveContextMode)) genConfig.saveContextMode = cfg.saveContextMode;
 
         await this.saveConfig(genConfig);
 

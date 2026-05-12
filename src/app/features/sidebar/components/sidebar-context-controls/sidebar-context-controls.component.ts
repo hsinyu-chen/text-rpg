@@ -109,20 +109,16 @@ export class SidebarContextControlsComponent {
         }
     }
 
-    toggleContextMode() {
-        this.state.contextMode.update(m => {
-            if (m === 'smart') return 'summarized';
-            if (m === 'summarized') return 'full';
-            return 'smart';
-        });
+    async toggleContextMode() {
+        const m = this.state.contextMode();
+        const next = m === 'smart' ? 'summarized' : m === 'summarized' ? 'full' : 'smart';
+        await this.configService.saveConfig({ contextMode: next });
     }
 
-    toggleSaveContextMode() {
-        this.state.saveContextMode.update(m => {
-            if (m === 'summarized') return 'full';
-            if (m === 'full') return 'smart';
-            return 'summarized';
-        });
+    async toggleSaveContextMode() {
+        const m = this.state.saveContextMode();
+        const next = m === 'summarized' ? 'full' : m === 'full' ? 'smart' : 'summarized';
+        await this.configService.saveConfig({ saveContextMode: next });
     }
 
     async editSmartContextTurns() {

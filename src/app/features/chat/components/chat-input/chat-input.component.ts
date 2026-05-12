@@ -168,11 +168,6 @@ export class ChatInputComponent {
         // Validation
         if (!inputStr && (intent === GAME_INTENTS.ACTION || intent === GAME_INTENTS.SYSTEM || intent === GAME_INTENTS.SAVE)) return;
 
-        const isSaveIntent = intent === GAME_INTENTS.SAVE;
-        if (isSaveIntent) {
-            this.state.contextMode.set('full');
-        }
-
         // Handle Rewind & Resend — await so the rewind's book save completes
         // before the new sendMessage's phase 1 pushes a user message.
         const editId = this.editingMessageId();
@@ -195,9 +190,6 @@ export class ChatInputComponent {
         this.userIdealOutcome.set('');
         if (intent === GAME_INTENTS.CONTINUE || intent === GAME_INTENTS.SAVE) {
             this.selectedIntent.set(GAME_INTENTS.ACTION);
-            if (isSaveIntent) {
-                this.state.contextMode.set('smart');
-            }
         }
 
         this.messageSent.emit();

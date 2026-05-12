@@ -186,9 +186,7 @@ export class MessageStateService {
      * Triggers the save flow - sends a save intent message like the save button in chat-input
      */
     triggerSaveFlow() {
-        this.gameState.contextMode.set('full');
         void this.engine.sendMessage(this.i18n.translate('placeholder.save'), { intent: GAME_INTENTS.SAVE });
-        this.gameState.contextMode.set('smart');
     }
 
     copyPairJSON() {
