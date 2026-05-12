@@ -21,6 +21,14 @@ export interface AppConfigShape {
      */
     interfaceLanguage: InterfaceLanguageSetting;
     smartContextTurns: number;
+    contextMode: ContextMode;
+    saveContextMode: ContextMode;
+}
+
+export type ContextMode = 'smart' | 'full' | 'summarized';
+
+function isContextMode(v: unknown): v is ContextMode {
+    return v === 'smart' || v === 'full' || v === 'summarized';
 }
 
 const KEYS = {
@@ -36,6 +44,8 @@ const KEYS = {
     outputLanguage: 'app_output_language',
     interfaceLanguage: 'app_interface_language',
     smartContextTurns: 'app_smart_context_turns',
+    contextMode: 'app_context_mode',
+    saveContextMode: 'app_save_context_mode',
 } as const;
 
 function parseInterfaceLanguage(raw: string | null): InterfaceLanguageSetting {
@@ -68,6 +78,8 @@ export class AppConfigStore {
     private _outputLanguage = signal<string>('default');
     private _interfaceLanguage = signal<InterfaceLanguageSetting>('system');
     private _smartContextTurns = signal<number>(10);
+    private _contextMode = signal<ContextMode>('smart');
+    private _saveContextMode = signal<ContextMode>('smart');
 
     // Public read-only views. Consumers can subscribe / read but cannot
     // bypass `patch()` to write back without the matching KV sync.
@@ -83,6 +95,8 @@ export class AppConfigStore {
     readonly outputLanguage = this._outputLanguage.asReadonly();
     readonly interfaceLanguage = this._interfaceLanguage.asReadonly();
     readonly smartContextTurns = this._smartContextTurns.asReadonly();
+    readonly contextMode = this._contextMode.asReadonly();
+    readonly saveContextMode = this._saveContextMode.asReadonly();
 
     constructor() {
         this.load();
@@ -128,6 +142,12 @@ export class AppConfigStore {
             const n = parseInt(sct, 10);
             if (Number.isFinite(n)) this._smartContextTurns.set(n);
         }
+
+        const cm = this.kv.get(KEYS.contextMode);
+        if (isContextMode(cm)) this._contextMode.set(cm);
+
+        const scm = this.kv.get(KEYS.saveContextMode);
+        if (isContextMode(scm)) this._saveContextMode.set(scm);
     }
 
     /**
@@ -185,6 +205,14 @@ export class AppConfigStore {
             this._smartContextTurns.set(partial.smartContextTurns);
             this.kv.set(KEYS.smartContextTurns, String(partial.smartContextTurns));
         }
+        if (partial.contextMode !== undefined) {
+            this._contextMode.set(partial.contextMode);
+            this.kv.set(KEYS.contextMode, partial.contextMode);
+        }
+        if (partial.saveContextMode !== undefined) {
+            this._saveContextMode.set(partial.saveContextMode);
+            this.kv.set(KEYS.saveContextMode, partial.saveContextMode);
+        }
     }
 
     /**
@@ -205,6 +233,8 @@ export class AppConfigStore {
             outputLanguage: this.outputLanguage(),
             interfaceLanguage: this.interfaceLanguage(),
             smartContextTurns: this.smartContextTurns(),
+            contextMode: this.contextMode(),
+            saveContextMode: this.saveContextMode(),
         };
     }
 }

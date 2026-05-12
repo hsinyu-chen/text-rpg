@@ -4,6 +4,7 @@ import { CostService } from './cost.service';
 import { KnowledgeService } from './knowledge.service';
 import { LLMProviderRegistryService } from './llm-provider-registry.service';
 import { ActiveProfileStore } from './active-profile-store';
+import { AppConfigStore } from './app-config-store';
 import { isSystemMainCompatible, stripSystemMainMarker } from './profile-compat';
 
 /**
@@ -23,6 +24,7 @@ export class GameStateService {
     private kb = inject(KnowledgeService);
     private providerRegistry = inject(LLMProviderRegistryService);
     private activeProfileStore = inject(ActiveProfileStore);
+    private appConfig = inject(AppConfigStore);
 
     // ==================== Configuration ====================
     isConfigured = computed(() => {
@@ -112,8 +114,9 @@ export class GameStateService {
     });
 
     // ==================== Context Mode ====================
-    contextMode = signal<'smart' | 'full' | 'summarized'>('smart');
-    saveContextMode = signal<'smart' | 'full' | 'summarized'>('full');
+    // Persisted via AppConfigStore — toggles must go through ConfigService.saveConfig.
+    contextMode = this.appConfig.contextMode;
+    saveContextMode = this.appConfig.saveContextMode;
 
     // ==================== Save Prompt ====================
     private static readonly SAVE_PROMPT_THRESHOLD = 10;

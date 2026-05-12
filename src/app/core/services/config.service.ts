@@ -151,6 +151,8 @@ export class ConfigService {
         if (typeof cfg.enableAdultDeclaration === 'boolean') genConfig.enableAdultDeclaration = cfg.enableAdultDeclaration;
         if (typeof cfg.smartContextTurns === 'number') genConfig.smartContextTurns = cfg.smartContextTurns;
         if (cfg.engineMode === 'single' || cfg.engineMode === 'two-call') genConfig.engineMode = cfg.engineMode;
+        if (cfg.contextMode === 'smart' || cfg.contextMode === 'full' || cfg.contextMode === 'summarized') genConfig.contextMode = cfg.contextMode;
+        if (cfg.saveContextMode === 'smart' || cfg.saveContextMode === 'full' || cfg.saveContextMode === 'summarized') genConfig.saveContextMode = cfg.saveContextMode;
 
         await this.saveConfig(genConfig);
 
