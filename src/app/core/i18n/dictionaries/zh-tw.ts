@@ -807,6 +807,7 @@ export const zhTW: TranslationDict = {
             disabledAfterFailures: '連續失敗 {{max}} 次，已停用自動同步。修好後請至設定重新啟用。',
             permissionRegrantNeeded: '自動同步已停用 — {{label}} 需要重新授權。',
             cannotEnable: '無法啟用自動同步：{{error}}',
+            reauthFailed: '重新授權失敗，已停用自動同步：{{error}}',
             connectionFailedFallback: '連線失敗',
         },
         provider: {

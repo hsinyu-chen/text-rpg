@@ -807,6 +807,7 @@ export const en: TranslationDict = {
             disabledAfterFailures: 'Auto-sync disabled after {{max}} failures. Re-enable in Settings once fixed.',
             permissionRegrantNeeded: 'Auto-sync disabled — {{label}} needs permission re-granted.',
             cannotEnable: 'Cannot enable auto-sync: {{error}}',
+            reauthFailed: 'Re-authentication failed, auto-sync disabled: {{error}}',
             connectionFailedFallback: 'connection failed',
         },
         provider: {

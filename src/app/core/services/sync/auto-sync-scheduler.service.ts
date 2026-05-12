@@ -340,7 +340,9 @@ export class AutoSyncScheduler {
         const ref = this.snackBar.open(
             this.i18n.translate('sync.autoSync.permissionRegrantNeeded', { label: b.label }),
             b.authActionLabel,
-            { duration: 8000 }
+            // 15s — security-relevant decision: leave enough time for a
+            // distracted / cross-tab user to react before auto-disable.
+            { duration: 15000 }
         );
         this.currentAuthSnackbar = ref;
 
@@ -351,9 +353,15 @@ export class AutoSyncScheduler {
                 // next save to see sync resume.
                 this.failureCount = 0;
                 this.schedule(true);
-            }).catch(err => {
+            }).catch((err: unknown) => {
                 console.error(`[AutoSync] Failed to re-authenticate backend ${b.id}:`, err);
                 this.backends.setAutoSyncEnabled(b.id, false);
+                const msg = err instanceof Error ? err.message : String(err);
+                this.snackBar.open(
+                    this.i18n.translate('sync.autoSync.reauthFailed', { error: msg }),
+                    this.i18n.translate('ui.CLOSE'),
+                    { duration: 8000, panelClass: ['snackbar-error'] }
+                );
             });
         });
 
