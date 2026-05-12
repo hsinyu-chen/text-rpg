@@ -98,7 +98,7 @@
     width: 100%;
     margin: 0 auto;
     display: grid;
-    grid-template-columns: repeat(5, auto) minmax(100px, 150px) 1fr repeat(2, auto);
+    grid-template-columns: repeat(6, auto) minmax(100px, 150px) 1fr repeat(2, auto);
     gap: 12px;
     align-items: center;
 }

@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { executeFileTool } from './file-agent-tool-executor';
 import type { FileAgentContext, ParsedAction } from './file-agent.types';
+import type { ChatMessage } from '@app/core/models/types';
 
-function makeContext(files: Record<string, string>): {
+function makeContext(files: Record<string, string>, chatMessages?: ChatMessage[]): {
   context: FileAgentContext;
   onFileReplaced: ReturnType<typeof vi.fn>;
 } {
@@ -10,7 +11,7 @@ function makeContext(files: Record<string, string>): {
   const onFileReplaced = vi.fn((filename: string, content: string) => {
     map.set(filename, content);
   });
-  return { context: { files: map, onFileReplaced }, onFileReplaced };
+  return { context: { files: map, onFileReplaced, chatMessages }, onFileReplaced };
 }
 
 function run(action: ParsedAction, ctx: FileAgentContext) {
@@ -23,6 +24,31 @@ describe('executeFileTool dispatch', () => {
     expect(run({ action: 'reportProgress', args: { message: 'x' } }, context).response).toEqual({ status: 'acknowledged' });
     expect(run({ action: 'submitResponse', args: { message: 'x' } }, context).response).toEqual({ status: 'acknowledged' });
     expect(onFileReplaced).not.toHaveBeenCalled();
+  });
+
+  it('rejects every write tool when context.readOnly is set, with a message redirecting the user to the editor', () => {
+    const ctx = makeContext({ 'a.md': '# A\nbody' });
+    ctx.context.readOnly = true;
+    const writeActions: { action: ParsedAction['action']; args: Record<string, unknown> }[] = [
+      { action: 'replaceFile', args: { filename: 'a.md', content: 'x' } },
+      { action: 'searchReplace', args: { filename: 'a.md', replacements: [{ pattern: 'body', replacement: 'new' }] } },
+      { action: 'replaceSection', args: { filename: 'a.md', updates: [{ sectionPath: 'A', content: 'x' }] } },
+      { action: 'insertSection', args: { filename: 'a.md', heading: '## X', content: 'x' } },
+      { action: 'insertIntoSection', args: { filename: 'a.md', sectionPath: 'A', content: 'x', position: 'end' } }
+    ];
+    for (const a of writeActions) {
+      const r = run(a as ParsedAction, ctx.context);
+      expect(r.response).toMatchObject({ error: expect.stringMatching(/read-only.*KB editor/) });
+    }
+    expect(ctx.onFileReplaced).not.toHaveBeenCalled();
+  });
+
+  it('still allows read tools when context.readOnly is set', () => {
+    const ctx = makeContext({ 'a.md': 'hello' });
+    ctx.context.readOnly = true;
+    expect(run({ action: 'readFile', args: { filename: 'a.md' } }, ctx.context).response).toMatchObject({ content: 'hello' });
+    expect(run({ action: 'grep', args: { pattern: 'hel' } }, ctx.context).response).toMatchObject({ count: 1 });
+    expect(run({ action: 'getFileOutline', args: { filename: 'a.md' } }, ctx.context).response).toMatchObject({ outline: expect.any(Array) });
   });
 });
 
@@ -443,5 +469,305 @@ describe('insertIntoSection', () => {
     const r = run({ action: 'insertIntoSection', args: { filename: 'a.md', sectionPath: 'Same', content: 'x', position: 'start' } }, context);
     expect(r.response).toMatchObject({ error: expect.stringMatching(/Ambiguous sectionPath/), matches: expect.any(Array) });
     expect(onFileReplaced).not.toHaveBeenCalled();
+  });
+});
+
+// ===== Chat-aware tools ======================================================
+
+function makeChat(): ChatMessage[] {
+  return [
+    { id: 'm1', role: 'user', content: 'Let me grab the EMP rifle.', summary: 'pick up rifle', intent: 'acquire_item' },
+    { id: 'm2', role: 'model', content: 'You take the EMP rifle from the rack.', summary: 'pick up rifle resolved', thought: 'Player wants EMP rifle. Apply trigger.', inventory_log: ['acquired: EMP rifle x1'], character_log: ['mood: confident'] },
+    { id: 'm3', role: 'user', content: 'Shoot the drone.', isHidden: true },
+    { id: 'm4', role: 'model', content: 'The drone falls. You hear footsteps approaching.', world_log: ['drone destroyed at warehouse'] },
+    { id: 'm5', role: 'user', content: 'Search the body.' },
+    { id: 'm6', role: 'model', content: 'You find a keycard labeled "Sector 7".', inventory_log: ['acquired: keycard (Sector 7)'], quest_log: ['unlocked: Sector 7 access'] }
+  ];
+}
+
+describe('listChatMessages', () => {
+  it('errors when chatMessages is missing', () => {
+    const { context } = makeContext({});
+    const r = run({ action: 'listChatMessages', args: { reason: 'check' } }, context);
+    expect(r.response).toMatchObject({ error: expect.stringMatching(/No chat history available/) });
+  });
+
+  it('errors when chatMessages is empty', () => {
+    const { context } = makeContext({}, []);
+    const r = run({ action: 'listChatMessages', args: { reason: 'check' } }, context);
+    expect(r.response).toMatchObject({ error: expect.stringMatching(/No chat history available/) });
+  });
+
+  it('returns outline without content, excluding hidden by default', () => {
+    const { context } = makeContext({}, makeChat());
+    const r = run({ action: 'listChatMessages', args: { reason: 'check' } }, context);
+    const messages = (r.response as { messages: { id: string; charCount: number; hasLogs: boolean; summary?: string }[] }).messages;
+    expect(messages.map(m => m.id)).toEqual(['m1', 'm2', 'm4', 'm5', 'm6']);
+    expect(messages[0]).not.toHaveProperty('content');
+    expect(messages[0].charCount).toBe('Let me grab the EMP rifle.'.length);
+    expect(messages[1].hasLogs).toBe(true);
+    expect(messages[3].hasLogs).toBe(false);
+    expect(messages[0].summary).toBe('pick up rifle');
+  });
+
+  it('includes hidden when flagged', () => {
+    const { context } = makeContext({}, makeChat());
+    const r = run({ action: 'listChatMessages', args: { reason: 'check', includeHidden: true } }, context);
+    const ids = (r.response as { messages: { id: string }[] }).messages.map(m => m.id);
+    expect(ids).toContain('m3');
+  });
+
+  it('respects limit (returns newest N)', () => {
+    const { context } = makeContext({}, makeChat());
+    const r = run({ action: 'listChatMessages', args: { reason: 'check', limit: 2 } }, context);
+    const resp = r.response as { messages: { id: string }[]; olderRemaining: number };
+    expect(resp.messages.map(m => m.id)).toEqual(['m5', 'm6']);
+    expect(resp.olderRemaining).toBe(3); // m1, m2, m4 still visible-and-older
+  });
+
+  it('paginates with before (exclusive cutoff)', () => {
+    const { context } = makeContext({}, makeChat());
+    const r = run({ action: 'listChatMessages', args: { reason: 'check', before: 'm4', limit: 10 } }, context);
+    const ids = (r.response as { messages: { id: string }[] }).messages.map(m => m.id);
+    expect(ids).toEqual(['m1', 'm2']);
+  });
+
+  it('errors when before id is not found', () => {
+    const { context } = makeContext({}, makeChat());
+    const r = run({ action: 'listChatMessages', args: { reason: 'check', before: 'nope' } }, context);
+    expect(r.response).toMatchObject({ error: expect.stringMatching(/not found/) });
+  });
+
+  it('excludes intent=save turns by default', () => {
+    const chat = [
+      ...makeChat(),
+      { id: 'save1', role: 'model', content: '<save>...</save>', intent: 'save' }
+    ] as ChatMessage[];
+    const { context } = makeContext({}, chat);
+    const r = run({ action: 'listChatMessages', args: { reason: 'check' } }, context);
+    const resp = r.response as { messages: { id: string }[]; filtered: { save: number } };
+    expect(resp.messages.map(m => m.id)).not.toContain('save1');
+    expect(resp.filtered.save).toBe(1);
+  });
+
+  it('includes save when includeSaves=true', () => {
+    const chat = [
+      ...makeChat(),
+      { id: 'save1', role: 'model', content: '<save>...</save>', intent: 'save' }
+    ] as ChatMessage[];
+    const { context } = makeContext({}, chat);
+    const r = run({ action: 'listChatMessages', args: { reason: 'check', includeSaves: true } }, context);
+    const ids = (r.response as { messages: { id: string }[] }).messages.map(m => m.id);
+    expect(ids).toContain('save1');
+  });
+});
+
+describe('searchChatMessages', () => {
+  it('errors when chatMessages is missing', () => {
+    const { context } = makeContext({});
+    const r = run({ action: 'searchChatMessages', args: { reason: 'check', pattern: 'foo' } }, context);
+    expect(r.response).toMatchObject({ error: expect.stringMatching(/No chat history available/) });
+  });
+
+  it('errors on empty pattern', () => {
+    const { context } = makeContext({}, makeChat());
+    const r = run({ action: 'searchChatMessages', args: { reason: 'check', pattern: '' } }, context);
+    expect(r.response).toMatchObject({ error: expect.stringMatching(/pattern is required/) });
+  });
+
+  it('errors on invalid regex', () => {
+    const { context } = makeContext({}, makeChat());
+    const r = run({ action: 'searchChatMessages', args: { reason: 'check', pattern: '(' } }, context);
+    expect(r.response).toMatchObject({ error: expect.stringMatching(/Invalid regex/) });
+  });
+
+  it('searches content by default and skips hidden', () => {
+    const { context } = makeContext({}, makeChat());
+    const r = run({ action: 'searchChatMessages', args: { reason: 'check', pattern: 'EMP' } }, context);
+    const resp = r.response as { hits: { messageId: string; scope: string }[]; count: number };
+    expect(resp.hits.map(h => h.messageId)).toEqual(['m1', 'm2']);
+    expect(resp.hits.every(h => h.scope === 'content')).toBe(true);
+  });
+
+  it('honors scope=thought', () => {
+    const { context } = makeContext({}, makeChat());
+    const r = run({ action: 'searchChatMessages', args: { reason: 'check', pattern: 'trigger', scope: 'thought', caseInsensitive: true } }, context);
+    const hits = (r.response as { hits: { messageId: string; scope: string }[] }).hits;
+    expect(hits).toEqual([{ messageId: 'm2', role: 'model', scope: 'thought', snippet: expect.any(String), matchIndex: expect.any(Number) }]);
+  });
+
+  it('scope=all searches across content / thought / summary', () => {
+    const { context } = makeContext({}, makeChat());
+    const r = run({ action: 'searchChatMessages', args: { reason: 'check', pattern: 'rifle', scope: 'all' } }, context);
+    const hits = (r.response as { hits: { scope: string }[] }).hits;
+    const scopes = new Set(hits.map(h => h.scope));
+    expect(scopes.has('content')).toBe(true);
+    expect(scopes.has('summary')).toBe(true);
+  });
+
+  it('snippet respects contextChars', () => {
+    const { context } = makeContext({}, makeChat());
+    const r = run({ action: 'searchChatMessages', args: { reason: 'check', pattern: 'rifle', contextChars: 5 } }, context);
+    const snippet = (r.response as { hits: { snippet: string }[] }).hits[0].snippet;
+    expect(snippet.length).toBeLessThan('Let me grab the EMP rifle.'.length + 5);
+  });
+
+  it('skips save-intent turns by default and reports suppressedSaves', () => {
+    const chat = [
+      ...makeChat(),
+      { id: 'save1', role: 'model', content: 'EMP rifle EMP rifle EMP rifle', intent: 'save' }
+    ] as ChatMessage[];
+    const { context } = makeContext({}, chat);
+    const r = run({ action: 'searchChatMessages', args: { reason: 'check', pattern: 'EMP' } }, context);
+    const resp = r.response as { hits: { messageId: string }[]; suppressedSaves?: number; note?: string };
+    expect(resp.hits.map(h => h.messageId)).not.toContain('save1');
+    expect(resp.suppressedSaves).toBe(1);
+    expect(resp.note).toMatch(/save-intent/);
+  });
+
+  it('includes save-intent turns when includeSaves=true', () => {
+    const chat = [
+      ...makeChat(),
+      { id: 'save1', role: 'model', content: 'EMP rifle here', intent: 'save' }
+    ] as ChatMessage[];
+    const { context } = makeContext({}, chat);
+    const r = run({ action: 'searchChatMessages', args: { reason: 'check', pattern: 'EMP', includeSaves: true } }, context);
+    const ids = (r.response as { hits: { messageId: string }[] }).hits.map(h => h.messageId);
+    expect(ids).toContain('save1');
+  });
+
+  it('caps hits at 3 per message and marks the last one with moreInSameMessage', () => {
+    const dense: ChatMessage[] = [
+      { id: 'd1', role: 'model', content: 'foo bar foo bar foo bar foo bar foo bar' }
+    ];
+    const { context } = makeContext({}, dense);
+    const r = run({ action: 'searchChatMessages', args: { reason: 'check', pattern: 'foo' } }, context);
+    const hits = (r.response as { hits: { messageId: string; moreInSameMessage?: number }[] }).hits;
+    expect(hits).toHaveLength(3);
+    expect(hits[0].moreInSameMessage).toBeUndefined();
+    expect(hits[1].moreInSameMessage).toBeUndefined();
+    expect(hits[2].moreInSameMessage).toBe(2);
+  });
+
+  it('does NOT flag truncated when hits fill exactly to limit on the last available match', () => {
+    // limit=2, two messages, one hit each → exactly fills; no further match
+    // exists, so truncated must stay false (the algorithm only flips when
+    // there is a real unshown hit). Pins Gemini's truncated-semantic concern.
+    const chat: ChatMessage[] = [
+      { id: 'a', role: 'user', content: 'apple' },
+      { id: 'b', role: 'model', content: 'apple' }
+    ];
+    const { context } = makeContext({}, chat);
+    const r = run({ action: 'searchChatMessages', args: { reason: 'check', pattern: 'apple', limit: 2 } }, context);
+    const resp = r.response as { hits: unknown[]; truncated: boolean; note?: string };
+    expect(resp.hits).toHaveLength(2);
+    expect(resp.truncated).toBe(false);
+    expect(resp.note).toBeUndefined();
+  });
+
+  it('flags truncated with a guidance note when a further match exists past limit', () => {
+    const chat: ChatMessage[] = [
+      { id: 'a', role: 'user', content: 'apple' },
+      { id: 'b', role: 'model', content: 'apple' },
+      { id: 'c', role: 'user', content: 'apple' }
+    ];
+    const { context } = makeContext({}, chat);
+    const r = run({ action: 'searchChatMessages', args: { reason: 'check', pattern: 'apple', limit: 2 } }, context);
+    const resp = r.response as { hits: unknown[]; truncated: boolean; note?: string };
+    expect(resp.hits).toHaveLength(2);
+    expect(resp.truncated).toBe(true);
+    expect(resp.note).toMatch(/limit=2/);
+  });
+});
+
+describe('readChatMessage', () => {
+  it('errors when chatMessages is missing', () => {
+    const { context } = makeContext({});
+    const r = run({ action: 'readChatMessage', args: { reason: 'check', messageIds: ['m1'] } }, context);
+    expect(r.response).toMatchObject({ error: expect.stringMatching(/No chat history available/) });
+  });
+
+  it('errors on empty messageIds', () => {
+    const { context } = makeContext({}, makeChat());
+    const r = run({ action: 'readChatMessage', args: { reason: 'check', messageIds: [] } }, context);
+    expect(r.response).toMatchObject({ error: expect.stringMatching(/messageIds must be a non-empty array/) });
+  });
+
+  it('returns only content by default', () => {
+    const { context } = makeContext({}, makeChat());
+    const r = run({ action: 'readChatMessage', args: { reason: 'check', messageIds: ['m2'] } }, context);
+    const m = (r.response as { messages: Record<string, unknown>[] }).messages[0];
+    expect(m['content']).toBe('You take the EMP rifle from the rack.');
+    expect(m['thought']).toBeUndefined();
+    expect(m['logs']).toBeUndefined();
+    expect(m['summary']).toBeUndefined();
+  });
+
+  it('reports per-id error for missing ids without failing the call', () => {
+    const { context } = makeContext({}, makeChat());
+    const r = run({ action: 'readChatMessage', args: { reason: 'check', messageIds: ['m2', 'nope'] } }, context);
+    const msgs = (r.response as { messages: { id: string; error?: string }[] }).messages;
+    expect(msgs[0].id).toBe('m2');
+    expect(msgs[0].error).toBeUndefined();
+    expect(msgs[1]).toEqual({ id: 'nope', error: 'Message not found' });
+  });
+
+  it('include=logs returns the structured per-kind logs block', () => {
+    const { context } = makeContext({}, makeChat());
+    const r = run({ action: 'readChatMessage', args: { reason: 'check', messageIds: ['m2', 'm6'], include: ['logs'] } }, context);
+    const msgs = (r.response as { messages: { logs?: Record<string, string[]> }[] }).messages;
+    expect(msgs[0].logs).toEqual({ inventory: ['acquired: EMP rifle x1'], character: ['mood: confident'] });
+    expect(msgs[1].logs).toEqual({ inventory: ['acquired: keycard (Sector 7)'], quest: ['unlocked: Sector 7 access'] });
+  });
+});
+
+describe('readTurnLogs', () => {
+  it('errors when chatMessages is missing', () => {
+    const { context } = makeContext({});
+    const r = run({ action: 'readTurnLogs', args: { reason: 'check' } }, context);
+    expect(r.response).toMatchObject({ error: expect.stringMatching(/No chat history available/) });
+  });
+
+  it('flattens all four log kinds across recent turns by default', () => {
+    const { context } = makeContext({}, makeChat());
+    const r = run({ action: 'readTurnLogs', args: { reason: 'check' } }, context);
+    const groups = (r.response as { groups: { messageId: string; kind: string; entries: string[] }[] }).groups;
+    const flat = groups.map(g => `${g.messageId}:${g.kind}`).sort();
+    expect(flat).toEqual(['m2:character', 'm2:inventory', 'm4:world', 'm6:inventory', 'm6:quest']);
+  });
+
+  it('filters by kinds', () => {
+    const { context } = makeContext({}, makeChat());
+    const r = run({ action: 'readTurnLogs', args: { reason: 'check', kinds: ['inventory'] } }, context);
+    const groups = (r.response as { groups: { kind: string }[] }).groups;
+    expect(groups.every(g => g.kind === 'inventory')).toBe(true);
+    expect(groups).toHaveLength(2);
+  });
+
+  it('filters by messageIds and errors on unknown id', () => {
+    const { context } = makeContext({}, makeChat());
+    const r1 = run({ action: 'readTurnLogs', args: { reason: 'check', messageIds: ['m6'] } }, context);
+    const groups = (r1.response as { groups: { messageId: string }[] }).groups;
+    expect(groups.every(g => g.messageId === 'm6')).toBe(true);
+
+    const r2 = run({ action: 'readTurnLogs', args: { reason: 'check', messageIds: ['m6', 'nope'] } }, context);
+    expect(r2.response).toMatchObject({ error: expect.stringMatching(/not found/) });
+  });
+
+  it('reports zero groups with a note when no recent turns have logs', () => {
+    const noLogs: ChatMessage[] = [
+      { id: 'a', role: 'user', content: 'hello' },
+      { id: 'b', role: 'model', content: 'world' }
+    ];
+    const { context } = makeContext({}, noLogs);
+    const r = run({ action: 'readTurnLogs', args: { reason: 'check' } }, context);
+    expect(r.response).toMatchObject({ groups: [], count: 0, note: expect.stringMatching(/No log entries/) });
+  });
+
+  it('respects recent slice', () => {
+    const { context } = makeContext({}, makeChat());
+    const r = run({ action: 'readTurnLogs', args: { reason: 'check', recent: 1 } }, context);
+    const groups = (r.response as { groups: { messageId: string }[] }).groups;
+    expect(groups.every(g => g.messageId === 'm6')).toBe(true);
   });
 });

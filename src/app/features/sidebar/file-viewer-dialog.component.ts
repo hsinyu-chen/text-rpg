@@ -105,8 +105,26 @@ export class FileViewerDialogComponent implements OnDestroy {
   // Active file content (updated by Monaco to keep outline reactive)
   activeFileContent = signal('');
 
-  // Sidebar view mode: 'files' or 'search' or 'agent'
-  sidebarView = signal<'files' | 'search' | 'agent'>('files');
+  // Sidebar view mode: 'files' or 'search' (agent moved to its own right-column toggle)
+  sidebarView = signal<'files' | 'search'>('files');
+
+  /** Right-side agent panel (header toggle). Auto-opened in createWorldMode so the build-world flow stays unchanged. */
+  isAgentPanelOpen = signal(false);
+
+  toggleAgentPanel(): void {
+    this.isAgentPanelOpen.update(v => !v);
+  }
+
+  /**
+   * In-game chat snapshot passed to the agent console so the chat-aware tools
+   * (listChatMessages, searchChatMessages, readChatMessage, readTurnLogs) can
+   * verify "what the story actually said" before mutating KB files. Undefined
+   * in createWorldMode — there is no game yet, so the tools should report no
+   * chat history rather than scan an empty array.
+   */
+  chatMessagesForAgent = computed(() =>
+    this.data.createWorldMode ? undefined : this.state.messages()
+  );
   
   // Manual toggle for diff view (independent of sidebar mode)
   isDiffView = signal(false);
@@ -199,7 +217,7 @@ export class FileViewerDialogComponent implements OnDestroy {
 
     // Auto-open agent panel when an initial prompt is supplied (Create World mode)
     if (this.data.createWorldMode && this.data.initialAgentPrompt) {
-      this.sidebarView.set('agent');
+      this.isAgentPanelOpen.set(true);
     }
 
     if (this.data.completionValidator) {

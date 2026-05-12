@@ -13,6 +13,7 @@ import {
 } from './agent-stream-processor';
 import { AgentCapabilityResolver } from './agent-capability-resolver';
 import { KVStore } from '../kv/kv-store';
+import { FileAgentSettingsStore } from './file-agent-settings.store';
 
 /**
  * Mutable per-turn context shared across phase helpers (stream consumer,
@@ -59,6 +60,7 @@ export class FileAgentService {
   private llmConfigService = inject(LLMConfigService);
   private llmProviderRegistry = inject(LLMProviderRegistryService);
   private kv = inject(KVStore);
+  private settings = inject(FileAgentSettingsStore);
   private completionValidator: WorldCompletionValidator | null = null;
 
   setCompletionValidator(v: WorldCompletionValidator): void {
@@ -66,7 +68,8 @@ export class FileAgentService {
   }
 
   agentProfiles = this.llmConfigService.profiles;
-  selectedProfileId = signal<string | null>(this.llmConfigService.activeProfileId());
+  /** Shared across all file-agent surfaces (dialog + main-screen) via FileAgentSettingsStore. */
+  selectedProfileId = this.settings.selectedProfileId;
   agentLogs = signal<AgentLogEntry[]>([]);
   lastFilesReplaced = signal<{ filename: string; content: string }[]>([]);
 
@@ -79,7 +82,13 @@ export class FileAgentService {
     selectedProfileId: this.selectedProfileId,
     agentProfiles: this.agentProfiles,
     llmProviderRegistry: this.llmProviderRegistry,
-    kv: this.kv
+    kv: this.kv,
+    probeResults: this.settings.probeResults,
+    parallelProbeResults: this.settings.parallelProbeResults,
+    recordProbeResult: (id, n) => this.settings.recordProbeResult(id, n),
+    recordParallelProbeResult: (id, s) => this.settings.recordParallelProbeResult(id, s),
+    probeInflight: this.settings.probeInflight,
+    parallelProbeInflight: this.settings.parallelProbeInflight
   });
 
   private pushToolResultLog(response: Record<string, unknown>, toolName?: string): void {
@@ -156,18 +165,24 @@ export class FileAgentService {
   private abortController: AbortController | null = null;
 
   constructor() {
-    // Kick a tool-support probe whenever the selected profile resolves to a
-    // populated profile object. Listening to both signals handles two
-    // initialization races: (a) selectedProfileId is set before the profile
-    // list has loaded from IndexedDB, and (b) the profile list reload that
-    // follows a save in the settings UI.
-    let lastProbed = '';
+    // React to shared selectedProfileId changes (this instance's user picks
+    // a profile in its UI, OR a sibling instance does and the shared signal
+    // propagates). Two responsibilities:
+    //  (a) kick the tool-support probe for the new profile,
+    //  (b) reload this instance's toolCallMode signal from KV — without this,
+    //      a sibling-driven profile switch would leave our resolver pointing
+    //      at the previous profile's mode setting.
+    // Listening to both signals also handles two startup races: selectedProfileId
+    // resolving before the profile list loads from IndexedDB, and the
+    // post-save profile-list reload.
+    let lastSynced = '';
     effect(() => {
       const id = this.selectedProfileId();
       const list = this.agentProfiles();
-      if (!id || lastProbed === id) return;
+      if (!id || lastSynced === id) return;
       if (!list.find(p => p.id === id)) return;
-      lastProbed = id;
+      lastSynced = id;
+      this.capability.syncToolCallModeForProfile(id);
       void this.capability.kickToolSupportProbe(id);
     });
   }
@@ -228,7 +243,7 @@ export class FileAgentService {
   });
 
   selectProfile(profileId: string): void {
-    this.selectedProfileId.set(profileId);
+    this.settings.selectProfile(profileId);
     this.capability.syncToolCallModeForProfile(profileId);
   }
 
@@ -366,7 +381,11 @@ export class FileAgentService {
     // Fresh totalLines is returned in every read/write tool response instead.
     const fileList = Array.from(context.files.keys()).map(name => `- ${name}`).join('\n');
     const allowParallel = mode === 'native' && this.capability.effectiveSupportsParallelToolCalls();
-    const systemInstruction = buildSystemInstruction(fileList, mode, allowParallel);
+    const systemInstruction = buildSystemInstruction(fileList, mode, allowParallel, {
+      uiLanguage: context.uiLanguage,
+      narrativeLanguage: context.narrativeLanguage,
+      readOnly: context.readOnly
+    });
 
     const genConfig: Record<string, unknown> = mode === 'native'
       ? { tools: FILE_AGENT_TOOLS, signal: this.abortController?.signal }
@@ -501,10 +520,22 @@ export class FileAgentService {
 
     // finishCall.action === 'submitResponse' narrows args to SubmitResponseArgs.
     const toolMsg = (finishCall.action === 'submitResponse' ? (finishCall.args.message ?? '') : '');
-    // Merge commentary and tool message when both exist and differ.
-    const finalMsg = (ctx.accumulatedText.trim() && toolMsg.trim() && ctx.accumulatedText.trim() !== toolMsg.trim())
-      ? `${ctx.accumulatedText.trim()}\n\n${toolMsg.trim()}`
-      : (toolMsg || ctx.accumulatedText || '(no response)');
+    // In native mode, accumulatedText is genuine commentary that lives
+    // alongside the structured function call — merge with toolMsg when both
+    // are present and distinct. In JSON mode, accumulatedText IS the raw
+    // JSON tool-call body (the model's entire response), so showing it
+    // duplicates the parsed toolMsg verbatim; only render the parsed
+    // message.
+    const finalMsg = (() => {
+      if (mode === 'native') {
+        const commentary = ctx.accumulatedText.trim();
+        if (commentary && toolMsg.trim() && commentary !== toolMsg.trim()) {
+          return `${commentary}\n\n${toolMsg.trim()}`;
+        }
+        return toolMsg || ctx.accumulatedText || '(no response)';
+      }
+      return toolMsg || '(no response)';
+    })();
 
     this.updateLogAt(ctx.currentLogIndex, e => ({ ...e, text: finalMsg, isToolCall: false }));
     this.isAgentRunning.set(false);
@@ -528,11 +559,19 @@ export class FileAgentService {
     }
 
     const toolEntry = buildToolCallLogEntry(a);
-    if (ctx.accumulatedText.trim()) {
+    // In JSON mode `accumulatedText` IS the raw JSON tool-call body — not
+    // real commentary — so splitting into two log entries produced visually
+    // identical "MODEL" + "MODEL [TOOL CALL]" pairs in copyDebugLog. Only
+    // treat accumulatedText as commentary when we're in native mode, where
+    // function calls travel as structured parts and any text alongside is
+    // genuine narration.
+    const hasUsefulCommentary = mode === 'native' && ctx.accumulatedText.trim().length > 0;
+    if (hasUsefulCommentary) {
       // Commentary present: leave it in the current entry, append a new one.
       this.agentLogs.update(logs => [...logs, toolEntry]);
     } else {
-      // No commentary: overwrite the (likely empty) streaming entry.
+      // No commentary (or JSON mode where the text is the JSON itself):
+      // overwrite the streaming entry with the parsed tool-call view.
       this.updateLogAt(ctx.currentLogIndex, e => ({ ...e, ...toolEntry }));
     }
 

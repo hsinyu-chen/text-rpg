@@ -11,6 +11,14 @@ export interface AgentCapabilityResolverDeps {
     agentProfiles: Signal<LLMConfig[]>;
     llmProviderRegistry: LLMProviderRegistryService;
     kv: KVStore;
+    /** Shared via FileAgentSettingsStore so sibling instances reuse the same probe verdict. */
+    probeResults: Signal<Record<string, boolean>>;
+    parallelProbeResults: Signal<Record<string, boolean>>;
+    recordProbeResult: (profileId: string, native: boolean) => void;
+    recordParallelProbeResult: (profileId: string, supports: boolean) => void;
+    /** Cross-instance in-flight markers — set true while a probe is awaiting, so a sibling instance doesn't fire a duplicate request. */
+    probeInflight: Set<string>;
+    parallelProbeInflight: Set<string>;
 }
 
 /**
@@ -27,9 +35,6 @@ export interface AgentCapabilityResolverDeps {
  * react to profile changes without needing its own dependency tree.
  */
 export class AgentCapabilityResolver {
-    private readonly probeResults = signal<Record<string, boolean>>({});
-    private readonly parallelProbeResults = signal<Record<string, boolean>>({});
-
     readonly toolCallMode: WritableSignal<ToolCallMode>;
 
     constructor(private readonly deps: AgentCapabilityResolverDeps) {
@@ -69,7 +74,7 @@ export class AgentCapabilityResolver {
         const explicit = profile.settings.additionalSettings?.['supportsParallelToolCalls'];
         if (typeof explicit === 'boolean') return explicit;
 
-        const probed = this.parallelProbeResults()[profile.id];
+        const probed = this.deps.parallelProbeResults()[profile.id];
         if (typeof probed === 'boolean') return probed;
 
         const cap = this.deps.llmProviderRegistry.getProvider(profile.provider)?.getCapabilities(profile.settings);
@@ -90,7 +95,7 @@ export class AgentCapabilityResolver {
         const explicit = readExplicitNativeFlag(profile.settings);
         if (explicit !== undefined) return { result: explicit, source: 'explicit' };
 
-        const probed = this.probeResults()[profile.id];
+        const probed = this.deps.probeResults()[profile.id];
         if (typeof probed === 'boolean') return { result: probed, source: 'probed' };
 
         const cap = this.deps.llmProviderRegistry.getProvider(profile.provider)?.getCapabilities(profile.settings);
@@ -122,22 +127,45 @@ export class AgentCapabilityResolver {
         const provider = this.deps.llmProviderRegistry.getProvider(profile.provider);
         if (!provider) return;
 
-        if (readExplicitNativeFlag(profile.settings) === undefined && provider.probeNativeToolSupport) {
+        // Skip when a verdict is already cached (sibling instance recorded it)
+        // OR when a sibling probe is in-flight for this profile. The
+        // inflight short-circuit prevents the race where two instances both
+        // see no cached result, both fire the (network-backed) probe in
+        // parallel, and both write the same answer. Sets live on the shared
+        // FileAgentSettingsStore so every sibling consults the same marker.
+        const alreadyProbed = profileId in this.deps.probeResults();
+        if (readExplicitNativeFlag(profile.settings) === undefined && provider.probeNativeToolSupport && !alreadyProbed && !this.deps.probeInflight.has(profileId)) {
+            this.deps.probeInflight.add(profileId);
             try {
                 const result = await provider.probeNativeToolSupport(profile.settings);
-                this.probeResults.update(r => ({ ...r, [profileId]: result }));
+                this.deps.recordProbeResult(profileId, result);
             } catch {
-                // Probe failures are non-fatal; fall back to defaults.
+                // Probe failed (timeout, 404, network blip). Settle the verdict
+                // to the provider's static capability so a flaky endpoint
+                // isn't re-hit on every subsequent signal change — without
+                // this, alreadyProbed stayed false and any later kick
+                // (profile switch, sibling instance constructing) would
+                // relaunch the same failing request.
+                const cap = provider.getCapabilities(profile.settings);
+                this.deps.recordProbeResult(profileId, !!cap?.supportsNativeToolCalls);
+            } finally {
+                this.deps.probeInflight.delete(profileId);
             }
         }
 
         const parallelExplicit = profile.settings.additionalSettings?.['supportsParallelToolCalls'];
-        if (typeof parallelExplicit !== 'boolean' && provider.probeParallelToolSupport) {
+        const alreadyProbedParallel = profileId in this.deps.parallelProbeResults();
+        if (typeof parallelExplicit !== 'boolean' && provider.probeParallelToolSupport && !alreadyProbedParallel && !this.deps.parallelProbeInflight.has(profileId)) {
+            this.deps.parallelProbeInflight.add(profileId);
             try {
                 const result = await provider.probeParallelToolSupport(profile.settings);
-                this.parallelProbeResults.update(r => ({ ...r, [profileId]: result }));
+                this.deps.recordParallelProbeResult(profileId, result);
             } catch {
-                // Probe failures are non-fatal; fall back to defaults.
+                // Same retry-loop fix as the native probe above.
+                const cap = provider.getCapabilities(profile.settings);
+                this.deps.recordParallelProbeResult(profileId, !!cap?.supportsParallelToolCalls);
+            } finally {
+                this.deps.parallelProbeInflight.delete(profileId);
             }
         }
     }

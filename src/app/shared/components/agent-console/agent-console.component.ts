@@ -21,6 +21,8 @@ import { FileAgentService } from '@app/core/services/file-agent/file-agent.servi
 import { BuiltInPromptsService } from '@app/core/services/file-agent/built-in-prompts.service';
 import { I18nService, TranslatePipe } from '@app/core/i18n';
 import { CORE_MAT, FORM_MAT } from '@app/shared/material/material-groups';
+import type { ChatMessage } from '@app/core/models/types';
+import { AppConfigStore } from '@app/core/services/app-config-store';
 
 @Component({
   selector: 'app-agent-console',
@@ -44,6 +46,10 @@ export class AgentConsoleComponent implements OnDestroy {
   // Inputs
   files = input.required<Map<string, string>>();
   initialPrompt = input<string>('');
+  /** Optional in-game chat snapshot for chat-aware tools. Omit (or pass undefined) when no game is active — chat-aware tools degrade with a "no chat history available" error. */
+  chatMessages = input<ChatMessage[] | undefined>(undefined);
+  /** When true, write tools are rejected at the executor and the prompt notes the read-only constraint. Used on the main-screen surface where there is no editor view to review edits. */
+  readOnly = input<boolean>(false);
 
   // Injected services
   agentService = inject(FileAgentService);
@@ -51,6 +57,7 @@ export class AgentConsoleComponent implements OnDestroy {
   private clipboard = inject(Clipboard);
   private snackBar = inject(MatSnackBar);
   private i18n = inject(I18nService);
+  private appConfig = inject(AppConfigStore);
 
   // Internal state
   agentPrompt = signal('');
@@ -175,7 +182,11 @@ export class AgentConsoleComponent implements OnDestroy {
       files: this.files(),
       onFileReplaced: (filename, content) => {
         this.files().set(filename, content);
-      }
+      },
+      chatMessages: this.chatMessages(),
+      uiLanguage: this.i18n.currentLang(),
+      narrativeLanguage: this.appConfig.outputLanguage(),
+      readOnly: this.readOnly()
     });
   }
 

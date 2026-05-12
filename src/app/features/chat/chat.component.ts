@@ -3,6 +3,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSidenavModule } from '@angular/material/sidenav';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { BreakpointObserver } from '@angular/cdk/layout';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { map } from 'rxjs';
@@ -13,7 +14,10 @@ import { GAME_INTENTS } from '@app/core/constants/game-intents';
 import { ChatMessageComponent } from './components/chat-message/chat-message.component';
 import { ChatInputComponent } from './components/chat-input/chat-input.component';
 import { TurnUpdatePanelComponent } from './components/turn-update-panel/turn-update-panel.component';
-import { TranslatePipe } from '@app/core/i18n';
+import { I18nService, TranslatePipe } from '@app/core/i18n';
+import { AgentConsoleComponent } from '@app/shared/components/agent-console/agent-console.component';
+import { FileAgentService } from '@app/core/services/file-agent/file-agent.service';
+import { AppConfigStore } from '@app/core/services/app-config-store';
 
 @Component({
     selector: 'app-chat',
@@ -23,18 +27,28 @@ import { TranslatePipe } from '@app/core/i18n';
         MatIconModule,
         MatProgressSpinnerModule,
         MatSidenavModule,
+        MatTooltipModule,
         ChatMessageComponent,
         ChatInputComponent,
         TurnUpdatePanelComponent,
+        AgentConsoleComponent,
         TranslatePipe
     ],
     templateUrl: './chat.component.html',
     styleUrl: './chat.component.scss',
-    changeDetection: ChangeDetectionStrategy.OnPush
+    changeDetection: ChangeDetectionStrategy.OnPush,
+    // FileAgentService owns the agent log + history signals; provide here so
+    // the main-screen agent has its own instance, independent from any file-
+    // viewer dialog the user might open simultaneously. KV-backed profile
+    // selection (see file-agent.service.ts FILE_AGENT_PROFILE_KEY) keeps the
+    // pre-selected profile in sync across instances.
+    providers: [FileAgentService]
 })
 export class ChatComponent {
     engine = inject(GameEngineService);
     state = inject(GameStateService);
+    i18n = inject(I18nService);
+    appConfig = inject(AppConfigStore);
     private breakpointObserver = inject(BreakpointObserver);
     private destroyRef = inject(DestroyRef);
 
@@ -47,6 +61,10 @@ export class ChatComponent {
     editingMessageId = signal<string | null>(null);
     showScrollButton = signal(false);
     isSidebarOpen = signal(false);
+    isAgentSidebarOpen = signal(false);
+
+    /** Files map passed into <app-agent-console>; agent edits mutate this same Map so the engine sees them next turn. */
+    agentFiles = computed(() => this.state.loadedFiles());
 
     isMobile = toSignal(
         this.breakpointObserver.observe('(max-width: 900px)').pipe(map(result => result.matches)),
@@ -262,6 +280,10 @@ export class ChatComponent {
 
     toggleSidebar() {
         this.isSidebarOpen.update(v => !v);
+    }
+
+    toggleAgentSidebar() {
+        this.isAgentSidebarOpen.update(v => !v);
     }
 
     onJumpToMessage(id: string) {
