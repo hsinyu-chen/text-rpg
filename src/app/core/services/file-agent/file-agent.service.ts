@@ -14,6 +14,8 @@ import {
 import { AgentCapabilityResolver } from './agent-capability-resolver';
 import { KVStore } from '../kv/kv-store';
 import { FileAgentSettingsStore } from './file-agent-settings.store';
+import { I18nService } from '@app/core/i18n';
+import { getLocale } from '@app/core/constants/locales';
 
 /**
  * Mutable per-turn context shared across phase helpers (stream consumer,
@@ -61,6 +63,7 @@ export class FileAgentService {
   private llmProviderRegistry = inject(LLMProviderRegistryService);
   private kv = inject(KVStore);
   private settings = inject(FileAgentSettingsStore);
+  private i18n = inject(I18nService);
   private completionValidator: WorldCompletionValidator | null = null;
 
   setCompletionValidator(v: WorldCompletionValidator): void {
@@ -381,11 +384,19 @@ export class FileAgentService {
     // Fresh totalLines is returned in every read/write tool response instead.
     const fileList = Array.from(context.files.keys()).map(name => `- ${name}`).join('\n');
     const allowParallel = mode === 'native' && this.capability.effectiveSupportsParallelToolCalls();
-    const systemInstruction = buildSystemInstruction(fileList, mode, allowParallel, {
-      uiLanguage: context.uiLanguage,
-      narrativeLanguage: context.narrativeLanguage,
-      readOnly: context.readOnly
-    });
+    const locale = getLocale(context.narrativeLanguage);
+    const systemInstruction = buildSystemInstruction(
+      fileList,
+      mode,
+      allowParallel,
+      {
+        uiLanguage: context.uiLanguage,
+        narrativeLanguage: context.narrativeLanguage,
+        readOnly: context.readOnly
+      },
+      locale,
+      (key: string) => this.i18n.translate(key)
+    );
 
     const genConfig: Record<string, unknown> = mode === 'native'
       ? { tools: FILE_AGENT_TOOLS, signal: this.abortController?.signal }

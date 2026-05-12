@@ -149,6 +149,41 @@ function Invoke-BridgeBookRepairKb {
     Invoke-Bridge -Path '/book/repair-kb' -Body @{ scenarioId = $ScenarioId } -TimeoutSec 60
 }
 
+# File-agent UI surface openers — pop the in-app file-agent dialog (full read+
+# write, KB editor) or the chat-side agent panel (read-only sidebar) so an
+# outside agent can interrogate the in-game file-agent (handbook validation).
+function Open-BridgeFileViewer {
+    [CmdletBinding()]
+    param([string] $InitialFile)
+    $body = @{}
+    if ($PSBoundParameters.ContainsKey('InitialFile')) { $body.initialFile = $InitialFile }
+    Invoke-Bridge -Path '/agent/open-file-viewer' -Body $body -TimeoutSec 30
+}
+
+function Open-BridgeChatAgentPanel {
+    Invoke-Bridge -Path '/agent/open-chat-agent-panel' -Body @{} -TimeoutSec 30
+}
+
+# Send a prompt to a headless in-app file-agent and wait for the full log.
+# Defaults to sidebar mode (readOnly) — write tools are rejected, matching
+# the chat-side agent surface. -Mode fileViewer lets the agent call write
+# tools, but the writes hit an isolated snapshot Map; the engine's KB
+# stays untouched. -KeepHistory preserves prior turns instead of clearing.
+function Send-BridgeAgentAsk {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string] $Prompt,
+        [ValidateSet('sidebar', 'fileViewer')] [string] $Mode = 'sidebar',
+        [switch] $KeepHistory
+    )
+    $body = @{
+        prompt = $Prompt
+        mode   = $Mode
+    }
+    if ($KeepHistory) { $body.clearHistory = $false }
+    Invoke-Bridge -Path '/agent/ask' -Body $body -TimeoutSec 600
+}
+
 # LLM profile selectors (model/API endpoint — distinct from prompt profile).
 # Set-BridgeLLMProfile REQUIRES -ConfirmPaid when the target profile is not
 # local; this is the agent-side gate that complements the app's confirmPaid
