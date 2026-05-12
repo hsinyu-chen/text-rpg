@@ -104,10 +104,7 @@ export class GenericSyncBackend implements SyncBackend {
     readonly label: string;
     get authActionLabel(): string {
         const val = this._config.authActionLabel;
-        if (typeof val === 'function') {
-            return (val as () => string)();
-        }
-        return val;
+        return typeof val === 'function' ? val() : val;
     }
 
     readonly supportsBackgroundSync: boolean;

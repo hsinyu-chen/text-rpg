@@ -843,7 +843,6 @@ export const zhTW: TranslationDict = {
             unconfiguredEnv: '尚未設定 Google Drive。在環境變數設定 <code>gcpOauthAppId</code> 來啟用。',
             notSignedIn: '尚未登入。',
             signInWithGoogle: '用 Google 登入',
-            authenticateBtn: '用 Google 登入',
             signedInOK: '已登入。Books、Collections 與 Settings 會同步到 Drive App Data。',
             byoHint: '需要 Client ID？問你的 AI 助手：<em>「如何建立一個 Google OAuth Web-application client id,scope 是 <code>drive.appdata</code>？」</em>',
             redirectOriginsLabel: '把這個加到 GCP Console 的「Authorized JavaScript origins」(GIS popup flow 是以 origin 驗證，不是 redirect URI):',

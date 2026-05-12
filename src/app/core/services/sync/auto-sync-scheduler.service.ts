@@ -307,7 +307,15 @@ export class AutoSyncScheduler {
                 if (prev === fp) continue;
                 if (fp === '' || fp.endsWith(':unknown')) continue;
                 this.failureCount = 0;
-                if (this.backends.autoSyncEnabled()[b.id] && !b.isAuthenticated()) {
+                // Only prompt for the active backend — the scheduler only
+                // processes the active one, so a lapse on an inactive
+                // backend is harmless until the user swaps to it. Showing
+                // its snackbar now would be noise.
+                if (
+                    b.id === this.backends.activeBackendId()
+                    && this.backends.autoSyncEnabled()[b.id]
+                    && !b.isAuthenticated()
+                ) {
                     // untracked: this effect READS autoSyncEnabled() above
                     // for the condition; writing it from inside would form
                     // a self-trigger cycle without untracked.
@@ -327,16 +335,24 @@ export class AutoSyncScheduler {
         );
 
         ref.onAction().pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
-            void b.authenticate().catch(err => {
+            b.authenticate().then(() => {
+                // Successful re-auth: clear the circuit breaker and kick an
+                // immediate run so the user doesn't have to wait for the
+                // next save to see sync resume.
+                this.failureCount = 0;
+                this.schedule(true);
+            }).catch(err => {
                 console.error(`[AutoSync] Failed to re-authenticate backend ${b.id}:`, err);
                 this.backends.setAutoSyncEnabled(b.id, false);
             });
         });
 
         ref.afterDismissed().pipe(takeUntilDestroyed(this.destroyRef)).subscribe(dismiss => {
-            if (!dismiss.dismissedByAction) {
-                // User ignored the prompt or manually closed it:
-                // actually disable auto-sync.
+            // Re-check auth: snackbar may be timed-out (8s is short) or
+            // replaced by a sibling snackbar while the user fixed the
+            // grant via the settings page. Only disable if the backend
+            // is still unauthenticated at dismiss time.
+            if (!dismiss.dismissedByAction && !b.isAuthenticated()) {
                 this.backends.setAutoSyncEnabled(b.id, false);
             }
         });
