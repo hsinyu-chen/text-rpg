@@ -1,7 +1,7 @@
 import { DestroyRef, Injectable, effect, inject, untracked } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DOCUMENT } from '@angular/common';
-import { MatSnackBar } from '@angular/material/snack-bar';
+import { MatSnackBar, MatSnackBarRef, TextOnlySnackBar } from '@angular/material/snack-bar';
 import { EMPTY, Subject, from, of, timer } from 'rxjs';
 import { catchError, concatMap, debounce, filter, tap } from 'rxjs/operators';
 import { SessionService } from '../session.service';
@@ -57,6 +57,15 @@ export class AutoSyncScheduler {
      * restored state.
      */
     private cancelled = false;
+    /**
+     * The currently-visible auth-lapse snackbar, if any. MatSnackBar
+     * auto-dismisses an open snackbar when a new one opens — that
+     * displacement fires the OLD ref's afterDismissed with
+     * dismissedByAction=false, which would prematurely disable
+     * auto-sync. We compare against this ref so only the latest
+     * snackbar's natural dismissal counts.
+     */
+    private currentAuthSnackbar: MatSnackBarRef<TextOnlySnackBar> | null = null;
 
     /** Set by `register` so this service doesn't have to inject SyncService (circular). */
     private runner: (() => Promise<unknown>) | null = null;
@@ -333,6 +342,7 @@ export class AutoSyncScheduler {
             b.authActionLabel,
             { duration: 8000 }
         );
+        this.currentAuthSnackbar = ref;
 
         ref.onAction().pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
             b.authenticate().then(() => {
@@ -348,10 +358,13 @@ export class AutoSyncScheduler {
         });
 
         ref.afterDismissed().pipe(takeUntilDestroyed(this.destroyRef)).subscribe(dismiss => {
-            // Re-check auth: snackbar may be timed-out (8s is short) or
-            // replaced by a sibling snackbar while the user fixed the
-            // grant via the settings page. Only disable if the backend
-            // is still unauthenticated at dismiss time.
+            // Stale dismissal (this ref was displaced by a newer auth
+            // snackbar): swallow — the newer one owns the grace period.
+            if (this.currentAuthSnackbar !== ref) return;
+            this.currentAuthSnackbar = null;
+            // Re-check auth: timeout (8s is short) or user fixing the
+            // grant via the settings page should NOT disable. Only the
+            // user actively ignoring an unresolved prompt does.
             if (!dismiss.dismissedByAction && !b.isAuthenticated()) {
                 this.backends.setAutoSyncEnabled(b.id, false);
             }
