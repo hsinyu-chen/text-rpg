@@ -1,4 +1,5 @@
 import { Injectable, inject } from '@angular/core';
+import { I18nService } from '@app/core/i18n/i18n.service';
 import { S3Config } from '../sync.types';
 import { S3ClientService } from './s3-client.service';
 import { S3BlobStore } from './s3-blob-store';
@@ -19,9 +20,11 @@ export class S3SyncBackend extends GenericSyncBackend {
     constructor() {
         const blob = inject(S3BlobStore);
         const clientSvc = inject(S3ClientService);
+        const i18n = inject(I18nService);
         super({
             id: 's3',
             label: 'S3-compatible',
+            authActionLabel: i18n.translate('sync.s3.authenticateBtn'),
             supportsBackgroundSync: true,
             blob,
             lifecycle: clientSvc,

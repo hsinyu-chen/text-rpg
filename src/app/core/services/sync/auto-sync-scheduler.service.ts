@@ -7,6 +7,7 @@ import { catchError, concatMap, debounce, filter, tap } from 'rxjs/operators';
 import { SessionService } from '../session.service';
 import { SyncBackendResolver } from './sync-backend-resolver.service';
 import { I18nService } from '@app/core/i18n';
+import { SyncBackend } from './sync.types';
 
 const DEBOUNCE_MS = 60_000;
 const VISIBILITY_COOLDOWN_MS = 30_000;
@@ -185,12 +186,20 @@ export class AutoSyncScheduler {
         this.failureCount++;
         if (this.failureCount >= MAX_FAILURES) {
             const id = this.backends.activeBackendId();
-            this.backends.setAutoSyncEnabled(id, false);
-            this.snackBar.open(
-                this.i18n.translate('sync.autoSync.disabledAfterFailures', { max: MAX_FAILURES }),
-                this.i18n.translate('ui.CLOSE'),
-                { duration: 8000 }
-            );
+            const b = this.backends.get(id);
+
+            if (b && !b.isAuthenticated()) {
+                // If it failed because of auth (e.g. FSA grant expired),
+                // give user a chance to re-grant before disabling.
+                this.showAuthLapseSnackbar(b);
+            } else {
+                this.backends.setAutoSyncEnabled(id, false);
+                this.snackBar.open(
+                    this.i18n.translate('sync.autoSync.disabledAfterFailures', { max: MAX_FAILURES }),
+                    this.i18n.translate('ui.CLOSE'),
+                    { duration: 8000 }
+                );
+            }
         }
     }
 
@@ -303,14 +312,29 @@ export class AutoSyncScheduler {
                     // for the condition; writing it from inside would form
                     // a self-trigger cycle without untracked.
                     untracked(() => {
-                        this.backends.setAutoSyncEnabled(b.id, false);
-                        this.snackBar.open(
-                            this.i18n.translate('sync.autoSync.permissionRegrantNeeded', { label: b.label }),
-                            this.i18n.translate('ui.CLOSE'),
-                            { duration: 6000 }
-                        );
+                        this.showAuthLapseSnackbar(b);
                     });
                 }
+            }
+        });
+    }
+
+    private showAuthLapseSnackbar(b: SyncBackend): void {
+        const ref = this.snackBar.open(
+            this.i18n.translate('sync.autoSync.permissionRegrantNeeded', { label: b.label }),
+            b.authActionLabel,
+            { duration: 8000 }
+        );
+
+        ref.onAction().pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+            void b.authenticate();
+        });
+
+        ref.afterDismissed().pipe(takeUntilDestroyed(this.destroyRef)).subscribe(dismiss => {
+            if (!dismiss.dismissedByAction) {
+                // User ignored the prompt or manually closed it:
+                // actually disable auto-sync.
+                this.backends.setAutoSyncEnabled(b.id, false);
             }
         });
     }

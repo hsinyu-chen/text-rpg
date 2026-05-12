@@ -825,6 +825,7 @@ export const en: TranslationDict = {
             changeFolderBtn: 'Change folder',
             pickFolderBtn: 'Pick folder',
             testAccessBtn: 'Test access',
+            grantPermissionBtn: 'Grant permission',
             unbindBtn: 'Unbind',
             autoSyncBlockedTooltip: 'Grant folder permission first (Test access). Choose "Allow on every visit" for auto-sync to persist across reloads.',
             folderBoundSuccess: 'Folder bound — File sync ready.',
@@ -842,6 +843,7 @@ export const en: TranslationDict = {
             unconfiguredEnv: 'Google Drive is not configured. Set <code>gcpOauthAppId</code> in environment to enable.',
             notSignedIn: 'Not signed in.',
             signInWithGoogle: 'Sign in with Google',
+            authenticateBtn: 'Sign in with Google',
             signedInOK: 'Signed in. Books, Collections, and Settings sync to Drive App Data.',
             byoHint: 'Need a Client ID? Ask your AI assistant: <em>"How do I create a Google OAuth Web-application client id with the <code>drive.appdata</code> scope?"</em>',
             redirectOriginsLabel: 'Add this to your GCP Console "Authorized JavaScript origins" (the GIS popup flow validates by origin, not redirect URI):',
@@ -868,6 +870,7 @@ export const en: TranslationDict = {
             importedAndSaved: 'Imported and saved.',
             importedButIncomplete: 'Imported. Some required fields are empty — fill them and click Save.',
             saveAndTestFirst: 'Save and test your S3 connection first.',
+            authenticateBtn: 'Authenticate connection',
             connectionOK: 'S3 connection OK.',
             connectionFailed: 'S3 connection failed: {{error}}',
             viewer: {

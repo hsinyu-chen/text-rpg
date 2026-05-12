@@ -1,4 +1,5 @@
 import { Injectable, inject } from '@angular/core';
+import { I18nService } from '@app/core/i18n/i18n.service';
 import { SyncResource } from '../sync.types';
 import { FileBackendPermissionService } from './file-backend-permission.service';
 import { FileBlobStore } from './file-blob-store';
@@ -53,9 +54,11 @@ export class FileSyncBackend extends GenericSyncBackend {
     constructor() {
         const blob = inject(FileBlobStore);
         const permission = inject(FileBackendPermissionService);
+        const i18n = inject(I18nService);
         super({
             id: 'file',
             label: 'Local Folder',
+            authActionLabel: i18n.translate('sync.file.grantPermissionBtn'),
             // Auto-sync only runs while the FSA grant is 'granted' — see
             // AutoSyncScheduler.isActive(), which gates on isAuthenticated().
             // Persistent grants ("Allow on every visit") survive reload;

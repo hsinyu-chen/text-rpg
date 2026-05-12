@@ -825,6 +825,7 @@ export const zhTW: TranslationDict = {
             changeFolderBtn: '換資料夾',
             pickFolderBtn: '挑選資料夾',
             testAccessBtn: '測試存取',
+            grantPermissionBtn: '授權存取',
             unbindBtn: '解除綁定',
             autoSyncBlockedTooltip: '先授權資料夾（測試存取）。選「每次造訪都允許」，自動同步才會在重新整理後繼續運作。',
             folderBoundSuccess: '已綁定資料夾 — File sync 就緒。',
@@ -842,6 +843,7 @@ export const zhTW: TranslationDict = {
             unconfiguredEnv: '尚未設定 Google Drive。在環境變數設定 <code>gcpOauthAppId</code> 來啟用。',
             notSignedIn: '尚未登入。',
             signInWithGoogle: '用 Google 登入',
+            authenticateBtn: '用 Google 登入',
             signedInOK: '已登入。Books、Collections 與 Settings 會同步到 Drive App Data。',
             byoHint: '需要 Client ID？問你的 AI 助手：<em>「如何建立一個 Google OAuth Web-application client id,scope 是 <code>drive.appdata</code>？」</em>',
             redirectOriginsLabel: '把這個加到 GCP Console 的「Authorized JavaScript origins」(GIS popup flow 是以 origin 驗證，不是 redirect URI):',
@@ -868,6 +870,7 @@ export const zhTW: TranslationDict = {
             importedAndSaved: '已匯入並儲存。',
             importedButIncomplete: '已匯入。部分必填欄位是空的 — 請填好後按儲存。',
             saveAndTestFirst: '請先儲存並測試 S3 連線。',
+            authenticateBtn: '驗證連線',
             connectionOK: 'S3 連線正常。',
             connectionFailed: 'S3 連線失敗：{{error}}',
             viewer: {

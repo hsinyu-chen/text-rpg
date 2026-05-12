@@ -78,11 +78,24 @@ export class FileBackendConfigComponent {
     }
 
     /**
+     * Explicitly request folder permission. Identical to testAccess but
+     * separated for UI intent (a prominent "Authorize" button vs a
+     * secondary "Test" button).
+     */
+    async grantPermission(): Promise<void> {
+        await this._ensurePermission();
+    }
+
+    /**
      * Manual access test. Useful after a page reload to surface the FSA
      * prompt without committing to a real sync. Runs inside this click
      * handler's user activation so `requestPermission` works.
      */
     async testAccess(): Promise<void> {
+        await this._ensurePermission();
+    }
+
+    private async _ensurePermission(): Promise<void> {
         try {
             await this.permission.ensurePermission();
             this.snackBar.open(this.i18n.translate('sync.file.folderAccessOK'), this.i18n.translate('dialog.ok'), { duration: 2000 });
