@@ -27,7 +27,7 @@ export interface AppConfigShape {
 
 export type ContextMode = 'smart' | 'full' | 'summarized';
 
-function isContextMode(v: unknown): v is ContextMode {
+export function isContextMode(v: unknown): v is ContextMode {
     return v === 'smart' || v === 'full' || v === 'summarized';
 }
 
