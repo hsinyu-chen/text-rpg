@@ -64,6 +64,9 @@ Thumbs.db
 !.claude/skills/
 .mcp.json
 
+# AI Agent local configurations
+.agent/
+
 # Locally-generated dev TLS certs (created by tools/dev-cert.cjs)
 .certs/
 
