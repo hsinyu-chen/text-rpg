@@ -807,6 +807,7 @@ export const en: TranslationDict = {
             disabledAfterFailures: 'Auto-sync disabled after {{max}} failures. Re-enable in Settings once fixed.',
             permissionRegrantNeeded: 'Auto-sync disabled — {{label}} needs permission re-granted.',
             cannotEnable: 'Cannot enable auto-sync: {{error}}',
+            reauthFailed: 'Re-authentication failed, auto-sync disabled: {{error}}',
             connectionFailedFallback: 'connection failed',
         },
         provider: {
@@ -825,6 +826,7 @@ export const en: TranslationDict = {
             changeFolderBtn: 'Change folder',
             pickFolderBtn: 'Pick folder',
             testAccessBtn: 'Test access',
+            grantPermissionBtn: 'Grant permission',
             unbindBtn: 'Unbind',
             autoSyncBlockedTooltip: 'Grant folder permission first (Test access). Choose "Allow on every visit" for auto-sync to persist across reloads.',
             folderBoundSuccess: 'Folder bound — File sync ready.',
@@ -868,6 +870,7 @@ export const en: TranslationDict = {
             importedAndSaved: 'Imported and saved.',
             importedButIncomplete: 'Imported. Some required fields are empty — fill them and click Save.',
             saveAndTestFirst: 'Save and test your S3 connection first.',
+            authenticateBtn: 'Authenticate connection',
             connectionOK: 'S3 connection OK.',
             connectionFailed: 'S3 connection failed: {{error}}',
             viewer: {

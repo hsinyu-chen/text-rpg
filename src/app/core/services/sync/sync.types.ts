@@ -57,6 +57,12 @@ export interface SyncBackend {
     readonly supportsBackgroundSync: boolean;
 
     /**
+     * Localized label for the "Grant Permission / Authenticate" action.
+     * Used in UI prompts like SnackBar or dialogs.
+     */
+    readonly authActionLabel: string;
+
+    /**
      * Idempotent setup. Resolver calls this before every `getActiveBackend`
      * use; lazy backends (S3) do their dynamic import + client construction
      * here, eager ones (GDrive / File) early-return.

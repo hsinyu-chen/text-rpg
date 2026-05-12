@@ -807,6 +807,7 @@ export const zhTW: TranslationDict = {
             disabledAfterFailures: '連續失敗 {{max}} 次，已停用自動同步。修好後請至設定重新啟用。',
             permissionRegrantNeeded: '自動同步已停用 — {{label}} 需要重新授權。',
             cannotEnable: '無法啟用自動同步：{{error}}',
+            reauthFailed: '重新授權失敗，已停用自動同步：{{error}}',
             connectionFailedFallback: '連線失敗',
         },
         provider: {
@@ -825,6 +826,7 @@ export const zhTW: TranslationDict = {
             changeFolderBtn: '換資料夾',
             pickFolderBtn: '挑選資料夾',
             testAccessBtn: '測試存取',
+            grantPermissionBtn: '授權存取',
             unbindBtn: '解除綁定',
             autoSyncBlockedTooltip: '先授權資料夾（測試存取）。選「每次造訪都允許」，自動同步才會在重新整理後繼續運作。',
             folderBoundSuccess: '已綁定資料夾 — File sync 就緒。',
@@ -868,6 +870,7 @@ export const zhTW: TranslationDict = {
             importedAndSaved: '已匯入並儲存。',
             importedButIncomplete: '已匯入。部分必填欄位是空的 — 請填好後按儲存。',
             saveAndTestFirst: '請先儲存並測試 S3 連線。',
+            authenticateBtn: '驗證連線',
             connectionOK: 'S3 連線正常。',
             connectionFailed: 'S3 連線失敗：{{error}}',
             viewer: {

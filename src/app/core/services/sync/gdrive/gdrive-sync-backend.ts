@@ -1,4 +1,5 @@
 import { Injectable, inject } from '@angular/core';
+import { I18nService } from '@app/core/i18n/i18n.service';
 import { GoogleDriveService } from '../../google-drive.service';
 import { GoogleOAuthService } from '../../google-oauth.service';
 import { KVStore } from '../../kv/kv-store';
@@ -52,10 +53,12 @@ export class GDriveSyncBackend extends GenericSyncBackend {
         const oauth = inject(GoogleOAuthService);
         const drive = inject(GoogleDriveService);
         const kv = inject(KVStore);
+        const i18n = inject(I18nService);
         const migration = makeTombstoneMigrator(blob, drive, kv);
         super({
             id: 'gdrive' as SyncBackendId,
             label: 'Google Drive',
+            authActionLabel: () => i18n.translate('sync.gdrive.signInWithGoogle'),
             supportsBackgroundSync: false,
             blob,
             lifecycle: makeGDriveLifecycle(oauth),

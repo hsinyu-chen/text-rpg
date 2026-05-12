@@ -38,6 +38,7 @@ export interface ClientLifecycle {
 export interface SyncBackendConfig {
     id: SyncBackendId;
     label: string;
+    authActionLabel: string | (() => string);
     supportsBackgroundSync: boolean;
     blob: BlobStore;
     lifecycle: ClientLifecycle;
@@ -101,6 +102,11 @@ export interface SyncBackendConfig {
 export class GenericSyncBackend implements SyncBackend {
     readonly id: SyncBackendId;
     readonly label: string;
+    get authActionLabel(): string {
+        const val = this._config.authActionLabel;
+        return typeof val === 'function' ? val() : val;
+    }
+
     readonly supportsBackgroundSync: boolean;
 
     protected readonly blob: BlobStore;
@@ -117,7 +123,10 @@ export class GenericSyncBackend implements SyncBackend {
     private readonly prompts: PromptsRepository;
     private readonly snapshots: SnapshotStore;
 
+    private readonly _config: SyncBackendConfig;
+
     constructor(config: SyncBackendConfig) {
+        this._config = config;
         this.id = config.id;
         this.label = config.label;
         this.supportsBackgroundSync = config.supportsBackgroundSync;

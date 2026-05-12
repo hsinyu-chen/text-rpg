@@ -24,10 +24,17 @@
     </button>
 
     @if (folderName()) {
-        <button mat-stroked-button (click)="testAccess()">
-            <mat-icon>verified</mat-icon>
-            {{ 'sync.file.testAccessBtn' | translate }}
-        </button>
+        @if (permissionStateKey() !== 'granted') {
+            <button mat-flat-button color="primary" (click)="grantPermission()">
+                <mat-icon>lock_open</mat-icon>
+                {{ 'sync.file.grantPermissionBtn' | translate }}
+            </button>
+        } @else {
+            <button mat-stroked-button (click)="testAccess()">
+                <mat-icon>verified</mat-icon>
+                {{ 'sync.file.testAccessBtn' | translate }}
+            </button>
+        }
         <button mat-stroked-button color="warn" (click)="unbind()">
             <mat-icon>link_off</mat-icon>
             {{ 'sync.file.unbindBtn' | translate }}

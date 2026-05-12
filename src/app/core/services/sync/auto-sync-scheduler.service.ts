@@ -1,12 +1,13 @@
 import { DestroyRef, Injectable, effect, inject, untracked } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DOCUMENT } from '@angular/common';
-import { MatSnackBar } from '@angular/material/snack-bar';
+import { MatSnackBar, MatSnackBarRef, TextOnlySnackBar } from '@angular/material/snack-bar';
 import { EMPTY, Subject, from, of, timer } from 'rxjs';
 import { catchError, concatMap, debounce, filter, tap } from 'rxjs/operators';
 import { SessionService } from '../session.service';
 import { SyncBackendResolver } from './sync-backend-resolver.service';
 import { I18nService } from '@app/core/i18n';
+import { SyncBackend } from './sync.types';
 
 const DEBOUNCE_MS = 60_000;
 const VISIBILITY_COOLDOWN_MS = 30_000;
@@ -56,6 +57,15 @@ export class AutoSyncScheduler {
      * restored state.
      */
     private cancelled = false;
+    /**
+     * The currently-visible auth-lapse snackbar, if any. MatSnackBar
+     * auto-dismisses an open snackbar when a new one opens — that
+     * displacement fires the OLD ref's afterDismissed with
+     * dismissedByAction=false, which would prematurely disable
+     * auto-sync. We compare against this ref so only the latest
+     * snackbar's natural dismissal counts.
+     */
+    private currentAuthSnackbar: MatSnackBarRef<TextOnlySnackBar> | null = null;
 
     /** Set by `register` so this service doesn't have to inject SyncService (circular). */
     private runner: (() => Promise<unknown>) | null = null;
@@ -185,12 +195,20 @@ export class AutoSyncScheduler {
         this.failureCount++;
         if (this.failureCount >= MAX_FAILURES) {
             const id = this.backends.activeBackendId();
-            this.backends.setAutoSyncEnabled(id, false);
-            this.snackBar.open(
-                this.i18n.translate('sync.autoSync.disabledAfterFailures', { max: MAX_FAILURES }),
-                this.i18n.translate('ui.CLOSE'),
-                { duration: 8000 }
-            );
+            const b = this.backends.get(id);
+
+            if (b && !b.isAuthenticated()) {
+                // If it failed because of auth (e.g. FSA grant expired),
+                // give user a chance to re-grant before disabling.
+                this.showAuthLapseSnackbar(b);
+            } else {
+                this.backends.setAutoSyncEnabled(id, false);
+                this.snackBar.open(
+                    this.i18n.translate('sync.autoSync.disabledAfterFailures', { max: MAX_FAILURES }),
+                    this.i18n.translate('ui.CLOSE'),
+                    { duration: 8000 }
+                );
+            }
         }
     }
 
@@ -298,19 +316,68 @@ export class AutoSyncScheduler {
                 if (prev === fp) continue;
                 if (fp === '' || fp.endsWith(':unknown')) continue;
                 this.failureCount = 0;
-                if (this.backends.autoSyncEnabled()[b.id] && !b.isAuthenticated()) {
+                // Only prompt for the active backend — the scheduler only
+                // processes the active one, so a lapse on an inactive
+                // backend is harmless until the user swaps to it. Showing
+                // its snackbar now would be noise.
+                if (
+                    b.id === this.backends.activeBackendId()
+                    && this.backends.autoSyncEnabled()[b.id]
+                    && !b.isAuthenticated()
+                ) {
                     // untracked: this effect READS autoSyncEnabled() above
                     // for the condition; writing it from inside would form
                     // a self-trigger cycle without untracked.
                     untracked(() => {
-                        this.backends.setAutoSyncEnabled(b.id, false);
-                        this.snackBar.open(
-                            this.i18n.translate('sync.autoSync.permissionRegrantNeeded', { label: b.label }),
-                            this.i18n.translate('ui.CLOSE'),
-                            { duration: 6000 }
-                        );
+                        this.showAuthLapseSnackbar(b);
                     });
                 }
+            }
+        });
+    }
+
+    private showAuthLapseSnackbar(b: SyncBackend): void {
+        const ref = this.snackBar.open(
+            this.i18n.translate('sync.autoSync.permissionRegrantNeeded', { label: b.label }),
+            b.authActionLabel,
+            // 15s — security-relevant decision: leave enough time for a
+            // distracted / cross-tab user to react before auto-disable.
+            { duration: 15000 }
+        );
+        this.currentAuthSnackbar = ref;
+
+        ref.onAction().pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
+            // Mirror the afterDismissed guard: a displaced ref shouldn't
+            // drive the auth flow even if its action somehow still fires.
+            if (this.currentAuthSnackbar !== ref) return;
+            b.authenticate().then(() => {
+                // Successful re-auth: clear the circuit breaker and kick an
+                // immediate run so the user doesn't have to wait for the
+                // next save to see sync resume.
+                this.failureCount = 0;
+                this.schedule(true);
+            }).catch((err: unknown) => {
+                console.error(`[AutoSync] Failed to re-authenticate backend ${b.id}:`, err);
+                this.backends.setAutoSyncEnabled(b.id, false);
+                const msg = err instanceof Error ? err.message : String(err);
+                this.snackBar.open(
+                    this.i18n.translate('sync.autoSync.reauthFailed', { error: msg }),
+                    this.i18n.translate('ui.CLOSE'),
+                    { duration: 8000, panelClass: ['snackbar-error'] }
+                );
+            });
+        });
+
+        ref.afterDismissed().pipe(takeUntilDestroyed(this.destroyRef)).subscribe(dismiss => {
+            // Stale dismissal (this ref was displaced by a newer auth
+            // snackbar): swallow — the newer one owns the grace period.
+            if (this.currentAuthSnackbar !== ref) return;
+            this.currentAuthSnackbar = null;
+            // Re-check auth: a timeout dismissal, or the user fixing the
+            // grant via the settings page, should NOT disable. Only the
+            // user actively ignoring an unresolved prompt does.
+            if (!dismiss.dismissedByAction && !b.isAuthenticated()) {
+                this.backends.setAutoSyncEnabled(b.id, false);
             }
         });
     }
