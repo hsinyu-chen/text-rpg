@@ -239,6 +239,7 @@ export class FileViewerDialogComponent implements OnDestroy {
         if (editor) editor.updateFileContent(replaced.filename, replaced.content);
         this.unsavedFiles.update(s => new Set(s).add(replaced.filename));
       }
+      this.isDiffView.set(true);
     });
 
     // Effect to sync content when active file changes
