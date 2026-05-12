@@ -345,7 +345,10 @@ The agent appears in **two surfaces**, backed by the same service:
 
 **Profile and tool-call mode**:
 
-*   Each surface picks an **LLM profile** from the same pool the main game uses (Settings → LLM Profile list). Switch profiles independently for the agent — useful for assigning a small fast model to editing work.
+*   Each surface picks an **LLM profile** from the same pool the main game uses (Settings → LLM Profile list). Switch profiles independently for the agent — useful for assigning a small fast model to editing work while the main game runs on a heavier narrative model.
+*   **Validated picks for the agent role** (both run the in-game file-agent reliably end-to-end across the smoke-test set — file-routing questions, KB-sync diagnosis, three-paths historic-turn handling, in-character vs. retcon recommendations, fail-safe on undocumented UI):
+    *   `gemma-4-31b-it` (dense, IQ3_M+) — same model we recommend for main-game storytelling; works equally well as the agent.
+    *   `gemma-4-26b-a4b` (MoE, Q8) — **agent role only.** Reaches comparable quality to the dense pick on the structured-tool-use file-agent task, where MoE's instruction-following gap is much narrower than on free-form storytelling. **Do NOT use MoE for the main game** — long-context narrative coherence and world-consistency still trail dense, per the [llama.cpp Recommended Model](#recommended-model--reference-configuration) section. The intended pairing is dense for the main game + MoE for the agent.
 *   **Tool Call Mode**: **Auto** / **Native** (provider-native function calling) / **JSON** (schema-constrained text). Auto runs a one-time probe per profile to detect native tool support and caches the result.
 
 **Console / controls**:

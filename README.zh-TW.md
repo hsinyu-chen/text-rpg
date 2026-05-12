@@ -344,7 +344,10 @@ Agent 有 **兩個 surface**,共用同一套服務:
 
 **Profile 與工具呼叫模式**:
 
-*   兩個 surface 各自從主遊戲共用的 LLM Profile pool 挑(Settings → LLM Profile 清單)。可獨立切換 — 例如指派一個小而快的模型給 Agent 處理編輯工作。
+*   兩個 surface 各自從主遊戲共用的 LLM Profile pool 挑(Settings → LLM Profile 清單)。可獨立切換 — 例如指派一個小而快的模型給 Agent 處理編輯工作,主遊戲跑更重的敘事模型。
+*   **Agent 角色已驗證的模型**(以下兩款 end-to-end 過完 smoke-test 題庫:檔案歸類問題、KB↔chat 同步診斷、修舊回合三路選項、in-character vs Edit text 補白建議、未記錄 UI 的 fail-safe):
+    *   `gemma-4-31b-it`(dense,IQ3_M+) — 與主遊戲推薦同款;Agent 角色同樣勝任。
+    *   `gemma-4-26b-a4b`(MoE,Q8) — **僅限 Agent 角色使用。** 在結構化、有工具呼叫的 file-agent 任務上能達到與 dense 相當的品質;MoE 的指令遵循差距在這類任務上明顯縮小。**主遊戲不要用 MoE** — 長 context 敘事連貫性與世界觀一致性仍輸 dense,詳見 [llama.cpp 推薦模型段](#推薦模型與參考組態)。建議搭配:主遊戲 dense + Agent MoE。
 *   **Tool Call Mode**: **Auto** / **Native**(服務商原生 function calling)/ **JSON**(以 Schema 約束文字輸出)。Auto 會在每個 Profile 第一次跑時偵測 native 支援情況並 cache。
 
 **Console / 操作**:
