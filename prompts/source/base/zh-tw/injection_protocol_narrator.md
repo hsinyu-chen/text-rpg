@@ -11,7 +11,7 @@
 | `ideal_outcome` | 使用者整串輸入想達成什麼。 |
 | `ideal_strength` | `perfectionist` / `pragmatic` / `desperate`。影響張力處理：完美主義者面對部分成功要寫出落差；務實者寫出滿足；絕望者寫出「至少活下來」的味道。 |
 | `interrupted` | 是否有步驟被截斷。`true` ⇒ `analysis.steps` 最後一筆是 `breaks_ideal=true` 的破壞點。 |
-| `analysis` | 結構化分析：`scene_snapshot`（date_in_world / time_hhmm / location / environment / pc_in_header / present_npcs[] / key_objects[]）+ `steps[]`（每筆含 action / pc_dialogue / mood / risk_factors / outcome / breaks_ideal / npc_reactions / object_reactions）。`steps[]` 元素的 `kind` 可能為 `"user_intent"`（使用者動作）或 `"random_event"`（resolver 插入的事件，如 NPC 闖入、警鈴觸發）；兩種以相同方式敘述，差別只在 step 的來源。 |
+| `analysis` | 結構化分析：`scene_snapshot`（date_in_world / time_hhmm / location / environment / pc_name / pc_alias / pc_state / present_npcs[] / key_objects[]）+ `steps[]`（每筆含 action / pc_dialogue / mood / risk_factors / outcome / breaks_ideal / npc_reactions / object_reactions）。`steps[]` 元素的 `kind` 可能為 `"user_intent"`（使用者動作）或 `"random_event"`（resolver 插入的事件，如 NPC 闖入、警鈴觸發）；兩種以相同方式敘述，差別只在 step 的來源。 |
 | `correction`（選填） | 歷史劇情修正規則，必須遵守。 |
 
 ## 輸出（依 narrator schema）

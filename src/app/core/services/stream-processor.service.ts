@@ -5,9 +5,10 @@ import { ExtendedPart, ThoughtPart } from '../models/types';
 import { LLMStreamChunk, LLMUsageMetadata } from '@hcs/llm-core';
 import { ChatMessage } from '../models/types';
 import { I18nService } from '../i18n';
-import type { SingleCallResponse, StructuredAnalysis } from '../constants/engine-protocol-structured';
+import type { SingleCallResponse } from '../constants/engine-protocol-structured';
 import type { NarratorOutput } from '../constants/engine-protocol-two-call';
 import { assembleStoryWithSceneHeader, formatStructuredAnalysis } from './turn-engines/format-structured-analysis';
+import { normalizeAnalysis } from './turn-engines/normalize-structured-analysis';
 import type { SceneSnapshot } from '../constants/engine-protocol-structured';
 import { mergeUsage } from './llm-usage-merge';
 
@@ -136,9 +137,9 @@ export class StreamProcessorService {
 
                                 let snap: Partial<SceneSnapshot> | null = null;
                                 if (partial.analysis && typeof partial.analysis === 'object') {
-                                    const analysisObj = partial.analysis as Partial<StructuredAnalysis>;
-                                    snap = analysisObj.scene_snapshot ?? null;
-                                    currentAnalysisPreview = formatStructuredAnalysis(analysisObj, outputLanguage);
+                                    const normalized = normalizeAnalysis(partial.analysis);
+                                    snap = normalized.scene_snapshot;
+                                    currentAnalysisPreview = formatStructuredAnalysis(normalized, outputLanguage);
                                     if (currentAnalysisPreview) {
                                         next.analysis = this.postProcessor.applySafeReplacements(currentAnalysisPreview);
                                     }
@@ -204,9 +205,9 @@ export class StreamProcessorService {
 
             let finalSnap: Partial<SceneSnapshot> | null = null;
             if (parsed.analysis && typeof parsed.analysis === 'object') {
-                const analysisObj = parsed.analysis as Partial<StructuredAnalysis>;
-                finalSnap = analysisObj.scene_snapshot ?? null;
-                finalAnalysis = formatStructuredAnalysis(analysisObj, outputLanguage);
+                const normalized = normalizeAnalysis(parsed.analysis);
+                finalSnap = normalized.scene_snapshot;
+                finalAnalysis = formatStructuredAnalysis(normalized, outputLanguage);
             }
 
             if (parsed.story) {

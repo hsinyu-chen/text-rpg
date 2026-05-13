@@ -20,7 +20,9 @@ function turnJson(story: string, summary = 's'): string {
                 time_hhmm: '12:00',
                 location: '',
                 environment: '',
-                pc_in_header: '',
+                pc_name: '',
+                pc_alias: '',
+                pc_state: '',
                 present_npcs: [],
                 key_objects: []
             },

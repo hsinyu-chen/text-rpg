@@ -11,7 +11,7 @@ The `[NARRATOR INPUT]` block contains structured JSON:
 | `ideal_outcome` | What the user hopes the full sequence achieves. |
 | `ideal_strength` | `perfectionist` / `pragmatic` / `desperate`. Drives tension handling: perfectionist faces partial success with disappointment; pragmatist with satisfaction; desperate with "at least I survived" relief. |
 | `interrupted` | Whether any step was truncated. `true` ⇒ the last entry in `analysis.steps` is the breaking step (`breaks_ideal=true`). |
-| `analysis` | Structured analysis: `scene_snapshot` (date_in_world / time_hhmm / location / environment / pc_in_header / present_npcs[] / key_objects[]) + `steps[]` (each: action / pc_dialogue / mood / risk_factors / outcome / breaks_ideal / npc_reactions / object_reactions). Each `steps[]` element has `kind` of `"user_intent"` (a user-described action) or `"random_event"` (a resolver-injected event — NPC arrival, alarm, third-party intervention); both kinds are narrated the same way. |
+| `analysis` | Structured analysis: `scene_snapshot` (date_in_world / time_hhmm / location / environment / pc_name / pc_alias / pc_state / present_npcs[] / key_objects[]) + `steps[]` (each: action / pc_dialogue / mood / risk_factors / outcome / breaks_ideal / npc_reactions / object_reactions). Each `steps[]` element has `kind` of `"user_intent"` (a user-described action) or `"random_event"` (a resolver-injected event — NPC arrival, alarm, third-party intervention); both kinds are narrated the same way. |
 | `correction` (optional) | Historical story-correction rule; must obey. |
 
 ## Output (per the narrator schema)

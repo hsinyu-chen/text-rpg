@@ -30,7 +30,9 @@ function analysis(steps: AnalysisStep[]): StructuredAnalysis {
             time_hhmm: '12:00',
             location: '',
             environment: '',
-            pc_in_header: '',
+            pc_name: '',
+            pc_alias: '',
+            pc_state: '',
             present_npcs: [],
             key_objects: []
         },
@@ -120,7 +122,9 @@ describe('truncateAtBreak', () => {
                 time_hhmm: '13:00',
                 location: '森林',
                 environment: '雨',
-                pc_in_header: '程楊宗',
+                pc_name: '程楊宗',
+                pc_alias: '',
+                pc_state: '',
                 present_npcs: [{ name: '梨菲', state: '匿蹤' }],
                 key_objects: []
             },
