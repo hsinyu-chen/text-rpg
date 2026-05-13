@@ -1,5 +1,4 @@
-import { Component, inject, ElementRef, effect, viewChild, signal, computed, afterNextRender, DestroyRef, ChangeDetectionStrategy, TemplateRef, ViewContainerRef, EmbeddedViewRef } from '@angular/core';
-import { DOCUMENT } from '@angular/common';
+import { Component, inject, ElementRef, effect, viewChild, signal, computed, afterNextRender, DestroyRef, ChangeDetectionStrategy, TemplateRef, ViewContainerRef } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -22,6 +21,7 @@ import { AppConfigStore } from '@app/core/services/app-config-store';
 import { BridgeService } from '@app/core/services/dev/bridge.service';
 import { AgentMessageJumperService } from '@app/core/services/agent-hints/agent-message-jumper.service';
 import { spotlightElement, SPOTLIGHT_HOLD_MS } from '@app/core/services/agent-hints/spotlight.util';
+import { AgentPanelPortalService } from '@app/shared/components/agent-console/agent-panel-portal.service';
 import { AgentPanelStateService } from '@app/core/services/file-agent/agent-panel-state.service';
 
 @Component({
@@ -47,7 +47,7 @@ import { AgentPanelStateService } from '@app/core/services/file-agent/agent-pane
     // viewer dialog the user might open simultaneously. KV-backed profile
     // selection (see file-agent.service.ts FILE_AGENT_PROFILE_KEY) keeps the
     // pre-selected profile in sync across instances.
-    providers: [FileAgentService]
+    providers: [FileAgentService, AgentPanelPortalService]
 })
 export class ChatComponent {
     engine = inject(GameEngineService);
@@ -60,16 +60,12 @@ export class ChatComponent {
     private messageJumper = inject(AgentMessageJumperService);
     protected panelState = inject(AgentPanelStateService);
     private viewContainerRef = inject(ViewContainerRef);
-    private doc = inject(DOCUMENT);
+    private agentPanelPortal = inject(AgentPanelPortalService);
 
     private scrollContainer = viewChild<ElementRef>('scrollContainer');
     private contentWrapper = viewChild<ElementRef<HTMLElement>>('contentWrapper');
     private chatInput = viewChild<ChatInputComponent>('chatInput');
     private agentPanelTpl = viewChild<TemplateRef<unknown>>('agentPanelTpl');
-    private agentPanelView: EmbeddedViewRef<unknown> | null = null;
-    private agentPanelHost: HTMLDivElement | null = null;
-    private agentPipWin: Window | null = null;
-    private agentPipStyleObserver: MutationObserver | null = null;
 
     userInput = signal('');
     selectedIntent = signal(GAME_INTENTS.ACTION);
@@ -204,8 +200,14 @@ export class ChatComponent {
         // cdk-overlay-container (z:1000).
         effect(() => {
             const open = this.isAgentSidebarOpen();
-            if (open) this.mountAgentPanel();
-            else this.unmountAgentPanel();
+            const tpl = this.agentPanelTpl();
+            if (open && tpl) {
+                this.agentPanelPortal.mount(tpl, this.viewContainerRef, {
+                    onPipClosed: () => this.isAgentSidebarOpen.set(false),
+                });
+            } else {
+                this.agentPanelPortal.unmount();
+            }
         });
 
         this.destroyRef.onDestroy(() => {
@@ -213,247 +215,8 @@ export class ChatComponent {
             if (this.scrollFrameId) {
                 cancelAnimationFrame(this.scrollFrameId);
             }
-            this.unmountAgentPanel();
+            this.agentPanelPortal.unmount();
         });
-    }
-
-    // Generation token: every mount/unmount bumps this. Async PiP open
-    // (`requestWindow` awaits a user gesture / permission grant) checks the
-    // token after resume; if it changed (panel was closed during the await),
-    // the open path aborts cleanly instead of attaching a zombie window.
-    private mountGeneration = 0;
-
-    private mountAgentPanel(): void {
-        if (this.agentPanelView || this.agentPipWin) return;
-        const tpl = this.agentPanelTpl();
-        if (!tpl) return;
-        const gen = ++this.mountGeneration;
-        this.agentPanelView = this.viewContainerRef.createEmbeddedView(tpl);
-        this.agentPanelView.detectChanges();
-        const rootNodes = this.agentPanelView.rootNodes as Node[];
-
-        // Prefer the native Document Picture-in-Picture API when available
-        // (Chrome 116+). It opens the agent panel in a separate browser
-        // window — no top-layer fighting with main-app dialogs/menus, and
-        // the agent's own dropdowns just work because the PiP window has
-        // its own top-layer scope. Falls back to body-portal + popover on
-        // browsers that don't support it (Firefox / Safari today).
-        const pipApi = (this.doc.defaultView as Window & {
-            documentPictureInPicture?: { requestWindow: (opts: { width?: number; height?: number }) => Promise<Window> };
-        } | null)?.documentPictureInPicture;
-        if (pipApi) {
-            void this.openInPip(pipApi, rootNodes, gen);
-        } else {
-            this.openInBodyPortal(rootNodes);
-        }
-    }
-
-    private async openInPip(
-        api: { requestWindow: (opts: { width?: number; height?: number }) => Promise<Window> },
-        rootNodes: Node[],
-        gen: number,
-    ): Promise<void> {
-        let pipWin: Window;
-        try {
-            pipWin = await api.requestWindow({ width: 480, height: 720 });
-        } catch {
-            // user denied / call rejected (e.g. no user gesture) — fall back,
-            // but only if the user hasn't already closed the panel mid-await.
-            if (gen !== this.mountGeneration) return;
-            this.openInBodyPortal(rootNodes);
-            return;
-        }
-        // Panel was closed (and view destroyed) during the requestWindow await.
-        // Discard the now-stale window instead of attaching detached DOM to it.
-        if (gen !== this.mountGeneration) {
-            try { pipWin.close(); } catch { /* already closed */ }
-            return;
-        }
-        // Mirror main-doc stylesheets into PiP — both the snapshot at open
-        // time and anything Angular injects later. Material 19's per-component
-        // styles land in <head> as <style> tags lazily on first use of each
-        // component; matSpinner / matTooltip first render usually happens
-        // AFTER requestWindow resolves, so a one-shot clone misses them and
-        // the PiP renders spinner SVGs unstyled (black-filled circles).
-        this.mirrorStylesToPip(pipWin);
-        pipWin.document.body.style.margin = '0';
-        pipWin.document.body.style.height = '100vh';
-        pipWin.document.body.style.overflow = 'hidden';
-        // Mark the body so the shell stretches edge-to-edge inside the PiP
-        // window instead of its default min(480px, 92vw) which leaves gutters
-        // when the user resizes the PiP smaller than 480px.
-        pipWin.document.body.classList.add('agent-panel-pip');
-        for (const n of rootNodes) pipWin.document.body.appendChild(n);
-        this.agentPipWin = pipWin;
-        // Expose the PiP doc to PipAwareOverlayContainer (provided at
-        // agent-console scope) so matTooltip / mat-menu / mat-dialog
-        // overlays opened inside the panel land in the PiP window instead
-        // of the main one.
-        this.panelState.pipDocument.set(pipWin.document);
-        // Flag so file-viewer hides its own smart_toy button while PiP is up
-        // (otherwise we'd have two agent UIs racing). Edit routing is handled
-        // separately via panelState.editChannel — registered by whichever
-        // surface owns an unsaved-buffer (file-viewer's Monaco).
-        this.panelState.pipActive.set(true);
-        // User closes the PiP window via OS chrome — sync state back.
-        pipWin.addEventListener('pagehide', () => {
-            if (this.agentPipWin === pipWin) {
-                this.agentPipWin = null;
-                this.panelState.pipDocument.set(null);
-                this.agentPipStyleObserver?.disconnect();
-                this.agentPipStyleObserver = null;
-                this.isAgentSidebarOpen.set(false);
-            }
-        });
-    }
-
-    private mirrorStylesToPip(pipWin: Window): void {
-        const srcHead = this.doc.head;
-        const destHead = pipWin.document.head;
-        const cloneMap = new WeakMap<Node, Node>();
-
-        const cloneAndAppend = (node: Node): void => {
-            const clone = node.cloneNode(true);
-            cloneMap.set(node, clone);
-            destHead.appendChild(clone);
-        };
-
-        // Initial snapshot.
-        for (const n of Array.from(srcHead.querySelectorAll('link[rel="stylesheet"], style'))) {
-            cloneAndAppend(n);
-        }
-        // Also adopted stylesheets (Constructable Stylesheets path some
-        // toolchains use). Re-materialize as fresh sheets in the PiP doc
-        // since CSSStyleSheet instances are document-scoped.
-        try {
-            const srcSheets = this.doc.adoptedStyleSheets;
-            if (srcSheets?.length) {
-                const pipCtor = (pipWin as Window & { CSSStyleSheet?: typeof CSSStyleSheet }).CSSStyleSheet;
-                if (pipCtor) {
-                    pipWin.document.adoptedStyleSheets = srcSheets.map(src => {
-                        const sheet = new pipCtor();
-                        const cssText = Array.from(src.cssRules).map(r => r.cssText).join('\n');
-                        sheet.replaceSync(cssText);
-                        return sheet;
-                    });
-                }
-            }
-        } catch { /* cross-origin import — covered by <link> clone */ }
-
-        // Live mirror — Angular Material 19 injects per-component <style>
-        // tags into <head> on each component's first use, and matSpinner /
-        // matTooltip first render typically happens AFTER PiP open. Without
-        // this observer those late styles never reach PiP, so spinner SVGs
-        // render as black-filled circles (default browser fill).
-        this.agentPipStyleObserver = new MutationObserver(records => {
-            for (const rec of records) {
-                for (const added of Array.from(rec.addedNodes)) {
-                    if (added instanceof HTMLStyleElement || (added instanceof HTMLLinkElement && added.rel === 'stylesheet')) {
-                        cloneAndAppend(added);
-                    }
-                }
-                for (const removed of Array.from(rec.removedNodes)) {
-                    const clone = cloneMap.get(removed);
-                    if (clone) {
-                        (clone as ChildNode).remove();
-                        cloneMap.delete(removed);
-                    }
-                }
-            }
-        });
-        this.agentPipStyleObserver.observe(srcHead, { childList: true });
-    }
-
-    private openInBodyPortal(rootNodes: Node[]): void {
-        if (!this.agentPanelHost) {
-            this.agentPanelHost = this.doc.createElement('div');
-            this.agentPanelHost.className = 'agent-panel-host';
-            // popover="manual" puts us in the browser top-layer alongside
-            // every cdk-overlay dialog (CDK 19+ uses the same API). Within
-            // top-layer z-index is ignored; ordering is purely "last shown
-            // wins", so we re-promote ourselves whenever a sibling popover
-            // opens, unless the click that triggered it came from inside
-            // the panel (own dropdown / menu) — see installAgentPanelPromoter.
-            this.agentPanelHost.setAttribute('popover', 'manual');
-            this.doc.body.appendChild(this.agentPanelHost);
-        }
-        for (const node of rootNodes) {
-            this.agentPanelHost.appendChild(node);
-        }
-        try { this.agentPanelHost.showPopover(); } catch { /* not connected / no support */ }
-        this.installAgentPanelPromoter();
-    }
-
-    private unmountAgentPanel(): void {
-        // Invalidate any in-flight openInPip awaiting requestWindow.
-        this.mountGeneration++;
-        this.uninstallAgentPanelPromoter();
-        this.panelState.pipActive.set(false);
-        this.panelState.pipDocument.set(null);
-        this.agentPipStyleObserver?.disconnect();
-        this.agentPipStyleObserver = null;
-        if (this.agentPipWin) {
-            try { this.agentPipWin.close(); } catch { /* already closed */ }
-            this.agentPipWin = null;
-        }
-        if (this.agentPanelHost?.matches(':popover-open')) {
-            try { this.agentPanelHost.hidePopover(); } catch { /* race */ }
-        }
-        if (this.agentPanelView) {
-            this.agentPanelView.destroy();
-            this.agentPanelView = null;
-        }
-        if (this.agentPanelHost) {
-            this.agentPanelHost.remove();
-            this.agentPanelHost = null;
-        }
-    }
-
-    private agentPanelPromoter: ((e: Event) => void) | null = null;
-    private agentPanelClickTracker: ((e: Event) => void) | null = null;
-    private agentPanelLastOwnClickAt = 0;
-
-    private installAgentPanelPromoter(): void {
-        if (this.agentPanelPromoter) return;
-        // Whenever ANY other popover opens (Material dialogs use the same
-        // popover API since CDK 19), we re-show ours to bring it back to
-        // the top of the top-layer — UNLESS the popover that just opened
-        // is our own descendant (mat-select / mat-menu triggered from a
-        // click inside the panel). Detected temporally: a click inside the
-        // panel within the last 400ms marks any subsequent popover-open as
-        // "ours". Without this guard the panel covers its own dropdowns.
-        this.agentPanelClickTracker = (e: Event) => {
-            if (this.agentPanelHost?.contains(e.target as Node)) {
-                this.agentPanelLastOwnClickAt = Date.now();
-            }
-        };
-        this.doc.addEventListener('click', this.agentPanelClickTracker, true);
-
-        this.agentPanelPromoter = (e: Event) => {
-            const target = e.target as HTMLElement;
-            if (!this.agentPanelHost || target === this.agentPanelHost) return;
-            const toggle = e as ToggleEvent;
-            if (toggle.newState !== 'open') return;
-            // Skip re-promote when the just-opened popover is likely ours.
-            if (Date.now() - this.agentPanelLastOwnClickAt < 400) return;
-            queueMicrotask(() => {
-                const host = this.agentPanelHost;
-                if (!host || !host.matches(':popover-open')) return;
-                try { host.hidePopover(); host.showPopover(); } catch { /* race */ }
-            });
-        };
-        this.doc.addEventListener('toggle', this.agentPanelPromoter, true);
-    }
-
-    private uninstallAgentPanelPromoter(): void {
-        if (this.agentPanelPromoter) {
-            this.doc.removeEventListener('toggle', this.agentPanelPromoter, true);
-            this.agentPanelPromoter = null;
-        }
-        if (this.agentPanelClickTracker) {
-            this.doc.removeEventListener('click', this.agentPanelClickTracker, true);
-            this.agentPanelClickTracker = null;
-        }
     }
 
     private initScrollObservers() {
