@@ -394,102 +394,227 @@ export class ChatComponent {
         this.isAgentSidebarOpen.update(v => !v);
     }
 
-    // Spotlight scroll delay — registry uses the same value for hint
-    // targets. Add a small post-hold buffer so the unpin doesn't strip
-    // .msg-toolbar-pinned mid-fade.
-    private static readonly SPOTLIGHT_SCROLL_DELAY_MS = 250;
-    private static readonly TOOLBAR_PIN_HOLD_MS = ChatComponent.SPOTLIGHT_SCROLL_DELAY_MS + SPOTLIGHT_HOLD_MS + 50;
-    // setTimeout before scroll — gives Angular's queued change-detection one
-    // tick to materialize any just-rendered messages before we measure offsets
-    // or query for #message-<id>.
+    // Hard cap on stabilization — cv:auto cascades can shift layout multiple
+    // times during a single long jump. 4 s absorbs worst-case and still
+    // surfaces eventually rather than hanging silently.
+    private static readonly SCROLL_STABILIZE_MAX_MS = 4000;
+    private static readonly TOOLBAR_PIN_HOLD_MS = ChatComponent.SCROLL_STABILIZE_MAX_MS + SPOTLIGHT_HOLD_MS + 50;
+    // Delay between revealing the target and measuring it — one CD tick so
+    // the cv:visible class lands before #message-<id> bbox is read.
     private static readonly JUMP_TO_MESSAGE_DELAY_MS = 50;
-    // How long to keep the inline `content-visibility: visible` override on
-    // a jumped-to message. Long enough to cover the smooth-scroll animation
-    // (~300-500ms) PLUS the spotlight hold (~2.1s) so layout doesn't re-skip
-    // mid-animation. Restored to the previous inline value once elapsed.
-    private static readonly CV_OVERRIDE_HOLD_MS = 3000;
+    // Breathing room between viewport top and message top — keeps the
+    // toolbar comfortably off the edge.
+    private static readonly JUMP_TOP_PADDING_PX = 16;
+    // Override window for [class.cv-revealed] and the `jumpInProgress`
+    // guard. Must outlast stabilization + spotlight hold so the message
+    // never re-collapses (cv:auto would re-skip) and competing scroll
+    // paths (smartScroll, ResizeObserver bottom-pin) stay suppressed
+    // until the jump UX is fully done.
+    private static readonly CV_OVERRIDE_HOLD_MS = ChatComponent.SCROLL_STABILIZE_MAX_MS + SPOTLIGHT_HOLD_MS + 50;
+    // Matches the `flash` keyframe duration in chat.component.scss.
+    private static readonly FLASH_HOLD_MS = 2000;
 
-    // Per-message-wrapper timer bookkeeping so rapid action-link clicks on
-    // different messages don't race-strip each other's pinned class /
-    // double-spotlight.
-    private toolbarPinnedTimers = new WeakMap<HTMLElement, number>();
-    private spotlightTimers = new WeakMap<HTMLElement, number>();
+    // Signal-driven jump state. Template binds [class.msg-toolbar-pinned] /
+    // [class.highlight-flash] / [class.cv-revealed] in the @for, so no
+    // imperative classList writes. Single timer ref per concern — a rapid
+    // second jump clears the previous timer so it can't strip new state.
+    pinnedMessageId = signal<string | null>(null);
+    flashMessageId = signal<string | null>(null);
+    revealedMessageId = signal<string | null>(null);
+    private pinTimerId: number | null = null;
+    private flashTimerId: number | null = null;
+    private cvTimerId: number | null = null;
+    private spotlightTimerId: number | null = null;
+    private spotlightRetargetTimerId: number | null = null;
+    // Aborts the previous stabilizeScroll call's listeners + handlers when
+    // a new jump starts. Without this, a rapid second jump leaves the
+    // first call's scrollend / wheel / touchstart / keydown listeners
+    // attached, so the first call's onStable fires on the wrong (now-
+    // stale) message id and stacks listeners on the scroll container.
+    private stabilizeAbort: AbortController | null = null;
+
+    private findMessageElement(id: string): HTMLElement | null {
+        const root = this.contentWrapper()?.nativeElement;
+        return root?.querySelector<HTMLElement>(`#message-${CSS.escape(id)}`) ?? null;
+    }
+
+    private revealMessage(id: string): void {
+        this.revealedMessageId.set(id);
+        if (this.cvTimerId !== null) clearTimeout(this.cvTimerId);
+        this.cvTimerId = setTimeout(() => {
+            if (this.revealedMessageId() === id) this.revealedMessageId.set(null);
+            this.cvTimerId = null;
+        }, ChatComponent.CV_OVERRIDE_HOLD_MS) as unknown as number;
+    }
+
+    private pinToolbar(id: string): void {
+        this.pinnedMessageId.set(id);
+        if (this.pinTimerId !== null) clearTimeout(this.pinTimerId);
+        this.pinTimerId = setTimeout(() => {
+            if (this.pinnedMessageId() === id) this.pinnedMessageId.set(null);
+            this.pinTimerId = null;
+        }, ChatComponent.TOOLBAR_PIN_HOLD_MS) as unknown as number;
+    }
+
+    private flashMessage(id: string): void {
+        this.flashMessageId.set(id);
+        if (this.flashTimerId !== null) clearTimeout(this.flashTimerId);
+        this.flashTimerId = setTimeout(() => {
+            if (this.flashMessageId() === id) this.flashMessageId.set(null);
+            this.flashTimerId = null;
+        }, ChatComponent.FLASH_HOLD_MS) as unknown as number;
+    }
+
+    /**
+     * Smoothly home in on the target message and fire `onStable` once it
+     * settles within tolerance of the desired top-aligned position.
+     *
+     * Smooth scroll runs continuously: a poll re-aims with a fresh
+     * `scrollTo({ behavior: 'smooth' })` whenever cv:auto reveals shift
+     * the target past STABLE_BAND_PX. Browser interpolates from current
+     * position to new target — no instant jump, no killed animation.
+     * Poll stops once drift settles within the band; scrollend then fires
+     * and the handler does one last smooth pass if any drift remains.
+     *
+     * `wheel` / `touchstart` / `keydown` aborts: user is driving now.
+     * Hard timeout fires anyway so a never-converging layout surfaces.
+     */
+    private stabilizeScroll(
+        scrollEl: HTMLElement,
+        messageEl: HTMLElement,
+        onStable: () => void
+    ): void {
+        // Abort any in-flight stabilization from a previous jump. This
+        // clears its listeners + timers in one shot so the stale call's
+        // scrollend / wheel handlers can't fire onStable on the wrong id.
+        this.stabilizeAbort?.abort();
+        const abortCtrl = new AbortController();
+        this.stabilizeAbort = abortCtrl;
+        const { signal } = abortCtrl;
+        if (this.spotlightTimerId !== null) clearTimeout(this.spotlightTimerId);
+        if (this.spotlightRetargetTimerId !== null) clearTimeout(this.spotlightRetargetTimerId);
+        const TOLERANCE_PX = 4;
+        // Anti-jitter: when the freshly computed target sits within this
+        // band of the last issued target, the layout has effectively
+        // stabilized and we stop re-aiming. The in-flight smooth scroll
+        // finishes naturally, scrollend fires, the on-scrollend handler
+        // does one last smooth pass if any drift remains.
+        const STABLE_BAND_PX = 8;
+        const RETARGET_INTERVAL_MS = 100;
+        let fired = false;
+        let lastTarget = -1;
+        const computeDesiredScrollTop = (): number => {
+            const containerRect = scrollEl.getBoundingClientRect();
+            const elRect = messageEl.getBoundingClientRect();
+            const raw = scrollEl.scrollTop + (elRect.top - containerRect.top) - ChatComponent.JUMP_TOP_PADDING_PX;
+            return Math.max(0, Math.min(raw, scrollEl.scrollHeight - scrollEl.clientHeight));
+        };
+        const smoothTo = (target: number): void => {
+            lastTarget = target;
+            scrollEl.scrollTo({ top: target, behavior: 'smooth' });
+        };
+        const cleanup = (): void => {
+            if (this.spotlightTimerId !== null) {
+                clearTimeout(this.spotlightTimerId);
+                this.spotlightTimerId = null;
+            }
+            if (this.spotlightRetargetTimerId !== null) {
+                clearTimeout(this.spotlightRetargetTimerId);
+                this.spotlightRetargetTimerId = null;
+            }
+            abortCtrl.abort();
+            if (this.stabilizeAbort === abortCtrl) this.stabilizeAbort = null;
+        };
+        const fire = (): void => {
+            if (fired || signal.aborted) return;
+            fired = true;
+            cleanup();
+            onStable();
+        };
+        const onUserAbort = (): void => {
+            if (fired || signal.aborted) return;
+            cleanup();
+        };
+        const onScrollEnd = (): void => {
+            if (fired || signal.aborted) return;
+            const desired = computeDesiredScrollTop();
+            const delta = desired - scrollEl.scrollTop;
+            if (Math.abs(delta) <= TOLERANCE_PX) {
+                fire();
+                return;
+            }
+            // Settled off-target (last-pixel cv:auto drift). One more
+            // smooth pass; re-attach scrollend for the new animation.
+            scrollEl.addEventListener('scrollend', onScrollEnd, { once: true, signal });
+            smoothTo(desired);
+        };
+        const MAX_RETARGETS = 4;
+        let retargetCount = 0;
+        const retargetTick = (): void => {
+            if (fired || signal.aborted) return;
+            const desired = computeDesiredScrollTop();
+            const drift = Math.abs(desired - lastTarget);
+            // Drift within the stable band → target has settled. Stop
+            // polling so the in-flight smooth scroll can finish and
+            // scrollend can fire. Same exit on the retarget cap to
+            // prevent thrash when cv:auto keeps shifting the target.
+            if (drift <= STABLE_BAND_PX || retargetCount >= MAX_RETARGETS) {
+                this.spotlightRetargetTimerId = null;
+                return;
+            }
+            smoothTo(desired);
+            retargetCount++;
+            this.spotlightRetargetTimerId = setTimeout(retargetTick, RETARGET_INTERVAL_MS) as unknown as number;
+        };
+        smoothTo(computeDesiredScrollTop());
+        this.spotlightRetargetTimerId = setTimeout(retargetTick, RETARGET_INTERVAL_MS) as unknown as number;
+        scrollEl.addEventListener('scrollend', onScrollEnd, { once: true, signal });
+        scrollEl.addEventListener('wheel', onUserAbort, { passive: true, signal });
+        scrollEl.addEventListener('touchstart', onUserAbort, { passive: true, signal });
+        scrollEl.addEventListener('keydown', onUserAbort, { signal });
+        this.spotlightTimerId = setTimeout(() => {
+            if (fired || signal.aborted) return;
+            const desired = computeDesiredScrollTop();
+            if (Math.abs(desired - scrollEl.scrollTop) > TOLERANCE_PX) {
+                smoothTo(desired);
+            }
+            fire();
+        }, ChatComponent.SCROLL_STABILIZE_MAX_MS) as unknown as number;
+    }
 
     onJumpToMessage(id: string, action: string | null = null) {
-        // Set BOTH guards sync at click time, not inside the setTimeout below.
-        // - userScrolledUp: semantically correct (we're leaving the bottom)
-        //   and stops in-flight scheduleScrollCorrection rAF loops.
-        // - jumpInProgress: catches the cases userScrolledUp alone can't —
-        //   scrollToBottom() resets userScrolledUp=false, so any queued
-        //   bottom-pin (status-change effect's setTimeout(50), ResizeObserver
-        //   triggered by our cv override) would undo the flag. jumpInProgress
-        //   is one-way until we explicitly clear it post-scroll.
+        // Both guards must flip sync at click time, not inside the deferred
+        // measurement below. userScrolledUp halts smartScroll/correction
+        // rAF loops; jumpInProgress also stops bottom-pin paths that reset
+        // userScrolledUp=false mid-flight (status-change setTimeout, our
+        // cv override's ResizeObserver). One-way until explicitly cleared.
         this.userScrolledUp = true;
         this.jumpInProgress = true;
-        // Clear-and-reset so two rapid jumps don't fight: without this, jump
-        // #1's timer would fire mid-jump-#2's hold and prematurely lift the
-        // guard.
+        // Two rapid jumps must not let the earlier timer fire mid-second-hold.
         if (this.jumpTimeoutId !== null) clearTimeout(this.jumpTimeoutId);
         this.jumpTimeoutId = setTimeout(() => {
             this.jumpInProgress = false;
             this.jumpTimeoutId = null;
         }, ChatComponent.CV_OVERRIDE_HOLD_MS);
+        // Reveal + pin BEFORE scroll math: revealing lets the target
+        // contribute real height instead of cv-collapsed placeholder, and
+        // pinning gives action spotlights an opacity:1 button to anchor to.
+        this.revealMessage(id);
+        this.pinToolbar(id);
         setTimeout(() => {
-            const root = this.contentWrapper()?.nativeElement;
             const scrollEl = this.scrollContainer()?.nativeElement as HTMLElement | undefined;
-            const el = root?.querySelector<HTMLElement>(`#message-${CSS.escape(id)}`);
+            const el = this.findMessageElement(id);
             if (!el || !scrollEl) return;
-            el.style.contentVisibility = 'visible';
-            void el.offsetHeight;
-            // Compute target scrollTop manually. scrollIntoView({behavior:'smooth'})
-            // silently no-ops when the target is far from the current viewport
-            // AND there are content-visibility:auto elements between current
-            // scrollTop and target — Chrome bails on the layout chain it can't
-            // resolve cheaply. scrollEl.scrollTo with an explicit numeric
-            // target sidesteps that algorithm.
-            const containerRect = scrollEl.getBoundingClientRect();
-            const elRect = el.getBoundingClientRect();
-            const targetContentTop = scrollEl.scrollTop + (elRect.top - containerRect.top);
-            const centeredTop = targetContentTop - (scrollEl.clientHeight - elRect.height) / 2;
-            const clamped = Math.max(0, Math.min(centeredTop, scrollEl.scrollHeight - scrollEl.clientHeight));
-            scrollEl.scrollTo({ top: clamped, behavior: 'smooth' });
-            // Always restore to empty (removes inline style), letting the
-            // `.model-message` class rule resume control. Don't capture
-            // `el.style.contentVisibility` before override — a second jump
-            // within the hold window would capture our previous 'visible'
-            // override as the "original" and never restore class control.
-            // Safe because nothing else in this app sets inline cv on these
-            // elements.
-            setTimeout(() => { el.style.contentVisibility = ''; }, ChatComponent.CV_OVERRIDE_HOLD_MS);
-            if (action) {
-                // Toolbar buttons are hidden until hover; force-show the
-                // toolbar for the spotlight duration so the user can both
-                // see and click the highlighted target.
-                const btn = el.querySelector<HTMLElement>(`[data-msg-action="${CSS.escape(action)}"]`);
-                if (btn) {
-                    el.classList.add('msg-toolbar-pinned');
-                    const prevPin = this.toolbarPinnedTimers.get(el);
-                    if (prevPin !== undefined) clearTimeout(prevPin);
-                    const prevSpot = this.spotlightTimers.get(el);
-                    if (prevSpot !== undefined) clearTimeout(prevSpot);
-                    const spotTimer = setTimeout(() => {
-                        spotlightElement(btn);
-                        this.spotlightTimers.delete(el);
-                    }, ChatComponent.SPOTLIGHT_SCROLL_DELAY_MS) as unknown as number;
-                    this.spotlightTimers.set(el, spotTimer);
-                    const pinTimer = setTimeout(() => {
-                        el.classList.remove('msg-toolbar-pinned');
-                        this.toolbarPinnedTimers.delete(el);
-                    }, ChatComponent.TOOLBAR_PIN_HOLD_MS) as unknown as number;
-                    this.toolbarPinnedTimers.set(el, pinTimer);
-                    return;
+            const actionBtn = action
+                ? el.querySelector<HTMLElement>(`[data-msg-action="${CSS.escape(action)}"]`)
+                : null;
+            this.stabilizeScroll(scrollEl, el, () => {
+                if (actionBtn) {
+                    spotlightElement(actionBtn);
+                } else {
+                    this.flashMessage(id);
                 }
-                // Action segment named but no matching button on this
-                // message (e.g. user-msg / non-save model-msg with
-                // auto-update link): fall through to message-level flash.
-            }
-            el.classList.add('highlight-flash');
-            setTimeout(() => el.classList.remove('highlight-flash'), 2000);
+            });
         }, ChatComponent.JUMP_TO_MESSAGE_DELAY_MS);
     }
 }

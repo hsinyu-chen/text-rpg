@@ -161,6 +161,18 @@
     }
 }
 
+// PiP-active state: agent panel is open in a Document-Picture-in-Picture
+// window. Flip the FAB from "raised" to "pressed-in" — tinted background +
+// inset shadow — so the user sees at a glance that the panel is already
+// surfaced (just not in this window).
+.agent-btn.pip-active {
+    background-color: var(--mat-sys-tertiary-container, #4a3a52) !important;
+    color: var(--mat-sys-on-tertiary-container, #f3e5f5) !important;
+    box-shadow:
+        inset 0 2px 4px rgba(0, 0, 0, 0.45),
+        inset 0 0 0 1px rgba(255, 255, 255, 0.08) !important;
+}
+
 .mobile-menu-btn {
     display: none; // Hidden by default on desktop
     background-color: #424242 !important;

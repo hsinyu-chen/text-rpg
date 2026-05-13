@@ -1050,6 +1050,7 @@ export const en: TranslationDict = {
             fileNotFound: 'KB file not found: {{filename}}',
             unknownScheme: 'Unknown app scheme: {{scheme}}',
             mainArea: 'main area',
+            noMessages: 'No chat messages yet',
         },
     },
 };

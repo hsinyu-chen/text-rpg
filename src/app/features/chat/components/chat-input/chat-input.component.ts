@@ -25,6 +25,7 @@ import { SystemStatusService } from '@app/core/services/system-status.service';
 import { getProfileDisplayName } from '@app/core/constants/prompt-profiles';
 import { ContextUsageBarComponent } from '@app/shared/components/context-usage-bar/context-usage-bar.component';
 import { AppAgentHintDirective } from '@app/core/services/agent-hints/agent-hints.directive';
+import { AgentPanelStateService } from '@app/core/services/file-agent/agent-panel-state.service';
 
 @Component({
     selector: 'app-chat-input',
@@ -51,6 +52,7 @@ export class ChatInputComponent {
     session = inject(SessionService);
     lang = inject(LanguageService);
     sys = inject(SystemStatusService);
+    agentPanelState = inject(AgentPanelStateService);
     private i18n = inject(I18nService);
     private profileRegistry = inject(PromptProfileRegistryService);
     private config = inject(ConfigService);

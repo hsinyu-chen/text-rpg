@@ -137,7 +137,9 @@
         </button>
 
         <!-- AI Agent Panel Button -->
-        <button mat-mini-fab class="agent-btn desktop-only" [disabled]="state.status() === 'generating'"
+        <button mat-mini-fab class="agent-btn desktop-only"
+            [class.pip-active]="agentPanelState.pipActive()"
+            [disabled]="state.status() === 'generating'"
             (click)="toggleAgentSidebar.emit()" (hintActivate)="toggleAgentSidebar.emit()"
             appAgentHint="chat-input/agent-panel"
             [matTooltip]="'ui.AGENT_PANEL_TOOLTIP' | translate">

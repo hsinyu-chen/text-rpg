@@ -77,6 +77,13 @@
         }
     }
 
+    // Deep-link jump target: temporarily override the cv:auto skip so layout
+    // resolves the real bbox for scroll math + spotlight positioning. Same
+    // specificity as &.model-message; declared after so it wins source order.
+    &.cv-revealed {
+        content-visibility: visible;
+    }
+
     // Jump-to-message flash. Uses an outset box-shadow rather than a wrapper
     // background because the inner .bubble-content is opaque and would hide
     // any background colour on the wrapper.
