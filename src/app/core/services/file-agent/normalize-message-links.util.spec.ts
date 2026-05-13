@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeMessageLinks } from './normalize-message-links.util';
+import { normalizeMessageLinks, unwrapAppUrlCode } from './normalize-message-links.util';
 
 const G = 'a1b2c3d4-e5f6-7890-abcd-ef0123456789';
 const G2 = '11111111-2222-3333-4444-555555555555';
@@ -64,6 +64,46 @@ describe('normalizeMessageLinks', () => {
       .toBe(`(see message [${G}](app://message/${G}))`);
   });
 
+});
+
+describe('unwrapAppUrlCode', () => {
+  it('unwraps <code>-wrapped markdown links', () => {
+    expect(unwrapAppUrlCode(`see <code>[訊息](app://message/${G})</code> here`))
+      .toBe(`see [訊息](app://message/${G}) here`);
+  });
+
+  it('unwraps backtick-wrapped markdown links', () => {
+    expect(unwrapAppUrlCode(`see \`[訊息](app://message/${G})\` here`))
+      .toBe(`see [訊息](app://message/${G}) here`);
+  });
+
+  it('unwraps bare <code>-wrapped URLs and adds link markup (markdown does not auto-link app://)', () => {
+    expect(unwrapAppUrlCode(`open <code>app://file/inventory.md</code> now`))
+      .toBe(`open [app://file/inventory.md](app://file/inventory.md) now`);
+  });
+
+  it('unwraps bare backtick-wrapped URLs and adds link markup', () => {
+    expect(unwrapAppUrlCode('open `app://hint/chat-input/send` now'))
+      .toBe('open [app://hint/chat-input/send](app://hint/chat-input/send) now');
+  });
+
+  it('leaves text without code-wrapped app:// URLs untouched', () => {
+    const text = `regular [link](app://message/${G}) and \`some other code\``;
+    expect(unwrapAppUrlCode(text)).toBe(text);
+  });
+
+  it('is idempotent', () => {
+    const once = unwrapAppUrlCode(`<code>[a](app://message/${G})</code>`);
+    expect(unwrapAppUrlCode(once)).toBe(once);
+  });
+
+  it('returns empty string for non-string input', () => {
+    expect(unwrapAppUrlCode(undefined as unknown as string)).toBe('');
+    expect(unwrapAppUrlCode({} as unknown as string)).toBe('');
+  });
+});
+
+describe('normalizeMessageLinks (continued)', () => {
   it('skips GUIDs that are already part of any URL path', () => {
     // Generic `(?<!/)` lookbehind protects every URL scheme, not just
     // app://message/ — prevents nested-link mangling on a GUID-shaped

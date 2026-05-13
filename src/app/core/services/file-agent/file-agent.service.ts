@@ -17,7 +17,7 @@ import { FileAgentSettingsStore } from './file-agent-settings.store';
 import { I18nService } from '@app/core/i18n';
 import { getLocale } from '@app/core/constants/locales';
 import { AgentHintRegistry } from '@app/core/services/agent-hints/agent-hints.registry';
-import { normalizeMessageLinks } from './normalize-message-links.util';
+import { normalizeMessageLinks, unwrapAppUrlCode } from './normalize-message-links.util';
 
 // ParsedAction args come through an `as unknown` cast — runtime shape isn't
 // guaranteed. Coerce non-string `message` payloads (hallucinated objects /
@@ -345,7 +345,7 @@ export class FileAgentService {
     if (!result) return;
 
     if (mode === 'native' && ctx.accumulatedText) {
-      ctx.accumulatedText = normalizeMessageLinks(sanitizeLatexToUnicode(ctx.accumulatedText));
+      ctx.accumulatedText = normalizeMessageLinks(unwrapAppUrlCode(sanitizeLatexToUnicode(ctx.accumulatedText)));
       this.updateLogAt(ctx.currentLogIndex, e => ({ ...e, text: ctx.accumulatedText }));
     }
 
@@ -559,7 +559,7 @@ export class FileAgentService {
     // ctx.accumulatedText was already processed at processAgentTurn line ~340,
     // so we don't re-run those on the merged result.
     const toolMsg = finishCall.action === 'submitResponse'
-      ? normalizeMessageLinks(sanitizeLatexToUnicode(getStringArg(finishCall.args.message)))
+      ? normalizeMessageLinks(unwrapAppUrlCode(sanitizeLatexToUnicode(getStringArg(finishCall.args.message))))
       : '';
     // In native mode, accumulatedText is genuine commentary that lives
     // alongside the structured function call — merge with toolMsg when both
@@ -592,7 +592,7 @@ export class FileAgentService {
     a: ParsedAction, context: FileAgentContext, mode: 'native' | 'json', ctx: TurnContext
   ): Promise<void> {
     if (a.action === 'reportProgress') {
-      const message = normalizeMessageLinks(sanitizeLatexToUnicode(getStringArg(a.args.message)));
+      const message = normalizeMessageLinks(unwrapAppUrlCode(sanitizeLatexToUnicode(getStringArg(a.args.message))));
       this.updateLogAt(ctx.currentLogIndex, e => ({ ...e, text: message, isToolCall: false }));
       this.appendToolResults([{ action: a, response: { status: 'acknowledged' } }], mode);
       await this.processAgentTurn(context);
@@ -650,7 +650,7 @@ export class FileAgentService {
 
     for (const a of actions) {
       if (a.action === 'reportProgress') {
-        const message = normalizeMessageLinks(sanitizeLatexToUnicode(getStringArg(a.args.message)));
+        const message = normalizeMessageLinks(unwrapAppUrlCode(sanitizeLatexToUnicode(getStringArg(a.args.message))));
         this.agentLogs.update(logs => [...logs, { role: 'model', text: message, type: 'model' as const }]);
         executed.push({ action: a, response: { status: 'acknowledged' } });
         continue;
