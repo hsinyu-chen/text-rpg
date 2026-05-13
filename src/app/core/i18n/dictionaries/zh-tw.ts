@@ -928,7 +928,7 @@ export const zhTW: TranslationDict = {
             self: { name: '底部工具列', description: '對話畫面底部的工具列(永遠在 DOM)' },
             'prompt-profile': { name: 'Prompt profile', description: '切換目前對話使用的 prompt profile(cloud / local / 自訂)' },
             'engine-mode-toggle': { name: '引擎模式', description: '切換 engine mode 為單階段(single)或多階段(narrator+resolver);影響後續所有回合' },
-            'ideal-outcome-toggle': { name: '理想結果', description: '開關「理想結果」守門條件輸入框;若 LLM 回應違反你寫下的理想結果,該回合會立即中斷(順帶引導故事朝該方向走是次要效果)' },
+            'ideal-outcome-toggle': { name: '理想結果', description: '開關「理想結果」守門條件輸入框;若 LLM 回應違反你寫下的理想結果,該回合會立即中斷,讓你有機會反擊/回應劇情發展(順帶引導故事朝該方向走是次要效果)' },
             save: { name: '存檔意圖', description: '預填一則 save intent 訊息到輸入框並切換 intent;按 send 後 LLM 在敘事裡處理遊戲內存檔(非寫盤)' },
             'chat-config': {
                 self: { name: '對話設定', description: '開啟對話設定 dialog(prompt profile 編輯、版本同步等)' },
