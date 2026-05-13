@@ -75,12 +75,13 @@ const INVALID_MSG_ID_LINK_RE = new RegExp(
 // template's opening `<|tool_call>` marker so the parser couldn't extract
 // it. The "URL" is not a URL at all; it's a stranded tool-call payload.
 // Constrained to the registered tool-name set so we never strip a
-// legitimate markdown link whose URL happens to contain `{`. Body is
-// matched up to the first `)` after `{` — markdown links can't nest
-// parens reliably anyway, and tool-call bodies typically don't carry
-// parens at all.
+// legitimate markdown link whose URL happens to contain `{`. Body uses
+// the same single-level-balanced-paren tolerance as `URL_INNER` so a
+// stringified arg value containing parens (filenames like `doc(v1).md`,
+// regex sources with grouping, etc.) doesn't terminate the match
+// prematurely and leave a residual fragment in the output.
 const LEAKED_TOOLCALL_LINK_RE = new RegExp(
-  `\\[([^\\]]*)\\]\\((?:${TOOL_NAME_ALT})\\{[^)]*\\)`,
+  `\\[([^\\]]*)\\]\\((?:${TOOL_NAME_ALT})\\{(?:[^()]|\\([^()]*\\))*\\)`,
   'g'
 );
 
@@ -280,12 +281,15 @@ export function collapseAdjacentDuplicateLinks(text: string): string {
 /**
  * Single entry point for the file-agent service. Applies all harness
  * fallbacks in the right order:
- *   1. Strip leaked native tool-call markdown links — `[label](toolname{...})`
- *      where toolname is a registered file-agent tool. Run FIRST so the
- *      stranded payload (which carries chat-template tokens like `<|"|>`)
- *      is gone before later steps even see it.
- *   2. Strip stray chat-template tokens (`<|"|>`, `<|tool_call>` etc) that
- *      leaked outside any markdown link.
+ *   1. Strip stray chat-template tokens (`<|"|>`, `<|tool_call>` etc).
+ *      Run FIRST so a partial leak like `[label](<|tool_call>toolname{...})`
+ *      gets its envelope marker removed BEFORE the tool-call-link scrubber
+ *      checks the URL slot — otherwise the scrubber wouldn't match (the
+ *      URL doesn't start with a known toolname) and a later token-strip
+ *      pass would strand a naked `[label](toolname{...})` in the output.
+ *   2. Strip leaked native tool-call markdown links —
+ *      `[label](toolname{...})` where toolname is a registered file-agent
+ *      tool. Now sees a clean URL slot thanks to step 1.
  *   3. Rewrite known-misspelled schemes (e.g. `app://chat/<guid>` →
  *      `app://message/<guid>`) so every downstream step sees canonical URLs.
  *   4. Unwrap code-span-wrapped `app://` URLs (and bare GUIDs in code).
@@ -310,8 +314,8 @@ export function applyHarnessFallbacks(text: string, labels: HarnessLabels = DEFA
           backfillEmptyLabels(
             unwrapAppUrlCode(
               rewriteHallucinatedSchemes(
-                stripChatTemplateTokens(
-                  stripLeakedToolCallLinks(text)
+                stripLeakedToolCallLinks(
+                  stripChatTemplateTokens(text)
                 )
               ),
               labels,

@@ -208,6 +208,14 @@ describe('stripLeakedToolCallLinks', () => {
     expect(stripLeakedToolCallLinks(text)).toBe(text);
   });
 
+  it('handles tool-call body whose args contain parentheses', () => {
+    // Filenames with parens (`doc(v1).md`), regex sources with capture
+    // groups, or any stringified arg value with `()` would terminate
+    // a naive `[^)]*` body matcher early and leak a residual fragment.
+    const input = 'try [edit](searchReplace{filename:"doc(v1).md",pattern:"(foo)"}) now';
+    expect(stripLeakedToolCallLinks(input)).toBe('try edit now');
+  });
+
   it('does NOT strip a link to an unknown function name (not a registered tool)', () => {
     // Safety net: limiting to KNOWN tool names prevents accidental
     // stripping of legitimate URLs that happen to start with `word{`.
@@ -307,6 +315,20 @@ describe('URL with literal parentheses', () => {
   it('backfillEmptyLabels preserves full URL including parens', () => {
     expect(backfillEmptyLabels('open [](app://file/doc(v1).md) please', EN))
       .toBe('open [doc(v1).md](app://file/doc(v1).md) please');
+  });
+});
+
+describe('applyHarnessFallbacks ordering invariants', () => {
+  it('handles a leak whose URL slot has an envelope marker prefix in front of the toolname', () => {
+    // Self-review-surfaced case: `[label](<|tool_call>submitResponse{...})`
+    // — the model wrote the leaked tool-call body BUT also retained the
+    // chat-template envelope opener as a literal. The link-scrubber must
+    // run AFTER the token-strip step; otherwise the link-scrubber misses
+    // (URL starts with `<|tool_call>`, not a known toolname), the
+    // token-strip then removes the marker, and a naked
+    // `[label](submitResponse{...})` would survive.
+    const input = '研究[完成](<|tool_call>submitResponse{msg:"hello"}) 結束';
+    expect(applyHarnessFallbacks(input)).toBe('研究完成 結束');
   });
 });
 
