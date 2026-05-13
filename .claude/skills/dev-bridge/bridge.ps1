@@ -164,6 +164,77 @@ function Open-BridgeChatAgentPanel {
     Invoke-Bridge -Path '/agent/open-chat-agent-panel' -Body @{} -TimeoutSec 30
 }
 
+# Snapshot of which agent-hint manifest paths are currently mounted (directive
+# attached) vs. unmounted (parent dialog / panel not yet opened). Quick way to
+# verify a template wiring change without booting the UI manually — if a path
+# you JUST added still shows up in .unmounted while the surrounding region is
+# on-screen, the directive didn't mount (component import missed, etc).
+function Get-BridgeAgentHints {
+    Invoke-Bridge -Path '/agent/get-hints' -Body @{} -TimeoutSec 30
+}
+
+# Headless click of an `app://hint/<path>` link. Same effect as the user
+# clicking the link inside the agent console — flashes / focuses / activates
+# when the element is visible, otherwise the in-app snackbar shows a
+# "Find it here → Sidebar > Settings > Font size" breadcrumb. Response tells
+# you which path it took:
+#   ok=true   → element was visible, action ran
+#   ok=false, reason=unreachable, breadcrumb=...  → toast shown
+#   ok=false, reason=unknown   → path not in manifest
+# Use to test the deep-link wiring without typing into the console.
+function Invoke-BridgeHint {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string] $Path,
+        [ValidateSet('highlight', 'focus', 'activate')] [string] $Action = 'highlight'
+    )
+    Invoke-Bridge -Path '/agent/trigger-hint' -Body @{ path = $Path; action = $Action } -TimeoutSec 30
+}
+
+# Returns getBoundingClientRect() for the path's mounted element + viewport
+# size. mounted=false ≠ authoring bug — many entries only mount when their
+# parent dialog opens; the caller decides whether that's expected here.
+# Use after Invoke-BridgeHint to verify the element shifted into view, or
+# pair with manual navigation to test that a directive landed on the right
+# DOM node.
+function Get-BridgeHintBBox {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [string] $Path)
+    Invoke-Bridge -Path '/agent/get-hint-bbox' -Body @{ path = $Path } -TimeoutSec 30
+}
+
+# Dev-only async JS eval inside the running app. Body is compiled as an
+# AsyncFunction — `await` works inside multi-statement blocks. Bare
+# expressions auto-wrap as `return (expr)`. DOM nodes come back as
+# { tag, id, classes } stubs; functions stringify; unawaited Promises in
+# the result are flagged ("use return await ...").
+#   Invoke-BridgeEval 'getComputedStyle(document.querySelector(".agent-sidebar")).zIndex'
+#   Invoke-BridgeEval 'const r = await fetch("/assets/version.json"); return r.status'
+function Invoke-BridgeEval {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [string] $Expr)
+    Invoke-Bridge -Path '/agent/eval' -Body @{ expr = $Expr } -TimeoutSec 30
+}
+
+# Push a prompt into the VISIBLE chat-side agent panel input box (opens
+# the panel first if it's closed). With -AutoSend the panel also fires
+# runAgent immediately, so the human sees the agent stream live. Distinct
+# from Send-BridgeAgentAsk, which runs a separate headless agent and
+# returns the full log to PS; use this helper when you want the user to
+# watch the actual panel react.
+function Send-BridgeChatPanelPrompt {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string] $Prompt,
+        [switch] $AutoSend
+    )
+    $body = @{
+        prompt   = $Prompt
+        autoSend = [bool]$AutoSend
+    }
+    Invoke-Bridge -Path '/agent/fill-chat-panel-prompt' -Body $body -TimeoutSec 30
+}
+
 # Send a prompt to a headless in-app file-agent and wait for the full log.
 # Defaults to sidebar mode (readOnly) — write tools are rejected, matching
 # the chat-side agent surface. -Mode fileViewer lets the agent call write

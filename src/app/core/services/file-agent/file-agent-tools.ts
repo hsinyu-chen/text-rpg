@@ -230,6 +230,17 @@ export const FILE_AGENT_TOOLS: LLMFunctionDeclaration[] = [
     }
   },
   {
+    name: 'uiMap',
+    description: 'Return the FULL UI feature tree (every button / panel / dialog the helper knows about). Call ONCE per turn when the user asks about UI locations or controls — the response is an indented markdown tree of `path — name — description` lines. Emit deep links as `app://hint/<full-path>` (e.g. `app://hint/chat-input/chat-config/profile-manage-menu/disk-sync-pull`); the markdown renderer auto-expands them into per-segment clickable breadcrumbs, so DO NOT manually compose `[A](app://hint/A) > [B](...)` chains. Append `?do=activate` only on entries marked `(activatable)` AND when the user explicitly asked you to trigger the action for them; default to plain URLs (highlight on click).',
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: { type: 'string', description: REASON_DESC }
+      },
+      required: ['reason']
+    }
+  },
+  {
     name: 'reportProgress',
     description: 'Send a progress update to the user mid-task. The agent CONTINUES after this call — use it to narrate ongoing work without yielding control. Do NOT use this when the entire task is complete.',
     parameters: {

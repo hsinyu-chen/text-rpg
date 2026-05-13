@@ -16,6 +16,7 @@ import { SidebarContextControlsComponent } from './components/sidebar-context-co
 import { SidebarCostPredictionComponent } from './components/sidebar-cost-prediction/sidebar-cost-prediction.component';
 import { SidebarProviderSelectorComponent } from './components/sidebar-provider-selector/sidebar-provider-selector.component';
 import { TranslatePipe } from '@app/core/i18n';
+import { AppAgentHintDirective } from '@app/core/services/agent-hints/agent-hints.directive';
 
 @Component({
   selector: 'app-sidebar',
@@ -29,7 +30,8 @@ import { TranslatePipe } from '@app/core/i18n';
     SidebarContextControlsComponent,
     SidebarCostPredictionComponent,
     SidebarProviderSelectorComponent,
-    TranslatePipe
+    TranslatePipe,
+    AppAgentHintDirective
   ],
   templateUrl: './sidebar.component.html',
   styleUrl: './sidebar.component.scss'
@@ -47,7 +49,6 @@ export class SidebarComponent {
 
   closeSidebar = output<void>();
   openBooks = output<void>();
-
 
   fileList = computed(() => {
     const list: { name: string, content: string, tokens: number }[] = [];

@@ -82,8 +82,9 @@
                             </div>
                         } @else {
                             @if (log.role === 'model') {
-                                <div class="log-text prose-content markdown-body" style="font-family: inherit; font-size: inherit;">
-                                    <markdown [data]="log.text"></markdown>
+                                <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -->
+                                <div class="log-text prose-content markdown-body" style="font-family: inherit; font-size: inherit;" (click)="onAgentLogClick($event)">
+                                    <markdown [data]="breadcrumbifyLinks(log)"></markdown>
                                 </div>
                             } @else {
                                 <span class="log-text">{{ log.text }}</span>
@@ -116,6 +117,11 @@
 
     <!-- Prompt Input -->
     <div class="agent-input-container">
+        @if (isDevMode) {
+            <button mat-icon-button (click)="openHintDebug()" matTooltip="Agent hint debug (dev only)">
+                <mat-icon>bug_report</mat-icon>
+            </button>
+        }
         <button mat-icon-button [matMenuTriggerFor]="builtInPromptsMenu"
                 [matTooltip]="'dialog.agentBuiltInPrompts' | translate"
                 [disabled]="agentService.isAgentRunning() || builtInPromptsService.index.isLoading()">

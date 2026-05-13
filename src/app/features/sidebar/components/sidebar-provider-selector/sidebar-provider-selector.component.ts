@@ -9,6 +9,7 @@ import { LLMConfigService } from '@app/core/services/llm-config.service';
 import { GameStateService } from '@app/core/services/game-state.service';
 import { LLMProfilesDialogComponent } from '@app/features/settings/llm-profiles-dialog.component';
 import { TranslatePipe } from '@app/core/i18n';
+import { AppAgentHintDirective } from '@app/core/services/agent-hints/agent-hints.directive';
 
 /**
  * Compact profile switcher for the left sidebar — hot-swaps the active
@@ -24,7 +25,8 @@ import { TranslatePipe } from '@app/core/i18n';
     MatFormFieldModule,
     MatSelectModule,
     FormsModule,
-    TranslatePipe
+    TranslatePipe,
+    AppAgentHintDirective
   ],
   templateUrl: './sidebar-provider-selector.component.html',
   styleUrl: './sidebar-provider-selector.component.scss'

@@ -110,18 +110,27 @@ describe('buildSystemInstruction', () => {
     });
   });
 
-  describe('surface-mode block (readOnly vs file-viewer)', () => {
-    it('injects the read-only sidebar block when readOnly=true', () => {
-      const out = build({ readOnly: true });
-      expect(out).toContain('EDITING SURFACE — SIDEBAR (read-only)');
-      expect(out).not.toContain('EDITING SURFACE — FILE VIEWER');
+  describe('surface-mode block (mode-tag protocol)', () => {
+    // The block is static — both [mode: editor] and [mode: readonly] are
+    // described in every system prompt, with the marker on the user message
+    // selecting which applies on a given turn. Decoupling readOnly from the
+    // system prompt is what keeps the LLM KV cache stable across panel toggles.
+    it('describes both modes regardless of readOnly', () => {
+      const ro = build({ readOnly: true });
+      const rw = build({ readOnly: false });
+      for (const out of [ro, rw]) {
+        expect(out).toContain('EDITING SURFACE — TWO MODES');
+        expect(out).toContain('[mode: editor]');
+        expect(out).toContain('[mode: readonly]');
+        expect(out).toContain('app://file/');
+      }
     });
 
-    it('injects the file-viewer block when readOnly=false', () => {
-      const out = build({ readOnly: false });
-      expect(out).toContain('EDITING SURFACE — FILE VIEWER');
-      expect(out).toContain('[Save Changes]');
-      expect(out).not.toContain('EDITING SURFACE — SIDEBAR (read-only)');
+    it('keeps the system prompt byte-identical between readOnly modes', () => {
+      // KV-cache stability invariant: the readOnly flag must NOT branch the
+      // system instruction. If this breaks, the mode marker on user messages
+      // is the right knob — not a system-prompt fork.
+      expect(build({ readOnly: true })).toBe(build({ readOnly: false }));
     });
   });
 

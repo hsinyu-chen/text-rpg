@@ -4,6 +4,8 @@
 
 **[Use it directly on GitHub Pages](https://hsinyu-chen.github.io/text-rpg/)**
 
+<sub>Once your LLM is configured, open the **[in-app AI Agent](#5-in-app-ai-agent-kb-editing--qa--ui-guidance)** from the chat header and ask *"how do I play?"* — it knows the commands, save / Auto-Update flow, and KB layout.</sub>
+
 > [!NOTE]
 > The hosted GitHub Pages build runs without GCP OAuth credentials, so **Google Drive sync is disabled** there. All other features (Gemini API, OpenAI-compatible endpoints, local file system, llama.cpp) work normally — bring your own API key. If you want Drive sync, self-host with your own OAuth client (see [GCP Configuration](#gcp-configuration-oauth)) or pick the S3 / Local Folder backends instead.
 
@@ -35,6 +37,7 @@ TextRPG is a **Local-First**, **Bring Your Own Key (BYOK)** web app built around
 ![Quest Completion with Multi-NPC Reactions and State Tracking](images/2.png)
 ![Auto World Update — Hunk-by-Hunk Review](images/3.png)
 ![Auto World Update — Full File Diff View](images/4.png)
+![In-app AI Agent in a detachable Picture-in-Picture window — answering "how do I save?"](images/5.png)
 
 ---
 
@@ -317,10 +320,16 @@ The agent appears in **two surfaces**, backed by the same service:
 
 | Surface | How to open | Permissions |
 | :--- | :--- | :--- |
-| **Chat-side panel** (sidebar, **read-only**) | Toggle from the chat header | Q&A and UI guidance only. Write tools are rejected at the executor — the agent will redirect you to the File Viewer for edits. |
+| **Chat-side panel** (sidebar, **read-only by default**) | Toggle from the chat header | Q&A and UI guidance. Write tools are rejected at the executor unless an editing surface (File Viewer) is open — see *Cross-surface editing* below. |
 | **File Viewer agent panel** (read + write) | Open File Viewer (sidebar **View Files**), then toggle the agent panel from the dialog header | Full read + write. Edits land in the Monaco in-memory buffer; click **Save Changes** in the dialog header to commit to IndexedDB. |
 
-Think of it as an **in-app wiki + editor**: ask anything about your world, mechanics, save state, or KB layout, and (in the File Viewer surface) have it apply edits for you. The agent's system prompt covers the engine's routing rules, save / Auto-Update flow, per-message toolbar trade-offs, and KB↔chat sync diagnosis, so questions like the ones below get grounded answers rather than generic LLM guesses.
+The chat-side panel pops into a **Document Picture-in-Picture window** on browsers that support it (Chrome 116+), so it stays visible above any dialog while you keep playing — see [images/5.png](images/5.png). Browsers without PiP fall back to a native body-portal popover that joins the same top-layer as Material dialogs.
+
+The agent can also emit **clickable UI breadcrumbs** (e.g. *Sidebar › Files tab › Local File System*) when guiding you to a surface — each segment of the breadcrumb is its own link; clicking it scrolls to that surface, opens any container along the way (tabs, side-menus, collapsed panels), and pulses a spotlight on the target so you can see where the answer lives.
+
+**Cross-surface editing.** When the File Viewer is open, the chat-side panel (or its PiP detached window) routes its read + write through the File Viewer's unsaved buffer — so you can keep playing in the main view, ask the floating agent to *"compress every NPC profile to three lines"*, and review the diff in the File Viewer's Monaco editor before clicking **Save Changes** there. Without the File Viewer open, the chat-side agent stays read-only.
+
+Think of it as an **in-app wiki + editor**: ask anything about your world, mechanics, save state, or KB layout, and (with the File Viewer open) have it apply edits for you. The agent's system prompt covers the engine's routing rules, save / Auto-Update flow, per-message toolbar trade-offs, and KB↔chat sync diagnosis, so questions like the ones below get grounded answers rather than generic LLM guesses.
 
 **Common asks**:
 

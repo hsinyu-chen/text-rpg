@@ -4,6 +4,8 @@
 
 **[直接在 GitHub Pages 上使用](https://hsinyu-chen.github.io/text-rpg/)**
 
+<sub>LLM 設定好之後，可以直接打開 chat header 的**[內建 AI Agent](#5-內建-ai-agentkb-編輯--qa--ui-引導)**問「遊戲怎麼玩？」——它熟悉所有指令、存檔 / Auto-Update 流程，以及 KB 結構。</sub>
+
 > [!NOTE]
 > 此 GitHub Pages build 未配置 GCP OAuth 憑證，**Google Drive 同步功能已停用**。其他功能（Gemini API、OpenAI 相容 endpoint、本地檔案系統、llama.cpp）均正常運作——請自備 API Key。若需要 Drive 同步，請自架並填入自己的 OAuth client（見 [GCP 配置](#gcp-配置-oauth)），或改用 S3 / Local Folder 後端。
 
@@ -35,6 +37,7 @@ TextRPG 是一個**本地優先 (Local-First)**、**自帶金鑰 (Bring Your Own
 ![任務完成與多 NPC 反應、狀態追蹤](images/2.png)
 ![自動世界更新 — 逐段差分審核](images/3.png)
 ![自動世界更新 — 完整檔案差分檢視](images/4.png)
+![內建 AI Agent 在獨立的 Picture-in-Picture 視窗中回答「我該怎麼存檔」](images/5.png)
 
 ---
 
@@ -316,10 +319,16 @@ Agent 有 **兩個 surface**,共用同一套服務:
 
 | Surface | 開啟方式 | 權限 |
 | :--- | :--- | :--- |
-| **Chat 側邊面板**(sidebar,**唯讀**) | 從 chat header 切換 | 只能 Q&A 與 UI 引導;寫入工具會在 executor 被擋下,Agent 會引導你到 File Viewer 編輯。 |
+| **Chat 側邊面板**(sidebar,**預設唯讀**) | 從 chat header 切換 | Q&A 與 UI 引導;寫入工具會在 executor 被擋下,除非同時開啟編輯 surface(File Viewer)——詳見下方「跨 surface 編輯」。 |
 | **File Viewer 面板**(讀 + 寫) | 開啟 File Viewer(側邊欄 **檢視檔案**),從 dialog header 切換 agent panel | 可讀可寫。編輯先進 Monaco in-memory buffer;按 dialog header 的 **Save Changes** 才寫進 IndexedDB。 |
 
-可以把它當成**遊戲內建的 wiki + 編輯器**:有關世界、機制、存檔狀態、KB 結構的任何問題都可以問;在 File Viewer surface 還可以請 Agent 直接改檔。Agent 的系統提示已涵蓋引擎的歸類規則、存檔 / Auto Update 流程、訊息工具列的取捨、KB↔chat 同步診斷,所以下列場景的回答會基於遊戲規則,而不是 generic LLM 猜測。
+支援 Document Picture-in-Picture API 的瀏覽器(Chrome 116+),Chat 側邊面板會自動彈出成**獨立的 PiP 視窗**,在你繼續玩遊戲時保持浮動在所有對話框之上——見 [images/5.png](images/5.png)。不支援 PiP 的瀏覽器則退而使用 native body-portal popover,與 Material dialog 處於同一 top-layer。
+
+Agent 引導你到特定 UI 時,可以輸出**可點擊的 UI 麵包屑**(例如「側邊欄 › Files 分頁 › Local File System」)——每一段都是獨立連結;點下去會自動捲到該位置、把沿路的容器(分頁、側拉、收合面板)一併打開,並在目標元素上脈動 spotlight,讓你一眼看見答案落在哪。
+
+**跨 surface 編輯。** 當 File Viewer 開啟時,Chat 側邊面板(或它彈出的 PiP 視窗)會把讀寫都接到 File Viewer 的 unsaved buffer 上——你可以一邊在主畫面繼續玩,一邊請浮動的 Agent「把每個 NPC 個人檔壓到三行」,接著在 File Viewer 的 Monaco editor 看 diff,確認後再按那邊的 **Save Changes**。沒開 File Viewer 時,Chat 側邊面板維持唯讀。
+
+可以把它當成**遊戲內建的 wiki + 編輯器**:有關世界、機制、存檔狀態、KB 結構的任何問題都可以問;在 File Viewer 開啟時可以請 Agent 直接改檔。Agent 的系統提示已涵蓋引擎的歸類規則、存檔 / Auto Update 流程、訊息工具列的取捨、KB↔chat 同步診斷,所以下列場景的回答會基於遊戲規則,而不是 generic LLM 猜測。
 
 **常見場景**:
 

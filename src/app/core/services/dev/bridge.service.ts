@@ -22,6 +22,9 @@ import { ChatMessage, Scenario } from '@app/core/models/types';
 import { WINDOW } from '@app/core/tokens/window.token';
 import { KVStore } from '../kv/kv-store';
 import { isSystemMainCompatible } from '../profile-compat';
+import { AgentHintRegistry } from '../agent-hints/agent-hints.registry';
+import { AgentHintDebugDialogComponent } from '../agent-hints/agent-hint-debug-dialog.component';
+import { MatDialog } from '@angular/material/dialog';
 
 /**
  * Dev-only relay client. Connects to a local BridgeServer (sibling repo
@@ -76,6 +79,12 @@ import { isSystemMainCompatible } from '../profile-compat';
  *                       surface, no editor). ChatComponent watches
  *                       `openChatAgentPanelTick` and toggles its sidenav
  *                       open on each increment.
+ *   agent_fill_chat_panel_prompt
+ *                     — opens the chat-side agent panel AND pushes a
+ *                       prompt into the input box (optionally auto-sends
+ *                       via runAgent). Lets the caller drive the visible
+ *                       panel for live observation, complementing the
+ *                       headless `agent_ask` path.
  *   agent_ask         — runs a headless FileAgentService turn against the
  *                       active book's KB + chat snapshot, returns the full
  *                       agent log (tool calls + results + thoughts + final
@@ -84,6 +93,12 @@ import { isSystemMainCompatible } from '../profile-compat';
  *                       hit a snapshot Map only — the engine's KB is never
  *                       persisted to, so handbook validation can't trash
  *                       the active playthrough.
+ *   agent_get_hints   — returns the AgentHintRegistry's mount report
+ *                       (total / mounted / unmounted / activatable-without-
+ *                       listener). Use to verify a template wiring change
+ *                       — a directive that didn't import / didn't mount
+ *                       leaves its path in `unmounted` even when the UI
+ *                       region is on-screen.
  */
 
 const STORAGE_URL = 'app_debug_bridge_url';
@@ -163,6 +178,26 @@ interface AgentAskFrame extends BridgeFrame {
     clearHistory?: boolean;
 }
 
+interface AgentFillChatPanelPromptFrame extends BridgeFrame {
+    prompt?: string;
+    /** When true, also kicks runAgent after the prompt lands in the input — caller sees the agent stream live in the visible panel. */
+    autoSend?: boolean;
+}
+
+interface AgentTriggerHintFrame extends BridgeFrame {
+    path?: string;
+    action?: 'highlight' | 'focus' | 'activate';
+}
+
+interface AgentGetHintBBoxFrame extends BridgeFrame {
+    path?: string;
+}
+
+interface AgentEvalFrame extends BridgeFrame {
+    /** JS expression evaluated as `(() => <expr>)()` in app context (dev mode only). */
+    expr?: string;
+}
+
 type FieldValidator<K extends keyof AppConfigShape> = (raw: unknown) => AppConfigShape[K] | undefined;
 
 const BRIDGE_SETTABLE_FIELDS: { [K in keyof AppConfigShape]?: FieldValidator<K> } = {
@@ -199,6 +234,8 @@ export class BridgeService {
     private fileViewerOpener = inject(FILE_VIEWER_OPENER);
     private envInjector = inject(EnvironmentInjector);
     private i18nService = inject(I18nService);
+    private hintRegistry = inject(AgentHintRegistry);
+    private matDialog = inject(MatDialog);
 
     /**
      * Lazy headless FileAgentService instance for `agent_ask`. Lives in a
@@ -226,6 +263,14 @@ export class BridgeService {
      * the user just closed it.
      */
     readonly openChatAgentPanelTick = signal(0);
+
+    /**
+     * Drives a prompt into the visible chat-side agent panel's input box
+     * (and optionally auto-sends). ChatComponent forwards this into the
+     * AgentConsoleComponent via signal input. Tick on the payload so
+     * successive identical prompts still re-fire the effect.
+     */
+    readonly chatPanelPromptFill = signal<{ prompt: string; autoSend: boolean; tick: number } | null>(null);
 
     private static readonly VALID_INTENTS: ReadonlySet<string> = new Set(Object.values(GAME_INTENTS));
 
@@ -433,8 +478,26 @@ export class BridgeService {
             case 'agent_open_chat_agent_panel':
                 this.handleAgentOpenChatAgentPanel(frame);
                 break;
+            case 'agent_fill_chat_panel_prompt':
+                this.handleAgentFillChatPanelPrompt(frame as AgentFillChatPanelPromptFrame);
+                break;
             case 'agent_ask':
                 void this.handleAgentAsk(frame as AgentAskFrame);
+                break;
+            case 'agent_get_hints':
+                this.handleAgentGetHints(frame);
+                break;
+            case 'agent_open_hint_debug':
+                this.handleAgentOpenHintDebug(frame);
+                break;
+            case 'agent_trigger_hint':
+                this.handleAgentTriggerHint(frame as AgentTriggerHintFrame);
+                break;
+            case 'agent_get_hint_bbox':
+                this.handleAgentGetHintBBox(frame as AgentGetHintBBoxFrame);
+                break;
+            case 'agent_eval':
+                void this.handleAgentEval(frame as AgentEvalFrame);
                 break;
             default:
                 console.warn('[bridge] unknown frame type', type, frame);
@@ -650,6 +713,158 @@ export class BridgeService {
         if (!requestId) return;
         this.openChatAgentPanelTick.update(n => n + 1);
         this.send({ type: 'agent_open_chat_agent_panel_response', requestId, ok: true });
+    }
+
+    private handleAgentGetHints(frame: BridgeFrame): void {
+        const { requestId } = frame;
+        if (!requestId) return;
+        const report = this.hintRegistry.getMountedReport();
+        this.send({ type: 'agent_get_hints_response', requestId, ok: true, ...report });
+    }
+
+    private handleAgentOpenHintDebug(frame: BridgeFrame): void {
+        const { requestId } = frame;
+        if (!requestId) return;
+        // Modeless (no backdrop, anchored top-right) so the target's flash is
+        // visible while the panel is open. The panel watches the registry's
+        // mount report so clicking through cascade chains updates the table.
+        const isAlreadyOpen = this.matDialog.openDialogs.some(d => d.componentInstance instanceof AgentHintDebugDialogComponent);
+        if (isAlreadyOpen) {
+            this.send({ type: 'agent_open_hint_debug_response', requestId, ok: true, alreadyOpen: true });
+            return;
+        }
+        this.matDialog.open(AgentHintDebugDialogComponent, {
+            hasBackdrop: false,
+            position: { right: '20px', top: '60px' },
+            panelClass: 'agent-hint-debug-panel',
+            // autoFocus messes with the focus action testing.
+            autoFocus: false,
+            restoreFocus: false,
+        });
+        this.send({ type: 'agent_open_hint_debug_response', requestId, ok: true, alreadyOpen: false });
+    }
+
+    private handleAgentTriggerHint(frame: AgentTriggerHintFrame): void {
+        const { requestId, path, action } = frame;
+        if (!requestId) return;
+        if (typeof path !== 'string' || !path) {
+            this.send({ type: 'action_error', requestId, error: 'invalid_path' });
+            return;
+        }
+        const safeAction = (action === 'focus' || action === 'activate') ? action : 'highlight';
+        const result = this.hintRegistry.openTarget(path, safeAction);
+        this.send({ type: 'agent_trigger_hint_response', requestId, path, action: safeAction, ...result });
+    }
+
+    private handleAgentGetHintBBox(frame: AgentGetHintBBoxFrame): void {
+        const { requestId, path } = frame;
+        if (!requestId) return;
+        if (typeof path !== 'string' || !path) {
+            this.send({ type: 'action_error', requestId, error: 'invalid_path' });
+            return;
+        }
+        const resolved = this.hintRegistry.findByPath(path);
+        if (!resolved) {
+            this.send({ type: 'action_error', requestId, error: 'unknown_path' });
+            return;
+        }
+        if (!resolved.elementRef) {
+            this.send({
+                type: 'agent_get_hint_bbox_response',
+                requestId,
+                path,
+                mounted: false,
+                visible: false,
+                bbox: null,
+            });
+            return;
+        }
+        const el = resolved.elementRef.nativeElement as HTMLElement;
+        const rect = el.getBoundingClientRect();
+        const visible = el.offsetParent !== null || (rect.width > 0 && rect.height > 0);
+        const win = this.win as Window;
+        this.send({
+            type: 'agent_get_hint_bbox_response',
+            requestId,
+            path,
+            mounted: true,
+            visible,
+            bbox: {
+                top: rect.top, left: rect.left, width: rect.width, height: rect.height,
+                bottom: rect.bottom, right: rect.right,
+            },
+            viewport: { width: win.innerWidth, height: win.innerHeight },
+            activatable: !!resolved.entry.activatable,
+            hasOnActivate: !!resolved.onActivate,
+        });
+    }
+
+    // Dev-only async JS eval. Compiled via AsyncFunction so callers can
+    // `await` inside the body (animations, fetches, etc). Bare expressions
+    // get wrapped as `return (expr)`; bodies containing `return` paste as-is.
+    private async handleAgentEval(frame: AgentEvalFrame): Promise<void> {
+        const { requestId, expr } = frame;
+        if (!requestId) return;
+        if (typeof expr !== 'string' || !expr) {
+            this.send({ type: 'action_error', requestId, error: 'invalid_expr' });
+            return;
+        }
+        try {
+            const body = expr.includes('return') ? expr : `return (${expr});`;
+            const AsyncFn = (async function () { /* ctor probe */ }).constructor as new (...args: string[]) => (...args: unknown[]) => Promise<unknown>;
+            const fn = new AsyncFn('window', 'document', body);
+            const raw = await fn(this.win, (this.win as Window).document);
+            const value = this.safeSerialize(raw);
+            this.send({ type: 'agent_eval_response', requestId, ok: true, value });
+        } catch (e) {
+            const detail = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+            this.send({ type: 'agent_eval_response', requestId, ok: false, error: detail });
+        }
+    }
+
+    private safeSerialize(value: unknown, depth = 0): unknown {
+        if (depth > 6) return '<<depth>>';
+        if (value === null || value === undefined) return value;
+        const t = typeof value;
+        if (t === 'string' || t === 'number' || t === 'boolean') return value;
+        if (t === 'function') return `<<fn:${(value as { name?: string }).name ?? 'anon'}>>`;
+        // Caller did `return someUnawaited` inside the eval body — surface
+        // that rather than silently serializing the empty Promise object.
+        if (value instanceof Promise) return '<<unresolved Promise — use `return await ...`>>';
+        if (value instanceof Element) {
+            return {
+                __dom: true,
+                tag: value.tagName.toLowerCase(),
+                id: value.id || null,
+                classes: value.className || null,
+            };
+        }
+        if (Array.isArray(value)) return value.map(v => this.safeSerialize(v, depth + 1));
+        if (t === 'object') {
+            const out: Record<string, unknown> = {};
+            for (const [k, v] of Object.entries(value as object)) {
+                try { out[k] = this.safeSerialize(v, depth + 1); } catch { out[k] = '<<unreadable>>'; }
+            }
+            return out;
+        }
+        return String(value);
+    }
+
+    private handleAgentFillChatPanelPrompt(frame: AgentFillChatPanelPromptFrame): void {
+        const { requestId, prompt, autoSend } = frame;
+        if (!requestId) return;
+        if (typeof prompt !== 'string') {
+            this.send({ type: 'action_error', requestId, error: 'invalid_prompt' });
+            return;
+        }
+        // Open the panel too — caller doesn't have to pair with a separate open call.
+        this.openChatAgentPanelTick.update(n => n + 1);
+        this.chatPanelPromptFill.update(v => ({
+            prompt,
+            autoSend: Boolean(autoSend),
+            tick: (v?.tick ?? 0) + 1,
+        }));
+        this.send({ type: 'agent_fill_chat_panel_prompt_response', requestId, ok: true });
     }
 
     private async handleAgentAsk(frame: AgentAskFrame): Promise<void> {

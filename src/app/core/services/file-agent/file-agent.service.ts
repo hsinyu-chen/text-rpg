@@ -16,6 +16,7 @@ import { KVStore } from '../kv/kv-store';
 import { FileAgentSettingsStore } from './file-agent-settings.store';
 import { I18nService } from '@app/core/i18n';
 import { getLocale } from '@app/core/constants/locales';
+import { AgentHintRegistry } from '@app/core/services/agent-hints/agent-hints.registry';
 
 /**
  * Mutable per-turn context shared across phase helpers (stream consumer,
@@ -64,6 +65,7 @@ export class FileAgentService {
   private kv = inject(KVStore);
   private settings = inject(FileAgentSettingsStore);
   private i18n = inject(I18nService);
+  private hintRegistry = inject(AgentHintRegistry);
   private completionValidator: WorldCompletionValidator | null = null;
 
   setCompletionValidator(v: WorldCompletionValidator): void {
@@ -270,11 +272,27 @@ export class FileAgentService {
     this.generatedTokenCount.set(0);
     this.agentLogs.update(logs => [...logs, { role: 'user', text: prompt, type: 'info' }]);
 
-    const newHistory = [...this.agentHistory(), { role: 'user' as const, parts: [{ text: prompt }] }];
+    // Tag the prompt with the current surface mode (editor / readonly) so
+    // the LLM perceives editor↔readonly transitions across turns without us
+    // having to rebuild the system prompt (which would invalidate the KV
+    // cache). The system prompt's "EDITING SURFACE — TWO MODES" block tells
+    // the LLM how to read the marker; runtime gating still lives on
+    // `context.readOnly` enforced by the tool executor. Only the history /
+    // LLM-bound copy carries the tag — agentLogs above shows the user's
+    // original text.
+    const tag = `[mode: ${context.readOnly ? 'readonly' : 'editor'}]\n`;
+    const newHistory = [...this.agentHistory(), { role: 'user' as const, parts: [{ text: tag + prompt }] }];
     this.agentHistory.set(newHistory);
 
+    // Augment context with the uiMap callback so the executor stays
+    // DI-free. Caller-supplied uiMap (if any) wins — useful for tests.
+    const augmentedContext: FileAgentContext = {
+      ...context,
+      uiMap: context.uiMap ?? (() => this.hintRegistry.buildUiMap()),
+    };
+
     try {
-      await this.processAgentTurn(context);
+      await this.processAgentTurn(augmentedContext);
     } catch (err) {
       if (this.abortController?.signal.aborted) {
         this.agentLogs.update(logs => [...logs, { role: 'system', text: 'Agent stopped by user.', type: 'info' }]);
@@ -392,7 +410,6 @@ export class FileAgentService {
       {
         uiLanguage: context.uiLanguage,
         narrativeLanguage: context.narrativeLanguage,
-        readOnly: context.readOnly
       },
       locale,
       (key: string) => this.i18n.translate(key)

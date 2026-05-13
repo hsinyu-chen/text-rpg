@@ -49,12 +49,23 @@ export const appConfig: ApplicationConfig = {
       provide: FILE_VIEWER_OPENER,
       useFactory: (): FileViewerOpener => {
         const dialog = inject(MatDialog);
-        const isFileViewerOpen = () =>
-          dialog.openDialogs.some(d => d.componentInstance instanceof FileViewerDialogComponent);
+        const findOpenDialog = () =>
+          dialog.openDialogs.find(d => d.componentInstance instanceof FileViewerDialogComponent);
         return {
-          isOpen: isFileViewerOpen,
+          isOpen: () => findOpenDialog() !== undefined,
           open: (req) => {
-            if (isFileViewerOpen()) return { alreadyOpen: true };
+            const existing = findOpenDialog();
+            if (existing) {
+              // Already open — switch the active file instead of refusing.
+              // Common case: LLM emits several `app://file/...` links and the
+              // user clicks them in turn; without this we'd silently no-op
+              // every click after the first.
+              const inst = existing.componentInstance as FileViewerDialogComponent;
+              if (req.initialFile && inst.data.files.has(req.initialFile)) {
+                inst.activeFile.set(req.initialFile);
+              }
+              return { alreadyOpen: true };
+            }
             dialog.open(FileViewerDialogComponent, {
               panelClass: 'fullscreen-dialog',
               data: req,

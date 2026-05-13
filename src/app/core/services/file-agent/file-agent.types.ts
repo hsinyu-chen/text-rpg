@@ -23,6 +23,12 @@ export interface FileAgentContext {
    * happen invisibly and the user can't review them before they hit the engine.
    */
   readOnly?: boolean;
+  /**
+   * Optional. When provided, the `uiMap` tool delegates here for the full
+   * UI tree dump. FileAgentService injects this from `AgentHintRegistry`;
+   * the callback keeps the executor DI-free.
+   */
+  uiMap?: () => string;
 }
 
 export type ToolCallMode = 'auto' | 'native' | 'json';
@@ -155,6 +161,9 @@ export interface ReadTurnLogsArgs extends FileToolArgsBase {
   recent?: number;
 }
 
+/* eslint-disable-next-line @typescript-eslint/no-empty-object-type */
+export interface UiMapArgs extends FileToolArgsBase {}
+
 export type ParsedAction =
   | { action: 'readFile'; args: ReadFileArgs; callId?: string }
   | { action: 'grep'; args: GrepArgs; callId?: string }
@@ -169,6 +178,7 @@ export type ParsedAction =
   | { action: 'searchChatMessages'; args: SearchChatMessagesArgs; callId?: string }
   | { action: 'readChatMessage'; args: ReadChatMessageArgs; callId?: string }
   | { action: 'readTurnLogs'; args: ReadTurnLogsArgs; callId?: string }
+  | { action: 'uiMap'; args: UiMapArgs; callId?: string }
   | { action: 'reportProgress'; args: ReportProgressArgs; callId?: string }
   | { action: 'submitResponse'; args: SubmitResponseArgs; callId?: string };
 

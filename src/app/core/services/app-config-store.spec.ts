@@ -124,6 +124,8 @@ describe('AppConfigStore.snapshot', () => {
             outputLanguage: 'en',
             interfaceLanguage: 'system',
             smartContextTurns: 10,
+            contextMode: 'smart',
+            saveContextMode: 'smart',
         });
     });
 });

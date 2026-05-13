@@ -1,26 +1,31 @@
-<div class="sidebar-container">
+<div class="sidebar-container" appAgentHint="sidebar">
     <div class="header">
         <div class="logo-container">
             <img src="text_rpg_logo.png" alt="Text RPG Logo" class="sidebar-logo">
         </div>
         <div class="header-actions">
-            <button mat-icon-button (click)="toggleCostPrediction()"
+            <button mat-icon-button (click)="toggleCostPrediction()" (hintActivate)="toggleCostPrediction()"
+                appAgentHint="sidebar/cost-prediction-toggle"
                 [matTooltip]="(showCostPrediction() ? 'sidebar.hideCostPrediction' : 'sidebar.showCostPrediction') | translate">
                 <mat-icon>{{ showCostPrediction() ? 'visibility_off' : 'visibility' }}</mat-icon>
             </button>
-            <button mat-icon-button (click)="openBooks.emit()" [disabled]="state.isBusy()"
+            <button mat-icon-button (click)="openBooks.emit()" (hintActivate)="openBooks.emit()" [disabled]="state.isBusy()"
+                appAgentHint="sidebar/adventure-books"
                 [matTooltip]="'sidebar.adventureBooksTooltip' | translate">
                 <mat-icon>auto_stories</mat-icon>
             </button>
-            <button mat-icon-button (click)="openSyncProvider()" [disabled]="state.isBusy()"
+            <button mat-icon-button (click)="openSyncProvider()" (hintActivate)="openSyncProvider()" [disabled]="state.isBusy()"
+                appAgentHint="sidebar/sync-provider"
                 [matTooltip]="'sidebar.syncProviderTooltip' | translate">
                 <mat-icon>cloud_sync</mat-icon>
             </button>
-            <button mat-icon-button (click)="openSettings()" [disabled]="state.isBusy()"
+            <button mat-icon-button (click)="openSettings()" (hintActivate)="openSettings()" [disabled]="state.isBusy()"
+                appAgentHint="sidebar/settings"
                 [matTooltip]="'sidebar.settingsTooltip' | translate">
                 <mat-icon>settings</mat-icon>
             </button>
-            <button mat-icon-button class="close-btn" (click)="close()"
+            <button mat-icon-button class="close-btn" (click)="close()" (hintActivate)="close()"
+                appAgentHint="sidebar/close-sidebar"
                 [matTooltip]="'sidebar.closeSidebarTooltip' | translate">
                 <mat-icon>close</mat-icon>
             </button>
@@ -44,13 +49,18 @@
         <!-- Files Tab -->
         <mat-tab>
             <ng-template mat-tab-label>
-                <mat-icon>folder_open</mat-icon>
-                <span class="tab-label">{{ 'sidebar.filesTabLabel' | translate }}</span>
+                <span class="tab-label-wrapper"
+                    appAgentHint="sidebar/files-tab"
+                    (hintActivate)="selectedTabIndex.set(0)">
+                    <mat-icon>folder_open</mat-icon>
+                    <span class="tab-label">{{ 'sidebar.filesTabLabel' | translate }}</span>
+                </span>
             </ng-template>
             <div class="tab-content">
                 <div class="section-header-container">
                     <h3 class="section-header">{{ 'sidebar.loadedFilesHeader' | translate }}</h3>
-                    <button mat-icon-button class="toggle-btn" (click)="toggleDisplayMode()"
+                    <button mat-icon-button class="toggle-btn" (click)="toggleDisplayMode()" (hintActivate)="toggleDisplayMode()"
+                        appAgentHint="sidebar/files-tab/token-char-switch"
                         [matTooltip]="(displayMode() === 'tokens' ? 'sidebar.switchToCharCount' : 'sidebar.switchToTokenCount') | translate">
                         <mat-icon>{{ displayMode() === 'tokens' ? 'text_format' : 'token' }}</mat-icon>
                     </button>
@@ -95,8 +105,12 @@
         <!-- Session Tab -->
         <mat-tab>
             <ng-template mat-tab-label>
-                <mat-icon>settings_backup_restore</mat-icon>
-                <span class="tab-label">{{ 'sidebar.sessionTabLabel' | translate }}</span>
+                <span class="tab-label-wrapper"
+                    appAgentHint="sidebar/session-tab"
+                    (hintActivate)="selectedTabIndex.set(1)">
+                    <mat-icon>settings_backup_restore</mat-icon>
+                    <span class="tab-label">{{ 'sidebar.sessionTabLabel' | translate }}</span>
+                </span>
             </ng-template>
             <div class="tab-content padded">
                 <app-sidebar-context-controls></app-sidebar-context-controls>

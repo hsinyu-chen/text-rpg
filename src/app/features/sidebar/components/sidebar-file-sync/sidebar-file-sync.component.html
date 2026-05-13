@@ -12,14 +12,18 @@
             <span class="slot-name text-truncate-left" [matTooltip]="fileSystem.directoryHandle()?.name || ''">
                 {{ fileSystem.directoryHandle()?.name }}
             </span>
-            <button mat-icon-button (click)="loadFolder()" [matTooltip]="'sidebar.fileSync.changeFolderTooltip' | translate">
+            <button mat-icon-button (click)="loadFolder()" (hintActivate)="loadFolder()"
+                appAgentHint="sidebar/files-tab/file-sync/change-folder"
+                [matTooltip]="'sidebar.fileSync.changeFolderTooltip' | translate">
                 <mat-icon>edit</mat-icon>
             </button>
         </div>
         } @else {
         <div class="slot-info fade-text">
             <span class="slot-name">{{ 'sidebar.fileSync.noFolderSelected' | translate }}</span>
-            <button mat-icon-button (click)="loadFolder()" [matTooltip]="'sidebar.fileSync.selectFolderTooltip' | translate">
+            <button mat-icon-button (click)="loadFolder()" (hintActivate)="loadFolder()"
+                appAgentHint="sidebar/files-tab/file-sync/select-folder"
+                [matTooltip]="'sidebar.fileSync.selectFolderTooltip' | translate">
                 <mat-icon>add_link</mat-icon>
             </button>
         </div>

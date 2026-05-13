@@ -18,11 +18,12 @@ import { SaveNameDialogComponent } from '@app/shared/components/save-name-dialog
 import { firstValueFrom } from 'rxjs';
 import { ConfigService } from '@app/core/services/config.service';
 import { I18nService, TranslatePipe } from '@app/core/i18n';
+import { AppAgentHintDirective } from '@app/core/services/agent-hints/agent-hints.directive';
 
 @Component({
     selector: 'app-sidebar-context-controls',
     standalone: true,
-    imports: [...CORE_MAT, MatDividerModule, MatDialogModule, DecimalPipe, TitleCasePipe, TranslatePipe],
+    imports: [...CORE_MAT, MatDividerModule, MatDialogModule, DecimalPipe, TitleCasePipe, TranslatePipe, AppAgentHintDirective],
     templateUrl: './sidebar-context-controls.component.html',
     styleUrl: './sidebar-context-controls.component.scss'
 })
