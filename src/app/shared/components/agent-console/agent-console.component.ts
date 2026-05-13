@@ -11,7 +11,7 @@ import {
   isDevMode
 } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
-import { OverlayContainer } from '@angular/cdk/overlay';
+import { Overlay, OverlayContainer } from '@angular/cdk/overlay';
 import { DecimalPipe, NgClass } from '@angular/common';
 import { Clipboard } from '@angular/cdk/clipboard';
 import { FormsModule } from '@angular/forms';
@@ -48,11 +48,22 @@ import type { AgentLogEntry } from '@app/core/services/file-agent/file-agent.typ
   templateUrl: './agent-console.component.html',
   styleUrl: './agent-console.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  // Swap the CDK OverlayContainer for descendant overlays (matTooltip /
-  // mat-menu / mat-dialog inside this panel) so they render in the PiP
-  // window's document while PiP is active. The root container stays the
-  // default everywhere else in the app.
-  providers: [{ provide: OverlayContainer, useClass: PipAwareOverlayContainer }]
+  // Swap the CDK OverlayContainer + re-provide Overlay at this scope so
+  // descendant overlays (matTooltip / mat-menu / mat-dialog inside this
+  // panel) render in the PiP window's document while PiP is active.
+  //
+  // Overlay must also be re-provided here: the root-singleton Overlay
+  // was constructed with the root OverlayContainer baked in, so
+  // overriding OverlayContainer alone wouldn't reach matTooltip — it
+  // injects Overlay, not the container. A scoped Overlay re-resolves
+  // its OverlayContainer dependency through this injector, picking up
+  // our PipAware version. (Other Overlay deps — ScrollStrategyOptions,
+  // _OverlayKeyboardDispatcher, etc. — are providedIn:'root' singletons
+  // that the scoped instance still shares with the rest of the app.)
+  providers: [
+    { provide: OverlayContainer, useClass: PipAwareOverlayContainer },
+    Overlay,
+  ]
 })
 export class AgentConsoleComponent implements OnDestroy {
   // Inputs

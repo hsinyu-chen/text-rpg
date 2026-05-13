@@ -59,8 +59,10 @@ export class PipAwareOverlayContainer extends OverlayContainer {
     // No PiP — use (or create) the main-window container.
     if (!this.mainContainerElement || !this.mainContainerElement.isConnected) {
       // Reset base's cache so its _createContainer fires against the main
-      // document.
-      (this as unknown as { _containerElement: HTMLElement | null })._containerElement = null!;
+      // document. The field is protected; the cast is the alternative to
+      // reimplementing the entire body-append path. eslint forbids plain
+      // `any` so we route via `unknown`.
+      (this as unknown as { _containerElement: HTMLElement | null })._containerElement = null;
       super.getContainerElement();
       this.mainContainerElement = this._containerElement;
     }

@@ -21,7 +21,7 @@ import { FileAgentService } from '@app/core/services/file-agent/file-agent.servi
 import { AppConfigStore } from '@app/core/services/app-config-store';
 import { BridgeService } from '@app/core/services/dev/bridge.service';
 import { AgentMessageJumperService } from '@app/core/services/agent-hints/agent-message-jumper.service';
-import { spotlightElement } from '@app/core/services/agent-hints/spotlight.util';
+import { spotlightElement, SPOTLIGHT_HOLD_MS } from '@app/core/services/agent-hints/spotlight.util';
 import { AgentPanelStateService } from '@app/core/services/file-agent/agent-panel-state.service';
 
 @Component({
@@ -272,6 +272,32 @@ export class ChatComponent {
         // Same JS realm, so signals + change detection keep flowing across.
         for (const node of Array.from(this.doc.head.querySelectorAll('link[rel="stylesheet"], style'))) {
             pipWin.document.head.appendChild(node.cloneNode(true));
+        }
+        // Angular Material 19 ships per-component styles via Constructable
+        // Stylesheets (document.adoptedStyleSheets), not <link>/<style> — so
+        // the loop above misses them and the PiP window renders mat-spinner /
+        // mat-button etc with default browser styles (notably circle SVGs go
+        // black-filled, the rotating ring disappears). Re-materialize each
+        // adopted sheet's rules as a fresh CSSStyleSheet in the PiP doc:
+        // Constructable sheets are document-scoped, so we can't reuse the
+        // main-doc instance — has to be a new sheet built from the same css.
+        try {
+            const srcSheets = this.doc.adoptedStyleSheets;
+            if (srcSheets?.length) {
+                const pipCtor = (pipWin as Window & { CSSStyleSheet?: typeof CSSStyleSheet }).CSSStyleSheet;
+                if (pipCtor) {
+                    pipWin.document.adoptedStyleSheets = srcSheets.map(src => {
+                        const sheet = new pipCtor();
+                        const cssText = Array.from(src.cssRules).map(r => r.cssText).join('\n');
+                        sheet.replaceSync(cssText);
+                        return sheet;
+                    });
+                }
+            }
+        } catch {
+            // Some sheets (cross-origin imports) throw on cssRules access;
+            // we already got the main link/style copies, which is good enough
+            // for cross-origin theme files. Don't fail the whole open.
         }
         pipWin.document.body.style.margin = '0';
         pipWin.document.body.style.height = '100vh';
@@ -537,18 +563,33 @@ export class ChatComponent {
         this.isAgentSidebarOpen.update(v => !v);
     }
 
-    // Tracks the active `.msg-toolbar-pinned` clear timer per message
-    // wrapper so two rapid action-link clicks on different messages don't
-    // race — the first click's clear timer was wiping the second click's
-    // pinned class mid-spotlight.
+    // Spotlight scroll delay — registry uses the same value for hint
+    // targets. Add a small post-hold buffer so the unpin doesn't strip
+    // .msg-toolbar-pinned mid-fade.
+    private static readonly SPOTLIGHT_SCROLL_DELAY_MS = 250;
+    private static readonly TOOLBAR_PIN_HOLD_MS = ChatComponent.SPOTLIGHT_SCROLL_DELAY_MS + SPOTLIGHT_HOLD_MS + 50;
+
+    // Per-message-wrapper timer bookkeeping so rapid action-link clicks on
+    // different messages don't race-strip each other's pinned class /
+    // double-spotlight.
     private toolbarPinnedTimers = new WeakMap<HTMLElement, number>();
+    private spotlightTimers = new WeakMap<HTMLElement, number>();
 
     onJumpToMessage(id: string, action: string | null = null) {
         setTimeout(() => {
             const root = this.contentWrapper()?.nativeElement;
             const el = root?.querySelector<HTMLElement>(`#message-${CSS.escape(id)}`);
             if (!el) return;
+            // Off-screen model messages have `content-visibility: auto` which
+            // defers layout to a placeholder height (contain-intrinsic-size).
+            // scrollIntoView snaps to that placeholder offset — once the
+            // browser renders the real content the final offset differs and
+            // the target ends up off-screen. Re-scroll after two frames so
+            // the second snap lands on the laid-out element.
             el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }));
             if (action) {
                 // Toolbar buttons are hidden until hover; force-show the
                 // toolbar for the spotlight duration so the user can both
@@ -556,17 +597,20 @@ export class ChatComponent {
                 const btn = el.querySelector<HTMLElement>(`[data-msg-action="${CSS.escape(action)}"]`);
                 if (btn) {
                     el.classList.add('msg-toolbar-pinned');
-                    const prev = this.toolbarPinnedTimers.get(el);
-                    if (prev !== undefined) clearTimeout(prev);
-                    // Wait for the smooth scroll to settle before measuring
-                    // the bbox — matches the 250ms registry uses for hint
-                    // spotlights.
-                    setTimeout(() => spotlightElement(btn), 250);
-                    const timer = setTimeout(() => {
+                    const prevPin = this.toolbarPinnedTimers.get(el);
+                    if (prevPin !== undefined) clearTimeout(prevPin);
+                    const prevSpot = this.spotlightTimers.get(el);
+                    if (prevSpot !== undefined) clearTimeout(prevSpot);
+                    const spotTimer = setTimeout(() => {
+                        spotlightElement(btn);
+                        this.spotlightTimers.delete(el);
+                    }, ChatComponent.SPOTLIGHT_SCROLL_DELAY_MS) as unknown as number;
+                    this.spotlightTimers.set(el, spotTimer);
+                    const pinTimer = setTimeout(() => {
                         el.classList.remove('msg-toolbar-pinned');
                         this.toolbarPinnedTimers.delete(el);
-                    }, 2400) as unknown as number;
-                    this.toolbarPinnedTimers.set(el, timer);
+                    }, ChatComponent.TOOLBAR_PIN_HOLD_MS) as unknown as number;
+                    this.toolbarPinnedTimers.set(el, pinTimer);
                     return;
                 }
                 // Action segment named but no matching button on this
