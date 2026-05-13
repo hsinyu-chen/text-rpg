@@ -17,6 +17,7 @@ import { FileAgentSettingsStore } from './file-agent-settings.store';
 import { I18nService } from '@app/core/i18n';
 import { getLocale } from '@app/core/constants/locales';
 import { AgentHintRegistry } from '@app/core/services/agent-hints/agent-hints.registry';
+import { normalizeMessageLinks } from './normalize-message-links.util';
 
 /**
  * Mutable per-turn context shared across phase helpers (stream consumer,
@@ -565,7 +566,7 @@ export class FileAgentService {
       return toolMsg || '(no response)';
     })();
 
-    this.updateLogAt(ctx.currentLogIndex, e => ({ ...e, text: finalMsg, isToolCall: false }));
+    this.updateLogAt(ctx.currentLogIndex, e => ({ ...e, text: normalizeMessageLinks(finalMsg), isToolCall: false }));
     this.isAgentRunning.set(false);
   }
 
@@ -579,7 +580,7 @@ export class FileAgentService {
     a: ParsedAction, context: FileAgentContext, mode: 'native' | 'json', ctx: TurnContext
   ): Promise<void> {
     if (a.action === 'reportProgress') {
-      const message = a.args.message || '';
+      const message = normalizeMessageLinks(a.args.message || '');
       this.updateLogAt(ctx.currentLogIndex, e => ({ ...e, text: message, isToolCall: false }));
       this.appendToolResults([{ action: a, response: { status: 'acknowledged' } }], mode);
       await this.processAgentTurn(context);
@@ -637,7 +638,7 @@ export class FileAgentService {
 
     for (const a of actions) {
       if (a.action === 'reportProgress') {
-        const message = a.args.message || '';
+        const message = normalizeMessageLinks(a.args.message || '');
         this.agentLogs.update(logs => [...logs, { role: 'model', text: message, type: 'model' as const }]);
         executed.push({ action: a, response: { status: 'acknowledged' } });
         continue;
