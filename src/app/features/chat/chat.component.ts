@@ -91,6 +91,14 @@ export class ChatComponent {
 
     private resizeObserver: ResizeObserver | null = null;
     private userScrolledUp = false;
+    // While true, every bottom-pinning path (status-change effect,
+    // smartScroll, scheduleScrollCorrection, scrollToBottom callers) is
+    // suppressed. `userScrolledUp` alone wasn't enough because
+    // scrollToBottom() resets it to false — so a status-change effect's
+    // queued setTimeout, firing 50ms after agent-done, would undo the
+    // jump's userScrolledUp=true. The flag is set sync on jump start and
+    // cleared after the scroll + spotlight settle.
+    private jumpInProgress = false;
     private lastScrollTop = 0;
     private scrollFrameId: number | null = null;
     private hasInitialScrolled = false;
@@ -162,6 +170,7 @@ export class ChatComponent {
             if ((status === 'idle' || status === 'generating') && !this.userScrolledUp) {
                 // We use a small timeout to allow new elements to render before scrolling
                 setTimeout(() => {
+                    if (this.jumpInProgress) return;
                     this.scrollToBottom(true);
                 }, 50);
             }
@@ -183,7 +192,10 @@ export class ChatComponent {
             const wasOpen = this.prevLastCotOpen;
             this.prevLastCotOpen = cot;
             if (cot && !wasOpen && this.state.status() === 'generating' && !this.userScrolledUp) {
-                requestAnimationFrame(() => this.scrollToBottom(true));
+                requestAnimationFrame(() => {
+                    if (this.jumpInProgress) return;
+                    this.scrollToBottom(true);
+                });
             }
         });
 
@@ -271,6 +283,7 @@ export class ChatComponent {
     }
 
     private performSmartScroll() {
+        if (this.jumpInProgress) return;
         const scrollRef = this.scrollContainer();
         if (!scrollRef) return;
         const el = scrollRef.nativeElement;
@@ -294,7 +307,16 @@ export class ChatComponent {
         }
     }
 
+    // User-initiated scroll-to-bottom (floating button). Cancels any
+    // active deep-link jump guard — user explicitly asking for bottom
+    // beats a still-running jump's stay-pinned protection.
+    onScrollToBottomClick(): void {
+        this.jumpInProgress = false;
+        this.scrollToBottom(false);
+    }
+
     scrollToBottom(force = false): void {
+        if (this.jumpInProgress) return;
         const scrollRef = this.scrollContainer();
         if (!scrollRef) return;
 
@@ -319,7 +341,7 @@ export class ChatComponent {
         if (attempt >= 30) return;
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {
-                if (this.userScrolledUp) return;
+                if (this.userScrolledUp || this.jumpInProgress) return;
                 const currHeight = el.scrollHeight;
                 const dist = currHeight - el.scrollTop - el.clientHeight;
                 if (dist <= 1) return;
@@ -386,25 +408,37 @@ export class ChatComponent {
     private spotlightTimers = new WeakMap<HTMLElement, number>();
 
     onJumpToMessage(id: string, action: string | null = null) {
+        // Set BOTH guards sync at click time, not inside the setTimeout below.
+        // - userScrolledUp: semantically correct (we're leaving the bottom)
+        //   and stops in-flight scheduleScrollCorrection rAF loops.
+        // - jumpInProgress: catches the cases userScrolledUp alone can't —
+        //   scrollToBottom() resets userScrolledUp=false, so any queued
+        //   bottom-pin (status-change effect's setTimeout(50), ResizeObserver
+        //   triggered by our cv override) would undo the flag. jumpInProgress
+        //   is one-way until we explicitly clear it post-scroll.
+        this.userScrolledUp = true;
+        this.jumpInProgress = true;
+        setTimeout(() => { this.jumpInProgress = false; }, ChatComponent.CV_OVERRIDE_HOLD_MS);
         setTimeout(() => {
             const root = this.contentWrapper()?.nativeElement;
+            const scrollEl = this.scrollContainer()?.nativeElement as HTMLElement | undefined;
             const el = root?.querySelector<HTMLElement>(`#message-${CSS.escape(id)}`);
-            if (!el) return;
-            // Off-screen model messages have `content-visibility: auto` with
-            // contain-intrinsic-size:1200px. Without intervention, `scrollIntoView`
-            // computes the target offset against the placeholder bbox, kicks
-            // off a smooth scroll, then cancels mid-flight when cv:auto
-            // activates and the real bbox replaces the placeholder — net
-            // visible result is "nothing scrolled" until the user has
-            // activated the element once (e.g. by manual scrolling). Force
-            // cv:visible inline (wins over the class rule) and synchronously
-            // reflow so scrollIntoView reads the final laid-out bbox. Keep
-            // the override on for the spotlight duration so layout doesn't
-            // re-skip mid-animation.
+            if (!el || !scrollEl) return;
             const prevCv = el.style.contentVisibility;
             el.style.contentVisibility = 'visible';
             void el.offsetHeight;
-            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // Compute target scrollTop manually. scrollIntoView({behavior:'smooth'})
+            // silently no-ops when the target is far from the current viewport
+            // AND there are content-visibility:auto elements between current
+            // scrollTop and target — Chrome bails on the layout chain it can't
+            // resolve cheaply. scrollEl.scrollTo with an explicit numeric
+            // target sidesteps that algorithm.
+            const containerRect = scrollEl.getBoundingClientRect();
+            const elRect = el.getBoundingClientRect();
+            const targetContentTop = scrollEl.scrollTop + (elRect.top - containerRect.top);
+            const centeredTop = targetContentTop - (scrollEl.clientHeight - elRect.height) / 2;
+            const clamped = Math.max(0, Math.min(centeredTop, scrollEl.scrollHeight - scrollEl.clientHeight));
+            scrollEl.scrollTo({ top: clamped, behavior: 'smooth' });
             setTimeout(() => { el.style.contentVisibility = prevCv; }, ChatComponent.CV_OVERRIDE_HOLD_MS);
             if (action) {
                 // Toolbar buttons are hidden until hover; force-show the
