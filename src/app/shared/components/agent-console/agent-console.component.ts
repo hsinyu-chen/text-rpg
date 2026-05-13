@@ -11,6 +11,7 @@ import {
   isDevMode
 } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
+import { OverlayContainer } from '@angular/cdk/overlay';
 import { DecimalPipe, NgClass } from '@angular/common';
 import { Clipboard } from '@angular/cdk/clipboard';
 import { FormsModule } from '@angular/forms';
@@ -27,6 +28,7 @@ import { AppConfigStore } from '@app/core/services/app-config-store';
 import { AgentLinkInterceptor } from '@app/core/services/agent-hints/agent-link-interceptor.service';
 import { AgentHintRegistry } from '@app/core/services/agent-hints/agent-hints.registry';
 import { AgentPanelStateService } from '@app/core/services/file-agent/agent-panel-state.service';
+import { PipAwareOverlayContainer } from './pip-aware-overlay-container';
 import type { AgentLogEntry } from '@app/core/services/file-agent/file-agent.types';
 
 @Component({
@@ -45,7 +47,12 @@ import type { AgentLogEntry } from '@app/core/services/file-agent/file-agent.typ
   ],
   templateUrl: './agent-console.component.html',
   styleUrl: './agent-console.component.scss',
-  changeDetection: ChangeDetectionStrategy.OnPush
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  // Swap the CDK OverlayContainer for descendant overlays (matTooltip /
+  // mat-menu / mat-dialog inside this panel) so they render in the PiP
+  // window's document while PiP is active. The root container stays the
+  // default everywhere else in the app.
+  providers: [{ provide: OverlayContainer, useClass: PipAwareOverlayContainer }]
 })
 export class AgentConsoleComponent implements OnDestroy {
   // Inputs

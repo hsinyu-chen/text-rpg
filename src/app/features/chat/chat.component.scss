@@ -83,6 +83,14 @@
     &.highlight-flash {
         animation: flash 2s ease-out;
     }
+
+    // Action-level deep links (app://message/<id>/<action>) spotlight the
+    // toolbar button, which is hover-only by default — pin it visible for
+    // the spotlight duration so the user can both see and click it. Pierces
+    // chat-message encapsulation since the toolbar lives inside the child.
+    &.msg-toolbar-pinned ::ng-deep .msg-toolbar {
+        opacity: 1 !important;
+    }
 }
 
 @keyframes flash {

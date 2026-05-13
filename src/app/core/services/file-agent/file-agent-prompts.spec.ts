@@ -109,6 +109,17 @@ describe('buildSystemInstruction', () => {
     });
   });
 
+  describe('link schemes block', () => {
+    it('teaches the app://message/<id>/<action> sub-action syntax', () => {
+      const out = build();
+      expect(out).toContain('app://message/<id>/<action>');
+      // A few representative action names from the per-message toolbar so
+      // a typo / rename in the prompt list gets flagged.
+      expect(out).toContain('auto-update');
+      expect(out).toContain('fork');
+    });
+  });
+
   describe('surface-mode block (mode-tag protocol)', () => {
     // The block is static — both [mode: editor] and [mode: readonly] are
     // described in every system prompt, with the marker on the user message

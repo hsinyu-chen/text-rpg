@@ -81,16 +81,34 @@ describe('AgentLinkInterceptor.dispatch', () => {
     expect(registry.openTarget).toHaveBeenCalledWith('chat-input/chat-config/profile-clone', 'activate');
   });
 
-  it('dispatches app://message/<id> via AgentMessageJumperService', () => {
+  it('dispatches app://message/<id> via AgentMessageJumperService (action null)', () => {
     const { interceptor, jumper } = setup();
     interceptor.dispatch('app://message/abc-123');
-    expect(jumper.request()).toMatchObject({ id: 'abc-123' });
+    expect(jumper.request()).toMatchObject({ id: 'abc-123', action: null });
   });
 
   it('decodes percent-encoded message ids', () => {
     const { interceptor, jumper } = setup();
     interceptor.dispatch('app://message/abc%20with%20space');
-    expect(jumper.request()).toMatchObject({ id: 'abc with space' });
+    expect(jumper.request()).toMatchObject({ id: 'abc with space', action: null });
+  });
+
+  it('parses app://message/<id>/<action> sub-action segment', () => {
+    const { interceptor, jumper } = setup();
+    interceptor.dispatch('app://message/abc-123/auto-update');
+    expect(jumper.request()).toMatchObject({ id: 'abc-123', action: 'auto-update' });
+  });
+
+  it('decodes percent-encoded action segments independently', () => {
+    const { interceptor, jumper } = setup();
+    interceptor.dispatch('app://message/abc%20id/delete%2Dfollowing');
+    expect(jumper.request()).toMatchObject({ id: 'abc id', action: 'delete-following' });
+  });
+
+  it('toasts on a message URL with more than 2 tail segments', () => {
+    const { interceptor, snackBar } = setup();
+    expect(interceptor.dispatch('app://message/abc-123/foo/bar')).toBe(true);
+    expect(snackBar.open).toHaveBeenCalled();
   });
 
   it('toasts and returns true on message URL with no id (treat as claimed but invalid)', () => {

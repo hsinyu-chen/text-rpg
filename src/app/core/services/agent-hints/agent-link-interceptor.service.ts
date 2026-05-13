@@ -13,8 +13,13 @@ const SCHEME_PREFIX = 'app://';
  * Parses `app://...` URLs from agent-console markdown and dispatches.
  * Three schemes:
  *   - `app://hint/<path>[?do=focus|activate]`
- *   - `app://message/<id>`
+ *   - `app://message/<id>[/<action>]`
  *   - `app://file/<filename>`
+ *
+ * The optional `<action>` segment on `message/` names a toolbar button
+ * on that specific chat message (e.g. `auto-update`, `fork`); when
+ * present the chat view spotlights that button instead of flashing the
+ * whole bubble.
  *
  * Caller (agent-console click handler) does:
  *   if (interceptor.dispatch(href)) event.preventDefault();
@@ -58,11 +63,13 @@ export class AgentLinkInterceptor {
         return true;
       }
       case 'message': {
-        if (tail.length !== 1) {
+        if (tail.length < 1 || tail.length > 2) {
           this.toast('agentHint.toast.messageIdRequired', { url });
           return true;
         }
-        this.jumper.jumpTo(decodeURIComponent(tail[0]));
+        const id = decodeURIComponent(tail[0]);
+        const action = tail.length === 2 ? decodeURIComponent(tail[1]) : null;
+        this.jumper.jumpTo(id, action);
         return true;
       }
       case 'file': {

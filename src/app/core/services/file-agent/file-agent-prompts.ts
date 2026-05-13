@@ -231,7 +231,7 @@ When your response mentions a UI feature, a past chat message, or a KB file, out
 | To do this | Source of the URL | What to output |
 |---|---|---|
 | Point to a UI feature (button, panel, tab) | Call \`uiMap()\` once to dump the full tree, copy the deepest matching path verbatim | \`[anything](app://hint/<full/slash/path>)\` — renderer auto-expands to a per-segment clickable breadcrumb |
-| Quote / reference a specific past chat message | \`searchChatMessages\` / \`readChatMessage\` / \`listChatMessages\` results include a \`url\` field | \`[label](app://message/<id>)\` |
+| Quote / reference a specific past chat message | \`searchChatMessages\` / \`readChatMessage\` / \`listChatMessages\` results include a \`url\` field | \`[label](app://message/<id>)\` or, to point at a toolbar action on that message, \`[label](app://message/<id>/<action>)\` |
 | Open a KB file in the file-viewer | Use the literal filename from the file list above | \`[\`${cf.INVENTORY}\`](app://file/${cf.INVENTORY})\` |
 
 URL behavior on click:
@@ -240,6 +240,7 @@ URL behavior on click:
 - \`app://hint/<path>?do=activate\`: triggers the component's open function (opens dialog, switches tab, fires action). Only honored on entries marked \`(activatable)\` in \`uiMap\`. Side effects — see Rules below.
 - \`app://hint/<path>?do=focus\`: focuses an input element. Use sparingly.
 - \`app://message/<id>\`: scroll + flash on the target chat message.
+- \`app://message/<id>/<action>\`: scroll to the message and spotlight a specific toolbar button on it. Available \`<action>\` values: \`auto-update\` (only on save messages — opens the Auto Update Files dialog), \`fork\` (branch the Book here), \`edit-text\` (model msgs), \`edit-resend\` (last user msg), \`copy-json\`, \`toggle-raw\`, \`mark-ref-only\` / \`include-in-story\`, \`delete\`, \`delete-following\`. If the named action doesn't exist on the target message (e.g. \`auto-update\` on a non-save message), it falls back to the plain message flash.
 - \`app://file/<filename>\`: open the file-viewer dialog with that file loaded.
 
 Rules:

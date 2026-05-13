@@ -38,6 +38,13 @@ export class AgentPanelStateService {
   // Same rationale: dev-bridge fill ticks must outlive a remount so a stale
   // non-null fill request doesn't auto-replay runAgent on every reopen.
   lastFillTick = 0;
+  // The PiP window's Document while a PiP panel is open; null otherwise.
+  // PipAwareOverlayContainer reads this to route matTooltip / mat-menu /
+  // mat-dialog overlays into the same doc the agent-console is currently
+  // appended to, instead of the main window (where they'd otherwise render
+  // invisible behind the PiP). chat.component sets/clears around the
+  // requestWindow lifecycle.
+  readonly pipDocument = signal<Document | null>(null);
 
   registerEditChannel(channel: AgentEditChannel): () => void {
     if (this.editChannel()) {

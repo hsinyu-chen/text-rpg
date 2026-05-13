@@ -21,6 +21,7 @@ import { FileAgentService } from '@app/core/services/file-agent/file-agent.servi
 import { AppConfigStore } from '@app/core/services/app-config-store';
 import { BridgeService } from '@app/core/services/dev/bridge.service';
 import { AgentMessageJumperService } from '@app/core/services/agent-hints/agent-message-jumper.service';
+import { spotlightElement } from '@app/core/services/agent-hints/spotlight.util';
 import { AgentPanelStateService } from '@app/core/services/file-agent/agent-panel-state.service';
 
 @Component({
@@ -130,14 +131,15 @@ export class ChatComponent {
             this.agentConsoleFillRequest.set(fill);
         });
 
-        // app://message/<id> link clicked in agent-console → jumper service
-        // emits → we drive the existing onJumpToMessage path.
+        // app://message/<id>[/<action>] link clicked in agent-console →
+        // jumper service emits → we drive the existing onJumpToMessage path,
+        // optionally spotlighting a specific toolbar action button.
         let lastJumpTick = this.messageJumper.request()?.tick ?? 0;
         effect(() => {
             const req = this.messageJumper.request();
             if (!req || req.tick === lastJumpTick) return;
             lastJumpTick = req.tick;
-            this.onJumpToMessage(req.id);
+            this.onJumpToMessage(req.id, req.action);
         });
 
         // Initial load: force scroll to bottom the first time messages appear,
@@ -280,6 +282,11 @@ export class ChatComponent {
         pipWin.document.body.classList.add('agent-panel-pip');
         for (const n of rootNodes) pipWin.document.body.appendChild(n);
         this.agentPipWin = pipWin;
+        // Expose the PiP doc to PipAwareOverlayContainer (provided at
+        // agent-console scope) so matTooltip / mat-menu / mat-dialog
+        // overlays opened inside the panel land in the PiP window instead
+        // of the main one.
+        this.panelState.pipDocument.set(pipWin.document);
         // Flag so file-viewer hides its own smart_toy button while PiP is up
         // (otherwise we'd have two agent UIs racing). Edit routing is handled
         // separately via panelState.editChannel — registered by whichever
@@ -289,6 +296,7 @@ export class ChatComponent {
         pipWin.addEventListener('pagehide', () => {
             if (this.agentPipWin === pipWin) {
                 this.agentPipWin = null;
+                this.panelState.pipDocument.set(null);
                 this.isAgentSidebarOpen.set(false);
             }
         });
@@ -319,6 +327,7 @@ export class ChatComponent {
         this.mountGeneration++;
         this.uninstallAgentPanelPromoter();
         this.panelState.pipActive.set(false);
+        this.panelState.pipDocument.set(null);
         if (this.agentPipWin) {
             try { this.agentPipWin.close(); } catch { /* already closed */ }
             this.agentPipWin = null;
@@ -528,15 +537,32 @@ export class ChatComponent {
         this.isAgentSidebarOpen.update(v => !v);
     }
 
-    onJumpToMessage(id: string) {
+    onJumpToMessage(id: string, action: string | null = null) {
         setTimeout(() => {
             const root = this.contentWrapper()?.nativeElement;
             const el = root?.querySelector<HTMLElement>(`#message-${CSS.escape(id)}`);
-            if (el) {
-                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                el.classList.add('highlight-flash');
-                setTimeout(() => el.classList.remove('highlight-flash'), 2000);
+            if (!el) return;
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            if (action) {
+                // Toolbar buttons are hidden until hover; force-show the
+                // toolbar for the spotlight duration so the user can both
+                // see and click the highlighted target.
+                const btn = el.querySelector<HTMLElement>(`[data-msg-action="${CSS.escape(action)}"]`);
+                if (btn) {
+                    el.classList.add('msg-toolbar-pinned');
+                    // Wait for the smooth scroll to settle before measuring
+                    // the bbox — matches the 250ms registry uses for hint
+                    // spotlights.
+                    setTimeout(() => spotlightElement(this.doc, btn), 250);
+                    setTimeout(() => el.classList.remove('msg-toolbar-pinned'), 2400);
+                    return;
+                }
+                // Action segment named but no matching button on this
+                // message (e.g. user-msg / non-save model-msg with
+                // auto-update link): fall through to message-level flash.
             }
+            el.classList.add('highlight-flash');
+            setTimeout(() => el.classList.remove('highlight-flash'), 2000);
         }, 50);
     }
 }
