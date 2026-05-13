@@ -1,5 +1,7 @@
 # Output Format Specifications
 
+{{IDEAL_OUTCOME_CONSTRAINT}}
+
 Strictly follow these JSON field definitions. **Flat top-level shape**: `{ analysis, story, summary, character_log, inventory_log, quest_log, world_log, correction }`.
 
 - **analysis (Structured Atomic Breakdown + Full-Scene Reactions)**:

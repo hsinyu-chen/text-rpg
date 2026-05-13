@@ -1,5 +1,7 @@
 # 輸出格式規範
 
+{{IDEAL_OUTCOME_CONSTRAINT}}
+
 你的 JSON 輸出必須嚴格遵守以下欄位定義。**頂層平面結構**：`{ analysis, story, summary, character_log, inventory_log, quest_log, world_log, correction }`。
 
 - **analysis (結構化原子拆解 + 全場景反應)**：

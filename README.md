@@ -149,13 +149,15 @@ The toggle is a chip labelled **`1 Call`** / **`2 Call`** in the status row dire
 
 **Optional user-supplied `ideal_outcome`**
 
-When 2-Call is on, an extra chip appears next to it: **`Ideal Outcome`**. Click to expand a one-line textarea above the input. Filling it changes resolver behaviour:
-*   Resolver is told to use your text **verbatim** as the `ideal_outcome` and judge each step against it; it must not infer its own.
-*   Empty / hidden = resolver infers `ideal_outcome` from your action text (default behaviour).
+Next to the engine-mode chip is an **`Ideal Outcome`** chip (available in both 1-Call and 2-Call). Click to expand a one-line textarea above the input. Filling it changes adjudication:
+*   The model is told to use your text **verbatim** as the `ideal_outcome` and judge each step against it; it must not infer its own.
+*   Empty / hidden = the model infers `ideal_outcome` from your action text (default behaviour).
 *   The setting persists with the user message — edit-and-resend repopulates the field, and `<System>` correction auto-resends carry it forward (so the corrective re-run sees the same constraint).
 *   The user message bubble shows a small chip (`Ideal: ...`) when set, so the constraint is visible after commit.
 
-Use this for complex sequences where the resolver's natural inference might be wrong — e.g. "land the strike between the eyes" (perfectionist), "win this fight" (pragmatic), "escape the encirclement" (desperate). The same input string with different `ideal_outcome` will be adjudicated differently.
+Use this for complex sequences where the model's natural inference might be wrong — e.g. "land the strike between the eyes" (perfectionist), "win this fight" (pragmatic), "escape the encirclement" (desperate). The same input string with different `ideal_outcome` will be adjudicated differently.
+
+**Mode differences**: 2-Call makes `ideal_outcome` a required resolver-schema field (must be echoed verbatim) and the narrator reads it again — two reinforcement layers. 1-Call only sees it once in the prompt with no schema-level guarantee. For small models / strict binary constraints (e.g. "not noticed by anyone"), prefer 2-Call.
 
 **Cost characteristics**
 

@@ -67,8 +67,6 @@ export class ChatInputComponent {
         return getProfileDisplayName(profile, k => this.i18n.translate(k));
     });
 
-    // Two-call is the only engine mode that consumes userIdealOutcome,
-    // so the field is shown conditionally on this flag.
     isTwoCall = computed(() => this.appConfig.engineMode() === 'two-call');
     engineModeLabel = computed(() =>
         this.i18n.translate(this.isTwoCall() ? 'ui.ENGINE_MODE_TWO_CALL' : 'ui.ENGINE_MODE_SINGLE'));
@@ -182,7 +180,7 @@ export class ChatInputComponent {
         }
 
         const msgContent = this.userInput();
-        const idealOutcome = this.isTwoCall() && (STORY_INTENTS as string[]).includes(intent)
+        const idealOutcome = (STORY_INTENTS as string[]).includes(intent)
             ? this.userIdealOutcome().trim() || undefined
             : undefined;
         console.log('[ChatInput] Calling engine.sendMessage with intent:', intent, 'content:', msgContent.substring(0, 50));

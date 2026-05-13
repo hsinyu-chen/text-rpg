@@ -239,4 +239,47 @@ describe('ContextBuilderService', () => {
             expect(builder.intentInjection(emptyCtx(), 'unknown-intent')).toBe('');
         });
     });
+
+    describe('augmentSingleCallHistory', () => {
+        it('substitutes {{IDEAL_OUTCOME_CONSTRAINT}} into protocol_single when the latest user msg supplied userIdealOutcome', () => {
+            const user = userMsg('walk forward', { userIdealOutcome: 'reach the plaza unseen' });
+            const ctx = emptyCtx({
+                messages: [user],
+                dynamicAction: 'ACTION: {{USER_INPUT}}',
+                dynamicProtocolSingle: 'PROTOCOL\n\n{{IDEAL_OUTCOME_CONSTRAINT}}\n\n{{USER_INPUT}}'
+            });
+
+            const history = builder.augmentSingleCallHistory(
+                ctx,
+                [{ role: 'user', parts: [{ text: 'walk forward' }] }],
+                'action',
+                'zh-tw'
+            );
+
+            const tail = history[history.length - 1].parts[0].text!;
+            expect(tail).toContain('reach the plaza unseen');
+            expect(tail).not.toContain('{{IDEAL_OUTCOME_CONSTRAINT}}');
+        });
+
+        it('drops {{IDEAL_OUTCOME_CONSTRAINT}} to empty when no userIdealOutcome was supplied', () => {
+            const user = userMsg('walk forward');
+            const ctx = emptyCtx({
+                messages: [user],
+                dynamicAction: 'ACTION: {{USER_INPUT}}',
+                dynamicProtocolSingle: 'PROTOCOL\n\n{{IDEAL_OUTCOME_CONSTRAINT}}\n\n{{USER_INPUT}}'
+            });
+
+            const history = builder.augmentSingleCallHistory(
+                ctx,
+                [{ role: 'user', parts: [{ text: 'walk forward' }] }],
+                'action',
+                'zh-tw'
+            );
+
+            const tail = history[history.length - 1].parts[0].text!;
+            expect(tail).not.toContain('{{IDEAL_OUTCOME_CONSTRAINT}}');
+            expect(tail).not.toContain('使用者聲明的 ideal_outcome');
+            expect(tail).not.toContain('User-declared ideal_outcome');
+        });
+    });
 });
