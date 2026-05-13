@@ -17,12 +17,12 @@ import { FileAgentSettingsStore } from './file-agent-settings.store';
 import { I18nService } from '@app/core/i18n';
 import { getLocale } from '@app/core/constants/locales';
 import { AgentHintRegistry } from '@app/core/services/agent-hints/agent-hints.registry';
-import { normalizeMessageLinks, unwrapAppUrlCode } from './normalize-message-links.util';
+import { applyHarnessFallbacks } from './normalize-message-links.util';
 
 // ParsedAction args come through an `as unknown` cast — runtime shape isn't
 // guaranteed. Coerce non-string `message` payloads (hallucinated objects /
 // null / number) to '' before piping into sanitizeLatexToUnicode +
-// normalizeMessageLinks, both of which assume string input.
+// applyHarnessFallbacks, both of which assume string input.
 function getStringArg(val: unknown): string {
   return typeof val === 'string' ? val : '';
 }
@@ -345,7 +345,7 @@ export class FileAgentService {
     if (!result) return;
 
     if (mode === 'native' && ctx.accumulatedText) {
-      ctx.accumulatedText = normalizeMessageLinks(unwrapAppUrlCode(sanitizeLatexToUnicode(ctx.accumulatedText)));
+      ctx.accumulatedText = applyHarnessFallbacks(sanitizeLatexToUnicode(ctx.accumulatedText), this.harnessLabels());
       this.updateLogAt(ctx.currentLogIndex, e => ({ ...e, text: ctx.accumulatedText }));
     }
 
@@ -437,6 +437,10 @@ export class FileAgentService {
   }
 
   /** Append a fresh streaming model entry; return the per-turn context. */
+  private harnessLabels(): { messageLink: string } {
+    return { messageLink: this.i18n.translate('dialog.agentHarnessMessageLink') };
+  }
+
   private openTurnLogEntry(): TurnContext {
     let currentLogIndex = -1;
     this.agentLogs.update(logs => {
@@ -559,7 +563,7 @@ export class FileAgentService {
     // ctx.accumulatedText was already processed at processAgentTurn line ~340,
     // so we don't re-run those on the merged result.
     const toolMsg = finishCall.action === 'submitResponse'
-      ? normalizeMessageLinks(unwrapAppUrlCode(sanitizeLatexToUnicode(getStringArg(finishCall.args.message))))
+      ? applyHarnessFallbacks(sanitizeLatexToUnicode(getStringArg(finishCall.args.message)), this.harnessLabels())
       : '';
     // In native mode, accumulatedText is genuine commentary that lives
     // alongside the structured function call — merge with toolMsg when both
@@ -592,7 +596,7 @@ export class FileAgentService {
     a: ParsedAction, context: FileAgentContext, mode: 'native' | 'json', ctx: TurnContext
   ): Promise<void> {
     if (a.action === 'reportProgress') {
-      const message = normalizeMessageLinks(unwrapAppUrlCode(sanitizeLatexToUnicode(getStringArg(a.args.message))));
+      const message = applyHarnessFallbacks(sanitizeLatexToUnicode(getStringArg(a.args.message)), this.harnessLabels());
       this.updateLogAt(ctx.currentLogIndex, e => ({ ...e, text: message, isToolCall: false }));
       this.appendToolResults([{ action: a, response: { status: 'acknowledged' } }], mode);
       await this.processAgentTurn(context);
@@ -650,7 +654,7 @@ export class FileAgentService {
 
     for (const a of actions) {
       if (a.action === 'reportProgress') {
-        const message = normalizeMessageLinks(unwrapAppUrlCode(sanitizeLatexToUnicode(getStringArg(a.args.message))));
+        const message = applyHarnessFallbacks(sanitizeLatexToUnicode(getStringArg(a.args.message)), this.harnessLabels());
         this.agentLogs.update(logs => [...logs, { role: 'model', text: message, type: 'model' as const }]);
         executed.push({ action: a, response: { status: 'acknowledged' } });
         continue;

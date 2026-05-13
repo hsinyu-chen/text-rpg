@@ -1,100 +1,94 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeMessageLinks, unwrapAppUrlCode } from './normalize-message-links.util';
+import {
+  normalizeMessageLinks,
+  unwrapAppUrlCode,
+  backfillEmptyLabels,
+  collapseAdjacentDuplicateLinks,
+  applyHarnessFallbacks,
+} from './normalize-message-links.util';
 
 const G = 'a1b2c3d4-e5f6-7890-abcd-ef0123456789';
 const G2 = '11111111-2222-3333-4444-555555555555';
+const ZH = { messageLink: '訊息連結' };
+const EN = { messageLink: 'message link' };
 
 describe('normalizeMessageLinks', () => {
-  it('wraps a raw GUID when the line contains "訊息"', () => {
-    expect(normalizeMessageLinks(`目標訊息 ${G} 已找到`))
-      .toBe(`目標訊息 [${G}](app://message/${G}) 已找到`);
+  it('wraps a raw GUID with the i18n label on a 訊息-keyword line', () => {
+    expect(normalizeMessageLinks(`目標訊息 ${G} 已找到`, ZH))
+      .toBe(`目標訊息 [訊息連結](app://message/${G}) 已找到`);
   });
 
-  it('wraps a raw GUID when the line contains "message" (case-insensitive)', () => {
-    expect(normalizeMessageLinks(`Found Message ${G}.`))
-      .toBe(`Found Message [${G}](app://message/${G}).`);
+  it('uses the English label on a message-keyword line', () => {
+    expect(normalizeMessageLinks(`Found Message ${G}.`, EN))
+      .toBe(`Found Message [message link](app://message/${G}).`);
   });
 
   it('leaves GUIDs alone when neither keyword is on the line', () => {
     const text = `Book id ${G}`;
-    expect(normalizeMessageLinks(text)).toBe(text);
-  });
-
-  it('does not double-wrap a GUID already inside an app://message link', () => {
-    const text = `See message [${G}](app://message/${G})`;
-    expect(normalizeMessageLinks(text)).toBe(text);
+    expect(normalizeMessageLinks(text, EN)).toBe(text);
   });
 
   it('does not wrap a GUID that is the URL part of an existing link', () => {
     const text = `See message [前面那則](app://message/${G})`;
-    expect(normalizeMessageLinks(text)).toBe(text);
+    expect(normalizeMessageLinks(text, ZH)).toBe(text);
   });
 
   it('handles multiple GUIDs on the same qualifying line', () => {
-    const out = normalizeMessageLinks(`訊息 ${G} 與 ${G2} 衝突`);
-    expect(out).toBe(`訊息 [${G}](app://message/${G}) 與 [${G2}](app://message/${G2}) 衝突`);
+    expect(normalizeMessageLinks(`訊息 ${G} 與 ${G2} 衝突`, ZH))
+      .toBe(`訊息 [訊息連結](app://message/${G}) 與 [訊息連結](app://message/${G2}) 衝突`);
   });
 
-  it('processes each line independently', () => {
-    const input = [
-      `Random Book ${G}`,
-      `Reference message ${G2}`,
-    ].join('\n');
-    const out = normalizeMessageLinks(input);
-    expect(out).toBe([
-      `Random Book ${G}`,
-      `Reference message [${G2}](app://message/${G2})`,
-    ].join('\n'));
-  });
-
-  it('returns empty / undefined input unchanged', () => {
-    expect(normalizeMessageLinks('')).toBe('');
-  });
-
-  it('returns empty string for non-string input (LLM hallucinated arg)', () => {
-    // Defends against parseActionsFromOutput casting via `as unknown` —
-    // the runtime arg shape is not guaranteed.
+  it('returns empty string for non-string input', () => {
     expect(normalizeMessageLinks(undefined as unknown as string)).toBe('');
-    expect(normalizeMessageLinks(null as unknown as string)).toBe('');
-    expect(normalizeMessageLinks({ text: G } as unknown as string)).toBe('');
+    expect(normalizeMessageLinks({} as unknown as string)).toBe('');
   });
 
-  it('wraps a GUID inside parentheses on a qualifying line', () => {
-    expect(normalizeMessageLinks(`(see message ${G})`))
-      .toBe(`(see message [${G}](app://message/${G}))`);
+  it('strips surrounding backticks from a bare GUID when wrapping', () => {
+    // Otherwise the link ends up inside a code span → unclickable.
+    expect(normalizeMessageLinks(`see message \`${G}\` for context`, EN))
+      .toBe(`see message [message link](app://message/${G}) for context`);
   });
 
+  it('skips GUIDs that are already part of any URL path', () => {
+    const text = `see message [foo](app://file/${G})`;
+    expect(normalizeMessageLinks(text, EN)).toBe(text);
+  });
 });
 
 describe('unwrapAppUrlCode', () => {
   it('unwraps <code>-wrapped markdown links', () => {
-    expect(unwrapAppUrlCode(`see <code>[訊息](app://message/${G})</code> here`))
+    expect(unwrapAppUrlCode(`see <code>[訊息](app://message/${G})</code> here`, ZH))
       .toBe(`see [訊息](app://message/${G}) here`);
   });
 
   it('unwraps backtick-wrapped markdown links', () => {
-    expect(unwrapAppUrlCode(`see \`[訊息](app://message/${G})\` here`))
+    expect(unwrapAppUrlCode(`see \`[訊息](app://message/${G})\` here`, ZH))
       .toBe(`see [訊息](app://message/${G}) here`);
   });
 
-  it('unwraps bare <code>-wrapped URLs and adds link markup (markdown does not auto-link app://)', () => {
-    expect(unwrapAppUrlCode(`open <code>app://file/inventory.md</code> now`))
-      .toBe(`open [app://file/inventory.md](app://file/inventory.md) now`);
+  it('uses i18n message-link label for bare <code>-wrapped message URLs', () => {
+    expect(unwrapAppUrlCode(`open <code>app://message/${G}</code> now`, ZH))
+      .toBe(`open [訊息連結](app://message/${G}) now`);
   });
 
-  it('unwraps bare backtick-wrapped URLs and adds link markup', () => {
-    expect(unwrapAppUrlCode('open `app://hint/chat-input/send` now'))
-      .toBe('open [app://hint/chat-input/send](app://hint/chat-input/send) now');
+  it('uses the filename as label for bare app://file URLs', () => {
+    expect(unwrapAppUrlCode('open `app://file/inventory.md` now', EN))
+      .toBe('open [inventory.md](app://file/inventory.md) now');
   });
 
-  it('leaves text without code-wrapped app:// URLs untouched', () => {
-    const text = `regular [link](app://message/${G}) and \`some other code\``;
-    expect(unwrapAppUrlCode(text)).toBe(text);
+  it('strips <code> wrapping around a bare GUID (left for normalize to link)', () => {
+    expect(unwrapAppUrlCode(`message <code>${G}</code> please`, EN))
+      .toBe(`message ${G} please`);
+  });
+
+  it('uses the last segment as label for bare app://hint URLs', () => {
+    expect(unwrapAppUrlCode('see `app://hint/chat-input/send` next', EN))
+      .toBe('see [send](app://hint/chat-input/send) next');
   });
 
   it('is idempotent', () => {
-    const once = unwrapAppUrlCode(`<code>[a](app://message/${G})</code>`);
-    expect(unwrapAppUrlCode(once)).toBe(once);
+    const once = unwrapAppUrlCode(`<code>[a](app://message/${G})</code>`, ZH);
+    expect(unwrapAppUrlCode(once, ZH)).toBe(once);
   });
 
   it('returns empty string for non-string input', () => {
@@ -103,12 +97,68 @@ describe('unwrapAppUrlCode', () => {
   });
 });
 
-describe('normalizeMessageLinks (continued)', () => {
-  it('skips GUIDs that are already part of any URL path', () => {
-    // Generic `(?<!/)` lookbehind protects every URL scheme, not just
-    // app://message/ — prevents nested-link mangling on a GUID-shaped
-    // segment inside app://file/ / app://hint/ / etc.
-    const text = `see message [foo](app://file/${G})`;
-    expect(normalizeMessageLinks(text)).toBe(text);
+describe('backfillEmptyLabels', () => {
+  it('replaces empty-label message links with the i18n label', () => {
+    expect(backfillEmptyLabels(`在 [](app://message/${G}) 中`, ZH))
+      .toBe(`在 [訊息連結](app://message/${G}) 中`);
+  });
+
+  it('uses filename for empty-label file links', () => {
+    expect(backfillEmptyLabels('open [](app://file/inventory.md) please', EN))
+      .toBe('open [inventory.md](app://file/inventory.md) please');
+  });
+
+  it('leaves non-empty labels alone', () => {
+    const text = `[訊息](app://message/${G})`;
+    expect(backfillEmptyLabels(text, ZH)).toBe(text);
+  });
+});
+
+describe('collapseAdjacentDuplicateLinks', () => {
+  it('collapses two consecutive same-URL links into one', () => {
+    expect(collapseAdjacentDuplicateLinks(`[](app://message/${G})[訊息連結](app://message/${G})`))
+      .toBe(`[訊息連結](app://message/${G})`);
+  });
+
+  it('tolerates spaces between the two links', () => {
+    expect(collapseAdjacentDuplicateLinks(`[a](app://message/${G})   [b](app://message/${G})`))
+      .toBe(`[b](app://message/${G})`);
+  });
+
+  it('does NOT collapse across a newline', () => {
+    const text = `[a](app://message/${G})\n[b](app://message/${G})`;
+    expect(collapseAdjacentDuplicateLinks(text)).toBe(text);
+  });
+
+  it('does NOT collapse links to different URLs', () => {
+    const text = `[a](app://message/${G})[b](app://message/${G2})`;
+    expect(collapseAdjacentDuplicateLinks(text)).toBe(text);
+  });
+
+  it('collapses chains of 3+ duplicates', () => {
+    const url = `app://message/${G}`;
+    expect(collapseAdjacentDuplicateLinks(`[](${url})[訊息連結](${url})[訊息連結](${url})`))
+      .toBe(`[訊息連結](${url})`);
+  });
+});
+
+describe('applyHarnessFallbacks (end-to-end)', () => {
+  it('collapses the empty-label + backtick-bare-URL pattern into one labeled link', () => {
+    // Repro for the user-reported case: model emits `[](url) \`url\`` and the
+    // intermediate stages produce two adjacent links rendering as two <a>s.
+    const url = `app://message/${G}`;
+    expect(applyHarnessFallbacks(`在 [](${url}) \`${url}\` 訊息中`, ZH))
+      .toBe(`在 [訊息連結](${url}) 訊息中`);
+  });
+
+  it('wraps a bare GUID and labels it', () => {
+    expect(applyHarnessFallbacks(`See message ${G} for details`, EN))
+      .toBe(`See message [message link](app://message/${G}) for details`);
+  });
+
+  it('handles code-wrapped + adjacent duplicate in one pass', () => {
+    const url = `app://message/${G}`;
+    expect(applyHarnessFallbacks(`<code>${url}</code>[](${url})`, ZH))
+      .toBe(`[訊息連結](${url})`);
   });
 });

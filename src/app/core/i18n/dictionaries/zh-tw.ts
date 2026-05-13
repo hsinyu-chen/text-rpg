@@ -425,6 +425,7 @@ export const zhTW: TranslationDict = {
         agentPromptPlaceholder: '詢問問題、要求修改檔案、查找功能…',
         agentPromptPlaceholderReadOnly: '詢問問題、查找功能…(唯讀,要修改檔案請開檔案編輯器)',
         agentStop: '停止代理',
+        agentHarnessMessageLink: '訊息連結',
         agentLoadPromptFailed: '無法載入「{{id}}」提示（目前語言）。',
         contextLabel: '上下文',
         contextToggleBreakdown: '點擊展開詳細分類',
