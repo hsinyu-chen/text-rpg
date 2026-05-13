@@ -51,7 +51,11 @@ const DEFAULT_LABELS: HarnessLabels = { messageLink: 'message link' };
 function labelFor(url: string, labels: HarnessLabels): string {
   if (url.startsWith('app://message/')) return labels.messageLink;
   if (url.startsWith('app://file/')) {
-    return decodeURIComponent(url.slice('app://file/'.length).split('?')[0]) || url;
+    const raw = url.slice('app://file/'.length).split('?')[0];
+    // decodeURIComponent throws URIError on malformed escapes (lone `%`,
+    // invalid sequence) — LLM output can produce these. Fall back to the
+    // undecoded segment rather than crashing the whole pipeline.
+    try { return decodeURIComponent(raw) || url; } catch { return raw || url; }
   }
   if (url.startsWith('app://hint/')) {
     const path = url.slice('app://hint/'.length).split('?')[0];

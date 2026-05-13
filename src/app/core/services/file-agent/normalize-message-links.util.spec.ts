@@ -84,6 +84,13 @@ describe('unwrapAppUrlCode', () => {
       .toBe('open [inventory.md](app://file/inventory.md) now');
   });
 
+  it('falls back to the raw segment when filename has malformed percent-encoding', () => {
+    // decodeURIComponent throws URIError on lone `%`. Hallucinated LLM URLs
+    // hit this; the pipeline must not crash.
+    expect(unwrapAppUrlCode('see `app://file/oops%.md` later', EN))
+      .toBe('see [oops%.md](app://file/oops%.md) later');
+  });
+
   it('strips <code> wrapping around a bare GUID (left for normalize to link)', () => {
     expect(unwrapAppUrlCode(`message <code>${G}</code> please`, EN))
       .toBe(`message ${G} please`);
