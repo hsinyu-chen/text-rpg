@@ -48,7 +48,11 @@ export class AgentLinkInterceptor {
 
     switch (scheme) {
       case 'hint': {
-        const path = tail.join('/');
+        // Decode each segment individually rather than joining first: a path
+        // segment that itself contains an encoded `/` (e.g. `%2F`) would
+        // collapse into the path delimiter if we decoded after the join.
+        // file/message schemes use the same encoding contract.
+        const path = tail.map(s => decodeURIComponent(s)).join('/');
         const action = this.parseAction(query);
         this.registry.openTarget(path, action);
         return true;

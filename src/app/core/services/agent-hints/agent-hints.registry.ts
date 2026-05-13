@@ -114,10 +114,17 @@ export class AgentHintRegistry {
       const hasChildren = !!resolved.entry.children?.length;
       if (hasChildren && !resolved.entry.activatable) continue;
 
+      // Include each ancestor's name + description so a query like
+      // "files tab sync" hits `sidebar/files-tab/file-sync` even though the
+      // leaf's own description never repeats the parent labels.
+      const ancestorText = this.getAncestorChain(resolved.path)
+        .slice(0, -1)
+        .flatMap(a => [this.nameOf(a.path), this.describe(a.path)]);
       const haystack = [
         resolved.path,
         this.describe(resolved.path),
         ...(resolved.entry.keywords ?? []),
+        ...ancestorText,
       ].join(' ').toLowerCase();
       let score = 0;
       for (const token of tokens) {
