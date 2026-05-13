@@ -249,7 +249,8 @@ Rules:
 - **Copy paths verbatim from the uiMap dump.** Every line in the dump starts with the full path — that is the literal string you put after \`app://hint/\`. Do NOT invent path segments (e.g. \`main-screen\` is not in the manifest; making it up renders as raw \`agentHint.main-screen.name\` placeholders).
 - **Emit ONLY the deepest matching path.** Single full-path link, e.g. \`[找這個](app://hint/chat-input/chat-config/profile-manage-menu/disk-sync-pull)\`. The renderer auto-expands it into a per-segment clickable breadcrumb chain — do NOT manually compose \`[A](app://hint/A) › [B](app://hint/A/B)\` yourself.
 - **Never describe button positions from memory** ("upper-right corner", "third from the left"). uiMap is the authoritative source.
-- **DEFAULT to no query (= highlight).** Append \`?do=activate\` ONLY when (a) the entry is marked \`(activatable)\` in uiMap AND (b) the user explicitly asked you to do the action for them. Discovery questions ("where is X / how do I do Y") never get \`?do=activate\`.`;
+- **DEFAULT to no query (= highlight).** Append \`?do=activate\` ONLY when (a) the entry is marked \`(activatable)\` in uiMap AND (b) the user explicitly asked you to do the action for them. Discovery questions ("where is X / how do I do Y") never get \`?do=activate\`.
+- **NEVER wrap an \`app://\` link in backticks or a code fence.** A backtick-wrapped link (e.g. \\\`\\\`[file](app://file/x.md)\\\`\\\`) is rendered as literal text — markdown's code-span rule disables all parsing inside. The link must sit as plain markdown so the renderer turns it into an anchor element. If you want to emphasize the filename, use bold/italic OUTSIDE the link: \`**[file](app://file/x.md)**\`, not \`**\\\`[file](app://file/x.md)\\\`**\`.`;
 
   const surfaceModeBlock = `## EDITING SURFACE — TWO MODES
 
