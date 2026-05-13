@@ -14,13 +14,15 @@
         <div class="header-actions">
             <!-- Save Current -->
             <button mat-raised-button color="primary" (click)="saveCurrent()"
-                [disabled]="!getIsDirty(activeType()) || profileMgr.isActiveBuiltIn()" [matTooltip]="'ui.SAVE' | translate">
+                [disabled]="!getIsDirty(activeType()) || profileMgr.isActiveBuiltIn()" [matTooltip]="'ui.SAVE' | translate"
+                appAgentHint="chat-input/chat-config/save-current">
                 <mat-icon>save</mat-icon> {{ 'ui.SAVE' | translate }}
             </button>
 
             <!-- Save All -->
             <button mat-stroked-button color="primary" (click)="saveAll()"
-                [disabled]="!hasAnyDirty() || profileMgr.isActiveBuiltIn()" [matTooltip]="'ui.SAVE_ALL' | translate">
+                [disabled]="!hasAnyDirty() || profileMgr.isActiveBuiltIn()" [matTooltip]="'ui.SAVE_ALL' | translate"
+                appAgentHint="chat-input/chat-config/save-all">
                 <mat-icon>save_as</mat-icon> {{ 'ui.SAVE_ALL' | translate }}
             </button>
 
@@ -28,11 +30,11 @@
 
             <!-- Cloud Sync -->
             <button mat-icon-button (click)="profileMgr.pushPromptsToCloud()" [matTooltip]="'ui.PROMPT_SYNC_PUSH' | translate"
-                [disabled]="loading.isLoading()">
+                [disabled]="loading.isLoading()" appAgentHint="chat-input/chat-config/cloud-push">
                 <mat-icon>cloud_upload</mat-icon>
             </button>
             <button mat-icon-button (click)="profileMgr.pullPromptsFromCloud()" [matTooltip]="'ui.PROMPT_SYNC_PULL' | translate"
-                [disabled]="loading.isLoading()">
+                [disabled]="loading.isLoading()" appAgentHint="chat-input/chat-config/cloud-pull">
                 <mat-icon>cloud_download</mat-icon>
             </button>
 
@@ -77,42 +79,52 @@
                             }
                         </mat-select>
                     </mat-form-field>
-                    <button mat-icon-button [matMenuTriggerFor]="profileMenu"
+                    <button mat-icon-button [matMenuTriggerFor]="profileMenu" #profileMenuTrigger="matMenuTrigger"
+                        appAgentHint="chat-input/chat-config/profile-manage-menu"
+                        (hintActivate)="profileMenuTrigger.openMenu()"
                         [matTooltip]="'ui.PROFILE_MANAGE_MENU' | translate" [disabled]="profileMgr.isSwitchingProfile()">
                         <mat-icon>more_vert</mat-icon>
                     </button>
                     <mat-menu #profileMenu="matMenu">
-                        <button mat-menu-item (click)="profileMgr.cloneActive()">
+                        <button mat-menu-item (click)="profileMgr.cloneActive()"
+                            appAgentHint="chat-input/chat-config/profile-manage-menu/profile-clone">
                             <mat-icon>content_copy</mat-icon>
                             <span>{{ 'ui.PROFILE_CLONE' | translate }}</span>
                         </button>
-                        <button mat-menu-item (click)="profileMgr.renameActive()" [disabled]="profileMgr.isActiveBuiltIn()">
+                        <button mat-menu-item (click)="profileMgr.renameActive()" [disabled]="profileMgr.isActiveBuiltIn()"
+                            appAgentHint="chat-input/chat-config/profile-manage-menu/profile-rename">
                             <mat-icon>edit</mat-icon>
                             <span>{{ 'ui.PROFILE_RENAME' | translate }}</span>
                         </button>
-                        <button mat-menu-item (click)="profileMgr.deleteActive()" [disabled]="profileMgr.isActiveBuiltIn()">
+                        <button mat-menu-item (click)="profileMgr.deleteActive()" [disabled]="profileMgr.isActiveBuiltIn()"
+                            appAgentHint="chat-input/chat-config/profile-manage-menu/profile-delete">
                             <mat-icon>delete</mat-icon>
                             <span>{{ 'ui.PROFILE_DELETE' | translate }}</span>
                         </button>
                         <mat-divider></mat-divider>
-                        <button mat-menu-item (click)="profileMgr.exportActiveProfile()">
+                        <button mat-menu-item (click)="profileMgr.exportActiveProfile()"
+                            appAgentHint="chat-input/chat-config/profile-manage-menu/profile-export">
                             <mat-icon>file_download</mat-icon>
                             <span>{{ 'ui.PROFILE_EXPORT' | translate }}</span>
                         </button>
-                        <button mat-menu-item (click)="profileMgr.importProfileFromFile()">
+                        <button mat-menu-item (click)="profileMgr.importProfileFromFile()"
+                            appAgentHint="chat-input/chat-config/profile-manage-menu/profile-import">
                             <mat-icon>file_upload</mat-icon>
                             <span>{{ 'ui.PROFILE_IMPORT' | translate }}</span>
                         </button>
                         <mat-divider></mat-divider>
-                        <button mat-menu-item (click)="profileMgr.pushActiveProfileToDisk()" [disabled]="profileMgr.isActiveBuiltIn()">
+                        <button mat-menu-item (click)="profileMgr.pushActiveProfileToDisk()" [disabled]="profileMgr.isActiveBuiltIn()"
+                            appAgentHint="chat-input/chat-config/profile-manage-menu/disk-sync-push">
                             <mat-icon>folder_shared</mat-icon>
                             <span>{{ 'ui.DISK_SYNC_PUSH' | translate }}</span>
                         </button>
-                        <button mat-menu-item (click)="profileMgr.pullActiveProfileFromDisk()" [disabled]="profileMgr.isActiveBuiltIn()">
+                        <button mat-menu-item (click)="profileMgr.pullActiveProfileFromDisk()" [disabled]="profileMgr.isActiveBuiltIn()"
+                            appAgentHint="chat-input/chat-config/profile-manage-menu/disk-sync-pull">
                             <mat-icon>folder_open</mat-icon>
                             <span>{{ 'ui.DISK_SYNC_PULL' | translate }}</span>
                         </button>
-                        <button mat-menu-item (click)="profileMgr.changeDiskFolder()">
+                        <button mat-menu-item (click)="profileMgr.changeDiskFolder()" (hintActivate)="profileMgr.changeDiskFolder()"
+                            appAgentHint="chat-input/chat-config/profile-manage-menu/change-disk-folder">
                             <mat-icon>drive_folder_upload</mat-icon>
                             <span>{{ profileMgr.diskFolderName() || ('ui.DISK_SYNC_FOLDER_NOT_BOUND' | translate) }}</span>
                         </button>

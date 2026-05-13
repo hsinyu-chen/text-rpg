@@ -593,7 +593,7 @@ describe('searchChatMessages', () => {
     const { context } = makeContext({}, makeChat());
     const r = run({ action: 'searchChatMessages', args: { reason: 'check', pattern: 'trigger', scope: 'thought', caseInsensitive: true } }, context);
     const hits = (r.response as { hits: { messageId: string; scope: string }[] }).hits;
-    expect(hits).toEqual([{ messageId: 'm2', role: 'model', scope: 'thought', snippet: expect.any(String), matchIndex: expect.any(Number) }]);
+    expect(hits).toEqual([{ messageId: 'm2', url: 'app://message/m2', role: 'model', scope: 'thought', snippet: expect.any(String), matchIndex: expect.any(Number) }]);
   });
 
   it('scope=all searches across content / thought / summary', () => {
@@ -709,7 +709,7 @@ describe('readChatMessage', () => {
     const msgs = (r.response as { messages: { id: string; error?: string }[] }).messages;
     expect(msgs[0].id).toBe('m2');
     expect(msgs[0].error).toBeUndefined();
-    expect(msgs[1]).toEqual({ id: 'nope', error: 'Message not found' });
+    expect(msgs[1]).toEqual({ id: 'nope', url: 'app://message/nope', error: 'Message not found' });
   });
 
   it('include=logs returns the structured per-kind logs block', () => {
@@ -769,5 +769,56 @@ describe('readTurnLogs', () => {
     const r = run({ action: 'readTurnLogs', args: { reason: 'check', recent: 1 } }, context);
     const groups = (r.response as { groups: { messageId: string }[] }).groups;
     expect(groups.every(g => g.messageId === 'm6')).toBe(true);
+  });
+});
+
+describe('uiMap', () => {
+  it('delegates to context.uiMap and returns its dump verbatim', () => {
+    const callback = vi.fn(() => '- chat-input — Toolbar — Bottom toolbar\n  - send — Send — Send message');
+    const { context } = makeContext({});
+    context.uiMap = callback;
+
+    const r = run({ action: 'uiMap', args: { reason: 'where' } }, context);
+
+    expect(callback).toHaveBeenCalled();
+    expect(r.response).toEqual({ map: '- chat-input — Toolbar — Bottom toolbar\n  - send — Send — Send message' });
+  });
+
+  it('returns an error when the context does not provide uiMap', () => {
+    const { context } = makeContext({});
+    const r = run({ action: 'uiMap', args: { reason: 'where' } }, context);
+    expect(r.response).toMatchObject({ error: expect.stringContaining('not available') });
+  });
+});
+
+describe('chat tools include app://message/<id> url', () => {
+  function makeChatWithIds(): ChatMessage[] {
+    return [
+      { id: 'm1', role: 'user', content: 'hello world', intent: 'action' } as ChatMessage,
+      { id: 'm2', role: 'model', content: 'reply with world inside', summary: 'said hi' } as ChatMessage,
+    ];
+  }
+
+  it('listChatMessages emits a url for every message', () => {
+    const { context } = makeContext({}, makeChatWithIds());
+    const r = run({ action: 'listChatMessages', args: { reason: 'r' } }, context);
+    const messages = (r.response as { messages: { id: string; url: string }[] }).messages;
+    expect(messages.every(m => m.url === `app://message/${m.id}`)).toBe(true);
+  });
+
+  it('searchChatMessages emits a url on each hit', () => {
+    const { context } = makeContext({}, makeChatWithIds());
+    const r = run({ action: 'searchChatMessages', args: { reason: 'r', pattern: 'world' } }, context);
+    const hits = (r.response as { hits: { messageId: string; url: string }[] }).hits;
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits.every(h => h.url === `app://message/${h.messageId}`)).toBe(true);
+  });
+
+  it('readChatMessage emits a url on each result (including not-found)', () => {
+    const { context } = makeContext({}, makeChatWithIds());
+    const r = run({ action: 'readChatMessage', args: { reason: 'r', messageIds: ['m1', 'missing'] } }, context);
+    const msgs = (r.response as { messages: { id: string; url: string }[] }).messages;
+    expect(msgs.find(m => m.id === 'm1')!.url).toBe('app://message/m1');
+    expect(msgs.find(m => m.id === 'missing')!.url).toBe('app://message/missing');
   });
 });

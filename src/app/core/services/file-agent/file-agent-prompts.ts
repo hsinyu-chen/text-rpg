@@ -5,8 +5,6 @@ export interface BuildSystemInstructionLangs {
   uiLanguage?: string;
   /** Engine output-language setting — the language the in-game narrative is in. */
   narrativeLanguage?: string;
-  /** When true, the executor rejects every write tool — surface this in the prompt so the LLM doesn't waste a round-trip attempting one. */
-  readOnly?: boolean;
 }
 
 /**
@@ -32,7 +30,7 @@ export function buildSystemInstruction(
 
 1. **Edit KB files** — apply changes (rewrites, fixes, insertions, mechanical edits, audit-then-fix).
 2. **Q&A / consultation** — answer questions about file contents, the in-game story, or game mechanics; audit consistency between KB and chat; surface what the canon actually says.
-3. **Guide UI features** — when the user asks "where is X / how do I do Y", point them to the right entry point or interaction.
+3. **Guide UI features** — when the user asks "where is X / how do I do Y", call \`uiMap()\` ONCE to dump the full feature tree, then emit the deepest matching path as \`[anything](app://hint/<full/path>)\`. The renderer auto-expands that into a per-segment clickable breadcrumb chain so the user can navigate one click at a time. Don't describe button locations from memory — \`uiMap\` is the authoritative source; your guesses go stale every UI change.
 
 Q&A and UI-guidance turns end with submitResponse and NO file mutation; do not invent edits to feel productive. When the request is ambiguous (e.g. "can you check X" might be either), prefer reading first and asking via submitResponse before editing.
 
@@ -44,7 +42,7 @@ These files are world-building / setting / lore documents for an LLM-driven text
 You have access to the following files:
 ${fileList}
 
-You can use tools to read file contents (whole or by line slice), search across files with grep, perform pattern-based search-and-replace without transferring the file body, get file outlines, read specific sections, and replace file contents or specific sections. You ALSO have read-only access to the current in-game chat history through dedicated tools (listChatMessages / searchChatMessages / readChatMessage / readTurnLogs) — use these both to verify "what the story actually said" before mutating KB / world / character files AND to answer narrative questions on their own.
+You can use tools to read file contents (whole or by line slice), search across files with grep, perform pattern-based search-and-replace without transferring the file body, get file outlines, read specific sections, and replace file contents or specific sections. You ALSO have read-only access to the current in-game chat history through dedicated tools (listChatMessages / searchChatMessages / readChatMessage / readTurnLogs) — use these both to verify "what the story actually said" before mutating KB / world / character files AND to answer narrative questions on their own. A separate tool, \`uiMap\`, finds UI features by keyword and returns clickable \`app://hint/...\` URLs that activate the target when the user clicks them in the agent-console.
 
 Every read/write tool response includes the affected file's current totalLines and the range you read/wrote. Use that as the authoritative line-count source — do not assume sizes between calls. If you need the line count of a file you haven't touched yet, call getFileOutline (cheap) or grep with a specific pattern.`;
 
@@ -226,19 +224,47 @@ Once you've confirmed the gap (e.g. an item the engine logged in \`inventory_log
 - **Edit chat messages** — the chat-aware tools (\`listChatMessages\` / \`searchChatMessages\` / \`readChatMessage\` / \`readTurnLogs\`) are all read-only. To change chat, direct the user to the per-message toolbar (edit-resend / edit-text / delete).
 - **Directly send messages / trigger save / trigger Auto Update / trigger Book Fork / trigger Create Next** — all are user operations. You can only guide.`;
 
-  const fileViewerModeBlock = `## EDITING SURFACE — FILE VIEWER (read + write)
+  const linkSchemesBlock = `## POINTING TO UI / MESSAGES / FILES — USE MARKDOWN LINKS, NOT PROSE DIRECTIONS
 
-You are running inside the File Viewer dialog's agent panel and have full read+write access.
+When your response mentions a UI feature, a past chat message, or a KB file, output a **clickable markdown link** so the user can jump there in one click. The agent-console intercepts \`app://\` links and routes them inside the app — they never navigate the browser.
 
-Your edits land first in the Monaco editor's in-memory buffer (marked "unsaved"); **the changes are not in IndexedDB until the user clicks [Save Changes] in the top-right**, and the engine won't see them until then.
+| To do this | Source of the URL | What to output |
+|---|---|---|
+| Point to a UI feature (button, panel, tab) | Call \`uiMap()\` once to dump the full tree, copy the deepest matching path verbatim | \`[anything](app://hint/<full/slash/path>)\` — renderer auto-expands to a per-segment clickable breadcrumb |
+| Quote / reference a specific past chat message | \`searchChatMessages\` / \`readChatMessage\` / \`listChatMessages\` results include a \`url\` field | \`[label](app://message/<id>)\` |
+| Open a KB file in the file-viewer | Use the literal filename from the file list above | \`[\`${cf.INVENTORY}\`](app://file/${cf.INVENTORY})\` |
 
-Your editing-turn \`submitResponse\` **must remind the user to click [Save Changes] in the top-right** (phrased in \`${uiLang}\`) — otherwise they may close the dialog assuming it's saved, losing the work.`;
+URL behavior on click:
 
-  const readOnlyBlock = `## EDITING SURFACE — SIDEBAR (read-only)
+- \`app://hint/<path>\` (no query): scroll to the element + flash. The renderer rewrites this into a per-segment chain \`[A](.../A) > [B](.../A/B) > [C](.../A/B/C)\` — the user can click any segment to flash it, and unmounted targets show a "find it here" breadcrumb toast.
+- \`app://hint/<path>?do=activate\`: triggers the component's open function (opens dialog, switches tab, fires action). Only honored on entries marked \`(activatable)\` in \`uiMap\`. Side effects — see Rules below.
+- \`app://hint/<path>?do=focus\`: focuses an input element. Use sparingly.
+- \`app://message/<id>\`: scroll + flash on the target chat message.
+- \`app://file/<filename>\`: open the file-viewer dialog with that file loaded.
 
-You are running from the main game screen's sidebar agent panel, which has no editor view. Write tools (\`replaceFile\` / \`searchReplace\` / \`replaceSection\` / \`insertSection\` / \`insertIntoSection\`) are DISABLED here — the executor will reject them outright. Q&A and consultation work normally.
+Rules:
+- **HARD RULE: NEVER emit an \`app://hint/...\` link in submitResponse before you have invoked the \`uiMap\` tool IN THIS TURN and read back its result.** uiMap is a tool call — invoke it through whatever calling mechanism is available to you in this turn (native function call or the JSON action protocol, whichever applies), then wait for the tool result to arrive before composing the link. Writing "I'll call uiMap" in prose is not a call. If you find yourself drafting a hint link without having seen uiMap's result this turn, STOP and call the tool first.
+- **Call \`uiMap\` ONCE per turn when UI is involved.** The response is the full feature tree (~3-5k tokens). Don't re-call it within the same turn; reuse the dump.
+- **Copy paths verbatim from the uiMap dump.** Every line in the dump starts with the full path — that is the literal string you put after \`app://hint/\`. Do NOT invent path segments (e.g. \`main-screen\` is not in the manifest; making it up renders as raw \`agentHint.main-screen.name\` placeholders).
+- **Emit ONLY the deepest matching path.** Single full-path link, e.g. \`[找這個](app://hint/chat-input/chat-config/profile-manage-menu/disk-sync-pull)\`. The renderer auto-expands it into a per-segment clickable breadcrumb chain — do NOT manually compose \`[A](app://hint/A) › [B](app://hint/A/B)\` yourself.
+- **Never describe button positions from memory** ("upper-right corner", "third from the left"). uiMap is the authoritative source.
+- **DEFAULT to no query (= highlight).** Append \`?do=activate\` ONLY when (a) the entry is marked \`(activatable)\` in uiMap AND (b) the user explicitly asked you to do the action for them. Discovery questions ("where is X / how do I do Y") never get \`?do=activate\`.`;
 
-If the user asks for an edit, do NOT attempt a write tool. Use \`submitResponse\` to tell them to open the KB editor (the file-viewer dialog from the sidebar) and re-issue the request from its agent panel — that's where the change can be reviewed and saved.`;
+  const surfaceModeBlock = `## EDITING SURFACE — TWO MODES
+
+Each user message in this conversation begins with a mode marker on its own first line, e.g. \`[mode: editor]\` or \`[mode: readonly]\`. The marker tells you which surface is currently active and whether write tools will be honored on this turn. Trust the marker — it may flip between turns when the user opens / closes the file-viewer.
+
+### \`[mode: editor]\` — write tools enabled
+The user has the file-viewer dialog open. Your write tools (\`replaceFile\` / \`searchReplace\` / \`replaceSection\` / \`insertSection\` / \`insertIntoSection\`) land in the file-viewer's Monaco editor as **unsaved** edits — they are NOT in IndexedDB until the user clicks [Save Changes] in the file-viewer's bottom-right, and the engine won't see them until then. Your editing-turn \`submitResponse\` MUST remind the user to click [Save Changes] (phrased in \`${uiLang}\`); otherwise they may close the dialog assuming it's saved and lose the work.
+
+### \`[mode: readonly]\` — write tools disabled
+The file-viewer dialog is NOT open. Write tools will be rejected outright by the executor — do NOT attempt them. Q&A / consultation / search tools still work.
+
+If the user asks for an edit while in this mode, use \`submitResponse\` to:
+1. Acknowledge the change they want.
+2. **Point them at the file-viewer using a clickable hint link** — link to the KB file with \`[檔名](app://file/<filename>)\` so one click opens the editor with that file ready. As soon as the file-viewer opens, the next turn will arrive with \`[mode: editor]\` and your writes are unlocked; the user can then re-issue the request.
+
+Do NOT phrase this as "I can't edit." Phrase it as "open the editor and I'll handle it" — readonly is a workflow gate, not a hard No.`;
 
   const modeBlock = mode === 'native'
     ? (allowParallel
@@ -269,6 +295,7 @@ EVERY file-operation action (all except reportProgress / submitResponse) REQUIRE
 - action: "searchChatMessages" -> args: { "reason": "...", "pattern": "...", "scope"?: "content" | "thought" | "summary" | "all", "caseInsensitive"?: false, "limit"?: 100, "contextChars"?: 80 }
 - action: "readChatMessage" -> args: { "reason": "...", "messageIds": ["id1", "id2"], "include"?: ["content", "thought", "logs", "analysis", "summary", "intent"] }
 - action: "readTurnLogs" -> args: { "reason": "...", "messageIds"?: ["id1"], "kinds"?: ["character", "world", "inventory", "quest"], "recent"?: 20 }
+- action: "uiMap" -> args: { "reason": "..." }
 - action: "reportProgress" -> args: { "message": "..." }
 - action: "submitResponse" -> args: { "message": "..." }
 
@@ -407,11 +434,9 @@ The following topics aren't loaded in this prompt by default; when you genuinely
 
 - \`story-prebuilt-events\` — Story Trigger / Story Hook mechanics — prebuilt event conditions in the plot outline, KB / character triggers, how to author them.
 - \`prompt-profiles\` — cloud vs. local prompt profile differences and when to use which.
-- \`ui-features\` — locations and operations of editor / sidebar / chat-input UI features (static doc for now; will become dynamic via the \`ui_search\` tool once deep-link lands).
+- \`ui-features\` — for **deep** explanations of an editor / sidebar / chat-input feature's mechanics beyond what a one-line description in \`uiMap\` can convey. Use \`uiMap\` first for "where is X" / "what does X do" — call \`read_game_doc\` only when the user needs the full design rationale or non-obvious interaction details.
 
 Until the tool ships, point users to the in-app docs if they need depth beyond this prompt.`;
-
-  const surfaceModeBlock = langs.readOnly ? readOnlyBlock : fileViewerModeBlock;
 
   return [
     header,
@@ -419,6 +444,7 @@ Until the tool ships, point users to the in-app docs if they need depth beyond t
     kbReferenceBlock,
     gameMechanicsBlock,
     cannotDoBlock,
+    linkSchemesBlock,
     surfaceModeBlock,
     modeBlock,
     workflowRules,

@@ -261,6 +261,22 @@ Open-BridgeFileViewer -InitialFile '3.Character_Status.md'
 Both return an ack frame; the user still types the actual question into
 the panel that appears.
 
+When you want to push the question yourself so the user can just **watch**
+the panel react (instead of copy-pasting from your message),
+`Send-BridgeChatPanelPrompt` auto-opens the panel, lands the prompt in
+the input box, and with `-AutoSend` immediately fires `runAgent` so the
+response streams live:
+
+```pwsh
+. ./.claude/skills/dev-bridge/bridge.ps1
+Send-BridgeChatPanelPrompt -Prompt 'book 列表怎麼看?' -AutoSend
+```
+
+Without `-AutoSend` the prompt sits in the input — useful when you want
+the user to read it first before sending. Distinct from
+`Send-BridgeAgentAsk` (next section), which runs a separate headless
+agent and returns the log to PS without touching the UI.
+
 ### Drive the in-app file-agent headlessly (autonomous handbook validation)
 
 When you want to interrogate the in-app agent without the user typing into

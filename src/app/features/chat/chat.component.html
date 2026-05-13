@@ -6,83 +6,78 @@
     </mat-sidenav>
 
     <mat-sidenav-content class="chat-sidenav-content">
-        <!--
-            Agent sidenav lives in a NESTED container. Angular Material rejects
-            two sidenavs at the same position in one container (throws
-            "A drawer was already declared for 'position=end'"). Wrapping the
-            chat content in its own mat-sidenav-container gives the agent panel
-            its own scope so both can be open simultaneously.
-        -->
-        <mat-sidenav-container class="agent-host-container">
-            <mat-sidenav position="end" [opened]="isAgentSidebarOpen()" mode="over"
-                class="agent-sidebar" [fixedInViewport]="false" (closed)="isAgentSidebarOpen.set(false)">
-                <div class="agent-sidebar-header">
-                    <button mat-icon-button (click)="isAgentSidebarOpen.set(false)"
-                        [matTooltip]="'ui.AGENT_PANEL_CLOSE' | translate">
-                        <mat-icon>close</mat-icon>
-                    </button>
-                </div>
-                <!--
-                    Lazy-mount the agent-console: app boot eagerly renders
-                    chat.component, and an eager <app-agent-console> here
-                    would inject FileAgentService too early — before the LLM
-                    provider registry has finished registering probe hooks.
-                    The constructor effect would then no-op the probe but
-                    still set lastSynced, so the instance never retried.
-                    Mounting on first sidenav-open delays construction to a
-                    moment when providers are ready; file-agent state
-                    (agentLogs / agentHistory) still survives close/reopen
-                    because FileAgentService is provided at chat.component
-                    scope, not on the agent-console.
-                -->
-                @if (isAgentSidebarOpen()) {
-                    <app-agent-console
-                        [files]="agentFiles()"
-                        [chatMessages]="state.messages()"
-                        [readOnly]="true" />
-                }
-            </mat-sidenav>
+        <div class="chat-container">
 
-            <mat-sidenav-content class="chat-container">
+            <!-- Thread -->
+            <div class="thread-area" #scrollContainer>
 
-                <!-- Thread -->
-                <div class="thread-area" #scrollContainer>
-
-                    <div class="thread-content" #contentWrapper>
-                        @let totalMessages = state.messages().length;
-                        @for (msg of state.messages(); track msg.id; let i = $index) {
-                        <!-- Add ID for scrolling. Skip content-visibility on the last 2 messages so scrollHeight stays accurate for auto-scroll. -->
-                        <div [id]="'message-' + msg.id" class="message-wrapper"
-                            [class.model-message]="msg.role === 'model' && i < totalMessages - 2">
-                            <app-chat-message [message]="msg" [index]="i" [isBusy]="state.isBusy()"
-                                [isLastUser]="isLastUserMessage(msg.id)" (resend)="onEditAndResend($event)" />
-                        </div>
-                        }
-
-                        <!-- Loading Indicator -->
-                        @if (state.status() === 'generating') {
-                        <div class="loading-row">
-                            <mat-spinner diameter="20"></mat-spinner>
-                            <span>{{ 'ui.THINKING_MESSAGE' | translate }}</span>
-                        </div>
-                        }
+                <div class="thread-content" #contentWrapper>
+                    @let totalMessages = state.messages().length;
+                    @for (msg of state.messages(); track msg.id; let i = $index) {
+                    <!-- Add ID for scrolling. Skip content-visibility on the last 2 messages so scrollHeight stays accurate for auto-scroll. -->
+                    <div [id]="'message-' + msg.id" class="message-wrapper"
+                        [class.model-message]="msg.role === 'model' && i < totalMessages - 2">
+                        <app-chat-message [message]="msg" [index]="i" [isBusy]="state.isBusy()"
+                            [isLastUser]="isLastUserMessage(msg.id)" (resend)="onEditAndResend($event)" />
                     </div>
+                    }
 
+                    <!-- Loading Indicator -->
+                    @if (state.status() === 'generating') {
+                    <div class="loading-row">
+                        <mat-spinner diameter="20"></mat-spinner>
+                        <span>{{ 'ui.THINKING_MESSAGE' | translate }}</span>
+                    </div>
+                    }
                 </div>
 
-                <app-chat-input #chatInput [(userInput)]="userInput" [(selectedIntent)]="selectedIntent"
-                    [(editingMessageId)]="editingMessageId" (messageSent)="scrollToBottom(true)"
-                    (toggleSidebar)="toggleSidebar()"
-                    (toggleAgentSidebar)="toggleAgentSidebar()" />
+            </div>
 
-                <!-- Scroll to Bottom Button -->
-                @if (showScrollButton()) {
-                <button mat-mini-fab color="accent" class="scroll-bottom-btn" (click)="scrollToBottom()">
-                    <mat-icon>arrow_downward</mat-icon>
-                </button>
-                }
+            <app-chat-input #chatInput [(userInput)]="userInput" [(selectedIntent)]="selectedIntent"
+                [(editingMessageId)]="editingMessageId" (messageSent)="scrollToBottom(true)"
+                (toggleSidebar)="toggleSidebar()"
+                (toggleAgentSidebar)="toggleAgentSidebar()" />
 
-            </mat-sidenav-content>
-        </mat-sidenav-container>
+            <!-- Scroll to Bottom Button -->
+            @if (showScrollButton()) {
+            <button mat-mini-fab color="accent" class="scroll-bottom-btn" (click)="scrollToBottom()">
+                <mat-icon>arrow_downward</mat-icon>
+            </button>
+            }
+
+        </div>
     </mat-sidenav-content>
 </mat-sidenav-container>
+
+<!--
+    Agent panel rendered via CDK Overlay portal. Was previously a nested
+    mat-sidenav 5 layers deep — each mat-sidenav-container sets z-index:1,
+    so no inner z-index could win against cdk-overlay-container (z:1000)
+    at body level. Mounting through Overlay places the panel inside
+    cdk-overlay-container itself; its panelClass `.agent-side-overlay`
+    sets z-index above sibling dialog panes.
+
+    Lazy-mount the inner agent-console: app boot eagerly renders
+    chat.component, and an eager <app-agent-console> would inject
+    FileAgentService before the LLM provider registry has finished
+    registering probe hooks. The @if defers construction to first open;
+    closing then doesn't unmount because the template stays attached
+    while the overlay is open. Re-opens reuse the same instance because
+    FileAgentService is provided at chat.component scope, so the agent
+    log + history survive the overlay detach/attach cycle.
+-->
+<ng-template #agentPanelTpl>
+    <div class="agent-panel-shell">
+        <div class="agent-panel-header">
+            <button mat-icon-button (click)="isAgentSidebarOpen.set(false)"
+                [matTooltip]="'ui.AGENT_PANEL_CLOSE' | translate">
+                <mat-icon>close</mat-icon>
+            </button>
+        </div>
+        <app-agent-console
+            [files]="agentFiles()"
+            [chatMessages]="state.messages()"
+            [readOnly]="!panelState.editChannel()"
+            [externalFillRequest]="agentConsoleFillRequest()" />
+    </div>
+</ng-template>

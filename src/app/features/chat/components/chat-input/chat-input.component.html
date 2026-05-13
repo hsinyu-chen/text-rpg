@@ -1,12 +1,14 @@
-<div class="input-area" [class.editing-mode]="editingMessageId()">
+<div class="input-area" [class.editing-mode]="editingMessageId()" appAgentHint="chat-input">
     <div class="input-status-row">
-        <button class="profile-pill" (click)="openConfigDialog()"
+        <button class="profile-pill" (click)="openConfigDialog()" (hintActivate)="openConfigDialog()"
+            appAgentHint="chat-input/prompt-profile"
             [matTooltip]="lang.t('PROMPT_PROFILE_LABEL') + ': ' + activeProfileName()">
             <mat-icon>tune</mat-icon>
             <span>{{ activeProfileName() }}</span>
         </button>
         <button class="profile-pill engine-mode-pill" [class.two-call]="isTwoCall()"
             [disabled]="state.status() === 'generating'" (click)="toggleEngineMode()"
+            appAgentHint="chat-input/engine-mode-toggle"
             [matTooltip]="'ui.ENGINE_MODE_TOGGLE_TOOLTIP' | translate">
             <span>{{ engineModeLabel() }}</span>
         </button>
@@ -14,7 +16,8 @@
         <button class="profile-pill ideal-outcome-pill"
             [class.expanded]="idealOutcomeExpanded()"
             [class.has-text]="!!userIdealOutcome().trim()"
-            [disabled]="state.status() === 'generating'" (click)="toggleIdealOutcome()"
+            [disabled]="state.status() === 'generating'" (click)="toggleIdealOutcome()" (hintActivate)="toggleIdealOutcome()"
+            appAgentHint="chat-input/ideal-outcome-toggle"
             [matTooltip]="'ui.IDEAL_OUTCOME_TOGGLE_TOOLTIP' | translate">
             <mat-icon>flag</mat-icon>
             <span>{{ 'ui.IDEAL_OUTCOME_CHIP_LABEL' | translate }}</span>
@@ -92,6 +95,7 @@
         <!-- Save Button (Desktop) -->
         <button mat-mini-fab color="accent" class="save-btn desktop-only"
             [disabled]="state.status() === 'generating' || !state.isConfigured()" (click)="saveProgress()"
+            appAgentHint="chat-input/save"
             [matBadge]="state.shouldPromptSave() ? '!' : ''" matBadgeColor="warn"
             [matBadgeHidden]="!state.shouldPromptSave()" [matTooltip]="state.shouldPromptSave()
                 ? ('ui.SAVE_RECOMMENDED_TOOLTIP' | translate: { turns: state.turnsSinceActStart() })
@@ -101,7 +105,8 @@
 
         <!-- Config Button (Desktop) -->
         <button mat-mini-fab class="config-btn desktop-only"
-            [disabled]="state.status() === 'generating' || !state.isConfigured()" (click)="openConfigDialog()"
+            [disabled]="state.status() === 'generating' || !state.isConfigured()" (click)="openConfigDialog()" (hintActivate)="openConfigDialog()"
+            appAgentHint="chat-input/chat-config"
             [matBadge]="state.hasAnyPromptUpdate() ? '!' : ''" matBadgeColor="warn"
             [matBadgeHidden]="!state.hasAnyPromptUpdate()" [matTooltip]="'ui.CHAT_CONFIG_TOOLTIP' | translate">
             <mat-icon>settings</mat-icon>
@@ -110,26 +115,32 @@
         <!-- Export Button (Desktop) -->
         <button mat-mini-fab color="primary" class="export-btn desktop-only"
             [disabled]="state.status() === 'generating' || state.messages().length === 0" (click)="exportToMarkdown()"
+            appAgentHint="chat-input/export-story"
             [matTooltip]="'ui.EXPORT_STORY_TOOLTIP' | translate">
             <mat-icon>file_download</mat-icon>
         </button>
 
         <!-- Batch Replace Button (Desktop) -->
         <button mat-mini-fab color="primary" class="replace-btn desktop-only"
-            [disabled]="state.status() === 'generating' || state.messages().length === 0" (click)="openReplaceDialog()"
+            [disabled]="state.status() === 'generating' || state.messages().length === 0" (click)="openReplaceDialog()" (hintActivate)="openReplaceDialog()"
+            appAgentHint="chat-input/batch-replace"
             [matTooltip]="lang.t('BATCH_REPLACE')">
             <mat-icon>find_replace</mat-icon>
         </button>
 
         <!-- Turn Updates History Button -->
         <button mat-mini-fab class="history-btn desktop-only" [disabled]="state.status() === 'generating'"
-            (click)="toggleSidebar.emit()" [matTooltip]="'ui.VIEW_TURN_UPDATES_TOOLTIP' | translate">
+            (click)="toggleSidebar.emit()" (hintActivate)="toggleSidebar.emit()"
+            appAgentHint="chat-input/view-turn-updates"
+            [matTooltip]="'ui.VIEW_TURN_UPDATES_TOOLTIP' | translate">
             <mat-icon>history</mat-icon>
         </button>
 
         <!-- AI Agent Panel Button -->
         <button mat-mini-fab class="agent-btn desktop-only" [disabled]="state.status() === 'generating'"
-            (click)="toggleAgentSidebar.emit()" [matTooltip]="'ui.AGENT_PANEL_TOOLTIP' | translate">
+            (click)="toggleAgentSidebar.emit()" (hintActivate)="toggleAgentSidebar.emit()"
+            appAgentHint="chat-input/agent-panel"
+            [matTooltip]="'ui.AGENT_PANEL_TOOLTIP' | translate">
             <mat-icon>smart_toy</mat-icon>
         </button>
 
@@ -168,26 +179,31 @@
                 [placeholder]="!hasActiveSession() ? ('ui.NO_ACTIVE_SESSION_PLACEHOLDER' | translate) : ''"></textarea>
 
             @if (editingMessageId()) {
-            <button mat-icon-button matSuffix (click)="cancelEdit()" [matTooltip]="'ui.CANCEL_EDIT_TOOLTIP' | translate">
+            <button mat-icon-button matSuffix (click)="cancelEdit()"
+                appAgentHint="chat-input/cancel-edit"
+                [matTooltip]="'ui.CANCEL_EDIT_TOOLTIP' | translate">
                 <mat-icon>close</mat-icon>
             </button>
             }
         </mat-form-field>
 
         <button mat-mini-fab class="preview-btn desktop-only"
-            [disabled]="state.status() === 'generating' || !state.isConfigured()" (click)="openPayloadPreview()"
+            [disabled]="state.status() === 'generating' || !state.isConfigured()" (click)="openPayloadPreview()" (hintActivate)="openPayloadPreview()"
+            appAgentHint="chat-input/preview-payload"
             [matTooltip]="'ui.PREVIEW_API_PAYLOAD_TOOLTIP' | translate">
             <mat-icon>visibility</mat-icon>
         </button>
 
         @if (state.status() === 'generating') {
         <button mat-mini-fab color="warn" class="stop-btn" (click)="stopGeneration()"
+            appAgentHint="chat-input/stop"
             [matTooltip]="lang.t('STOP_GENERATION')">
             <mat-icon>stop</mat-icon>
         </button>
         } @else {
         <button mat-mini-fab color="primary" class="send-btn"
             [disabled]="state.status() === 'generating' || !hasActiveSession()" (click)="sendMessage()"
+            appAgentHint="chat-input/send"
             [matTooltip]="'ui.SEND_TOOLTIP' | translate">
             <mat-icon>send</mat-icon>
         </button>

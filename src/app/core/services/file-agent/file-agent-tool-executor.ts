@@ -14,6 +14,7 @@ import {
   SearchChatMessagesArgs,
   ReadChatMessageArgs,
   ReadTurnLogsArgs,
+  UiMapArgs,
   ChatReadField,
   TurnLogKind
 } from './file-agent.types';
@@ -92,6 +93,8 @@ export function executeFileTool(
       return readChatMessage(action.args, context);
     case 'readTurnLogs':
       return readTurnLogs(action.args, context);
+    case 'uiMap':
+      return uiMap(action.args, context);
     case 'reportProgress':
     case 'submitResponse':
       return { response: { status: 'acknowledged' } };
@@ -605,6 +608,7 @@ function listChatMessages(args: ListChatMessagesArgs, context: FileAgentContext)
     const hasLogs = !!(m.character_log?.length || m.world_log?.length || m.inventory_log?.length || m.quest_log?.length);
     return {
       id: m.id,
+      url: `app://message/${m.id}`,
       role: m.role,
       charCount: (m.content ?? '').length,
       summary: m.summary || undefined,
@@ -650,7 +654,7 @@ function searchChatMessages(args: SearchChatMessagesArgs, context: FileAgentCont
   const fieldsForScope: ('content' | 'thought' | 'summary')[] =
     scope === 'all' ? ['content', 'thought', 'summary'] : [scope];
 
-  interface Hit { messageId: string; role: string; scope: string; snippet: string; matchIndex: number; moreInSameMessage?: number }
+  interface Hit { messageId: string; url: string; role: string; scope: string; snippet: string; matchIndex: number; moreInSameMessage?: number }
   const hits: Hit[] = [];
   let truncated = false;
   let suppressedSaves = 0;
@@ -673,7 +677,7 @@ function searchChatMessages(args: SearchChatMessagesArgs, context: FileAgentCont
           const start = Math.max(0, match.index - contextChars);
           const end = Math.min(raw.length, match.index + match[0].length + contextChars);
           const snippet = (start > 0 ? '…' : '') + raw.slice(start, end) + (end < raw.length ? '…' : '');
-          perMessageHits.push({ messageId: m.id, role: m.role, scope: field, snippet, matchIndex: match.index });
+          perMessageHits.push({ messageId: m.id, url: `app://message/${m.id}`, role: m.role, scope: field, snippet, matchIndex: match.index });
         }
         totalMessageHits++;
         if (match.index === regex.lastIndex) regex.lastIndex++;
@@ -726,6 +730,8 @@ function readChatMessage(args: ReadChatMessageArgs, context: FileAgentContext): 
 
   interface Result {
     id: string;
+    /** Clickable agent-console URL — outputting `[label](url)` in the response lets the user jump to this message. */
+    url: string;
     role?: string;
     content?: string;
     thought?: string;
@@ -744,8 +750,8 @@ function readChatMessage(args: ReadChatMessageArgs, context: FileAgentContext): 
   const byId = new Map(chat.map(m => [m.id, m]));
   const results: Result[] = ids.map(id => {
     const m = byId.get(id);
-    if (!m) return { id, error: 'Message not found' };
-    const r: Result = { id, role: m.role };
+    if (!m) return { id, url: `app://message/${id}`, error: 'Message not found' };
+    const r: Result = { id, url: `app://message/${id}`, role: m.role };
     for (const f of include) {
       if (f === 'logs') {
         const logs: Result['logs'] = {};
@@ -868,4 +874,11 @@ function insertIntoSection(args: InsertIntoSectionArgs, context: FileAgentContex
     },
     infoLog: `Inserted ${insertLines.length} line(s) into section "${args.sectionPath}" in ${filename}`
   };
+}
+
+function uiMap(_args: UiMapArgs, context: FileAgentContext): ToolExecutionResult {
+  if (!context.uiMap) {
+    return { response: { error: 'uiMap is not available in this context (no UI hint registry wired).' } };
+  }
+  return { response: { map: context.uiMap() } };
 }

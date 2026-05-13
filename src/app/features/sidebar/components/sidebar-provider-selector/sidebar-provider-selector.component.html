@@ -9,6 +9,7 @@
       <mat-label>{{ 'sidebar.providerSelector.profileLabel' | translate }}</mat-label>
       <mat-select [ngModel]="activeId()"
                   (ngModelChange)="onChange($event)"
+                  appAgentHint="sidebar/provider-selector"
                   [disabled]="state.isBusy()">
         @for (p of profiles(); track p.id) {
           <mat-option [value]="p.id">

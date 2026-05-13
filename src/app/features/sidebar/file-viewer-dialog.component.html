@@ -7,11 +7,13 @@
         </button>
         <span class="file-title">{{ activeFile() }}</span>
         <div class="header-actions">
-            <button mat-icon-button (click)="toggleAgentPanel()"
-                [class.active-agent]="isAgentPanelOpen()"
-                [matTooltip]="(isAgentPanelOpen() ? 'sidebar.fileViewer.hideAgent' : 'sidebar.fileViewer.showAgent') | translate">
-                <mat-icon>smart_toy</mat-icon>
-            </button>
+            @if (!panelState.pipActive()) {
+                <button mat-icon-button (click)="toggleAgentPanel()"
+                    [class.active-agent]="isAgentPanelOpen()"
+                    [matTooltip]="(isAgentPanelOpen() ? 'sidebar.fileViewer.hideAgent' : 'sidebar.fileViewer.showAgent') | translate">
+                    <mat-icon>smart_toy</mat-icon>
+                </button>
+            }
             <button mat-icon-button (click)="toggleDiffView()"
                 [class.active-diff]="isDiffView()"
                 [matTooltip]="(isDiffView() ? 'sidebar.fileViewer.showNormalView' : 'sidebar.fileViewer.showDiffView') | translate">

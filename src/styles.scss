@@ -72,6 +72,22 @@ body {
     margin: 2em 0;
 }
 
+/* Markdown links in agent / chat output. Defaults from user agent are
+   dark blue/purple which disappear into the dark Material theme — boost
+   to primary color for visibility. Covers both clean and sanitizer-prefixed
+   custom-scheme URLs (Angular's URL sanitizer prefixes `app://` with
+   `unsafe:`). */
+.prose-content a {
+    color: var(--mat-sys-primary, #ff80ab);
+    text-decoration: underline;
+    cursor: pointer;
+
+    &:hover {
+        text-decoration: underline;
+        filter: brightness(1.15);
+    }
+}
+
 /* Material Override for dark input fields */
 .mat-mdc-form-field-textarea-control {
     color: #e0e0e0 !important;
@@ -216,4 +232,121 @@ markdown {
         border: 1px solid rgba(255, 211, 61, 0.8);
         border-radius: 2px;
     }
+}
+
+/* Agent hint flash — applied by AgentHintRegistry.openTarget when an agent
+   link asks to scroll/flash a UI element. Uses `outline` (not box-shadow)
+   so the highlight isn't clipped when the target lives inside a container
+   with overflow:hidden / nested scroll area. Adds a subtle background pulse
+   for extra visibility. Material primary color via system token. */
+@keyframes agent-hint-flash {
+    0%, 100% {
+        outline-color: transparent;
+        background-color: transparent;
+    }
+    15%, 65% {
+        outline-color: var(--mat-sys-primary, #ff4081);
+        background-color: rgba(255, 64, 129, 0.18);
+    }
+    40% {
+        outline-color: transparent;
+        background-color: transparent;
+    }
+}
+
+.agent-hint-flash {
+    outline: 3px solid transparent;
+    outline-offset: 2px;
+    animation: agent-hint-flash 2s ease-out;
+}
+
+// Spotlight overlay: a transparent box anchored at the target's bbox; its
+// huge outset box-shadow paints the rest of the viewport semi-opaque so a
+// small button stands out as a bright "hole". Uses popover="manual" to live
+// in the browser top-layer (same layer cdk-overlay dialogs and the agent
+// panel use), otherwise dialogs would paint over it.
+@keyframes agent-hint-spotlight-pulse {
+    0%   { box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0);    border-color: transparent; }
+    15%  { box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.82); border-color: var(--mat-sys-primary, #ff80ab); }
+    85%  { box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.82); border-color: var(--mat-sys-primary, #ff80ab); }
+    100% { box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0);    border-color: transparent; }
+}
+.agent-hint-spotlight {
+    pointer-events: none;
+    background: transparent;
+    border: 2px solid transparent;
+    border-radius: 6px;
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+    animation: agent-hint-spotlight-pulse 2s ease-out forwards;
+}
+
+// Agent panel host uses popover="manual" so it shares the browser top-layer
+// with cdk-overlay dialogs (CDK 19+ uses the same popover API). Top-layer
+// ignores z-index — ordering is purely "last shown wins" — so chat.component
+// re-promotes us via hide+show whenever a sibling popover opens. Default
+// popover UA styles add margin/border/inset:auto we reset for full-edge fit.
+.agent-panel-host {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: auto;
+    // Popover UA sets `height: fit-content`, which collapses to content size
+    // and ignores top/bottom. Force full viewport height explicitly.
+    height: 100dvh;
+    width: auto;
+    margin: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: inherit;
+    overflow: visible;
+    pointer-events: auto;
+}
+.agent-panel-host:not(:popover-open) {
+    display: none;
+}
+.agent-panel-shell {
+    display: flex;
+    flex-direction: column;
+    width: min(480px, 92vw);
+    min-width: 320px;
+    height: 100%;
+    background: var(--mat-sys-surface-container, #1e1e1e);
+    border-left: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: -4px 0 10px rgba(0, 0, 0, 0.4);
+}
+// On phones / narrow viewports take the full width (modal-style overlay).
+// Below 600px the min-width:320px floor in the base rule would otherwise
+// leave only a sliver of the page visible behind a near-fullwidth panel —
+// might as well commit to fullscreen.
+@media (max-width: 600px) {
+    .agent-panel-host .agent-panel-shell {
+        width: 100vw;
+        min-width: 0;
+        border-left: none;
+    }
+}
+// Picture-in-Picture window — the agent panel IS the entire content of a
+// separate browser window, so fill the viewport (no gutters, no shadow).
+body.agent-panel-pip .agent-panel-shell {
+    width: 100%;
+    min-width: 0;
+    height: 100%;
+    border-left: none;
+    box-shadow: none;
+}
+.agent-panel-shell .agent-panel-header {
+    display: flex;
+    justify-content: flex-end;
+    padding: 4px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.agent-panel-shell app-agent-console {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
 }

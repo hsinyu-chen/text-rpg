@@ -15,6 +15,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { GameStateService } from '@app/core/services/game-state.service';
 import { CacheManagerService } from '@app/core/services/cache-manager.service';
 import { FileAgentService } from '@app/core/services/file-agent/file-agent.service';
+import { AgentPanelStateService } from '@app/core/services/file-agent/agent-panel-state.service';
 import { WorldCompletionValidator } from '@app/core/services/file-agent/world-completion-validator';
 import { AgentConsoleComponent } from '@app/shared/components/agent-console/agent-console.component';
 import { SessionService } from '@app/core/services/session.service';
@@ -79,6 +80,8 @@ export class FileViewerDialogComponent implements OnDestroy {
   private matDialog = inject(MatDialog);
   private cacheManager = inject(CacheManagerService);
   private fileAgentService = inject(FileAgentService);
+  protected panelState = inject(AgentPanelStateService);
+  private unregisterEditChannel: (() => void) | null = null;
   searchEngine = inject(FileSearchEngine);
   private readonly win = inject(WINDOW);
   private i18n = inject(I18nService);
@@ -204,6 +207,31 @@ export class FileViewerDialogComponent implements OnDestroy {
         else next.delete(fileName);
         return next;
       });
+    });
+
+    // Expose this dialog's Monaco-mirrored buffer to the chat-side / PiP
+    // agent. While we're open it becomes the single read+write target for
+    // any agent run — they see live unsaved edits and writes land here so
+    // user's existing Save Changes flow handles persistence.
+    this.unregisterEditChannel = this.panelState.registerEditChannel({
+      read: () => this.data.files,
+      write: (fileName, content) => {
+        this.editorRef()?.updateFileContent(fileName, content);
+        this.data.files.set(fileName, content);
+        // Auto-flip to diff view on any agent write — same affordance the
+        // file-viewer's own internal agent gets via its FileAgentService
+        // effect. Cross-instance signals don't propagate, so chat-side / PiP
+        // agent edits would otherwise land silently; doing it inside the
+        // channel writer covers every caller route uniformly.
+        this.isDiffView.set(true);
+        const savedContent = this.dbBaselineSnapshot().get(fileName) ?? '';
+        this.unsavedFiles.update((set) => {
+          const next = new Set(set);
+          if (content !== savedContent) next.add(fileName);
+          else next.delete(fileName);
+          return next;
+        });
+      },
     });
 
     // Initialize active file
@@ -506,6 +534,8 @@ export class FileViewerDialogComponent implements OnDestroy {
     // Also clear here just in case it was closed via backdrop or escape key
     this.unsavedFiles.set(new Set());
     if (this.highlightTimeoutId !== null) clearTimeout(this.highlightTimeoutId);
+    this.unregisterEditChannel?.();
+    this.unregisterEditChannel = null;
   }
 
 }

@@ -19,6 +19,7 @@ import { FileViewerDialogComponent } from '@app/features/sidebar/file-viewer-dia
 import { WORLD_PRESETS } from '@app/core/constants/world-preset';
 import { WorldCompletionValidator } from '@app/core/services/file-agent/world-completion-validator';
 import { LLMConfigService } from '@app/core/services/llm-config.service';
+import { AppAgentHintDirective } from '@app/core/services/agent-hints/agent-hints.directive';
 
 const BLANK_FILES_EN = [
     '1.Base_Settings.md', '2.Story_Outline.md', '3.Character_Status.md',
@@ -43,7 +44,8 @@ const BLANK_FILES_ZH = [
         MatTabsModule,
         MatDividerModule,
         FormsModule,
-        TranslatePipe
+        TranslatePipe,
+        AppAgentHintDirective
     ],
     templateUrl: './new-game-dialog.component.html',
     styleUrl: './new-game-dialog.component.scss'

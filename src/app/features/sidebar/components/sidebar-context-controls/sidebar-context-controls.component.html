@@ -6,7 +6,9 @@
 </button>
 }
 
-<button mat-flat-button color="primary" (click)="newGame()" [disabled]="state.isBusy()" class="full-width new-game-btn"
+<button mat-flat-button color="primary" (click)="newGame()" (hintActivate)="newGame()" [disabled]="state.isBusy()"
+    appAgentHint="sidebar/session-tab/start-session"
+    class="full-width new-game-btn"
     style="margin-top: 8px; font-weight: bold; background: linear-gradient(45deg, #4facfe 0%, #00f2fe 100%);">
     <mat-icon>add_circle</mat-icon>
     {{ 'sidebar.controls.startNewGame' | translate }}

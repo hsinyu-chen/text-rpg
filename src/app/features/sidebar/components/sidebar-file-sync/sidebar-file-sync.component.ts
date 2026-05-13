@@ -10,11 +10,12 @@ import { DialogService } from '@app/core/services/dialog.service';
 import { LoadingService } from '@app/core/services/loading.service';
 import { SyncDialogComponent, SyncItem, SyncDialogData } from '@app/shared/components/sync-dialog/sync-dialog.component';
 import { I18nService, TranslatePipe } from '@app/core/i18n';
+import { AppAgentHintDirective } from '@app/core/services/agent-hints/agent-hints.directive';
 
 @Component({
     selector: 'app-sidebar-file-sync',
     standalone: true,
-    imports: [...CORE_MAT, TranslatePipe],
+    imports: [...CORE_MAT, TranslatePipe, AppAgentHintDirective],
     templateUrl: './sidebar-file-sync.component.html',
     styleUrl: './sidebar-file-sync.component.scss'
 })

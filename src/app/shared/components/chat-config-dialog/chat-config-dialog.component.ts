@@ -20,6 +20,7 @@ import { DialogService } from '@app/core/services/dialog.service';
 import { PromptDiffDialogComponent } from '../prompt-diff-dialog/prompt-diff-dialog.component';
 import { MatBadgeModule } from '@angular/material/badge';
 import { ProfileManagementController } from './profile-management-controller';
+import { AppAgentHintDirective } from '@app/core/services/agent-hints/agent-hints.directive';
 
 interface InjectionType {
     id: 'action' | 'continue' | 'fastforward' | 'system' | 'save' | 'postprocess' | 'system_main' | 'protocol_single' | 'protocol_resolver' | 'protocol_narrator';
@@ -47,7 +48,8 @@ interface PromptCategory {
         MatBadgeModule,
         FormsModule,
         MonacoEditorComponent,
-        TranslatePipe
+        TranslatePipe,
+        AppAgentHintDirective
     ],
     templateUrl: './chat-config-dialog.component.html',
     styleUrl: './chat-config-dialog.component.scss',

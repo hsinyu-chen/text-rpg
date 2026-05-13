@@ -24,6 +24,7 @@ import { PromptProfileRegistryService } from '@app/core/services/prompt-profile-
 import { SystemStatusService } from '@app/core/services/system-status.service';
 import { getProfileDisplayName } from '@app/core/constants/prompt-profiles';
 import { ContextUsageBarComponent } from '@app/shared/components/context-usage-bar/context-usage-bar.component';
+import { AppAgentHintDirective } from '@app/core/services/agent-hints/agent-hints.directive';
 
 @Component({
     selector: 'app-chat-input',
@@ -36,7 +37,8 @@ import { ContextUsageBarComponent } from '@app/shared/components/context-usage-b
         FormsModule,
         TextFieldModule,
         ContextUsageBarComponent,
-        TranslatePipe
+        TranslatePipe,
+        AppAgentHintDirective
     ],
     templateUrl: './chat-input.component.html',
     styleUrl: './chat-input.component.scss',

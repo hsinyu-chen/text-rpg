@@ -14,8 +14,12 @@
         <!-- ── Tab 1: Pre-build ─────────────────────────────────────── -->
         <mat-tab>
             <ng-template mat-tab-label>
-                <mat-icon style="margin-right: 6px; font-size: 18px; height: 18px; width: 18px;">map</mat-icon>
-                {{ 'sidebar.newGame.tabPrebuildLabel' | translate }}
+                <span class="tab-label-wrapper"
+                    appAgentHint="sidebar/session-tab/start-session/tab-prebuild"
+                    (hintActivate)="activeTabIndex.set(0)">
+                    <mat-icon style="margin-right: 6px; font-size: 18px; height: 18px; width: 18px;">map</mat-icon>
+                    {{ 'sidebar.newGame.tabPrebuildLabel' | translate }}
+                </span>
             </ng-template>
 
             <div class="form-container tab-content">
@@ -83,8 +87,12 @@
         <!-- ── Tab 2: Generate (AI world builder) ──────────────────── -->
         <mat-tab>
             <ng-template mat-tab-label>
-                <mat-icon style="margin-right: 6px; font-size: 18px; height: 18px; width: 18px;">auto_awesome</mat-icon>
-                {{ 'sidebar.newGame.tabGenerateLabel' | translate }}
+                <span class="tab-label-wrapper"
+                    appAgentHint="sidebar/session-tab/start-session/tab-generate"
+                    (hintActivate)="activeTabIndex.set(1)">
+                    <mat-icon style="margin-right: 6px; font-size: 18px; height: 18px; width: 18px;">auto_awesome</mat-icon>
+                    {{ 'sidebar.newGame.tabGenerateLabel' | translate }}
+                </span>
             </ng-template>
 
             <div class="form-container tab-content">
