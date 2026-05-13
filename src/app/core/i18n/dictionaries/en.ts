@@ -928,7 +928,7 @@ export const en: TranslationDict = {
             self: { name: 'Bottom toolbar', description: 'Bottom toolbar of the chat view (always in DOM)' },
             'prompt-profile': { name: 'Prompt profile', description: 'Switch the prompt profile used for the current chat (cloud / local / custom)' },
             'engine-mode-toggle': { name: 'Engine mode', description: 'Toggle engine mode between single-call and multi-call (narrator+resolver); affects all subsequent turns' },
-            'ideal-outcome-toggle': { name: 'Ideal outcome', description: 'Toggle the "ideal outcome" input box for stating expected scene direction' },
+            'ideal-outcome-toggle': { name: 'Ideal outcome', description: 'Toggle the "ideal outcome" guard input; if the LLM\'s response would violate the stated outcome, the turn is interrupted immediately (stating the outcome also nudges the story toward that direction as a side effect)' },
             save: { name: 'Save intent', description: 'Pre-fill a save-intent message into the input and flip the intent; on send the LLM handles the in-game save narratively (NOT a disk write)' },
             'chat-config': {
                 self: { name: 'Chat config', description: 'Open the chat config dialog (prompt profile editing, version sync, etc.)' },
