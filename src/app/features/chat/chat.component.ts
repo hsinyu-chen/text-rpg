@@ -69,6 +69,7 @@ export class ChatComponent {
     private agentPanelView: EmbeddedViewRef<unknown> | null = null;
     private agentPanelHost: HTMLDivElement | null = null;
     private agentPipWin: Window | null = null;
+    private agentPipStyleObserver: MutationObserver | null = null;
 
     userInput = signal('');
     selectedIntent = signal(GAME_INTENTS.ACTION);
@@ -268,37 +269,13 @@ export class ChatComponent {
             try { pipWin.close(); } catch { /* already closed */ }
             return;
         }
-        // Copy stylesheets so Material / app styles take effect in the PiP doc.
-        // Same JS realm, so signals + change detection keep flowing across.
-        for (const node of Array.from(this.doc.head.querySelectorAll('link[rel="stylesheet"], style'))) {
-            pipWin.document.head.appendChild(node.cloneNode(true));
-        }
-        // Angular Material 19 ships per-component styles via Constructable
-        // Stylesheets (document.adoptedStyleSheets), not <link>/<style> — so
-        // the loop above misses them and the PiP window renders mat-spinner /
-        // mat-button etc with default browser styles (notably circle SVGs go
-        // black-filled, the rotating ring disappears). Re-materialize each
-        // adopted sheet's rules as a fresh CSSStyleSheet in the PiP doc:
-        // Constructable sheets are document-scoped, so we can't reuse the
-        // main-doc instance — has to be a new sheet built from the same css.
-        try {
-            const srcSheets = this.doc.adoptedStyleSheets;
-            if (srcSheets?.length) {
-                const pipCtor = (pipWin as Window & { CSSStyleSheet?: typeof CSSStyleSheet }).CSSStyleSheet;
-                if (pipCtor) {
-                    pipWin.document.adoptedStyleSheets = srcSheets.map(src => {
-                        const sheet = new pipCtor();
-                        const cssText = Array.from(src.cssRules).map(r => r.cssText).join('\n');
-                        sheet.replaceSync(cssText);
-                        return sheet;
-                    });
-                }
-            }
-        } catch {
-            // Some sheets (cross-origin imports) throw on cssRules access;
-            // we already got the main link/style copies, which is good enough
-            // for cross-origin theme files. Don't fail the whole open.
-        }
+        // Mirror main-doc stylesheets into PiP — both the snapshot at open
+        // time and anything Angular injects later. Material 19's per-component
+        // styles land in <head> as <style> tags lazily on first use of each
+        // component; matSpinner / matTooltip first render usually happens
+        // AFTER requestWindow resolves, so a one-shot clone misses them and
+        // the PiP renders spinner SVGs unstyled (black-filled circles).
+        this.mirrorStylesToPip(pipWin);
         pipWin.document.body.style.margin = '0';
         pipWin.document.body.style.height = '100vh';
         pipWin.document.body.style.overflow = 'hidden';
@@ -323,9 +300,68 @@ export class ChatComponent {
             if (this.agentPipWin === pipWin) {
                 this.agentPipWin = null;
                 this.panelState.pipDocument.set(null);
+                this.agentPipStyleObserver?.disconnect();
+                this.agentPipStyleObserver = null;
                 this.isAgentSidebarOpen.set(false);
             }
         });
+    }
+
+    private mirrorStylesToPip(pipWin: Window): void {
+        const srcHead = this.doc.head;
+        const destHead = pipWin.document.head;
+        const cloneMap = new WeakMap<Node, Node>();
+
+        const cloneAndAppend = (node: Node): void => {
+            const clone = node.cloneNode(true);
+            cloneMap.set(node, clone);
+            destHead.appendChild(clone);
+        };
+
+        // Initial snapshot.
+        for (const n of Array.from(srcHead.querySelectorAll('link[rel="stylesheet"], style'))) {
+            cloneAndAppend(n);
+        }
+        // Also adopted stylesheets (Constructable Stylesheets path some
+        // toolchains use). Re-materialize as fresh sheets in the PiP doc
+        // since CSSStyleSheet instances are document-scoped.
+        try {
+            const srcSheets = this.doc.adoptedStyleSheets;
+            if (srcSheets?.length) {
+                const pipCtor = (pipWin as Window & { CSSStyleSheet?: typeof CSSStyleSheet }).CSSStyleSheet;
+                if (pipCtor) {
+                    pipWin.document.adoptedStyleSheets = srcSheets.map(src => {
+                        const sheet = new pipCtor();
+                        const cssText = Array.from(src.cssRules).map(r => r.cssText).join('\n');
+                        sheet.replaceSync(cssText);
+                        return sheet;
+                    });
+                }
+            }
+        } catch { /* cross-origin import — covered by <link> clone */ }
+
+        // Live mirror — Angular Material 19 injects per-component <style>
+        // tags into <head> on each component's first use, and matSpinner /
+        // matTooltip first render typically happens AFTER PiP open. Without
+        // this observer those late styles never reach PiP, so spinner SVGs
+        // render as black-filled circles (default browser fill).
+        this.agentPipStyleObserver = new MutationObserver(records => {
+            for (const rec of records) {
+                for (const added of Array.from(rec.addedNodes)) {
+                    if (added instanceof HTMLStyleElement || (added instanceof HTMLLinkElement && added.rel === 'stylesheet')) {
+                        cloneAndAppend(added);
+                    }
+                }
+                for (const removed of Array.from(rec.removedNodes)) {
+                    const clone = cloneMap.get(removed);
+                    if (clone) {
+                        (clone as ChildNode).remove();
+                        cloneMap.delete(removed);
+                    }
+                }
+            }
+        });
+        this.agentPipStyleObserver.observe(srcHead, { childList: true });
     }
 
     private openInBodyPortal(rootNodes: Node[]): void {
@@ -354,6 +390,8 @@ export class ChatComponent {
         this.uninstallAgentPanelPromoter();
         this.panelState.pipActive.set(false);
         this.panelState.pipDocument.set(null);
+        this.agentPipStyleObserver?.disconnect();
+        this.agentPipStyleObserver = null;
         if (this.agentPipWin) {
             try { this.agentPipWin.close(); } catch { /* already closed */ }
             this.agentPipWin = null;
