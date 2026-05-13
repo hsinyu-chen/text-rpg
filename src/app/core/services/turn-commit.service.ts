@@ -29,10 +29,10 @@ export interface RunTurnOptions {
     isHidden?: boolean;
     intent?: string;
     /**
-     * Optional user-supplied ideal_outcome for two-call resolver. When non-empty,
-     * ContextBuilder injects it into the resolver's protocol via the
-     * {{IDEAL_OUTCOME_CONSTRAINT}} slot on the next turn. Carried on the user
-     * message so it persists across reloads / rewinds.
+     * Optional user-supplied ideal_outcome. When non-empty, ContextBuilder
+     * injects it into the next turn's protocol via the {{IDEAL_OUTCOME_CONSTRAINT}}
+     * slot — applied to both the 2-call resolver and the 1-call single protocol.
+     * Carried on the user message so it persists across reloads / rewinds.
      */
     userIdealOutcome?: string;
     /**
