@@ -365,7 +365,10 @@ export class FileAgentService {
     }
 
     // submitResponse anywhere in the batch ends the turn (after validator).
-    const finishCall = parsed.actions.find((a: ParsedAction) => a.action === 'submitResponse');
+    const finishCall = parsed.actions.find(
+      (a: ParsedAction): a is Extract<ParsedAction, { action: 'submitResponse' }> =>
+        a.action === 'submitResponse'
+    );
     if (finishCall) {
       await this.handleSubmitResponse(context, finishCall, mode, ctx);
       return;
@@ -439,6 +442,16 @@ export class FileAgentService {
   /** Append a fresh streaming model entry; return the per-turn context. */
   private harnessLabels(): { messageLink: string } {
     return { messageLink: this.i18n.translate('dialog.agentHarnessMessageLink') };
+  }
+
+  /** Single processing pipeline for any user-visible message tool-arg
+   *  (submitResponse.message / reportProgress.message): coerce non-string
+   *  hallucinations to '', then LaTeX-sanitize + run harness fallbacks
+   *  (code-unwrap / empty-label backfill / relabel ugly / GUID auto-link /
+   *  adjacent-dup collapse). `labels` is exposed so batch callers can hoist
+   *  the i18n lookup outside their loop. */
+  private processAgentMessage(rawArg: unknown, labels: { messageLink: string } = this.harnessLabels()): string {
+    return applyHarnessFallbacks(sanitizeLatexToUnicode(getStringArg(rawArg)), labels);
   }
 
   private openTurnLogEntry(): TurnContext {
@@ -544,7 +557,7 @@ export class FileAgentService {
    */
   private async handleSubmitResponse(
     context: FileAgentContext,
-    finishCall: ParsedAction,
+    finishCall: Extract<ParsedAction, { action: 'submitResponse' }>,
     mode: 'native' | 'json',
     ctx: TurnContext
   ): Promise<void> {
@@ -562,9 +575,7 @@ export class FileAgentService {
     // Process toolMsg through sanitize + normalize here; in native mode
     // ctx.accumulatedText was already processed at processAgentTurn line ~340,
     // so we don't re-run those on the merged result.
-    const toolMsg = finishCall.action === 'submitResponse'
-      ? applyHarnessFallbacks(sanitizeLatexToUnicode(getStringArg(finishCall.args.message)), this.harnessLabels())
-      : '';
+    const toolMsg = this.processAgentMessage(finishCall.args.message);
     // In native mode, accumulatedText is genuine commentary that lives
     // alongside the structured function call — merge with toolMsg when both
     // are present and distinct. In JSON mode, accumulatedText IS the raw
@@ -596,7 +607,7 @@ export class FileAgentService {
     a: ParsedAction, context: FileAgentContext, mode: 'native' | 'json', ctx: TurnContext
   ): Promise<void> {
     if (a.action === 'reportProgress') {
-      const message = applyHarnessFallbacks(sanitizeLatexToUnicode(getStringArg(a.args.message)), this.harnessLabels());
+      const message = this.processAgentMessage(a.args.message);
       this.updateLogAt(ctx.currentLogIndex, e => ({ ...e, text: message, isToolCall: false }));
       this.appendToolResults([{ action: a, response: { status: 'acknowledged' } }], mode);
       await this.processAgentTurn(context);
@@ -651,10 +662,13 @@ export class FileAgentService {
       ...context,
       onFileReplaced: (f, c) => { context.onFileReplaced(f, c); batchReplacements.push({ filename: f, content: c }); }
     };
+    // Hoist out of the loop: harnessLabels() does an i18n lookup; the result
+    // is stable for the batch, so resolve once and reuse.
+    const labels = this.harnessLabels();
 
     for (const a of actions) {
       if (a.action === 'reportProgress') {
-        const message = applyHarnessFallbacks(sanitizeLatexToUnicode(getStringArg(a.args.message)), this.harnessLabels());
+        const message = this.processAgentMessage(a.args.message, labels);
         this.agentLogs.update(logs => [...logs, { role: 'model', text: message, type: 'model' as const }]);
         executed.push({ action: a, response: { status: 'acknowledged' } });
         continue;

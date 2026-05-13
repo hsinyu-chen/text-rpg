@@ -143,11 +143,18 @@ export function normalizeMessageLinks(text: string, labels: HarnessLabels = DEFA
  * harness's own label-fill replaces the model's empty stub). Loops until
  * stable so triple+ duplicates collapse fully.
  */
+// Bound on collapse passes. Each pass halves a run-length of consecutive
+// duplicate same-URL links, so 8 passes can fully collapse up to 2^8 = 256
+// consecutive duplicates in a single line — far beyond anything a model
+// would realistically emit. The bound exists to guarantee termination if a
+// future regex change ever produces a fixed-point that's not a no-op.
+const COLLAPSE_MAX_PASSES = 8;
+
 export function collapseAdjacentDuplicateLinks(text: string): string {
   if (typeof text !== 'string') return '';
   if (!text) return text;
   let prev = text;
-  for (let i = 0; i < 8; i++) {
+  for (let i = 0; i < COLLAPSE_MAX_PASSES; i++) {
     const next = prev.replace(ADJ_DUP_RE, (_, l1: string, url: string, l2: string) => {
       const label = (l2.trim() || l1.trim() || url);
       return `[${label}](${url})`;
