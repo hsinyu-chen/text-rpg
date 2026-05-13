@@ -125,10 +125,22 @@ const LEADER_ELECT_MS = 200;
 const CLIENT_ID_ALPHABET = 'abcdefghjkmnpqrstvwxyz23456789';
 
 function generateClientId(): string {
-    const bytes = new Uint8Array(8);
-    crypto.getRandomValues(bytes);
+    // Rejection sampling — `b % 30` on a uniform [0, 255] byte would bias
+    // indices 0-15 (256 ≡ 16 mod 30), so discard bytes ≥ threshold and
+    // re-roll. Pull extra bytes per round to amortize the discard rate.
+    const ALPHABET_LEN = CLIENT_ID_ALPHABET.length;
+    const threshold = 256 - (256 % ALPHABET_LEN);
+    const bytes = new Uint8Array(16);
     let out = '';
-    for (const b of bytes) out += CLIENT_ID_ALPHABET[b % CLIENT_ID_ALPHABET.length];
+    while (out.length < 8) {
+        crypto.getRandomValues(bytes);
+        for (const b of bytes) {
+            if (b < threshold) {
+                out += CLIENT_ID_ALPHABET[b % ALPHABET_LEN];
+                if (out.length === 8) return out;
+            }
+        }
+    }
     return out;
 }
 
@@ -436,11 +448,16 @@ export class BridgeService {
             }
         };
         bc.postMessage({ type: 'who' });
+        // Jitter (0–150ms) breaks the tie when two tabs open simultaneously —
+        // without it both elections fire at exactly LEADER_ELECT_MS and both
+        // claim, reproducing the very ping-pong this election prevents. The
+        // winner also announces 'here' on claim so the loser short-circuits.
         setTimeout(() => {
             if (!standingDown && this.leaderClaimed() === null) {
                 this.leaderClaimed.set(true);
+                bc.postMessage({ type: 'here' });
             }
-        }, LEADER_ELECT_MS);
+        }, LEADER_ELECT_MS + Math.random() * 150);
     }
 
     private connect(url: string): void {
