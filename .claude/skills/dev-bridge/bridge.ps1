@@ -308,6 +308,27 @@ function Set-BridgeLLMProfile {
     Invoke-Bridge -Path '/llm/switch' -Body $body -TimeoutSec 30
 }
 
+# File-agent LLM profile selectors. Independent of the chat-side profile —
+# lets you A/B-test a small vs large model on the in-app file-agent (sidebar
+# Q&A / file-viewer edit panel / agent_ask) while chat keeps running on a
+# different model. Paid-model guard is the same: switching to a non-local
+# profile requires -ConfirmPaid.
+
+function Get-BridgeFileAgentProfile {
+    Invoke-Bridge -Path '/file-agent/active' -Body @{} -TimeoutSec 30
+}
+
+function Set-BridgeFileAgentProfile {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)] [string] $Id,
+        [switch] $ConfirmPaid
+    )
+    $body = @{ id = $Id }
+    if ($ConfirmPaid) { $body.confirmPaid = $true }
+    Invoke-Bridge -Path '/file-agent/switch' -Body $body -TimeoutSec 30
+}
+
 function Set-BridgeConfig {
     [CmdletBinding()]
     param(

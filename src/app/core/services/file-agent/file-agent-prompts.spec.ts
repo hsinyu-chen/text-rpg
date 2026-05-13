@@ -178,15 +178,21 @@ describe('buildSystemInstruction', () => {
   });
 
   describe('always-on blocks', () => {
-    it('includes workflowRules Rule 7 about chat=ground-truth', () => {
+    it('includes workflowRules Rule 7 about best-effort search', () => {
       const out = build();
       expect(out).toContain('Rule 7');
+      expect(out).toContain('BEST-EFFORT SEARCH BEFORE GIVING UP');
+    });
+
+    it('includes workflowRules Rule 8 about chat=ground-truth', () => {
+      const out = build();
+      expect(out).toContain('Rule 8');
       expect(out).toContain('VERIFY THE STORY BEFORE FIXING THE FILES');
     });
 
-    it('includes workflowRules Rule 8 fail-safe (say-you-don\'t-know)', () => {
+    it('includes workflowRules Rule 9 fail-safe (say-you-don\'t-know)', () => {
       const out = build();
-      expect(out).toContain('Rule 8');
+      expect(out).toContain('Rule 9');
       expect(out).toContain("DON'T KNOW, SAY SO");
       expect(out).toMatch(/do NOT invent.*menu paths|fabricat/i);
     });

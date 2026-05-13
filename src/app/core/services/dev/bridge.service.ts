@@ -4,6 +4,7 @@ import {
 } from '@angular/core';
 import { FILE_VIEWER_OPENER } from './file-viewer-opener.token';
 import { FileAgentService } from '../file-agent/file-agent.service';
+import { FileAgentSettingsStore } from '../file-agent/file-agent-settings.store';
 import { I18nService } from '@app/core/i18n';
 import { SessionService } from '../session.service';
 import { GameStateService } from '../game-state.service';
@@ -65,6 +66,15 @@ import { MatDialog } from '@angular/material/dialog';
  *                       through a paid model. Local→local & local→paid w/
  *                       confirm & paid→paid w/ confirm all pass; paid w/o
  *                       confirm returns `paid_requires_confirm` + target meta
+ *   file_agent_get_profile
+ *                     — active file-agent LLM profile (independent of the
+ *                       chat-side `llm_get_active`). Returns the same meta
+ *                       shape; id is null if no profile is configured.
+ *   file_agent_set_profile
+ *                     — switch the file-agent LLM profile. Same paid-guard
+ *                       semantics as `llm_switch`. Lets A/B testing drive
+ *                       different models on chat vs file-agent without
+ *                       touching the UI.
  *   book_repair_kb    — fill in scenario files missing from the active Book's
  *                       KB. Only ADDS missing filenames (per the named
  *                       scenario's manifest); existing KB entries are
@@ -198,6 +208,11 @@ interface LLMSwitchFrame extends BridgeFrame {
     confirmPaid?: boolean;
 }
 
+interface FileAgentSetProfileFrame extends BridgeFrame {
+    id?: string;
+    confirmPaid?: boolean;
+}
+
 interface BookRepairKbFrame extends BridgeFrame {
     scenarioId?: string;
 }
@@ -263,6 +278,7 @@ export class BridgeService {
     private appConfig = inject(AppConfigStore);
     private providerRegistry = inject(LLMProviderRegistryService);
     private llmConfig = inject(LLMConfigService);
+    private fileAgentSettings = inject(FileAgentSettingsStore);
     private destroyRef = inject(DestroyRef);
     private win = inject(WINDOW);
     private kv = inject(KVStore);
@@ -574,6 +590,12 @@ export class BridgeService {
             case 'llm_list':
                 this.handleLLMList(frame);
                 break;
+            case 'file_agent_get_profile':
+                this.handleFileAgentGetProfile(frame);
+                break;
+            case 'file_agent_set_profile':
+                this.handleFileAgentSetProfile(frame as FileAgentSetProfileFrame);
+                break;
             case 'llm_get_active':
                 this.handleLLMGetActive(frame);
                 break;
@@ -790,6 +812,39 @@ export class BridgeService {
         }
         this.llmConfig.setActiveProfileId(id);
         this.send({ type: 'llm_switch_response', requestId, ...meta });
+    }
+
+    private handleFileAgentGetProfile(frame: BridgeFrame): void {
+        const { requestId } = frame;
+        if (!requestId) return;
+        const activeId = this.fileAgentSettings.selectedProfileId();
+        const profile = activeId ? this.llmConfig.profiles().find(p => p.id === activeId) : null;
+        if (!profile) {
+            this.send({ type: 'file_agent_get_profile_response', requestId, id: null });
+            return;
+        }
+        this.send({ type: 'file_agent_get_profile_response', requestId, ...this.llmProfileMeta(profile) });
+    }
+
+    private handleFileAgentSetProfile(frame: FileAgentSetProfileFrame): void {
+        const { requestId, id, confirmPaid } = frame;
+        if (!requestId) return;
+        if (typeof id !== 'string' || !id) {
+            this.send({ type: 'action_error', requestId, error: 'invalid_id' });
+            return;
+        }
+        const target = this.llmConfig.profiles().find(p => p.id === id);
+        if (!target) {
+            this.send({ type: 'action_error', requestId, error: 'unknown_profile' });
+            return;
+        }
+        const meta = this.llmProfileMeta(target);
+        if (!meta.isLocal && confirmPaid !== true) {
+            this.send({ type: 'action_error', requestId, error: 'paid_requires_confirm', target: meta });
+            return;
+        }
+        this.fileAgentSettings.selectProfile(id);
+        this.send({ type: 'file_agent_set_profile_response', requestId, ...meta });
     }
 
     private handleAgentOpenFileViewer(frame: AgentOpenFileViewerFrame): void {

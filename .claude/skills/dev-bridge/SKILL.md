@@ -198,6 +198,24 @@ prevents accidentally driving turns through a paid model. **Do not pass
 the current request** (e.g. "test on Gemini", "switch to cloud model"). A
 generic "switch profile" without naming the model is NOT consent.
 
+### Switch the file-agent LLM profile (separate from chat-side)
+
+The file-agent (sidebar Q&A panel, file-viewer edit panel, headless
+`agent_ask`) has its own LLM profile axis, independent of the chat-side
+`Set-BridgeLLMProfile`. Use this when A/B-testing how a small vs large model
+performs as file-agent without affecting the in-game story generator.
+
+```pwsh
+. ./.claude/skills/dev-bridge/bridge.ps1
+Get-BridgeFileAgentProfile             # active file-agent profile (same meta shape as Get-BridgeLLMProfile)
+Set-BridgeFileAgentProfile -Id <local-profile-id>
+Set-BridgeFileAgentProfile -Id <gemini-profile-id> -ConfirmPaid
+```
+
+Same paid-guard rules as the chat-side switcher. The shared profile pool is
+listed by `Get-BridgeLLMProfiles` — these helpers just pick which one the
+file-agent's `FileAgentSettingsStore` points at.
+
 ### Fork the active Book at a message + switch between Books
 
 When you want to keep the current playthrough as a baseline and try the next

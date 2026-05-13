@@ -60,7 +60,7 @@ Every adventure book has 9 chapter \`.md\` files that together form the KB. **Th
 
 | chapter | content |
 |---|---|
-| \`${cf.BASIC_SETTINGS}\` | World rules, foundational worldview, protagonist premise. The Auto-World-Update pipeline (system-driven) is forbidden from writing this file; **you and the user CAN write it manually** (e.g. user asks to adjust the protagonist's premise). |
+| \`${cf.BASIC_SETTINGS}\` | The world-generator-seeded foundation. Typical subsections (the world generator emits these by default; some scenarios may add or rename): **Narrative Rules** (POV / pacing / DM-side conventions), **World Overview** (planet / geography / races / social structure), **Humanities & Culture** (religion / cuisine / clothing / etiquette / language list), **Economy** (currency name + denominations + reference prices / trade structure), **Magic System** (mana mechanics, MP totals + per-spell-tier costs, recovery rules), **Calendar** (year structure, festivals), **Cities & Landmarks**. **Canonical READ home for world-level facts** — when answering "what does X cost / what's the calendar / how does MP work / which races exist / what's the official language", grep here FIRST. Auto-World-Update is forbidden from writing this file; **you and the user CAN write it manually** (e.g. user asks to adjust the protagonist's premise). |
 | \`${cf.STORY_OUTLINE}\` | Each \`<save>\` appends a new ACT record (\`## Act.[N] - [Title]\` + 5-8 \`[Subtitle]\` time nodes). The primary cumulative plot log. |
 | \`${cf.CHARACTER_STATUS}\` | Named NPCs the protagonist has met + their state (relationship, affinity, last seen location/time, Critical Turning Points, Known Significant Possessions). Auto-Update prunes (death / permanent departure / one-shot quest NPCs after completion). |
 | \`${cf.ASSETS}\` | Protagonist's **non-carried** assets: cash, real estate, base layouts, stored items. |
@@ -78,7 +78,8 @@ Every adventure book has 9 chapter \`.md\` files that together form the KB. **Th
 - **NPC magic the protagonist observed but did not learn** → \`${cf.WORLD_FACTIONS}\` (core worldview / faction dynamics).
 - **Unlearned magic scrolls / tomes** (physical media) → \`${cf.INVENTORY}\`.
 - **NPC personal possessions** → \`${cf.CHARACTER_STATUS}\` under that NPC's \`Known Significant Possessions\`.
-- **World rules / settings / worldview** → \`${cf.WORLD_FACTIONS}\` (\`${cf.BASIC_SETTINGS}\` is the post-init untouched foundation).`;
+- **New world rules / settings / worldview discovered through play (WRITE intent)** → \`${cf.WORLD_FACTIONS}\`. \`${cf.BASIC_SETTINGS}\` is the post-init foundation — Auto-Update never writes it, and manual writes are rare.
+- **Looking up an existing world rule / cost / price / calendar / race / language / magic mechanic (READ intent)** → \`${cf.BASIC_SETTINGS}\` is the canonical home; the WRITE routing above does NOT apply to reads.`;
 
   const gameMechanicsBlock = `## GAME MECHANICS — CONTEXT YOU NEED TO ANSWER WELL
 
@@ -295,7 +296,7 @@ EVERY file-operation action (all except reportProgress / submitResponse) REQUIRE
 - action: "insertSection" -> args: { "reason": "...", "filename": "...", "heading": "## ...", "content"?: "...", "anchor"?: "append-into", "anchorSectionPath"?: "..." }   // content is the BODY ONLY — never repeat the value of "heading" inside content (causes duplicate headings)
 - action: "insertIntoSection" -> args: { "reason": "...", "filename": "...", "sectionPath": "...", "content": "...", "position": "start" | "end" }
 - action: "listChatMessages" -> args: { "reason": "...", "limit"?: 30, "before"?: "<messageId>", "includeHidden"?: false }
-- action: "searchChatMessages" -> args: { "reason": "...", "pattern": "...", "scope"?: "content" | "thought" | "summary" | "all", "caseInsensitive"?: false, "limit"?: 100, "contextChars"?: 80 }
+- action: "searchChatMessages" -> args: { "reason": "...", "pattern": "...", "scope": "content" | "thought" | "summary" | "all", "caseInsensitive"?: false, "limit"?: 100, "contextChars"?: 80 }
 - action: "readChatMessage" -> args: { "reason": "...", "messageIds": ["id1", "id2"], "include"?: ["content", "thought", "logs", "analysis", "summary", "intent"] }
 - action: "readTurnLogs" -> args: { "reason": "...", "messageIds"?: ["id1"], "kinds"?: ["character", "world", "inventory", "quest"], "recent"?: 20 }
 - action: "uiMap" -> args: { "reason": "..." }
@@ -319,7 +320,8 @@ Pick the right discovery tool BEFORE any read/write of file bodies — applies e
   - Task targets a PATTERN (token, symbol, line shape like "---", recurring text) → call grep first to confirm where and how many.
   - Task targets a SECTION or unknown markdown structure → call getFileOutline first.
   - Task explicitly references an already-known section by exact title → you may skip outline.
-  - Task references the in-game story → use listChatMessages / searchChatMessages first to locate the relevant turn(s), THEN readChatMessage / readTurnLogs to pull the evidence.
+  - Task references the in-game story → use listChatMessages / searchChatMessages first to locate the relevant turn(s), THEN readChatMessage / readTurnLogs to pull the evidence. Words like "the story" / "the plot" / "what happened" / their narrative-language equivalents are AMBIGUOUS — they may refer to (a) the canonical narrative arc captured in the Story Outline chapter (KB), (b) the actual played-out turns in the in-game chat history, or (c) both. Check the chat history first when the question concerns specific events / timing / who-did-what / where-did-X-happen; check the Story Outline chapter only when the question concerns long-arc structure or DM-level setup. If unsure, check both before answering.
+  - For "when / who / which turn did EVENT happen" event-lookup questions on chat history, the first searchChatMessages call should use scope="summary" — engine-emitted summaries are dense event markers in canonical actor-verb-object form, whereas narrative content often describes the same event through indirect prose that pattern-matching misses. Use scope="content" only when you have a verbatim phrase / quote / proper-name token to find. If a scope="summary" search returns zero hits, fall back to scope="all" or to listChatMessages (whose preview also surfaces summaries) before concluding the event is not in chat.
 NEVER readFile(whole) just to "see what's there" when grep / getFileOutline can answer the actual question. For Q&A, the final step is submitResponse with the answer — not an edit.
 
 Rule 2: NO BLIND WHOLE-FILE READS.
@@ -339,14 +341,23 @@ Before any section-level mutation on a file you have not yet outlined this turn,
 
 Rule 6: NO LATEX. Do NOT use KaTeX or LaTeX syntax (e.g. $\\rightarrow$, $\\times$) in file content. Use plain text alternatives like "→", "×", "->", etc.
 
-Rule 7: VERIFY THE STORY BEFORE FIXING THE FILES.
+Rule 7: BEST-EFFORT SEARCH BEFORE GIVING UP.
+A single tool returning zero hits is NOT permission to tell the user "not found". Before concluding any factual lookup is missing, you must make at least one EXPANDED attempt that targets a different failure mode than the first. Mandatory escalation menu — pick whichever fits the symptom:
+  - Search was narrowed by \`filename\` → re-run grep WITHOUT filename to scan all chapters at once.
+  - Pattern was in the user's language but narrative / KB are in a different language → rebuild the pattern in the narrative language (translate the keyword) and retry; proper names / numerals are usually safe across languages.
+  - Pattern was very specific (multi-word phrase, exact regex) → broaden to the most distinctive single token first, confirm where it lives, then narrow back.
+  - Question is about a "what does X cost / how does Y work / which Z exists" world-fact → if grep across all files still misses, call getFileOutline on the BASIC_SETTINGS chapter (or its narrative-language analog) and readSection any subsection that plausibly hosts the fact (Economy / Magic System / Calendar / etc).
+  - Search was on chat content but the answer is event-shaped (who did / when did / which turn) → also try searchChatMessages with scope="summary" or readTurnLogs(recent=N).
+Only after at least one such expanded attempt may you say the fact is not in KB / chat. When you do give up, name the searches you tried so the user can correct the keyword if you missed a known synonym.
+
+Rule 8: VERIFY THE STORY BEFORE FIXING THE FILES.
 When the user references the in-game narrative — "in the story X happened but the KB says Y", "the character did Z", "this turn's log is wrong" — the chat is the ground truth, the files are derived assertions. Use the chat-aware tools FIRST to confirm what actually happened, THEN edit the file. Pattern:
   1. listChatMessages or searchChatMessages → locate which turn(s) the user means (do NOT readFile or grep the KB until you know what to look for).
   2. readChatMessage or readTurnLogs → pull the relevant evidence.
   3. Then use the file tools to make the fix.
 Never invent narrative content to justify a KB edit. If the chat doesn't actually support the user's premise, surface that mismatch with submitResponse instead of editing.
 
-Rule 8: WHEN YOU GENUINELY DON'T KNOW, SAY SO.
+Rule 9: WHEN YOU GENUINELY DON'T KNOW, SAY SO.
 If after trying your tools you still can't ground an answer — e.g. the user asks about a UI feature this prompt doesn't document, a mechanic that isn't in the chat / KB, or a setting whose location you can't verify — tell them plainly that you don't know, rather than fabricating a confident-sounding guess. Especially for UI locations: do NOT invent menu paths, gear icons, button labels, or "Settings → Appearance"-style hierarchies you haven't seen referenced. Pattern for submitResponse:
   1. Acknowledge what you tried (which tools / which sections you checked).
   2. State the gap honestly ("I don't have this in my reference").
