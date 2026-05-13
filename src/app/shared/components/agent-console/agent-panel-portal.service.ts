@@ -29,6 +29,14 @@ export class AgentPanelPortalService {
   private readonly doc = inject(DOCUMENT);
   private readonly panelState = inject(AgentPanelStateService);
 
+  // Time window in which a click inside the panel "claims" any subsequent
+  // popover-open as ours, so the promoter doesn't re-promote our host on
+  // top of our own descendant dropdowns (mat-select / mat-menu). Wide
+  // enough to absorb the natural delay between a click handler firing and
+  // the resulting popover actually opening, narrow enough that an unrelated
+  // popover opening shortly after a panel click is still re-promoted.
+  private static readonly POPOVER_OWNERSHIP_DEBOUNCE_MS = 400;
+
   // Generation token: every mount/unmount bumps this. Async PiP open
   // (`requestWindow` awaits a user gesture / permission grant) checks
   // the token after resume; if it changed (panel was closed during the
@@ -244,7 +252,7 @@ export class AgentPanelPortalService {
       if (!this.host || target === this.host) return;
       const toggle = e as ToggleEvent;
       if (toggle.newState !== 'open') return;
-      if (Date.now() - this.lastOwnClickAt < 400) return;
+      if (Date.now() - this.lastOwnClickAt < AgentPanelPortalService.POPOVER_OWNERSHIP_DEBOUNCE_MS) return;
       queueMicrotask(() => {
         const host = this.host;
         if (!host || !host.matches(':popover-open')) return;

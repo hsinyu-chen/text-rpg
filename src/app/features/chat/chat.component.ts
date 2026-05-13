@@ -369,6 +369,10 @@ export class ChatComponent {
     // .msg-toolbar-pinned mid-fade.
     private static readonly SPOTLIGHT_SCROLL_DELAY_MS = 250;
     private static readonly TOOLBAR_PIN_HOLD_MS = ChatComponent.SPOTLIGHT_SCROLL_DELAY_MS + SPOTLIGHT_HOLD_MS + 50;
+    // setTimeout before scroll — gives Angular's queued change-detection one
+    // tick to materialize any just-rendered messages before we measure offsets
+    // or query for #message-<id>.
+    private static readonly JUMP_TO_MESSAGE_DELAY_MS = 50;
 
     // Per-message-wrapper timer bookkeeping so rapid action-link clicks on
     // different messages don't race-strip each other's pinned class /
@@ -420,6 +424,6 @@ export class ChatComponent {
             }
             el.classList.add('highlight-flash');
             setTimeout(() => el.classList.remove('highlight-flash'), 2000);
-        }, 50);
+        }, ChatComponent.JUMP_TO_MESSAGE_DELAY_MS);
     }
 }
