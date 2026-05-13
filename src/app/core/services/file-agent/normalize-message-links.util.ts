@@ -1,16 +1,26 @@
+// crypto.randomUUID() output shape — every chat message id matches this.
+const GUID_PATTERN = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}';
+
 // Matches a bare GUID, optionally wrapped in matching backticks (one each
 // side). Backticks are consumed so the produced markdown link is not stuck
 // inside a code span where markdown disables parsing.
-const GUID_RE = /(?<!\/)(?<!\[)(`?)\b([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\b\1(?!\])/g;
+const GUID_RE = new RegExp(`(?<!\\/)(?<!\\[)(\`?)\\b(${GUID_PATTERN})\\b\\1(?!\\])`, 'g');
 const CONTEXT_RE = /訊息|message/i;
 
 const HTML_CODE_LINK_RE = /<code[^>]*>\s*(\[[^\]]+\]\(app:\/\/[^)\s]+\))\s*<\/code>/gi;
 const HTML_CODE_BARE_RE = /<code[^>]*>\s*(app:\/\/[^<\s]+?)\s*<\/code>/gi;
-const HTML_CODE_GUID_RE = /<code[^>]*>\s*([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})\s*<\/code>/gi;
+const HTML_CODE_GUID_RE = new RegExp(`<code[^>]*>\\s*(${GUID_PATTERN})\\s*<\\/code>`, 'gi');
 const BACKTICK_LINK_RE  = /`(\[[^\]]+\]\(app:\/\/[^)\s]+\))`/g;
 const BACKTICK_BARE_RE  = /`(app:\/\/[^`\s]+)`/g;
 
 const EMPTY_LABEL_LINK_RE = /\[\]\((app:\/\/[^)\s]+)\)/g;
+
+// Markdown link to app://message/<id> whose LABEL is a bare GUID OR the URL
+// itself. Both are visually meaningless — every chat message id is a UUID,
+// so a GUID label is unreadable, and pasting the full URL as label defeats
+// the point of a link. Replace with the locale-aware label.
+const GUID_LABELED_MSG_RE = new RegExp(`\\[(${GUID_PATTERN})\\]\\((app:\\/\\/message\\/[^)\\s]+)\\)`, 'g');
+const URL_LABELED_APP_RE = /\[(app:\/\/[^\]\s]+)\]\((app:\/\/[^)\s]+)\)/g;
 
 // Consecutive (only spaces/tabs between) markdown links to the SAME app:// URL.
 // Non-greedy URL capture so we match the shortest URL repeated in succession.
@@ -56,6 +66,23 @@ export function unwrapAppUrlCode(text: string, labels: HarnessLabels = DEFAULT_L
     .replace(HTML_CODE_GUID_RE, '$1')
     .replace(BACKTICK_LINK_RE,  '$1')
     .replace(BACKTICK_BARE_RE,  (_, url: string) => `[${labelFor(url, labels)}](${url})`);
+}
+
+/**
+ * Replace meaningless labels on `app://` links with locale-aware defaults:
+ *   - `[<guid>](app://message/<id>)` — bare GUID as label is unreadable.
+ *   - `[app://<scheme>/<...>](app://<...>)` — full URL as label defeats the
+ *     point of a link, and clutters the rendered text.
+ * The replacement is computed from the URL via `labelFor`, so message links
+ * get the i18n label, file links get the filename, hint links get the last
+ * segment.
+ */
+export function relabelUglyAppLinks(text: string, labels: HarnessLabels = DEFAULT_LABELS): string {
+  if (typeof text !== 'string') return '';
+  if (!text) return text;
+  return text
+    .replace(GUID_LABELED_MSG_RE, (_, _guid: string, url: string) => `[${labelFor(url, labels)}](${url})`)
+    .replace(URL_LABELED_APP_RE,  (_, _labelUrl: string, url: string) => `[${labelFor(url, labels)}](${url})`);
 }
 
 /** Replace `[](app://...)` empty-label links with a locale-appropriate label. */
@@ -107,10 +134,11 @@ export function collapseAdjacentDuplicateLinks(text: string): string {
 /**
  * Single entry point for the file-agent service. Applies all harness
  * fallbacks in the right order:
- *   1. Unwrap code-span-wrapped `app://` URLs.
+ *   1. Unwrap code-span-wrapped `app://` URLs (and bare GUIDs in code).
  *   2. Backfill empty `[](url)` labels.
- *   3. Wrap bare message GUIDs.
- *   4. Collapse consecutive duplicates that the previous steps may have
+ *   3. Relabel ugly links — bare-GUID labels or full-URL-as-label.
+ *   4. Wrap bare message GUIDs (with surrounding-backtick strip).
+ *   5. Collapse consecutive duplicates that the previous steps may have
  *      produced when the model emitted overlapping forms (e.g. an empty
  *      stub followed by a backtick-wrapped bare URL pointing to the same
  *      message).
@@ -120,8 +148,11 @@ export function applyHarnessFallbacks(text: string, labels: HarnessLabels = DEFA
   if (!text) return text;
   return collapseAdjacentDuplicateLinks(
     normalizeMessageLinks(
-      backfillEmptyLabels(
-        unwrapAppUrlCode(text, labels),
+      relabelUglyAppLinks(
+        backfillEmptyLabels(
+          unwrapAppUrlCode(text, labels),
+          labels,
+        ),
         labels,
       ),
       labels,

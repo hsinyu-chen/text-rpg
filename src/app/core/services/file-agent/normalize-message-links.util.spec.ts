@@ -3,6 +3,7 @@ import {
   normalizeMessageLinks,
   unwrapAppUrlCode,
   backfillEmptyLabels,
+  relabelUglyAppLinks,
   collapseAdjacentDuplicateLinks,
   applyHarnessFallbacks,
 } from './normalize-message-links.util';
@@ -111,6 +112,28 @@ describe('backfillEmptyLabels', () => {
   it('leaves non-empty labels alone', () => {
     const text = `[訊息](app://message/${G})`;
     expect(backfillEmptyLabels(text, ZH)).toBe(text);
+  });
+});
+
+describe('relabelUglyAppLinks', () => {
+  it('replaces a GUID-as-label message link with the i18n label', () => {
+    expect(relabelUglyAppLinks(`see [${G}](app://message/${G})`, ZH))
+      .toBe(`see [訊息連結](app://message/${G})`);
+  });
+
+  it('replaces a full-URL-as-label app:// link with the URL-derived label', () => {
+    expect(relabelUglyAppLinks('open [app://file/inventory.md](app://file/inventory.md)', EN))
+      .toBe('open [inventory.md](app://file/inventory.md)');
+  });
+
+  it('leaves human-readable labels alone', () => {
+    const text = `see [Luna 招募問答](app://message/${G})`;
+    expect(relabelUglyAppLinks(text, ZH)).toBe(text);
+  });
+
+  it('handles a GUID label whose URL points to a different message id', () => {
+    expect(relabelUglyAppLinks(`look at [${G}](app://message/${G2})`, EN))
+      .toBe(`look at [message link](app://message/${G2})`);
   });
 });
 
