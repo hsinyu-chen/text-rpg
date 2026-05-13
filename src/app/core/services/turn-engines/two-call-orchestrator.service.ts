@@ -5,15 +5,14 @@ import { StreamProcessorService, StreamProcessResult } from '../stream-processor
 import { ChatMessage } from '@app/core/models/types';
 import { getResolverSchema, getNarratorSchema } from '@app/core/constants/engine-protocol-two-call';
 import {
-    AnalysisStep,
     IdealStrength,
     ResolverResponse,
     SceneSnapshot,
-    StructuredAnalysis,
     interruptedAtStep,
     isInterrupted
 } from '@app/core/constants/engine-protocol-structured';
 import { formatResolverIntent, formatStructuredAnalysis } from './format-structured-analysis';
+import { normalizeAnalysis } from './normalize-structured-analysis';
 import { mergeUsage } from '../llm-usage-merge';
 
 export interface ResolverRunResult {
@@ -105,7 +104,9 @@ export class TwoCallOrchestratorService {
                     try {
                         const partial = this.parser.bestEffortJsonParser(accumulator) as Partial<ResolverResponse>;
                         const intentHeader = formatResolverIntent(partial.ideal_outcome, partial.ideal_strength, input.outputLanguage);
-                        const analysisBody = formatStructuredAnalysis(partial.analysis ?? null, input.outputLanguage);
+                        const analysisBody = partial.analysis
+                            ? formatStructuredAnalysis(normalizeAnalysis(partial.analysis), input.outputLanguage)
+                            : '';
                         const trace = [intentHeader, analysisBody].filter(s => s.length > 0).join('\n\n');
                         if (trace && trace !== lastTraceText) {
                             lastTraceText = trace;
@@ -188,62 +189,7 @@ export class TwoCallOrchestratorService {
         return {
             ideal_outcome: parsed.ideal_outcome ?? '',
             ideal_strength: idealStrength,
-            analysis: this.normalizeAnalysis(parsed.analysis)
-        };
-    }
-
-    private normalizeAnalysis(raw: unknown): StructuredAnalysis {
-        const a = (raw && typeof raw === 'object' ? raw : {}) as Partial<StructuredAnalysis>;
-        return {
-            scene_snapshot: this.normalizeScene(a.scene_snapshot),
-            steps: Array.isArray(a.steps) ? a.steps.map(s => this.normalizeStep(s)) : []
-        };
-    }
-
-    private normalizeScene(raw: Partial<SceneSnapshot> | undefined): SceneSnapshot {
-        // Legacy saved games stored `pc_in_header` as a single display string
-        // (e.g. "程楊宗[魯蛇](化裝中)"). Dump the whole string into pc_name; the
-        // formatter will not re-wrap empty alias/state in brackets, so display
-        // stays equivalent. Next turn the LLM rewrites scene_snapshot under the
-        // new schema and the snapshot becomes properly split.
-        const legacyHeader = (raw as { pc_in_header?: string } | undefined)?.pc_in_header;
-        return {
-            date_in_world: raw?.date_in_world ?? '',
-            time_hhmm: raw?.time_hhmm ?? '',
-            location: raw?.location ?? '',
-            environment: raw?.environment ?? '',
-            pc_name: raw?.pc_name ?? legacyHeader ?? '',
-            pc_alias: raw?.pc_alias ?? '',
-            pc_state: raw?.pc_state ?? '',
-            present_npcs: Array.isArray(raw?.present_npcs)
-                ? raw.present_npcs.map(n => ({ name: n?.name ?? '', state: n?.state ?? '' }))
-                : [],
-            key_objects: Array.isArray(raw?.key_objects)
-                ? raw.key_objects.map(o => ({ name: o?.name ?? '', state: o?.state ?? '' }))
-                : []
-        };
-    }
-
-    private normalizeStep(raw: Partial<AnalysisStep> | undefined): AnalysisStep {
-        return {
-            kind: raw?.kind === 'random_event' ? 'random_event' : 'user_intent',
-            action: raw?.action ?? '',
-            pc_dialogue: raw?.pc_dialogue ?? '',
-            mood: raw?.mood ?? '',
-            risk_factors: Array.isArray(raw?.risk_factors) ? raw.risk_factors.filter(r => typeof r === 'string') : [],
-            outcome: raw?.outcome ?? '',
-            breaks_ideal: raw?.breaks_ideal === true,
-            npc_reactions: Array.isArray(raw?.npc_reactions)
-                ? raw.npc_reactions.map(r => ({
-                    actor: r?.actor ?? '',
-                    physical: r?.physical ?? '',
-                    dialogue: r?.dialogue ?? '',
-                    motivation: r?.motivation ?? ''
-                }))
-                : [],
-            object_reactions: Array.isArray(raw?.object_reactions)
-                ? raw.object_reactions.map(o => ({ name: o?.name ?? '', change: o?.change ?? '' }))
-                : []
+            analysis: normalizeAnalysis(parsed.analysis)
         };
     }
 }
