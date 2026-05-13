@@ -89,56 +89,6 @@ export class AgentHintRegistry {
     return ancestors.map(a => this.nameOf(a.path)).join(' > ');
   }
 
-  /**
-   * Fuzzy search over description + keywords + path segments + ancestor
-   * chain descriptions. Tokenizes the query on whitespace; each token
-   * contributes 1 point if it appears in the entry's combined searchable
-   * text (case-insensitive). Sorted by score desc, then by depth desc so
-   * more specific entries surface above generic containers.
-   */
-  searchByText(query: string): ResolvedEntry[] {
-    const tokens = query.toLowerCase().split(/\s+/).filter(t => t.length > 0);
-    if (!tokens.length) return [];
-
-    const hits: { entry: ResolvedEntry; score: number }[] = [];
-    for (const resolved of this.byPath.values()) {
-      // Skip pure container entries — they have children but no `activatable`,
-      // i.e. they're navigation structure (`sidebar` / `chat-input` / `file-sync`).
-      // Returning them as primary hits hands the LLM a URL that resolves to
-      // "please open 主畫面" toast nonsense; the user wants the specific
-      // child action (or the activatable opener) instead. Class-level leaves
-      // (chat-message.action.*) and activatable containers are kept.
-      const hasChildren = !!resolved.entry.children?.length;
-      if (hasChildren && !resolved.entry.activatable) continue;
-
-      // Include each ancestor's name + description so a query like
-      // "files tab sync" hits `sidebar/files-tab/file-sync` even though the
-      // leaf's own description never repeats the parent labels.
-      const ancestorText = this.getAncestorChain(resolved.path)
-        .slice(0, -1)
-        .flatMap(a => [this.nameOf(a.path), this.describe(a.path)]);
-      const haystack = [
-        resolved.path,
-        this.describe(resolved.path),
-        ...(resolved.entry.keywords ?? []),
-        ...ancestorText,
-      ].join(' ').toLowerCase();
-      let score = 0;
-      for (const token of tokens) {
-        if (haystack.includes(token)) score++;
-      }
-      if (score > 0) hits.push({ entry: resolved, score });
-    }
-    // Sort by score desc; tiebreak by depth ASC so a container parent
-    // beats its leaves on equal score. "How do I see X" queries usually
-    // want the opener (parent activatable button) not an inner per-instance
-    // action — e.g. `sidebar/adventure-books` (opens panel) over
-    // `sidebar/adventure-books/add-book` (per-collection class-level action).
-    return hits
-      .sort((a, b) => b.score - a.score || a.entry.depth - b.entry.depth)
-      .map(h => h.entry);
-  }
-
   attachElement(path: string, ref: ElementRef, onActivate?: () => void): void {
     const resolved = this.byPath.get(path);
     if (!resolved) {

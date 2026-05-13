@@ -112,49 +112,6 @@ describe('AgentHintRegistry — getChildren / getAncestorChain', () => {
   });
 });
 
-describe('AgentHintRegistry — searchByText', () => {
-  it('scores by token hits against description + keywords + path', () => {
-    const { registry } = setup({
-      'agentHint.chat-input.send.description': 'Send the current message',
-      'agentHint.chat-input.stop.description': 'Stop the in-progress generation',
-    });
-    const hits = registry.searchByText('send');
-    expect(hits.length).toBeGreaterThan(0);
-    // The literal path segment 'send' wins for chat-input/send (description match + path match).
-    expect(hits[0].path).toBe('chat-input/send');
-  });
-
-  it('matches keywords across languages (mixed en + zh-TW tokens in manifest)', () => {
-    const { registry } = setup();
-    // 'book' is in adventure-books keywords list (English + 冒險書 + collection)
-    const enHits = registry.searchByText('book');
-    expect(enHits.map(h => h.path)).toContain('sidebar/adventure-books');
-    const zhHits = registry.searchByText('冒險書');
-    expect(zhHits.map(h => h.path)).toContain('sidebar/adventure-books');
-  });
-
-  it('returns empty for an empty query', () => {
-    const { registry } = setup();
-    expect(registry.searchByText('')).toEqual([]);
-    expect(registry.searchByText('   ')).toEqual([]);
-  });
-
-  it('skips pure container entries (children + non-activatable) — they are structure, not targets', () => {
-    const { registry } = setup();
-    // 'sidebar' is a container (children + NOT activatable). 'book' tokens
-    // would match its description, but it must not surface as a result.
-    const hits = registry.searchByText('book');
-    const paths = hits.map(h => h.path);
-    expect(paths).not.toContain('sidebar');
-    expect(paths).not.toContain('chat-input');
-    expect(paths).not.toContain('chat-message');
-    expect(paths).not.toContain('sidebar/session-tab/context');
-    expect(paths).not.toContain('sidebar/files-tab/file-sync');
-    // The activatable opener parent IS returned (children + activatable).
-    expect(paths).toContain('sidebar/adventure-books');
-  });
-});
-
 describe('AgentHintRegistry — attachElement / detachElement', () => {
   let registry: AgentHintRegistry;
   beforeEach(() => {

@@ -16,8 +16,6 @@ import type { ElementRef } from '@angular/core';
 export interface AgentHintEntry {
   /** Local segment, unique among siblings (NOT globally unique). */
   id: string;
-  /** Extra fuzzy-search tokens; can mix languages so users searching in any locale hit the entry. */
-  keywords?: string[];
   /** True = `?do=activate` may fire the component's open function via the directive's `(hintActivate)` output. */
   activatable?: boolean;
   /** Sub-features visible only after opening this entry. */

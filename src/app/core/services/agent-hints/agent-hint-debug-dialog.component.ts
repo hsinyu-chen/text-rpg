@@ -32,7 +32,7 @@ import type { HintAction } from './agent-hints.types';
       </div>
 
       <mat-form-field appearance="outline" subscriptSizing="dynamic" class="filter-field">
-        <mat-label>Filter (path / description / keywords)</mat-label>
+        <mat-label>Filter (path / description)</mat-label>
         <input matInput [ngModel]="filter()" (ngModelChange)="filter.set($event)" />
         @if (filter()) {
           <button mat-icon-button matSuffix (click)="filter.set('')">

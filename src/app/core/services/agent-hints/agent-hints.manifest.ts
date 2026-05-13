@@ -28,47 +28,40 @@ import type { AgentHintEntry } from './agent-hints.types';
 export const AGENT_HINTS_MANIFEST: AgentHintEntry[] = [
   {
     id: 'chat-input',
-    keywords: ['toolbar', '工具列', '底部'],
     children: [
       {
         id: 'prompt-profile',
         activatable: true,
-        keywords: ['profile', 'prompt', '提示詞', '雲端', '本地'],
       },
       {
         id: 'engine-mode-toggle',
-        keywords: ['engine', 'two-call', 'narrator', 'resolver', '引擎模式'],
       },
       {
         id: 'ideal-outcome-toggle',
         activatable: true,
-        keywords: ['ideal', 'outcome', '理想結果', '期待'],
       },
       {
         id: 'save',
-        keywords: ['save', '存檔', 'intent'],
       },
       {
         id: 'chat-config',
         activatable: true,
-        keywords: ['config', '設定', '對話設定', 'profile', 'sync', '同步'],
         children: [
           { id: 'save-current' },
           { id: 'save-all' },
-          { id: 'cloud-push', keywords: ['cloud', 'push', '雲端', '上傳'] },
-          { id: 'cloud-pull', keywords: ['cloud', 'pull', '雲端', '下載'] },
+          { id: 'cloud-push' },
+          { id: 'cloud-pull' },
           {
             id: 'profile-manage-menu',
             activatable: true,
-            keywords: ['menu', 'profile', '管理', '選單'],
             children: [
-              { id: 'profile-clone', keywords: ['clone', 'copy', 'duplicate', '複製'] },
-              { id: 'profile-rename', keywords: ['rename', '改名', '重新命名'] },
-              { id: 'profile-delete', keywords: ['delete', '刪除', '移除'] },
-              { id: 'profile-export', keywords: ['export', '匯出', '備份'] },
-              { id: 'profile-import', keywords: ['import', '匯入', '還原'] },
-              { id: 'disk-sync-push', keywords: ['disk', 'sync', '同步', '資料夾'] },
-              { id: 'disk-sync-pull', keywords: ['disk', 'sync', '同步'] },
+              { id: 'profile-clone' },
+              { id: 'profile-rename' },
+              { id: 'profile-delete' },
+              { id: 'profile-export' },
+              { id: 'profile-import' },
+              { id: 'disk-sync-push' },
+              { id: 'disk-sync-pull' },
               { id: 'change-disk-folder', activatable: true },
             ],
           },
@@ -76,26 +69,23 @@ export const AGENT_HINTS_MANIFEST: AgentHintEntry[] = [
       },
       {
         id: 'export-story',
-        keywords: ['export', '匯出', '故事', 'markdown'],
       },
       {
         id: 'batch-replace',
         activatable: true,
-        keywords: ['replace', '取代', '批次', 'find', 'search'],
         children: [
-          { id: 'match-case', activatable: true, keywords: ['case'] },
-          { id: 'whole-word', activatable: true, keywords: ['word'] },
-          { id: 'regex', activatable: true, keywords: ['regex', '正規'] },
+          { id: 'match-case', activatable: true },
+          { id: 'whole-word', activatable: true },
+          { id: 'regex', activatable: true },
           { id: 'filter-intent', activatable: true },
           { id: 'filter-role', activatable: true },
           { id: 'filter-field', activatable: true },
-          { id: 'execute', keywords: ['execute', '執行', 'apply'] },
+          { id: 'execute' },
         ],
       },
       {
         id: 'view-turn-updates',
         activatable: true,
-        keywords: ['turn', 'update', 'log', '變化', 'inventory', 'quest'],
         children: [
           { id: 'toggle-inventory', activatable: true },
           { id: 'toggle-quest', activatable: true },
@@ -109,61 +99,52 @@ export const AGENT_HINTS_MANIFEST: AgentHintEntry[] = [
       {
         id: 'agent-panel',
         activatable: true,
-        keywords: ['agent', 'helper', '助手'],
       },
       {
         id: 'preview-payload',
         activatable: true,
-        keywords: ['preview', 'payload', 'debug', 'prompt'],
       },
       {
         id: 'stop',
-        keywords: ['stop', '中斷', 'cancel'],
       },
       {
         id: 'send',
-        keywords: ['send', '送出', 'submit'],
       },
       {
         id: 'cancel-edit',
-        keywords: ['cancel', '取消', 'edit'],
       },
     ],
   },
 
   {
     id: 'chat-message',
-    keywords: ['message', '訊息', 'action', '動作'],
     children: [
-      { id: 'edit-resend', keywords: ['edit', 'resend', '編輯', '重送'] },
-      { id: 'fork-from-here', keywords: ['fork', '分支', '分歧'] },
-      { id: 'delete-all-following', keywords: ['delete', '刪除'] },
-      { id: 'delete-message', keywords: ['delete', '刪除'] },
-      { id: 'toggle-ref-only', keywords: ['reference', '參考'] },
-      { id: 'auto-update-files', keywords: ['auto', 'update', '自動更新'] },
-      { id: 'copy-json-pair', keywords: ['copy', 'json'] },
-      { id: 'toggle-raw-render', keywords: ['raw', 'render', '原始'] },
-      { id: 'edit-text', keywords: ['edit', 'text', '編輯', '改寫', 'retcon'] },
+      { id: 'edit-resend' },
+      { id: 'fork-from-here' },
+      { id: 'delete-all-following' },
+      { id: 'delete-message' },
+      { id: 'toggle-ref-only' },
+      { id: 'auto-update-files' },
+      { id: 'copy-json-pair' },
+      { id: 'toggle-raw-render' },
+      { id: 'edit-text' },
     ],
   },
 
   {
     id: 'sidebar',
-    keywords: ['sidebar', '側邊欄', '抽屜'],
     children: [
       {
         id: 'cost-prediction-toggle',
         activatable: true,
-        keywords: ['cost', '費用', '預估'],
         children: [
-          { id: 'compare-models', activatable: true, keywords: ['compare', '比較', 'model'] },
-          { id: 'copy-stats', activatable: true, keywords: ['copy', 'stats'] },
+          { id: 'compare-models', activatable: true },
+          { id: 'copy-stats', activatable: true },
         ],
       },
       {
         id: 'adventure-books',
         activatable: true,
-        keywords: ['book', 'adventure', '冒險書', '存檔列表', 'collection', '集合'],
         children: [
           { id: 'add-book' },
           { id: 'rename-collection' },
@@ -177,18 +158,16 @@ export const AGENT_HINTS_MANIFEST: AgentHintEntry[] = [
       {
         id: 'sync-provider',
         activatable: true,
-        keywords: ['sync', '同步', 'cloud', 's3', 'provider'],
       },
       {
         id: 'settings',
         activatable: true,
-        keywords: ['settings', '設定', 'preferences', '偏好', '字型', '語言'],
         children: [
           { id: 'select-llm-profile' },
           { id: 'manage-llm-profiles', activatable: true },
           { id: 'select-interface-language', activatable: true },
           { id: 'select-output-language' },
-          { id: 'font-size', activatable: true, keywords: ['font', '字型', '大小'] },
+          { id: 'font-size', activatable: true },
         ],
       },
       {
@@ -201,12 +180,10 @@ export const AGENT_HINTS_MANIFEST: AgentHintEntry[] = [
       {
         id: 'files-tab',
         activatable: true,
-        keywords: ['files', 'tab', '檔案', '分頁'],
         children: [
           { id: 'token-char-switch', activatable: true },
           {
             id: 'file-sync',
-            keywords: ['file', 'sync', '檔案', '同步', '資料夾'],
             children: [
               { id: 'select-folder', activatable: true },
               { id: 'change-folder', activatable: true },
@@ -217,11 +194,9 @@ export const AGENT_HINTS_MANIFEST: AgentHintEntry[] = [
       {
         id: 'session-tab',
         activatable: true,
-        keywords: ['session', 'tab', '會話', '分頁'],
         children: [
           {
             id: 'context',
-            keywords: ['context', '上下文', '場景'],
             children: [
               { id: 'create-next' },
               { id: 'create-scene' },
@@ -231,7 +206,6 @@ export const AGENT_HINTS_MANIFEST: AgentHintEntry[] = [
           {
             id: 'start-session',
             activatable: true,
-            keywords: ['new', 'game', 'start', '新遊戲', '開始', '建立'],
             children: [
               { id: 'select-scenario', activatable: true },
               { id: 'tab-prebuild', activatable: true },
