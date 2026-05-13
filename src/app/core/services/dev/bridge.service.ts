@@ -1,5 +1,5 @@
 import {
-    Injectable, signal, effect, inject, isDevMode, DestroyRef,
+    Injectable, signal, effect, inject, DestroyRef,
     EnvironmentInjector, createEnvironmentInjector
 } from '@angular/core';
 import { FILE_VIEWER_OPENER } from './file-viewer-opener.token';
@@ -27,9 +27,11 @@ import { AgentHintDebugDialogComponent } from '../agent-hints/agent-hint-debug-d
 import { MatDialog } from '@angular/material/dialog';
 
 /**
- * Dev-only relay client. Connects to a local BridgeServer (sibling repo
+ * Relay client. Connects to a local BridgeServer (sibling repo
  * `TextRPG_TestBridge`) over WebSocket so an external agent can drive the
- * running app via HTTP. No-op in production builds — gated by isDevMode().
+ * running app via HTTP. Available in all builds — opt-in by toggling
+ * `enabled` from the Settings dialog (default off). The `agent_eval` frame
+ * is additionally gated by a separate Settings toggle (default off).
  *
  * Frame types handled:
  *   send_action       — real GameEngineService.sendMessage turn + pair reply
@@ -103,9 +105,44 @@ import { MatDialog } from '@angular/material/dialog';
 
 const STORAGE_URL = 'app_debug_bridge_url';
 const STORAGE_ENABLED = 'app_debug_bridge_enabled';
+const STORAGE_CLIENT_ID = 'app_debug_bridge_client_id';
+const STORAGE_EVAL_ENABLED = 'app_debug_bridge_eval_enabled';
 const HEARTBEAT_MS = 15_000;
 const RECONNECT_MIN_MS = 1_000;
 const RECONNECT_MAX_MS = 30_000;
+
+// Cross-tab leader election. Same origin (same KVStore) ⇒ same clientId, so
+// two open tabs would race to claim the BridgeServer slot via `client_replaced`
+// and ping-pong at ~2s intervals. The leader announces itself via this channel;
+// later tabs see the announcement and stand down (no auto-handoff — closing
+// the leader tab leaves the others idle until reload).
+const LEADER_CHANNEL = 'textrpg-bridge-leader';
+const LEADER_ELECT_MS = 200;
+
+// base30 alphabet — strips visually-confusable iloruz01 from base32. Eight
+// random chars give ~40 bits of entropy, ~10⁻¹¹ collision probability for the
+// personal-device population we care about.
+const CLIENT_ID_ALPHABET = 'abcdefghjkmnpqrstvwxyz23456789';
+
+function generateClientId(): string {
+    // Rejection sampling — `b % 30` on a uniform [0, 255] byte would bias
+    // indices 0-15 (256 ≡ 16 mod 30), so discard bytes ≥ threshold and
+    // re-roll. Pull extra bytes per round to amortize the discard rate.
+    const ALPHABET_LEN = CLIENT_ID_ALPHABET.length;
+    const threshold = 256 - (256 % ALPHABET_LEN);
+    const bytes = new Uint8Array(16);
+    let out = '';
+    while (out.length < 8) {
+        crypto.getRandomValues(bytes);
+        for (const b of bytes) {
+            if (b < threshold) {
+                out += CLIENT_ID_ALPHABET[b % ALPHABET_LEN];
+                if (out.length === 8) return out;
+            }
+        }
+    }
+    return out;
+}
 
 export type BridgeStatus = 'idle' | 'connecting' | 'connected' | 'error';
 
@@ -276,8 +313,22 @@ export class BridgeService {
 
     readonly url = signal(this.kv.get(STORAGE_URL) ?? '');
     readonly enabled = signal(this.kv.get(STORAGE_ENABLED) === 'true');
+    readonly clientId = signal(this.initClientId());
+    readonly evalEnabled = signal(this.kv.get(STORAGE_EVAL_ENABLED) === 'true');
     readonly status = signal<BridgeStatus>('idle');
     readonly lastError = signal<string | null>(null);
+    // Null while the election is still pending (LEADER_ELECT_MS window).
+    // True if this tab won, false if another tab already claimed the slot.
+    readonly leaderClaimed = signal<boolean | null>(null);
+    private leaderChannel: BroadcastChannel | null = null;
+
+    private initClientId(): string {
+        const stored = this.kv.get(STORAGE_CLIENT_ID)?.trim();
+        if (stored) return stored;
+        const fresh = generateClientId();
+        this.kv.set(STORAGE_CLIENT_ID, fresh);
+        return fresh;
+    }
 
     private ws: WebSocket | null = null;
     private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
@@ -326,14 +377,37 @@ export class BridgeService {
         this.kv.set(STORAGE_ENABLED, String(enabled));
     }
 
+    setClientId(id: string): void {
+        const trimmed = id.trim() || generateClientId();
+        this.clientId.set(trimmed);
+        this.kv.set(STORAGE_CLIENT_ID, trimmed);
+    }
+
+    setEvalEnabled(enabled: boolean): void {
+        this.evalEnabled.set(enabled);
+        this.kv.set(STORAGE_EVAL_ENABLED, String(enabled));
+    }
+
     constructor() {
-        if (!isDevMode()) return;
+        this.electLeader();
 
         effect(() => {
             const url = this.url().trim();
             const enabled = this.enabled();
+            // clientId tracked here so a rename triggers a reconnect with the new id.
+            this.clientId();
+            const leader = this.leaderClaimed();
             this.intentionalClose = true;
             this.teardown();
+            if (leader === null) {
+                // Election in flight — hold off without touching status.
+                return;
+            }
+            if (leader === false) {
+                this.status.set('idle');
+                this.lastError.set(this.i18nService.translate('settings.bridgeAnotherTabActive'));
+                return;
+            }
             if (enabled && url) {
                 this.intentionalClose = false;
                 this.reconnectDelay = RECONNECT_MIN_MS;
@@ -347,7 +421,43 @@ export class BridgeService {
         this.destroyRef.onDestroy(() => {
             this.intentionalClose = true;
             this.teardown();
+            this.leaderChannel?.close();
+            this.leaderChannel = null;
         });
+    }
+
+    private electLeader(): void {
+        if (typeof BroadcastChannel === 'undefined') {
+            // No cross-tab signaling available — fall back to "always leader"
+            // (legacy behavior). Multi-tab users get the old ping-pong but
+            // single-tab is unaffected.
+            this.leaderClaimed.set(true);
+            return;
+        }
+        const bc = new BroadcastChannel(LEADER_CHANNEL);
+        this.leaderChannel = bc;
+        let standingDown = false;
+        bc.onmessage = event => {
+            const msg = event.data as { type?: string } | null;
+            if (!msg) return;
+            if (msg.type === 'who' && this.leaderClaimed() === true) {
+                bc.postMessage({ type: 'here' });
+            } else if (msg.type === 'here' && this.leaderClaimed() !== true) {
+                standingDown = true;
+                this.leaderClaimed.set(false);
+            }
+        };
+        bc.postMessage({ type: 'who' });
+        // Jitter (0–150ms) breaks the tie when two tabs open simultaneously —
+        // without it both elections fire at exactly LEADER_ELECT_MS and both
+        // claim, reproducing the very ping-pong this election prevents. The
+        // winner also announces 'here' on claim so the loser short-circuits.
+        setTimeout(() => {
+            if (!standingDown && this.leaderClaimed() === null) {
+                this.leaderClaimed.set(true);
+                bc.postMessage({ type: 'here' });
+            }
+        }, LEADER_ELECT_MS + Math.random() * 150);
     }
 
     private connect(url: string): void {
@@ -370,6 +480,7 @@ export class BridgeService {
             this.reconnectDelay = RECONNECT_MIN_MS;
             this.send({
                 type: 'hello',
+                clientId: this.clientId(),
                 appVersion: 'dev',
                 bookLoaded: this.session.currentBookId() !== null,
             });
@@ -799,12 +910,18 @@ export class BridgeService {
         });
     }
 
-    // Dev-only async JS eval. Compiled via AsyncFunction so callers can
-    // `await` inside the body (animations, fetches, etc). Bare expressions
-    // get wrapped as `return (expr)`; bodies containing `return` paste as-is.
+    // Async JS eval. Compiled via AsyncFunction so callers can `await`
+    // inside the body (animations, fetches, etc). Bare expressions get
+    // wrapped as `return (expr)`; bodies containing `return` paste as-is.
+    // Gated by the `evalEnabled` toggle (default off) — without it any
+    // bridge consumer with WS access could exec arbitrary JS in-page.
     private async handleAgentEval(frame: AgentEvalFrame): Promise<void> {
         const { requestId, expr } = frame;
         if (!requestId) return;
+        if (!this.evalEnabled()) {
+            this.send({ type: 'action_error', requestId, error: 'eval_disabled' });
+            return;
+        }
         if (typeof expr !== 'string' || !expr) {
             this.send({ type: 'action_error', requestId, error: 'invalid_expr' });
             return;
