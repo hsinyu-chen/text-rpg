@@ -176,21 +176,25 @@ export class AgentPanelPortalService {
     }
     // Belt-and-braces for Constructable-Stylesheet toolchains —
     // CSSStyleSheet instances are document-scoped, so we re-materialize
-    // the rules as fresh sheets in the PiP doc.
-    try {
-      const srcSheets = this.doc.adoptedStyleSheets;
-      if (srcSheets?.length) {
-        const pipCtor = (pipWin as Window & { CSSStyleSheet?: typeof CSSStyleSheet }).CSSStyleSheet;
-        if (pipCtor) {
-          pipWin.document.adoptedStyleSheets = srcSheets.map(src => {
+    // the rules as fresh sheets in the PiP doc. Per-sheet try/catch:
+    // one cross-origin sheet throwing SecurityError on cssRules access
+    // must not drop the accessible same-origin sheets alongside it.
+    const srcSheets = this.doc.adoptedStyleSheets;
+    if (srcSheets?.length) {
+      const pipCtor = (pipWin as Window & { CSSStyleSheet?: typeof CSSStyleSheet }).CSSStyleSheet;
+      if (pipCtor) {
+        const cloned: CSSStyleSheet[] = [];
+        for (const src of srcSheets) {
+          try {
             const sheet = new pipCtor();
             const cssText = Array.from(src.cssRules).map(r => r.cssText).join('\n');
             sheet.replaceSync(cssText);
-            return sheet;
-          });
+            cloned.push(sheet);
+          } catch { /* cross-origin / inaccessible — covered by <link> clone */ }
         }
+        pipWin.document.adoptedStyleSheets = cloned;
       }
-    } catch { /* cross-origin import — covered by <link> clone */ }
+    }
 
     this.pipStyleObserver = new MutationObserver(records => {
       for (const rec of records) {
