@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, isDevMode } from '@angular/core';
+import { Component, inject, signal, computed } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -51,9 +51,6 @@ export class SettingsDialogComponent {
   loading = inject(LoadingService);
   private settingsSync = inject(SettingsSyncService);
   bridge = inject(BridgeService);
-
-  /** Dev-only Bridge section is hidden in production builds. */
-  readonly isDev = isDevMode();
 
   /** List of profiles, reactive to the storage layer. */
   profiles = this.llmConfig.profiles;
@@ -115,6 +112,8 @@ export class SettingsDialogComponent {
   // Debug bridge — local edit copies; applied on Save.
   debugBridgeUrl = signal(this.bridge.url());
   debugBridgeEnabled = signal(this.bridge.enabled());
+  debugBridgeClientId = signal(this.bridge.clientId());
+  debugBridgeEvalEnabled = signal(this.bridge.evalEnabled());
   bridgeTestInProgress = signal(false);
   bridgeTestResult = signal<{ ok: boolean; error?: string } | null>(null);
 
@@ -193,10 +192,10 @@ export class SettingsDialogComponent {
 
     await this.engine.saveConfig(commonConfig);
 
-    if (this.isDev) {
-      this.bridge.setUrl(this.debugBridgeUrl().trim());
-      this.bridge.setEnabled(this.debugBridgeEnabled());
-    }
+    this.bridge.setUrl(this.debugBridgeUrl().trim());
+    this.bridge.setEnabled(this.debugBridgeEnabled());
+    this.bridge.setClientId(this.debugBridgeClientId());
+    this.bridge.setEvalEnabled(this.debugBridgeEvalEnabled());
 
     this.dialogRef.close();
   }

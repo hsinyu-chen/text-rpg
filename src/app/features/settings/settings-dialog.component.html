@@ -190,7 +190,6 @@
             </div>
         </div>
 
-        @if (isDev) {
         <div class="advanced-section">
             <h3>{{ 'settings.debugBridge' | translate }}</h3>
             <p class="hint-text">
@@ -201,6 +200,13 @@
                 <input matInput [ngModel]="debugBridgeUrl()" (ngModelChange)="onDebugBridgeUrlChange($event)"
                     [placeholder]="'settings.bridgeUrlPlaceholder' | translate">
             </mat-form-field>
+            <mat-form-field appearance="outline" class="full-width" subscriptSizing="dynamic">
+                <mat-label>{{ 'settings.bridgeClientId' | translate }}</mat-label>
+                <input matInput [ngModel]="debugBridgeClientId()"
+                    (ngModelChange)="debugBridgeClientId.set($event)"
+                    [placeholder]="'settings.bridgeClientIdPlaceholder' | translate">
+            </mat-form-field>
+            <p class="hint-text">{{ 'settings.bridgeClientIdHint' | translate }}</p>
             <div class="bridge-test-row">
                 <button mat-stroked-button type="button" (click)="testBridgeConnection()"
                     [disabled]="!debugBridgeUrl().trim() || bridgeTestInProgress()">
@@ -225,6 +231,15 @@
                     {{ 'settings.connectDebugBridge' | translate }}
                 </mat-slide-toggle>
             </div>
+            <div class="toggle-row">
+                <mat-slide-toggle [ngModel]="debugBridgeEvalEnabled()"
+                    (ngModelChange)="debugBridgeEvalEnabled.set($event)" color="warn">
+                    {{ 'settings.bridgeEvalEnabled' | translate }}
+                </mat-slide-toggle>
+            </div>
+            <p class="hint-text bridge-eval-warning">
+                {{ 'settings.bridgeEvalEnabledHint' | translate }}
+            </p>
             <div class="bridge-status status-{{ bridge.status() }}">
                 <span class="dot"></span>
                 <span class="label">{{ bridge.status() }}</span>
@@ -233,7 +248,6 @@
                 }
             </div>
         </div>
-        }
 
     </div>
 </mat-dialog-content>

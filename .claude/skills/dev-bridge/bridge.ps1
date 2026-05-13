@@ -7,6 +7,27 @@
 # so non-ASCII userInput (e.g. CJK) round-trips correctly. See SKILL.md.
 
 $script:BridgeBaseUrl = 'http://127.0.0.1:5051'
+# Default clientId for all helpers in this session. Empty string means
+# "auto-route" — bridge will pick the sole connected client, or 400 with
+# `client_id_required` if multiple are connected. Override per-call via
+# Invoke-Bridge -ClientId, or persistently with Use-BridgeClient.
+$script:BridgeClientId = if ($env:TEXTRPG_BRIDGE_CLIENT_ID) { $env:TEXTRPG_BRIDGE_CLIENT_ID } else { '' }
+
+function Use-BridgeClient {
+    [CmdletBinding()]
+    param([Parameter(Mandatory)] [AllowEmptyString()] [string] $Id)
+    $script:BridgeClientId = $Id
+}
+
+function Get-BridgeClient {
+    [CmdletBinding()] param()
+    $script:BridgeClientId
+}
+
+function Get-BridgeClients {
+    [CmdletBinding()] param()
+    (Invoke-RestMethod -Uri "$script:BridgeBaseUrl/clients" -Method Get -TimeoutSec 10).clients
+}
 
 function Invoke-Bridge {
     param(
@@ -15,8 +36,16 @@ function Invoke-Bridge {
         # Default raised to 600s (10 min) so two-call mode (resolver + narrator
         # = 2 LLM calls) doesn't time out at the HTTP layer on slow local
         # models. The bridge's own RequestTimeout matches.
-        [int] $TimeoutSec = 600
+        [int] $TimeoutSec = 600,
+        # Override the script-default clientId for this single call. Pass an
+        # explicit empty string to force auto-route.
+        [AllowEmptyString()] [string] $ClientId
     )
+    $effectiveId = if ($PSBoundParameters.ContainsKey('ClientId')) { $ClientId } else { $script:BridgeClientId }
+    if (-not [string]::IsNullOrEmpty($effectiveId)) {
+        $Body = $Body.Clone()
+        $Body.clientId = $effectiveId
+    }
     $json = $Body | ConvertTo-Json -Compress -Depth 8
     $bytes = [System.Text.Encoding]::UTF8.GetBytes($json)
     Invoke-RestMethod -Uri "$script:BridgeBaseUrl$Path" -Method Post `

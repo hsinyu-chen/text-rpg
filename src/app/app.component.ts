@@ -71,7 +71,8 @@ export class AppComponent {
   // during generation — prevents mobile screen-off from killing the API stream.
   private wakeLock = inject(WakeLockService);
   private bgFetch = inject(BackgroundFetchService);
-  // Eagerly construct so its connect-effect registers; gated internally by isDevMode().
+  // Eagerly construct so its connect-effect registers. Off by default;
+  // user opts in via Settings → Debug Bridge.
   private bridge = inject(BridgeService);
   private swUpdate = inject(SwUpdate);
   private win = inject(WINDOW);

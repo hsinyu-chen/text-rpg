@@ -56,6 +56,24 @@ $last.character_log; $last.inventory_log; $last.world_log; $last.quest_log
 If you see `app_not_connected`, the user's app isn't connected — pause and tell them to flip the
 Debug Bridge toggle / open the app, do not retry blindly.
 
+### Multi-client routing
+
+BridgeServer accepts multiple connected app instances (e.g. desktop + laptop + Tauri build),
+each identified by the `clientId` the app sends in its `hello` frame. The HTTP API routes a
+call by reading `clientId` from the request body.
+
+- `Get-BridgeClients` — list currently-connected clientIds
+- `Use-BridgeClient -Id desktop` — set the session-wide default for subsequent helpers
+- `Get-BridgeClient` — show the current default (empty = auto-route)
+- `Invoke-Bridge -ClientId laptop ...` — one-shot override
+
+Without an explicit clientId the bridge auto-routes when exactly one client is connected; with
+multiple it returns `400 client_id_required` plus the list of available ids. If the targeted
+client isn't connected you get `503 client_not_connected`.
+
+You can also pre-set `$env:TEXTRPG_BRIDGE_CLIENT_ID` before dot-sourcing to fix the default at
+shell-init time.
+
 ### Reload the running app
 
 After editing prompt assets in `public/assets/system_files/**/*.md`, the running app still has
