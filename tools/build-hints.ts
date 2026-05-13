@@ -130,15 +130,21 @@ function walk(nodes: readonly unknown[], file: string, out: HintBinding[]): void
     const hintActivate = node.outputs?.find((o) => o.name === 'hintActivate');
 
     if (staticHint || boundHint || hintActivate) {
+      const path = staticHint?.value ?? boundHint?.value?.source ?? '';
       const span = node.startSourceSpan?.start;
-      out.push({
-        path: staticHint?.value ?? boundHint?.value?.source ?? '',
-        activatable: !!hintActivate,
-        file,
-        line: (span?.line ?? 0) + 1,
-        col: (span?.col ?? 0) + 1,
-        isDynamic: !!boundHint && !staticHint,
-      });
+      const loc = `${relative(repoRoot, file)}:${(span?.line ?? 0) + 1}:${(span?.col ?? 0) + 1}`;
+      if (!path && hintActivate) {
+        warn(`[orphan-activate] ${loc} — (hintActivate) without an appAgentHint path`);
+      } else if (path) {
+        out.push({
+          path,
+          activatable: !!hintActivate,
+          file,
+          line: (span?.line ?? 0) + 1,
+          col: (span?.col ?? 0) + 1,
+          isDynamic: !!boundHint && !staticHint,
+        });
+      }
     }
 
     if (node.children?.length) walk(node.children, file, out);
