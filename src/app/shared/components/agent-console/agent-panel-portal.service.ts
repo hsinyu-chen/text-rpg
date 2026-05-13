@@ -101,8 +101,10 @@ export class AgentPanelPortalService {
 
   private async openInPip(api: PipApi, rootNodes: Node[], gen: number, opts: MountOptions): Promise<void> {
     let pipWin: Window;
+    const pipWidth = 480;
+    const pipHeight = 720;
     try {
-      pipWin = await api.requestWindow({ width: 480, height: 720 });
+      pipWin = await api.requestWindow({ width: pipWidth, height: pipHeight });
     } catch {
       // user denied / call rejected (e.g. no user gesture) — fall back,
       // but only if the user hasn't already closed the panel mid-await.
@@ -116,6 +118,25 @@ export class AgentPanelPortalService {
       try { pipWin.close(); } catch { /* already closed */ }
       return;
     }
+    // Park the PiP next to the main window's right edge rather than the OS
+    // default (usually screen bottom-right). DPiP windows are real Window
+    // objects so moveTo works — but some browsers / multi-monitor setups
+    // may silently no-op, so don't rely on the result.
+    try {
+      const mainWin = this.doc.defaultView;
+      if (mainWin) {
+        const gap = 8;
+        const targetX = mainWin.screenX + mainWin.outerWidth + gap;
+        const targetY = mainWin.screenY;
+        // Clamp X so the PiP isn't pushed off the right screen edge on
+        // narrow displays — fall back to screen-edge alignment.
+        // `availLeft` is a non-standard but widely-supported screen prop
+        // (Firefox / Chromium); cast keeps strict TS happy.
+        const screen = mainWin.screen as Screen & { availLeft?: number };
+        const maxX = (screen.availLeft ?? 0) + screen.availWidth - pipWidth;
+        pipWin.moveTo(Math.min(targetX, maxX), targetY);
+      }
+    } catch { /* moveTo blocked / unsupported — fall back to OS placement */ }
     this.mirrorStylesToPip(pipWin);
     pipWin.document.body.style.margin = '0';
     pipWin.document.body.style.height = '100vh';
