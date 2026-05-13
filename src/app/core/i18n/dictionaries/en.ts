@@ -425,6 +425,7 @@ export const en: TranslationDict = {
         agentPromptPlaceholder: 'Ask a question, request file edits, find a feature...',
         agentPromptPlaceholderReadOnly: 'Ask a question, find a feature... (read-only — file edits need the KB editor)',
         agentStop: 'Stop Agent',
+        agentHarnessMessageLink: 'message link',
         agentLoadPromptFailed: 'Failed to load prompt "{{id}}" for the current language.',
         contextLabel: 'Context',
         contextToggleBreakdown: 'Click to expand breakdown',

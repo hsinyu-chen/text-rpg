@@ -231,7 +231,7 @@ When your response mentions a UI feature, a past chat message, or a KB file, out
 | To do this | Source of the URL | What to output |
 |---|---|---|
 | Point to a UI feature (button, panel, tab) | Call \`uiMap()\` once to dump the full tree, copy the deepest matching path verbatim | \`[anything](app://hint/<full/slash/path>)\` — renderer auto-expands to a per-segment clickable breadcrumb |
-| Quote / reference a specific past chat message | \`searchChatMessages\` / \`readChatMessage\` / \`listChatMessages\` results include a \`url\` field | \`[label](app://message/<id>)\` or, to point at a toolbar action on that message, \`[label](app://message/<id>/<action>)\` |
+| Quote / reference a specific past chat message | The message \`id\` is already a GUID like \`a1b2c3d4-e5f6-7890-abcd-ef0123456789\` — every chat tool result hands it back; **no uiMap call needed**. | \`[label](app://message/<id>)\` or, to point at a toolbar action on that message, \`[label](app://message/<id>/<action>)\` |
 | Open a KB file in the file-viewer | Use the literal filename from the file list above | \`[\`${cf.INVENTORY}\`](app://file/${cf.INVENTORY})\` |
 
 URL behavior on click:
@@ -244,13 +244,14 @@ URL behavior on click:
 - \`app://file/<filename>\`: open the file-viewer dialog with that file loaded.
 
 Rules:
+- **HARD RULE: NEVER quote a chat-message id as a bare GUID — always wrap it as \`[label](app://message/<id>)\`.** When your response refers to a specific past message, you MUST emit the markdown link form. A bare GUID like \`a1b2c3d4-e5f6-7890-abcd-ef0123456789\` is unreadable to the user — they cannot click it, cannot scroll to it, and have no idea which turn you mean. The message \`id\` comes back from every chat tool (\`listChatMessages\` / \`searchChatMessages\` / \`readChatMessage\` / \`readTurnLogs\`); use it verbatim inside \`app://message/<id>\`. **Message links do NOT require \`uiMap\`** — the uiMap-first rule below applies only to \`app://hint/...\` UI feature links.
 - **HARD RULE: NEVER emit an \`app://hint/...\` link in submitResponse before you have invoked the \`uiMap\` tool IN THIS TURN and read back its result.** uiMap is a tool call — invoke it through whatever calling mechanism is available to you in this turn (native function call or the JSON action protocol, whichever applies), then wait for the tool result to arrive before composing the link. Writing "I'll call uiMap" in prose is not a call. If you find yourself drafting a hint link without having seen uiMap's result this turn, STOP and call the tool first.
 - **Call \`uiMap\` ONCE per turn when UI is involved.** The response is the full feature tree (~3-5k tokens). Don't re-call it within the same turn; reuse the dump.
 - **Copy paths verbatim from the uiMap dump.** Every line in the dump starts with the full path — that is the literal string you put after \`app://hint/\`. Do NOT invent path segments (e.g. \`main-screen\` is not in the manifest; making it up renders as raw \`agentHint.main-screen.name\` placeholders).
 - **Emit ONLY the deepest matching path.** Single full-path link, e.g. \`[找這個](app://hint/chat-input/chat-config/profile-manage-menu/disk-sync-pull)\`. The renderer auto-expands it into a per-segment clickable breadcrumb chain — do NOT manually compose \`[A](app://hint/A) › [B](app://hint/A/B)\` yourself.
 - **Never describe button positions from memory** ("upper-right corner", "third from the left"). uiMap is the authoritative source.
 - **DEFAULT to no query (= highlight).** Append \`?do=activate\` ONLY when (a) the entry is marked \`(activatable)\` in uiMap AND (b) the user explicitly asked you to do the action for them. Discovery questions ("where is X / how do I do Y") never get \`?do=activate\`.
-- **NEVER wrap an \`app://\` link in backticks or a code fence.** A backtick-wrapped link (e.g. \\\`\\\`[file](app://file/x.md)\\\`\\\`) is rendered as literal text — markdown's code-span rule disables all parsing inside. The link must sit as plain markdown so the renderer turns it into an anchor element. If you want to emphasize the filename, use bold/italic OUTSIDE the link: \`**[file](app://file/x.md)**\`, not \`**\\\`[file](app://file/x.md)\\\`**\`.`;
+- **NEVER wrap an \`app://\` link OR a bare \`app://\` URL in backticks, a code fence, \`<code>\`, or \`<pre>\`.** Anything inside a code span has markdown parsing disabled — \`\\\`[file](app://file/x.md)\\\`\` and \`<code>app://file/x.md</code>\` both render as literal text and are unclickable, defeating the deep-link feature entirely. The link / URL must sit as plain markdown so the renderer turns it into an anchor element. If you want to visually distinguish it, use bold/italic OUTSIDE the link: \`**[file](app://file/x.md)**\`, never inside any code span.`;
 
   const surfaceModeBlock = `## EDITING SURFACE — TWO MODES
 
