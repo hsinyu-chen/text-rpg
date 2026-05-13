@@ -337,7 +337,7 @@ export class FileAgentService {
     if (!result) return;
 
     if (mode === 'native' && ctx.accumulatedText) {
-      ctx.accumulatedText = sanitizeLatexToUnicode(ctx.accumulatedText);
+      ctx.accumulatedText = normalizeMessageLinks(sanitizeLatexToUnicode(ctx.accumulatedText));
       this.updateLogAt(ctx.currentLogIndex, e => ({ ...e, text: ctx.accumulatedText }));
     }
 
