@@ -19,6 +19,14 @@ import { getLocale } from '@app/core/constants/locales';
 import { AgentHintRegistry } from '@app/core/services/agent-hints/agent-hints.registry';
 import { normalizeMessageLinks } from './normalize-message-links.util';
 
+// ParsedAction args come through an `as unknown` cast — runtime shape isn't
+// guaranteed. Coerce non-string `message` payloads (hallucinated objects /
+// null / number) to '' before piping into sanitizeLatexToUnicode +
+// normalizeMessageLinks, both of which assume string input.
+function getStringArg(val: unknown): string {
+  return typeof val === 'string' ? val : '';
+}
+
 /**
  * Mutable per-turn context shared across phase helpers (stream consumer,
  * history-append, dispatch). Lives on the stack inside processAgentTurn.
@@ -547,11 +555,12 @@ export class FileAgentService {
       }
     }
 
-    // finishCall.action === 'submitResponse' narrows args to SubmitResponseArgs.
-    // typeof guard defends against LLM hallucinated non-string args (parseActionsFromOutput
-    // casts via `as unknown`, so the runtime shape is not guaranteed).
-    const rawToolMsg = finishCall.action === 'submitResponse' ? finishCall.args.message : '';
-    const toolMsg = typeof rawToolMsg === 'string' ? rawToolMsg : '';
+    // Process toolMsg through sanitize + normalize here; in native mode
+    // ctx.accumulatedText was already processed at processAgentTurn line ~340,
+    // so we don't re-run those on the merged result.
+    const toolMsg = finishCall.action === 'submitResponse'
+      ? normalizeMessageLinks(sanitizeLatexToUnicode(getStringArg(finishCall.args.message)))
+      : '';
     // In native mode, accumulatedText is genuine commentary that lives
     // alongside the structured function call — merge with toolMsg when both
     // are present and distinct. In JSON mode, accumulatedText IS the raw
@@ -569,7 +578,7 @@ export class FileAgentService {
       return toolMsg || '(no response)';
     })();
 
-    this.updateLogAt(ctx.currentLogIndex, e => ({ ...e, text: normalizeMessageLinks(finalMsg), isToolCall: false }));
+    this.updateLogAt(ctx.currentLogIndex, e => ({ ...e, text: finalMsg, isToolCall: false }));
     this.isAgentRunning.set(false);
   }
 
@@ -583,7 +592,7 @@ export class FileAgentService {
     a: ParsedAction, context: FileAgentContext, mode: 'native' | 'json', ctx: TurnContext
   ): Promise<void> {
     if (a.action === 'reportProgress') {
-      const message = normalizeMessageLinks(a.args.message || '');
+      const message = normalizeMessageLinks(sanitizeLatexToUnicode(getStringArg(a.args.message)));
       this.updateLogAt(ctx.currentLogIndex, e => ({ ...e, text: message, isToolCall: false }));
       this.appendToolResults([{ action: a, response: { status: 'acknowledged' } }], mode);
       await this.processAgentTurn(context);
@@ -641,7 +650,7 @@ export class FileAgentService {
 
     for (const a of actions) {
       if (a.action === 'reportProgress') {
-        const message = normalizeMessageLinks(a.args.message || '');
+        const message = normalizeMessageLinks(sanitizeLatexToUnicode(getStringArg(a.args.message)));
         this.agentLogs.update(logs => [...logs, { role: 'model', text: message, type: 'model' as const }]);
         executed.push({ action: a, response: { status: 'acknowledged' } });
         continue;

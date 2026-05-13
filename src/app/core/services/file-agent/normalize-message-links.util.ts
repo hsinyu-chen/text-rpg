@@ -1,4 +1,4 @@
-const GUID_RE = /(?<!app:\/\/message\/)(?<!\[)\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b(?!\])/g;
+const GUID_RE = /(?<!\/)(?<!\[)\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b(?!\])/g;
 const CONTEXT_RE = /訊息|message/i;
 
 /**

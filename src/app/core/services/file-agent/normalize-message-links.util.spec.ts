@@ -63,4 +63,12 @@ describe('normalizeMessageLinks', () => {
     expect(normalizeMessageLinks(`(see message ${G})`))
       .toBe(`(see message [${G}](app://message/${G}))`);
   });
+
+  it('skips GUIDs that are already part of any URL path', () => {
+    // Generic `(?<!/)` lookbehind protects every URL scheme, not just
+    // app://message/ — prevents nested-link mangling on a GUID-shaped
+    // segment inside app://file/ / app://hint/ / etc.
+    const text = `see message [foo](app://file/${G})`;
+    expect(normalizeMessageLinks(text)).toBe(text);
+  });
 });
