@@ -66,12 +66,14 @@
 -->
 <ng-template #agentPanelTpl>
     <div class="agent-panel-shell">
-        <div class="agent-panel-header">
-            <button mat-icon-button (click)="isAgentSidebarOpen.set(false)"
-                [matTooltip]="'ui.AGENT_PANEL_CLOSE' | translate">
-                <mat-icon>close</mat-icon>
-            </button>
-        </div>
+        @if (!panelState.pipActive()) {
+            <div class="agent-panel-header">
+                <button mat-icon-button (click)="isAgentSidebarOpen.set(false)"
+                    [matTooltip]="'ui.AGENT_PANEL_CLOSE' | translate">
+                    <mat-icon>close</mat-icon>
+                </button>
+            </div>
+        }
         <app-agent-console
             [files]="agentFiles()"
             [chatMessages]="state.messages()"
