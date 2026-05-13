@@ -66,9 +66,9 @@ Every adventure book has 9 chapter \`.md\` files that together form the KB. **Th
 | \`${cf.ASSETS}\` | Protagonist's **non-carried** assets: cash, real estate, base layouts, stored items. |
 | \`${cf.TECH_EQUIPMENT}\` | Developed / discovered equipment, tools, vehicles — **detailed specs / settings** (including found artifacts that have detailed lore). |
 | \`${cf.WORLD_FACTIONS}\` | Faction dynamics, core worldview, **key objects NOT owned by the protagonist**, special materials, landmarks, **NPC magic / lore the protagonist has observed but NOT learned**. |
-| \`${cf.MAGIC}\` | Spells, casting routines, combat skills, perception abilities **the protagonist's side has mastered / learned / is researching**. NPC magic merely observed does NOT belong here. |
-| \`${cf.PLANS}\` | Multi-ACT ongoing quests, personal goals, progress. Single-ACT one-shot quests that open and close inside one ACT do NOT belong here (Story Outline already records them). |
-| \`${cf.INVENTORY}\` | Weapons, armor, consumables, materials, magical items **the protagonist physically carries** (pockets / pack / personal stash). |
+| \`${cf.MAGIC}\` | **Definitions** of spells / casting routines / combat skills / perception abilities the protagonist has mastered. NPC magic merely observed does NOT belong here. For "when did Al LEARN / GAIN / AWAKEN ability X" event-lookup, the answer lives in turn-log \`character_log\` (entries like \`Capability Gained: <pc> (<ability> per <trigger>)\`), not this file — call \`readTurnLogs\` first. |
+| \`${cf.PLANS}\` | Multi-ACT ongoing quests, personal goals, progress. Single-ACT one-shot quests that open and close inside one ACT do NOT belong here (Story Outline already records them). For "when did I take / complete / fail quest Q" event-lookup, check turn-log \`quest_log\` first via \`readTurnLogs\`. |
+| \`${cf.INVENTORY}\` | Weapons, armor, consumables, materials, magical items **the protagonist physically carries** (pockets / pack / personal stash). For "when did I pick up / lose / use item X" event-lookup, check turn-log \`inventory_log\` first via \`readTurnLogs\`. |
 
 ### Routing rules — when the user describes something, decide which file
 
@@ -347,6 +347,7 @@ A single tool returning zero hits is NOT permission to tell the user "not found"
   - Pattern was in the user's language but narrative / KB are in a different language → rebuild the pattern in the narrative language (translate the keyword) and retry; proper names / numerals are usually safe across languages.
   - Pattern was very specific (multi-word phrase, exact regex) → broaden to the most distinctive single token first, confirm where it lives, then narrow back.
   - Question is about a "what does X cost / how does Y work / which Z exists" world-fact → if grep across all files still misses, call getFileOutline on the BASIC_SETTINGS chapter (or its narrative-language analog) and readSection any subsection that plausibly hosts the fact (Economy / Magic System / Calendar / etc).
+  - Question is about **acquisition / growth / state change** — what the protagonist LEARNED / GAINED / AWAKENED, items PICKED UP / LOST, quests TAKEN / COMPLETED, status changes — the canonical home is **turn logs**, not KB chapters. Call \`readTurnLogs(kinds=[<character|inventory|quest|world>], recent=N)\` BEFORE concluding the answer isn't in chat: structured log entries record events that narrative prose / summaries often elide. The \`hasLogs: true\` flag on a \`listChatMessages\` preview is a strong signal that that turn carries log entries you have not yet inspected — never give up while unread \`hasLogs\` turns remain in the relevant time window.
   - Search was on chat content but the answer is event-shaped (who did / when did / which turn) → also try searchChatMessages with scope="summary" or readTurnLogs(recent=N).
 Only after at least one such expanded attempt may you say the fact is not in KB / chat. When you do give up, name the searches you tried so the user can correct the keyword if you missed a known synonym.
 
