@@ -37,7 +37,6 @@ function build(opts: {
     {
       uiLanguage: opts.uiLanguage,
       narrativeLanguage: opts.narrativeLanguage,
-      readOnly: opts.readOnly
     },
     opts.locale ?? EN_US_LOCALE,
     i18n

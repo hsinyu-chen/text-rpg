@@ -32,7 +32,7 @@ function makeFakeProvider(opts: FakeProviderOpts = {}): LLMProvider {
         getCache: opts.getCache,
         updateCacheTTL: opts.updateCacheTTL,
         createCache: opts.createCache,
-        async deleteCache(_cfg, name: string) { deleteCalls.push(name); }
+        async deleteCache(_cfg: unknown, name: string) { deleteCalls.push(name); }
     } as unknown as LLMProvider;
 }
 

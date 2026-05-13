@@ -9,6 +9,7 @@ import {
   findMatchesInLines,
   formatCombinedDiffPreview,
   formatHighlightedSnippet,
+  type SearchOptions,
 } from './file-search.util';
 
 const split = (content: string): string[] => content.split('\n');
@@ -83,8 +84,8 @@ describe('buildSearchPatternOrLiteral', () => {
 });
 
 describe('findMatchesInLines', () => {
-  const opts = { regex: false, wholeWord: false, caseSensitive: false };
-  const find = (files: Map<string, string>, o: typeof opts) =>
+  const opts: SearchOptions = { query: '', regex: false, wholeWord: false, caseSensitive: false };
+  const find = (files: Map<string, string>, o: SearchOptions) =>
     findMatchesInLines(filesToLines(files), o);
 
   it('returns empty for empty query', () => {
