@@ -1,3 +1,12 @@
+import { FILE_AGENT_TOOLS } from './file-agent-tools';
+
+// Pipe-joined alternation of every registered file-agent tool name,
+// regex-escaped against accidental metacharacters in future tool names
+// (current set is identifier-shaped, but the escape future-proofs it).
+const TOOL_NAME_ALT = FILE_AGENT_TOOLS
+  .map(t => t.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  .join('|');
+
 // crypto.randomUUID() output shape — every chat message id matches this.
 const GUID_PATTERN = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}';
 
@@ -60,6 +69,28 @@ const INVALID_MSG_ID_LINK_RE = new RegExp(
   `\\[([^\\]]*)\\]\\(app:\\/\\/message\\/(?!${GUID_PATTERN})${URL_INNER}\\)`,
   'g'
 );
+
+// `[label](<known-toolname>{...})` — model wrote a native tool-call body
+// but packaged it inside a markdown link URL slot, missing the chat
+// template's opening `<|tool_call>` marker so the parser couldn't extract
+// it. The "URL" is not a URL at all; it's a stranded tool-call payload.
+// Constrained to the registered tool-name set so we never strip a
+// legitimate markdown link whose URL happens to contain `{`. Body uses
+// the same single-level-balanced-paren tolerance as `URL_INNER` so a
+// stringified arg value containing parens (filenames like `doc(v1).md`,
+// regex sources with grouping, etc.) doesn't terminate the match
+// prematurely and leave a residual fragment in the output.
+const LEAKED_TOOLCALL_LINK_RE = new RegExp(
+  `\\[([^\\]]*)\\]\\((?:${TOOL_NAME_ALT})\\{(?:[^()]|\\([^()]*\\))*\\)`,
+  'g'
+);
+
+// Gemma chat-template internal tokens. These wrap parts of the model's
+// generation stream (tool-call envelope, quote markers, turn boundaries)
+// and are never meant to reach user-visible content. When a small model
+// loses the rails it occasionally writes them as literal characters in
+// the response prose — strip on sight.
+const TEMPLATE_TOKEN_RE = /<\|"\|>|<\|tool_call>|<tool_call\|>|<\|tool_response>|<tool_response\|>|<\|channel>|<channel\|>|<\|think\|>|<\|turn>|<turn\|>|<\|tool>|<tool\|>|<bos>/g;
 
 // Consecutive (only spaces/tabs between) markdown links to the SAME app:// URL.
 const ADJ_DUP_RE = new RegExp(`\\[([^\\]]*)\\]\\((${URL_PATTERN})\\)[ \\t]*\\[([^\\]]*)\\]\\(\\2\\)`, 'g');
@@ -153,6 +184,32 @@ export function dropInvalidMessageLinks(text: string): string {
   return text.replace(INVALID_MSG_ID_LINK_RE, '$1');
 }
 
+/**
+ * Strip markdown links whose URL slot is actually a leaked native
+ * tool-call body — `[label](<known-toolname>{...})`. The model wrote
+ * the tool-call payload but missed the chat-template's opening
+ * `<|tool_call>` marker, so the parser couldn't extract it and the
+ * raw body dripped into content. Constrained to the registered tool
+ * name set to avoid touching legitimate links with `{` in their URL.
+ */
+export function stripLeakedToolCallLinks(text: string): string {
+  if (typeof text !== 'string') return '';
+  if (!text) return text;
+  return text.replace(LEAKED_TOOLCALL_LINK_RE, '$1');
+}
+
+/**
+ * Strip gemma chat-template internal tokens (e.g. `<|"|>`,
+ * `<|tool_call>`, `<tool_call|>`) that leaked into the response prose
+ * when the model lost format rails. These are never legitimate
+ * user-facing content.
+ */
+export function stripChatTemplateTokens(text: string): string {
+  if (typeof text !== 'string') return '';
+  if (!text) return text;
+  return text.replace(TEMPLATE_TOKEN_RE, '');
+}
+
 /** Replace `[](app://...)` empty-label links with a locale-appropriate label. */
 export function backfillEmptyLabels(text: string, labels: HarnessLabels = DEFAULT_LABELS): string {
   if (typeof text !== 'string') return '';
@@ -224,17 +281,25 @@ export function collapseAdjacentDuplicateLinks(text: string): string {
 /**
  * Single entry point for the file-agent service. Applies all harness
  * fallbacks in the right order:
- *   1. Rewrite known-misspelled schemes (e.g. `app://chat/<guid>` →
- *      `app://message/<guid>`) — must run FIRST so every downstream
- *      step operates on canonical URLs.
- *   2. Unwrap code-span-wrapped `app://` URLs (and bare GUIDs in code).
- *   3. Backfill empty `[](url)` labels.
- *   4. Relabel ugly links — bare-GUID labels, full-URL-as-label, or
+ *   1. Strip stray chat-template tokens (`<|"|>`, `<|tool_call>` etc).
+ *      Run FIRST so a partial leak like `[label](<|tool_call>toolname{...})`
+ *      gets its envelope marker removed BEFORE the tool-call-link scrubber
+ *      checks the URL slot — otherwise the scrubber wouldn't match (the
+ *      URL doesn't start with a known toolname) and a later token-strip
+ *      pass would strand a naked `[label](toolname{...})` in the output.
+ *   2. Strip leaked native tool-call markdown links —
+ *      `[label](toolname{...})` where toolname is a registered file-agent
+ *      tool. Now sees a clean URL slot thanks to step 1.
+ *   3. Rewrite known-misspelled schemes (e.g. `app://chat/<guid>` →
+ *      `app://message/<guid>`) so every downstream step sees canonical URLs.
+ *   4. Unwrap code-span-wrapped `app://` URLs (and bare GUIDs in code).
+ *   5. Backfill empty `[](url)` labels.
+ *   6. Relabel ugly links — bare-GUID labels, full-URL-as-label, or
  *      hallucinated `[https://…](app://…)` labels.
- *   5. Drop links whose `app://message/<id>` carries a non-GUID id —
+ *   7. Drop links whose `app://message/<id>` carries a non-GUID id —
  *      the URL is unclickable; keep the label as plain prose.
- *   6. Wrap bare message GUIDs (with surrounding-backtick strip).
- *   7. Collapse consecutive duplicates that the previous steps may have
+ *   8. Wrap bare message GUIDs (with surrounding-backtick strip).
+ *   9. Collapse consecutive duplicates that the previous steps may have
  *      produced when the model emitted overlapping forms (e.g. an empty
  *      stub followed by a backtick-wrapped bare URL pointing to the same
  *      message).
@@ -247,7 +312,14 @@ export function applyHarnessFallbacks(text: string, labels: HarnessLabels = DEFA
       dropInvalidMessageLinks(
         relabelUglyAppLinks(
           backfillEmptyLabels(
-            unwrapAppUrlCode(rewriteHallucinatedSchemes(text), labels),
+            unwrapAppUrlCode(
+              rewriteHallucinatedSchemes(
+                stripLeakedToolCallLinks(
+                  stripChatTemplateTokens(text)
+                )
+              ),
+              labels,
+            ),
             labels,
           ),
           labels,
