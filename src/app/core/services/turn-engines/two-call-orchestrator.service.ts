@@ -7,9 +7,7 @@ import { getResolverSchema, getNarratorSchema } from '@app/core/constants/engine
 import {
     IdealStrength,
     ResolverResponse,
-    SceneSnapshot,
-    interruptedAtStep,
-    isInterrupted
+    SceneSnapshot
 } from '@app/core/constants/engine-protocol-structured';
 import { formatResolverIntent, formatStructuredAnalysis } from './format-structured-analysis';
 import { normalizeAnalysis } from './normalize-structured-analysis';
@@ -193,6 +191,3 @@ export class TwoCallOrchestratorService {
         };
     }
 }
-
-// Re-export for tests / callers that need it directly.
-export { interruptedAtStep, isInterrupted };
