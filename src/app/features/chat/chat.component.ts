@@ -405,10 +405,12 @@ export class ChatComponent {
     // Breathing room between viewport top and message top — keeps the
     // toolbar comfortably off the edge.
     private static readonly JUMP_TOP_PADDING_PX = 16;
-    // Override window for [class.cv-revealed]. Covers worst-case smooth
-    // scroll (~1.1s) + spotlight hold (~2.1s) so layout doesn't re-skip
-    // mid-animation.
-    private static readonly CV_OVERRIDE_HOLD_MS = 3000;
+    // Override window for [class.cv-revealed] and the `jumpInProgress`
+    // guard. Must outlast stabilization + spotlight hold so the message
+    // never re-collapses (cv:auto would re-skip) and competing scroll
+    // paths (smartScroll, ResizeObserver bottom-pin) stay suppressed
+    // until the jump UX is fully done.
+    private static readonly CV_OVERRIDE_HOLD_MS = ChatComponent.SCROLL_STABILIZE_MAX_MS + SPOTLIGHT_HOLD_MS + 50;
     // Matches the `flash` keyframe duration in chat.component.scss.
     private static readonly FLASH_HOLD_MS = 2000;
 
@@ -424,6 +426,12 @@ export class ChatComponent {
     private cvTimerId: number | null = null;
     private spotlightTimerId: number | null = null;
     private spotlightRetargetTimerId: number | null = null;
+    // Aborts the previous stabilizeScroll call's listeners + handlers when
+    // a new jump starts. Without this, a rapid second jump leaves the
+    // first call's scrollend / wheel / touchstart / keydown listeners
+    // attached, so the first call's onStable fires on the wrong (now-
+    // stale) message id and stacks listeners on the scroll container.
+    private stabilizeAbort: AbortController | null = null;
 
     private findMessageElement(id: string): HTMLElement | null {
         const root = this.contentWrapper()?.nativeElement;
@@ -476,6 +484,13 @@ export class ChatComponent {
         messageEl: HTMLElement,
         onStable: () => void
     ): void {
+        // Abort any in-flight stabilization from a previous jump. This
+        // clears its listeners + timers in one shot so the stale call's
+        // scrollend / wheel handlers can't fire onStable on the wrong id.
+        this.stabilizeAbort?.abort();
+        const abortCtrl = new AbortController();
+        this.stabilizeAbort = abortCtrl;
+        const { signal } = abortCtrl;
         if (this.spotlightTimerId !== null) clearTimeout(this.spotlightTimerId);
         if (this.spotlightRetargetTimerId !== null) clearTimeout(this.spotlightRetargetTimerId);
         const TOLERANCE_PX = 4;
@@ -487,7 +502,6 @@ export class ChatComponent {
         const STABLE_BAND_PX = 8;
         const RETARGET_INTERVAL_MS = 100;
         let fired = false;
-        let aborted = false;
         let lastTarget = -1;
         const computeDesiredScrollTop = (): number => {
             const containerRect = scrollEl.getBoundingClientRect();
@@ -508,24 +522,21 @@ export class ChatComponent {
                 clearTimeout(this.spotlightRetargetTimerId);
                 this.spotlightRetargetTimerId = null;
             }
-            scrollEl.removeEventListener('scrollend', onScrollEnd);
-            scrollEl.removeEventListener('wheel', onUserAbort);
-            scrollEl.removeEventListener('touchstart', onUserAbort);
-            scrollEl.removeEventListener('keydown', onUserAbort);
+            abortCtrl.abort();
+            if (this.stabilizeAbort === abortCtrl) this.stabilizeAbort = null;
         };
         const fire = (): void => {
-            if (fired || aborted) return;
+            if (fired || signal.aborted) return;
             fired = true;
             cleanup();
             onStable();
         };
         const onUserAbort = (): void => {
-            if (fired || aborted) return;
-            aborted = true;
+            if (fired || signal.aborted) return;
             cleanup();
         };
         const onScrollEnd = (): void => {
-            if (fired || aborted) return;
+            if (fired || signal.aborted) return;
             const desired = computeDesiredScrollTop();
             const delta = desired - scrollEl.scrollTop;
             if (Math.abs(delta) <= TOLERANCE_PX) {
@@ -534,13 +545,13 @@ export class ChatComponent {
             }
             // Settled off-target (last-pixel cv:auto drift). One more
             // smooth pass; re-attach scrollend for the new animation.
-            scrollEl.addEventListener('scrollend', onScrollEnd, { once: true });
+            scrollEl.addEventListener('scrollend', onScrollEnd, { once: true, signal });
             smoothTo(desired);
         };
         const MAX_RETARGETS = 4;
         let retargetCount = 0;
         const retargetTick = (): void => {
-            if (fired || aborted) return;
+            if (fired || signal.aborted) return;
             const desired = computeDesiredScrollTop();
             const drift = Math.abs(desired - lastTarget);
             // Drift within the stable band → target has settled. Stop
@@ -557,12 +568,12 @@ export class ChatComponent {
         };
         smoothTo(computeDesiredScrollTop());
         this.spotlightRetargetTimerId = setTimeout(retargetTick, RETARGET_INTERVAL_MS) as unknown as number;
-        scrollEl.addEventListener('scrollend', onScrollEnd, { once: true });
-        scrollEl.addEventListener('wheel', onUserAbort, { passive: true });
-        scrollEl.addEventListener('touchstart', onUserAbort, { passive: true });
-        scrollEl.addEventListener('keydown', onUserAbort);
+        scrollEl.addEventListener('scrollend', onScrollEnd, { once: true, signal });
+        scrollEl.addEventListener('wheel', onUserAbort, { passive: true, signal });
+        scrollEl.addEventListener('touchstart', onUserAbort, { passive: true, signal });
+        scrollEl.addEventListener('keydown', onUserAbort, { signal });
         this.spotlightTimerId = setTimeout(() => {
-            if (fired || aborted) return;
+            if (fired || signal.aborted) return;
             const desired = computeDesiredScrollTop();
             if (Math.abs(desired - scrollEl.scrollTop) > TOLERANCE_PX) {
                 smoothTo(desired);
