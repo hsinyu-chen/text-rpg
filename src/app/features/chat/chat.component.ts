@@ -373,6 +373,11 @@ export class ChatComponent {
     // tick to materialize any just-rendered messages before we measure offsets
     // or query for #message-<id>.
     private static readonly JUMP_TO_MESSAGE_DELAY_MS = 50;
+    // How long to keep the inline `content-visibility: visible` override on
+    // a jumped-to message. Long enough to cover the smooth-scroll animation
+    // (~300-500ms) PLUS the spotlight hold (~2.1s) so layout doesn't re-skip
+    // mid-animation. Restored to the previous inline value once elapsed.
+    private static readonly CV_OVERRIDE_HOLD_MS = 3000;
 
     // Per-message-wrapper timer bookkeeping so rapid action-link clicks on
     // different messages don't race-strip each other's pinned class /
@@ -385,16 +390,22 @@ export class ChatComponent {
             const root = this.contentWrapper()?.nativeElement;
             const el = root?.querySelector<HTMLElement>(`#message-${CSS.escape(id)}`);
             if (!el) return;
-            // Off-screen model messages have `content-visibility: auto` which
-            // defers layout to a placeholder height (contain-intrinsic-size).
-            // scrollIntoView snaps to that placeholder offset — once the
-            // browser renders the real content the final offset differs and
-            // the target ends up off-screen. Re-scroll after two frames so
-            // the second snap lands on the laid-out element.
+            // Off-screen model messages have `content-visibility: auto` with
+            // contain-intrinsic-size:1200px. Without intervention, `scrollIntoView`
+            // computes the target offset against the placeholder bbox, kicks
+            // off a smooth scroll, then cancels mid-flight when cv:auto
+            // activates and the real bbox replaces the placeholder — net
+            // visible result is "nothing scrolled" until the user has
+            // activated the element once (e.g. by manual scrolling). Force
+            // cv:visible inline (wins over the class rule) and synchronously
+            // reflow so scrollIntoView reads the final laid-out bbox. Keep
+            // the override on for the spotlight duration so layout doesn't
+            // re-skip mid-animation.
+            const prevCv = el.style.contentVisibility;
+            el.style.contentVisibility = 'visible';
+            void el.offsetHeight;
             el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            requestAnimationFrame(() => requestAnimationFrame(() => {
-                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }));
+            setTimeout(() => { el.style.contentVisibility = prevCv; }, ChatComponent.CV_OVERRIDE_HOLD_MS);
             if (action) {
                 // Toolbar buttons are hidden until hover; force-show the
                 // toolbar for the spotlight duration so the user can both
