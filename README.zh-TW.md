@@ -37,7 +37,7 @@ TextRPG 是一個**本地優先 (Local-First)**、**自帶金鑰 (Bring Your Own
 ![任務完成與多 NPC 反應、狀態追蹤](images/2.png)
 ![自動世界更新 — 逐段差分審核](images/3.png)
 ![自動世界更新 — 完整檔案差分檢視](images/4.png)
-![內建 AI Agent 在獨立的 Picture-in-Picture 視窗中回答「我該怎麼存檔」](images/5.png)
+![內建 AI Agent 在獨立的 Picture-in-Picture 視窗中回答「故事裡 Luna 在哪則訊息給我目前的任務？她有提到獎勵嗎？」](images/5.png)
 
 ---
 
