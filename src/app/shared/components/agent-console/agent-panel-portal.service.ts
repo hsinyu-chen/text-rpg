@@ -179,6 +179,14 @@ export class AgentPanelPortalService {
     // the rules as fresh sheets in the PiP doc. Per-sheet try/catch:
     // one cross-origin sheet throwing SecurityError on cssRules access
     // must not drop the accessible same-origin sheets alongside it.
+    //
+    // KNOWN LIMITATION: this is a one-shot snapshot — there's no native
+    // way to observe adoptedStyleSheets mutations the way MutationObserver
+    // covers <style>/<link> below. Acceptable here because Angular Material
+    // (the only dynamic-style source in this app) ships its lazy-loaded
+    // component CSS as <style> tags, which the observer DOES mirror live.
+    // If a future toolchain dynamically pushes sheets onto adoptedStyleSheets
+    // after PiP open, those won't reach the PiP doc and styling will drift.
     const srcSheets = this.doc.adoptedStyleSheets;
     if (srcSheets?.length) {
       const pipCtor = (pipWin as Window & { CSSStyleSheet?: typeof CSSStyleSheet }).CSSStyleSheet;
