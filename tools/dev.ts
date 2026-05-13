@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 
 import { runOnce, startWatch } from '../prompts/tool/build-prompts';
 
@@ -11,6 +11,15 @@ if (initial.errors > 0) {
 }
 
 const closeWatcher = startWatch();
+
+const hintsResult = spawnSync('npx', ['tsx', 'tools/build-hints.ts'], {
+  stdio: 'inherit',
+  shell: true,
+});
+if (hintsResult.status !== 0) {
+  process.stderr.write('hints:build failed — aborting dev start.\n');
+  process.exit(1);
+}
 
 const child = spawn('ng', ['serve', ...ngArgs], {
   stdio: 'inherit',
