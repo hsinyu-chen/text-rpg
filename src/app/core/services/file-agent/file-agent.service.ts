@@ -217,7 +217,12 @@ export class FileAgentService {
       const modelId = profile.settings.modelId || provider.getDefaultModelId();
       try {
         const models = await Promise.resolve(provider.getAvailableModels(profile.settings));
-        const model = models.find(m => m.id === modelId);
+        // Single-model providers (llama.cpp) probe /props and return one entry
+        // whose id is the loaded GGUF's model_alias — which usually does NOT
+        // match a user-typed (or empty / 'local-model') profile.settings.modelId.
+        // Fall back to models[0] so the probe's contextSize still surfaces.
+        const model = models.find(m => m.id === modelId)
+          ?? (models.length === 1 ? models[0] : null);
         if (model?.contextSize) size = model.contextSize;
       } catch (e) {
         console.warn("Failed to fetch models for context size", e);
