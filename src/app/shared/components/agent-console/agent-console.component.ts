@@ -212,23 +212,29 @@ export class AgentConsoleComponent implements OnDestroy {
     const prompt = this.agentPrompt().trim();
     if (!prompt) return;
     this.agentPrompt.set('');
-    // When an external editing surface (file-viewer's Monaco buffer) has
-    // registered an edit channel, route ALL reads and writes through it —
-    // the agent then sees that surface's live unsaved buffer and edits
-    // accumulate there, letting the surface's own Save flow persist them.
-    // No channel ⇒ fall back to the caller-supplied files Map (file-viewer's
-    // own internal panel passes its data.files; chat-side is read-only).
+    // Writable runs require a registered edit channel (file-viewer's Monaco
+    // buffer); read/write both route through it so the surface's own Save flow
+    // remains the single persistence path. The chat-side panel is `readOnly`
+    // when no channel is registered, so the executor never invokes write tools
+    // and we never reach the no-channel branch here.
     //
     // onFileReplaced re-reads the channel at write time, not at turn-start:
-    // the file-viewer can close mid-stream, and writes against a stale
-    // captured channel would silently land in an orphaned buffer.
+    // if the file-viewer closes mid-stream the captured reference goes stale,
+    // and writing through it lands in an orphaned buffer. Channel-vanished
+    // mid-stream ⇒ drop the write (with a warning) rather than fall through
+    // to `this.files().set(...)`, which would mutate the engine's live
+    // loadedFiles map directly — bypassing Monaco, the unsaved-flag, and the
+    // Save → IndexedDB flow.
     const channelAtStart = this.panelState.editChannel();
     await this.agentService.runAgent(prompt, {
       files: channelAtStart ? channelAtStart.read() : this.files(),
       onFileReplaced: (filename, content) => {
         const live = this.panelState.editChannel();
-        if (live) live.write(filename, content);
-        else this.files().set(filename, content);
+        if (live) {
+          live.write(filename, content);
+        } else {
+          console.warn('[agent-console] edit channel disappeared mid-stream; dropping write to', filename, `(${content.length} chars)`);
+        }
       },
       chatMessages: this.chatMessages(),
       uiLanguage: this.i18n.currentLang(),

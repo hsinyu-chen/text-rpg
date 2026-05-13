@@ -203,8 +203,11 @@
             }
         </div>
 
-        <!-- Agent Panel (toggle from header) -->
-        @if (isAgentPanelOpen()) {
+        <!-- Agent Panel (toggle from header). Hidden while the chat-side PiP
+             window is up — the PiP is the same service instance, and rendering
+             both at once leaves this surface unreachable (the toggle button is
+             also hidden in PiP mode, so nothing here could be closed). -->
+        @if (isAgentPanelOpen() && !panelState.pipActive()) {
             <div class="agent-panel" (click)="$event.stopPropagation()"
                 (keydown)="$event.stopPropagation()" tabindex="-1">
                 <app-agent-console
