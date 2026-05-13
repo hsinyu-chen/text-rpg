@@ -50,4 +50,17 @@ describe('normalizeMessageLinks', () => {
   it('returns empty / undefined input unchanged', () => {
     expect(normalizeMessageLinks('')).toBe('');
   });
+
+  it('returns empty string for non-string input (LLM hallucinated arg)', () => {
+    // Defends against parseActionsFromOutput casting via `as unknown` —
+    // the runtime arg shape is not guaranteed.
+    expect(normalizeMessageLinks(undefined as unknown as string)).toBe('');
+    expect(normalizeMessageLinks(null as unknown as string)).toBe('');
+    expect(normalizeMessageLinks({ text: G } as unknown as string)).toBe('');
+  });
+
+  it('wraps a GUID inside parentheses on a qualifying line', () => {
+    expect(normalizeMessageLinks(`(see message ${G})`))
+      .toBe(`(see message [${G}](app://message/${G}))`);
+  });
 });

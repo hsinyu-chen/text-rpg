@@ -548,7 +548,10 @@ export class FileAgentService {
     }
 
     // finishCall.action === 'submitResponse' narrows args to SubmitResponseArgs.
-    const toolMsg = (finishCall.action === 'submitResponse' ? (finishCall.args.message ?? '') : '');
+    // typeof guard defends against LLM hallucinated non-string args (parseActionsFromOutput
+    // casts via `as unknown`, so the runtime shape is not guaranteed).
+    const rawToolMsg = finishCall.action === 'submitResponse' ? finishCall.args.message : '';
+    const toolMsg = typeof rawToolMsg === 'string' ? rawToolMsg : '';
     // In native mode, accumulatedText is genuine commentary that lives
     // alongside the structured function call — merge with toolMsg when both
     // are present and distinct. In JSON mode, accumulatedText IS the raw

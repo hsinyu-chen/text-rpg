@@ -1,4 +1,4 @@
-const GUID_RE = /(?<!app:\/\/message\/)(?<!\[)\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b(?!\]|\))/g;
+const GUID_RE = /(?<!app:\/\/message\/)(?<!\[)\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b(?!\])/g;
 const CONTEXT_RE = /訊息|message/i;
 
 /**
@@ -10,6 +10,7 @@ const CONTEXT_RE = /訊息|message/i;
  * link or after `app://message/`.
  */
 export function normalizeMessageLinks(text: string): string {
+  if (typeof text !== 'string') return '';
   if (!text) return text;
   return text.split('\n').map(line => {
     if (!CONTEXT_RE.test(line)) return line;
