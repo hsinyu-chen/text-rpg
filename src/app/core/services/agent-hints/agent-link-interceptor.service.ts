@@ -51,43 +51,55 @@ export class AgentLinkInterceptor {
     const scheme = segments[0];
     const tail = segments.slice(1);
 
-    switch (scheme) {
-      case 'hint': {
-        // Decode each segment individually rather than joining first: a path
-        // segment that itself contains an encoded `/` (e.g. `%2F`) would
-        // collapse into the path delimiter if we decoded after the join.
-        // file/message schemes use the same encoding contract.
-        const path = tail.map(s => decodeURIComponent(s)).join('/');
-        const action = this.parseAction(query);
-        this.registry.openTarget(path, action);
-        return true;
-      }
-      case 'message': {
-        if (tail.length < 1 || tail.length > 2) {
-          this.toast('agentHint.toast.messageIdRequired', { url });
+    // decodeURIComponent throws URIError on malformed `%`-sequences (e.g.
+    // `%` not followed by two hex chars). The agent emits these URLs from
+    // markdown, so any garbled link reaches us as input — wrap the whole
+    // dispatch path once instead of guarding each call site.
+    try {
+      switch (scheme) {
+        case 'hint': {
+          // Decode each segment individually rather than joining first: a
+          // path segment that itself contains an encoded `/` (e.g. `%2F`)
+          // would collapse into the path delimiter if we decoded after
+          // the join. file/message schemes use the same encoding contract.
+          const path = tail.map(s => decodeURIComponent(s)).join('/');
+          const action = this.parseAction(query);
+          this.registry.openTarget(path, action);
           return true;
         }
-        const id = decodeURIComponent(tail[0]);
-        const action = tail.length === 2 ? decodeURIComponent(tail[1]) : null;
-        this.jumper.jumpTo(id, action);
-        return true;
-      }
-      case 'file': {
-        const filename = decodeURIComponent(tail.join('/'));
-        const files = this.state.loadedFiles();
-        if (!files.has(filename)) {
-          this.toast('agentHint.toast.fileNotFound', { filename });
+        case 'message': {
+          if (tail.length < 1 || tail.length > 2) {
+            this.toast('agentHint.toast.messageIdRequired', { url });
+            return true;
+          }
+          const id = decodeURIComponent(tail[0]);
+          const action = tail.length === 2 ? decodeURIComponent(tail[1]) : null;
+          this.jumper.jumpTo(id, action);
           return true;
         }
-        this.fileViewerOpener.open({
-          files: new Map(files),
-          initialFile: filename,
-        });
+        case 'file': {
+          const filename = decodeURIComponent(tail.join('/'));
+          const files = this.state.loadedFiles();
+          if (!files.has(filename)) {
+            this.toast('agentHint.toast.fileNotFound', { filename });
+            return true;
+          }
+          this.fileViewerOpener.open({
+            files: new Map(files),
+            initialFile: filename,
+          });
+          return true;
+        }
+        default:
+          this.toast('agentHint.toast.unknownScheme', { scheme });
+          return true;
+      }
+    } catch (e) {
+      if (e instanceof URIError) {
+        this.toast('agentHint.toast.invalidUrl', { url });
         return true;
       }
-      default:
-        this.toast('agentHint.toast.unknownScheme', { scheme });
-        return true;
+      throw e;
     }
   }
 

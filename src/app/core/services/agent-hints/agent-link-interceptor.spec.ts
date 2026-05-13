@@ -143,4 +143,18 @@ describe('AgentLinkInterceptor.dispatch', () => {
     expect(interceptor.dispatch('app://hint')).toBe(true);
     expect(snackBar.open).toHaveBeenCalled();
   });
+
+  it('toasts (not throws) on malformed percent-encoding in any scheme', () => {
+    const { interceptor, snackBar, jumper, registry, fileViewerOpener } = setup(new Map([['x.md', '']]));
+    // `%` with no hex digits triggers URIError in decodeURIComponent.
+    for (const url of ['app://hint/foo%', 'app://message/abc%', 'app://file/x%.md']) {
+      expect(() => interceptor.dispatch(url)).not.toThrow();
+    }
+    // All three should have surfaced an invalidUrl toast without firing
+    // their action handlers.
+    expect(snackBar.open).toHaveBeenCalled();
+    expect(registry.openTarget).not.toHaveBeenCalled();
+    expect(jumper.request()).toBeNull();
+    expect(fileViewerOpener.open).not.toHaveBeenCalled();
+  });
 });
