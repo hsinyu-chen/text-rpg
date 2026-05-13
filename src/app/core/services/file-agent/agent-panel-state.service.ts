@@ -30,6 +30,11 @@ export interface AgentEditChannel {
 export class AgentPanelStateService {
   readonly pipActive = signal(false);
   readonly editChannel = signal<AgentEditChannel | null>(null);
+  // Lifetime-stable counter for dev-bridge prompt fills. Stored here (not on
+  // agent-console) because the component is destroyed/recreated on every
+  // panel toggle, which would reset a local counter to 0 and re-fire any
+  // pending non-null fill request from a previous session.
+  lastFillTick = 0;
 
   registerEditChannel(channel: AgentEditChannel): () => void {
     if (this.editChannel()) {

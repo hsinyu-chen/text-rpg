@@ -234,32 +234,6 @@ markdown {
     }
 }
 
-/* Agent hint flash — applied by AgentHintRegistry.openTarget when an agent
-   link asks to scroll/flash a UI element. Uses `outline` (not box-shadow)
-   so the highlight isn't clipped when the target lives inside a container
-   with overflow:hidden / nested scroll area. Adds a subtle background pulse
-   for extra visibility. Material primary color via system token. */
-@keyframes agent-hint-flash {
-    0%, 100% {
-        outline-color: transparent;
-        background-color: transparent;
-    }
-    15%, 65% {
-        outline-color: var(--mat-sys-primary, #ff4081);
-        background-color: rgba(255, 64, 129, 0.18);
-    }
-    40% {
-        outline-color: transparent;
-        background-color: transparent;
-    }
-}
-
-.agent-hint-flash {
-    outline: 3px solid transparent;
-    outline-offset: 2px;
-    animation: agent-hint-flash 2s ease-out;
-}
-
 // Spotlight overlay: a transparent box anchored at the target's bbox; its
 // huge outset box-shadow paints the rest of the viewport semi-opaque so a
 // small button stands out as a bright "hole". Uses popover="manual" to live

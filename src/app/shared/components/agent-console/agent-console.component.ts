@@ -158,11 +158,14 @@ export class AgentConsoleComponent implements OnDestroy {
 
     // Dev-bridge fill driver: tick-keyed, fires only on new requests so
     // the initial null + page reloads don't auto-replay a stale prompt.
-    let lastFillTick = 0;
+    // The tick lives on AgentPanelStateService (lifetime-stable) — this
+    // component is destroyed/recreated on every panel toggle, so a local
+    // counter would reset to 0 and replay a pre-existing fill request on
+    // every reopen.
     effect(() => {
       const req = this.externalFillRequest();
-      if (!req || req.tick === lastFillTick) return;
-      lastFillTick = req.tick;
+      if (!req || req.tick === this.panelState.lastFillTick) return;
+      this.panelState.lastFillTick = req.tick;
       this.agentPrompt.set(req.prompt);
       if (req.autoSend && !this.agentService.isAgentRunning()) {
         void this.runAgent();

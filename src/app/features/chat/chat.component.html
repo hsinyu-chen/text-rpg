@@ -50,21 +50,16 @@
 </mat-sidenav-container>
 
 <!--
-    Agent panel rendered via CDK Overlay portal. Was previously a nested
-    mat-sidenav 5 layers deep — each mat-sidenav-container sets z-index:1,
-    so no inner z-index could win against cdk-overlay-container (z:1000)
-    at body level. Mounting through Overlay places the panel inside
-    cdk-overlay-container itself; its panelClass `.agent-side-overlay`
-    sets z-index above sibling dialog panes.
+    Agent panel rendered out-of-tree by chat.component.ts: prefers the
+    Document Picture-in-Picture API (Chrome 116+) — separate window, its
+    own top-layer scope, no z-index fights with main-app dialogs. Falls
+    back to a body-portal <div popover="manual"> for browsers without
+    PiP. CDK Overlay was rejected because CDK 19+ uses native popover,
+    where top-layer ordering ignores z-index (last-shown wins).
 
-    Lazy-mount the inner agent-console: app boot eagerly renders
-    chat.component, and an eager <app-agent-console> would inject
-    FileAgentService before the LLM provider registry has finished
-    registering probe hooks. The @if defers construction to first open;
-    closing then doesn't unmount because the template stays attached
-    while the overlay is open. Re-opens reuse the same instance because
-    FileAgentService is provided at chat.component scope, so the agent
-    log + history survive the overlay detach/attach cycle.
+    The template lives here so the agent-console instance is owned by
+    chat.component's injector: FileAgentService is provided at this
+    scope, so the agent log + history survive panel toggles.
 -->
 <ng-template #agentPanelTpl>
     <div class="agent-panel-shell">

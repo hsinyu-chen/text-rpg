@@ -214,10 +214,17 @@ export class ChatComponent {
         });
     }
 
+    // Generation token: every mount/unmount bumps this. Async PiP open
+    // (`requestWindow` awaits a user gesture / permission grant) checks the
+    // token after resume; if it changed (panel was closed during the await),
+    // the open path aborts cleanly instead of attaching a zombie window.
+    private mountGeneration = 0;
+
     private mountAgentPanel(): void {
         if (this.agentPanelView || this.agentPipWin) return;
         const tpl = this.agentPanelTpl();
         if (!tpl) return;
+        const gen = ++this.mountGeneration;
         this.agentPanelView = this.viewContainerRef.createEmbeddedView(tpl);
         this.agentPanelView.detectChanges();
         const rootNodes = this.agentPanelView.rootNodes as Node[];
@@ -232,7 +239,7 @@ export class ChatComponent {
             documentPictureInPicture?: { requestWindow: (opts: { width?: number; height?: number }) => Promise<Window> };
         } | null)?.documentPictureInPicture;
         if (pipApi) {
-            void this.openInPip(pipApi, rootNodes);
+            void this.openInPip(pipApi, rootNodes, gen);
         } else {
             this.openInBodyPortal(rootNodes);
         }
@@ -241,13 +248,22 @@ export class ChatComponent {
     private async openInPip(
         api: { requestWindow: (opts: { width?: number; height?: number }) => Promise<Window> },
         rootNodes: Node[],
+        gen: number,
     ): Promise<void> {
         let pipWin: Window;
         try {
             pipWin = await api.requestWindow({ width: 480, height: 720 });
         } catch {
-            // user denied / call rejected (e.g. no user gesture) — fall back
+            // user denied / call rejected (e.g. no user gesture) — fall back,
+            // but only if the user hasn't already closed the panel mid-await.
+            if (gen !== this.mountGeneration) return;
             this.openInBodyPortal(rootNodes);
+            return;
+        }
+        // Panel was closed (and view destroyed) during the requestWindow await.
+        // Discard the now-stale window instead of attaching detached DOM to it.
+        if (gen !== this.mountGeneration) {
+            try { pipWin.close(); } catch { /* already closed */ }
             return;
         }
         // Copy stylesheets so Material / app styles take effect in the PiP doc.
@@ -299,6 +315,8 @@ export class ChatComponent {
     }
 
     private unmountAgentPanel(): void {
+        // Invalidate any in-flight openInPip awaiting requestWindow.
+        this.mountGeneration++;
         this.uninstallAgentPanelPromoter();
         this.panelState.pipActive.set(false);
         if (this.agentPipWin) {
