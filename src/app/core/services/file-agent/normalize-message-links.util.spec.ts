@@ -6,6 +6,8 @@ import {
   relabelUglyAppLinks,
   rewriteHallucinatedSchemes,
   dropInvalidMessageLinks,
+  stripLeakedToolCallLinks,
+  stripChatTemplateTokens,
   collapseAdjacentDuplicateLinks,
   applyHarnessFallbacks,
 } from './normalize-message-links.util';
@@ -184,6 +186,58 @@ describe('rewriteHallucinatedSchemes', () => {
 
   it('returns empty string for non-string input', () => {
     expect(rewriteHallucinatedSchemes(undefined as unknown as string)).toBe('');
+  });
+});
+
+describe('stripLeakedToolCallLinks', () => {
+  it('strips a leaked submitResponse tool-call body, keeping the label', () => {
+    // Real leak observed in production: model packs a native tool-call body
+    // into the URL slot of a markdown link.
+    const input = '我覺得[研究完成](submitResponse{message:"answer"}) 結束';
+    expect(stripLeakedToolCallLinks(input)).toBe('我覺得研究完成 結束');
+  });
+
+  it('strips a leaked readTurnLogs body', () => {
+    expect(stripLeakedToolCallLinks('see [link](readTurnLogs{kinds:["character"]})'))
+      .toBe('see link');
+  });
+
+  it('does NOT strip a markdown link whose URL is a real app:// scheme', () => {
+    const G = 'a1b2c3d4-e5f6-7890-abcd-ef0123456789';
+    const text = `see [the message](app://message/${G})`;
+    expect(stripLeakedToolCallLinks(text)).toBe(text);
+  });
+
+  it('does NOT strip a link to an unknown function name (not a registered tool)', () => {
+    // Safety net: limiting to KNOWN tool names prevents accidental
+    // stripping of legitimate URLs that happen to start with `word{`.
+    const text = 'see [doc](someUnknownFunc{x:1})';
+    expect(stripLeakedToolCallLinks(text)).toBe(text);
+  });
+
+  it('returns empty string for non-string input', () => {
+    expect(stripLeakedToolCallLinks(undefined as unknown as string)).toBe('');
+  });
+});
+
+describe('stripChatTemplateTokens', () => {
+  it('strips bare quote token <|"|> from prose', () => {
+    expect(stripChatTemplateTokens('value: <|"|>hello<|"|> end'))
+      .toBe('value: hello end');
+  });
+
+  it('strips tool-call envelope markers', () => {
+    expect(stripChatTemplateTokens('text <|tool_call>name{}<tool_call|> more'))
+      .toBe('text name{} more');
+  });
+
+  it('leaves regular angle-bracket prose alone', () => {
+    const text = 'see <a href="x">link</a> in HTML';
+    expect(stripChatTemplateTokens(text)).toBe(text);
+  });
+
+  it('returns empty string for non-string input', () => {
+    expect(stripChatTemplateTokens(null as unknown as string)).toBe('');
   });
 });
 
