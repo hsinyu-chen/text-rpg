@@ -41,8 +41,7 @@ const SRC_ROOT = 'src';
 const TEMPLATE_SUFFIX = '.component.html';
 const OUTPUT = 'src/app/core/services/agent-hints/agent-hints.manifest.generated.ts';
 const BASE_FILE = 'src/app/core/services/agent-hints/agent-hints.manifest.base.ts';
-const EN_DICT = 'src/app/core/i18n/dictionaries/en.ts';
-const ZHTW_DICT = 'src/app/core/i18n/dictionaries/zh-tw.ts';
+const DICT_DIR = 'src/app/core/i18n/dictionaries';
 
 const warnings: string[] = [];
 function warn(message: string): void {
@@ -193,32 +192,48 @@ async function loadBasePaths(): Promise<Map<string, boolean>> {
 }
 
 async function checkI18nKeys(paths: string[]): Promise<void> {
-  const enDict = await loadDict(EN_DICT, 'en');
-  const zhDict = await loadDict(ZHTW_DICT, 'zhTW');
+  const dicts = await loadAllDicts();
   for (const path of paths) {
     const segs = ['agentHint', ...path.split('/')];
-    for (const [lang, dict] of [['en', enDict], ['zh-tw', zhDict]] as const) {
+    const dotted = path.replace(/\//g, '.');
+    for (const { label, dict } of dicts) {
       const node = walkDict(dict, segs);
       if (!node || typeof node !== 'object') {
-        warn(`[i18n] ${lang} missing entry: agentHint.${path.replace(/\//g, '.')}`);
+        warn(`[i18n] ${label} missing entry: agentHint.${dotted}`);
         continue;
       }
       const entry = (node as Record<string, unknown>).self ?? node;
       const e = entry as Record<string, unknown>;
-      if (typeof e.name !== 'string') warn(`[i18n] ${lang} missing .name at agentHint.${path.replace(/\//g, '.')}`);
-      if (typeof e.description !== 'string') warn(`[i18n] ${lang} missing .description at agentHint.${path.replace(/\//g, '.')}`);
+      if (typeof e.name !== 'string') warn(`[i18n] ${label} missing .name at agentHint.${dotted}`);
+      if (typeof e.description !== 'string') warn(`[i18n] ${label} missing .description at agentHint.${dotted}`);
     }
   }
 }
 
-async function loadDict(relPath: string, exportName: string): Promise<Record<string, unknown> | null> {
-  const full = resolve(repoRoot, relPath);
-  if (!existsSync(full)) {
-    warn(`[i18n] dictionary not found: ${relPath} — skipping check`);
-    return null;
+/**
+ * Pick up every `*.ts` file under `dictionaries/` and identify the dict
+ * export by shape (the first exported object containing `agentHint`).
+ * Adding a new locale = drop a file in the dir; no edit here required.
+ */
+async function loadAllDicts(): Promise<{ label: string; dict: Record<string, unknown> }[]> {
+  const dictDir = resolve(repoRoot, DICT_DIR);
+  if (!existsSync(dictDir)) {
+    warn(`[i18n] dictionary dir not found: ${DICT_DIR} — skipping check`);
+    return [];
   }
-  const mod = await import(pathToFileURL(full).href);
-  return (mod[exportName] as Record<string, unknown>) ?? null;
+  const files = readdirSync(dictDir, { withFileTypes: true })
+    .filter((d) => d.isFile() && d.name.endsWith('.ts') && !d.name.endsWith('.spec.ts'));
+  const out: { label: string; dict: Record<string, unknown> }[] = [];
+  for (const f of files) {
+    const mod = await import(pathToFileURL(resolve(dictDir, f.name)).href);
+    for (const exp of Object.values(mod)) {
+      if (exp && typeof exp === 'object' && 'agentHint' in (exp as Record<string, unknown>)) {
+        out.push({ label: f.name.replace(/\.ts$/, ''), dict: exp as Record<string, unknown> });
+        break;
+      }
+    }
+  }
+  return out;
 }
 
 function walkDict(dict: Record<string, unknown> | null, segs: string[]): unknown {
