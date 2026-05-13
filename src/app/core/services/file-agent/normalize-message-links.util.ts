@@ -36,6 +36,30 @@ const EMPTY_LABEL_LINK_RE = new RegExp(`\\[\\]\\((${URL_PATTERN})\\)`, 'g');
 // the point of a link. Replace with the locale-aware label.
 const GUID_LABELED_MSG_RE = new RegExp(`\\[(${GUID_PATTERN})\\]\\((app:\\/\\/message\\/${URL_INNER})\\)`, 'g');
 const URL_LABELED_APP_RE = new RegExp(`\\[(${URL_PATTERN})\\]\\((${URL_PATTERN})\\)`, 'g');
+// `[https://anyhost/...](app://...)` — small models occasionally emit a
+// fabricated HTTP URL as the visible label for a valid app:// link (e.g.
+// "https://app.com/message/<id>" pasted as label). The URL is real but the
+// label is a hallucination that looks like a clickable destination, which
+// misleads users. Relabel via labelFor so the rendered text uses the
+// locale-correct default (file name / message label / hint last-segment).
+const HTTP_LABELED_APP_RE = new RegExp(`\\[(https?:\\/\\/[^\\]\\s]+)\\]\\((${URL_PATTERN})\\)`, 'g');
+// `app://chat/<GUID>` — unambiguous hallucination of the canonical
+// `app://message/<GUID>` scheme. No `chat` scheme is registered with
+// agent-link-interceptor (only message / file / hint), and no real
+// hint path starts with a bare GUID — every real `chat*` hint segment
+// is `chat-input` / `chat-message` / `chat-config` under `app://hint/`,
+// so anchoring the rewrite on the GUID shape rules out any collision.
+const MISSPELLED_CHAT_SCHEME_RE = new RegExp(`app:\\/\\/chat\\/(${GUID_PATTERN})`, 'g');
+// `[label](app://message/<non-GUID>)` — model invented an id that isn't
+// a real chat-message GUID (e.g. tool names like "submitResponse",
+// short slugs). The link is unclickable garbage; strip the URL and
+// keep the label as plain text so prose still reads cleanly. Anchored
+// on GUID NEGATION so legitimate id/<action> forms aren't touched —
+// only links whose first segment is NOT a GUID.
+const INVALID_MSG_ID_LINK_RE = new RegExp(
+  `\\[([^\\]]*)\\]\\(app:\\/\\/message\\/(?!${GUID_PATTERN})${URL_INNER}\\)`,
+  'g'
+);
 
 // Consecutive (only spaces/tabs between) markdown links to the SAME app:// URL.
 const ADJ_DUP_RE = new RegExp(`\\[([^\\]]*)\\]\\((${URL_PATTERN})\\)[ \\t]*\\[([^\\]]*)\\]\\(\\2\\)`, 'g');
@@ -100,7 +124,33 @@ export function relabelUglyAppLinks(text: string, labels: HarnessLabels = DEFAUL
   if (!text) return text;
   return text
     .replace(GUID_LABELED_MSG_RE, (_, _guid: string, url: string) => `[${labelFor(url, labels)}](${url})`)
-    .replace(URL_LABELED_APP_RE,  (_, _labelUrl: string, url: string) => `[${labelFor(url, labels)}](${url})`);
+    .replace(URL_LABELED_APP_RE,  (_, _labelUrl: string, url: string) => `[${labelFor(url, labels)}](${url})`)
+    .replace(HTTP_LABELED_APP_RE, (_, _labelUrl: string, url: string) => `[${labelFor(url, labels)}](${url})`);
+}
+
+/**
+ * Rewrite known-misspelled `app://` schemes to their canonical form.
+ * Small models sometimes emit `app://chat/<guid>` when they meant
+ * `app://message/<guid>` — same id shape, different (non-registered)
+ * scheme name. Run BEFORE any label-based rewrite so the rest of the
+ * pipeline operates on canonical URLs.
+ */
+export function rewriteHallucinatedSchemes(text: string): string {
+  if (typeof text !== 'string') return '';
+  if (!text) return text;
+  return text.replace(MISSPELLED_CHAT_SCHEME_RE, 'app://message/$1');
+}
+
+/**
+ * Strip `app://message/<non-GUID>` links — the model invented an id that
+ * isn't a real chat-message UUID (e.g. a tool name like "submitResponse",
+ * a short slug, an English word). Keep the label as plain text so prose
+ * still reads cleanly; the broken click target is gone.
+ */
+export function dropInvalidMessageLinks(text: string): string {
+  if (typeof text !== 'string') return '';
+  if (!text) return text;
+  return text.replace(INVALID_MSG_ID_LINK_RE, '$1');
 }
 
 /** Replace `[](app://...)` empty-label links with a locale-appropriate label. */
@@ -174,11 +224,17 @@ export function collapseAdjacentDuplicateLinks(text: string): string {
 /**
  * Single entry point for the file-agent service. Applies all harness
  * fallbacks in the right order:
- *   1. Unwrap code-span-wrapped `app://` URLs (and bare GUIDs in code).
- *   2. Backfill empty `[](url)` labels.
- *   3. Relabel ugly links — bare-GUID labels or full-URL-as-label.
- *   4. Wrap bare message GUIDs (with surrounding-backtick strip).
- *   5. Collapse consecutive duplicates that the previous steps may have
+ *   1. Rewrite known-misspelled schemes (e.g. `app://chat/<guid>` →
+ *      `app://message/<guid>`) — must run FIRST so every downstream
+ *      step operates on canonical URLs.
+ *   2. Unwrap code-span-wrapped `app://` URLs (and bare GUIDs in code).
+ *   3. Backfill empty `[](url)` labels.
+ *   4. Relabel ugly links — bare-GUID labels, full-URL-as-label, or
+ *      hallucinated `[https://…](app://…)` labels.
+ *   5. Drop links whose `app://message/<id>` carries a non-GUID id —
+ *      the URL is unclickable; keep the label as plain prose.
+ *   6. Wrap bare message GUIDs (with surrounding-backtick strip).
+ *   7. Collapse consecutive duplicates that the previous steps may have
  *      produced when the model emitted overlapping forms (e.g. an empty
  *      stub followed by a backtick-wrapped bare URL pointing to the same
  *      message).
@@ -188,12 +244,14 @@ export function applyHarnessFallbacks(text: string, labels: HarnessLabels = DEFA
   if (!text) return text;
   return collapseAdjacentDuplicateLinks(
     normalizeMessageLinks(
-      relabelUglyAppLinks(
-        backfillEmptyLabels(
-          unwrapAppUrlCode(text, labels),
+      dropInvalidMessageLinks(
+        relabelUglyAppLinks(
+          backfillEmptyLabels(
+            unwrapAppUrlCode(rewriteHallucinatedSchemes(text), labels),
+            labels,
+          ),
           labels,
         ),
-        labels,
       ),
       labels,
     ),

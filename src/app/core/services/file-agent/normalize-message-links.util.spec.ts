@@ -4,6 +4,8 @@ import {
   unwrapAppUrlCode,
   backfillEmptyLabels,
   relabelUglyAppLinks,
+  rewriteHallucinatedSchemes,
+  dropInvalidMessageLinks,
   collapseAdjacentDuplicateLinks,
   applyHarnessFallbacks,
 } from './normalize-message-links.util';
@@ -148,6 +150,61 @@ describe('relabelUglyAppLinks', () => {
   it('handles a GUID label whose URL points to a different message id', () => {
     expect(relabelUglyAppLinks(`look at [${G}](app://message/${G2})`, EN))
       .toBe(`look at [message link](app://message/${G2})`);
+  });
+
+  it('relabels a fabricated https://-host label on an app:// URL', () => {
+    // Small models sometimes emit `[https://app.com/message/<id>](app://message/<id>)`
+    // — the visible label is a hallucinated HTTP URL that looks like the
+    // real destination but isn't clickable as such.
+    expect(relabelUglyAppLinks(`see [https://app.com/message/${G}](app://message/${G})`, ZH))
+      .toBe(`see [訊息連結](app://message/${G})`);
+  });
+
+  it('relabels http://-host (non-tls) labels too', () => {
+    expect(relabelUglyAppLinks(`open [http://example.local/file/x.md](app://file/inventory.md)`, EN))
+      .toBe('open [inventory.md](app://file/inventory.md)');
+  });
+});
+
+describe('rewriteHallucinatedSchemes', () => {
+  it('rewrites app://chat/<GUID> to app://message/<GUID>', () => {
+    expect(rewriteHallucinatedSchemes(`see [link](app://chat/${G})`))
+      .toBe(`see [link](app://message/${G})`);
+  });
+
+  it('leaves app://hint/chat-input/... untouched (real hint path)', () => {
+    const text = 'open [send](app://hint/chat-input/send)';
+    expect(rewriteHallucinatedSchemes(text)).toBe(text);
+  });
+
+  it('leaves app://message/<GUID> untouched', () => {
+    const text = `see [x](app://message/${G})`;
+    expect(rewriteHallucinatedSchemes(text)).toBe(text);
+  });
+
+  it('returns empty string for non-string input', () => {
+    expect(rewriteHallucinatedSchemes(undefined as unknown as string)).toBe('');
+  });
+});
+
+describe('dropInvalidMessageLinks', () => {
+  it('strips a link whose id is a non-GUID word, keeping the label', () => {
+    expect(dropInvalidMessageLinks('click [here](app://message/submitResponse)'))
+      .toBe('click here');
+  });
+
+  it('keeps a valid app://message/<GUID> link', () => {
+    const text = `see [label](app://message/${G})`;
+    expect(dropInvalidMessageLinks(text)).toBe(text);
+  });
+
+  it('keeps valid id/action sub-paths (the GUID prefix passes)', () => {
+    const text = `[edit](app://message/${G}/edit)`;
+    expect(dropInvalidMessageLinks(text)).toBe(text);
+  });
+
+  it('returns empty string for non-string input', () => {
+    expect(dropInvalidMessageLinks(null as unknown as string)).toBe('');
   });
 });
 
