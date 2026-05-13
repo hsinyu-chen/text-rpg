@@ -44,6 +44,13 @@ describe('normalizeMessageLinks', () => {
     expect(normalizeMessageLinks({} as unknown as string)).toBe('');
   });
 
+  it('does NOT wrap a GUID that already lives inside a larger markdown-link label', () => {
+    // Would otherwise produce nested invalid markdown:
+    // `[See message [link](url) ref](url)`.
+    const text = `[See message ${G} ref](app://message/${G})`;
+    expect(normalizeMessageLinks(text, ZH)).toBe(text);
+  });
+
   it('strips surrounding backticks from a bare GUID when wrapping', () => {
     // Otherwise the link ends up inside a code span → unclickable.
     expect(normalizeMessageLinks(`see message \`${G}\` for context`, EN))
@@ -162,6 +169,26 @@ describe('collapseAdjacentDuplicateLinks', () => {
     const url = `app://message/${G}`;
     expect(collapseAdjacentDuplicateLinks(`[](${url})[訊息連結](${url})[訊息連結](${url})`))
       .toBe(`[訊息連結](${url})`);
+  });
+});
+
+describe('URL with literal parentheses', () => {
+  // URLs like `app://file/doc(v1).md` must not be cut off at the first `)`,
+  // which would corrupt the surrounding text on every replace pass.
+  it('collapseAdjacentDuplicateLinks handles URLs with balanced parens', () => {
+    const url = 'app://file/doc(v1).md';
+    expect(collapseAdjacentDuplicateLinks(`[a](${url})[b](${url})`))
+      .toBe(`[b](${url})`);
+  });
+
+  it('unwrapAppUrlCode backtick-bare path preserves full URL including parens', () => {
+    expect(unwrapAppUrlCode('see `app://file/doc(v1).md` later', EN))
+      .toBe('see [doc(v1).md](app://file/doc(v1).md) later');
+  });
+
+  it('backfillEmptyLabels preserves full URL including parens', () => {
+    expect(backfillEmptyLabels('open [](app://file/doc(v1).md) please', EN))
+      .toBe('open [doc(v1).md](app://file/doc(v1).md) please');
   });
 });
 

@@ -1,30 +1,42 @@
 // crypto.randomUUID() output shape — every chat message id matches this.
 const GUID_PATTERN = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}';
 
+// URL body fragment: non-whitespace, non-paren chars OR a balanced single-level
+// parenthesized run. Tolerates filenames like `doc(v1).md` while still
+// terminating at the markdown link's closing `)`. `[^)\s]+` would cut off
+// the URL at the FIRST `)`, corrupting any URL with literal parens.
+const URL_INNER = '(?:[^\\s()]|\\([^\\s)]*\\))+';
+const URL_PATTERN = `app:\\/\\/${URL_INNER}`;
+
 // Matches a bare GUID, optionally wrapped in matching backticks (one each
 // side). Backticks are consumed so the produced markdown link is not stuck
 // inside a code span where markdown disables parsing.
 const GUID_RE = new RegExp(`(?<!\\/)(?<!\\[)(\`?)\\b(${GUID_PATTERN})\\b\\1(?!\\])`, 'g');
 const CONTEXT_RE = /訊息|message/i;
 
-const HTML_CODE_LINK_RE = /<code[^>]*>\s*(\[[^\]]+\]\(app:\/\/[^)\s]+\))\s*<\/code>/gi;
-const HTML_CODE_BARE_RE = /<code[^>]*>\s*(app:\/\/[^<\s]+?)\s*<\/code>/gi;
-const HTML_CODE_GUID_RE = new RegExp(`<code[^>]*>\\s*(${GUID_PATTERN})\\s*<\\/code>`, 'gi');
-const BACKTICK_LINK_RE  = /`(\[[^\]]+\]\(app:\/\/[^)\s]+\))`/g;
-const BACKTICK_BARE_RE  = /`(app:\/\/[^`\s]+)`/g;
+// Any well-formed markdown link — used to mask existing link spans so that
+// pattern passes (e.g. bare-GUID wrapping) don't accidentally rewrite text
+// that's already inside a link label or URL, which would produce nested /
+// broken markdown.
+const MARKDOWN_LINK_RE = /\[[^\]]*\]\([^)]*(?:\([^)]*\)[^)]*)*\)/g;
 
-const EMPTY_LABEL_LINK_RE = /\[\]\((app:\/\/[^)\s]+)\)/g;
+const HTML_CODE_LINK_RE = new RegExp(`<code[^>]*>\\s*(\\[[^\\]]+\\]\\(${URL_PATTERN}\\))\\s*<\\/code>`, 'gi');
+const HTML_CODE_BARE_RE = new RegExp(`<code[^>]*>\\s*(${URL_PATTERN})\\s*<\\/code>`, 'gi');
+const HTML_CODE_GUID_RE = new RegExp(`<code[^>]*>\\s*(${GUID_PATTERN})\\s*<\\/code>`, 'gi');
+const BACKTICK_LINK_RE  = new RegExp(`\`(\\[[^\\]]+\\]\\(${URL_PATTERN}\\))\``, 'g');
+const BACKTICK_BARE_RE  = new RegExp(`\`(${URL_PATTERN})\``, 'g');
+
+const EMPTY_LABEL_LINK_RE = new RegExp(`\\[\\]\\((${URL_PATTERN})\\)`, 'g');
 
 // Markdown link to app://message/<id> whose LABEL is a bare GUID OR the URL
 // itself. Both are visually meaningless — every chat message id is a UUID,
 // so a GUID label is unreadable, and pasting the full URL as label defeats
 // the point of a link. Replace with the locale-aware label.
-const GUID_LABELED_MSG_RE = new RegExp(`\\[(${GUID_PATTERN})\\]\\((app:\\/\\/message\\/[^)\\s]+)\\)`, 'g');
-const URL_LABELED_APP_RE = /\[(app:\/\/[^\]\s]+)\]\((app:\/\/[^)\s]+)\)/g;
+const GUID_LABELED_MSG_RE = new RegExp(`\\[(${GUID_PATTERN})\\]\\((app:\\/\\/message\\/${URL_INNER})\\)`, 'g');
+const URL_LABELED_APP_RE = new RegExp(`\\[(${URL_PATTERN})\\]\\((${URL_PATTERN})\\)`, 'g');
 
 // Consecutive (only spaces/tabs between) markdown links to the SAME app:// URL.
-// Non-greedy URL capture so we match the shortest URL repeated in succession.
-const ADJ_DUP_RE = /\[([^\]]*)\]\((app:\/\/[^)\s]+)\)[ \t]*\[([^\]]*)\]\(\2\)/g;
+const ADJ_DUP_RE = new RegExp(`\\[([^\\]]*)\\]\\((${URL_PATTERN})\\)[ \\t]*\\[([^\\]]*)\\]\\(\\2\\)`, 'g');
 
 export interface HarnessLabels {
   /** Label used when the harness emits or backfills a link pointing at
@@ -102,9 +114,24 @@ export function normalizeMessageLinks(text: string, labels: HarnessLabels = DEFA
   if (!text) return text;
   return text.split('\n').map(line => {
     if (!CONTEXT_RE.test(line)) return line;
-    // Capture group 1 is the optional backtick; group 2 is the GUID itself.
-    // Discarding the backticks frees the link from the code span.
-    return line.replace(GUID_RE, (_, _quote, guid) => `[${labels.messageLink}](app://message/${guid})`);
+    // Tokenize: keep existing markdown links INTACT, run GUID_RE only on the
+    // text outside them. Without this, a GUID appearing inside a larger
+    // label like `[See message a1b2…ref](url)` would be wrapped in place,
+    // producing nested / invalid markdown (`[See message [link](…) ref](url)`).
+    let out = '';
+    let cursor = 0;
+    for (const m of line.matchAll(MARKDOWN_LINK_RE)) {
+      const start = m.index ?? 0;
+      out += line.slice(cursor, start).replace(GUID_RE, replaceGuid);
+      out += m[0];
+      cursor = start + m[0].length;
+    }
+    out += line.slice(cursor).replace(GUID_RE, replaceGuid);
+    return out;
+
+    function replaceGuid(_match: string, _quote: string, guid: string): string {
+      return `[${labels.messageLink}](app://message/${guid})`;
+    }
   }).join('\n');
 }
 
