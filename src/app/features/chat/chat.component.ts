@@ -97,8 +97,12 @@ export class ChatComponent {
     // scrollToBottom() resets it to false — so a status-change effect's
     // queued setTimeout, firing 50ms after agent-done, would undo the
     // jump's userScrolledUp=true. The flag is set sync on jump start and
-    // cleared after the scroll + spotlight settle.
+    // cleared after the scroll + spotlight settle. jumpTimeoutId tracks
+    // the clear timer so rapid successive jumps reset the window rather
+    // than fighting each other (jump #1's timer firing during jump #2's
+    // hold would shrink the protection window).
     private jumpInProgress = false;
+    private jumpTimeoutId: ReturnType<typeof setTimeout> | null = null;
     private lastScrollTop = 0;
     private scrollFrameId: number | null = null;
     private hasInitialScrolled = false;
@@ -312,6 +316,10 @@ export class ChatComponent {
     // beats a still-running jump's stay-pinned protection.
     onScrollToBottomClick(): void {
         this.jumpInProgress = false;
+        if (this.jumpTimeoutId !== null) {
+            clearTimeout(this.jumpTimeoutId);
+            this.jumpTimeoutId = null;
+        }
         this.scrollToBottom(false);
     }
 
@@ -418,13 +426,19 @@ export class ChatComponent {
         //   is one-way until we explicitly clear it post-scroll.
         this.userScrolledUp = true;
         this.jumpInProgress = true;
-        setTimeout(() => { this.jumpInProgress = false; }, ChatComponent.CV_OVERRIDE_HOLD_MS);
+        // Clear-and-reset so two rapid jumps don't fight: without this, jump
+        // #1's timer would fire mid-jump-#2's hold and prematurely lift the
+        // guard.
+        if (this.jumpTimeoutId !== null) clearTimeout(this.jumpTimeoutId);
+        this.jumpTimeoutId = setTimeout(() => {
+            this.jumpInProgress = false;
+            this.jumpTimeoutId = null;
+        }, ChatComponent.CV_OVERRIDE_HOLD_MS);
         setTimeout(() => {
             const root = this.contentWrapper()?.nativeElement;
             const scrollEl = this.scrollContainer()?.nativeElement as HTMLElement | undefined;
             const el = root?.querySelector<HTMLElement>(`#message-${CSS.escape(id)}`);
             if (!el || !scrollEl) return;
-            const prevCv = el.style.contentVisibility;
             el.style.contentVisibility = 'visible';
             void el.offsetHeight;
             // Compute target scrollTop manually. scrollIntoView({behavior:'smooth'})
@@ -439,7 +453,14 @@ export class ChatComponent {
             const centeredTop = targetContentTop - (scrollEl.clientHeight - elRect.height) / 2;
             const clamped = Math.max(0, Math.min(centeredTop, scrollEl.scrollHeight - scrollEl.clientHeight));
             scrollEl.scrollTo({ top: clamped, behavior: 'smooth' });
-            setTimeout(() => { el.style.contentVisibility = prevCv; }, ChatComponent.CV_OVERRIDE_HOLD_MS);
+            // Always restore to empty (removes inline style), letting the
+            // `.model-message` class rule resume control. Don't capture
+            // `el.style.contentVisibility` before override — a second jump
+            // within the hold window would capture our previous 'visible'
+            // override as the "original" and never restore class control.
+            // Safe because nothing else in this app sets inline cv on these
+            // elements.
+            setTimeout(() => { el.style.contentVisibility = ''; }, ChatComponent.CV_OVERRIDE_HOLD_MS);
             if (action) {
                 // Toolbar buttons are hidden until hover; force-show the
                 // toolbar for the spotlight duration so the user can both
