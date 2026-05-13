@@ -149,13 +149,15 @@ TextRPG 是一個**本地優先 (Local-First)**、**自帶金鑰 (Bring Your Own
 
 **選填的使用者自訂 `ideal_outcome`**
 
-打開 2-Call 後，旁邊會多出一個 chip：**`理想結果`**。點開會展出輸入欄正上方的單行文字框。填了之後 resolver 的行為會改變：
-*   Resolver 被指示**一字不漏地**用你給的文字當 `ideal_outcome`，並以此為基準判定每一步；它不可以再自行 infer。
-*   留空 / 收合 = resolver 自行從你的動作文字 infer `ideal_outcome`（預設行為）。
+引擎模式 chip 旁邊有一個 **`理想結果`** chip（1-Call / 2-Call 兩種模式都可用）。點開會展出輸入欄正上方的單行文字框。填了之後判定行為會改變：
+*   模型被指示**一字不漏地**用你給的文字當 `ideal_outcome`，並以此為基準判定每一步；不可以再自行 infer。
+*   留空 / 收合 = 模型自行從你的動作文字 infer `ideal_outcome`（預設行為）。
 *   設定值會跟著使用者訊息一起保存 — 「編輯後重送 (Edit & Resend)」會把欄位重新填回，`<System>` 校正後的自動重跑也會把它帶過去（這樣修正後的重跑會看到相同的 constraint）。
 *   訊息送出後，使用者氣泡下方會顯示一個小 chip（`理想：...`），所以 constraint commit 後仍可見。
 
-適用情境：複合行動裡 resolver 自然 infer 可能會猜錯目標 — 例如「精準命中眉心」（perfectionist）、「打贏這場架」（pragmatic）、「逃出包圍」（desperate）。相同的動作字串配不同的 `ideal_outcome` 判定結果會不一樣。
+適用情境：複合行動裡模型自然 infer 可能會猜錯目標 — 例如「精準命中眉心」（perfectionist）、「打贏這場架」（pragmatic）、「逃出包圍」（desperate）。相同的動作字串配不同的 `ideal_outcome` 判定結果會不一樣。
+
+**模式間的差別**：2-Call 把 `ideal_outcome` 列為 resolver schema 必填欄位（必須 verbatim echo），narrator 再讀一次，等於兩層強化；1-Call 只在 prompt 層面提醒一次，沒有 schema 級保證。小模型 / 嚴格 constraint（如「不被任何人察覺」這類 binary 目標）建議搭 2-Call 使用。
 
 **成本特性**
 

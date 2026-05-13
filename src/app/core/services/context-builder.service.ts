@@ -672,10 +672,13 @@ export class ContextBuilderService {
         // first so its rendered text can itself contain `{{USER_INPUT}}`-like
         // sequences without bleeding into the next pass.
         const correctionReminder = this.renderCorrectionReminder(ctx, this.getRecentCorrection(ctx));
+        const idealOutcomeConstraint = this.getIdealOutcomeConstraint(this.getRecentUserIdealOutcome(ctx), lang);
         const mergedContent = injectionContent
             .replace(/\{\{CORRECTION_REMINDER\}\}/g, () => correctionReminder)
             .replace(/\{\{USER_INPUT\}\}/g, () => userInput);
-        const protocolSingle = ctx.dynamicProtocolSingle.replace(/\{\{USER_INPUT\}\}/g, () => userInput);
+        const protocolSingle = ctx.dynamicProtocolSingle
+            .replace(/\{\{IDEAL_OUTCOME_CONSTRAINT\}\}/g, () => idealOutcomeConstraint)
+            .replace(/\{\{USER_INPUT\}\}/g, () => userInput);
         const withProtocol = protocolSingle ? `${mergedContent}\n\n${protocolSingle}` : mergedContent;
         const finalContent = this.wrapUserMessage(withProtocol, history);
 

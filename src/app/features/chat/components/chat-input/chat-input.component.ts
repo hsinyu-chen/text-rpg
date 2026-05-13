@@ -182,7 +182,7 @@ export class ChatInputComponent {
         }
 
         const msgContent = this.userInput();
-        const idealOutcome = this.isTwoCall() && (STORY_INTENTS as string[]).includes(intent)
+        const idealOutcome = (STORY_INTENTS as string[]).includes(intent)
             ? this.userIdealOutcome().trim() || undefined
             : undefined;
         console.log('[ChatInput] Calling engine.sendMessage with intent:', intent, 'content:', msgContent.substring(0, 50));
