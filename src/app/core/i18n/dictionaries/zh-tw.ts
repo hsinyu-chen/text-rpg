@@ -1050,6 +1050,7 @@ export const zhTW: TranslationDict = {
             fileNotFound: '找不到 KB 檔:{{filename}}',
             unknownScheme: '未知的 app scheme:{{scheme}}',
             mainArea: '主畫面',
+            noMessages: '尚未有任何對話訊息',
         },
     },
 };

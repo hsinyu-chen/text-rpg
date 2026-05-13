@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { TestBed } from '@angular/core/testing';
+import { DOCUMENT } from '@angular/common';
 import { signal } from '@angular/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { I18nService } from '@app/core/i18n';
@@ -22,10 +23,18 @@ function makeI18nStub(): Partial<I18nService> {
   };
 }
 
-function setup(loadedFiles = new Map<string, string>()) {
+function setup(options: {
+  loadedFiles?: Map<string, string>;
+  messages?: { id: string }[];
+  buttonHtml?: string;
+} = {}) {
+  const { loadedFiles = new Map<string, string>(), messages = [], buttonHtml = '' } = options;
   const snackBar = { open: vi.fn() };
   const fileViewerOpener = { isOpen: () => false, open: vi.fn(() => ({ alreadyOpen: false })) };
-  const stateStub = { loadedFiles: signal(loadedFiles).asReadonly() };
+  const stateStub = {
+    loadedFiles: signal(loadedFiles).asReadonly(),
+    messages: signal(messages).asReadonly(),
+  };
   const registry = {
     openTarget: vi.fn(),
   };
@@ -40,7 +49,18 @@ function setup(loadedFiles = new Map<string, string>()) {
   });
   const interceptor = TestBed.inject(AgentLinkInterceptor);
   const jumper = TestBed.inject(AgentMessageJumperService);
-  return { interceptor, registry, snackBar, fileViewerOpener, jumper, stateStub };
+  // Mount any test buttons under doc.body so the interceptor's
+  // CSS-selector walk can find them. Caller passes raw HTML containing
+  // `[id^="message-"]` wrappers with their `data-msg-action` children.
+  const doc = TestBed.inject(DOCUMENT);
+  const fixture = doc.createElement('div');
+  fixture.id = 'agent-link-interceptor-fixture';
+  fixture.innerHTML = buttonHtml;
+  doc.body.appendChild(fixture);
+  return {
+    interceptor, registry, snackBar, fileViewerOpener, jumper, stateStub,
+    cleanup: () => fixture.remove(),
+  };
 }
 
 describe('AgentLinkInterceptor.dispatch', () => {
@@ -118,7 +138,7 @@ describe('AgentLinkInterceptor.dispatch', () => {
   });
 
   it('opens the file-viewer for app://file/<filename>', () => {
-    const { interceptor, fileViewerOpener } = setup(new Map([['Inventory.md', '# items']]));
+    const { interceptor, fileViewerOpener } = setup({ loadedFiles: new Map([['Inventory.md', '# items']]) });
     interceptor.dispatch('app://file/Inventory.md');
     expect(fileViewerOpener.open).toHaveBeenCalledWith(
       expect.objectContaining({ initialFile: 'Inventory.md', files: expect.any(Map) })
@@ -126,7 +146,7 @@ describe('AgentLinkInterceptor.dispatch', () => {
   });
 
   it('toasts when the file scheme references a missing KB file', () => {
-    const { interceptor, snackBar, fileViewerOpener } = setup(new Map());
+    const { interceptor, snackBar, fileViewerOpener } = setup({ loadedFiles: new Map() });
     interceptor.dispatch('app://file/Missing.md');
     expect(fileViewerOpener.open).not.toHaveBeenCalled();
     expect(snackBar.open).toHaveBeenCalled();
@@ -144,8 +164,98 @@ describe('AgentLinkInterceptor.dispatch', () => {
     expect(snackBar.open).toHaveBeenCalled();
   });
 
+  describe('app://hint/chat-message/* fallback (no message id)', () => {
+    it('routes app://hint/chat-message to last message flash (no action)', () => {
+      const ctx = setup({ messages: [{ id: 'm1' }, { id: 'm2' }] });
+      ctx.interceptor.dispatch('app://hint/chat-message');
+      expect(ctx.jumper.request()).toMatchObject({ id: 'm2', action: null });
+      expect(ctx.registry.openTarget).not.toHaveBeenCalled();
+      ctx.cleanup();
+    });
+
+    it('maps chat-message/auto-update-files to the last message bearing auto-update', () => {
+      const ctx = setup({
+        messages: [{ id: 'a' }, { id: 'b' }, { id: 'c' }],
+        buttonHtml: `
+          <div id="message-a"><button data-msg-action="auto-update"></button></div>
+          <div id="message-b"></div>
+          <div id="message-c"><button data-msg-action="auto-update"></button></div>
+        `,
+      });
+      ctx.interceptor.dispatch('app://hint/chat-message/auto-update-files');
+      expect(ctx.jumper.request()).toMatchObject({ id: 'c', action: 'auto-update' });
+      ctx.cleanup();
+    });
+
+    it('walks back past a message without the button when newer messages lack it', () => {
+      const ctx = setup({
+        messages: [{ id: 'a' }, { id: 'b' }, { id: 'c' }],
+        buttonHtml: `
+          <div id="message-a"><button data-msg-action="auto-update"></button></div>
+          <div id="message-b"></div>
+          <div id="message-c"></div>
+        `,
+      });
+      ctx.interceptor.dispatch('app://hint/chat-message/auto-update-files');
+      expect(ctx.jumper.request()).toMatchObject({ id: 'a', action: 'auto-update' });
+      ctx.cleanup();
+    });
+
+    it('maps fork-from-here to the data-msg-action name `fork`', () => {
+      const ctx = setup({
+        messages: [{ id: 'x' }],
+        buttonHtml: `<div id="message-x"><button data-msg-action="fork"></button></div>`,
+      });
+      ctx.interceptor.dispatch('app://hint/chat-message/fork-from-here');
+      expect(ctx.jumper.request()).toMatchObject({ id: 'x', action: 'fork' });
+      ctx.cleanup();
+    });
+
+    it('accepts either toggle-ref-only DOM name', () => {
+      const ctx = setup({
+        messages: [{ id: 'x' }],
+        buttonHtml: `<div id="message-x"><button data-msg-action="include-in-story"></button></div>`,
+      });
+      ctx.interceptor.dispatch('app://hint/chat-message/toggle-ref-only');
+      expect(ctx.jumper.request()).toMatchObject({ id: 'x', action: 'include-in-story' });
+      ctx.cleanup();
+    });
+
+    it('falls back to last message flash when no message has the action button', () => {
+      const ctx = setup({
+        messages: [{ id: 'a' }, { id: 'b' }],
+        buttonHtml: `<div id="message-a"></div><div id="message-b"></div>`,
+      });
+      ctx.interceptor.dispatch('app://hint/chat-message/auto-update-files');
+      expect(ctx.jumper.request()).toMatchObject({ id: 'b', action: null });
+      ctx.cleanup();
+    });
+
+    it('toasts when there are no messages at all', () => {
+      const ctx = setup({ messages: [] });
+      ctx.interceptor.dispatch('app://hint/chat-message/auto-update-files');
+      expect(ctx.jumper.request()).toBeNull();
+      expect(ctx.snackBar.open).toHaveBeenCalled();
+      ctx.cleanup();
+    });
+
+    it('flashes last message for an unknown chat-message sub-id', () => {
+      const ctx = setup({ messages: [{ id: 'only' }] });
+      ctx.interceptor.dispatch('app://hint/chat-message/bogus-action');
+      expect(ctx.jumper.request()).toMatchObject({ id: 'only', action: null });
+      ctx.cleanup();
+    });
+
+    it('does not call registry.openTarget for any chat-message hint', () => {
+      const ctx = setup({ messages: [{ id: 'm' }] });
+      ctx.interceptor.dispatch('app://hint/chat-message/edit-text');
+      expect(ctx.registry.openTarget).not.toHaveBeenCalled();
+      ctx.cleanup();
+    });
+  });
+
   it('toasts (not throws) on malformed percent-encoding in any scheme', () => {
-    const { interceptor, snackBar, jumper, registry, fileViewerOpener } = setup(new Map([['x.md', '']]));
+    const { interceptor, snackBar, jumper, registry, fileViewerOpener } = setup({ loadedFiles: new Map([['x.md', '']]) });
     // `%` with no hex digits triggers URIError in decodeURIComponent.
     for (const url of ['app://hint/foo%', 'app://message/abc%', 'app://file/x%.md']) {
       expect(() => interceptor.dispatch(url)).not.toThrow();
