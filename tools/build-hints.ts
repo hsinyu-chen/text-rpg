@@ -11,10 +11,9 @@
  *
  * Run: npm run hints:build
  */
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
 import { resolve, relative } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { glob } from 'glob';
 import { parseTemplate } from '@angular/compiler';
 
 interface HintBinding {
@@ -38,7 +37,8 @@ interface PathDecl {
 }
 
 const repoRoot = process.cwd();
-const SRC_GLOB = 'src/**/*.component.html';
+const SRC_ROOT = 'src';
+const TEMPLATE_SUFFIX = '.component.html';
 const OUTPUT = 'src/app/core/services/agent-hints/agent-hints.manifest.generated.ts';
 const BASE_FILE = 'src/app/core/services/agent-hints/agent-hints.manifest.base.ts';
 const EN_DICT = 'src/app/core/i18n/dictionaries/en.ts';
@@ -50,7 +50,9 @@ function warn(message: string): void {
 }
 
 async function main(): Promise<void> {
-  const files = await glob(SRC_GLOB, { cwd: repoRoot, absolute: true });
+  const files = readdirSync(resolve(repoRoot, SRC_ROOT), { recursive: true, withFileTypes: true })
+    .filter((d) => d.isFile() && d.name.endsWith(TEMPLATE_SUFFIX))
+    .map((d) => resolve(d.parentPath, d.name));
   const bindings: HintBinding[] = [];
 
   for (const file of files) {
