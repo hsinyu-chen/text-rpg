@@ -233,7 +233,17 @@ export class AgentConsoleComponent implements OnDestroy {
         if (live) {
           live.write(filename, content);
         } else {
-          console.warn('[agent-console] edit channel disappeared mid-stream; dropping write to', filename, `(${content.length} chars)`);
+          // Channel went null mid-stream — file-viewer was closed by the user
+          // after the agent run started. Push a visible log entry so the user
+          // sees the dropped write, and throw so the tool call propagates an
+          // error back to the LLM. The model then stops fanning out further
+          // writes this turn instead of silently no-op'ing each one.
+          this.agentService.agentLogs.update(logs => [...logs, {
+            role: 'system',
+            text: `[user interrupt the editing] dropped write to ${filename} (${content.length} chars); File Viewer was closed mid-stream`,
+            type: 'error'
+          }]);
+          throw new Error('[user interrupt the editing] the editing surface (File Viewer) was closed by the user; no further writes will be applied this turn');
         }
       },
       chatMessages: this.chatMessages(),
