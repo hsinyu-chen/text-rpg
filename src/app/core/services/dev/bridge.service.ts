@@ -26,6 +26,7 @@ import { isSystemMainCompatible } from '../profile-compat';
 import { AgentHintRegistry } from '../agent-hints/agent-hints.registry';
 import { AgentHintDebugDialogComponent } from '../agent-hints/agent-hint-debug-dialog.component';
 import { MatDialog } from '@angular/material/dialog';
+import { DiskProfileSyncService } from '../sync/disk-profile-sync.service';
 
 /**
  * Relay client. Connects to a local BridgeServer (sibling repo
@@ -111,6 +112,18 @@ import { MatDialog } from '@angular/material/dialog';
  *                       — a directive that didn't import / didn't mount
  *                       leaves its path in `unmounted` even when the UI
  *                       region is on-screen.
+ *   profile_pull_from_disk
+ *                     — pulls the active user-defined profile's prompt
+ *                       files from the bound FSA folder into IDB, then
+ *                       triggers injection.forceReload() so the next
+ *                       turn picks up the edits without an app reload.
+ *                       Rejected if active profile is built-in or no
+ *                       folder is bound. Mutually exclusive with mid-
+ *                       turn state (returns `busy`).
+ *   profile_push_to_disk
+ *                     — writes the active user-defined profile's IDB
+ *                       prompt rows out to the bound FSA folder. Same
+ *                       built-in / busy guards as pull.
  */
 
 const STORAGE_URL = 'app_debug_bridge_url';
@@ -289,6 +302,7 @@ export class BridgeService {
     private i18nService = inject(I18nService);
     private hintRegistry = inject(AgentHintRegistry);
     private matDialog = inject(MatDialog);
+    private diskProfileSync = inject(DiskProfileSyncService);
 
     /**
      * Lazy headless FileAgentService instance for `agent_ask`. Lives in a
@@ -631,6 +645,12 @@ export class BridgeService {
                 break;
             case 'agent_eval':
                 void this.handleAgentEval(frame as AgentEvalFrame);
+                break;
+            case 'profile_pull_from_disk':
+                void this.handleProfilePullFromDisk(frame);
+                break;
+            case 'profile_push_to_disk':
+                void this.handleProfilePushToDisk(frame);
                 break;
             default:
                 console.warn('[bridge] unknown frame type', type, frame);
@@ -1265,6 +1285,53 @@ export class BridgeService {
             active,
             compat: this.state.activeProfileCompat(),
         });
+    }
+
+    private async handleProfilePullFromDisk(frame: BridgeFrame): Promise<void> {
+        const { requestId } = frame;
+        if (!requestId) return;
+        if (this.state.isBusy()) {
+            this.send({ type: 'action_error', requestId, error: 'busy' });
+            return;
+        }
+        try {
+            const result = await this.diskProfileSync.pullActiveFromDisk();
+            this.send({
+                type: 'profile_pull_from_disk_response',
+                requestId,
+                updatedTypes: result.updatedTypes,
+                metaUpdated: result.metaUpdated,
+            });
+        } catch (e) {
+            const detail = e instanceof Error ? e.message : 'unknown';
+            const error = this.classifyDiskSyncError(detail);
+            this.send({ type: 'action_error', requestId, error, detail });
+        }
+    }
+
+    private async handleProfilePushToDisk(frame: BridgeFrame): Promise<void> {
+        const { requestId } = frame;
+        if (!requestId) return;
+        if (this.state.isBusy()) {
+            this.send({ type: 'action_error', requestId, error: 'busy' });
+            return;
+        }
+        try {
+            await this.diskProfileSync.pushActiveToDisk();
+            this.send({ type: 'profile_push_to_disk_response', requestId, ok: true });
+        } catch (e) {
+            const detail = e instanceof Error ? e.message : 'unknown';
+            const error = this.classifyDiskSyncError(detail);
+            this.send({ type: 'action_error', requestId, error, detail });
+        }
+    }
+
+    private classifyDiskSyncError(detail: string): string {
+        if (/only supported for user profiles/i.test(detail)) return 'builtin_profile';
+        if (/is not registered/i.test(detail))                return 'unknown_profile';
+        if (/does not exist yet/i.test(detail))               return 'folder_not_found';
+        if (/permission|aborted/i.test(detail))               return 'fsa_permission';
+        return 'disk_sync_failed';
     }
 
     private handleKbList(frame: BridgeFrame): void {

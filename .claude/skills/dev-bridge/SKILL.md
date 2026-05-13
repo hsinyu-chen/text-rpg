@@ -144,6 +144,35 @@ KB writes already have a richer in-app path (File Viewer Monaco editor,
 `<Save>` auto-update flow, file-agent `searchReplace`). The bridge isn't
 the right surface for blind in-place edits.
 
+### Sync the active user-defined profile to/from disk
+
+When iterating on prompt tuning, edits happen in
+`TextRPG_Prompts/<profile-id>/*.md` (the FSA folder the user bound to a
+user-defined profile via Profile Management). Pulling that into IDB used
+to require clicking "從磁碟拉取" in the app — these helpers trigger it
+from the agent side so an A/B loop can run unattended.
+
+```pwsh
+. ./.claude/skills/dev-bridge/bridge.ps1
+Invoke-BridgeProfilePush    # IDB → disk (write current in-memory prompts out)
+# ... edit the files in TextRPG_Prompts/<profile-id>/ ...
+Invoke-BridgeProfilePull    # disk → IDB; auto-fires injection.forceReload()
+Send-BridgeAction -UserInput '...' -Intent action  # next turn uses the edits
+```
+
+Pull returns `{ updatedTypes, metaUpdated }`. After it resolves the engine
+is already hot with the new prompts — no `Invoke-BridgeReload` needed; the
+app keeps running.
+
+**Active profile must be user-defined.** Built-in profiles (`cloud` /
+`local`) ship as assets and have no IDB row to mirror — both endpoints
+reject them with `builtin_profile`. To tune those, clone first into a
+user-defined profile via the Profile Management dialog, bind a folder,
+then sync.
+
+Both endpoints refuse mid-turn (`busy`). Pull on a profile that was never
+pushed returns `folder_not_found` — push first to seed the folder.
+
 ### Inspect / change profile + engine config
 
 When verifying which prompt profile is active, switching profiles, or toggling
@@ -366,6 +395,9 @@ processes.
 | `agent_open_file_viewer` returns `no_loaded_files` | No active Book or its KB is empty | Load a Book first via `Set-BridgeBook` or have the user open one |
 | `agent_ask` returns `agent_busy` | A previous `agent_ask` is still running | Wait for the prior call to resolve; do not retry-loop |
 | `agent_ask` returns `agent_failed` | The headless agent threw (no LLM profile, stream error, etc.) | Check `detail` — usually "No LLM profile selected" or a provider error |
+| `profile_pull` / `profile_push` returns `builtin_profile` | Active profile is built-in (`cloud` / `local`) | Disk sync only works on user-defined profiles — clone first via Profile Management, then bind a folder |
+| `profile_pull` returns `folder_not_found` | Profile folder doesn't exist on disk yet | `Invoke-BridgeProfilePush` first to seed the folder |
+| `profile_pull` / `profile_push` returns `fsa_permission` | User revoked / cancelled the FSA permission prompt | Ask the user to re-grant via the Profile Management dialog |
 
 ## Don't
 

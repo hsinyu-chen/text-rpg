@@ -117,6 +117,36 @@ function Set-BridgeProfile {
     Invoke-Bridge -Path '/profile/switch' -Body @{ id = $Id } -TimeoutSec 30
 }
 
+# Disk sync — for active user-defined prompt profile only.
+#
+# Pull reads the bound FSA folder back into IDB and runs forceReload(),
+# so the next turn picks up the edits without an app reload. Push writes
+# IDB out to disk. Both require: (a) active profile is user-defined
+# (not built-in cloud/local) and (b) folder is already bound via the
+# Profile Management dialog. Both refuse mid-turn with `busy`.
+#
+# Errors returned:
+#   busy             — engine is processing a turn
+#   builtin_profile  — active is a built-in profile (no disk row to mirror)
+#   unknown_profile  — active id isn't in the registry
+#   folder_not_found — (pull) profile folder doesn't exist on disk — push first
+#   fsa_permission   — user revoked / cancelled the FSA prompt
+#   disk_sync_failed — anything else (full message in `detail`)
+
+function Invoke-BridgeProfilePull {
+    [CmdletBinding()]
+    param()
+    # forceReload at the end is sync; total wall-time is one folder walk +
+    # a handful of IDB writes — usually well under 5s.
+    Invoke-Bridge -Path '/profile/pull-from-disk' -Body @{} -TimeoutSec 60
+}
+
+function Invoke-BridgeProfilePush {
+    [CmdletBinding()]
+    param()
+    Invoke-Bridge -Path '/profile/push-to-disk' -Body @{} -TimeoutSec 60
+}
+
 function Get-BridgeKBFiles {
     [CmdletBinding()]
     param()
