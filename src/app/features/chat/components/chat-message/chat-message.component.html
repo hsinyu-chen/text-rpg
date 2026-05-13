@@ -3,32 +3,20 @@
 @if (msg.role === 'user') {
 <div class="msg-row user">
     <div class="msg-bubble user-bubble" [class.ref-only]="msg.isRefOnly">
-        <!-- Toolbar for User Msg -->
+        <!-- Toolbar for User Msg. Shared rows pulled from #refOnlyToggle /
+             #forkAndDeleteRow so the data-msg-action names stay
+             single-sourced — agent deep links target them by exact name. -->
         <div class="msg-toolbar">
-            <button mat-icon-button class="mini-btn" (click)="state.toggleRefOnly()" [disabled]="isBusy()"
-                [matTooltip]="(msg.isRefOnly ? 'ui.INCLUDE_IN_STORY' : 'ui.MARK_AS_REF_ONLY') | translate">
-                <mat-icon>{{ msg.isRefOnly ? 'link' : 'link_off' }}</mat-icon>
-            </button>
+            <ng-container *ngTemplateOutlet="refOnlyToggle; context: { msg: msg }" />
             <!-- Rewind & Resend Button (Only Last User Msg) -->
             @if (isLastUser()) {
             <button mat-icon-button class="mini-btn" (click)="onEditAndResend()" [disabled]="isBusy()"
+                data-msg-action="edit-resend"
                 [matTooltip]="'ui.EDIT_RESEND_TOOLTIP' | translate">
                 <mat-icon>history_edu</mat-icon>
             </button>
             }
-
-            <button mat-icon-button class="mini-btn" (click)="state.forkFromHere()" [disabled]="isBusy()"
-                [matTooltip]="'ui.FORK_FROM_HERE_TOOLTIP' | translate">
-                <mat-icon>call_split</mat-icon>
-            </button>
-            <button mat-icon-button class="mini-btn delete-btn" (click)="state.deleteMessageAndFollowing()"
-                [disabled]="isBusy()" [matTooltip]="'ui.DELETE_ALL_FOLLOWING' | translate">
-                <mat-icon>delete_sweep</mat-icon>
-            </button>
-            <button mat-icon-button class="mini-btn delete-btn" (click)="state.deleteMessage()" [disabled]="isBusy()"
-                [matTooltip]="'ui.DELETE_MESSAGE' | translate">
-                <mat-icon>delete</mat-icon>
-            </button>
+            <ng-container *ngTemplateOutlet="forkAndDeleteRow" />
         </div>
         <div (dblclick)="state.enterEditMode()" class="bubble-content">
 
@@ -59,42 +47,35 @@
     <div class="msg-wrapper">
         <div class="msg-bubble model-bubble group" [class.ref-only]="msg.isRefOnly">
 
-            <!-- Toolbar -->
+            <!-- Toolbar.
+                 data-msg-action names map app://message/<id>/<action> deep
+                 links onto the right button. Keep them stable — changing
+                 one breaks any historical agent output linking to it. -->
             <div class="msg-toolbar">
                 @if (msg.intent === Intents.SAVE || msg.content.includes('<save')) { <button mat-icon-button
                     class="mini-btn update-btn" (click)="state.openAutoUpdateDialog()" [disabled]="isBusy()"
+                    data-msg-action="auto-update"
                     [matTooltip]="'ui.AUTO_UPDATE_FILES' | translate">
                     <mat-icon>auto_fix_high</mat-icon>
                     </button>
                     }
                     <button mat-icon-button class="mini-btn" (click)="state.copyPairJSON()" [disabled]="isBusy()"
+                        data-msg-action="copy-json"
                         [matTooltip]="'ui.COPY_JSON_PAIR' | translate">
                         <mat-icon>content_copy</mat-icon>
                     </button>
                     <button mat-icon-button class="mini-btn" (click)="state.toggleRaw()" [disabled]="isBusy()"
+                        data-msg-action="toggle-raw"
                         [matTooltip]="'ui.TOGGLE_RAW_RENDER' | translate">
                         <mat-icon>code</mat-icon>
                     </button>
                     <button mat-icon-button class="mini-btn" (click)="state.enterEditMode()" [disabled]="isBusy()"
+                        data-msg-action="edit-text"
                         [matTooltip]="'ui.EDIT_TEXT' | translate">
                         <mat-icon>edit</mat-icon>
                     </button>
-                    <button mat-icon-button class="mini-btn" (click)="state.toggleRefOnly()" [disabled]="isBusy()"
-                        [matTooltip]="(msg.isRefOnly ? 'ui.INCLUDE_IN_STORY' : 'ui.MARK_AS_REF_ONLY') | translate">
-                        <mat-icon>{{ msg.isRefOnly ? 'link' : 'link_off' }}</mat-icon>
-                    </button>
-                    <button mat-icon-button class="mini-btn" (click)="state.forkFromHere()" [disabled]="isBusy()"
-                        [matTooltip]="'ui.FORK_FROM_HERE_TOOLTIP' | translate">
-                        <mat-icon>call_split</mat-icon>
-                    </button>
-                    <button mat-icon-button class="mini-btn delete-btn" (click)="state.deleteMessageAndFollowing()"
-                        [disabled]="isBusy()" [matTooltip]="'ui.DELETE_ALL_FOLLOWING' | translate">
-                        <mat-icon>delete_sweep</mat-icon>
-                    </button>
-                    <button mat-icon-button class="mini-btn delete-btn" (click)="state.deleteMessage()"
-                        [disabled]="isBusy()" [matTooltip]="'ui.DELETE_MESSAGE' | translate">
-                        <mat-icon>delete</mat-icon>
-                    </button>
+                    <ng-container *ngTemplateOutlet="refOnlyToggle; context: { msg: msg }" />
+                    <ng-container *ngTemplateOutlet="forkAndDeleteRow" />
             </div>
 
             <!-- Prefill Progress (Shows while processing context/prompt) -->
@@ -275,6 +256,37 @@
         </div>
         }
         }
+
+        <!-- Shared toolbar fragments. Pulled into both user and model
+             bubbles so data-msg-action names stay single-sourced; if these
+             ever drift between the two bubbles, agent message-action deep
+             links would land on whichever role got skipped during an
+             update. -->
+        <ng-template #refOnlyToggle let-msg="msg">
+            <button mat-icon-button class="mini-btn" (click)="state.toggleRefOnly()" [disabled]="isBusy()"
+                [attr.data-msg-action]="msg.isRefOnly ? 'include-in-story' : 'mark-ref-only'"
+                [matTooltip]="(msg.isRefOnly ? 'ui.INCLUDE_IN_STORY' : 'ui.MARK_AS_REF_ONLY') | translate">
+                <mat-icon>{{ msg.isRefOnly ? 'link' : 'link_off' }}</mat-icon>
+            </button>
+        </ng-template>
+
+        <ng-template #forkAndDeleteRow>
+            <button mat-icon-button class="mini-btn" (click)="state.forkFromHere()" [disabled]="isBusy()"
+                data-msg-action="fork"
+                [matTooltip]="'ui.FORK_FROM_HERE_TOOLTIP' | translate">
+                <mat-icon>call_split</mat-icon>
+            </button>
+            <button mat-icon-button class="mini-btn delete-btn" (click)="state.deleteMessageAndFollowing()"
+                [disabled]="isBusy()" data-msg-action="delete-following"
+                [matTooltip]="'ui.DELETE_ALL_FOLLOWING' | translate">
+                <mat-icon>delete_sweep</mat-icon>
+            </button>
+            <button mat-icon-button class="mini-btn delete-btn" (click)="state.deleteMessage()" [disabled]="isBusy()"
+                data-msg-action="delete"
+                [matTooltip]="'ui.DELETE_MESSAGE' | translate">
+                <mat-icon>delete</mat-icon>
+            </button>
+        </ng-template>
 
         <!-- Editor Template (Shared) -->
         <ng-template #editor>

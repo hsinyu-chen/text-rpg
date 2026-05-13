@@ -970,7 +970,7 @@ export const en: TranslationDict = {
             'cancel-edit': { name: 'Cancel edit', description: 'Cancel the in-progress message edit (discards your partial input)' },
         },
         'chat-message': {
-            self: { name: 'Message actions', description: 'Per-message action row at the top-right of each chat message (class-level — cannot target a specific message; use app://message/<id> instead)' },
+            self: { name: 'Message actions', description: 'Per-message action row at the top-right of each chat message (class-level — cannot target a specific message; use app://message/<id> or app://message/<id>/<action> to anchor on a particular past message or one of its toolbar buttons)' },
             'edit-resend': { name: 'Edit & resend', description: 'Per-message: edit the user message and resend (re-fires the LLM). Only available on the latest user msg — cannot reach historic turns' },
             'fork-from-here': { name: 'Fork from here', description: 'Per-message: fork a new book from this message; the original is preserved and switchable' },
             'delete-all-following': { name: 'Delete following', description: 'Per-message: delete this message and everything after it' },

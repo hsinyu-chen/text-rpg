@@ -1,5 +1,4 @@
-import { Component, inject, ElementRef, effect, viewChild, signal, computed, afterNextRender, DestroyRef, ChangeDetectionStrategy, TemplateRef, ViewContainerRef, EmbeddedViewRef } from '@angular/core';
-import { DOCUMENT } from '@angular/common';
+import { Component, inject, ElementRef, effect, viewChild, signal, computed, afterNextRender, DestroyRef, ChangeDetectionStrategy, TemplateRef, ViewContainerRef } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -21,6 +20,8 @@ import { FileAgentService } from '@app/core/services/file-agent/file-agent.servi
 import { AppConfigStore } from '@app/core/services/app-config-store';
 import { BridgeService } from '@app/core/services/dev/bridge.service';
 import { AgentMessageJumperService } from '@app/core/services/agent-hints/agent-message-jumper.service';
+import { spotlightElement, SPOTLIGHT_HOLD_MS } from '@app/core/services/agent-hints/spotlight.util';
+import { AgentPanelPortalService } from '@app/shared/components/agent-console/agent-panel-portal.service';
 import { AgentPanelStateService } from '@app/core/services/file-agent/agent-panel-state.service';
 
 @Component({
@@ -46,7 +47,7 @@ import { AgentPanelStateService } from '@app/core/services/file-agent/agent-pane
     // viewer dialog the user might open simultaneously. KV-backed profile
     // selection (see file-agent.service.ts FILE_AGENT_PROFILE_KEY) keeps the
     // pre-selected profile in sync across instances.
-    providers: [FileAgentService]
+    providers: [FileAgentService, AgentPanelPortalService]
 })
 export class ChatComponent {
     engine = inject(GameEngineService);
@@ -59,15 +60,12 @@ export class ChatComponent {
     private messageJumper = inject(AgentMessageJumperService);
     protected panelState = inject(AgentPanelStateService);
     private viewContainerRef = inject(ViewContainerRef);
-    private doc = inject(DOCUMENT);
+    private agentPanelPortal = inject(AgentPanelPortalService);
 
     private scrollContainer = viewChild<ElementRef>('scrollContainer');
     private contentWrapper = viewChild<ElementRef<HTMLElement>>('contentWrapper');
     private chatInput = viewChild<ChatInputComponent>('chatInput');
     private agentPanelTpl = viewChild<TemplateRef<unknown>>('agentPanelTpl');
-    private agentPanelView: EmbeddedViewRef<unknown> | null = null;
-    private agentPanelHost: HTMLDivElement | null = null;
-    private agentPipWin: Window | null = null;
 
     userInput = signal('');
     selectedIntent = signal(GAME_INTENTS.ACTION);
@@ -93,6 +91,18 @@ export class ChatComponent {
 
     private resizeObserver: ResizeObserver | null = null;
     private userScrolledUp = false;
+    // While true, every bottom-pinning path (status-change effect,
+    // smartScroll, scheduleScrollCorrection, scrollToBottom callers) is
+    // suppressed. `userScrolledUp` alone wasn't enough because
+    // scrollToBottom() resets it to false — so a status-change effect's
+    // queued setTimeout, firing 50ms after agent-done, would undo the
+    // jump's userScrolledUp=true. The flag is set sync on jump start and
+    // cleared after the scroll + spotlight settle. jumpTimeoutId tracks
+    // the clear timer so rapid successive jumps reset the window rather
+    // than fighting each other (jump #1's timer firing during jump #2's
+    // hold would shrink the protection window).
+    private jumpInProgress = false;
+    private jumpTimeoutId: ReturnType<typeof setTimeout> | null = null;
     private lastScrollTop = 0;
     private scrollFrameId: number | null = null;
     private hasInitialScrolled = false;
@@ -130,14 +140,15 @@ export class ChatComponent {
             this.agentConsoleFillRequest.set(fill);
         });
 
-        // app://message/<id> link clicked in agent-console → jumper service
-        // emits → we drive the existing onJumpToMessage path.
+        // app://message/<id>[/<action>] link clicked in agent-console →
+        // jumper service emits → we drive the existing onJumpToMessage path,
+        // optionally spotlighting a specific toolbar action button.
         let lastJumpTick = this.messageJumper.request()?.tick ?? 0;
         effect(() => {
             const req = this.messageJumper.request();
             if (!req || req.tick === lastJumpTick) return;
             lastJumpTick = req.tick;
-            this.onJumpToMessage(req.id);
+            this.onJumpToMessage(req.id, req.action);
         });
 
         // Initial load: force scroll to bottom the first time messages appear,
@@ -163,6 +174,7 @@ export class ChatComponent {
             if ((status === 'idle' || status === 'generating') && !this.userScrolledUp) {
                 // We use a small timeout to allow new elements to render before scrolling
                 setTimeout(() => {
+                    if (this.jumpInProgress) return;
                     this.scrollToBottom(true);
                 }, 50);
             }
@@ -184,7 +196,10 @@ export class ChatComponent {
             const wasOpen = this.prevLastCotOpen;
             this.prevLastCotOpen = cot;
             if (cot && !wasOpen && this.state.status() === 'generating' && !this.userScrolledUp) {
-                requestAnimationFrame(() => this.scrollToBottom(true));
+                requestAnimationFrame(() => {
+                    if (this.jumpInProgress) return;
+                    this.scrollToBottom(true);
+                });
             }
         });
 
@@ -201,8 +216,14 @@ export class ChatComponent {
         // cdk-overlay-container (z:1000).
         effect(() => {
             const open = this.isAgentSidebarOpen();
-            if (open) this.mountAgentPanel();
-            else this.unmountAgentPanel();
+            const tpl = this.agentPanelTpl();
+            if (open && tpl) {
+                this.agentPanelPortal.mount(tpl, this.viewContainerRef, {
+                    onPipClosed: () => this.isAgentSidebarOpen.set(false),
+                });
+            } else {
+                this.agentPanelPortal.unmount();
+            }
         });
 
         this.destroyRef.onDestroy(() => {
@@ -210,177 +231,8 @@ export class ChatComponent {
             if (this.scrollFrameId) {
                 cancelAnimationFrame(this.scrollFrameId);
             }
-            this.unmountAgentPanel();
+            this.agentPanelPortal.unmount();
         });
-    }
-
-    // Generation token: every mount/unmount bumps this. Async PiP open
-    // (`requestWindow` awaits a user gesture / permission grant) checks the
-    // token after resume; if it changed (panel was closed during the await),
-    // the open path aborts cleanly instead of attaching a zombie window.
-    private mountGeneration = 0;
-
-    private mountAgentPanel(): void {
-        if (this.agentPanelView || this.agentPipWin) return;
-        const tpl = this.agentPanelTpl();
-        if (!tpl) return;
-        const gen = ++this.mountGeneration;
-        this.agentPanelView = this.viewContainerRef.createEmbeddedView(tpl);
-        this.agentPanelView.detectChanges();
-        const rootNodes = this.agentPanelView.rootNodes as Node[];
-
-        // Prefer the native Document Picture-in-Picture API when available
-        // (Chrome 116+). It opens the agent panel in a separate browser
-        // window — no top-layer fighting with main-app dialogs/menus, and
-        // the agent's own dropdowns just work because the PiP window has
-        // its own top-layer scope. Falls back to body-portal + popover on
-        // browsers that don't support it (Firefox / Safari today).
-        const pipApi = (this.doc.defaultView as Window & {
-            documentPictureInPicture?: { requestWindow: (opts: { width?: number; height?: number }) => Promise<Window> };
-        } | null)?.documentPictureInPicture;
-        if (pipApi) {
-            void this.openInPip(pipApi, rootNodes, gen);
-        } else {
-            this.openInBodyPortal(rootNodes);
-        }
-    }
-
-    private async openInPip(
-        api: { requestWindow: (opts: { width?: number; height?: number }) => Promise<Window> },
-        rootNodes: Node[],
-        gen: number,
-    ): Promise<void> {
-        let pipWin: Window;
-        try {
-            pipWin = await api.requestWindow({ width: 480, height: 720 });
-        } catch {
-            // user denied / call rejected (e.g. no user gesture) — fall back,
-            // but only if the user hasn't already closed the panel mid-await.
-            if (gen !== this.mountGeneration) return;
-            this.openInBodyPortal(rootNodes);
-            return;
-        }
-        // Panel was closed (and view destroyed) during the requestWindow await.
-        // Discard the now-stale window instead of attaching detached DOM to it.
-        if (gen !== this.mountGeneration) {
-            try { pipWin.close(); } catch { /* already closed */ }
-            return;
-        }
-        // Copy stylesheets so Material / app styles take effect in the PiP doc.
-        // Same JS realm, so signals + change detection keep flowing across.
-        for (const node of Array.from(this.doc.head.querySelectorAll('link[rel="stylesheet"], style'))) {
-            pipWin.document.head.appendChild(node.cloneNode(true));
-        }
-        pipWin.document.body.style.margin = '0';
-        pipWin.document.body.style.height = '100vh';
-        pipWin.document.body.style.overflow = 'hidden';
-        // Mark the body so the shell stretches edge-to-edge inside the PiP
-        // window instead of its default min(480px, 92vw) which leaves gutters
-        // when the user resizes the PiP smaller than 480px.
-        pipWin.document.body.classList.add('agent-panel-pip');
-        for (const n of rootNodes) pipWin.document.body.appendChild(n);
-        this.agentPipWin = pipWin;
-        // Flag so file-viewer hides its own smart_toy button while PiP is up
-        // (otherwise we'd have two agent UIs racing). Edit routing is handled
-        // separately via panelState.editChannel — registered by whichever
-        // surface owns an unsaved-buffer (file-viewer's Monaco).
-        this.panelState.pipActive.set(true);
-        // User closes the PiP window via OS chrome — sync state back.
-        pipWin.addEventListener('pagehide', () => {
-            if (this.agentPipWin === pipWin) {
-                this.agentPipWin = null;
-                this.isAgentSidebarOpen.set(false);
-            }
-        });
-    }
-
-    private openInBodyPortal(rootNodes: Node[]): void {
-        if (!this.agentPanelHost) {
-            this.agentPanelHost = this.doc.createElement('div');
-            this.agentPanelHost.className = 'agent-panel-host';
-            // popover="manual" puts us in the browser top-layer alongside
-            // every cdk-overlay dialog (CDK 19+ uses the same API). Within
-            // top-layer z-index is ignored; ordering is purely "last shown
-            // wins", so we re-promote ourselves whenever a sibling popover
-            // opens, unless the click that triggered it came from inside
-            // the panel (own dropdown / menu) — see installAgentPanelPromoter.
-            this.agentPanelHost.setAttribute('popover', 'manual');
-            this.doc.body.appendChild(this.agentPanelHost);
-        }
-        for (const node of rootNodes) {
-            this.agentPanelHost.appendChild(node);
-        }
-        try { this.agentPanelHost.showPopover(); } catch { /* not connected / no support */ }
-        this.installAgentPanelPromoter();
-    }
-
-    private unmountAgentPanel(): void {
-        // Invalidate any in-flight openInPip awaiting requestWindow.
-        this.mountGeneration++;
-        this.uninstallAgentPanelPromoter();
-        this.panelState.pipActive.set(false);
-        if (this.agentPipWin) {
-            try { this.agentPipWin.close(); } catch { /* already closed */ }
-            this.agentPipWin = null;
-        }
-        if (this.agentPanelHost?.matches(':popover-open')) {
-            try { this.agentPanelHost.hidePopover(); } catch { /* race */ }
-        }
-        if (this.agentPanelView) {
-            this.agentPanelView.destroy();
-            this.agentPanelView = null;
-        }
-        if (this.agentPanelHost) {
-            this.agentPanelHost.remove();
-            this.agentPanelHost = null;
-        }
-    }
-
-    private agentPanelPromoter: ((e: Event) => void) | null = null;
-    private agentPanelClickTracker: ((e: Event) => void) | null = null;
-    private agentPanelLastOwnClickAt = 0;
-
-    private installAgentPanelPromoter(): void {
-        if (this.agentPanelPromoter) return;
-        // Whenever ANY other popover opens (Material dialogs use the same
-        // popover API since CDK 19), we re-show ours to bring it back to
-        // the top of the top-layer — UNLESS the popover that just opened
-        // is our own descendant (mat-select / mat-menu triggered from a
-        // click inside the panel). Detected temporally: a click inside the
-        // panel within the last 400ms marks any subsequent popover-open as
-        // "ours". Without this guard the panel covers its own dropdowns.
-        this.agentPanelClickTracker = (e: Event) => {
-            if (this.agentPanelHost?.contains(e.target as Node)) {
-                this.agentPanelLastOwnClickAt = Date.now();
-            }
-        };
-        this.doc.addEventListener('click', this.agentPanelClickTracker, true);
-
-        this.agentPanelPromoter = (e: Event) => {
-            const target = e.target as HTMLElement;
-            if (!this.agentPanelHost || target === this.agentPanelHost) return;
-            const toggle = e as ToggleEvent;
-            if (toggle.newState !== 'open') return;
-            // Skip re-promote when the just-opened popover is likely ours.
-            if (Date.now() - this.agentPanelLastOwnClickAt < 400) return;
-            queueMicrotask(() => {
-                const host = this.agentPanelHost;
-                if (!host || !host.matches(':popover-open')) return;
-                try { host.hidePopover(); host.showPopover(); } catch { /* race */ }
-            });
-        };
-        this.doc.addEventListener('toggle', this.agentPanelPromoter, true);
-    }
-
-    private uninstallAgentPanelPromoter(): void {
-        if (this.agentPanelPromoter) {
-            this.doc.removeEventListener('toggle', this.agentPanelPromoter, true);
-            this.agentPanelPromoter = null;
-        }
-        if (this.agentPanelClickTracker) {
-            this.doc.removeEventListener('click', this.agentPanelClickTracker, true);
-            this.agentPanelClickTracker = null;
-        }
     }
 
     private initScrollObservers() {
@@ -435,6 +287,7 @@ export class ChatComponent {
     }
 
     private performSmartScroll() {
+        if (this.jumpInProgress) return;
         const scrollRef = this.scrollContainer();
         if (!scrollRef) return;
         const el = scrollRef.nativeElement;
@@ -458,7 +311,20 @@ export class ChatComponent {
         }
     }
 
+    // User-initiated scroll-to-bottom (floating button). Cancels any
+    // active deep-link jump guard — user explicitly asking for bottom
+    // beats a still-running jump's stay-pinned protection.
+    onScrollToBottomClick(): void {
+        this.jumpInProgress = false;
+        if (this.jumpTimeoutId !== null) {
+            clearTimeout(this.jumpTimeoutId);
+            this.jumpTimeoutId = null;
+        }
+        this.scrollToBottom(false);
+    }
+
     scrollToBottom(force = false): void {
+        if (this.jumpInProgress) return;
         const scrollRef = this.scrollContainer();
         if (!scrollRef) return;
 
@@ -483,7 +349,7 @@ export class ChatComponent {
         if (attempt >= 30) return;
         requestAnimationFrame(() => {
             requestAnimationFrame(() => {
-                if (this.userScrolledUp) return;
+                if (this.userScrolledUp || this.jumpInProgress) return;
                 const currHeight = el.scrollHeight;
                 const dist = currHeight - el.scrollTop - el.clientHeight;
                 if (dist <= 1) return;
@@ -528,15 +394,102 @@ export class ChatComponent {
         this.isAgentSidebarOpen.update(v => !v);
     }
 
-    onJumpToMessage(id: string) {
+    // Spotlight scroll delay — registry uses the same value for hint
+    // targets. Add a small post-hold buffer so the unpin doesn't strip
+    // .msg-toolbar-pinned mid-fade.
+    private static readonly SPOTLIGHT_SCROLL_DELAY_MS = 250;
+    private static readonly TOOLBAR_PIN_HOLD_MS = ChatComponent.SPOTLIGHT_SCROLL_DELAY_MS + SPOTLIGHT_HOLD_MS + 50;
+    // setTimeout before scroll — gives Angular's queued change-detection one
+    // tick to materialize any just-rendered messages before we measure offsets
+    // or query for #message-<id>.
+    private static readonly JUMP_TO_MESSAGE_DELAY_MS = 50;
+    // How long to keep the inline `content-visibility: visible` override on
+    // a jumped-to message. Long enough to cover the smooth-scroll animation
+    // (~300-500ms) PLUS the spotlight hold (~2.1s) so layout doesn't re-skip
+    // mid-animation. Restored to the previous inline value once elapsed.
+    private static readonly CV_OVERRIDE_HOLD_MS = 3000;
+
+    // Per-message-wrapper timer bookkeeping so rapid action-link clicks on
+    // different messages don't race-strip each other's pinned class /
+    // double-spotlight.
+    private toolbarPinnedTimers = new WeakMap<HTMLElement, number>();
+    private spotlightTimers = new WeakMap<HTMLElement, number>();
+
+    onJumpToMessage(id: string, action: string | null = null) {
+        // Set BOTH guards sync at click time, not inside the setTimeout below.
+        // - userScrolledUp: semantically correct (we're leaving the bottom)
+        //   and stops in-flight scheduleScrollCorrection rAF loops.
+        // - jumpInProgress: catches the cases userScrolledUp alone can't —
+        //   scrollToBottom() resets userScrolledUp=false, so any queued
+        //   bottom-pin (status-change effect's setTimeout(50), ResizeObserver
+        //   triggered by our cv override) would undo the flag. jumpInProgress
+        //   is one-way until we explicitly clear it post-scroll.
+        this.userScrolledUp = true;
+        this.jumpInProgress = true;
+        // Clear-and-reset so two rapid jumps don't fight: without this, jump
+        // #1's timer would fire mid-jump-#2's hold and prematurely lift the
+        // guard.
+        if (this.jumpTimeoutId !== null) clearTimeout(this.jumpTimeoutId);
+        this.jumpTimeoutId = setTimeout(() => {
+            this.jumpInProgress = false;
+            this.jumpTimeoutId = null;
+        }, ChatComponent.CV_OVERRIDE_HOLD_MS);
         setTimeout(() => {
             const root = this.contentWrapper()?.nativeElement;
+            const scrollEl = this.scrollContainer()?.nativeElement as HTMLElement | undefined;
             const el = root?.querySelector<HTMLElement>(`#message-${CSS.escape(id)}`);
-            if (el) {
-                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                el.classList.add('highlight-flash');
-                setTimeout(() => el.classList.remove('highlight-flash'), 2000);
+            if (!el || !scrollEl) return;
+            el.style.contentVisibility = 'visible';
+            void el.offsetHeight;
+            // Compute target scrollTop manually. scrollIntoView({behavior:'smooth'})
+            // silently no-ops when the target is far from the current viewport
+            // AND there are content-visibility:auto elements between current
+            // scrollTop and target — Chrome bails on the layout chain it can't
+            // resolve cheaply. scrollEl.scrollTo with an explicit numeric
+            // target sidesteps that algorithm.
+            const containerRect = scrollEl.getBoundingClientRect();
+            const elRect = el.getBoundingClientRect();
+            const targetContentTop = scrollEl.scrollTop + (elRect.top - containerRect.top);
+            const centeredTop = targetContentTop - (scrollEl.clientHeight - elRect.height) / 2;
+            const clamped = Math.max(0, Math.min(centeredTop, scrollEl.scrollHeight - scrollEl.clientHeight));
+            scrollEl.scrollTo({ top: clamped, behavior: 'smooth' });
+            // Always restore to empty (removes inline style), letting the
+            // `.model-message` class rule resume control. Don't capture
+            // `el.style.contentVisibility` before override — a second jump
+            // within the hold window would capture our previous 'visible'
+            // override as the "original" and never restore class control.
+            // Safe because nothing else in this app sets inline cv on these
+            // elements.
+            setTimeout(() => { el.style.contentVisibility = ''; }, ChatComponent.CV_OVERRIDE_HOLD_MS);
+            if (action) {
+                // Toolbar buttons are hidden until hover; force-show the
+                // toolbar for the spotlight duration so the user can both
+                // see and click the highlighted target.
+                const btn = el.querySelector<HTMLElement>(`[data-msg-action="${CSS.escape(action)}"]`);
+                if (btn) {
+                    el.classList.add('msg-toolbar-pinned');
+                    const prevPin = this.toolbarPinnedTimers.get(el);
+                    if (prevPin !== undefined) clearTimeout(prevPin);
+                    const prevSpot = this.spotlightTimers.get(el);
+                    if (prevSpot !== undefined) clearTimeout(prevSpot);
+                    const spotTimer = setTimeout(() => {
+                        spotlightElement(btn);
+                        this.spotlightTimers.delete(el);
+                    }, ChatComponent.SPOTLIGHT_SCROLL_DELAY_MS) as unknown as number;
+                    this.spotlightTimers.set(el, spotTimer);
+                    const pinTimer = setTimeout(() => {
+                        el.classList.remove('msg-toolbar-pinned');
+                        this.toolbarPinnedTimers.delete(el);
+                    }, ChatComponent.TOOLBAR_PIN_HOLD_MS) as unknown as number;
+                    this.toolbarPinnedTimers.set(el, pinTimer);
+                    return;
+                }
+                // Action segment named but no matching button on this
+                // message (e.g. user-msg / non-save model-msg with
+                // auto-update link): fall through to message-level flash.
             }
-        }, 50);
+            el.classList.add('highlight-flash');
+            setTimeout(() => el.classList.remove('highlight-flash'), 2000);
+        }, ChatComponent.JUMP_TO_MESSAGE_DELAY_MS);
     }
 }

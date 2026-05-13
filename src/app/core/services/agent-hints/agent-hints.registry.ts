@@ -1,12 +1,10 @@
 import { Injectable, inject, ElementRef } from '@angular/core';
-import { DOCUMENT } from '@angular/common';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { I18nService } from '@app/core/i18n';
 import { AGENT_HINTS_MANIFEST } from './agent-hints.manifest';
+import { spotlightElement } from './spotlight.util';
 import type { AgentHintEntry, ResolvedEntry, HintAction } from './agent-hints.types';
 
-const SPOTLIGHT_HOLD_MS = 2100;
-const SPOTLIGHT_PADDING_PX = 6;
 const BREADCRUMB_TOAST_MS = 6000;
 
 @Injectable({ providedIn: 'root' })
@@ -14,7 +12,6 @@ export class AgentHintRegistry {
   private readonly byPath = new Map<string, ResolvedEntry>();
   private readonly snackBar = inject(MatSnackBar);
   private readonly i18n = inject(I18nService);
-  private readonly doc = inject(DOCUMENT);
 
   constructor() {
     this.walkTree(AGENT_HINTS_MANIFEST, []);
@@ -245,35 +242,8 @@ export class AgentHintRegistry {
     setTimeout(() => this.spotlight(el), 250);
   }
 
-  /**
-   * Dim the rest of the page so a single small button stands out. A
-   * transparent div is anchored to the target's bbox; its enormous outset
-   * box-shadow paints everything else in semi-opaque black, leaving the
-   * target as a bright "hole". popover="manual" so we share the browser
-   * top-layer with cdk dialogs / the agent panel — without it the spotlight
-   * would render behind them.
-   */
   private spotlight(el: HTMLElement): void {
-    const rect = el.getBoundingClientRect();
-    if (rect.width === 0 || rect.height === 0) return;
-    const host = this.doc.createElement('div');
-    host.className = 'agent-hint-spotlight';
-    host.setAttribute('popover', 'manual');
-    host.style.cssText = `
-      position: fixed;
-      top: ${rect.top - SPOTLIGHT_PADDING_PX}px;
-      left: ${rect.left - SPOTLIGHT_PADDING_PX}px;
-      width: ${rect.width + SPOTLIGHT_PADDING_PX * 2}px;
-      height: ${rect.height + SPOTLIGHT_PADDING_PX * 2}px;
-    `;
-    this.doc.body.appendChild(host);
-    try { host.showPopover(); } catch { /* unsupported */ }
-    setTimeout(() => {
-      if (host.matches(':popover-open')) {
-        try { host.hidePopover(); } catch { /* race */ }
-      }
-      host.remove();
-    }, SPOTLIGHT_HOLD_MS);
+    spotlightElement(el);
   }
 
   /**

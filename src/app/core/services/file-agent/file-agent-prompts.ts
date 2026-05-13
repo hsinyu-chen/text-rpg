@@ -231,7 +231,7 @@ When your response mentions a UI feature, a past chat message, or a KB file, out
 | To do this | Source of the URL | What to output |
 |---|---|---|
 | Point to a UI feature (button, panel, tab) | Call \`uiMap()\` once to dump the full tree, copy the deepest matching path verbatim | \`[anything](app://hint/<full/slash/path>)\` — renderer auto-expands to a per-segment clickable breadcrumb |
-| Quote / reference a specific past chat message | \`searchChatMessages\` / \`readChatMessage\` / \`listChatMessages\` results include a \`url\` field | \`[label](app://message/<id>)\` |
+| Quote / reference a specific past chat message | \`searchChatMessages\` / \`readChatMessage\` / \`listChatMessages\` results include a \`url\` field | \`[label](app://message/<id>)\` or, to point at a toolbar action on that message, \`[label](app://message/<id>/<action>)\` |
 | Open a KB file in the file-viewer | Use the literal filename from the file list above | \`[\`${cf.INVENTORY}\`](app://file/${cf.INVENTORY})\` |
 
 URL behavior on click:
@@ -240,6 +240,7 @@ URL behavior on click:
 - \`app://hint/<path>?do=activate\`: triggers the component's open function (opens dialog, switches tab, fires action). Only honored on entries marked \`(activatable)\` in \`uiMap\`. Side effects — see Rules below.
 - \`app://hint/<path>?do=focus\`: focuses an input element. Use sparingly.
 - \`app://message/<id>\`: scroll + flash on the target chat message.
+- \`app://message/<id>/<action>\`: scroll to the message and spotlight a specific toolbar button on it. Available \`<action>\` values: \`auto-update\` (only on save messages — opens the Auto Update Files dialog), \`fork\` (branch the Book here), \`edit-text\` (model msgs), \`edit-resend\` (last user msg), \`copy-json\`, \`toggle-raw\`, \`mark-ref-only\` / \`include-in-story\`, \`delete\`, \`delete-following\`. If the named action doesn't exist on the target message (e.g. \`auto-update\` on a non-save message), it falls back to the plain message flash.
 - \`app://file/<filename>\`: open the file-viewer dialog with that file loaded.
 
 Rules:
@@ -248,7 +249,8 @@ Rules:
 - **Copy paths verbatim from the uiMap dump.** Every line in the dump starts with the full path — that is the literal string you put after \`app://hint/\`. Do NOT invent path segments (e.g. \`main-screen\` is not in the manifest; making it up renders as raw \`agentHint.main-screen.name\` placeholders).
 - **Emit ONLY the deepest matching path.** Single full-path link, e.g. \`[找這個](app://hint/chat-input/chat-config/profile-manage-menu/disk-sync-pull)\`. The renderer auto-expands it into a per-segment clickable breadcrumb chain — do NOT manually compose \`[A](app://hint/A) › [B](app://hint/A/B)\` yourself.
 - **Never describe button positions from memory** ("upper-right corner", "third from the left"). uiMap is the authoritative source.
-- **DEFAULT to no query (= highlight).** Append \`?do=activate\` ONLY when (a) the entry is marked \`(activatable)\` in uiMap AND (b) the user explicitly asked you to do the action for them. Discovery questions ("where is X / how do I do Y") never get \`?do=activate\`.`;
+- **DEFAULT to no query (= highlight).** Append \`?do=activate\` ONLY when (a) the entry is marked \`(activatable)\` in uiMap AND (b) the user explicitly asked you to do the action for them. Discovery questions ("where is X / how do I do Y") never get \`?do=activate\`.
+- **NEVER wrap an \`app://\` link in backticks or a code fence.** A backtick-wrapped link (e.g. \\\`\\\`[file](app://file/x.md)\\\`\\\`) is rendered as literal text — markdown's code-span rule disables all parsing inside. The link must sit as plain markdown so the renderer turns it into an anchor element. If you want to emphasize the filename, use bold/italic OUTSIDE the link: \`**[file](app://file/x.md)**\`, not \`**\\\`[file](app://file/x.md)\\\`**\`.`;
 
   const surfaceModeBlock = `## EDITING SURFACE — TWO MODES
 
