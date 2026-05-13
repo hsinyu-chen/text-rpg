@@ -23,6 +23,21 @@ export interface AgentHintEntry {
 }
 
 /**
+ * Flat declaration of a single hint path. Used by both
+ * `agent-hints.manifest.generated.ts` (AST-derived) and the
+ * `PENDING_DIRECTIVES` worklist in `agent-hints.manifest.base.ts`.
+ *
+ * Trees are rebuilt from these flat lists at runtime — the two sources
+ * share one tree-building implementation in `agent-hints.manifest.ts`.
+ */
+export interface AgentHintPathDecl {
+  /** Full slash-joined path; intermediate containers auto-filled by the merge. */
+  path: string;
+  /** True = the component has a `(hintActivate)` listener bound. */
+  activatable?: boolean;
+}
+
+/**
  * Runtime view of an entry, indexed by full path. Built once at registry
  * init by walking the manifest tree. `elementRef` and `onActivate` get
  * populated when an `AppAgentHintDirective` mounts on a matching element.

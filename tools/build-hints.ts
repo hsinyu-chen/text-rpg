@@ -2,8 +2,9 @@
  * Build-time generator for agent-hints.manifest.generated.ts.
  *
  * Scans src/**\/*.component.html for `appAgentHint="path"` attributes (+
- * `(hintActivate)` events), reconstructs a path tree, and writes a TS file
- * the runtime registry merges with manifest.base.ts.
+ * `(hintActivate)` events), then writes a flat `AgentHintPathDecl[]`
+ * the runtime registry merges with manifest.base.ts and reshapes into
+ * the final tree.
  *
  * All checks emit WARNINGS to stderr — never exits non-zero on findings.
  * Exits non-zero only on hard runtime failures (parser crash, IO error).
@@ -29,6 +30,11 @@ interface ManifestEntry {
   id: string;
   activatable?: boolean;
   children?: ManifestEntry[];
+}
+
+interface PathDecl {
+  path: string;
+  activatable?: boolean;
 }
 
 const repoRoot = process.cwd();
@@ -58,47 +64,43 @@ async function main(): Promise<void> {
   }
 
   // Collapse to one record per path (activatable=true wins on duplicates).
-  const pathInfo = new Map<string, { activatable: boolean; isDynamic: boolean }>();
+  const astPaths = new Map<string, boolean>();
   for (const b of bindings) {
     if (b.isDynamic) {
       warn(`[dynamic-path] ${relative(repoRoot, b.file)}:${b.line}:${b.col} — [appAgentHint] is bound, registry cannot statically register "${b.path}"`);
       continue;
     }
-    const prev = pathInfo.get(b.path);
-    pathInfo.set(b.path, {
-      activatable: b.activatable || (prev?.activatable ?? false),
-      isDynamic: false,
-    });
+    const prev = astPaths.get(b.path);
+    astPaths.set(b.path, b.activatable || (prev ?? false));
   }
 
-  // Auto-fill intermediate container nodes (e.g. 'a/b' when only 'a/b/c' was seen).
-  for (const path of [...pathInfo.keys()]) {
+  // i18n check needs the auto-filled intermediates too.
+  const pathsForI18nCheck = new Set(astPaths.keys());
+  for (const path of [...astPaths.keys()]) {
     const segs = path.split('/');
-    for (let i = 1; i < segs.length; i++) {
-      const ancestor = segs.slice(0, i).join('/');
-      if (!pathInfo.has(ancestor)) pathInfo.set(ancestor, { activatable: false, isDynamic: false });
-    }
+    for (let i = 1; i < segs.length; i++) pathsForI18nCheck.add(segs.slice(0, i).join('/'));
   }
 
-  const generatedTree = buildTree(pathInfo);
-
-  // Conflict check: same path in base + generated → warning.
+  // Conflict check vs base. Only warn when activatable disagrees — pure
+  // structural overlap (a base subtree happening to declare a container
+  // path the AST also discovered) is benign.
   const basePaths = await loadBasePaths();
-  for (const path of basePaths.keys()) {
-    if (pathInfo.has(path)) {
-      warn(`[conflict] ${path} exists in BOTH manifest.base.ts and the AST scan. Generated wins; remove from base.`);
+  for (const [path, baseActivatable] of basePaths) {
+    const astActivatable = astPaths.get(path);
+    if (astActivatable !== undefined && astActivatable !== baseActivatable) {
+      warn(`[conflict] ${path} — base says activatable=${baseActivatable}, AST says ${astActivatable}`);
     }
   }
 
-  // i18n completeness check (warning only).
-  await checkI18nKeys([...pathInfo.keys(), ...basePaths.keys()]);
+  await checkI18nKeys([...pathsForI18nCheck, ...basePaths.keys()]);
 
-  // Write output.
-  const outputPath = resolve(repoRoot, OUTPUT);
-  writeFileSync(outputPath, renderGenerated(generatedTree), 'utf8');
-  console.log(`Wrote ${OUTPUT} (${pathInfo.size} paths from ${files.length} templates)`);
+  const decls: PathDecl[] = [...astPaths.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([path, activatable]) => (activatable ? { path, activatable: true } : { path }));
 
-  // Surface warnings on stderr; never exit non-zero.
+  writeFileSync(resolve(repoRoot, OUTPUT), renderGenerated(decls), 'utf8');
+  console.log(`Wrote ${OUTPUT} (${decls.length} paths from ${files.length} templates)`);
+
   if (warnings.length) {
     process.stderr.write(`\n${warnings.length} warning(s):\n`);
     for (const w of warnings) process.stderr.write(`  ${w}\n`);
@@ -117,6 +119,10 @@ function walk(nodes: readonly unknown[], file: string, out: HintBinding[]): void
       branches?: { children?: unknown[] }[];
       cases?: { children?: unknown[] }[];
       body?: unknown[];
+      empty?: { children?: unknown[] };
+      placeholder?: { children?: unknown[] };
+      loading?: { children?: unknown[] };
+      error?: { children?: unknown[] };
     };
 
     const staticHint = node.attributes?.find((a) => a.name === 'appAgentHint');
@@ -139,81 +145,38 @@ function walk(nodes: readonly unknown[], file: string, out: HintBinding[]): void
     if (node.branches) for (const b of node.branches) if (b.children?.length) walk(b.children, file, out);
     if (node.cases) for (const c of node.cases) if (c.children?.length) walk(c.children, file, out);
     if (node.body?.length) walk(node.body, file, out);
+    // Angular 17+ secondary blocks: @for's @empty, @defer's @placeholder/@loading/@error.
+    if (node.empty?.children?.length) walk(node.empty.children, file, out);
+    if (node.placeholder?.children?.length) walk(node.placeholder.children, file, out);
+    if (node.loading?.children?.length) walk(node.loading.children, file, out);
+    if (node.error?.children?.length) walk(node.error.children, file, out);
   }
 }
 
-function buildTree(pathInfo: Map<string, { activatable: boolean }>): ManifestEntry[] {
-  type Node = { id: string; activatable?: boolean; childMap: Map<string, Node> };
-  const roots = new Map<string, Node>();
-
-  const sortedPaths = [...pathInfo.keys()].sort();
-  for (const path of sortedPaths) {
-    const segs = path.split('/');
-    let level = roots;
-    let node: Node | undefined;
-    for (const seg of segs) {
-      node = level.get(seg);
-      if (!node) {
-        node = { id: seg, childMap: new Map() };
-        level.set(seg, node);
-      }
-      level = node.childMap;
-    }
-    if (node && pathInfo.get(path)!.activatable) node.activatable = true;
-  }
-
-  function toEntries(nodes: Iterable<Node>): ManifestEntry[] {
-    const arr = [...nodes].sort((a, b) => a.id.localeCompare(b.id));
-    return arr.map((n) => {
-      const entry: ManifestEntry = { id: n.id };
-      if (n.activatable) entry.activatable = true;
-      if (n.childMap.size) entry.children = toEntries(n.childMap.values());
-      return entry;
-    });
-  }
-  return toEntries(roots.values());
-}
-
-function renderGenerated(tree: ManifestEntry[]): string {
+function renderGenerated(decls: PathDecl[]): string {
   const banner = `// AUTO-GENERATED by tools/build-hints.ts — DO NOT EDIT.\n// Run \`npm run hints:build\` to regenerate after touching templates.\n`;
-  const body = `import type { AgentHintEntry } from './agent-hints.types';\n\nexport const GENERATED_HINTS: AgentHintEntry[] = ${stringifyEntries(tree, 0)};\n`;
+  const body = `import type { AgentHintPathDecl } from './agent-hints.types';\n\nexport const GENERATED_HINTS: AgentHintPathDecl[] = [\n${decls
+    .map((d) => (d.activatable ? `  { path: '${d.path}', activatable: true },` : `  { path: '${d.path}' },`))
+    .join('\n')}\n];\n`;
   return banner + '\n' + body;
 }
 
-function stringifyEntries(entries: ManifestEntry[], indent: number): string {
-  if (!entries.length) return '[]';
-  const pad = '  '.repeat(indent);
-  const inner = entries.map((e) => stringifyEntry(e, indent + 1)).join(',\n');
-  return `[\n${inner},\n${pad}]`;
-}
-
-function stringifyEntry(entry: ManifestEntry, indent: number): string {
-  const pad = '  '.repeat(indent);
-  const parts: string[] = [`id: '${entry.id}'`];
-  if (entry.activatable) parts.push('activatable: true');
-  if (entry.children?.length) parts.push(`children: ${stringifyEntries(entry.children, indent)}`);
-  // Single-line short form when no children, multi-line otherwise.
-  if (!entry.children?.length) return `${pad}{ ${parts.join(', ')} }`;
-  const inner = parts.map((p) => `${pad}  ${p}`).join(',\n');
-  return `${pad}{\n${inner},\n${pad}}`;
-}
-
-async function loadBasePaths(): Promise<Map<string, { activatable: boolean; source: 'virtual' | 'pending' }>> {
+async function loadBasePaths(): Promise<Map<string, boolean>> {
   const basePath = resolve(repoRoot, BASE_FILE);
   if (!existsSync(basePath)) return new Map();
   const mod = await import(pathToFileURL(basePath).href);
-  const collect = new Map<string, { activatable: boolean; source: 'virtual' | 'pending' }>();
+  const collect = new Map<string, boolean>();
   function walkVirtual(entries: ManifestEntry[], parent: string): void {
     for (const e of entries) {
       const p = parent ? `${parent}/${e.id}` : e.id;
-      collect.set(p, { activatable: !!e.activatable, source: 'virtual' });
+      collect.set(p, !!e.activatable);
       if (e.children) walkVirtual(e.children, p);
     }
   }
   if (Array.isArray(mod.VIRTUAL_HINTS)) walkVirtual(mod.VIRTUAL_HINTS as ManifestEntry[], '');
   if (Array.isArray(mod.PENDING_DIRECTIVES)) {
-    for (const pd of mod.PENDING_DIRECTIVES as { path: string; activatable?: boolean }[]) {
-      collect.set(pd.path, { activatable: !!pd.activatable, source: 'pending' });
+    for (const pd of mod.PENDING_DIRECTIVES as PathDecl[]) {
+      collect.set(pd.path, !!pd.activatable);
     }
   }
   return collect;

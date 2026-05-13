@@ -1,4 +1,4 @@
-import type { AgentHintEntry } from './agent-hints.types';
+import type { AgentHintEntry, AgentHintPathDecl } from './agent-hints.types';
 import { GENERATED_HINTS } from './agent-hints.manifest.generated';
 import { VIRTUAL_HINTS, PENDING_DIRECTIVES } from './agent-hints.manifest.base';
 
@@ -9,15 +9,15 @@ import { VIRTUAL_HINTS, PENDING_DIRECTIVES } from './agent-hints.manifest.base';
  *  - `PENDING_DIRECTIVES` (Phase 0 backlog — paths declared but no
  *    `appAgentHint` directive added to the template yet)
  *
- * Duplicate paths across sources log a console.warn at module load and
- * the first source wins (generated > virtual > pending). Intermediate
- * containers missing from all sources are auto-filled with `activatable:
- * false` so the tree walk has a node at every depth.
+ * All three are flattened to `(path, activatable)` records, intermediate
+ * containers auto-filled with `activatable: false`, then re-shaped into
+ * the nested `AgentHintEntry[]` tree. Duplicate paths with conflicting
+ * activatable flags log a console.warn at module load.
  *
  * Descriptions live in i18n dictionaries under `agentHint.<dotted-path>`
- * (or `agentHint.<dotted-path>.self` for container entries that also
- * have children). The registry resolves them via `I18nService` at query
- * time so locale changes take effect immediately.
+ * (or `agentHint.<dotted-path>.self` for container entries). The registry
+ * resolves them via `I18nService` at query time so locale changes take
+ * effect immediately.
  */
 export const AGENT_HINTS_MANIFEST: AgentHintEntry[] = mergeManifest();
 
@@ -25,30 +25,33 @@ function mergeManifest(): AgentHintEntry[] {
   const records = new Map<string, boolean>();
   const conflicts: string[] = [];
 
-  function ingestTree(entries: AgentHintEntry[], parent: string): void {
+  function record(path: string, activatable: boolean): void {
+    const existing = records.get(path);
+    if (existing !== undefined) {
+      if (existing !== activatable) conflicts.push(path);
+      return;
+    }
+    records.set(path, activatable);
+  }
+
+  function flattenTree(entries: AgentHintEntry[], parent: string): void {
     for (const e of entries) {
       const p = parent ? `${parent}/${e.id}` : e.id;
-      if (records.has(p)) {
-        conflicts.push(p);
-      } else {
-        records.set(p, !!e.activatable);
-      }
-      if (e.children) ingestTree(e.children, p);
+      record(p, !!e.activatable);
+      if (e.children) flattenTree(e.children, p);
     }
   }
 
-  ingestTree(GENERATED_HINTS, '');
-  ingestTree(VIRTUAL_HINTS, '');
-  for (const pd of PENDING_DIRECTIVES) {
-    if (records.has(pd.path)) {
-      conflicts.push(pd.path);
-    } else {
-      records.set(pd.path, !!pd.activatable);
-    }
+  function flattenFlat(decls: readonly AgentHintPathDecl[]): void {
+    for (const d of decls) record(d.path, !!d.activatable);
   }
+
+  flattenFlat(GENERATED_HINTS);
+  flattenTree(VIRTUAL_HINTS, '');
+  flattenFlat(PENDING_DIRECTIVES);
 
   if (conflicts.length) {
-    console.warn('[agent-hints] duplicate manifest paths (first source wins):', conflicts);
+    console.warn('[agent-hints] activatable flag conflicts across manifest sources:', conflicts);
   }
 
   for (const path of [...records.keys()]) {

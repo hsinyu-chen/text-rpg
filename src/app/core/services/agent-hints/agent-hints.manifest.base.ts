@@ -1,4 +1,4 @@
-import type { AgentHintEntry } from './agent-hints.types';
+import type { AgentHintEntry, AgentHintPathDecl } from './agent-hints.types';
 
 /**
  * Hand-authored manifest entries that the AST generator cannot infer from
@@ -39,11 +39,6 @@ export const VIRTUAL_HINTS: AgentHintEntry[] = [
   },
 ];
 
-export interface PendingDirective {
-  path: string;
-  activatable?: boolean;
-}
-
 /**
  * Phase 0 worklist. Each entry corresponds to an existing UI button that
  * hasn't been tagged with `appAgentHint` yet. When you add the directive
@@ -51,7 +46,7 @@ export interface PendingDirective {
  *
  * **Progress meter:** `PENDING_DIRECTIVES.length`. Goal: 0.
  */
-export const PENDING_DIRECTIVES: PendingDirective[] = [
+export const PENDING_DIRECTIVES: AgentHintPathDecl[] = [
   // chat-input/batch-replace dialog
   { path: 'chat-input/batch-replace/match-case', activatable: true },
   { path: 'chat-input/batch-replace/whole-word', activatable: true },
