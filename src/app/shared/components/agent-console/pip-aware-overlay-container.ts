@@ -1,4 +1,4 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, inject, DestroyRef } from '@angular/core';
 import { OverlayContainer } from '@angular/cdk/overlay';
 import { AgentPanelStateService } from '@app/core/services/file-agent/agent-panel-state.service';
 
@@ -27,10 +27,30 @@ export class PipAwareOverlayContainer extends OverlayContainer {
   private pipContainerElement: HTMLElement | null = null;
   private mainContainerElement: HTMLElement | null = null;
 
+  constructor() {
+    super();
+    // Base OverlayContainer.ngOnDestroy only cleans whichever container
+    // was last assigned to _containerElement; the other one would leak in
+    // its host doc every time agent-console is destroyed (panel toggle,
+    // PiP close). DestroyRef.onDestroy runs alongside base's hook —
+    // additive cleanup, no override.
+    inject(DestroyRef).onDestroy(() => {
+      this.pipContainerElement?.remove();
+      this.mainContainerElement?.remove();
+      this.pipContainerElement = null;
+      this.mainContainerElement = null;
+    });
+  }
+
   override getContainerElement(): HTMLElement {
     const pipDoc = this.panelState.pipActive() ? this.panelState.pipDocument() : null;
     if (pipDoc) {
-      if (!this.pipContainerElement || !this.pipContainerElement.isConnected) {
+      // Reuse only when the cached container still belongs to THIS pipDoc.
+      // After a PiP close+reopen the old container is still attached to the
+      // now-detached body of the dead window, so `isConnected` stays true
+      // and naive reuse would route overlays into an invisible doc. Compare
+      // ownerDocument to be sure we're on the live window.
+      if (!this.pipContainerElement || this.pipContainerElement.ownerDocument !== pipDoc) {
         this.pipContainerElement = this.createContainerIn(pipDoc);
       }
       this._containerElement = this.pipContainerElement;

@@ -1,5 +1,4 @@
 import { Injectable, inject, ElementRef } from '@angular/core';
-import { DOCUMENT } from '@angular/common';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { I18nService } from '@app/core/i18n';
 import { AGENT_HINTS_MANIFEST } from './agent-hints.manifest';
@@ -13,7 +12,6 @@ export class AgentHintRegistry {
   private readonly byPath = new Map<string, ResolvedEntry>();
   private readonly snackBar = inject(MatSnackBar);
   private readonly i18n = inject(I18nService);
-  private readonly doc = inject(DOCUMENT);
 
   constructor() {
     this.walkTree(AGENT_HINTS_MANIFEST, []);
@@ -245,7 +243,7 @@ export class AgentHintRegistry {
   }
 
   private spotlight(el: HTMLElement): void {
-    spotlightElement(this.doc, el);
+    spotlightElement(el);
   }
 
   /**

@@ -537,6 +537,12 @@ export class ChatComponent {
         this.isAgentSidebarOpen.update(v => !v);
     }
 
+    // Tracks the active `.msg-toolbar-pinned` clear timer per message
+    // wrapper so two rapid action-link clicks on different messages don't
+    // race — the first click's clear timer was wiping the second click's
+    // pinned class mid-spotlight.
+    private toolbarPinnedTimers = new WeakMap<HTMLElement, number>();
+
     onJumpToMessage(id: string, action: string | null = null) {
         setTimeout(() => {
             const root = this.contentWrapper()?.nativeElement;
@@ -550,11 +556,17 @@ export class ChatComponent {
                 const btn = el.querySelector<HTMLElement>(`[data-msg-action="${CSS.escape(action)}"]`);
                 if (btn) {
                     el.classList.add('msg-toolbar-pinned');
+                    const prev = this.toolbarPinnedTimers.get(el);
+                    if (prev !== undefined) clearTimeout(prev);
                     // Wait for the smooth scroll to settle before measuring
                     // the bbox — matches the 250ms registry uses for hint
                     // spotlights.
-                    setTimeout(() => spotlightElement(this.doc, btn), 250);
-                    setTimeout(() => el.classList.remove('msg-toolbar-pinned'), 2400);
+                    setTimeout(() => spotlightElement(btn), 250);
+                    const timer = setTimeout(() => {
+                        el.classList.remove('msg-toolbar-pinned');
+                        this.toolbarPinnedTimers.delete(el);
+                    }, 2400) as unknown as number;
+                    this.toolbarPinnedTimers.set(el, timer);
                     return;
                 }
                 // Action segment named but no matching button on this

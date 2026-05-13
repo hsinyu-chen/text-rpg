@@ -970,7 +970,7 @@ export const zhTW: TranslationDict = {
             'cancel-edit': { name: '取消編輯', description: '取消編輯中的訊息(editing 模式時可用,會丟掉編輯到一半的內容)' },
         },
         'chat-message': {
-            self: { name: '訊息動作', description: '每則對話訊息右上的動作列(class-level — 不能指到具體某一則,跳到特定訊息請用 app://message/<id>)' },
+            self: { name: '訊息動作', description: '每則對話訊息右上的動作列(class-level — 不能指到具體某一則;跳到特定訊息請用 app://message/<id>,要 spotlight 該訊息上的某個按鈕用 app://message/<id>/<action>)' },
             'edit-resend': { name: '編輯重送', description: '每則使用者訊息右上動作列:編輯後重送(會重新呼叫 LLM)。只對最新一條 user msg 可用,不能 reach 歷史回合' },
             'fork-from-here': { name: '從此分支', description: '訊息動作列:從這則訊息分支出新版 book,原版保留可切回' },
             'delete-all-following': { name: '刪除後續', description: '訊息動作列:刪除這則之後的所有訊息' },

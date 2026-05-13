@@ -9,15 +9,18 @@
  * it the spotlight would render behind them.
  *
  * Shared by AgentHintRegistry (UI-feature deep links) and chat.component
- * (message toolbar deep links).
+ * (message toolbar deep links). The host always lands in the target
+ * element's own document so a target inside a PiP window gets a spotlight
+ * in the same window instead of leaking back to the main doc.
  */
 
 export const SPOTLIGHT_HOLD_MS = 2100;
 const SPOTLIGHT_PADDING_PX = 6;
 
-export function spotlightElement(doc: Document, el: HTMLElement): void {
+export function spotlightElement(el: HTMLElement): void {
   const rect = el.getBoundingClientRect();
   if (rect.width === 0 || rect.height === 0) return;
+  const doc = el.ownerDocument;
   const host = doc.createElement('div');
   host.className = 'agent-hint-spotlight';
   host.setAttribute('popover', 'manual');
