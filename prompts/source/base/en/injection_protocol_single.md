@@ -23,7 +23,9 @@ Strictly follow these JSON field definitions. **Flat top-level shape**: `{ analy
   | `time_hhmm` | In-world time at **end of this turn**, "HH:MM" precision. Estimate from prior turn + this turn's actions. NEVER repeat the previous turn's value across consecutive turns. |
   | `location` | Where the scene happens. Used in the assembled header. |
   | `environment` | Free prose merging weather / ambience / special conditions. **Different from `location`** — sensory atmosphere, not place name. Empty `""` allowed. |
-  | `pc_in_header` | PC representation in header with optional alias `[]` / state `()`. |
+  | `pc_name` | PC display name. e.g. `"程楊宗"` / `"Cheng Yangzong"`. |
+  | `pc_alias` | PC alias / nickname, `""` if none. Program wraps in `[]` when present. |
+  | `pc_state` | PC fog-of-war / consciousness state — same domain as `present_npcs[].state`. `""` if none. Program wraps in `()` when present. |
   | `present_npcs[]` | Every on-scene NPC. `{name, state}`. |
   | `key_objects[]` | Important environmental objects (mechanisms / traps / key items). `{name, state}`. Plain furniture excluded. Empty `[]`. |
 

@@ -58,7 +58,8 @@ function formatSnapshot(snap: Partial<SceneSnapshot>, labels: TraceLabels): stri
     const dateTime = [snap.date_in_world, snap.time_hhmm].filter(Boolean).join(' ');
     if (dateTime) lines.push(`- ${labels.TIME}: ${dateTime}`);
     if (snap.location) lines.push(`- ${labels.LOCATION}: ${snap.location}`);
-    if (snap.pc_in_header) lines.push(`- ${labels.PROTAGONIST}: ${snap.pc_in_header}`);
+    const pcHeader = formatPcInHeader(snap);
+    if (pcHeader) lines.push(`- ${labels.PROTAGONIST}: ${pcHeader}`);
     if (Array.isArray(snap.present_npcs) && snap.present_npcs.length > 0) {
         lines.push(`- ${labels.PRESENT_NPCS}: ${snap.present_npcs.map(formatPresentNpc).filter(Boolean).join(', ')}`);
     }
@@ -109,7 +110,8 @@ export function buildSceneHeaderLine(snap: Partial<SceneSnapshot> | null | undef
     if (!date || !time || !location) return '';
 
     const charParts: string[] = [];
-    if (snap.pc_in_header) charParts.push(snap.pc_in_header);
+    const pcHeader = formatPcInHeader(snap);
+    if (pcHeader) charParts.push(pcHeader);
     if (Array.isArray(snap.present_npcs)) {
         for (const n of snap.present_npcs) {
             const s = formatPresentNpc(n);
@@ -165,6 +167,13 @@ function stripDialogueQuotes(s: string): string {
         }
     }
     return trimmed;
+}
+
+function formatPcInHeader(snap: Partial<SceneSnapshot>): string {
+    if (!snap.pc_name) return '';
+    const alias = snap.pc_alias ? `[${snap.pc_alias}]` : '';
+    const state = snap.pc_state ? `(${snap.pc_state})` : '';
+    return `${snap.pc_name}${alias}${state}`;
 }
 
 function formatPresentNpc(npc: PresentNpc | null | undefined): string {

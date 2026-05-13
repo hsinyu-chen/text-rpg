@@ -201,12 +201,20 @@ export class TwoCallOrchestratorService {
     }
 
     private normalizeScene(raw: Partial<SceneSnapshot> | undefined): SceneSnapshot {
+        // Legacy saved games stored `pc_in_header` as a single display string
+        // (e.g. "程楊宗[魯蛇](化裝中)"). Dump the whole string into pc_name; the
+        // formatter will not re-wrap empty alias/state in brackets, so display
+        // stays equivalent. Next turn the LLM rewrites scene_snapshot under the
+        // new schema and the snapshot becomes properly split.
+        const legacyHeader = (raw as { pc_in_header?: string } | undefined)?.pc_in_header;
         return {
             date_in_world: raw?.date_in_world ?? '',
             time_hhmm: raw?.time_hhmm ?? '',
             location: raw?.location ?? '',
             environment: raw?.environment ?? '',
-            pc_in_header: raw?.pc_in_header ?? '',
+            pc_name: raw?.pc_name ?? legacyHeader ?? '',
+            pc_alias: raw?.pc_alias ?? '',
+            pc_state: raw?.pc_state ?? '',
             present_npcs: Array.isArray(raw?.present_npcs)
                 ? raw.present_npcs.map(n => ({ name: n?.name ?? '', state: n?.state ?? '' }))
                 : [],

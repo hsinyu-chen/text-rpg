@@ -23,7 +23,9 @@ function snap(overrides: Partial<SceneSnapshot> = {}): SceneSnapshot {
         time_hhmm: '12:00',
         location: '',
         environment: '',
-        pc_in_header: '',
+        pc_name: '',
+        pc_alias: '',
+        pc_state: '',
         present_npcs: [],
         key_objects: [],
         ...overrides
@@ -55,7 +57,9 @@ describe('formatStructuredAnalysis', () => {
                 time_hhmm: '18:40',
                 location: '旅店一樓',
                 environment: '暴雨中',
-                pc_in_header: '程楊宗(平靜)',
+                pc_name: '程楊宗',
+                pc_alias: '',
+                pc_state: '平靜',
                 present_npcs: [{ name: '鮑伯', state: '昏迷' }, { name: '德茲爾', state: '通訊' }],
                 key_objects: [{ name: '窗戶', state: '半開' }]
             })
@@ -68,6 +72,32 @@ describe('formatStructuredAnalysis', () => {
         expect(out).toContain('德茲爾(通訊)');
         expect(out).toContain('暴雨中');
         expect(out).toContain('窗戶(半開)');
+    });
+
+    it('renders PC with both alias and state when populated', () => {
+        const out = formatStructuredAnalysis(analysis({
+            scene_snapshot: snap({
+                location: '旅店',
+                pc_name: '程楊宗',
+                pc_alias: '魯蛇',
+                pc_state: '化裝中'
+            })
+        }));
+        expect(out).toContain('主角: 程楊宗[魯蛇](化裝中)');
+    });
+
+    it('does not emit empty [] / () when alias / state are empty', () => {
+        const out = formatStructuredAnalysis(analysis({
+            scene_snapshot: snap({
+                location: '旅店',
+                pc_name: '程楊宗',
+                pc_alias: '',
+                pc_state: ''
+            })
+        }));
+        expect(out).toContain('主角: 程楊宗');
+        expect(out).not.toContain('程楊宗()');
+        expect(out).not.toContain('程楊宗[]');
     });
 
     it('marks the first broken step with 🔴 and tags later steps as truncated', () => {
@@ -96,7 +126,7 @@ describe('formatStructuredAnalysis', () => {
                 date_in_world: '聖曆 1000年04月02日 週二',
                 time_hhmm: '18:40',
                 location: '旅店一樓',
-                pc_in_header: '程楊宗',
+                pc_name: '程楊宗',
                 present_npcs: [{ name: '鮑伯', state: '昏迷' }, { name: '德茲爾', state: '通訊' }]
             }));
             expect(line).toBe('[聖曆 1000年04月02日 週二 18:40 / 旅店一樓 / 程楊宗, 鮑伯(昏迷), 德茲爾(通訊)]');
@@ -107,9 +137,31 @@ describe('formatStructuredAnalysis', () => {
                 date_in_world: 'D',
                 time_hhmm: '00:00',
                 location: 'L',
-                pc_in_header: 'P'
+                pc_name: 'P'
             }));
             expect(line).toBe('[D 00:00 / L / P]');
+        });
+
+        it('wraps PC alias in [] and state in () when both populated', () => {
+            const line = buildSceneHeaderLine(snap({
+                date_in_world: 'D',
+                time_hhmm: '00:00',
+                location: 'L',
+                pc_name: '程楊宗',
+                pc_alias: '魯蛇',
+                pc_state: '化裝中'
+            }));
+            expect(line).toBe('[D 00:00 / L / 程楊宗[魯蛇](化裝中)]');
+        });
+
+        it('does not emit empty [] / () when alias / state are empty', () => {
+            const line = buildSceneHeaderLine(snap({
+                date_in_world: 'D',
+                time_hhmm: '00:00',
+                location: 'L',
+                pc_name: '程楊宗'
+            }));
+            expect(line).toBe('[D 00:00 / L / 程楊宗]');
         });
     });
 
@@ -137,7 +189,7 @@ describe('formatStructuredAnalysis', () => {
             date_in_world: '聖曆 1000年04月02日 週二',
             time_hhmm: '18:40',
             location: '旅店一樓',
-            pc_in_header: '程楊宗',
+            pc_name: '程楊宗',
             present_npcs: []
         });
 
@@ -255,7 +307,7 @@ describe('formatStructuredAnalysis', () => {
                 time_hhmm: '18:40',
                 location: 'Tavern',
                 environment: 'rainstorm',
-                pc_in_header: 'Cheng Yangzong',
+                pc_name: 'Cheng Yangzong',
                 key_objects: [{ name: 'window', state: 'half open' }]
             }),
             steps: [

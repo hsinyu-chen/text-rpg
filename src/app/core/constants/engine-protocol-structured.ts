@@ -51,7 +51,9 @@ export interface SceneSnapshot {
     time_hhmm: string;
     location: string;
     environment: string;
-    pc_in_header: string;
+    pc_name: string;
+    pc_alias: string;
+    pc_state: string;
     present_npcs: PresentNpc[];
     key_objects: KeyObject[];
 }
@@ -170,9 +172,17 @@ const sceneSnapshotSchema: Schema = {
             type: 'string',
             description: 'Free-form prose merging weather / ambience / special conditions in one breath. e.g. "暴雨中，視線不佳，地板濕滑，戰鬥肅殺氣氛". Empty string allowed but at least one keyword is recommended. Distinct from `location` — this is the sensory atmosphere, not the place name.'
         },
-        pc_in_header: {
+        pc_name: {
             type: 'string',
-            description: 'PC representation as it appears in the scene header, with optional alias and state. e.g. "程楊宗" / "程楊宗[魯蛇]" / "艾爾(平靜)" / "程楊宗[魯蛇](化裝中)". Aliases use [], state uses ().'
+            description: 'PC display name. e.g. "程楊宗" / "艾爾". The program assembles the scene-header presentation from pc_name + pc_alias + pc_state.'
+        },
+        pc_alias: {
+            type: 'string',
+            description: 'PC alias / nickname. e.g. "魯蛇" / "銀月". Empty string when no alias. The program wraps this in [] when present.'
+        },
+        pc_state: {
+            type: 'string',
+            description: 'PC fog-of-war / consciousness state — same domain as present_npcs[].state. Common tags: "昏迷" / "化裝中" / "匿蹤" / "靈魂出竅". "" (default) = fully reactive. NOT for emotion, current activity, or behavior. The program wraps this in () when present.'
         },
         present_npcs: {
             type: 'array',
@@ -185,7 +195,7 @@ const sceneSnapshotSchema: Schema = {
             items: keyObjectSchema
         }
     },
-    required: ['date_in_world', 'time_hhmm', 'location', 'environment', 'pc_in_header', 'present_npcs', 'key_objects']
+    required: ['date_in_world', 'time_hhmm', 'location', 'environment', 'pc_name', 'pc_alias', 'pc_state', 'present_npcs', 'key_objects']
 };
 
 const npcReactionSchema: Schema = {
