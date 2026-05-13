@@ -30,10 +30,13 @@ export interface AgentEditChannel {
 export class AgentPanelStateService {
   readonly pipActive = signal(false);
   readonly editChannel = signal<AgentEditChannel | null>(null);
-  // Lifetime-stable counter for dev-bridge prompt fills. Stored here (not on
-  // agent-console) because the component is destroyed/recreated on every
-  // panel toggle, which would reset a local counter to 0 and re-fire any
-  // pending non-null fill request from a previous session.
+  // Lifetime-stable draft input. AgentConsoleComponent is destroyed/recreated
+  // on every panel toggle (chat-side toggle, PiP open/close), so a per-component
+  // signal would wipe unsent text mid-thought. Hoisting onto the singleton
+  // service preserves the draft across remounts — same lifetime as agentLogs.
+  readonly draftPrompt = signal('');
+  // Same rationale: dev-bridge fill ticks must outlive a remount so a stale
+  // non-null fill request doesn't auto-replay runAgent on every reopen.
   lastFillTick = 0;
 
   registerEditChannel(channel: AgentEditChannel): () => void {

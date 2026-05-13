@@ -2,7 +2,6 @@ import {
   Component,
   ChangeDetectionStrategy,
   inject,
-  signal,
   input,
   viewChild,
   ElementRef,
@@ -76,8 +75,10 @@ export class AgentConsoleComponent implements OnDestroy {
   /** Dev-only flag — shows the agent-hint debug button next to built-in-prompts. Resolved eagerly so the @if in template doesn't need to call a method per check. */
   protected readonly isDevMode = isDevMode();
 
-  // Internal state
-  agentPrompt = signal('');
+  // Draft input lives on the singleton AgentPanelStateService so unsent text
+  // survives panel toggle / PiP open-close (which destroys + recreates this
+  // component). Exposed as a getter for ngModel two-way binding.
+  get agentPrompt() { return this.panelState.draftPrompt; }
 
   /**
    * Per-log-entry fold toggles. The collapse flags live on `AgentLogEntry`
@@ -217,12 +218,18 @@ export class AgentConsoleComponent implements OnDestroy {
     // accumulate there, letting the surface's own Save flow persist them.
     // No channel ⇒ fall back to the caller-supplied files Map (file-viewer's
     // own internal panel passes its data.files; chat-side is read-only).
-    const channel = this.panelState.editChannel();
+    //
+    // onFileReplaced re-reads the channel at write time, not at turn-start:
+    // the file-viewer can close mid-stream, and writes against a stale
+    // captured channel would silently land in an orphaned buffer.
+    const channelAtStart = this.panelState.editChannel();
     await this.agentService.runAgent(prompt, {
-      files: channel ? channel.read() : this.files(),
-      onFileReplaced: channel
-        ? (filename, content) => channel.write(filename, content)
-        : (filename, content) => this.files().set(filename, content),
+      files: channelAtStart ? channelAtStart.read() : this.files(),
+      onFileReplaced: (filename, content) => {
+        const live = this.panelState.editChannel();
+        if (live) live.write(filename, content);
+        else this.files().set(filename, content);
+      },
       chatMessages: this.chatMessages(),
       uiLanguage: this.i18n.currentLang(),
       narrativeLanguage: this.appConfig.outputLanguage(),
