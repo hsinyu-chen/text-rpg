@@ -17,8 +17,10 @@ const CONTEXT_RE = /訊息|message/i;
 // Any well-formed markdown link — used to mask existing link spans so that
 // pattern passes (e.g. bare-GUID wrapping) don't accidentally rewrite text
 // that's already inside a link label or URL, which would produce nested /
-// broken markdown.
-const MARKDOWN_LINK_RE = /\[[^\]]*\]\([^)]*(?:\([^)]*\)[^)]*)*\)/g;
+// broken markdown. URL part is character-wise alternation between
+// non-paren chars and a single balanced (...) pair; this shape avoids the
+// catastrophic-backtracking risk of `[^)]*(?:\([^)]*\)[^)]*)*`.
+const MARKDOWN_LINK_RE = /\[[^\]]*\]\((?:[^()]|\([^()]*\))*\)/g;
 
 const HTML_CODE_LINK_RE = new RegExp(`<code[^>]*>\\s*(\\[[^\\]]+\\]\\(${URL_PATTERN}\\))\\s*<\\/code>`, 'gi');
 const HTML_CODE_BARE_RE = new RegExp(`<code[^>]*>\\s*(${URL_PATTERN})\\s*<\\/code>`, 'gi');
