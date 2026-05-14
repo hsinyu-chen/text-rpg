@@ -48,7 +48,7 @@
   | `breaks_ideal` | 布林。`true` ⇒ 動作根本沒進入結算（觸發條件見下）；`false` ⇒ 動作有發生（含成功／部份成功／伴隨代價的成功）。random_event 性質為「打斷主角 step 序列」時 `true`；中性／支援性事件 `false`。`true` 時 `outcome` 以「失敗」起頭；`false` 時以「成功 / 部份成功 / 伴隨代價的成功」起頭。 |
   | `npc_reactions[]` | **`scene_snapshot.present_npcs` 每位都必須出現一筆**（含旁觀沉默／昏迷／通訊）。random_event 步驟也要寫所有在場 NPC 的反應。 |
   | `object_reactions[]` | **`scene_snapshot.key_objects` 每個都必須出現一筆**（含「無變化」）。 |
-  | `scene_change` | 選填。本 step **持續狀態 delta** 的精簡 free-text 描述——動作執行後**留下來持久的**物理/外觀變化（衣物落下、武器出鞘、物件移位、姿勢轉換成持續性、受傷、awareness 翻轉等）。**與 `npc_reactions[].physical` 區別**:`physical` 是「本 step 瞬時動作/姿態」(可能不持續);`scene_change` 是「動作後場景延續到下 step 的新狀態」。**與 `object_reactions[].change` 區別**:`change` 是「物件本 step 被互動的事件描述」;`scene_change` 是「該事件結束後物件物理狀態的延續變化」。`story` 階段會依此計算當前狀態(scene_snapshot + 依序套用先前 step 的 scene_change)。沒有持續變化時填 `""` 或省略。例:`"李霜凝衣物已退至腰下；殘片落在床上"` / `""`。 |
+  | `scene_change` | **必填**。本 step **持續狀態 delta** 的精簡 free-text 描述——動作執行後**留下來持久的**物理/外觀變化（衣物落下、武器出鞘、物件移位、姿勢轉換成持續性、受傷、awareness 翻轉等）。**沒有持續變化的 step 也要填 `""`**（不可省略）。**與 `npc_reactions[].physical` 區別**:`physical` 是「本 step 瞬時動作/姿態」(動作完就結束);`scene_change` 是「動作後場景延續到下 step 的新狀態」。**與 `object_reactions[].change` 區別**:`change` 是「物件本 step 被互動的事件描述」;`scene_change` 是「該事件結束後物件物理狀態的延續變化」。例:`"李霜凝衣物已退至腰下；殘片落在床上"` / `""`（純對話無物理變化）。**對 `story` 階段至關重要**:寫後續 step 的物理細節時須累積所有先前 step 的 `scene_change`,才能正確呈現中段場景狀態。 |
 
   #### `npc_reactions[]` 元素
 

@@ -72,6 +72,7 @@ The user has declared ideal_outcome as:
         STEP_ACTION: 'Action',
         STEP_EVENT: 'Event',
         FULL_SCENE: 'Scene',
+        SCENE_CHANGE: 'Scene change',
         PC_DIALOGUE: 'PC',
         RISKS: 'Risks',
         OUTCOME: 'Outcome',

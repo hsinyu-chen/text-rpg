@@ -26,6 +26,7 @@ function step(overrides: Partial<AnalysisStep> = {}): AnalysisStep {
         breaks_ideal: false,
         npc_reactions: [],
         object_reactions: [],
+        scene_change: '',
         ...overrides
     };
 }

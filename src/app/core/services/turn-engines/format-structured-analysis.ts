@@ -237,6 +237,10 @@ function formatStep(step: AnalysisStep | null | undefined, ordinal: number, trun
         sceneLines.forEach(l => parts.push(`     - ${l}`));
     }
 
+    if (step.scene_change && step.scene_change.trim().length > 0) {
+        parts.push(`   - **[${labels.SCENE_CHANGE}]** ${step.scene_change.trim()}`);
+    }
+
     return parts.join('\n');
 }
 

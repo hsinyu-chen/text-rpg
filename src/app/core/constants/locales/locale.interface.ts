@@ -63,6 +63,7 @@ export interface AppLocale {
         STEP_ACTION: string;
         STEP_EVENT: string;
         FULL_SCENE: string;
+        SCENE_CHANGE: string;
         PC_DIALOGUE: string;
         RISKS: string;
         OUTCOME: string;

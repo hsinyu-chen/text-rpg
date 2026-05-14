@@ -62,6 +62,7 @@ export function normalizeStep(raw: Partial<AnalysisStep> | undefined): AnalysisS
             : [],
         object_reactions: Array.isArray(raw?.object_reactions)
             ? raw.object_reactions.map(o => ({ name: o?.name ?? '', change: o?.change ?? '' }))
-            : []
+            : [],
+        scene_change: typeof raw?.scene_change === 'string' ? raw.scene_change : ''
     };
 }
