@@ -222,16 +222,16 @@ export class SyncReconciler {
         const remoteById = new Map(remoteList.map(r => [r.id, r]));
         const localById = new Map(localList.map(l => [l.id, l]));
 
-        // `pull-only` treats local as a read-only mirror of cloud: deletes
-        // are scoped to the local cache and must not propagate. Drop any
-        // pending entries so they don't spuriously surface when the user
-        // switches back to two-way — those deletes happened under different
-        // semantics. Don't seed justDeletedIds: cloud still has the entity
-        // and the main loop will re-download it (matches "刪本地 = 清快取,
-        // 下次同步又會回來").
+        // `pull-only` treats local as a read-only mirror of cloud: pending
+        // local deletes don't propagate this run, but the queue is
+        // preserved verbatim so a later two-way run can still honour the
+        // user's original intent. Don't seed justDeletedIds: cloud still
+        // has the entity and the main loop will re-download it (matches
+        // "刪本地 = 清快取,下次同步又會回來").
         const justDeletedIds = new Set<string>();
         if (direction === 'pull-only') {
-            this.tombstones.clear(resource);
+            // No-op on the pending queue. Intentionally not consuming and
+            // intentionally not clearing.
         } else {
             // Pending deletions: write a tombstone (or update the existing one)
             // so other devices see the deletion, then drop the live object. Only

@@ -200,18 +200,21 @@ describe('SyncReconciler — direction matrix', () => {
             expect(ctx.backend._objects.book.has('a')).toBe(false);
         });
 
-        it('drops pending local-delete queue without propagating', async () => {
+        it('preserves pending local-delete queue without propagating it', async () => {
             seedRemote(ctx.backend, { id: 'a', lastActiveAt: 100, name: 'A' });
-            // User deleted locally then mode flipped before the next sync.
+            // User deleted locally under two-way; mode flipped to pull-only
+            // before the next sync. Pending must survive untouched so a later
+            // two-way run can still honour the user's original intent.
             ctx.tombstones.track('book', 'a');
             // Local was already removed at delete time; cloud still has the book.
             await run(ctx.reconciler, ctx.backend, 'pull-only');
             // Cloud untouched + tomb not written.
             expect(ctx.backend._objects.book.has('a')).toBe(true);
             expect(ctx.backend._tombs.book.has('a')).toBe(false);
-            // Pending dropped: next two-way run won't accidentally re-delete cloud.
-            expect(ctx.tombstones.read('book')).toHaveLength(0);
-            // Read book resurrected into local — pull-only is a mirror.
+            // Pending preserved verbatim.
+            expect(ctx.tombstones.read('book')).toHaveLength(1);
+            expect(ctx.tombstones.read('book')[0].id).toBe('a');
+            // Cloud book resurrected into local — pull-only is a mirror.
             expect(ctx.localBooks.has('a')).toBe(true);
         });
 
