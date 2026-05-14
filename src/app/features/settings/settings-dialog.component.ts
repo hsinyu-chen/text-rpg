@@ -20,6 +20,7 @@ import { getLanguagesList } from '@app/core/constants/locales';
 import { UI_LOCALES, type InterfaceLanguageSetting, TranslatePipe } from '@app/core/i18n';
 import { LLMProfilesDialogComponent } from './llm-profiles-dialog.component';
 import { BridgeService } from '@app/core/services/dev/bridge.service';
+import { AppAgentHintDirective } from '@app/core/services/agent-hints/agent-hints.directive';
 
 @Component({
   selector: 'app-settings-dialog',
@@ -35,7 +36,8 @@ import { BridgeService } from '@app/core/services/dev/bridge.service';
     MatSliderModule,
     MatProgressSpinnerModule,
     FormsModule,
-    TranslatePipe
+    TranslatePipe,
+    AppAgentHintDirective,
   ],
   templateUrl: './settings-dialog.component.html',
   styleUrl: './settings-dialog.component.scss'

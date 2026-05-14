@@ -15,6 +15,7 @@
 </button>
 
 <button mat-flat-button class="full-width create-next-btn" (click)="createNext()" [disabled]="!session.currentBookId() || state.isBusy()"
+    appAgentHint="sidebar/session-tab/context/create-next"
     [matTooltip]="'sidebar.controls.createNextTooltip' | translate"
     style="margin-top: 8px; font-weight: bold; background: linear-gradient(45deg, #11998e 0%, #38ef7d 100%); color: white;">
     <mat-icon>fast_forward</mat-icon>
@@ -22,6 +23,7 @@
 </button>
 
 <button mat-flat-button class="full-width create-scene-btn" (click)="createScene()"
+    appAgentHint="sidebar/session-tab/context/create-scene"
     [disabled]="state.loadedFiles().size === 0 || state.isBusy()"
     [matTooltip]="'sidebar.controls.createSceneTooltip' | translate"
     style="margin-top: 8px; font-weight: bold; background: linear-gradient(45deg, #f093fb 0%, #f5576c 100%); color: white;">
@@ -61,6 +63,8 @@
         </button>
         @if (state.contextMode() === 'smart') {
         <button mat-stroked-button class="settings-btn" (click)="editSmartContextTurns()" [disabled]="state.isBusy()"
+            (hintActivate)="editSmartContextTurns()"
+            appAgentHint="sidebar/session-tab/context/edit-smart-context"
             [matTooltip]="'sidebar.controls.editSmartContextTooltip' | translate">
             <mat-icon style="margin-right: 0;">settings</mat-icon>
         </button>

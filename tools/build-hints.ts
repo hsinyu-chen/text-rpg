@@ -183,8 +183,8 @@ async function loadBasePaths(): Promise<Map<string, boolean>> {
     }
   }
   if (Array.isArray(mod.VIRTUAL_HINTS)) walkVirtual(mod.VIRTUAL_HINTS as ManifestEntry[], '');
-  if (Array.isArray(mod.PENDING_DIRECTIVES)) {
-    for (const pd of mod.PENDING_DIRECTIVES as PathDecl[]) {
+  if (Array.isArray(mod.VIRTUAL_PATHS)) {
+    for (const pd of mod.VIRTUAL_PATHS as PathDecl[]) {
       collect.set(pd.path, !!pd.activatable);
     }
   }
