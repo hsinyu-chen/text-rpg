@@ -2,6 +2,27 @@ export type SyncBackendId = 'gdrive' | 's3' | 'file';
 
 export type SyncResource = 'book' | 'collection';
 
+/**
+ * Per-backend auto-sync setting persisted via KVStore (key
+ * `sync_auto_<backendId>`). Legacy boolean values from before this enum
+ * existed are migrated on read by SyncBackendResolver: `'1'` → `'two-way'`,
+ * anything else (including missing) → `'off'`.
+ */
+export type AutoSyncMode = 'off' | 'two-way' | 'pull-only' | 'push-only';
+
+/**
+ * Reconciler direction. `two-way` matches legacy behaviour; the one-way
+ * modes are asymmetric on purpose (see plan):
+ *   - `pull-only`: cloud is source of truth for existence. Local deletes
+ *     don't propagate; the pending tombstone queue is dropped on each run.
+ *     Local-only entries are NOT uploaded (cloud may have just deleted them
+ *     from another device).
+ *   - `push-only`: local is source of truth for what we own. Cloud
+ *     tombstones are ignored. Remote-only entries are NOT deleted from
+ *     cloud (they may belong to another device).
+ */
+export type SyncDirection = 'two-way' | 'pull-only' | 'push-only';
+
 export interface SyncError {
     resource: SyncResource;
     id: string;

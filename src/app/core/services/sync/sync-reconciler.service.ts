@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { ROOT_COLLECTION_ID } from '@app/core/models/types';
 import {
-    SyncBackend, SyncResource, SnapshotLocalPayload,
+    SyncBackend, SyncResource, SnapshotLocalPayload, SyncDirection,
     SyncReport, ForcePushReport, ForcePullReport
 } from './sync.types';
 import { errMsg } from './error.util';
@@ -59,13 +59,13 @@ export class SyncReconciler {
      */
     private selfHealedIds = new Set<string>();
 
-    async reconcileAll(backend: SyncBackend): Promise<ReconcileResult> {
+    async reconcileAll(backend: SyncBackend, direction: SyncDirection = 'two-way'): Promise<ReconcileResult> {
         const totals: SyncReport = { uploaded: 0, downloaded: 0, deleted: 0, errors: [] };
         const downloadedBookIds = new Set<string>();
         const deletedBookIds = new Set<string>();
 
         for (const resource of RESOURCES) {
-            const r = await this.syncResource(backend, resource, downloadedBookIds, deletedBookIds);
+            const r = await this.syncResource(backend, resource, direction, downloadedBookIds, deletedBookIds);
             totals.uploaded += r.uploaded;
             totals.downloaded += r.downloaded;
             totals.deleted += r.deleted;
@@ -210,6 +210,7 @@ export class SyncReconciler {
     private async syncResource(
         backend: SyncBackend,
         resource: SyncResource,
+        direction: SyncDirection,
         downloadedBookIds: Set<string>,
         deletedBookIds: Set<string>
     ): Promise<SyncReport> {
@@ -221,99 +222,119 @@ export class SyncReconciler {
         const remoteById = new Map(remoteList.map(r => [r.id, r]));
         const localById = new Map(localList.map(l => [l.id, l]));
 
-        // Pending deletions: write a tombstone (or update the existing one)
-        // so other devices see the deletion, then drop the live object. Only
-        // remove from the local tracking list once both succeed.
-        // Use the deletedAt captured at delete-time — NOT Date.now() — so a
-        // retry doesn't advance the timestamp and clobber a legitimate
-        // post-delete edit on another device.
-        const pending = this.tombstones.read(resource);
-        const remaining: PendingDeletion[] = [];
-        // Pre-seed with every pending id so the main loop won't resurrect
-        // them even if writeTombstone fails — local already removed the
-        // entity at delete-time, so a "remote-only → download" path would
-        // bring it back. Items where tombstone *did* succeed are also in
-        // here; that's a no-op skip.
-        const justDeletedIds = new Set<string>(pending.map(p => p.id));
-        for (const entry of pending) {
-            let tombstoneWritten = false;
-            try {
-                await backend.writeTombstone(resource, entry.id, entry.deletedAt);
-                tombstoneWritten = true;
-            } catch (e) {
-                console.error(`[Sync] Failed to write tombstone for ${resource} ${entry.id}, will retry`, e);
-                report.errors.push({ resource, id: entry.id, op: 'delete', message: errMsg(e) });
-            }
-
-            let removeOk = true;
-            if (tombstoneWritten && remoteById.has(entry.id)) {
+        // `pull-only` treats local as a read-only mirror of cloud: deletes
+        // are scoped to the local cache and must not propagate. Drop any
+        // pending entries so they don't spuriously surface when the user
+        // switches back to two-way — those deletes happened under different
+        // semantics. Don't seed justDeletedIds: cloud still has the entity
+        // and the main loop will re-download it (matches "刪本地 = 清快取,
+        // 下次同步又會回來").
+        const justDeletedIds = new Set<string>();
+        if (direction === 'pull-only') {
+            this.tombstones.clear(resource);
+        } else {
+            // Pending deletions: write a tombstone (or update the existing one)
+            // so other devices see the deletion, then drop the live object. Only
+            // remove from the local tracking list once both succeed.
+            // Use the deletedAt captured at delete-time — NOT Date.now() — so a
+            // retry doesn't advance the timestamp and clobber a legitimate
+            // post-delete edit on another device.
+            const pending = this.tombstones.read(resource);
+            const remaining: PendingDeletion[] = [];
+            // Pre-seed with every pending id so the main loop won't resurrect
+            // them even if writeTombstone fails — local already removed the
+            // entity at delete-time, so a "remote-only → download" path would
+            // bring it back. Items where tombstone *did* succeed are also in
+            // here; that's a no-op skip.
+            for (const p of pending) justDeletedIds.add(p.id);
+            for (const entry of pending) {
+                let tombstoneWritten = false;
                 try {
-                    await backend.remove(resource, entry.id);
-                    remoteById.delete(entry.id);
-                    report.deleted++;
+                    await backend.writeTombstone(resource, entry.id, entry.deletedAt);
+                    tombstoneWritten = true;
                 } catch (e) {
-                    console.error(`[Sync] Failed to remove remote ${resource} ${entry.id}, will retry`, e);
+                    console.error(`[Sync] Failed to write tombstone for ${resource} ${entry.id}, will retry`, e);
                     report.errors.push({ resource, id: entry.id, op: 'delete', message: errMsg(e) });
-                    removeOk = false;
+                }
+
+                let removeOk = true;
+                if (tombstoneWritten && remoteById.has(entry.id)) {
+                    try {
+                        await backend.remove(resource, entry.id);
+                        remoteById.delete(entry.id);
+                        report.deleted++;
+                    } catch (e) {
+                        console.error(`[Sync] Failed to remove remote ${resource} ${entry.id}, will retry`, e);
+                        report.errors.push({ resource, id: entry.id, op: 'delete', message: errMsg(e) });
+                        removeOk = false;
+                    }
+                }
+
+                if (!tombstoneWritten || !removeOk) {
+                    remaining.push(entry);
                 }
             }
-
-            if (!tombstoneWritten || !removeOk) {
-                remaining.push(entry);
-            }
+            this.tombstones.write(resource, remaining);
         }
-        this.tombstones.write(resource, remaining);
 
-        // Apply remote tombstones. For each tombstone, compute the newest
-        // surviving timestamp on either side — if NEITHER side beat the
-        // tombstone, both sides are pre-delete and need to go (deleting only
-        // local would leave the cloud copy to resurrect on the next sync).
-        // If either side is newer, that's a post-delete restore/edit — keep
-        // it, let the regular newer-wins loop pick the winner.
-        let tombstones;
-        try {
-            tombstones = await backend.listTombstones(resource);
-        } catch (e) {
-            // Abort the resource sync. Without a tombstone list we can't
-            // tell whether a local-only item was deleted on another device,
-            // so the main loop would resurrect it on cloud. Better to surface
-            // the failure and retry next sync than silently undo a delete.
-            console.error(`[Sync] Failed to list tombstones for ${resource}, aborting resource sync`, e);
-            report.errors.push({ resource, id: '', op: 'list', message: errMsg(e) });
-            return report;
-        }
-        for (const tomb of tombstones) {
-            if (justDeletedIds.has(tomb.id)) continue;
-            const local = localById.get(tomb.id);
-            const remote = remoteById.get(tomb.id);
-            if (!local && !remote) continue;
-            const localTime = local ? adapter.timestampOf(local) : -Infinity;
-            const remoteTime = remote ? remote.lastActiveAt : -Infinity;
-            if (localTime > tomb.deletedAt || remoteTime > tomb.deletedAt) continue;
-            // Mark as just-deleted *before* attempting any I/O so the
-            // newer-wins loop below skips this id even on storage/backend
-            // failure. Without this, a failed local delete would leave the
-            // entity in localById and the main loop would re-upload it,
-            // resurrecting on cloud. `deletedBookIds` is the opposite — it
-            // only counts entries actually removed from IDB (caller uses it
-            // to decide active-book reload).
-            justDeletedIds.add(tomb.id);
+        // Apply remote tombstones. Skipped in `push-only` — cloud's delete
+        // intent doesn't affect a device that's only pushing. For each
+        // tombstone, compute the newest surviving timestamp on either side —
+        // if NEITHER side beat the tombstone, both sides are pre-delete and
+        // need to go (deleting only local would leave the cloud copy to
+        // resurrect on the next sync). If either side is newer, that's a
+        // post-delete restore/edit — keep it, let the regular newer-wins
+        // loop pick the winner.
+        if (direction !== 'push-only') {
+            let tombstones;
             try {
-                if (local) {
-                    await adapter.delete(tomb.id);
-                    if (resource === 'book') deletedBookIds.add(tomb.id);
-                    localById.delete(tomb.id);
-                    report.deleted++;
-                }
-                if (remote) {
-                    await backend.remove(resource, tomb.id);
-                    remoteById.delete(tomb.id);
-                    report.deleted++;
-                }
-                console.log(`[Sync ${resource} ${tomb.id.slice(0, 8)}] tombstone wins → delete (local=${localTime}, remote=${remoteTime}, deletedAt=${tomb.deletedAt})`);
+                tombstones = await backend.listTombstones(resource);
             } catch (e) {
-                console.error(`[Sync] Failed to apply tombstone for ${resource} ${tomb.id}`, e);
-                report.errors.push({ resource, id: tomb.id, op: 'delete', message: errMsg(e) });
+                // Abort the resource sync. Without a tombstone list we can't
+                // tell whether a local-only item was deleted on another device,
+                // so the main loop would resurrect it on cloud. Better to surface
+                // the failure and retry next sync than silently undo a delete.
+                console.error(`[Sync] Failed to list tombstones for ${resource}, aborting resource sync`, e);
+                report.errors.push({ resource, id: '', op: 'list', message: errMsg(e) });
+                return report;
+            }
+            for (const tomb of tombstones) {
+                if (justDeletedIds.has(tomb.id)) continue;
+                const local = localById.get(tomb.id);
+                const remote = remoteById.get(tomb.id);
+                if (!local && !remote) continue;
+                const localTime = local ? adapter.timestampOf(local) : -Infinity;
+                const remoteTime = remote ? remote.lastActiveAt : -Infinity;
+                if (localTime > tomb.deletedAt || remoteTime > tomb.deletedAt) continue;
+                // Mark as just-deleted *before* attempting any I/O so the
+                // newer-wins loop below skips this id even on storage/backend
+                // failure. Without this, a failed local delete would leave the
+                // entity in localById and the main loop would re-upload it,
+                // resurrecting on cloud. `deletedBookIds` is the opposite — it
+                // only counts entries actually removed from IDB (caller uses it
+                // to decide active-book reload).
+                justDeletedIds.add(tomb.id);
+                try {
+                    if (local) {
+                        await adapter.delete(tomb.id);
+                        if (resource === 'book') deletedBookIds.add(tomb.id);
+                        localById.delete(tomb.id);
+                        report.deleted++;
+                    }
+                    // Orphan-cleanup write to cloud: only in two-way. In
+                    // pull-only we never write to cloud, so a residual remote
+                    // (tombstone-and-object both present) stays — next two-
+                    // way sync from any device fixes it.
+                    if (remote && direction === 'two-way') {
+                        await backend.remove(resource, tomb.id);
+                        remoteById.delete(tomb.id);
+                        report.deleted++;
+                    }
+                    console.log(`[Sync ${resource} ${tomb.id.slice(0, 8)}] tombstone wins → delete (local=${localTime}, remote=${remoteTime}, deletedAt=${tomb.deletedAt}, direction=${direction})`);
+                } catch (e) {
+                    console.error(`[Sync] Failed to apply tombstone for ${resource} ${tomb.id}`, e);
+                    report.errors.push({ resource, id: tomb.id, op: 'delete', message: errMsg(e) });
+                }
             }
         }
 
@@ -326,6 +347,13 @@ export class SyncReconciler {
             ...remoteById.keys()
         ]);
 
+        const canUpload = direction !== 'pull-only';
+        const canDownload = direction !== 'push-only';
+        // Self-heal triggers a re-upload to fix stale cloud metadata. Honour
+        // the same "never write cloud" contract as the rest of pull-only and
+        // skip it; cost is a recurring download until two-way runs elsewhere.
+        const canSelfHeal = canUpload;
+
         for (const id of allIds) {
             // SeaweedFS GET-after-DELETE consistency guard: don't try to read
             // an object we just removed within the same sync run, even if
@@ -337,24 +365,34 @@ export class SyncReconciler {
             const remote = remoteById.get(id);
 
             if (local && !remote) {
+                // pull-only: cloud may have just deleted this from another
+                // device; uploading would resurrect it. push-only / two-way:
+                // local is authoritative, upload.
+                if (!canUpload) continue;
                 console.log(`[Sync ${resource} ${id.slice(0, 8)}] local-only → upload (local=${adapter.timestampOf(local)})`);
                 await this.uploadEntity(backend, resource, local, report);
                 continue;
             }
             if (!local && remote) {
+                // push-only: cloud may have entries from another device we
+                // don't own — leave them alone (and don't delete the cloud
+                // orphan either; the user explicitly asked for push-only).
+                if (!canDownload) continue;
                 console.log(`[Sync ${resource} ${id.slice(0, 8)}] remote-only → download (remote=${remote.lastActiveAt})`);
-                await this.downloadEntity(backend, resource, remote.id, remote.lastActiveAt, report, downloadedBookIds);
+                await this.downloadEntity(backend, resource, remote.id, remote.lastActiveAt, report, downloadedBookIds, canSelfHeal);
                 continue;
             }
             if (local && remote) {
                 const localTime = adapter.timestampOf(local);
                 const remoteTime = remote.lastActiveAt;
                 if (localTime > remoteTime) {
+                    if (!canUpload) continue;
                     console.log(`[Sync ${resource} ${id.slice(0, 8)}] local newer → upload (local=${localTime}, remote=${remoteTime}, Δ=${localTime - remoteTime}ms)`);
                     await this.uploadEntity(backend, resource, local, report);
                 } else if (remoteTime > localTime) {
+                    if (!canDownload) continue;
                     console.log(`[Sync ${resource} ${id.slice(0, 8)}] remote newer → download (local=${localTime}, remote=${remoteTime}, Δ=${remoteTime - localTime}ms)`);
-                    await this.downloadEntity(backend, resource, remote.id, remoteTime, report, downloadedBookIds);
+                    await this.downloadEntity(backend, resource, remote.id, remoteTime, report, downloadedBookIds, canSelfHeal);
                 }
             }
         }
@@ -384,7 +422,8 @@ export class SyncReconciler {
         id: string,
         expectedRemoteLastActive: number,
         report: SyncReport,
-        downloadedBookIds: Set<string>
+        downloadedBookIds: Set<string>,
+        canSelfHeal: boolean
     ): Promise<void> {
         try {
             const adapter = this.adapters.get(resource);
@@ -398,6 +437,10 @@ export class SyncReconciler {
             // missing or stale (e.g., legacy upload from before the metadata
             // scheme). Re-upload with correct metadata so future syncs see a
             // matching remote/local time and stop looping in download.
+            // Suppressed under `pull-only` — the user opted out of writing
+            // to cloud, so we accept a recurring download until the next
+            // two-way sync (from this device or another) fixes the metadata.
+            if (!canSelfHeal) return;
             const bodyTime = adapter.timestampOf(stored);
             // 1000ms slack so a backend that truncates metadata to
             // second precision (or rounds in any sub-second way) doesn't
