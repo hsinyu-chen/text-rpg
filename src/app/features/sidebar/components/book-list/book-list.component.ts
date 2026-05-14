@@ -75,6 +75,7 @@ export class BookListComponent {
     readonly rootId = ROOT_COLLECTION_ID;
 
     books = signal<Book[]>([]);
+    private booksLoaded = signal(false);
 
     totalBookCount = computed(() => this.books().length);
 
@@ -196,11 +197,17 @@ export class BookListComponent {
         // clicked in agent-console → jumper service emits → we resolve the id,
         // expand the row's containing collection if needed, scroll into view,
         // and either spotlight (no action) or click the action button.
+        //
+        // Gated on booksLoaded so a request that arrived before loadBooks
+        // resolved doesn't falsely toast "not found" against an empty list.
+        // The effect re-runs when booksLoaded flips, picking the pending
+        // request up at that point.
         effect(() => {
             const req = this.bookJumper.request();
             if (!req || req.tick === this.lastJumpTick) return;
+            if (!this.booksLoaded()) return;
             this.lastJumpTick = req.tick;
-            void this.handleAgentJump(req);
+            this.handleAgentJump(req).catch(err => console.error('[BookList] agent jump failed', err));
         });
     }
 
@@ -290,6 +297,7 @@ export class BookListComponent {
         const list = await this.bookRepo.list();
         console.log('[BookList] Loaded books:', list.length);
         this.books.set(list);
+        this.booksLoaded.set(true);
     }
 
     isActive(id: string): boolean {
