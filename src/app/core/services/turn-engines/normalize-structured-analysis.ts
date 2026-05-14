@@ -39,7 +39,7 @@ export function normalizeScene(raw: Partial<SceneSnapshot> | undefined): SceneSn
             ? raw.present_npcs.map(n => ({
                 name: n?.name ?? '',
                 state: typeof n?.state === 'string' && !looksLikeAwareness(n.state) ? n.state : '',
-                awareness: resolveAwareness((n as { awareness?: unknown } | undefined)?.awareness, n?.state)
+                awareness: resolveAwareness(n?.awareness, n?.state)
             }))
             : [],
         key_objects: Array.isArray(raw?.key_objects)
