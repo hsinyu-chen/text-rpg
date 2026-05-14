@@ -92,6 +92,16 @@ export interface AnalysisStep {
     breaks_ideal: boolean;
     npc_reactions: NpcReaction[];
     object_reactions: ObjectReaction[];
+    /**
+     * Optional cumulative state delta from this step. Free-form short prose
+     * describing PERSISTING state changes (clothing / equipment / held items /
+     * posture / injuries / awareness changes / object physical condition) that
+     * survive past the moment of action. Distinct from `npc_reactions[].physical`
+     * (momentary motion) and `object_reactions[].change` (single-step event).
+     * Empty / omitted when nothing persists. Phase-0 schema-additive test —
+     * engine does not yet consume this field.
+     */
+    scene_change?: string;
 }
 
 export interface StructuredAnalysis {
@@ -281,6 +291,10 @@ const analysisStepSchema: Schema = {
             type: 'array',
             description: 'EVERY key_objects entry must appear here. Use "無變化" for unchanged untouched objects.',
             items: objectReactionSchema
+        },
+        scene_change: {
+            type: 'string',
+            description: 'Optional CUMULATIVE STATE DELTA from this step — short free-form prose describing what physical / outer state PERSISTS past this moment (clothing pulled off, equipment unsheathed, item taken into hand, posture shift that holds, injury sustained, awareness flipped to 昏迷, object physical condition flipped). DISTINCT from npc_reactions[].physical (momentary motion that does not persist) and object_reactions[].change (single-step event description). Leave empty / "" when nothing persistent changes. The narrator (and subsequent turns) reconstruct current scene state by replaying scene_change deltas in order. Examples: "李霜凝衣物已退至腰下；殘片落在床上" / "宇成右手握住劍柄,劍已半出鞘" / "" (nothing persistent).'
         }
     },
     required: ['kind', 'action', 'pc_dialogue', 'mood', 'risk_factors', 'outcome', 'breaks_ideal', 'npc_reactions', 'object_reactions']
