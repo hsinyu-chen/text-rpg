@@ -26,7 +26,7 @@ Strictly follow these JSON field definitions. **Flat top-level shape**: `{ analy
   | `pc_name` | PC display name. e.g. `"程楊宗"` / `"Cheng Yangzong"`. |
   | `pc_alias` | PC alias / nickname, `""` if none. Program wraps in `[]` when present. |
   | `pc_state` | PC **physical / outer state** — current clothing, equipment, held items, posture, visible injuries, marks. e.g. `"naked, just bathed; clothes piled on the chair"` / `"in dark robes, scabbard slung across back"`. Same semantics as `present_npcs[].state`. `""` if none. **NOT a consciousness flag** (consciousness goes in `pc_awareness`). |
-  | `pc_awareness` | PC **fog-of-war / consciousness state** (the previous `pc_state` semantics). Same domain as `present_npcs[].awareness`. `""` if none. Program wraps in `()` in the scene header when present. |
+  | `pc_awareness` | PC **fog-of-war / consciousness state**. Same domain as `present_npcs[].awareness`. `""` if none. Program wraps in `()` in the scene header when present. |
   | `present_npcs[]` | Every on-scene NPC. `{name, state, awareness}`. |
   | `key_objects[]` | Important environmental objects (mechanisms / traps / key items). `{name, state}`. Plain furniture excluded. Empty `[]`. |
 
@@ -34,7 +34,7 @@ Strictly follow these JSON field definitions. **Flat top-level shape**: `{ analy
 
   **About `present_npcs[].awareness`**: **fog-of-war / consciousness** — gates whether this NPC has the **capacity to react** to the environment / PC actions this turn. Free-form short tag CONSTRAINED to that domain. Common: `"unconscious"` / `"asleep"` / `"paralyzed"` / `"hidden"` / `"comms"`; same-domain inventions like `"illusion"` / `"astral-projecting"` / `"light sleep (wakes on loud noise)"` allowed. `""` = fully reactive (conscious and on-scene; default). **NEVER emotion, current activity, or behavior** — `"observing"` / `"chatting"` / `"holding X"` / `"hostile"` describe a fully-reactive NPC's choices and belong in `npc_reactions[].physical` / `motivation`.
 
-  **About `key_objects[].state`**: object **physical condition** — semantics aligned with the NPC `state`. Same delta pipeline as char `state`: each turn, update by applying `object_reactions[].change` and step outcomes.
+  **About `key_objects[].state`**: object **physical condition** — same semantics as the NPC `state` (both describe physical state). Each turn, update by applying `object_reactions[].change` and step outcomes.
 
   ### `steps[]`
 

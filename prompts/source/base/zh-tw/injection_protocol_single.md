@@ -26,7 +26,7 @@
   | `pc_name` | 主角顯示名。如 `"程楊宗"` / `"艾爾"`。 |
   | `pc_alias` | 主角化名／別名，無則 `""`。程式有值時自動以 `[]` 包覆。 |
   | `pc_state` | 主角**物理/外觀狀態**——目前衣著、裝備、持有物、姿勢、明顯傷處、視覺特徵。e.g. `"赤裸，剛沐浴；衣物散於床邊椅子"` / `"穿夜行衣，背後負劍鞘"`。語義同 `present_npcs[].state`，無則 `""`。**注意:不是意識狀態**(意識狀態走 `pc_awareness`)。 |
-  | `pc_awareness` | 主角**戰爭迷霧／意識狀態**(原 `pc_state` 舊語意)，語義同 `present_npcs[].awareness`，無則 `""`。程式有值時自動以 `()` 包覆於場景頁首。 |
+  | `pc_awareness` | 主角**戰爭迷霧／意識狀態**，語義同 `present_npcs[].awareness`，無則 `""`。程式有值時自動以 `()` 包覆於場景頁首。 |
   | `present_npcs[]` | 在場 NPC。`{name, state, awareness}`。 |
   | `key_objects[]` | 重要環境物件（機關／陷阱／關鍵道具）。`{name, state}`。普通家具不列。空填 `[]`。 |
 
@@ -34,7 +34,7 @@
 
   **關於 `present_npcs[].awareness`**：**戰爭迷霧／意識狀態**——用於判定該 NPC 本回合**是否具備對環境／PC 行動的反應能力**。自由發揮但限於該範疇。常用 tag：`"昏迷"` / `"熟睡"` / `"麻痺"` / `"匿蹤"` / `"通訊"`；可自創同範疇短 tag（如 `"幻象"` / `"靈魂出竅"`）。`""` = 清醒在場且具完整反應能力（預設）。**禁止**填情緒、當下行為或活動（如 `"旁觀"` / `"交談中"` / `"抱著X"` / `"敵意"`）——這些是「反應能力完整的 NPC 當下選擇做什麼」，屬於 `npc_reactions[].physical` 與 `motivation`。
 
-  **關於 `key_objects[].state`**：物件**物理狀況**——語義已對齊 NPC 的 `state`(都是物理狀態)。`"上鎖"` / `"觸發,暴露於地板"` / `"完好,佩於腰間"` 等。delta pipeline 同 char `state`:每 turn 依 `object_reactions[].change` 與 step 後果累加更新。
+  **關於 `key_objects[].state`**：物件**物理狀況**——語義同 NPC 的 `state`(物理狀態)。`"上鎖"` / `"觸發,暴露於地板"` / `"完好,佩於腰間"` 等。每 turn 依 `object_reactions[].change` 與 step 後果累加更新。
 
   ### `steps[]`
 
