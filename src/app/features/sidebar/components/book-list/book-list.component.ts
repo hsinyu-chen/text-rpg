@@ -219,10 +219,12 @@ export class BookListComponent {
             return;
         }
         const colId = book.collectionId || ROOT_COLLECTION_ID;
-        if (!this.isExpanded(colId)) this.expandedIds.set(new Set([colId]));
-        // One frame for the collection to expand and the book row to render
-        // before we look it up by attr selector.
-        await new Promise(r => setTimeout(r, 30));
+        const needsExpand = !this.isExpanded(colId);
+        if (needsExpand) this.expandedIds.set(new Set([colId]));
+        // Wait for the signal write above to flush through change detection
+        // and the @for to render the new mat-list-item before we query for
+        // the row's data-book-id attr.
+        if (needsExpand) await new Promise(r => requestAnimationFrame(() => r(null)));
         const row = this.doc.querySelector<HTMLElement>(`[data-book-id="${CSS.escape(bookId)}"]`);
         if (!row) {
             this.toastNotFound('book', bookId);
@@ -252,7 +254,9 @@ export class BookListComponent {
             this.toastNotFound('collection', collectionId);
             return;
         }
-        await new Promise(r => setTimeout(r, 0));
+        // Collection headers are rendered unconditionally for every group
+        // (only the inner book-sublist is gated on isExpanded), so the DOM
+        // node is already there when the effect runs — no render-wait needed.
         const header = this.doc.querySelector<HTMLElement>(`[data-collection-id="${CSS.escape(collectionId)}"]`);
         if (!header) {
             this.toastNotFound('collection', collectionId);
