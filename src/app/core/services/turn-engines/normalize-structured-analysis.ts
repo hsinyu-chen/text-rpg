@@ -54,16 +54,16 @@ export function normalizeScene(raw: Partial<SceneSnapshot> | undefined): SceneSn
  * into the `state` field; Phase-1 splits them off into `awareness`.
  *
  * Detection is conservative: a value is treated as legacy-awareness only
- * if it's short (≤ 8 chars) and matches one of the canonical keywords or
+ * if it's short and matches one of the canonical keywords (zh + en) or
  * their close paraphrases. Anything else stays in `state` as the new
  * physical/outer-state semantics.
  */
-const LEGACY_AWARENESS_KEYWORDS = /^(昏迷|熟睡|麻痺|麻痹|匿蹤|匿跡|通訊|幻象|靈魂出竅|化裝中|淺眠.*)$/;
+const LEGACY_AWARENESS_KEYWORDS = /^(昏迷|熟睡|麻痺|麻痹|匿蹤|匿跡|通訊|幻象|靈魂出竅|化裝中|淺眠.*|unconscious|asleep|paralyzed|hidden|comms|illusion|astral-projecting)$/i;
 
 function looksLikeAwareness(s: string | null | undefined): boolean {
     if (typeof s !== 'string') return false;
     const trimmed = s.trim();
-    return trimmed.length > 0 && trimmed.length <= 8 && LEGACY_AWARENESS_KEYWORDS.test(trimmed);
+    return trimmed.length > 0 && trimmed.length <= 20 && LEGACY_AWARENESS_KEYWORDS.test(trimmed);
 }
 
 function resolveAwareness(
