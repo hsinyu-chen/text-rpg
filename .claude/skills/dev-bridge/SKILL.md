@@ -180,12 +180,15 @@ user-defined.** Built-in profiles (`cloud`/`local`) are read-only via
 this path — clone via Profile Management and switch active to the clone
 to tune. Set refuses mid-turn (`busy`); Get is always available.
 
-**`exists` flag in the response**: when a profile has no IDB override
-row for a given type, the response has `content: ''` and `exists: false`
-— this is NOT "the prompt is empty", it means "no override, the built-in
-shipped asset is used as fallback". The engine sees the fallback; if you
-want to see the same text the engine renders, switch to the built-in
-profile and read from there.
+**`content` is the resolved prompt** the engine actually renders for
+that profile — custom IDB override is returned when present, otherwise
+the shipped base asset is read on demand. So reading a built-in profile
+returns its real text, not an empty string.
+
+**`hasOverride` flag** distinguishes "this profile has its own IDB row
+for this type" (true) from "this profile is reading the shipped base"
+(false). Useful for confirming a `Set-BridgeProfilePrompt` actually
+landed, and for diffing customized vs default state.
 
 ### Inspect / change profile + engine config
 

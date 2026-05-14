@@ -126,13 +126,16 @@ import { DiskProfileSyncService } from '../sync/disk-profile-sync.service';
  *                       prompt rows out to the bound FSA folder. Same
  *                       built-in / busy guards as pull.
  *   profile_get_prompt
- *                     — reads one prompt row from a profile (defaults
- *                       to active; any profile id accepted). Empty
- *                       content + exists:false = no override row (the
- *                       built-in shipped asset is used as fallback).
+ *                     — reads one prompt for a profile (defaults to
+ *                       active; any profile id accepted). `content` is
+ *                       the resolved text (custom IDB row → shipped
+ *                       base via seed chain), and `hasOverride` is
+ *                       true iff the profile has its own IDB row for
+ *                       the type (vs reading the base).
  *   profile_get_all_prompts
- *                     — reads all 11 prompt rows for a profile in one
- *                       call. Same fallback semantics as `_get_prompt`.
+ *                     — reads all 11 prompts for a profile in one call.
+ *                       Same resolved/hasOverride semantics as
+ *                       `_get_prompt`.
  *   profile_set_prompt
  *                     — writes one prompt row to the ACTIVE profile's
  *                       IDB. Active must be user-defined (built-in
@@ -1391,14 +1394,17 @@ export class BridgeService {
             this.send({ type: 'action_error', requestId, error: 'unknown_profile' });
             return;
         }
-        const row = await this.prompts.getProfilePrompt(type, id);
+        // Resolved content (custom IDB row → base built-in via seed chain) so
+        // built-in profiles return their shipped asset, not '' for unseeded.
+        const content = await this.injection.getResolvedProfilePrompt(type, id);
+        const overrideRow = await this.prompts.getProfilePrompt(type, id);
         this.send({
             type: 'profile_get_prompt_response',
             requestId,
             promptType: type,
             profileId: id,
-            content: row?.content ?? '',
-            exists: !!row,
+            content,
+            hasOverride: !!overrideRow,
         });
     }
 
@@ -1410,10 +1416,11 @@ export class BridgeService {
             this.send({ type: 'action_error', requestId, error: 'unknown_profile' });
             return;
         }
-        const prompts: Record<string, { content: string; exists: boolean }> = {};
+        const prompts: Record<string, { content: string; hasOverride: boolean }> = {};
         for (const t of ALL_PROMPT_TYPES) {
-            const row = await this.prompts.getProfilePrompt(t, id);
-            prompts[t] = { content: row?.content ?? '', exists: !!row };
+            const content = await this.injection.getResolvedProfilePrompt(t, id);
+            const overrideRow = await this.prompts.getProfilePrompt(t, id);
+            prompts[t] = { content, hasOverride: !!overrideRow };
         }
         this.send({
             type: 'profile_get_all_prompts_response',
@@ -1438,29 +1445,22 @@ export class BridgeService {
             this.send({ type: 'action_error', requestId, error: 'invalid_content' });
             return;
         }
-        const id = this.state.activePromptProfile();
-        const profile = this.registry.get(id);
-        if (!profile) {
-            this.send({ type: 'action_error', requestId, error: 'unknown_profile' });
-            return;
-        }
-        if (profile.isBuiltIn) {
-            this.send({ type: 'action_error', requestId, error: 'builtin_profile' });
-            return;
-        }
         try {
-            await this.prompts.saveProfilePrompt(type, id, content);
-            await this.injection.forceReload();
+            // saveToService: targets active profile, throws on built-in,
+            // updates the `prompt_user_modified` KV flag, and refreshes the
+            // signal content — no separate forceReload needed.
+            await this.injection.saveToService(type, content);
             this.send({
                 type: 'profile_set_prompt_response',
                 requestId,
                 promptType: type,
-                profileId: id,
+                profileId: this.state.activePromptProfile(),
                 length: content.length,
             });
         } catch (e) {
             const detail = e instanceof Error ? e.message : 'unknown';
-            this.send({ type: 'action_error', requestId, error: 'set_prompt_failed', detail });
+            const error = /built-in/i.test(detail) ? 'builtin_profile' : 'set_prompt_failed';
+            this.send({ type: 'action_error', requestId, error, detail });
         }
     }
 
