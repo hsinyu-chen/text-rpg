@@ -17,6 +17,9 @@ import { FileAgentSettingsStore } from './file-agent-settings.store';
 import { I18nService } from '@app/core/i18n';
 import { getLocale } from '@app/core/constants/locales';
 import { AgentHintRegistry } from '@app/core/services/agent-hints/agent-hints.registry';
+import { BookRepository } from '@app/core/services/storage/book.repository';
+import { CollectionService } from '@app/core/services/collection.service';
+import { SessionService } from '@app/core/services/session.service';
 import { applyHarnessFallbacks } from './normalize-message-links.util';
 
 // ParsedAction args come through an `as unknown` cast — runtime shape isn't
@@ -75,6 +78,9 @@ export class FileAgentService {
   private settings = inject(FileAgentSettingsStore);
   private i18n = inject(I18nService);
   private hintRegistry = inject(AgentHintRegistry);
+  private bookRepo = inject(BookRepository);
+  private collections = inject(CollectionService);
+  private session = inject(SessionService);
   private completionValidator: WorldCompletionValidator | null = null;
 
   setCompletionValidator(v: WorldCompletionValidator): void {
@@ -298,11 +304,21 @@ export class FileAgentService {
     const newHistory = [...this.agentHistory(), { role: 'user' as const, parts: [{ text: tag + prompt }] }];
     this.agentHistory.set(newHistory);
 
-    // Augment context with the uiMap callback so the executor stays
-    // DI-free. Caller-supplied uiMap (if any) wins — useful for tests.
+    // Augment context with the uiMap callback + library snapshots so the
+    // executor stays DI-free. Caller-supplied fields win — useful for tests.
+    // Library snapshot is best-effort: BookRepository read failures shouldn't
+    // block an editing turn that doesn't touch listBooks at all. Run the two
+    // IDB-backed snapshot reads in parallel; they're independent.
+    const [books, collections] = await Promise.all([
+      context.books ?? this.snapshotBooks(),
+      context.collections ?? this.snapshotCollections(),
+    ]);
     const augmentedContext: FileAgentContext = {
       ...context,
       uiMap: context.uiMap ?? (() => this.hintRegistry.buildUiMap()),
+      books,
+      collections,
+      activeBookId: context.activeBookId ?? this.session.currentBookId(),
     };
 
     try {
@@ -318,6 +334,32 @@ export class FileAgentService {
     } finally {
       this.abortController = null;
     }
+  }
+
+  private async snapshotBooks(): Promise<FileAgentContext['books']> {
+    try {
+      const all = await this.bookRepo.list();
+      return all.map(b => ({
+        id: b.id,
+        name: b.name,
+        collectionId: b.collectionId,
+        lastActiveAt: b.lastActiveAt,
+        turnCount: b.messages?.length ?? 0,
+      }));
+    } catch (e) {
+      console.warn('[FileAgent] snapshotBooks failed', e);
+      return [];
+    }
+  }
+
+  private async snapshotCollections(): Promise<FileAgentContext['collections']> {
+    // Sidebar normally primes the signal on first mount; the migration service
+    // also loads at app start. Re-load defensively so a file-agent invoked
+    // before either has run still gets a populated list.
+    if (this.collections.collections().length === 0) {
+      try { await this.collections.load(); } catch (e) { console.warn('[FileAgent] collections load failed', e); }
+    }
+    return this.collections.collections().map(c => ({ id: c.id, name: c.name }));
   }
 
   stopAgent(): void {

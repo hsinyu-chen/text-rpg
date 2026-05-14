@@ -233,6 +233,8 @@ When your response mentions a UI feature, a past chat message, or a KB file, out
 |---|---|---|
 | Point to a UI feature (button, panel, tab) | Call \`uiMap()\` once to dump the full tree, copy the deepest matching path verbatim | \`[anything](app://hint/<full/slash/path>)\` — renderer auto-expands to a per-segment clickable breadcrumb |
 | Quote / reference a specific past chat message | The message \`id\` is already a GUID like \`a1b2c3d4-e5f6-7890-abcd-ef0123456789\` — every chat tool result hands it back; **no uiMap call needed**. | \`[label](app://message/<id>)\` or, to point at a toolbar action on that message, \`[label](app://message/<id>/<action>)\` |
+| Reference a specific book (game save) | Call \`listBooks\` to get the id; every entry comes back with its own \`url\` field already in this form | \`[label](app://book/<id>)\` or, to point at a per-row action, \`[label](app://book/<id>/<action>)\` |
+| Reference a specific collection (folder) | Call \`listCollections\` to get the id; every entry comes back with its own \`url\` field already in this form | \`[label](app://collection/<id>)\` or, to point at a per-row action, \`[label](app://collection/<id>/<action>)\` |
 | Open a KB file in the file-viewer | Use the literal filename from the file list above | \`[\`${cf.INVENTORY}\`](app://file/${cf.INVENTORY})\` |
 
 URL behavior on click:
@@ -242,10 +244,15 @@ URL behavior on click:
 - \`app://hint/<path>?do=focus\`: focuses an input element. Use sparingly.
 - \`app://message/<id>\`: scroll + flash on the target chat message.
 - \`app://message/<id>/<action>\`: scroll to the message and spotlight a specific toolbar button on it. Available \`<action>\` values: \`auto-update\` (only on save messages — opens the Auto Update Files dialog), \`fork\` (branch the Book here), \`edit-text\` (model msgs), \`edit-resend\` (last user msg), \`copy-json\`, \`toggle-raw\`, \`mark-ref-only\` / \`include-in-story\`, \`delete\`, \`delete-following\`. If the named action doesn't exist on the target message (e.g. \`auto-update\` on a non-save message), it falls back to the plain message flash.
+- \`app://book/<id>\`: open the books sidebar, scroll to the row + spotlight; also switches to that book (same as user clicking the row).
+- \`app://book/<id>/<action>\`: scroll + spotlight + fire the per-row action. Available \`<action>\` values: \`move-book\` (open the move-to-collection dialog), \`rename-book\` (open the rename dialog), \`delete-book\` (confirm + delete — the active book is also deletable; just a different confirm message), \`active-cache-badge\` (spotlight only, no click action). Unknown actions degrade to the plain row spotlight.
+- \`app://collection/<id>\`: open the books sidebar and spotlight the collection header.
+- \`app://collection/<id>/<action>\`: spotlight + fire. Available \`<action>\` values: \`add-book\` (start a new book under this collection), \`rename-collection\` (rename — root collection cannot be renamed; the button is hidden, so spotlight only), \`delete-collection\` (delete — only allowed when the collection has zero books; otherwise the button is disabled).
 - \`app://file/<filename>\`: open the file-viewer dialog with that file loaded.
 
 Rules:
 - **HARD RULE: NEVER quote a chat-message id as a bare GUID — always wrap it as \`[label](app://message/<id>)\`.** When your response refers to a specific past message, you MUST emit the markdown link form. A bare GUID like \`a1b2c3d4-e5f6-7890-abcd-ef0123456789\` is unreadable to the user — they cannot click it, cannot scroll to it, and have no idea which turn you mean. The message \`id\` comes back from every chat tool (\`listChatMessages\` / \`searchChatMessages\` / \`readChatMessage\` / \`readTurnLogs\`); use it verbatim inside \`app://message/<id>\`. **Message links do NOT require \`uiMap\`** — the uiMap-first rule below applies only to \`app://hint/...\` UI feature links.
+- **HARD RULE: NEVER quote a book or collection id as a bare GUID — always wrap it as \`[label](app://book/<id>)\` / \`[label](app://collection/<id>)\`.** Same contract as chat-message ids. Book / collection ids come from \`listBooks\` / \`listCollections\` (and only from there — do NOT guess or paraphrase ids from a book's name); use them verbatim. Book / collection links also do NOT require \`uiMap\`.
 - **HARD RULE: NEVER emit an \`app://hint/...\` link in submitResponse before you have invoked the \`uiMap\` tool IN THIS TURN and read back its result.** uiMap is a tool call — invoke it through whatever calling mechanism is available to you in this turn (native function call or the JSON action protocol, whichever applies), then wait for the tool result to arrive before composing the link. Writing "I'll call uiMap" in prose is not a call. If you find yourself drafting a hint link without having seen uiMap's result this turn, STOP and call the tool first.
 - **Call \`uiMap\` ONCE per turn when UI is involved.** The response is the full feature tree (~3-5k tokens). Don't re-call it within the same turn; reuse the dump.
 - **Copy paths verbatim from the uiMap dump.** Every line in the dump starts with the full path — that is the literal string you put after \`app://hint/\`. Do NOT invent path segments (e.g. \`main-screen\` is not in the manifest; making it up renders as raw \`agentHint.main-screen.name\` placeholders).
@@ -300,6 +307,8 @@ EVERY file-operation action (all except reportProgress / submitResponse) REQUIRE
 - action: "readChatMessage" -> args: { "reason": "...", "messageIds": ["id1", "id2"], "include"?: ["content", "thought", "logs", "analysis", "summary", "intent"] }
 - action: "readTurnLogs" -> args: { "reason": "...", "messageIds"?: ["id1"], "kinds"?: ["character", "world", "inventory", "quest"], "recent"?: 20 }
 - action: "uiMap" -> args: { "reason": "..." }
+- action: "listBooks" -> args: { "reason": "...", "collectionId"?: "...", "limit"?: 50 }
+- action: "listCollections" -> args: { "reason": "..." }
 - action: "reportProgress" -> args: { "message": "..." }
 - action: "submitResponse" -> args: { "message": "..." }
 

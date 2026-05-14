@@ -7,6 +7,9 @@ import { KVStore } from '../kv/kv-store';
 import { InMemoryKVStore } from '../../testing/in-memory-kv-store';
 import { LLMConfigService } from '../llm-config.service';
 import { LLMProviderRegistryService } from '../llm-provider-registry.service';
+import { BookRepository } from '../storage/book.repository';
+import { CollectionService } from '../collection.service';
+import { SessionService } from '../session.service';
 
 function setup(opts: {
   kvSeed?: Record<string, string>;
@@ -31,12 +34,22 @@ function setup(opts: {
       probeParallelToolSupport: undefined
     })
   };
+  // BookRepository / CollectionService / SessionService are only touched by
+  // runAgent's snapshotBooks/Collections — these profile-persistence tests
+  // never invoke runAgent, so stub them out to keep the IndexedDB-backed
+  // repo from being instantiated under jsdom (no `indexedDB`).
+  const bookRepoStub = { list: () => Promise.resolve([]) };
+  const collectionsStub = { collections: signal([]), load: () => Promise.resolve() };
+  const sessionStub = { currentBookId: () => null };
   TestBed.configureTestingModule({
     providers: [
       FileAgentService,
       { provide: KVStore, useValue: kv },
       { provide: LLMConfigService, useValue: llmConfigMock },
-      { provide: LLMProviderRegistryService, useValue: registryMock }
+      { provide: LLMProviderRegistryService, useValue: registryMock },
+      { provide: BookRepository, useValue: bookRepoStub },
+      { provide: CollectionService, useValue: collectionsStub },
+      { provide: SessionService, useValue: sessionStub }
     ]
   });
   return { svc: TestBed.inject(FileAgentService), kv };
@@ -183,7 +196,10 @@ describe('FileAgentService — profile persistence', () => {
         FileAgentService,
         { provide: KVStore, useValue: kv },
         { provide: LLMConfigService, useValue: { profiles: signal([]), activeProfileId: signal('p-different-main') } },
-        { provide: LLMProviderRegistryService, useValue: { getProvider: () => null } }
+        { provide: LLMProviderRegistryService, useValue: { getProvider: () => null } },
+        { provide: BookRepository, useValue: { list: () => Promise.resolve([]) } },
+        { provide: CollectionService, useValue: { collections: signal([]), load: () => Promise.resolve() } },
+        { provide: SessionService, useValue: { currentBookId: () => null } }
       ]
     });
     const second = TestBed.inject(FileAgentService);

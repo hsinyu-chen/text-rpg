@@ -29,6 +29,49 @@ export interface FileAgentContext {
    * the callback keeps the executor DI-free.
    */
   uiMap?: () => string;
+  /**
+   * Snapshot of all books in the user's library (slim form). FileAgentService
+   * populates this from BookRepository at turn start; the executor's listBooks
+   * tool reads from here so it stays DI-free and sync. Omit (or empty) when
+   * no library access — listBooks then degrades to a "no books available" error.
+   */
+  books?: BookSummary[];
+  /**
+   * Snapshot of all collections (folders) in the library. Paired with `books`
+   * for the listCollections tool. Same injection contract.
+   */
+  collections?: CollectionSummary[];
+  /**
+   * Id of the currently-loaded book, or null when no book is loaded
+   * (world-creation mode, freshly cleared session). Surfaced on listBooks
+   * results so the agent can flag the active row.
+   */
+  activeBookId?: string | null;
+}
+
+/**
+ * Slim projection of `Book` used by the `listBooks` tool. The full Book
+ * carries `messages: ChatMessage[]` and `files: [...]` (tens of MB on long
+ * playthroughs); the agent only needs identity + routing fields, so callers
+ * pre-shape into this minimal form before injecting into FileAgentContext.
+ */
+export interface BookSummary {
+  id: string;
+  name: string;
+  collectionId: string;
+  lastActiveAt: number;
+  /** Total chat turns in the book (= messages.length). */
+  turnCount: number;
+}
+
+/**
+ * Slim projection of `Collection` used by the `listCollections` tool.
+ * `bookCount` and `isRoot` are derived by the executor at response time —
+ * not stored here — so the same snapshot stays valid across turns.
+ */
+export interface CollectionSummary {
+  id: string;
+  name: string;
 }
 
 export type ToolCallMode = 'auto' | 'native' | 'json';
@@ -164,6 +207,16 @@ export interface ReadTurnLogsArgs extends FileToolArgsBase {
 /* eslint-disable-next-line @typescript-eslint/no-empty-object-type */
 export interface UiMapArgs extends FileToolArgsBase {}
 
+export interface ListBooksArgs extends FileToolArgsBase {
+  /** Optional. Filter to one collection only. */
+  collectionId?: string;
+  /** Default 50, capped at 200. */
+  limit?: number;
+}
+
+/* eslint-disable-next-line @typescript-eslint/no-empty-object-type */
+export interface ListCollectionsArgs extends FileToolArgsBase {}
+
 export type ParsedAction =
   | { action: 'readFile'; args: ReadFileArgs; callId?: string }
   | { action: 'grep'; args: GrepArgs; callId?: string }
@@ -179,6 +232,8 @@ export type ParsedAction =
   | { action: 'readChatMessage'; args: ReadChatMessageArgs; callId?: string }
   | { action: 'readTurnLogs'; args: ReadTurnLogsArgs; callId?: string }
   | { action: 'uiMap'; args: UiMapArgs; callId?: string }
+  | { action: 'listBooks'; args: ListBooksArgs; callId?: string }
+  | { action: 'listCollections'; args: ListCollectionsArgs; callId?: string }
   | { action: 'reportProgress'; args: ReportProgressArgs; callId?: string }
   | { action: 'submitResponse'; args: SubmitResponseArgs; callId?: string };
 
