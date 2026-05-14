@@ -340,6 +340,19 @@ export class ProfileManagementController {
     }
   }
 
+  async authorizeDiskFolder(): Promise<void> {
+    const active = this.activeProfile();
+    if (!active || active.isBuiltIn) return;
+    if (!(await this.ensureDiskFolderBound())) return;
+    try {
+      await this.diskSync.ensureFolderPermission();
+      this.snackBar.open(this.lang.t('DISK_SYNC_ACCESS_OK'), this.lang.t('CLOSE'), { duration: 2000 });
+    } catch (err) {
+      console.error('[ChatConfig] authorizeDiskFolder failed', err);
+      this.snackBar.open(this.lang.t('DISK_SYNC_FAILED'), this.lang.t('CLOSE'), { duration: 3000 });
+    }
+  }
+
   async changeDiskFolder(): Promise<void> {
     try {
       await this.diskSync.pickFolder();

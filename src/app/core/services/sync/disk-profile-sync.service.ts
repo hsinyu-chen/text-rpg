@@ -55,6 +55,19 @@ export class DiskProfileSyncService {
         return this.folder.handle()?.name ?? null;
     }
 
+    /**
+     * Touches the folder handle's permission without committing to a read or
+     * write. Chrome only offers the "Always allow on this site" checkbox in
+     * the FSA dialog when the requestPermission call is pure (no immediate
+     * I/O follows) — push/pull bundle the permission ask with the action and
+     * Chrome falls back to a single-shot "Allow". Call this from a click
+     * handler after a reload to upgrade the handle to persistent permission.
+     */
+    async ensureFolderPermission(): Promise<void> {
+        this.assertActiveUserProfile();
+        await this.folder.ensurePermission();
+    }
+
     async pushActiveToDisk(): Promise<void> {
         const profile = this.assertActiveUserProfile();
         const root = await this.folder.ensurePermission();

@@ -13,6 +13,7 @@ export const GENERATED_HINTS: AgentHintPathDecl[] = [
   { path: "chat-input/chat-config/cloud-push" },
   { path: "chat-input/chat-config/profile-manage-menu", activatable: true },
   { path: "chat-input/chat-config/profile-manage-menu/change-disk-folder", activatable: true },
+  { path: "chat-input/chat-config/profile-manage-menu/disk-sync-authorize" },
   { path: "chat-input/chat-config/profile-manage-menu/disk-sync-pull" },
   { path: "chat-input/chat-config/profile-manage-menu/disk-sync-push" },
   { path: "chat-input/chat-config/profile-manage-menu/profile-clone" },

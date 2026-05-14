@@ -113,6 +113,11 @@
                             <span>{{ 'ui.PROFILE_IMPORT' | translate }}</span>
                         </button>
                         <mat-divider></mat-divider>
+                        <button mat-menu-item (click)="profileMgr.authorizeDiskFolder()" [disabled]="profileMgr.isActiveBuiltIn()"
+                            appAgentHint="chat-input/chat-config/profile-manage-menu/disk-sync-authorize">
+                            <mat-icon>verified_user</mat-icon>
+                            <span>{{ 'ui.DISK_SYNC_AUTHORIZE' | translate }}</span>
+                        </button>
                         <button mat-menu-item (click)="profileMgr.pushActiveProfileToDisk()" [disabled]="profileMgr.isActiveBuiltIn()"
                             appAgentHint="chat-input/chat-config/profile-manage-menu/disk-sync-push">
                             <mat-icon>folder_shared</mat-icon>
