@@ -1,5 +1,5 @@
-import { Component, inject, signal, output, computed, linkedSignal } from '@angular/core';
-import { DatePipe } from '@angular/common';
+import { Component, effect, inject, signal, output, computed, linkedSignal } from '@angular/core';
+import { DatePipe, DOCUMENT } from '@angular/common';
 import { MatListModule } from '@angular/material/list';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatDialog } from '@angular/material/dialog';
@@ -25,6 +25,8 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { I18nService, TranslatePipe } from '@app/core/i18n';
+import { AgentBookJumperService, BookJumpRequest } from '@app/core/services/agent-hints/agent-book-jumper.service';
+import { spotlightElement } from '@app/core/services/agent-hints/spotlight.util';
 
 interface BookGroup {
     collection: Collection;
@@ -62,6 +64,9 @@ export class BookListComponent {
     syncBackends = inject(SyncBackendResolver);
     tombstoneTracker = inject(SyncTombstoneTracker);
     private i18n = inject(I18nService);
+    private bookJumper = inject(AgentBookJumperService);
+    private doc = inject(DOCUMENT);
+    private lastJumpTick = 0;
 
     private t(key: string, params?: Record<string, string | number>): string {
         return this.i18n.translate(`sidebar.bookList.${key}`, params);
@@ -186,6 +191,94 @@ export class BookListComponent {
 
     constructor() {
         void this.loadBooks();
+
+        // app://book/<id>[/<action>] or app://collection/<id>[/<action>] link
+        // clicked in agent-console → jumper service emits → we resolve the id,
+        // expand the row's containing collection if needed, scroll into view,
+        // and either spotlight (no action) or click the action button.
+        effect(() => {
+            const req = this.bookJumper.request();
+            if (!req || req.tick === this.lastJumpTick) return;
+            this.lastJumpTick = req.tick;
+            void this.handleAgentJump(req);
+        });
+    }
+
+    private async handleAgentJump(req: BookJumpRequest): Promise<void> {
+        if (req.kind === 'collection') {
+            await this.jumpToCollection(req.id, req.action);
+            return;
+        }
+        await this.jumpToBook(req.id, req.action);
+    }
+
+    private async jumpToBook(bookId: string, action: string | null): Promise<void> {
+        const book = this.books().find(b => b.id === bookId);
+        if (!book) {
+            this.toastNotFound('book', bookId);
+            return;
+        }
+        const colId = book.collectionId || ROOT_COLLECTION_ID;
+        if (!this.isExpanded(colId)) this.expandedIds.set(new Set([colId]));
+        // One frame for the collection to expand and the book row to render
+        // before we look it up by attr selector.
+        await new Promise(r => setTimeout(r, 30));
+        const row = this.doc.querySelector<HTMLElement>(`[data-book-id="${CSS.escape(bookId)}"]`);
+        if (!row) {
+            this.toastNotFound('book', bookId);
+            return;
+        }
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (!action) {
+            void this.switchBook(bookId);
+            spotlightElement(row);
+            return;
+        }
+        const target = row.querySelector<HTMLElement>(`[data-book-action="${CSS.escape(action)}"]`);
+        if (!target) {
+            spotlightElement(row);
+            return;
+        }
+        spotlightElement(target);
+        // active-cache-badge is a tooltip-only badge with no click handler;
+        // calling .click() on it is harmless but redundant. Other actions
+        // (move / rename / delete) open dialogs.
+        if (action !== 'active-cache-badge') target.click();
+    }
+
+    private async jumpToCollection(collectionId: string, action: string | null): Promise<void> {
+        const group = this.bookGroups().find(g => g.collection.id === collectionId);
+        if (!group) {
+            this.toastNotFound('collection', collectionId);
+            return;
+        }
+        await new Promise(r => setTimeout(r, 0));
+        const header = this.doc.querySelector<HTMLElement>(`[data-collection-id="${CSS.escape(collectionId)}"]`);
+        if (!header) {
+            this.toastNotFound('collection', collectionId);
+            return;
+        }
+        header.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (!action) {
+            spotlightElement(header);
+            return;
+        }
+        const btn = header.querySelector<HTMLElement>(`[data-collection-action="${CSS.escape(action)}"]`);
+        if (!btn) {
+            spotlightElement(header);
+            return;
+        }
+        spotlightElement(btn);
+        btn.click();
+    }
+
+    private toastNotFound(kind: 'book' | 'collection', id: string): void {
+        const key = kind === 'book' ? 'agentHint.toast.bookNotFound' : 'agentHint.toast.collectionNotFound';
+        this.snackBar.open(
+            this.i18n.translate(key, { id }),
+            this.i18n.translate('ui.CLOSE'),
+            { duration: 3000 },
+        );
     }
 
     async loadBooks() {

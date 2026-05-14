@@ -9,6 +9,7 @@ import { FILE_VIEWER_OPENER } from '@app/core/services/dev/file-viewer-opener.to
 import { AgentLinkInterceptor } from './agent-link-interceptor.service';
 import { AgentHintRegistry } from './agent-hints.registry';
 import { AgentMessageJumperService } from './agent-message-jumper.service';
+import { AgentBookJumperService } from './agent-book-jumper.service';
 
 function makeI18nStub(): Partial<I18nService> {
   return {
@@ -49,6 +50,7 @@ function setup(options: {
   });
   const interceptor = TestBed.inject(AgentLinkInterceptor);
   const jumper = TestBed.inject(AgentMessageJumperService);
+  const bookJumper = TestBed.inject(AgentBookJumperService);
   // Mount any test buttons under doc.body so the interceptor's
   // CSS-selector walk can find them. Caller passes raw HTML containing
   // `[id^="message-"]` wrappers with their `data-msg-action` children.
@@ -58,7 +60,7 @@ function setup(options: {
   fixture.innerHTML = buttonHtml;
   doc.body.appendChild(fixture);
   return {
-    interceptor, registry, snackBar, fileViewerOpener, jumper, stateStub,
+    interceptor, registry, snackBar, fileViewerOpener, jumper, bookJumper, stateStub,
     cleanup: () => fixture.remove(),
   };
 }
@@ -250,6 +252,84 @@ describe('AgentLinkInterceptor.dispatch', () => {
       const ctx = setup({ messages: [{ id: 'm' }] });
       ctx.interceptor.dispatch('app://hint/chat-message/edit-text');
       expect(ctx.registry.openTarget).not.toHaveBeenCalled();
+      ctx.cleanup();
+    });
+  });
+
+  describe('app://book/<id>[/<action>]', () => {
+    it('dispatches via AgentBookJumperService with kind=book, action null', () => {
+      const ctx = setup();
+      ctx.interceptor.dispatch('app://book/abc-123');
+      expect(ctx.bookJumper.request()).toMatchObject({ kind: 'book', id: 'abc-123', action: null });
+      ctx.cleanup();
+    });
+
+    it('parses optional action segment', () => {
+      const ctx = setup();
+      ctx.interceptor.dispatch('app://book/abc/delete-book');
+      expect(ctx.bookJumper.request()).toMatchObject({ kind: 'book', id: 'abc', action: 'delete-book' });
+      ctx.cleanup();
+    });
+
+    it('decodes percent-encoded id and action independently', () => {
+      const ctx = setup();
+      ctx.interceptor.dispatch('app://book/my%20book/rename%2Dbook');
+      expect(ctx.bookJumper.request()).toMatchObject({ kind: 'book', id: 'my book', action: 'rename-book' });
+      ctx.cleanup();
+    });
+
+    it('toasts on missing id', () => {
+      const ctx = setup();
+      expect(ctx.interceptor.dispatch('app://book/')).toBe(true);
+      expect(ctx.snackBar.open).toHaveBeenCalled();
+      expect(ctx.bookJumper.request()).toBeNull();
+      ctx.cleanup();
+    });
+
+    it('toasts on >2 tail segments', () => {
+      const ctx = setup();
+      expect(ctx.interceptor.dispatch('app://book/abc/delete/extra')).toBe(true);
+      expect(ctx.snackBar.open).toHaveBeenCalled();
+      expect(ctx.bookJumper.request()).toBeNull();
+      ctx.cleanup();
+    });
+
+    it('cascades through registry.openTarget on the books panel before jumping', () => {
+      const ctx = setup();
+      ctx.interceptor.dispatch('app://book/abc');
+      expect(ctx.registry.openTarget).toHaveBeenCalledWith('sidebar/adventure-books', 'focus');
+      expect(ctx.bookJumper.request()).toMatchObject({ kind: 'book', id: 'abc' });
+      ctx.cleanup();
+    });
+  });
+
+  describe('app://collection/<id>[/<action>]', () => {
+    it('dispatches via AgentBookJumperService with kind=collection, action null', () => {
+      const ctx = setup();
+      ctx.interceptor.dispatch('app://collection/col-1');
+      expect(ctx.bookJumper.request()).toMatchObject({ kind: 'collection', id: 'col-1', action: null });
+      ctx.cleanup();
+    });
+
+    it('parses optional action segment', () => {
+      const ctx = setup();
+      ctx.interceptor.dispatch('app://collection/col-1/add-book');
+      expect(ctx.bookJumper.request()).toMatchObject({ kind: 'collection', id: 'col-1', action: 'add-book' });
+      ctx.cleanup();
+    });
+
+    it('toasts on missing id', () => {
+      const ctx = setup();
+      expect(ctx.interceptor.dispatch('app://collection/')).toBe(true);
+      expect(ctx.snackBar.open).toHaveBeenCalled();
+      expect(ctx.bookJumper.request()).toBeNull();
+      ctx.cleanup();
+    });
+
+    it('cascades through registry.openTarget on the books panel', () => {
+      const ctx = setup();
+      ctx.interceptor.dispatch('app://collection/col-1/rename-collection');
+      expect(ctx.registry.openTarget).toHaveBeenCalledWith('sidebar/adventure-books', 'focus');
       ctx.cleanup();
     });
   });
