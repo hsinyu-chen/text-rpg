@@ -231,7 +231,13 @@ export class BookListComponent {
         // Wait for the signal write above to flush through change detection
         // and the @for to render the new mat-list-item before we query for
         // the row's data-book-id attr.
-        if (needsExpand) await new Promise(r => requestAnimationFrame(() => r(null)));
+        if (needsExpand) {
+            const startTick = this.lastJumpTick;
+            await new Promise(r => requestAnimationFrame(() => r(null)));
+            // If a newer jump arrived during the rAF wait, abandon this one
+            // so we don't fight the newer request over scroll / spotlight.
+            if (this.lastJumpTick !== startTick) return;
+        }
         const row = this.doc.querySelector<HTMLElement>(`[data-book-id="${CSS.escape(bookId)}"]`);
         if (!row) {
             this.toastNotFound('book', bookId);
