@@ -226,6 +226,18 @@ describe('SyncReconciler — direction matrix', () => {
             expect(ctx.localBooks.has('a')).toBe(false);
             expect(ctx.backend._objects.book.has('a')).toBe(true); // orphan untouched
         });
+
+        it('keeps local that is newer than cloud tombstone (post-delete edit) and does NOT upload', async () => {
+            // Tomb says "deleted at 100" but local was edited at 200 — LWW
+            // says local survives. Under pull-only the survivor must NOT
+            // propagate back to cloud (canUpload=false), so cloud stays
+            // unchanged.
+            seedLocal(ctx.localBooks, { id: 'a', lastActiveAt: 200, name: 'A-edited' });
+            seedTomb(ctx.backend, 'a', 100);
+            await run(ctx.reconciler, ctx.backend, 'pull-only');
+            expect(ctx.localBooks.get('a')?.name).toBe('A-edited');
+            expect(ctx.backend._objects.book.has('a')).toBe(false);
+        });
     });
 
     describe('push-only', () => {
