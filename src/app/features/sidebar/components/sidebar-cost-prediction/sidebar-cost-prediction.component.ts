@@ -4,6 +4,7 @@ import { Clipboard } from '@angular/cdk/clipboard';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { CORE_MAT } from '@app/shared/material/material-groups';
+import { AppAgentHintDirective } from '@app/core/services/agent-hints/agent-hints.directive';
 
 import { GameEngineService } from '@app/core/services/game-engine.service';
 import { GameStateService } from '@app/core/services/game-state.service';
@@ -16,7 +17,7 @@ import { I18nService, TranslatePipe } from '@app/core/i18n';
 @Component({
     selector: 'app-sidebar-cost-prediction',
     standalone: true,
-    imports: [...CORE_MAT, CurrencyPipe, DecimalPipe, UpperCasePipe, ContextUsageBarComponent, TranslatePipe],
+    imports: [...CORE_MAT, CurrencyPipe, DecimalPipe, UpperCasePipe, ContextUsageBarComponent, TranslatePipe, AppAgentHintDirective],
     templateUrl: './sidebar-cost-prediction.component.html',
     styleUrl: './sidebar-cost-prediction.component.scss'
 })

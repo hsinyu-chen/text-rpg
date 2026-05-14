@@ -25,7 +25,9 @@
             <div class="form-container tab-content">
                 <mat-form-field appearance="outline" class="full-width">
                     <mat-label>{{ 'ui.SELECT_SCENARIO' | translate }}</mat-label>
-                    <mat-select [(ngModel)]="selectedScenarioId" (selectionChange)="onScenarioChange()">
+                    <mat-select #scenarioSel="matSelect" [(ngModel)]="selectedScenarioId" (selectionChange)="onScenarioChange()"
+                        (hintActivate)="scenarioSel.open()"
+                        appAgentHint="sidebar/session-tab/start-session/select-scenario">
                         @for (s of displayScenarios(); track s.id) {
                         <mat-option [value]="s.id" [matTooltip]="s.description || ''">{{ s.name }}</mat-option>
                         }
@@ -142,7 +144,9 @@
                     </mat-form-field>
                     <mat-form-field appearance="outline" style="flex:0 0 110px">
                         <mat-label>{{ 'sidebar.newGame.genderLabel' | translate }}</mat-label>
-                        <mat-select [ngModel]="protagonistGender()" (ngModelChange)="protagonistGender.set($event)">
+                        <mat-select #genderSel="matSelect" [ngModel]="protagonistGender()" (ngModelChange)="protagonistGender.set($event)"
+                            (hintActivate)="genderSel.open()"
+                            appAgentHint="sidebar/session-tab/start-session/select-protagonist-gender">
                             <mat-option value="">—</mat-option>
                             @for (opt of genderOptions(); track opt.value) {
                                 <mat-option [value]="opt.value">{{ opt.label }}</mat-option>
@@ -172,6 +176,7 @@
                                 [placeholder]="'sidebar.newGame.identityPlaceholder' | translate">
                             @if (currentIdentities().length > 0) {
                                 <button matSuffix mat-icon-button (click)="resetToPresetIdentity()"
+                                    appAgentHint="sidebar/session-tab/start-session/reset-to-preset-identity"
                                     [matTooltip]="'sidebar.newGame.backToPresetTooltip' | translate" type="button">
                                     <mat-icon style="font-size:18px">list</mat-icon>
                                 </button>

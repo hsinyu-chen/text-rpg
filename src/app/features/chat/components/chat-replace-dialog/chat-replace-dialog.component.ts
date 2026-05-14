@@ -4,6 +4,7 @@ import { MatDialogRef } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { CORE_MAT, DIALOG_MAT, FORM_MAT } from '@app/shared/material/material-groups';
+import { AppAgentHintDirective } from '@app/core/services/agent-hints/agent-hints.directive';
 import { GameStateService } from '@app/core/services/game-state.service';
 import { GameEngineService } from '@app/core/services/game-engine.service';
 import { ChatHistoryService } from '@app/core/services/chat-history.service';
@@ -33,7 +34,8 @@ export interface ChatMatch {
         ...FORM_MAT,
         MatProgressSpinnerModule,
         FormsModule,
-        TranslatePipe
+        TranslatePipe,
+        AppAgentHintDirective,
     ],
     templateUrl: './chat-replace-dialog.component.html',
     styleUrl: './chat-replace-dialog.component.scss'

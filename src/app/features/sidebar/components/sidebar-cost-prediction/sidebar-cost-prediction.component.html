@@ -102,10 +102,13 @@
         </div>
         }
         <div class="stat-actions">
-            <button mat-icon-button class="action-btn" (click)="openCostComparison()" [matTooltip]="'sidebar.costPrediction.compareModelsTooltip' | translate">
+            <button mat-icon-button class="action-btn" (click)="openCostComparison()" (hintActivate)="openCostComparison()"
+                appAgentHint="sidebar/cost-prediction-toggle/compare-models"
+                [matTooltip]="'sidebar.costPrediction.compareModelsTooltip' | translate">
                 <mat-icon>compare_arrows</mat-icon>
             </button>
-            <button mat-icon-button class="action-btn" (click)="copySessionStats()"
+            <button mat-icon-button class="action-btn" (click)="copySessionStats()" (hintActivate)="copySessionStats()"
+                appAgentHint="sidebar/cost-prediction-toggle/copy-stats"
                 [matTooltip]="'sidebar.costPrediction.copyStatsTooltip' | translate">
                 <mat-icon>content_copy</mat-icon>
             </button>
