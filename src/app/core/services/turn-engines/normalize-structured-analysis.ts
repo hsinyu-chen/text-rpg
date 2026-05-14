@@ -58,12 +58,12 @@ export function normalizeScene(raw: Partial<SceneSnapshot> | undefined): SceneSn
  * their close paraphrases. Anything else stays in `state` as the new
  * physical/outer-state semantics.
  */
-const LEGACY_AWARENESS_KEYWORDS = /^(昏迷|熟睡|麻痺|麻痹|匿蹤|匿跡|通訊|幻象|靈魂出竅|化裝中|淺眠.*|unconscious|asleep|paralyzed|hidden|comms|illusion|astral-projecting)$/i;
+const LEGACY_AWARENESS_KEYWORDS = /^(昏迷|熟睡|麻痺|麻痹|匿蹤|匿跡|通訊|幻象|靈魂出竅|化裝中|淺眠.*|unconscious|asleep|paralyzed|hidden|comms|illusion|astral-projecting|disguised|light sleep.*)$/i;
 
 function looksLikeAwareness(s: string | null | undefined): boolean {
     if (typeof s !== 'string') return false;
     const trimmed = s.trim();
-    return trimmed.length > 0 && trimmed.length <= 20 && LEGACY_AWARENESS_KEYWORDS.test(trimmed);
+    return trimmed.length > 0 && trimmed.length <= 40 && LEGACY_AWARENESS_KEYWORDS.test(trimmed);
 }
 
 function resolveAwareness(
