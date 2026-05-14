@@ -241,6 +241,30 @@ export const FILE_AGENT_TOOLS: LLMFunctionDeclaration[] = [
     }
   },
   {
+    name: 'listBooks',
+    description: 'List all books (game saves) in the user\'s library — id, name, collection, last-active timestamp, turn count, isActive flag. Use when the user references a book by name ("the elf playthrough", "yesterday\'s save") or asks to compare / inspect a non-active book. Pair the returned ids with `app://book/<id>[/<action>]` URLs to give the user clickable deep-links into the sidebar.',
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: { type: 'string', description: REASON_DESC },
+        collectionId: { type: 'string', description: 'Optional. Filter to one collection only (use the id from listCollections; "root" is the built-in unsorted folder).' },
+        limit: { type: 'number', description: 'Optional. Max books to return, newest activity first. Default 50, capped at 200.' }
+      },
+      required: ['reason']
+    }
+  },
+  {
+    name: 'listCollections',
+    description: 'List all book collections (folders) in the user\'s library — id, name, book count, isRoot flag. Use when the user references a collection by name ("the side-stories folder") or asks to add a book under one. Pair the returned ids with `app://collection/<id>[/<action>]` URLs for clickable deep-links. Root collection is the built-in unsorted folder; the agent cannot rename or delete it.',
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: { type: 'string', description: REASON_DESC }
+      },
+      required: ['reason']
+    }
+  },
+  {
     name: 'reportProgress',
     description: 'Send a progress update to the user mid-task. The agent CONTINUES after this call — use it to narrate ongoing work without yielding control. Do NOT use this when the entire task is complete.',
     parameters: {
@@ -264,6 +288,7 @@ const ACTION_ENUM = [
   'readFile', 'replaceFile', 'getFileOutline', 'grep', 'searchReplace',
   'readSection', 'replaceSection', 'insertSection', 'insertIntoSection',
   'listChatMessages', 'searchChatMessages', 'readChatMessage', 'readTurnLogs',
+  'listBooks', 'listCollections',
   'reportProgress', 'submitResponse'
 ];
 
@@ -285,6 +310,8 @@ export function buildJsonSchema(isLocal: boolean): object {
         { properties: { action: { type: 'string', enum: ['searchChatMessages'] }, args: { type: 'object', properties: { reason: { type: 'string' }, pattern: { type: 'string' }, scope: { type: 'string', enum: ['content', 'thought', 'summary', 'all'] }, caseInsensitive: { type: 'boolean' }, limit: { type: 'number' }, contextChars: { type: 'number' }, includeSaves: { type: 'boolean' } }, required: ['reason', 'pattern', 'scope'], additionalProperties: false } }, required: ['action', 'args'] },
         { properties: { action: { type: 'string', enum: ['readChatMessage'] }, args: { type: 'object', properties: { reason: { type: 'string' }, messageIds: { type: 'array', items: { type: 'string' } }, include: { type: 'array', items: { type: 'string', enum: ['content', 'thought', 'logs', 'analysis', 'summary', 'intent'] } } }, required: ['reason', 'messageIds'], additionalProperties: false } }, required: ['action', 'args'] },
         { properties: { action: { type: 'string', enum: ['readTurnLogs'] }, args: { type: 'object', properties: { reason: { type: 'string' }, messageIds: { type: 'array', items: { type: 'string' } }, kinds: { type: 'array', items: { type: 'string', enum: ['character', 'world', 'inventory', 'quest'] } }, recent: { type: 'number' } }, required: ['reason'], additionalProperties: false } }, required: ['action', 'args'] },
+        { properties: { action: { type: 'string', enum: ['listBooks'] }, args: { type: 'object', properties: { reason: { type: 'string' }, collectionId: { type: 'string' }, limit: { type: 'number' } }, required: ['reason'], additionalProperties: false } }, required: ['action', 'args'] },
+        { properties: { action: { type: 'string', enum: ['listCollections'] }, args: { type: 'object', properties: { reason: { type: 'string' } }, required: ['reason'], additionalProperties: false } }, required: ['action', 'args'] },
         { properties: { action: { type: 'string', enum: ['reportProgress'] }, args: { type: 'object', properties: { message: { type: 'string' } }, required: ['message'], additionalProperties: false } }, required: ['action', 'args'] },
         { properties: { action: { type: 'string', enum: ['submitResponse'] }, args: { type: 'object', properties: { message: { type: 'string' } }, required: ['message'], additionalProperties: false } }, required: ['action', 'args'] }
       ]
@@ -328,7 +355,8 @@ export function buildJsonSchema(isLocal: boolean): object {
           include: { type: 'array', items: { type: 'string' } },
           kinds: { type: 'array', items: { type: 'string' } },
           recent: { type: 'number' },
-          contextChars: { type: 'number' }
+          contextChars: { type: 'number' },
+          collectionId: { type: 'string' }
         }
       }
     },

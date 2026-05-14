@@ -15,9 +15,12 @@ import {
   ReadChatMessageArgs,
   ReadTurnLogsArgs,
   UiMapArgs,
+  ListBooksArgs,
+  ListCollectionsArgs,
   ChatReadField,
   TurnLogKind
 } from './file-agent.types';
+import { ROOT_COLLECTION_ID } from '@app/core/models/types';
 import type { ChatMessage } from '@app/core/models/types';
 import {
   parseMarkdownOutline,
@@ -95,6 +98,10 @@ export function executeFileTool(
       return readTurnLogs(action.args, context);
     case 'uiMap':
       return uiMap(action.args, context);
+    case 'listBooks':
+      return listBooks(action.args, context);
+    case 'listCollections':
+      return listCollections(action.args, context);
     case 'reportProgress':
     case 'submitResponse':
       return { response: { status: 'acknowledged' } };
@@ -881,4 +888,71 @@ function uiMap(_args: UiMapArgs, context: FileAgentContext): ToolExecutionResult
     return { response: { error: 'uiMap is not available in this context (no UI hint registry wired).' } };
   }
   return { response: { map: context.uiMap() } };
+}
+
+const NO_LIBRARY = 'Book library is not available in this context (no BookRepository wired).';
+
+function listBooks(args: ListBooksArgs, context: FileAgentContext): ToolExecutionResult {
+  const books = context.books;
+  if (!books) return { response: { error: NO_LIBRARY } };
+
+  const collectionNameById = new Map(
+    (context.collections ?? []).map(c => [c.id, c.name])
+  );
+  const activeId = context.activeBookId ?? null;
+
+  let pool = books;
+  if (typeof args.collectionId === 'string' && args.collectionId.length > 0) {
+    pool = pool.filter(b => b.collectionId === args.collectionId);
+  }
+
+  // Newest activity first — matches sidebar order and makes the agent's
+  // "the elf playthrough from yesterday" intuition resolve correctly.
+  const sorted = [...pool].sort((a, b) => b.lastActiveAt - a.lastActiveAt);
+
+  const limit = clampInt(args.limit, 1, 200, 50);
+  const slice = sorted.slice(0, limit);
+
+  return {
+    response: {
+      books: slice.map(b => ({
+        id: b.id,
+        url: `app://book/${b.id}`,
+        name: b.name,
+        collectionId: b.collectionId,
+        collectionName: collectionNameById.get(b.collectionId) ?? null,
+        lastActiveAt: new Date(b.lastActiveAt).toISOString(),
+        turnCount: b.turnCount,
+        isActive: b.id === activeId
+      })),
+      returned: slice.length,
+      totalMatched: pool.length,
+      totalAll: books.length,
+      truncated: pool.length > slice.length
+    }
+  };
+}
+
+function listCollections(_args: ListCollectionsArgs, context: FileAgentContext): ToolExecutionResult {
+  const collections = context.collections;
+  if (!collections) return { response: { error: NO_LIBRARY } };
+
+  const books = context.books ?? [];
+  const bookCountById = new Map<string, number>();
+  for (const b of books) {
+    bookCountById.set(b.collectionId, (bookCountById.get(b.collectionId) ?? 0) + 1);
+  }
+
+  return {
+    response: {
+      collections: collections.map(c => ({
+        id: c.id,
+        url: `app://collection/${c.id}`,
+        name: c.name,
+        bookCount: bookCountById.get(c.id) ?? 0,
+        isRoot: c.id === ROOT_COLLECTION_ID
+      })),
+      count: collections.length
+    }
+  };
 }

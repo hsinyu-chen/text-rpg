@@ -118,6 +118,34 @@ describe('buildSystemInstruction', () => {
       expect(out).toContain('auto-update');
       expect(out).toContain('fork');
     });
+
+    it('teaches the app://book/<id>[/<action>] syntax with the per-row action vocabulary', () => {
+      const out = build();
+      expect(out).toContain('app://book/<id>');
+      expect(out).toContain('app://book/<id>/<action>');
+      // Action names ground the link to actual book-list DOM attributes;
+      // a rename without updating the prompt would break the agent's vocabulary.
+      expect(out).toContain('move-book');
+      expect(out).toContain('rename-book');
+      expect(out).toContain('delete-book');
+      expect(out).toContain('active-cache-badge');
+    });
+
+    it('teaches the app://collection/<id>[/<action>] syntax with the per-row action vocabulary', () => {
+      const out = build();
+      expect(out).toContain('app://collection/<id>');
+      expect(out).toContain('app://collection/<id>/<action>');
+      expect(out).toContain('add-book');
+      expect(out).toContain('rename-collection');
+      expect(out).toContain('delete-collection');
+    });
+
+    it('lays down a HARD RULE forbidding bare book/collection GUIDs', () => {
+      const out = build();
+      // Same shape as the existing message-id hard rule so the agent treats
+      // book/collection ids with the same strictness.
+      expect(out).toMatch(/HARD RULE:.*book.*collection.*bare GUID/);
+    });
   });
 
   describe('surface-mode block (mode-tag protocol)', () => {
@@ -161,6 +189,12 @@ describe('buildSystemInstruction', () => {
       expect(out).toContain('TOOL-CALL MODE — JSON');
       expect(out).toContain('valid JSON');
       expect(out).toContain('"reason"');
+    });
+
+    it('lists listBooks / listCollections in the JSON-mode action enum', () => {
+      const out = build({ mode: 'json' });
+      expect(out).toContain('action: "listBooks"');
+      expect(out).toContain('action: "listCollections"');
     });
   });
 

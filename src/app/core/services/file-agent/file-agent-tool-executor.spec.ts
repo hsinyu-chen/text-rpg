@@ -822,3 +822,133 @@ describe('chat tools include app://message/<id> url', () => {
     expect(msgs.find(m => m.id === 'missing')!.url).toBe('app://message/missing');
   });
 });
+
+describe('listBooks / listCollections', () => {
+  function makeLibraryContext(opts: {
+    books?: { id: string; name: string; collectionId: string; lastActiveAt: number; turnCount: number }[];
+    collections?: { id: string; name: string }[];
+    activeBookId?: string | null;
+  } = {}): FileAgentContext {
+    const map = new Map<string, string>();
+    return {
+      files: map,
+      onFileReplaced: () => undefined,
+      books: opts.books,
+      collections: opts.collections,
+      activeBookId: opts.activeBookId,
+    };
+  }
+
+  it('listBooks errors with a clear message when no library is wired', () => {
+    const ctx = makeLibraryContext({});
+    const r = run({ action: 'listBooks', args: { reason: 'r' } }, ctx);
+    expect(r.response).toMatchObject({ error: expect.stringMatching(/library is not available/) });
+  });
+
+  it('listBooks returns the outline shape with url + isActive + collectionName + ISO timestamp', () => {
+    const ctx = makeLibraryContext({
+      books: [
+        { id: 'b1', name: 'Elf Tale', collectionId: 'c1', lastActiveAt: 1700000000000, turnCount: 12 },
+        { id: 'b2', name: 'Orc Saga', collectionId: 'root', lastActiveAt: 1700000100000, turnCount: 3 },
+      ],
+      collections: [
+        { id: 'root', name: 'Root' },
+        { id: 'c1', name: 'Side Stories' },
+      ],
+      activeBookId: 'b1',
+    });
+    const r = run({ action: 'listBooks', args: { reason: 'r' } }, ctx);
+    const resp = r.response as { books: { id: string; url: string; name: string; collectionId: string; collectionName: string | null; lastActiveAt: string; turnCount: number; isActive: boolean }[]; returned: number; totalAll: number };
+    expect(resp.returned).toBe(2);
+    expect(resp.totalAll).toBe(2);
+    // newest activity first
+    expect(resp.books[0].id).toBe('b2');
+    expect(resp.books[1].id).toBe('b1');
+    expect(resp.books[1]).toMatchObject({
+      id: 'b1',
+      url: 'app://book/b1',
+      name: 'Elf Tale',
+      collectionId: 'c1',
+      collectionName: 'Side Stories',
+      turnCount: 12,
+      isActive: true,
+    });
+    expect(resp.books[1].lastActiveAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(resp.books[0].isActive).toBe(false);
+  });
+
+  it('listBooks filters by collectionId', () => {
+    const ctx = makeLibraryContext({
+      books: [
+        { id: 'b1', name: 'A', collectionId: 'c1', lastActiveAt: 1, turnCount: 0 },
+        { id: 'b2', name: 'B', collectionId: 'c2', lastActiveAt: 2, turnCount: 0 },
+        { id: 'b3', name: 'C', collectionId: 'c1', lastActiveAt: 3, turnCount: 0 },
+      ],
+      collections: [{ id: 'c1', name: 'one' }, { id: 'c2', name: 'two' }],
+    });
+    const r = run({ action: 'listBooks', args: { reason: 'r', collectionId: 'c1' } }, ctx);
+    const resp = r.response as { books: { id: string }[]; totalMatched: number; totalAll: number };
+    expect(resp.books.map(b => b.id).sort()).toEqual(['b1', 'b3']);
+    expect(resp.totalMatched).toBe(2);
+    expect(resp.totalAll).toBe(3);
+  });
+
+  it('listBooks caps limit at 200 and flags truncated when more remain', () => {
+    const books = Array.from({ length: 250 }, (_, i) => ({
+      id: `b${i}`, name: `n${i}`, collectionId: 'root', lastActiveAt: i, turnCount: 0,
+    }));
+    const ctx = makeLibraryContext({ books, collections: [{ id: 'root', name: 'Root' }] });
+    const r = run({ action: 'listBooks', args: { reason: 'r', limit: 500 } }, ctx);
+    const resp = r.response as { returned: number; truncated: boolean };
+    expect(resp.returned).toBe(200);
+    expect(resp.truncated).toBe(true);
+  });
+
+  it('listBooks honors an explicit smaller limit', () => {
+    const books = Array.from({ length: 10 }, (_, i) => ({
+      id: `b${i}`, name: `n${i}`, collectionId: 'root', lastActiveAt: i, turnCount: 0,
+    }));
+    const ctx = makeLibraryContext({ books, collections: [{ id: 'root', name: 'Root' }] });
+    const r = run({ action: 'listBooks', args: { reason: 'r', limit: 3 } }, ctx);
+    const resp = r.response as { returned: number; truncated: boolean };
+    expect(resp.returned).toBe(3);
+    expect(resp.truncated).toBe(true);
+  });
+
+  it('listBooks renders collectionName as null when the collection is unknown', () => {
+    const ctx = makeLibraryContext({
+      books: [{ id: 'b1', name: 'orphan', collectionId: 'missing-c', lastActiveAt: 1, turnCount: 0 }],
+      collections: [{ id: 'root', name: 'Root' }],
+    });
+    const r = run({ action: 'listBooks', args: { reason: 'r' } }, ctx);
+    const resp = r.response as { books: { collectionName: string | null }[] };
+    expect(resp.books[0].collectionName).toBeNull();
+  });
+
+  it('listCollections returns id/name/bookCount/isRoot/url with root flagged', () => {
+    const ctx = makeLibraryContext({
+      books: [
+        { id: 'b1', name: 'A', collectionId: 'root', lastActiveAt: 1, turnCount: 0 },
+        { id: 'b2', name: 'B', collectionId: 'c1', lastActiveAt: 2, turnCount: 0 },
+        { id: 'b3', name: 'C', collectionId: 'c1', lastActiveAt: 3, turnCount: 0 },
+      ],
+      collections: [
+        { id: 'root', name: 'Root' },
+        { id: 'c1', name: 'Side' },
+        { id: 'c2', name: 'Empty' },
+      ],
+    });
+    const r = run({ action: 'listCollections', args: { reason: 'r' } }, ctx);
+    const resp = r.response as { collections: { id: string; url: string; name: string; bookCount: number; isRoot: boolean }[]; count: number };
+    expect(resp.count).toBe(3);
+    expect(resp.collections.find(c => c.id === 'root')).toMatchObject({ url: 'app://collection/root', bookCount: 1, isRoot: true });
+    expect(resp.collections.find(c => c.id === 'c1')).toMatchObject({ url: 'app://collection/c1', bookCount: 2, isRoot: false });
+    expect(resp.collections.find(c => c.id === 'c2')).toMatchObject({ bookCount: 0, isRoot: false });
+  });
+
+  it('listCollections errors when no library is wired', () => {
+    const ctx = makeLibraryContext({});
+    const r = run({ action: 'listCollections', args: { reason: 'r' } }, ctx);
+    expect(r.response).toMatchObject({ error: expect.stringMatching(/library is not available/) });
+  });
+});
