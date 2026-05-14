@@ -307,12 +307,17 @@ export class FileAgentService {
     // Augment context with the uiMap callback + library snapshots so the
     // executor stays DI-free. Caller-supplied fields win — useful for tests.
     // Library snapshot is best-effort: BookRepository read failures shouldn't
-    // block an editing turn that doesn't touch listBooks at all.
+    // block an editing turn that doesn't touch listBooks at all. Run the two
+    // IDB-backed snapshot reads in parallel; they're independent.
+    const [books, collections] = await Promise.all([
+      context.books ?? this.snapshotBooks(),
+      context.collections ?? this.snapshotCollections(),
+    ]);
     const augmentedContext: FileAgentContext = {
       ...context,
       uiMap: context.uiMap ?? (() => this.hintRegistry.buildUiMap()),
-      books: context.books ?? await this.snapshotBooks(),
-      collections: context.collections ?? await this.snapshotCollections(),
+      books,
+      collections,
       activeBookId: context.activeBookId ?? this.session.currentBookId(),
     };
 
