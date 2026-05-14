@@ -250,7 +250,10 @@ interface BookRepairKbFrame extends BridgeFrame {
 }
 
 interface ProfileGetPromptFrame extends BridgeFrame {
-    type?: string;
+    // Bridge routing already uses BridgeFrame.type for the frame kind; the
+    // prompt type travels under `promptType` to avoid the .NET relay stripping
+    // it as a reserved key (see TestBridge EnqueueAsync).
+    promptType?: string;
     /** Defaults to active profile when omitted. */
     profileId?: string;
 }
@@ -260,7 +263,7 @@ interface ProfileGetAllPromptsFrame extends BridgeFrame {
 }
 
 interface ProfileSetPromptFrame extends BridgeFrame {
-    type?: string;
+    promptType?: string;
     content?: string;
 }
 
@@ -1393,9 +1396,9 @@ export class BridgeService {
     }
 
     private async handleProfileGetPrompt(frame: ProfileGetPromptFrame): Promise<void> {
-        const { requestId, type, profileId } = frame;
+        const { requestId, promptType, profileId } = frame;
         if (!requestId) return;
-        if (!this.isValidPromptType(type)) {
+        if (!this.isValidPromptType(promptType)) {
             this.send({ type: 'action_error', requestId, error: 'invalid_type' });
             return;
         }
@@ -1404,11 +1407,11 @@ export class BridgeService {
             this.send({ type: 'action_error', requestId, error: 'unknown_profile' });
             return;
         }
-        const { content, hasOverride } = await this.readResolvedPromptWithOverride(type, id);
+        const { content, hasOverride } = await this.readResolvedPromptWithOverride(promptType, id);
         this.send({
             type: 'profile_get_prompt_response',
             requestId,
-            promptType: type,
+            promptType,
             profileId: id,
             content,
             hasOverride,
@@ -1436,13 +1439,13 @@ export class BridgeService {
     }
 
     private async handleProfileSetPrompt(frame: ProfileSetPromptFrame): Promise<void> {
-        const { requestId, type, content } = frame;
+        const { requestId, promptType, content } = frame;
         if (!requestId) return;
         if (this.state.isBusy()) {
             this.send({ type: 'action_error', requestId, error: 'busy' });
             return;
         }
-        if (!this.isValidPromptType(type)) {
+        if (!this.isValidPromptType(promptType)) {
             this.send({ type: 'action_error', requestId, error: 'invalid_type' });
             return;
         }
@@ -1451,14 +1454,11 @@ export class BridgeService {
             return;
         }
         try {
-            // saveToService: targets active profile, throws on built-in,
-            // updates the `prompt_user_modified` KV flag, and refreshes the
-            // signal content — no separate forceReload needed.
-            await this.injection.saveToService(type, content);
+            await this.injection.saveToService(promptType, content);
             this.send({
                 type: 'profile_set_prompt_response',
                 requestId,
-                promptType: type,
+                promptType,
                 profileId: this.state.activePromptProfile(),
                 length: content.length,
             });

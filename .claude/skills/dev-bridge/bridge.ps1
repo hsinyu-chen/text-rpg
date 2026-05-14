@@ -175,7 +175,7 @@ function Get-BridgeProfilePrompt {
         # Defaults to the active profile when omitted.
         [string] $ProfileId
     )
-    $body = @{ type = $Type }
+    $body = @{ promptType = $Type }
     if ($PSBoundParameters.ContainsKey('ProfileId')) { $body.profileId = $ProfileId }
     Invoke-Bridge -Path '/profile/get-prompt' -Body $body -TimeoutSec 30
 }
@@ -198,7 +198,7 @@ function Set-BridgeProfilePrompt {
         [string] $Type,
         [Parameter(Mandatory)] [AllowEmptyString()] [string] $Content
     )
-    Invoke-Bridge -Path '/profile/set-prompt' -Body @{ type = $Type; content = $Content } -TimeoutSec 30
+    Invoke-Bridge -Path '/profile/set-prompt' -Body @{ promptType = $Type; content = $Content } -TimeoutSec 30
 }
 
 function Get-BridgeKBFiles {
