@@ -37,7 +37,7 @@ export function normalizeScene(raw: Partial<SceneSnapshot> | undefined): SceneSn
         pc_awareness: resolveAwareness(raw?.pc_awareness, raw?.pc_state),
         present_npcs: Array.isArray(raw?.present_npcs)
             ? raw.present_npcs.map(n => ({
-                name: n?.name ?? '',
+                name: typeof n?.name === 'string' ? n.name : '',
                 state: typeof n?.state === 'string' && !looksLikeAwareness(n.state) ? n.state : '',
                 awareness: resolveAwareness(n?.awareness, n?.state)
             }))
