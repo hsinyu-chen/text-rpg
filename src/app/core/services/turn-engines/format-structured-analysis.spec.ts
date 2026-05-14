@@ -83,10 +83,10 @@ describe('formatStructuredAnalysis', () => {
                 location: '旅店',
                 pc_name: '程楊宗',
                 pc_alias: '魯蛇',
-                pc_awareness: '化裝中'
+                pc_awareness: '偽裝中'
             })
         }));
-        expect(out).toContain('主角: 程楊宗[魯蛇](化裝中)');
+        expect(out).toContain('主角: 程楊宗[魯蛇](偽裝中)');
     });
 
     it('does not emit empty [] / () when alias / awareness are empty', () => {
@@ -152,9 +152,9 @@ describe('formatStructuredAnalysis', () => {
                 location: 'L',
                 pc_name: '程楊宗',
                 pc_alias: '魯蛇',
-                pc_awareness: '化裝中'
+                pc_awareness: '偽裝中'
             }));
-            expect(line).toBe('[D 00:00 / L / 程楊宗[魯蛇](化裝中)]');
+            expect(line).toBe('[D 00:00 / L / 程楊宗[魯蛇](偽裝中)]');
         });
 
         it('does not emit empty [] / () when alias / awareness are empty', () => {

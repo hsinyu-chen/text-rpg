@@ -222,7 +222,7 @@ const sceneSnapshotSchema: Schema = {
         },
         pc_awareness: {
             type: 'string',
-            description: 'PC FOG-OF-WAR / CONSCIOUSNESS STATE — same domain as present_npcs[].awareness. Common tags: "昏迷" / "化裝中" / "匿蹤" / "靈魂出竅". "" (default) = fully reactive. NOT for emotion, current activity, or behavior. The program wraps this in () in the scene header when present.'
+            description: 'PC FOG-OF-WAR / CONSCIOUSNESS STATE — same domain as present_npcs[].awareness. Common tags: "昏迷" / "偽裝中" / "匿蹤" / "靈魂出竅". "" (default) = fully reactive. NOT for emotion, current activity, or behavior. The program wraps this in () in the scene header when present.'
         },
         present_npcs: {
             type: 'array',

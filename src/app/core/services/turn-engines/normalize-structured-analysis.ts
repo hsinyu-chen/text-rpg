@@ -23,7 +23,7 @@ export function normalizeAnalysis(raw: unknown): StructuredAnalysis {
 
 export function normalizeScene(raw: Partial<SceneSnapshot> | undefined): SceneSnapshot {
     // Legacy saves serialized `pc_in_header` as one display string
-    // (e.g. "程楊宗[魯蛇](化裝中)"). Dump it into pc_name; the formatter
+    // (e.g. "程楊宗[魯蛇](偽裝中)"). Dump it into pc_name; the formatter
     // skips empty alias/state so display equals the pre-split rendering.
     const legacyHeader = (raw as { pc_in_header?: string } | undefined)?.pc_in_header;
     return {
@@ -58,7 +58,7 @@ export function normalizeScene(raw: Partial<SceneSnapshot> | undefined): SceneSn
  * their close paraphrases. Anything else stays in `state` as the new
  * physical/outer-state semantics.
  */
-const LEGACY_AWARENESS_KEYWORDS = /^(昏迷|熟睡|麻痺|麻痹|匿蹤|匿跡|通訊|幻象|靈魂出竅|化裝中|淺眠.*|unconscious|asleep|paralyzed|hidden|comms|illusion|astral-projecting|disguised|light sleep.*)$/i;
+const LEGACY_AWARENESS_KEYWORDS = /^(昏迷|熟睡|麻痺|麻痹|匿蹤|匿跡|通訊|幻象|靈魂出竅|偽裝中|變裝中|化裝中|淺眠.*|unconscious|asleep|paralyzed|hidden|comms|illusion|astral-projecting|disguised|light sleep.*)$/i;
 
 function looksLikeAwareness(s: string | null | undefined): boolean {
     if (typeof s !== 'string') return false;
