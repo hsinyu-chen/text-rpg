@@ -42,6 +42,18 @@ Cheng Yangzong pushed open the tavern's wooden door...
 6. **`kind: "random_event"` steps** ⇒ narrate the same way as user_intent steps, woven into the prose at their chronological position in `steps[]`; no separate heading.
 7. **`scene_snapshot.environment`** ⇒ permeate naturally through opening / between-step transitions; do not list-bullet.
 
+### Physical detail alignment
+
+Before writing any action, gaze, posture, clothing / equipment change, or object interaction, you **MUST** reconcile against the current scene state per `system_prompt.md`'s [State Synchronization Principle].
+
+Current state is composed of:
+- **KB-registered entities**: base state from the knowledge-base files, layered with state changes from prior turns and earlier steps this turn
+- **Entities not in KB, first appearing this turn**: base state from this turn's `analysis.scene_snapshot` and earlier steps' explicitly established setup, layered with changes from subsequent steps
+
+State categories to reconcile against include but are not limited to: each character's current posture / position / clothing / equipment / held-item location; object locations (on body / nearby / elsewhere); environmental conditions (weather, time-of-day, lighting, sound); who is present and their relative positions.
+
+**DO NOT** write details that contradict the current state. **State-change agency**: any state change (undressing, moving, retrieving an item, opening a door) MUST be the explicit result of a step's action — the narrator must not invent it.
+
 ### `interrupted=true` handling
 
 - Narrate to the consequence of the **last** step in `analysis.steps` (the breaking step) and stop — including its `outcome` text, `npc_reactions`, `object_reactions`.
