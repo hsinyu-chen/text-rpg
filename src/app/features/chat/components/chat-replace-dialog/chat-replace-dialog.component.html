@@ -20,16 +20,22 @@
                     <div matSuffix class="search-options">
                         <button mat-icon-button class="option-btn" [class.active]="isCaseSensitive()"
                             (click)="isCaseSensitive.set(!isCaseSensitive()); $event.stopPropagation()"
+                            (hintActivate)="isCaseSensitive.set(!isCaseSensitive())"
+                            appAgentHint="chat-input/batch-replace/match-case"
                             [matTooltip]="'ui.MATCH_CASE_TOOLTIP' | translate">
                             <span class="option-icon">Aa</span>
                         </button>
                         <button mat-icon-button class="option-btn" [class.active]="isWholeWord()"
                             (click)="isWholeWord.set(!isWholeWord()); $event.stopPropagation()"
+                            (hintActivate)="isWholeWord.set(!isWholeWord())"
+                            appAgentHint="chat-input/batch-replace/whole-word"
                             [matTooltip]="'ui.MATCH_WHOLE_WORD_TOOLTIP' | translate">
                             <span class="option-icon underline">ab</span>
                         </button>
                         <button mat-icon-button class="option-btn" [class.active]="isRegex()"
                             (click)="isRegex.set(!isRegex()); $event.stopPropagation()"
+                            (hintActivate)="isRegex.set(!isRegex())"
+                            appAgentHint="chat-input/batch-replace/regex"
                             [matTooltip]="'ui.USE_REGEX_TOOLTIP' | translate">
                             <span class="option-icon">.*</span>
                         </button>
@@ -49,7 +55,9 @@
         <div class="filter-section">
             <mat-form-field appearance="outline">
                 <mat-label>{{ lang.t('FILTER_INTENT') }}</mat-label>
-                <mat-select [(ngModel)]="intentFilter" (selectionChange)="searchResource.reload()">
+                <mat-select #intentSel="matSelect" [(ngModel)]="intentFilter" (selectionChange)="searchResource.reload()"
+                    (hintActivate)="intentSel.open()"
+                    appAgentHint="chat-input/batch-replace/filter-intent">
                     @for (intent of intents(); track intent.value) {
                     <mat-option [value]="intent.value">{{ intent.label }}</mat-option>
                     }
@@ -58,7 +66,9 @@
 
             <mat-form-field appearance="outline">
                 <mat-label>{{ lang.t('FILTER_ROLE') }}</mat-label>
-                <mat-select [(ngModel)]="roleFilter" (selectionChange)="searchResource.reload()">
+                <mat-select #roleSel="matSelect" [(ngModel)]="roleFilter" (selectionChange)="searchResource.reload()"
+                    (hintActivate)="roleSel.open()"
+                    appAgentHint="chat-input/batch-replace/filter-role">
                     @for (role of roles(); track role.value) {
                     <mat-option [value]="role.value">{{ role.label }}</mat-option>
                     }
@@ -67,7 +77,9 @@
 
             <mat-form-field appearance="outline">
                 <mat-label>{{ lang.t('FILTER_FIELD') }}</mat-label>
-                <mat-select [(ngModel)]="fieldFilter" (selectionChange)="searchResource.reload()">
+                <mat-select #fieldSel="matSelect" [(ngModel)]="fieldFilter" (selectionChange)="searchResource.reload()"
+                    (hintActivate)="fieldSel.open()"
+                    appAgentHint="chat-input/batch-replace/filter-field">
                     @for (f of fields(); track f.value) {
                     <mat-option [value]="f.value">{{ f.label }}</mat-option>
                     }
@@ -118,7 +130,7 @@
     <div class="dialog-actions">
         <button mat-button (click)="close()">{{ lang.t('CANCEL') }}</button>
         <button mat-flat-button color="primary" [disabled]="(searchResource.value()?.length ?? 0) === 0"
-            (click)="replaceAll()">
+            (click)="replaceAll()" appAgentHint="chat-input/batch-replace/execute">
             <mat-icon>done_all</mat-icon>
             {{ lang.t('REPLACE_ALL') }}
         </button>

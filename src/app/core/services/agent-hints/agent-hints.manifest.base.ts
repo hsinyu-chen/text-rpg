@@ -47,15 +47,6 @@ export const VIRTUAL_HINTS: AgentHintEntry[] = [
  * **Progress meter:** `PENDING_DIRECTIVES.length`. Goal: 0.
  */
 export const PENDING_DIRECTIVES: AgentHintPathDecl[] = [
-  // chat-input/batch-replace dialog
-  { path: 'chat-input/batch-replace/match-case', activatable: true },
-  { path: 'chat-input/batch-replace/whole-word', activatable: true },
-  { path: 'chat-input/batch-replace/regex', activatable: true },
-  { path: 'chat-input/batch-replace/filter-intent', activatable: true },
-  { path: 'chat-input/batch-replace/filter-role', activatable: true },
-  { path: 'chat-input/batch-replace/filter-field', activatable: true },
-  { path: 'chat-input/batch-replace/execute' },
-
   // chat-input/view-turn-updates panel
   { path: 'chat-input/view-turn-updates/toggle-inventory', activatable: true },
   { path: 'chat-input/view-turn-updates/toggle-quest', activatable: true },
