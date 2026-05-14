@@ -1010,7 +1010,7 @@ export const en: TranslationDict = {
             'cost-prediction-toggle': {
                 self: { name: 'Cost estimate', description: 'Expand / collapse the "estimated cost" panel' },
                 'compare-models': { name: 'Compare models', description: 'Open the cross-model cost comparison dialog' },
-                'copy-stats': { name: 'Copy stats', description: 'Copy session token + cost stats to clipboard (last turn + session totals + cross-model comparison)' },
+                'copy-stats': { name: 'Copy stats', description: 'Copy session token usage + cost stats to clipboard (last turn + session totals + cross-model comparison)' },
             },
             'adventure-books': {
                 self: { name: 'Books', description: 'Open the book management panel (add, rename, switch, delete book / game save)' },
@@ -1056,7 +1056,7 @@ export const en: TranslationDict = {
                     'tab-prebuild': { name: 'Pre-build tab', description: 'Switch to the "Pre-build" tab (quick build with preset alignment / preset)' },
                     'tab-generate': { name: 'Generate tab', description: 'Switch to the "Generate" tab (use the LLM to generate a personalized alignment — consumes tokens)' },
                     'select-protagonist-gender': { name: 'Gender', description: 'Pick the protagonist gender' },
-                    'reset-to-preset-identity': { name: 'Reset identity', description: 'Discard custom identity edits and switch back to the preset picker — also auto-applies the FIRST preset\'s full identity bundle (overwrites background / alignment / interests / appearance / NPC preferences / special requests)' },
+                    'reset-to-preset-identity': { name: 'Reset identity', description: 'Discard custom identity edits and switch back to the preset picker — also auto-applies the first preset\'s full identity bundle (overwrites identity / background / alignment / interests / appearance / NPC preferences / special requests)' },
                 },
             },
         },

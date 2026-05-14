@@ -1056,7 +1056,7 @@ export const zhTW: TranslationDict = {
                     'tab-prebuild': { name: 'Pre-build', description: '切到「Pre-build」分頁(用預設 alignment / preset 快速建)' },
                     'tab-generate': { name: 'Generate', description: '切到「Generate」分頁(用 LLM 生成個人化 alignment,會花 token)' },
                     'select-protagonist-gender': { name: '性別', description: '選擇主角性別' },
-                    'reset-to-preset-identity': { name: '重設身份', description: '捨棄手動輸入的身分、切回範本下拉選單 — 同時會把第一個範本的整套身分套用上來(會覆蓋背景 / 陣營 / 興趣 / 外貌 / NPC 偏好 / 特別要求 等欄位)' },
+                    'reset-to-preset-identity': { name: '重設身分', description: '捨棄手動輸入的身分、切回範本下拉選單 — 同時會把第一個範本的整套身分套用上來(會覆蓋身分 / 背景 / 陣營 / 興趣 / 外貌 / NPC 偏好 / 特別要求 等欄位)' },
                 },
             },
         },
