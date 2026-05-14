@@ -144,34 +144,48 @@ KB writes already have a richer in-app path (File Viewer Monaco editor,
 `<Save>` auto-update flow, file-agent `searchReplace`). The bridge isn't
 the right surface for blind in-place edits.
 
-### Sync the active user-defined profile to/from disk
+### Edit prompt rows directly via bridge (canonical AI A/B path)
 
-When iterating on prompt tuning, edits happen in
-`TextRPG_Prompts/<profile-id>/*.md` (the FSA folder the user bound to a
-user-defined profile via Profile Management). Pulling that into IDB used
-to require clicking "從磁碟拉取" in the app — these helpers trigger it
-from the agent side so an A/B loop can run unattended.
+The right primitive for AI-driven prompt-tuning A/B is direct IDB
+read/write — no disk, no FSA, no permission dialogs, no per-session
+manual seed. `Set-BridgeProfilePrompt` mutates the active profile's
+IDB row and auto-fires `injection.forceReload()`, so the next turn
+picks up the edit. `Get-BridgeProfilePrompt` reads any profile by id
+(defaults to active) — useful for diffing user-defined against built-in.
 
 ```pwsh
 . ./.claude/skills/dev-bridge/bridge.ps1
-Invoke-BridgeProfilePush    # IDB → disk (write current in-memory prompts out)
-# ... edit the files in TextRPG_Prompts/<profile-id>/ ...
-Invoke-BridgeProfilePull    # disk → IDB; auto-fires injection.forceReload()
-Send-BridgeAction -UserInput '...' -Intent action  # next turn uses the edits
+$current = Get-BridgeProfilePrompt -Type system_main          # active profile
+Set-BridgeProfilePrompt -Type system_main -Content $newText   # writes IDB + reloads engine
+Send-BridgeAction -UserInput '...' -Intent action             # next turn uses the edit
 ```
 
-Pull returns `{ updatedTypes, metaUpdated }`. After it resolves the engine
-is already hot with the new prompts — no `Invoke-BridgeReload` needed; the
-app keeps running.
+Compare across profiles with an explicit id:
+```pwsh
+$base    = Get-BridgeProfilePrompt -Type system_main -ProfileId cloud
+$mine    = Get-BridgeProfilePrompt -Type system_main           # active is the user-defined clone
+diff $base.content $mine.content
+```
 
-**Active profile must be user-defined.** Built-in profiles (`cloud` /
-`local`) ship as assets and have no IDB row to mirror — both endpoints
-reject them with `builtin_profile`. To tune those, clone first into a
-user-defined profile via the Profile Management dialog, bind a folder,
-then sync.
+`Get-BridgeProfilePrompts` returns all 11 rows in one call — useful
+when greping across types.
 
-Both endpoints refuse mid-turn (`busy`). Pull on a profile that was never
-pushed returns `folder_not_found` — push first to seed the folder.
+Prompt types: `action` / `continue` / `fastforward` / `system` / `save`
+/ `postprocess` / `system_main` / `protocol_single` / `protocol_resolver`
+/ `protocol_narrator` / `correction`. `Set` validates via
+PowerShell's `ValidateSet`, so typos fail before hitting the bridge.
+
+**Set is restricted to the active profile and the profile must be
+user-defined.** Built-in profiles (`cloud`/`local`) are read-only via
+this path — clone via Profile Management and switch active to the clone
+to tune. Set refuses mid-turn (`busy`); Get is always available.
+
+**`exists` flag in the response**: when a profile has no IDB override
+row for a given type, the response has `content: ''` and `exists: false`
+— this is NOT "the prompt is empty", it means "no override, the built-in
+shipped asset is used as fallback". The engine sees the fallback; if you
+want to see the same text the engine renders, switch to the built-in
+profile and read from there.
 
 ### Inspect / change profile + engine config
 
@@ -395,9 +409,8 @@ processes.
 | `agent_open_file_viewer` returns `no_loaded_files` | No active Book or its KB is empty | Load a Book first via `Set-BridgeBook` or have the user open one |
 | `agent_ask` returns `agent_busy` | A previous `agent_ask` is still running | Wait for the prior call to resolve; do not retry-loop |
 | `agent_ask` returns `agent_failed` | The headless agent threw (no LLM profile, stream error, etc.) | Check `detail` — usually "No LLM profile selected" or a provider error |
-| `profile_pull` / `profile_push` returns `builtin_profile` | Active profile is built-in (`cloud` / `local`) | Disk sync only works on user-defined profiles — clone first via Profile Management, then bind a folder |
-| `profile_pull` returns `folder_not_found` | Profile folder doesn't exist on disk yet | `Invoke-BridgeProfilePush` first to seed the folder |
-| `profile_pull` / `profile_push` returns `fsa_permission` | User revoked / cancelled the FSA permission prompt | Ask the user to re-grant via the Profile Management dialog |
+| `profile_set_prompt` returns `builtin_profile` | Active profile is a built-in (`cloud` / `local`) | Clone via Profile Management to a user-defined profile, switch active to the clone, retry |
+| `profile_get_prompt` / `profile_set_prompt` returns `invalid_type` | `-Type` not in the 11-value set | Typo — the PS helper's ValidateSet should have caught it; check spelling |
 
 ## Don't
 

@@ -9,7 +9,8 @@ import { I18nService } from '@app/core/i18n';
 import { SessionService } from '../session.service';
 import { GameStateService } from '../game-state.service';
 import { GameEngineService } from '../game-engine.service';
-import { InjectionService } from '../injection.service';
+import { InjectionService, ALL_PROMPT_TYPES, type PromptType } from '../injection.service';
+import { PromptRepository } from '../storage/prompt.repository';
 import { PromptProfileRegistryService } from '../prompt-profile-registry.service';
 import { ConfigService } from '../config.service';
 import { LLMProviderRegistryService } from '../llm-provider-registry.service';
@@ -124,6 +125,21 @@ import { DiskProfileSyncService } from '../sync/disk-profile-sync.service';
  *                     — writes the active user-defined profile's IDB
  *                       prompt rows out to the bound FSA folder. Same
  *                       built-in / busy guards as pull.
+ *   profile_get_prompt
+ *                     — reads one prompt row from a profile (defaults
+ *                       to active; any profile id accepted). Empty
+ *                       content + exists:false = no override row (the
+ *                       built-in shipped asset is used as fallback).
+ *   profile_get_all_prompts
+ *                     — reads all 11 prompt rows for a profile in one
+ *                       call. Same fallback semantics as `_get_prompt`.
+ *   profile_set_prompt
+ *                     — writes one prompt row to the ACTIVE profile's
+ *                       IDB. Active must be user-defined (built-in
+ *                       rejected). Auto-fires forceReload so the next
+ *                       turn uses the edit. Refuses mid-turn (`busy`).
+ *                       Canonical AI A/B path — bypasses FSA entirely,
+ *                       no permission dance, no per-session manual seed.
  */
 
 const STORAGE_URL = 'app_debug_bridge_url';
@@ -230,6 +246,21 @@ interface BookRepairKbFrame extends BridgeFrame {
     scenarioId?: string;
 }
 
+interface ProfileGetPromptFrame extends BridgeFrame {
+    type?: string;
+    /** Defaults to active profile when omitted. */
+    profileId?: string;
+}
+
+interface ProfileGetAllPromptsFrame extends BridgeFrame {
+    profileId?: string;
+}
+
+interface ProfileSetPromptFrame extends BridgeFrame {
+    type?: string;
+    content?: string;
+}
+
 interface AgentOpenFileViewerFrame extends BridgeFrame {
     /** Filename to land on. Omitted = first file in the active KB. */
     initialFile?: string;
@@ -303,6 +334,7 @@ export class BridgeService {
     private hintRegistry = inject(AgentHintRegistry);
     private matDialog = inject(MatDialog);
     private diskProfileSync = inject(DiskProfileSyncService);
+    private prompts = inject(PromptRepository);
 
     /**
      * Lazy headless FileAgentService instance for `agent_ask`. Lives in a
@@ -651,6 +683,15 @@ export class BridgeService {
                 break;
             case 'profile_push_to_disk':
                 void this.handleProfilePushToDisk(frame);
+                break;
+            case 'profile_get_prompt':
+                void this.handleProfileGetPrompt(frame as ProfileGetPromptFrame);
+                break;
+            case 'profile_get_all_prompts':
+                void this.handleProfileGetAllPrompts(frame as ProfileGetAllPromptsFrame);
+                break;
+            case 'profile_set_prompt':
+                void this.handleProfileSetPrompt(frame as ProfileSetPromptFrame);
                 break;
             default:
                 console.warn('[bridge] unknown frame type', type, frame);
@@ -1332,6 +1373,95 @@ export class BridgeService {
         if (/does not exist yet/i.test(detail))               return 'folder_not_found';
         if (/permission|aborted/i.test(detail))               return 'fsa_permission';
         return 'disk_sync_failed';
+    }
+
+    private isValidPromptType(t: unknown): t is PromptType {
+        return typeof t === 'string' && (ALL_PROMPT_TYPES as readonly string[]).includes(t);
+    }
+
+    private async handleProfileGetPrompt(frame: ProfileGetPromptFrame): Promise<void> {
+        const { requestId, type, profileId } = frame;
+        if (!requestId) return;
+        if (!this.isValidPromptType(type)) {
+            this.send({ type: 'action_error', requestId, error: 'invalid_type' });
+            return;
+        }
+        const id = profileId ?? this.state.activePromptProfile();
+        if (!this.registry.get(id)) {
+            this.send({ type: 'action_error', requestId, error: 'unknown_profile' });
+            return;
+        }
+        const row = await this.prompts.getProfilePrompt(type, id);
+        this.send({
+            type: 'profile_get_prompt_response',
+            requestId,
+            promptType: type,
+            profileId: id,
+            content: row?.content ?? '',
+            exists: !!row,
+        });
+    }
+
+    private async handleProfileGetAllPrompts(frame: ProfileGetAllPromptsFrame): Promise<void> {
+        const { requestId, profileId } = frame;
+        if (!requestId) return;
+        const id = profileId ?? this.state.activePromptProfile();
+        if (!this.registry.get(id)) {
+            this.send({ type: 'action_error', requestId, error: 'unknown_profile' });
+            return;
+        }
+        const prompts: Record<string, { content: string; exists: boolean }> = {};
+        for (const t of ALL_PROMPT_TYPES) {
+            const row = await this.prompts.getProfilePrompt(t, id);
+            prompts[t] = { content: row?.content ?? '', exists: !!row };
+        }
+        this.send({
+            type: 'profile_get_all_prompts_response',
+            requestId,
+            profileId: id,
+            prompts,
+        });
+    }
+
+    private async handleProfileSetPrompt(frame: ProfileSetPromptFrame): Promise<void> {
+        const { requestId, type, content } = frame;
+        if (!requestId) return;
+        if (this.state.isBusy()) {
+            this.send({ type: 'action_error', requestId, error: 'busy' });
+            return;
+        }
+        if (!this.isValidPromptType(type)) {
+            this.send({ type: 'action_error', requestId, error: 'invalid_type' });
+            return;
+        }
+        if (typeof content !== 'string') {
+            this.send({ type: 'action_error', requestId, error: 'invalid_content' });
+            return;
+        }
+        const id = this.state.activePromptProfile();
+        const profile = this.registry.get(id);
+        if (!profile) {
+            this.send({ type: 'action_error', requestId, error: 'unknown_profile' });
+            return;
+        }
+        if (profile.isBuiltIn) {
+            this.send({ type: 'action_error', requestId, error: 'builtin_profile' });
+            return;
+        }
+        try {
+            await this.prompts.saveProfilePrompt(type, id, content);
+            await this.injection.forceReload();
+            this.send({
+                type: 'profile_set_prompt_response',
+                requestId,
+                promptType: type,
+                profileId: id,
+                length: content.length,
+            });
+        } catch (e) {
+            const detail = e instanceof Error ? e.message : 'unknown';
+            this.send({ type: 'action_error', requestId, error: 'set_prompt_failed', detail });
+        }
     }
 
     private handleKbList(frame: BridgeFrame): void {

@@ -147,6 +147,58 @@ function Invoke-BridgeProfilePush {
     Invoke-Bridge -Path '/profile/push-to-disk' -Body @{} -TimeoutSec 60
 }
 
+# Direct prompt-row read/write on a profile's IDB store. The canonical
+# AI A/B-tuning surface — bypasses the FSA disk-sync path entirely (no
+# permission dialogs, no per-session manual seed). `Set` mutates the
+# ACTIVE profile only, must be user-defined (built-ins are read-only
+# via this path), and auto-fires injection.forceReload() so the next
+# turn picks up the edit. `Get` reads any profile by id (defaults to
+# active); empty content + exists:false means "no IDB override row,
+# the built-in shipped asset is used as fallback".
+
+$script:BridgePromptTypes = @(
+    'action', 'continue', 'fastforward', 'system', 'save',
+    'postprocess', 'system_main', 'protocol_single',
+    'protocol_resolver', 'protocol_narrator', 'correction'
+)
+
+function Get-BridgeProfilePrompt {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [ValidateSet('action', 'continue', 'fastforward', 'system', 'save',
+                     'postprocess', 'system_main', 'protocol_single',
+                     'protocol_resolver', 'protocol_narrator', 'correction')]
+        [string] $Type,
+        # Defaults to the active profile when omitted.
+        [string] $ProfileId
+    )
+    $body = @{ type = $Type }
+    if ($PSBoundParameters.ContainsKey('ProfileId')) { $body.profileId = $ProfileId }
+    Invoke-Bridge -Path '/profile/get-prompt' -Body $body -TimeoutSec 30
+}
+
+function Get-BridgeProfilePrompts {
+    [CmdletBinding()]
+    param([string] $ProfileId)
+    $body = @{}
+    if ($PSBoundParameters.ContainsKey('ProfileId')) { $body.profileId = $ProfileId }
+    Invoke-Bridge -Path '/profile/get-all-prompts' -Body $body -TimeoutSec 30
+}
+
+function Set-BridgeProfilePrompt {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [ValidateSet('action', 'continue', 'fastforward', 'system', 'save',
+                     'postprocess', 'system_main', 'protocol_single',
+                     'protocol_resolver', 'protocol_narrator', 'correction')]
+        [string] $Type,
+        [Parameter(Mandatory)] [AllowEmptyString()] [string] $Content
+    )
+    Invoke-Bridge -Path '/profile/set-prompt' -Body @{ type = $Type; content = $Content } -TimeoutSec 30
+}
+
 function Get-BridgeKBFiles {
     [CmdletBinding()]
     param()
