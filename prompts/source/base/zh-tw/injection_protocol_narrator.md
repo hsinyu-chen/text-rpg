@@ -28,12 +28,12 @@
 
 **正文**：
 
-1. **依 `analysis.steps` 順序**，每步寫一段散文。不可重排、合併、跳過。
-2. **每步 ≥ 50 字**（不含對話原文）。step 是場景節拍不是動詞清單；要含動作細節、NPC 姿態表情、環境觸感、節奏轉換、`risk_factors` 帶出的張力。
-3. **`pc_dialogue` 非空時**，正文必須以引號完整引用該句原文。**禁止改寫、意譯、增刪字句**（除非 correction 明示）。
+1. **依 `analysis.steps` 順序**，每步寫一段散文。不可重排、合併、跳過。**允許**相鄰 step 自然融合為連續一段敘事——在不改變 step 順序、判定、與 NPC 反應內容的前提下。
+2. **每個 step 以場景節拍為單位呈現**——含動作細節、NPC 姿態表情、環境觸感、節奏轉換、`risk_factors` 帶出的張力。**不設硬性字數下限**：節拍到位即可。**禁止**填充式描寫（贅詞、冗餘環境覆述、重複情緒語氣）。**禁止**同一場景內後續回合重複描寫已建立的環境（如同一房間的氣味、家具觸感）；環境只在首次登場或實際變化時鋪陳。
+3. **`pc_dialogue` 非空時**，正文必須以引號完整引用該句原文。**禁止改寫、意譯、增刪字句**（僅允許明顯錯字修正；`correction` 明示時依其指示）。**UC 對白屬代理權絕對原則，不適用下方 NPC 對白擴展規則。**
 4. **`npc_reactions[]` 每筆都要在正文出現**：
    - `physical` ⇒ 寫進姿態／動作／表情／眼神
-   - `dialogue` 非空 ⇒ **必須以引號完整引用台詞原文**。**禁止**用「用某某口吻回應」「嘲笑著說」「主動開口致謝」這類動作轉述代替台詞。
+   - `dialogue` 非空 ⇒ analysis 中的 `dialogue` 為**語意核心**，narrator 在敘事中**擴展為完整對白**：加入語氣詞、自然停頓、與動作節奏融合的中斷與接續。**邊界硬條款（不可違反）**：不得增減 analysis 所列的揭露資訊量、不得改變情緒方向、不得讓 NPC 採取 analysis 未列的新行動／新決定、不得新增 analysis 未列的揭露內容。**禁止**用「用某某口吻回應」「嘲笑著說」「主動開口致謝」這類動作轉述代替對白。
    - `motivation` ⇒ 揉進敘事讓動機浮現，不必直譯
    - 沉默 NPC（`dialogue=""`）也要寫一句帶出姿態／表情／眼神
 5. **`object_reactions[]` 處理**：
@@ -46,7 +46,7 @@
 
 - 寫到 `analysis.steps` **最後一筆**（破壞點 step）的後果即停止——含該步的 `outcome` 文字、`npc_reactions`、`object_reactions`。
 - **不要**寫主角接下來打算做什麼或說什麼。
-- 前面 step 仍各自滿足 ≥ 50 字 + 完整 NPC／物件覆蓋。
+- 前面 step 仍各自以場景節拍呈現 + 完整 NPC／物件覆蓋。
 
 ### 禁止句式（防偷渡截斷後步驟）
 
@@ -64,6 +64,15 @@
 - **`inventory_log[]`**：主角擁有物（獲得 / 消耗 / 移入 / 寄存 / 取回 / 穿戴 / 卸下 / 校正）；裝備須與 `character_log` 雙寫。
 - **`quest_log[]`** / **`world_log[]`**：依 single-call 語意。
 - **Story Trigger 觸發紀錄**：當本回合事件滿足 `{{FILE_STORY_OUTLINE}}` `## Story Triggers` 中宣告的某個 Condition 時，該 trigger 的每一條 **Knowledge Acquired** 必須在本回合寫入相應的 log，**依該項目性質決定**：`character_log` 用於主角的能力／感知／心智／狀態獲得；`inventory_log` 用於實體物品；`world_log` 用於世界／勢力／設定事實；`quest_log` 用於任務解鎖或劇情推進節點。以資料形式表述（如 `Capability Gained: 主角名 (<獲得內容> per <Trigger 名稱>)`）。此舉讓 save 流程現有的 `*_log → 檔案` 規則接管落盤。**禁止**在敘事散文中以系統訊息或遊戲機制公告形式呈現 trigger 達成。
+- **KB 補完授權與 log 通道**：當 analysis 階段揭露知識庫未明列的設定（`dialogue` 或 `motivation` 標註 `(由敘事段補完)`、或揭露內容包含未登錄的新具名 NPC／地名／勢力／物件／概念）時：
+  - 在 `story` 中依世界觀**合理生成**完整內容，須符合 `{{FILE_BASIC_SETTINGS}}` 與 `{{FILE_WORLD_FACTIONS}}` 的時代／文化背景，**禁止**現代物品、現代制度、現代隱喻。
+  - **「未登錄」前置檢查（強制）**：要將某個具名 NPC／地名／勢力／物件／概念寫入下方 log 之前，**必須逐字檢索 `{{FILE_BASIC_SETTINGS}}` / `{{FILE_WORLD_FACTIONS}}` / `{{FILE_CHARACTER_STATUS}}` / `{{FILE_PLANS}}` / `{{FILE_INVENTORY}}` / `{{FILE_ASSETS}}` / `{{FILE_TECH_EQUIPMENT}}` / `{{FILE_MAGIC_SKILLS}}` / `{{FILE_STORY_OUTLINE}}` 全集確認該名稱不存在**。已登錄者（即便本回合是其首次在故事中登場）**禁止**寫入 log；其本回合若發生實質變化，仍依既有 log 規則處理（例如狀態變化走 `character_log`，但不以「新角色」開頭）。
+  - **依內容性質分流寫入對應 log**（性質符合且通過上方未登錄前置檢查時必寫）：
+    - 未登錄的具名 NPC（掌門名、宗師名、組織頭目名等）⇒ `character_log`
+    - 未登錄的地名／勢力／組織／概念／世界設定 ⇒ `world_log`
+    - 未登錄的具名物件 ⇒ `world_log`（非主角所有）或 `inventory_log`（主角所有）
+    - 揭露引發主線進展 ⇒ `quest_log`（與「未登錄」前置檢查無關，仍須遵守其本身觸發條件）
+  - **邊界硬條款**：補完必須為現有設定的合理延伸，不可發明顛覆性的世界觀轉折；不得改寫 `{{FILE_BASIC_SETTINGS}}` 已寫的基礎設定。
 - **`interrupted_acknowledged`**：必填 boolean，回填輸入 `interrupted` 的值。
 
 ## 風格

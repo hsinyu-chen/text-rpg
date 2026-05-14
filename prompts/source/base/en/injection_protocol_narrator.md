@@ -28,12 +28,12 @@ Cheng Yangzong pushed open the tavern's wooden door...
 
 **Body**:
 
-1. **Iterate `analysis.steps` in order**, one paragraph per step. Do NOT reorder, merge, or skip.
-2. **Each step gets ≥ 30 words of prose** (excluding verbatim dialogue). A step is a scene beat, not a list item — expand action detail, NPC posture / expression / gaze, environmental texture, pacing shifts, the tension implied by `risk_factors`.
-3. **When `pc_dialogue` is non-empty**, the prose MUST quote the line verbatim. **No paraphrase, no rewording, no edits** (unless `correction` says otherwise).
+1. **Iterate `analysis.steps` in order**, one paragraph per step. Do NOT reorder, merge, or skip. **Adjacent steps MAY flow into one continuous prose paragraph** — provided their order, judgments, and NPC reaction content remain unchanged.
+2. **Each step is rendered as a scene beat** — action detail, NPC posture / expression / gaze, environmental texture, pacing shifts, the tension implied by `risk_factors`. **No hard word-count floor**: beat density is what matters. **DO NOT** add filler (padding words, redundant environmental restating, repeated emotional phrasing). **DO NOT** repeat already-established environmental details from earlier in the same scene (the room's smell, furniture texture, etc.); render the environment only on first appearance or when it actually changes.
+3. **When `pc_dialogue` is non-empty**, the prose MUST quote the line verbatim. **No paraphrase, no rewording, no edits** (only obvious typo fixes; follow `correction` when present). **UC dialogue is bound by the absolute-agency rule and is NOT subject to the NPC dialogue expansion rule below.**
 4. **Every `npc_reactions[]` entry shows up in prose**:
    - `physical` ⇒ render as gesture / motion / expression / gaze
-   - `dialogue` non-empty ⇒ **MUST be quoted verbatim**. **DO NOT** substitute action-paraphrases like "responded warmly", "mocked aloud", "thanked aloud" in place of dialogue.
+   - `dialogue` non-empty ⇒ the analysis `dialogue` is the **semantic core**; the narrator **expands it into full prose dialogue**: add tone markers, natural pauses, interleave it with actions for pacing. **Boundary clauses (inviolable)**: do not change the disclosure information volume listed in analysis, do not alter the emotional direction, do not have the NPC take any new action not listed in analysis, do not introduce disclosures absent from analysis. **DO NOT** substitute action-paraphrases like "responded warmly", "mocked aloud", "thanked aloud" in place of the dialogue itself.
    - `motivation` ⇒ weave into the description so motivation surfaces; do not translate literally
    - silent NPCs (`dialogue=""`) still need one line on posture / expression / gaze
 5. **`object_reactions[]` handling**:
@@ -46,7 +46,7 @@ Cheng Yangzong pushed open the tavern's wooden door...
 
 - Narrate to the consequence of the **last** step in `analysis.steps` (the breaking step) and stop — including its `outcome` text, `npc_reactions`, `object_reactions`.
 - **DO NOT** write what the protagonist would do or say next.
-- Earlier steps still each meet ≥ 30 words + full NPC / object coverage.
+- Earlier steps still each render as a complete scene beat + full NPC / object coverage.
 
 ### Forbidden patterns (block smuggling of dropped steps)
 
@@ -64,6 +64,11 @@ Narrate only the steps in `analysis.steps`.
 - **`inventory_log[]`** — protagonist-owned items (Gained / Consumed / Moved / Deposited / Retrieved / Equipped / Unequipped / Corrected); equipment changes mandatorily double-written with `character_log`.
 - **`quest_log[]`** / **`world_log[]`** — single-call semantics.
 - **Story Trigger fulfillment** — when this turn's events satisfy a Condition declared under `{{FILE_STORY_OUTLINE}}` `## Story Triggers`, each consequent **Knowledge Acquired** item MUST be written into the appropriate log this turn, **chosen by the nature of the item**: `character_log` for protagonist capability / sensory / mental / state gains; `inventory_log` for tangible items; `world_log` for world / faction / setting facts; `quest_log` for quest-related unlocks or plot-progression beats. Phrase as data, e.g. `Capability Gained: Protagonist_Name (<knowledge> per <Trigger Name>)`. This routes the acquisition through save flow's existing `*_log → file` mapping. **Do NOT** surface trigger fulfillment as a system-message or game-mechanic announcement in the prose.
+- **KB-gap completion authority & log routing** — when the analysis stage discloses a setting absent from the knowledge base (`dialogue` or `motivation` carries the `(completed by narrator)` marker, or the disclosure mentions an unregistered named NPC / place / faction / object / concept):
+  - Generate the completion in `story` per the world-setting; it must match the era / culture in `{{FILE_BASIC_SETTINGS}}` and `{{FILE_WORLD_FACTIONS}}`. Modern objects / institutions / metaphors are forbidden.
+  - **"Unregistered" pre-check (mandatory)**: before writing any named NPC / place / faction / object / concept to the logs below, **scan `{{FILE_BASIC_SETTINGS}}` / `{{FILE_WORLD_FACTIONS}}` / `{{FILE_CHARACTER_STATUS}}` / `{{FILE_PLANS}}` / `{{FILE_INVENTORY}}` / `{{FILE_ASSETS}}` / `{{FILE_TECH_EQUIPMENT}}` / `{{FILE_MAGIC_SKILLS}}` / `{{FILE_STORY_OUTLINE}}` end-to-end and confirm the name does not appear there**. Already-registered entries (even on their first appearance in the narrative) MUST NOT be written as new entries; if a real state change happens this turn, log it under the existing rules (e.g. state change still goes to `character_log`, but not with a "new character" prefix).
+  - **Route by content nature** (write iff the type matches AND the unregistered pre-check passes): unregistered named NPC ⇒ `character_log`; unregistered place / faction / organization / concept / world-setting ⇒ `world_log`; unregistered named object ⇒ `world_log` (not owned by protagonist) or `inventory_log` (owned by protagonist); disclosure triggers main-plot progress ⇒ `quest_log` (independent of the unregistered pre-check; obey its own trigger conditions).
+  - **Boundary clauses**: the completion must be a reasonable extension of the existing setting; do NOT invent subversive world twists; do NOT rewrite the base facts already in `{{FILE_BASIC_SETTINGS}}`.
 - **`interrupted_acknowledged`** — required boolean, echoes input `interrupted`.
 
 ## Style
