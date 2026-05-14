@@ -73,7 +73,7 @@ export class FileBackendConfigComponent {
 
     async unbind(): Promise<void> {
         await this.permission.clear();
-        this.sync.setAutoSyncEnabled('file', false);
+        this.sync.setAutoSyncMode('file', 'off');
         this.snackBar.open(this.i18n.translate('sync.file.folderUnboundSuccess'), this.i18n.translate('dialog.ok'), { duration: 2000 });
     }
 
@@ -131,7 +131,7 @@ export class FileBackendConfigComponent {
                 return;
             }
         }
-        this.sync.setAutoSyncEnabled('file', on);
+        this.sync.setAutoSyncMode('file', on ? 'two-way' : 'off');
     }
 
     private errMsg(e: unknown): string {

@@ -164,7 +164,7 @@ export class S3ConfigComponent {
                 this.testing.set(false);
             }
         }
-        this.sync.setAutoSyncEnabled('s3', on);
+        this.sync.setAutoSyncMode('s3', on ? 'two-way' : 'off');
     }
 
     openFileViewer(): void {
