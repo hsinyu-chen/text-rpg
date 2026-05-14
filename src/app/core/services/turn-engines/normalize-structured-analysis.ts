@@ -70,11 +70,12 @@ function resolveAwareness(
     awarenessRaw: unknown,
     legacyState: string | null | undefined
 ): string {
-    if (typeof awarenessRaw === 'string' && awarenessRaw.trim().length > 0) {
-        return awarenessRaw;
+    if (typeof awarenessRaw === 'string') {
+        const trimmed = awarenessRaw.trim();
+        if (trimmed.length > 0) return trimmed;
     }
     if (typeof legacyState === 'string' && looksLikeAwareness(legacyState)) {
-        return legacyState;
+        return legacyState.trim();
     }
     return '';
 }
