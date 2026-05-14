@@ -984,8 +984,8 @@ export const zhTW: TranslationDict = {
                 'toggle-world': { name: 'World', description: '顯示 / 收合 world 變化區段' },
                 'toggle-character': { name: 'Character', description: '顯示 / 收合 character 變化區段' },
                 'toggle-correction': { name: 'Correction', description: '顯示 / 收合 correction 區段' },
-                'add-item': { name: '新增項目', description: '在這個 section 底下新增一筆空 log item 並立刻打開 inline 編輯器' },
-                'clear-correction': { name: '清除 correction', description: '刪除這個 turn 的 correction 文字(此按鈕只在 correction 存在時才會出現)' },
+                'add-item': { name: '新增項目', description: '在這個區段底下新增一筆空項目並立刻打開行內編輯器' },
+                'clear-correction': { name: '清除 correction', description: '刪除這個回合的 correction 文字(此按鈕只在 correction 存在時才會出現)' },
             },
             'agent-panel': { name: 'Agent 面板', description: '開啟 file-agent 面板(in-app helper agent 主介面)' },
             'preview-payload': { name: '預覽 payload', description: '預覽即將送給 LLM 的完整 prompt + context + injection(debug 用,純預覽不會觸發 LLM)' },
@@ -1010,7 +1010,7 @@ export const zhTW: TranslationDict = {
             'cost-prediction-toggle': {
                 self: { name: '費用預估', description: '展開 / 收合「預估費用」面板' },
                 'compare-models': { name: '比較模型', description: '開啟「跨模型費用比較」對話框' },
-                'copy-stats': { name: '複製統計', description: '複製整 session 的 token + 費用統計到剪貼簿(包含 last turn + session 總計 + 跨模型比較)' },
+                'copy-stats': { name: '複製統計', description: '複製整個工作階段的 token + 費用統計到剪貼簿(包含上一回合 + 工作階段總計 + 跨模型比較)' },
             },
             'adventure-books': {
                 self: { name: '冒險書', description: '開啟 book 管理面板(新增、改名、切換、刪除 book / 遊戲存檔)' },
@@ -1020,7 +1020,7 @@ export const zhTW: TranslationDict = {
                 'move-book': { name: '移動書', description: '把 book 移到另一個 collection(per-book 動作)' },
                 'rename-book': { name: '重新命名書', description: '重新命名 book(per-book 動作)' },
                 'delete-book': { name: '刪除書', description: '刪除 book(目前 active 不可刪,per-book 動作)' },
-                'active-cache-badge': { name: '啟用快取', description: '標示這本 book 在 LLM provider 那邊還有 KB cache 的徽章(任何曾經建過 cache 的 book 都會顯示,不限目前 active 那本)' },
+                'active-cache-badge': { name: '啟用快取', description: '標示這本 book 在 LLM provider 那邊還有 KB cache 的徽章(任何曾經建過 cache 的 book 都會顯示,不限目前使用中那本)' },
             },
             'sync-provider': { name: '同步設定', description: '開啟同步設定(雲端、檔案系統、S3 等)' },
             settings: {
@@ -1046,7 +1046,7 @@ export const zhTW: TranslationDict = {
                 self: { name: 'Session 分頁', description: '切到 sidebar 的 Session 分頁(新遊戲、場景、smart context)' },
                 context: {
                     self: { name: '場景控制', description: 'Session 分頁內的會話控制區段(新場景、smart-context 等)' },
-                    'create-next': { name: '下一本書', description: '建立下一本 book(章節 / Act)並自動 start session' },
+                    'create-next': { name: '下一本書', description: '建立下一本 book(章節 / Act)並自動開始工作階段' },
                     'create-scene': { name: '新場景', description: '建立新的 scene(整個遊戲節點)' },
                     'edit-smart-context': { name: '智慧 context', description: '編輯 smart-context 規則(LLM 看得到哪些檔案)' },
                 },
@@ -1056,7 +1056,7 @@ export const zhTW: TranslationDict = {
                     'tab-prebuild': { name: 'Pre-build', description: '切到「Pre-build」分頁(用預設 alignment / preset 快速建)' },
                     'tab-generate': { name: 'Generate', description: '切到「Generate」分頁(用 LLM 生成個人化 alignment,會花 token)' },
                     'select-protagonist-gender': { name: '性別', description: '選擇主角性別' },
-                    'reset-to-preset-identity': { name: '重設身份', description: '捨棄手動輸入的 identity、切回 preset 下拉選單 — 同時會把第一個 preset 的整套 identity 套用上來(會覆蓋 background / alignment / interests / appearance / NPC 偏好 / 特殊需求 等欄位)' },
+                    'reset-to-preset-identity': { name: '重設身份', description: '捨棄手動輸入的身分、切回範本下拉選單 — 同時會把第一個範本的整套身分套用上來(會覆蓋背景 / 陣營 / 興趣 / 外貌 / NPC 偏好 / 特別要求 等欄位)' },
                 },
             },
         },

@@ -1056,7 +1056,7 @@ export const en: TranslationDict = {
                     'tab-prebuild': { name: 'Pre-build tab', description: 'Switch to the "Pre-build" tab (quick build with preset alignment / preset)' },
                     'tab-generate': { name: 'Generate tab', description: 'Switch to the "Generate" tab (use the LLM to generate a personalized alignment — consumes tokens)' },
                     'select-protagonist-gender': { name: 'Gender', description: 'Pick the protagonist gender' },
-                    'reset-to-preset-identity': { name: 'Reset identity', description: 'Discard custom identity edits and switch back to the preset picker — also auto-applies the FIRST preset\'s full identity bundle (overwrites background / alignment / interests / appearance / NPC hints / special requests)' },
+                    'reset-to-preset-identity': { name: 'Reset identity', description: 'Discard custom identity edits and switch back to the preset picker — also auto-applies the FIRST preset\'s full identity bundle (overwrites background / alignment / interests / appearance / NPC preferences / special requests)' },
                 },
             },
         },
