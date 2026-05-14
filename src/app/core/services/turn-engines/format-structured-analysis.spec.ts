@@ -13,6 +13,7 @@ function step(overrides: Partial<AnalysisStep> = {}): AnalysisStep {
         breaks_ideal: false,
         npc_reactions: [],
         object_reactions: [],
+        scene_change: '',
         ...overrides
     };
 }
@@ -26,6 +27,7 @@ function snap(overrides: Partial<SceneSnapshot> = {}): SceneSnapshot {
         pc_name: '',
         pc_alias: '',
         pc_state: '',
+        pc_awareness: '',
         present_npcs: [],
         key_objects: [],
         ...overrides
@@ -59,8 +61,9 @@ describe('formatStructuredAnalysis', () => {
                 environment: '暴雨中',
                 pc_name: '程楊宗',
                 pc_alias: '',
-                pc_state: '平靜',
-                present_npcs: [{ name: '鮑伯', state: '昏迷' }, { name: '德茲爾', state: '通訊' }],
+                pc_state: '',
+                pc_awareness: '平靜',
+                present_npcs: [{ name: '鮑伯', state: '', awareness: '昏迷' }, { name: '德茲爾', state: '', awareness: '通訊' }],
                 key_objects: [{ name: '窗戶', state: '半開' }]
             })
         }));
@@ -80,19 +83,19 @@ describe('formatStructuredAnalysis', () => {
                 location: '旅店',
                 pc_name: '程楊宗',
                 pc_alias: '魯蛇',
-                pc_state: '化裝中'
+                pc_awareness: '偽裝中'
             })
         }));
-        expect(out).toContain('主角: 程楊宗[魯蛇](化裝中)');
+        expect(out).toContain('主角: 程楊宗[魯蛇](偽裝中)');
     });
 
-    it('does not emit empty [] / () when alias / state are empty', () => {
+    it('does not emit empty [] / () when alias / awareness are empty', () => {
         const out = formatStructuredAnalysis(analysis({
             scene_snapshot: snap({
                 location: '旅店',
                 pc_name: '程楊宗',
                 pc_alias: '',
-                pc_state: ''
+                pc_awareness: ''
             })
         }));
         expect(out).toContain('主角: 程楊宗');
@@ -127,7 +130,7 @@ describe('formatStructuredAnalysis', () => {
                 time_hhmm: '18:40',
                 location: '旅店一樓',
                 pc_name: '程楊宗',
-                present_npcs: [{ name: '鮑伯', state: '昏迷' }, { name: '德茲爾', state: '通訊' }]
+                present_npcs: [{ name: '鮑伯', state: '', awareness: '昏迷' }, { name: '德茲爾', state: '', awareness: '通訊' }]
             }));
             expect(line).toBe('[聖曆 1000年04月02日 週二 18:40 / 旅店一樓 / 程楊宗, 鮑伯(昏迷), 德茲爾(通訊)]');
         });
@@ -142,19 +145,19 @@ describe('formatStructuredAnalysis', () => {
             expect(line).toBe('[D 00:00 / L / P]');
         });
 
-        it('wraps PC alias in [] and state in () when both populated', () => {
+        it('wraps PC alias in [] and awareness in () when both populated', () => {
             const line = buildSceneHeaderLine(snap({
                 date_in_world: 'D',
                 time_hhmm: '00:00',
                 location: 'L',
                 pc_name: '程楊宗',
                 pc_alias: '魯蛇',
-                pc_state: '化裝中'
+                pc_awareness: '偽裝中'
             }));
-            expect(line).toBe('[D 00:00 / L / 程楊宗[魯蛇](化裝中)]');
+            expect(line).toBe('[D 00:00 / L / 程楊宗[魯蛇](偽裝中)]');
         });
 
-        it('does not emit empty [] / () when alias / state are empty', () => {
+        it('does not emit empty [] / () when alias / awareness are empty', () => {
             const line = buildSceneHeaderLine(snap({
                 date_in_world: 'D',
                 time_hhmm: '00:00',
@@ -293,7 +296,7 @@ describe('formatStructuredAnalysis', () => {
         const out = formatStructuredAnalysis(analysis({
             scene_snapshot: snap({
                 environment: '室內安靜。',
-                present_npcs: [{ name: '梨菲', state: '' }]
+                present_npcs: [{ name: '梨菲', state: '', awareness: '' }]
             })
         }));
         expect(out).toContain('環境: 室內安靜');

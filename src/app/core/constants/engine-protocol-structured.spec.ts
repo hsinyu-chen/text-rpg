@@ -19,6 +19,7 @@ function step(overrides: Partial<AnalysisStep> = {}): AnalysisStep {
         breaks_ideal: false,
         npc_reactions: [],
         object_reactions: [],
+        scene_change: '',
         ...overrides
     };
 }
@@ -33,6 +34,7 @@ function analysis(steps: AnalysisStep[]): StructuredAnalysis {
             pc_name: '',
             pc_alias: '',
             pc_state: '',
+            pc_awareness: '',
             present_npcs: [],
             key_objects: []
         },
@@ -125,7 +127,8 @@ describe('truncateAtBreak', () => {
                 pc_name: '程楊宗',
                 pc_alias: '',
                 pc_state: '',
-                present_npcs: [{ name: '梨菲', state: '匿蹤' }],
+                pc_awareness: '',
+                present_npcs: [{ name: '梨菲', state: '', awareness: '匿蹤' }],
                 key_objects: []
             },
             steps: [step({ action: 'a', breaks_ideal: true }), step({ action: 'b' })]

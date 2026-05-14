@@ -27,6 +27,18 @@ export type IdealStrength = typeof IDEAL_STRENGTHS[number];
 export interface PresentNpc {
     name: string;
     /**
+     * Physical / outer state — free-form short prose describing what the NPC
+     * currently looks like and carries: clothing, equipment, held items,
+     * posture, injuries, visible marks. e.g.
+     * `"赤裸，依偎於宇成懷中；殘片在床邊衣物堆內"` /
+     * `"披風帶兜帽，腰間佩劍，左肩有舊傷"`.
+     *
+     * `""` = no explicit physical-state info this turn (narrator falls back
+     * to KB + history). Distinct from {@link awareness} (reactivity flag)
+     * and `npc_reactions[].physical` (momentary motion).
+     */
+    state: string;
+    /**
      * Fog-of-war / consciousness state — gates whether this NPC has the
      * **capacity to react** to the environment / PC actions this turn.
      * Free-form short string CONSTRAINED to that domain — common tags:
@@ -38,7 +50,7 @@ export interface PresentNpc {
      * `"抱著X"`, `"敵意"` all describe a fully-reactive NPC's choices, which
      * belong in `npc_reactions[].physical` / `motivation`.
      */
-    state: string;
+    awareness: string;
 }
 
 export interface KeyObject {
@@ -53,7 +65,18 @@ export interface SceneSnapshot {
     environment: string;
     pc_name: string;
     pc_alias: string;
+    /**
+     * PC's physical / outer state — semantics aligned with
+     * {@link PresentNpc.state}: clothing, equipment, held items, posture,
+     * injuries, visible marks. Distinct from {@link pc_awareness}
+     * (reactivity flag).
+     */
     pc_state: string;
+    /**
+     * PC's reactivity / consciousness state — semantics aligned with
+     * {@link PresentNpc.awareness}. `""` = default (fully reactive).
+     */
+    pc_awareness: string;
     present_npcs: PresentNpc[];
     key_objects: KeyObject[];
 }
@@ -92,6 +115,15 @@ export interface AnalysisStep {
     breaks_ideal: boolean;
     npc_reactions: NpcReaction[];
     object_reactions: ObjectReaction[];
+    /**
+     * Mandatory cumulative state delta from this step. Free-form short prose
+     * describing PERSISTING state changes (clothing / equipment / held items /
+     * posture / injuries / awareness changes / object physical condition) that
+     * survive past the moment of action. Distinct from `npc_reactions[].physical`
+     * (momentary motion) and `object_reactions[].change` (single-step event).
+     * Use `""` when nothing persistent changes this step.
+     */
+    scene_change: string;
 }
 
 export interface StructuredAnalysis {
@@ -136,10 +168,14 @@ const presentNpcSchema: Schema = {
         },
         state: {
             type: 'string',
-            description: 'Fog-of-war / consciousness state — gates whether this NPC has the CAPACITY TO REACT to the environment / PC actions this turn. Free-form short string CONSTRAINED to that domain. Common tags: "昏迷" / "熟睡" / "麻痺" / "匿蹤" (hidden) / "通訊" (remote, not physically here). Same-domain inventions allowed (e.g. "幻象" / "靈魂出竅" / "淺眠（巨響可醒）"). "" (default) = fully reactive (conscious and on-scene). NOT for emotion, current activity, or behavior — "旁觀" / "交談中" / "抱著X" / "敵意" describe a fully-reactive NPC\'s choices and belong in npc_reactions[].physical / motivation, never here.'
+            description: 'PHYSICAL / OUTER STATE — free-form short prose describing what the NPC currently looks like and carries: clothing / equipment / held items / posture / injuries / visible marks. e.g. "赤裸，依偎於宇成懷中；殘片在床邊衣物堆內" / "披風帶兜帽，腰間佩劍，左肩有舊傷" / "穿便服，雙手束縛於背後". This is the persistent visible state that survives between turns and grows by accumulating each step\'s scene_change. "" = no explicit physical-state info this turn (narrator falls back to KB + history). DISTINCT from `awareness` (reactivity flag) and `npc_reactions[].physical` (momentary motion this step).'
+        },
+        awareness: {
+            type: 'string',
+            description: 'FOG-OF-WAR / CONSCIOUSNESS STATE — gates whether this NPC has the CAPACITY TO REACT to the environment / PC actions this turn. Free-form short string CONSTRAINED to that domain. Common tags: "昏迷" / "熟睡" / "麻痺" / "匿蹤" (hidden) / "通訊" (remote, not physically here). Same-domain inventions allowed (e.g. "幻象" / "靈魂出竅" / "淺眠（巨響可醒）"). "" (default) = fully reactive (conscious and on-scene). NOT for emotion, current activity, or behavior — "旁觀" / "交談中" / "抱著X" / "敵意" describe a fully-reactive NPC\'s choices and belong in npc_reactions[].physical / motivation, never here.'
         }
     },
-    required: ['name', 'state']
+    required: ['name', 'state', 'awareness']
 };
 
 const keyObjectSchema: Schema = {
@@ -182,7 +218,11 @@ const sceneSnapshotSchema: Schema = {
         },
         pc_state: {
             type: 'string',
-            description: 'PC fog-of-war / consciousness state — same domain as present_npcs[].state. Common tags: "昏迷" / "化裝中" / "匿蹤" / "靈魂出竅". "" (default) = fully reactive. NOT for emotion, current activity, or behavior. The program wraps this in () when present.'
+            description: 'PC PHYSICAL / OUTER STATE — same domain as present_npcs[].state: clothing / equipment / held items / posture / injuries / visible marks. e.g. "赤裸，剛沐浴；衣物散於床邊椅子" / "穿夜行衣，背後負劍鞘". Persistent visible state that survives between turns and grows by accumulating each step\'s scene_change. "" = no explicit info this turn (narrator falls back to KB + history). DISTINCT from `pc_awareness` (reactivity flag).'
+        },
+        pc_awareness: {
+            type: 'string',
+            description: 'PC FOG-OF-WAR / CONSCIOUSNESS STATE — same domain as present_npcs[].awareness. Common tags: "昏迷" / "偽裝中" / "匿蹤" / "靈魂出竅". "" (default) = fully reactive. NOT for emotion, current activity, or behavior. The program wraps this in () in the scene header when present.'
         },
         present_npcs: {
             type: 'array',
@@ -195,7 +235,7 @@ const sceneSnapshotSchema: Schema = {
             items: keyObjectSchema
         }
     },
-    required: ['date_in_world', 'time_hhmm', 'location', 'environment', 'pc_name', 'pc_alias', 'pc_state', 'present_npcs', 'key_objects']
+    required: ['date_in_world', 'time_hhmm', 'location', 'environment', 'pc_name', 'pc_alias', 'pc_state', 'pc_awareness', 'present_npcs', 'key_objects']
 };
 
 const npcReactionSchema: Schema = {
@@ -281,9 +321,13 @@ const analysisStepSchema: Schema = {
             type: 'array',
             description: 'EVERY key_objects entry must appear here. Use "無變化" for unchanged untouched objects.',
             items: objectReactionSchema
+        },
+        scene_change: {
+            type: 'string',
+            description: 'Mandatory CUMULATIVE STATE DELTA from this step — short free-form prose describing what physical / outer state PERSISTS past this moment (clothing pulled off, equipment unsheathed, item taken into hand, posture shift that holds, injury sustained, awareness flipped to 昏迷, object physical condition flipped). DISTINCT from npc_reactions[].physical (momentary motion that does not persist) and object_reactions[].change (single-step event description). Leave empty / "" when nothing persistent changes. The narrator (and subsequent turns) reconstruct current scene state by replaying scene_change deltas in order. Examples: "李霜凝衣物已退至腰下；殘片落在床上" / "宇成右手握住劍柄,劍已半出鞘" / "" (nothing persistent).'
         }
     },
-    required: ['kind', 'action', 'pc_dialogue', 'mood', 'risk_factors', 'outcome', 'breaks_ideal', 'npc_reactions', 'object_reactions']
+    required: ['kind', 'action', 'pc_dialogue', 'mood', 'risk_factors', 'outcome', 'breaks_ideal', 'npc_reactions', 'object_reactions', 'scene_change']
 };
 
 export const structuredAnalysisSchema: Schema = {

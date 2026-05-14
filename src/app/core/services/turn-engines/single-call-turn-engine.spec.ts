@@ -23,6 +23,7 @@ function turnJson(story: string, summary = 's'): string {
                 pc_name: '',
                 pc_alias: '',
                 pc_state: '',
+                pc_awareness: '',
                 present_npcs: [],
                 key_objects: []
             },

@@ -70,8 +70,29 @@ function formatSnapshot(snap: Partial<SceneSnapshot>, labels: TraceLabels): stri
         lines.push(`- ${labels.KEY_OBJECTS}: ${snap.key_objects.map(formatKeyObject).filter(Boolean).join(', ')}`);
     }
 
+    const physicalLines = formatPhysicalStates(snap);
+    if (physicalLines.length > 0) {
+        lines.push(`- ${labels.PHYSICAL_STATE}:`);
+        physicalLines.forEach(l => lines.push(`  - ${l}`));
+    }
+
     if (lines.length === 0) return '';
     return [`**${labels.SCENE_HEADING}**`, ...lines].join('\n');
+}
+
+function formatPhysicalStates(snap: Partial<SceneSnapshot>): string[] {
+    const lines: string[] = [];
+    const pcName = snap.pc_name?.trim();
+    const pcState = snap.pc_state?.trim();
+    if (pcName && pcState) lines.push(`${pcName}: ${pcState}`);
+    if (Array.isArray(snap.present_npcs)) {
+        snap.present_npcs.forEach(n => {
+            const name = n?.name?.trim();
+            const state = n?.state?.trim();
+            if (name && state) lines.push(`${name}: ${state}`);
+        });
+    }
+    return lines;
 }
 
 /**
@@ -172,13 +193,13 @@ function stripDialogueQuotes(s: string): string {
 function formatPcInHeader(snap: Partial<SceneSnapshot>): string {
     if (!snap.pc_name) return '';
     const alias = snap.pc_alias ? `[${snap.pc_alias}]` : '';
-    const state = snap.pc_state ? `(${snap.pc_state})` : '';
-    return `${snap.pc_name}${alias}${state}`;
+    const awareness = snap.pc_awareness ? `(${snap.pc_awareness})` : '';
+    return `${snap.pc_name}${alias}${awareness}`;
 }
 
 function formatPresentNpc(npc: PresentNpc | null | undefined): string {
     if (!npc?.name) return '';
-    return npc.state ? `${npc.name}(${npc.state})` : npc.name;
+    return npc.awareness ? `${npc.name}(${npc.awareness})` : npc.name;
 }
 
 function formatKeyObject(obj: KeyObject | null | undefined): string {
@@ -235,6 +256,10 @@ function formatStep(step: AnalysisStep | null | undefined, ordinal: number, trun
     if (sceneLines.length > 0) {
         parts.push(`   - **[${labels.FULL_SCENE}${ordinal}]**`);
         sceneLines.forEach(l => parts.push(`     - ${l}`));
+    }
+
+    if (step.scene_change && step.scene_change.trim().length > 0) {
+        parts.push(`   - **[${labels.SCENE_CHANGE}]** ${step.scene_change.trim()}`);
     }
 
     return parts.join('\n');

@@ -26,6 +26,7 @@ function step(overrides: Partial<AnalysisStep> = {}): AnalysisStep {
         breaks_ideal: false,
         npc_reactions: [],
         object_reactions: [],
+        scene_change: '',
         ...overrides
     };
 }
@@ -40,6 +41,7 @@ function analysis(overrides: Partial<StructuredAnalysis> = {}): StructuredAnalys
             pc_name: '',
             pc_alias: '',
             pc_state: '',
+            pc_awareness: '',
             present_npcs: [],
             key_objects: []
         },

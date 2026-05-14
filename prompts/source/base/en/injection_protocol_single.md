@@ -25,11 +25,16 @@ Strictly follow these JSON field definitions. **Flat top-level shape**: `{ analy
   | `environment` | Free prose merging weather / ambience / special conditions. **Different from `location`** — sensory atmosphere, not place name. Empty `""` allowed. |
   | `pc_name` | PC display name. e.g. `"程楊宗"` / `"Cheng Yangzong"`. |
   | `pc_alias` | PC alias / nickname, `""` if none. Program wraps in `[]` when present. |
-  | `pc_state` | PC fog-of-war / consciousness state — same domain as `present_npcs[].state`. `""` if none. Program wraps in `()` when present. |
-  | `present_npcs[]` | Every on-scene NPC. `{name, state}`. |
+  | `pc_state` | PC **physical / outer state** — current clothing, equipment, held items, posture, visible injuries, marks. e.g. `"naked, just bathed; clothes piled on the chair"` / `"in dark robes, scabbard slung across back"`. Same semantics as `present_npcs[].state`. `""` if none. **NOT a consciousness flag** (consciousness goes in `pc_awareness`). |
+  | `pc_awareness` | PC **fog-of-war / consciousness state**. Same domain as `present_npcs[].awareness`. `""` if none. Program wraps in `()` in the scene header when present. |
+  | `present_npcs[]` | Every on-scene NPC. `{name, state, awareness}`. |
   | `key_objects[]` | Important environmental objects (mechanisms / traps / key items). `{name, state}`. Plain furniture excluded. Empty `[]`. |
 
-  **About `present_npcs[].state`**: **fog-of-war / consciousness** — gates whether this NPC has the **capacity to react** to the environment / PC actions this turn. Free-form short tag CONSTRAINED to that domain. Common: `"unconscious"` / `"asleep"` / `"paralyzed"` / `"hidden"` / `"comms"`; same-domain inventions like `"illusion"` / `"astral-projecting"` / `"light sleep (wakes on loud noise)"` allowed. `""` = fully reactive (conscious and on-scene; default). **NEVER emotion, current activity, or behavior** — `"observing"` / `"chatting"` / `"holding X"` / `"hostile"` describe a fully-reactive NPC's choices and belong in `npc_reactions[].physical` / `motivation`.
+  **About `present_npcs[].state`**: **physical / outer state** — what this NPC currently looks like and carries: clothing / equipment / held items / posture / visible injuries / marks. **Persistent visible state** that survives between turns and grows via each step's `scene_change`. `""` = no explicit info this turn (narrator falls back to KB + history). **NOT consciousness** (use `awareness`) and **NOT momentary motion** (use `npc_reactions[].physical`).
+
+  **About `present_npcs[].awareness`**: **fog-of-war / consciousness** — gates whether this NPC has the **capacity to react** to the environment / PC actions this turn. Free-form short tag CONSTRAINED to that domain. Common: `"unconscious"` / `"asleep"` / `"paralyzed"` / `"hidden"` / `"comms"`; same-domain inventions like `"illusion"` / `"astral-projecting"` / `"light sleep (wakes on loud noise)"` allowed. `""` = fully reactive (conscious and on-scene; default). **NEVER emotion, current activity, or behavior** — `"observing"` / `"chatting"` / `"holding X"` / `"hostile"` describe a fully-reactive NPC's choices and belong in `npc_reactions[].physical` / `motivation`.
+
+  **About `key_objects[].state`**: object **physical condition** — same semantics as the NPC `state` (both describe physical state). Each turn, update by applying `object_reactions[].change` and step outcomes.
 
   ### `steps[]`
 
@@ -48,6 +53,7 @@ Strictly follow these JSON field definitions. **Flat top-level shape**: `{ analy
   | `breaks_ideal` | Boolean. `true` ⇒ action did not enter resolution (see triggers below); `false` ⇒ action happened (incl. success / partial / costly). For random_event: `true` when the event's nature interrupts the user's planned sequence; `false` for neutral / supportive events. When `true`, `outcome` starts with "failure"; when `false`, with "success / partial success / costly success". |
   | `npc_reactions[]` | **EVERY `scene_snapshot.present_npcs` entry must appear here** (incl. silent / unconscious / remote-comm). Random-event steps must also include reactions for every present NPC. |
   | `object_reactions[]` | **EVERY `scene_snapshot.key_objects` entry must appear here** (incl. `"unchanged"`). |
+  | `scene_change` | **Required**. Cumulative state delta from this step — short free-text describing the persistent physical / outer change left after the action (clothes shed, weapon drawn, object displaced, posture shift that holds, injury sustained, awareness flipped). **Fill `""` for steps with no persistent change** (must NOT be omitted). **Distinct from `npc_reactions[].physical`**: `physical` is the in-step transient motion (ends with the step); `scene_change` is the new state that persists into the next step. **Distinct from `object_reactions[].change`**: `change` describes the object event in this step; `scene_change` is the post-event continuation of the object's physical state. e.g. `"Li Shuangning's robe pulled down to waist; fragment falls onto the bed"` / `""` (pure dialogue, no physical change). **Critical for the `story` stage**: writing later steps' physical details requires accumulating all prior `scene_change` deltas to render the mid-scene state correctly. |
 
   #### `npc_reactions[]` element
 

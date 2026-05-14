@@ -35,11 +35,16 @@
 | `environment` | 自由 prose 融合天氣／氛圍／特殊修正條件。**與 `location` 不同**——這是感官氛圍而非地點名稱。空場景可 `""`。 |
 | `pc_name` | 主角顯示名。如 `"程楊宗"` / `"艾爾"`。 |
 | `pc_alias` | 主角化名／別名，無則 `""`。程式有值時自動以 `[]` 包覆。 |
-| `pc_state` | 主角的戰爭迷霧／意識狀態，語義同 `present_npcs[].state`，無則 `""`。程式有值時自動以 `()` 包覆。 |
-| `present_npcs[]` | 在場 NPC（含隱藏／通訊中／昏迷／一次性雜魚）。每筆 `{name, state}`。 |
+| `pc_state` | 主角**物理/外觀狀態**——目前衣著、裝備、持有物、姿勢、明顯傷處、視覺特徵。e.g. `"赤裸，剛沐浴；衣物散於床邊椅子"` / `"穿夜行衣，背後負劍鞘"`。語義同 `present_npcs[].state`，無則 `""`。**注意:不是意識狀態**(意識狀態走 `pc_awareness`)。 |
+| `pc_awareness` | 主角**戰爭迷霧／意識狀態**，語義同 `present_npcs[].awareness`，無則 `""`。程式有值時自動以 `()` 包覆於場景頁首。 |
+| `present_npcs[]` | 在場 NPC（含隱藏／通訊中／昏迷／一次性雜魚）。每筆 `{name, state, awareness}`。 |
 | `key_objects[]` | 重要環境物件（機關／陷阱／關鍵道具）。`{name, state}`。普通家具不列。空填 `[]`。 |
 
-**關於 `present_npcs[].state`**：**戰爭迷霧／意識狀態**——用於判定該 NPC 本回合**是否具備對環境／PC 行動的反應能力**。自由發揮但限於該範疇。常用 tag：`"昏迷"` / `"熟睡"` / `"麻痺"` / `"匿蹤"` / `"通訊"`；可自創同範疇短 tag（如 `"幻象"` / `"靈魂出竅"` / `"淺眠（巨響可醒）"`）。`""` = 清醒在場且具完整反應能力（預設）。**禁止**填情緒、當下行為或活動（如 `"旁觀"` / `"交談中"` / `"抱著X"` / `"敵意"` / `"溫柔"`）——這些是「反應能力完整的 NPC 當下選擇做什麼」，屬於 `npc_reactions[].physical` 與 `motivation`。
+**關於 `present_npcs[].state`**：**物理/外觀狀態**——該 NPC 目前的衣著、裝備、持有物、姿勢、明顯傷處、視覺特徵。e.g. `"赤裸，依偎於宇成懷中；殘片在床邊衣物堆內"` / `"披風帶兜帽，腰間佩劍，左肩有舊傷"`。是**持續性可見狀態**，跨 turn 延續,且每 turn 由 step 的 `scene_change` 累加更新。`""` = 本回合無顯式物理狀態資訊(narrator fallback 到 KB + 歷史)。**注意:不是意識狀態**(意識狀態走 `awareness`)、也不是瞬時動作(屬 `npc_reactions[].physical`)。
+
+**關於 `present_npcs[].awareness`**：**戰爭迷霧／意識狀態**——用於判定該 NPC 本回合**是否具備對環境／PC 行動的反應能力**。自由發揮但限於該範疇。常用 tag：`"昏迷"` / `"熟睡"` / `"麻痺"` / `"匿蹤"` / `"通訊"`；可自創同範疇短 tag（如 `"幻象"` / `"靈魂出竅"` / `"淺眠（巨響可醒）"`）。`""` = 清醒在場且具完整反應能力（預設）。**禁止**填情緒、當下行為或活動（如 `"旁觀"` / `"交談中"` / `"抱著X"` / `"敵意"` / `"溫柔"`）——這些是「反應能力完整的 NPC 當下選擇做什麼」，屬於 `npc_reactions[].physical` 與 `motivation`。
+
+**關於 `key_objects[].state`**：物件**物理狀況**——語義同 NPC 的 `state`(物理狀態)。`"上鎖"` / `"觸發,暴露於地板"` / `"完好,佩於腰間"` 等。每 turn 依 `object_reactions[].change` 與 step 後果累加更新。
 
 ### `analysis.steps[]`（每個原子動作一筆）
 
@@ -58,6 +63,7 @@
 | `breaks_ideal` | 布林。`true` ⇒ 動作根本沒進入結算；`false` ⇒ 動作有發生（含成功／部份成功／伴隨代價的成功）。random_event 性質為「打斷主角 step 序列」時 `true`；中性／支援性事件 `false`。`true` 時 `outcome` 以「失敗」起頭；`false` 時以「成功 / 部份成功 / 伴隨代價的成功」起頭。 |
 | `npc_reactions[]` | **`scene_snapshot.present_npcs` 每位都必須出現一筆**（含旁觀沉默／昏迷／通訊）。random_event 步驟也要寫所有在場 NPC 的反應。 |
 | `object_reactions[]` | **`scene_snapshot.key_objects` 每個都必須出現一筆**（含「無變化」）。 |
+| `scene_change` | **必填**。本 step **持續狀態 delta** 的精簡 free-text 描述——動作執行後**留下來持久的**物理/外觀變化（衣物落下、武器出鞘、物件移位、姿勢轉換成持續性、受傷、awareness 翻轉等）。**沒有持續變化的 step 也要填 `""`**（不可省略）。**與 `npc_reactions[].physical` 區別**:`physical` 是「本 step 瞬時動作/姿態」(動作完就結束);`scene_change` 是「動作後場景延續到下 step 的新狀態」。**與 `object_reactions[].change` 區別**:`change` 是「物件本 step 被互動的事件描述」;`scene_change` 是「該事件結束後物件物理狀態的延續變化」。例:`"李霜凝衣物已退至腰下；殘片落在床上"` / `"宇成右手握住劍柄，劍已半出鞘"` / `""`（純對話無物理變化）。**對 narrator 至關重要**:narrator 寫後續 step 的物理細節時須累積所有先前 step 的 `scene_change`,才能正確呈現中段場景狀態。 |
 
 #### `npc_reactions[]` 元素
 
