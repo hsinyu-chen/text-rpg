@@ -6,6 +6,7 @@ import { AgentHintRegistry } from './agent-hints.registry';
 import { GameStateService } from '@app/core/services/game-state.service';
 import { FILE_VIEWER_OPENER } from '@app/core/services/dev/file-viewer-opener.token';
 import { AgentMessageJumperService } from './agent-message-jumper.service';
+import { AgentBookJumperService } from './agent-book-jumper.service';
 import type { HintAction } from './agent-hints.types';
 
 const SCHEME_PREFIX = 'app://';
@@ -28,16 +29,33 @@ const CHAT_MESSAGE_HINT_TO_ACTION: Record<string, readonly string[]> = {
 };
 
 /**
+ * Schemes with the shape `app://<scheme>/<id>[/<action>]` share an
+ * identical parse path: 1–2 tail segments, decode each, hand off to a
+ * jumper. Listed here so adding a new id+action scheme is one row.
+ * `hint` and `file` have different shapes and stay as explicit cases.
+ *
+ * `cascadePath` (optional) is a manifest path to `registry.openTarget`
+ * first — used when the target component is conditionally mounted (e.g.
+ * book rows only exist when the sidebar's books panel is open).
+ */
+interface IdActionScheme {
+  jump: (id: string, action: string | null) => void;
+  invalidUrlKey: string;
+  cascadePath?: string;
+}
+
+/**
  * Parses `app://...` URLs from agent-console markdown and dispatches.
- * Three schemes:
+ * Five schemes:
  *   - `app://hint/<path>[?do=focus|activate]`
  *   - `app://message/<id>[/<action>]`
+ *   - `app://book/<id>[/<action>]`
+ *   - `app://collection/<id>[/<action>]`
  *   - `app://file/<filename>`
  *
- * The optional `<action>` segment on `message/` names a toolbar button
- * on that specific chat message (e.g. `auto-update`, `fork`); when
- * present the chat view spotlights that button instead of flashing the
- * whole bubble.
+ * The optional `<action>` segment on `message/` / `book/` / `collection/`
+ * names a per-row button (e.g. `delete`, `rename`, `move`, `auto-update`).
+ * Without it, the target is just scrolled into view + spotlit.
  *
  * Caller (agent-console click handler) does:
  *   if (interceptor.dispatch(href)) event.preventDefault();
@@ -52,9 +70,16 @@ export class AgentLinkInterceptor {
   private readonly state = inject(GameStateService);
   private readonly fileViewerOpener = inject(FILE_VIEWER_OPENER);
   private readonly jumper = inject(AgentMessageJumperService);
+  private readonly bookJumper = inject(AgentBookJumperService);
   private readonly snackBar = inject(MatSnackBar);
   private readonly i18n = inject(I18nService);
   private readonly doc = inject(DOCUMENT);
+
+  private readonly idActionSchemes: Record<string, IdActionScheme> = {
+    message:    { jump: (id, a) => this.jumper.jumpTo(id, a),                    invalidUrlKey: 'agentHint.toast.messageIdRequired' },
+    book:       { jump: (id, a) => this.bookJumper.jump('book', id, a),          invalidUrlKey: 'agentHint.toast.bookIdRequired',       cascadePath: 'sidebar/adventure-books' },
+    collection: { jump: (id, a) => this.bookJumper.jump('collection', id, a),    invalidUrlKey: 'agentHint.toast.collectionIdRequired', cascadePath: 'sidebar/adventure-books' },
+  };
 
   dispatch(url: string): boolean {
     if (!url.startsWith(SCHEME_PREFIX)) return false;
@@ -75,6 +100,18 @@ export class AgentLinkInterceptor {
     // markdown, so any garbled link reaches us as input — wrap the whole
     // dispatch path once instead of guarding each call site.
     try {
+      const idAction = this.idActionSchemes[scheme];
+      if (idAction) {
+        if (tail.length < 1 || tail.length > 2) {
+          this.toast(idAction.invalidUrlKey, { url });
+          return true;
+        }
+        const id = decodeURIComponent(tail[0]);
+        const action = tail.length === 2 ? decodeURIComponent(tail[1]) : null;
+        if (idAction.cascadePath) this.registry.openTarget(idAction.cascadePath, 'focus');
+        idAction.jump(id, action);
+        return true;
+      }
       switch (scheme) {
         case 'hint': {
           // Decode each segment individually rather than joining first: a
@@ -94,16 +131,6 @@ export class AgentLinkInterceptor {
           const path = segs.join('/');
           const action = this.parseAction(query);
           this.registry.openTarget(path, action);
-          return true;
-        }
-        case 'message': {
-          if (tail.length < 1 || tail.length > 2) {
-            this.toast('agentHint.toast.messageIdRequired', { url });
-            return true;
-          }
-          const id = decodeURIComponent(tail[0]);
-          const action = tail.length === 2 ? decodeURIComponent(tail[1]) : null;
-          this.jumper.jumpTo(id, action);
           return true;
         }
         case 'file': {

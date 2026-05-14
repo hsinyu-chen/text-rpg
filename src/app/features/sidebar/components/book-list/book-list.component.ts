@@ -1,5 +1,5 @@
-import { Component, inject, signal, output, computed, linkedSignal } from '@angular/core';
-import { DatePipe } from '@angular/common';
+import { Component, effect, inject, signal, output, computed, linkedSignal } from '@angular/core';
+import { DatePipe, DOCUMENT } from '@angular/common';
 import { MatListModule } from '@angular/material/list';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatDialog } from '@angular/material/dialog';
@@ -25,6 +25,8 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { I18nService, TranslatePipe } from '@app/core/i18n';
+import { AgentBookJumperService, BookJumpRequest } from '@app/core/services/agent-hints/agent-book-jumper.service';
+import { spotlightElement } from '@app/core/services/agent-hints/spotlight.util';
 
 interface BookGroup {
     collection: Collection;
@@ -62,6 +64,9 @@ export class BookListComponent {
     syncBackends = inject(SyncBackendResolver);
     tombstoneTracker = inject(SyncTombstoneTracker);
     private i18n = inject(I18nService);
+    private bookJumper = inject(AgentBookJumperService);
+    private doc = inject(DOCUMENT);
+    private lastJumpTick = 0;
 
     private t(key: string, params?: Record<string, string | number>): string {
         return this.i18n.translate(`sidebar.bookList.${key}`, params);
@@ -70,6 +75,7 @@ export class BookListComponent {
     readonly rootId = ROOT_COLLECTION_ID;
 
     books = signal<Book[]>([]);
+    private booksLoaded = signal(false);
 
     totalBookCount = computed(() => this.books().length);
 
@@ -186,6 +192,110 @@ export class BookListComponent {
 
     constructor() {
         void this.loadBooks();
+
+        // app://book/<id>[/<action>] or app://collection/<id>[/<action>] link
+        // clicked in agent-console → jumper service emits → we resolve the id,
+        // expand the row's containing collection if needed, scroll into view,
+        // and either spotlight (no action) or click the action button.
+        //
+        // Gated on booksLoaded so a request that arrived before loadBooks
+        // resolved doesn't falsely toast "not found" against an empty list.
+        // The effect re-runs when booksLoaded flips, picking the pending
+        // request up at that point.
+        effect(() => {
+            const req = this.bookJumper.request();
+            if (!req || req.tick === this.lastJumpTick) return;
+            if (!this.booksLoaded()) return;
+            this.lastJumpTick = req.tick;
+            this.handleAgentJump(req).catch(err => console.error('[BookList] agent jump failed', err));
+        });
+    }
+
+    private async handleAgentJump(req: BookJumpRequest): Promise<void> {
+        if (req.kind === 'collection') {
+            await this.jumpToCollection(req.id, req.action);
+            return;
+        }
+        await this.jumpToBook(req.id, req.action);
+    }
+
+    private async jumpToBook(bookId: string, action: string | null): Promise<void> {
+        const book = this.books().find(b => b.id === bookId);
+        if (!book) {
+            this.toastNotFound('book', bookId);
+            return;
+        }
+        const colId = book.collectionId || ROOT_COLLECTION_ID;
+        const needsExpand = !this.isExpanded(colId);
+        if (needsExpand) this.expandedIds.set(new Set([colId]));
+        // Wait for the signal write above to flush through change detection
+        // and the @for to render the new mat-list-item before we query for
+        // the row's data-book-id attr.
+        if (needsExpand) {
+            const startTick = this.lastJumpTick;
+            await new Promise(r => requestAnimationFrame(() => r(null)));
+            // If a newer jump arrived during the rAF wait, abandon this one
+            // so we don't fight the newer request over scroll / spotlight.
+            if (this.lastJumpTick !== startTick) return;
+        }
+        const row = this.doc.querySelector<HTMLElement>(`[data-book-id="${CSS.escape(bookId)}"]`);
+        if (!row) {
+            this.toastNotFound('book', bookId);
+            return;
+        }
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (!action) {
+            void this.switchBook(bookId);
+            spotlightElement(row);
+            return;
+        }
+        const target = row.querySelector<HTMLElement>(`[data-book-action="${CSS.escape(action)}"]`);
+        if (!target) {
+            spotlightElement(row);
+            return;
+        }
+        spotlightElement(target);
+        // active-cache-badge is a tooltip-only badge with no click handler;
+        // calling .click() on it is harmless but redundant. Other actions
+        // (move / rename / delete) open dialogs.
+        if (action !== 'active-cache-badge') target.click();
+    }
+
+    private async jumpToCollection(collectionId: string, action: string | null): Promise<void> {
+        const group = this.bookGroups().find(g => g.collection.id === collectionId);
+        if (!group) {
+            this.toastNotFound('collection', collectionId);
+            return;
+        }
+        // Collection headers are rendered unconditionally for every group
+        // (only the inner book-sublist is gated on isExpanded), so the DOM
+        // node is already there when the effect runs — no render-wait needed.
+        const header = this.doc.querySelector<HTMLElement>(`[data-collection-id="${CSS.escape(collectionId)}"]`);
+        if (!header) {
+            this.toastNotFound('collection', collectionId);
+            return;
+        }
+        header.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (!action) {
+            spotlightElement(header);
+            return;
+        }
+        const btn = header.querySelector<HTMLElement>(`[data-collection-action="${CSS.escape(action)}"]`);
+        if (!btn) {
+            spotlightElement(header);
+            return;
+        }
+        spotlightElement(btn);
+        btn.click();
+    }
+
+    private toastNotFound(kind: 'book' | 'collection', id: string): void {
+        const key = kind === 'book' ? 'agentHint.toast.bookNotFound' : 'agentHint.toast.collectionNotFound';
+        this.snackBar.open(
+            this.i18n.translate(key, { id }),
+            this.i18n.translate('ui.CLOSE'),
+            { duration: 3000 },
+        );
     }
 
     async loadBooks() {
@@ -193,6 +303,7 @@ export class BookListComponent {
         const list = await this.bookRepo.list();
         console.log('[BookList] Loaded books:', list.length);
         this.books.set(list);
+        this.booksLoaded.set(true);
     }
 
     isActive(id: string): boolean {

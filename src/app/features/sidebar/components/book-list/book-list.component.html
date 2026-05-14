@@ -39,6 +39,7 @@
     @for (group of bookGroups(); track group.collection.id) {
         <div class="collection-group">
             <div class="collection-header"
+                [attr.data-collection-id]="group.collection.id"
                 [class.active-collection]="group.collection.id === activeCollectionId()"
                 role="button"
                 tabindex="0"
@@ -55,17 +56,20 @@
                 <span class="collection-count">({{ group.books.length }})</span>
                 <span class="spacer"></span>
                 <button mat-icon-button class="header-btn"
+                    data-collection-action="add-book"
                     (click)="addBookTo(group.collection.id, $event)"
                     [matTooltip]="'sidebar.bookList.addBookTooltip' | translate">
                     <mat-icon>add</mat-icon>
                 </button>
                 @if (group.collection.id !== rootId) {
                     <button mat-icon-button class="header-btn"
+                        data-collection-action="rename-collection"
                         (click)="renameCollection(group.collection, $event)"
                         [matTooltip]="'sidebar.bookList.renameCollectionTooltip' | translate">
                         <mat-icon>drive_file_rename_outline</mat-icon>
                     </button>
                     <button mat-icon-button class="header-btn" color="warn"
+                        data-collection-action="delete-collection"
                         (click)="removeCollection(group.collection, $event)"
                         [matTooltip]="(group.books.length > 0 ? 'sidebar.bookList.deleteCollectionDisabledTooltip' : 'sidebar.bookList.deleteCollectionTooltip') | translate">
                         <mat-icon>folder_delete</mat-icon>
@@ -76,7 +80,10 @@
             @if (isExpanded(group.collection.id)) {
                 <mat-list class="book-sublist">
                     @for (book of group.books; track book.id) {
-                        <mat-list-item [class.active-book]="isActive(book.id)" (click)="switchBook(book.id)">
+                        <mat-list-item
+                            [attr.data-book-id]="book.id"
+                            [class.active-book]="isActive(book.id)"
+                            (click)="switchBook(book.id)">
                             <div matListItemTitle class="book-title">
                                 {{ book.name }}
                             </div>
@@ -84,22 +91,30 @@
                             <div matListItemLine class="book-meta">
                                 <span>{{ book.lastActiveAt | date:'short' }}</span>
                                 @if (book.stats.kbCacheName) {
-                                    <span class="cache-badge" [matTooltip]="'sidebar.bookList.activeCacheBadge' | translate">
+                                    <span class="cache-badge"
+                                        data-book-action="active-cache-badge"
+                                        [matTooltip]="'sidebar.bookList.activeCacheBadge' | translate">
                                         <mat-icon class="tiny-icon">cloud_done</mat-icon>
                                     </span>
                                 }
                             </div>
 
                             <div matListItemMeta>
-                                <button mat-icon-button (click)="moveBook(book, $event)"
+                                <button mat-icon-button
+                                    data-book-action="move-book"
+                                    (click)="moveBook(book, $event)"
                                     [matTooltip]="'sidebar.bookList.moveBookTooltip' | translate">
                                     <mat-icon>drive_file_move</mat-icon>
                                 </button>
-                                <button mat-icon-button (click)="renameBook(book, $event)"
+                                <button mat-icon-button
+                                    data-book-action="rename-book"
+                                    (click)="renameBook(book, $event)"
                                     [matTooltip]="'sidebar.bookList.renameBookTooltip' | translate">
                                     <mat-icon>edit</mat-icon>
                                 </button>
-                                <button mat-icon-button color="warn" (click)="deleteBook(book, $event)"
+                                <button mat-icon-button color="warn"
+                                    data-book-action="delete-book"
+                                    (click)="deleteBook(book, $event)"
                                     [matTooltip]="(isActive(book.id) ? 'sidebar.bookList.deleteActiveBookTooltip' : 'sidebar.bookList.deleteBookTooltip') | translate">
                                     <mat-icon>delete</mat-icon>
                                 </button>
