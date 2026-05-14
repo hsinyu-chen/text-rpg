@@ -73,6 +73,7 @@ The user has declared ideal_outcome as:
         STEP_EVENT: 'Event',
         FULL_SCENE: 'Scene',
         SCENE_CHANGE: 'Scene change',
+        PHYSICAL_STATE: 'Physical state',
         PC_DIALOGUE: 'PC',
         RISKS: 'Risks',
         OUTCOME: 'Outcome',

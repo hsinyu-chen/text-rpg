@@ -33,14 +33,50 @@ export function normalizeScene(raw: Partial<SceneSnapshot> | undefined): SceneSn
         environment: raw?.environment ?? '',
         pc_name: raw?.pc_name ?? legacyHeader ?? '',
         pc_alias: raw?.pc_alias ?? '',
-        pc_state: raw?.pc_state ?? '',
+        pc_state: typeof raw?.pc_state === 'string' && !looksLikeAwareness(raw.pc_state) ? raw.pc_state : '',
+        pc_awareness: resolveAwareness(raw?.pc_awareness, raw?.pc_state),
         present_npcs: Array.isArray(raw?.present_npcs)
-            ? raw.present_npcs.map(n => ({ name: n?.name ?? '', state: n?.state ?? '' }))
+            ? raw.present_npcs.map(n => ({
+                name: n?.name ?? '',
+                state: typeof n?.state === 'string' && !looksLikeAwareness(n.state) ? n.state : '',
+                awareness: resolveAwareness((n as { awareness?: unknown } | undefined)?.awareness, n?.state)
+            }))
             : [],
         key_objects: Array.isArray(raw?.key_objects)
             ? raw.key_objects.map(o => ({ name: o?.name ?? '', state: o?.state ?? '' }))
             : []
     };
+}
+
+/**
+ * Legacy migration helper: pre-Phase-1 books wrote consciousness tags
+ * (`昏迷` / `熟睡` / `麻痺` / `匿蹤` / `通訊`, plus same-domain inventions)
+ * into the `state` field; Phase-1 splits them off into `awareness`.
+ *
+ * Detection is conservative: a value is treated as legacy-awareness only
+ * if it's short (≤ 8 chars) and matches one of the canonical keywords or
+ * their close paraphrases. Anything else stays in `state` as the new
+ * physical/outer-state semantics.
+ */
+const LEGACY_AWARENESS_KEYWORDS = /^(昏迷|熟睡|麻痺|麻痹|匿蹤|匿跡|通訊|幻象|靈魂出竅|化裝中|淺眠.*)$/;
+
+function looksLikeAwareness(s: string | null | undefined): boolean {
+    if (typeof s !== 'string') return false;
+    const trimmed = s.trim();
+    return trimmed.length > 0 && trimmed.length <= 8 && LEGACY_AWARENESS_KEYWORDS.test(trimmed);
+}
+
+function resolveAwareness(
+    awarenessRaw: unknown,
+    legacyState: string | null | undefined
+): string {
+    if (typeof awarenessRaw === 'string' && awarenessRaw.trim().length > 0) {
+        return awarenessRaw;
+    }
+    if (typeof legacyState === 'string' && looksLikeAwareness(legacyState)) {
+        return legacyState;
+    }
+    return '';
 }
 
 export function normalizeStep(raw: Partial<AnalysisStep> | undefined): AnalysisStep {

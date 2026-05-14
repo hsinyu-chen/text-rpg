@@ -60,6 +60,7 @@ function analysis(overrides: Partial<StructuredAnalysis> = {}): StructuredAnalys
             pc_name: '',
             pc_alias: '',
             pc_state: '',
+            pc_awareness: '',
             present_npcs: [],
             key_objects: []
         },
