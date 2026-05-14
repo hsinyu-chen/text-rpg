@@ -946,7 +946,7 @@ export const zhTW: TranslationDict = {
                     'profile-delete': { name: '刪除 profile', description: '刪除當前 profile(active 不可刪)' },
                     'profile-export': { name: '匯出 profile', description: '匯出當前 profile 為檔案' },
                     'profile-import': { name: '匯入 profile', description: '從檔案匯入新 profile' },
-                    'disk-sync-authorize': { name: '測試磁碟存取', description: '純權限觸發，不做讀寫;讓 Chrome 彈出含「每次都允許」勾選的 FSA 對話框' },
+                    'disk-sync-authorize': { name: '測試磁碟存取', description: '純權限觸發，不做讀寫；讓 Chrome 彈出含「每次都允許」勾選的 FSA 對話框' },
                     'disk-sync-push': { name: '推送到資料夾', description: '推送 profile 到綁定的本地資料夾' },
                     'disk-sync-pull': { name: '從資料夾拉回', description: '從綁定資料夾拉回 profile 覆蓋' },
                     'change-disk-folder': { name: '變更同步資料夾', description: '變更綁定的磁碟同步資料夾' },

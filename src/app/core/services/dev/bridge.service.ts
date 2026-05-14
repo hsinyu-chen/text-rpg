@@ -1374,8 +1374,18 @@ export class BridgeService {
         if (/only supported for user profiles/i.test(detail)) return 'builtin_profile';
         if (/is not registered/i.test(detail))                return 'unknown_profile';
         if (/does not exist yet/i.test(detail))               return 'folder_not_found';
-        if (/permission|aborted/i.test(detail))               return 'fsa_permission';
+        // FolderHandlePermissionDeniedError.message is a localization key,
+        // not a sentence — match the key fragments. The bare-English
+        // fallbacks (permission / aborted) cover non-localized throws.
+        if (/errAccessDenied|errAccessNotGranted|errFsaUnavailable|permission|aborted/i.test(detail)) return 'fsa_permission';
+        if (/no folder bound/i.test(detail))                  return 'folder_not_bound';
         return 'disk_sync_failed';
+    }
+
+    private async readResolvedPromptWithOverride(type: PromptType, profileId: string): Promise<{ content: string; hasOverride: boolean }> {
+        const content = await this.injection.getResolvedProfilePrompt(type, profileId);
+        const overrideRow = await this.prompts.getProfilePrompt(type, profileId);
+        return { content, hasOverride: !!overrideRow };
     }
 
     private isValidPromptType(t: unknown): t is PromptType {
@@ -1394,17 +1404,14 @@ export class BridgeService {
             this.send({ type: 'action_error', requestId, error: 'unknown_profile' });
             return;
         }
-        // Resolved content (custom IDB row → base built-in via seed chain) so
-        // built-in profiles return their shipped asset, not '' for unseeded.
-        const content = await this.injection.getResolvedProfilePrompt(type, id);
-        const overrideRow = await this.prompts.getProfilePrompt(type, id);
+        const { content, hasOverride } = await this.readResolvedPromptWithOverride(type, id);
         this.send({
             type: 'profile_get_prompt_response',
             requestId,
             promptType: type,
             profileId: id,
             content,
-            hasOverride: !!overrideRow,
+            hasOverride,
         });
     }
 
@@ -1418,9 +1425,7 @@ export class BridgeService {
         }
         const prompts: Record<string, { content: string; hasOverride: boolean }> = {};
         for (const t of ALL_PROMPT_TYPES) {
-            const content = await this.injection.getResolvedProfilePrompt(t, id);
-            const overrideRow = await this.prompts.getProfilePrompt(t, id);
-            prompts[t] = { content, hasOverride: !!overrideRow };
+            prompts[t] = await this.readResolvedPromptWithOverride(t, id);
         }
         this.send({
             type: 'profile_get_all_prompts_response',

@@ -151,10 +151,12 @@ function Invoke-BridgeProfilePush {
 # AI A/B-tuning surface — bypasses the FSA disk-sync path entirely (no
 # permission dialogs, no per-session manual seed). `Set` mutates the
 # ACTIVE profile only, must be user-defined (built-ins are read-only
-# via this path), and auto-fires injection.forceReload() so the next
-# turn picks up the edit. `Get` reads any profile by id (defaults to
-# active); empty content + exists:false means "no IDB override row,
-# the built-in shipped asset is used as fallback".
+# via this path); routes through InjectionService.saveToService which
+# refreshes the signal content + updates the prompt_user_modified KV
+# flag, so the next turn sees the edit without a full reload. `Get`
+# reads any profile by id (defaults to active); `content` is the
+# resolved text (custom IDB row → shipped base via seed chain) and
+# `hasOverride` indicates whether the profile has its own IDB row.
 
 $script:BridgePromptTypes = @(
     'action', 'continue', 'fastforward', 'system', 'save',

@@ -149,9 +149,11 @@ the right surface for blind in-place edits.
 The right primitive for AI-driven prompt-tuning A/B is direct IDB
 read/write — no disk, no FSA, no permission dialogs, no per-session
 manual seed. `Set-BridgeProfilePrompt` mutates the active profile's
-IDB row and auto-fires `injection.forceReload()`, so the next turn
-picks up the edit. `Get-BridgeProfilePrompt` reads any profile by id
-(defaults to active) — useful for diffing user-defined against built-in.
+IDB row via `InjectionService.saveToService`, which updates the
+`prompt_user_modified` KV flag and refreshes the in-memory signal,
+so the next turn picks up the edit without a heavy full reload.
+`Get-BridgeProfilePrompt` reads any profile by id (defaults to
+active) — useful for diffing user-defined against built-in.
 
 ```pwsh
 . ./.claude/skills/dev-bridge/bridge.ps1
