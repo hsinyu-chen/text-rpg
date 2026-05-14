@@ -4,7 +4,7 @@ import { SessionService } from '../session.service';
 import { CollectionService } from '../collection.service';
 import { GameStateService } from '../game-state.service';
 import {
-    SyncBackendId,
+    AutoSyncMode, SyncBackendId, SyncDirection,
     SyncReport, ForcePushReport, ForcePullReport
 } from './sync.types';
 import { PromptCloudSyncService } from './prompt-cloud-sync.service';
@@ -69,9 +69,11 @@ export class SyncService {
         // visibility-change listener and the debounce pipeline; we hand
         // it our `syncAll` runner + a `restoreInProgress` precondition
         // probe (the scheduler is providedIn: 'root' too, so injecting
-        // SyncService back into it would form a circular dep).
+        // SyncService back into it would form a circular dep). The
+        // runner inspects the current per-backend mode at fire time so a
+        // user mode-flip mid-debounce uses the freshest setting.
         this.scheduler.register(
-            () => this.queueSync(),
+            () => this.queueSync(this.currentAutoDirection()),
             () => !this.restoreInProgress && this.state.status() !== 'generating'
         );
     }
@@ -87,9 +89,17 @@ export class SyncService {
         this.scheduler.onBackendChanged();
     }
 
-    setAutoSyncEnabled(id: SyncBackendId, on: boolean): void {
-        this.backends.setAutoSyncEnabled(id, on);
+    setAutoSyncMode(id: SyncBackendId, mode: AutoSyncMode): void {
+        this.backends.setAutoSyncMode(id, mode);
         this.scheduler.onAutoToggle();
+    }
+
+    private currentAutoDirection(): SyncDirection {
+        const id = this.backends.activeBackendId();
+        const mode = this.backends.autoSyncMode()[id];
+        // `off` is filtered upstream by the scheduler's isActive() — if it
+        // reached the runner anyway, treat as the safest default.
+        return mode === 'off' ? 'two-way' : mode;
     }
 
     /**
@@ -128,17 +138,16 @@ export class SyncService {
     }
 
     /**
-     * Two-way sync: collections first (so book.collectionId references resolve),
-     * then books. Concurrency guard: if a sync is already in flight, return its promise.
+     * Reconcile in the given direction (default `two-way`: collections first,
+     * then books, newer-wins). One-way variants (`pull-only` / `push-only`)
+     * see {@link SyncDirection} for delete semantics. Coalesces concurrent
+     * callers onto the same promise; if a force op is in flight, queues
+     * behind it (report types differ — can't share).
      */
-    syncAll(): Promise<SyncReport> {
-        // Coalesce concurrent syncAll() callers onto the same promise. If a
-        // force operation is in flight instead, queue behind it rather than
-        // returning its promise — the report types differ and casting would
-        // corrupt the caller's view.
+    syncAll(direction: SyncDirection = 'two-way'): Promise<SyncReport> {
         const cur = this.inFlight;
         if (cur?.kind === 'sync') return cur.promise as Promise<SyncReport>;
-        return this.runExclusive('sync', () => this.runSync());
+        return this.runExclusive('sync', () => this.runSync(direction));
     }
 
     /**
@@ -149,8 +158,8 @@ export class SyncService {
      * include that save. Plain `syncAll()` would return the manual
      * sync's promise and the save would be silently dropped.
      */
-    queueSync(): Promise<SyncReport> {
-        return this.runExclusive('sync', () => this.runSync());
+    queueSync(direction: SyncDirection = 'two-way'): Promise<SyncReport> {
+        return this.runExclusive('sync', () => this.runSync(direction));
     }
 
     private async runExclusive<T>(
@@ -169,11 +178,11 @@ export class SyncService {
         return promise;
     }
 
-    private async runSync(): Promise<SyncReport> {
+    private async runSync(direction: SyncDirection): Promise<SyncReport> {
         const backend = await this.backends.getActiveBackend();
         await backend.authenticate();
 
-        const { totals, downloadedBookIds, deletedBookIds } = await this.reconciler.reconcileAll(backend);
+        const { totals, downloadedBookIds, deletedBookIds } = await this.reconciler.reconcileAll(backend, direction);
 
         await this.collections.load();
         await this.handleActiveBookAfterSync(downloadedBookIds, deletedBookIds);

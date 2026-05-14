@@ -171,11 +171,11 @@ export class AutoSyncScheduler {
     }
 
     /**
-     * SyncService.setAutoSyncEnabled wrapper hook: user toggled the flag.
-     * The toggle direction (`on`) is irrelevant here — the pipeline's
-     * filter() drops in-flight emissions when the resolver flag flipped
-     * to false. We only need to reset the breaker either way so the
-     * next user-driven re-enable starts clean.
+     * SyncService.setAutoSyncMode wrapper hook: user changed the mode.
+     * The new mode is irrelevant here — the pipeline's filter() drops
+     * in-flight emissions when the resolver mode flipped to `'off'`. We
+     * only need to reset the breaker either way so the next user-driven
+     * re-enable / mode change starts clean.
      */
     onAutoToggle(): void {
         this.failureCount = 0;
@@ -202,7 +202,7 @@ export class AutoSyncScheduler {
                 // give user a chance to re-grant before disabling.
                 this.showAuthLapseSnackbar(b);
             } else {
-                this.backends.setAutoSyncEnabled(id, false);
+                this.backends.setAutoSyncMode(id, 'off');
                 this.snackBar.open(
                     this.i18n.translate('sync.autoSync.disabledAfterFailures', { max: MAX_FAILURES }),
                     this.i18n.translate('ui.CLOSE'),
@@ -358,7 +358,7 @@ export class AutoSyncScheduler {
                 this.schedule(true);
             }).catch((err: unknown) => {
                 console.error(`[AutoSync] Failed to re-authenticate backend ${b.id}:`, err);
-                this.backends.setAutoSyncEnabled(b.id, false);
+                this.backends.setAutoSyncMode(b.id, 'off');
                 const msg = err instanceof Error ? err.message : String(err);
                 this.snackBar.open(
                     this.i18n.translate('sync.autoSync.reauthFailed', { error: msg }),
@@ -377,7 +377,7 @@ export class AutoSyncScheduler {
             // grant via the settings page, should NOT disable. Only the
             // user actively ignoring an unresolved prompt does.
             if (!dismiss.dismissedByAction && !b.isAuthenticated()) {
-                this.backends.setAutoSyncEnabled(b.id, false);
+                this.backends.setAutoSyncMode(b.id, 'off');
             }
         });
     }

@@ -43,9 +43,26 @@
 </div>
 
 @if (folderName()) {
-    <mat-slide-toggle [ngModel]="autoSync()" (ngModelChange)="toggleAutoSync($event)"
-        [disabled]="!canEnableAutoSync() && !autoSync()"
-        [matTooltip]="(canEnableAutoSync() ? 'sync.autoSync.tooltipReady' : 'sync.file.autoSyncBlockedTooltip') | translate">
-        {{ 'sync.autoSync.label' | translate }}
-    </mat-slide-toggle>
+    <div class="auto-sync-mode">
+        <div class="mode-label">{{ 'sync.autoSync.modeLabel' | translate }}</div>
+        <mat-radio-group class="mode-options" [ngModel]="autoMode()" (ngModelChange)="setAutoMode($event)"
+            [matTooltip]="canEnableAutoSync() ? '' : ('sync.file.autoSyncBlockedTooltip' | translate)">
+            <mat-radio-button value="off">
+                <span class="mode-name">{{ 'sync.autoSync.mode.off' | translate }}</span>
+                <span class="mode-hint">{{ 'sync.autoSync.mode.offHint' | translate }}</span>
+            </mat-radio-button>
+            <mat-radio-button value="two-way" [disabled]="!canEnableAutoSync() && autoMode() === 'off'">
+                <span class="mode-name">{{ 'sync.autoSync.mode.twoWay' | translate }}</span>
+                <span class="mode-hint">{{ 'sync.autoSync.mode.twoWayHint' | translate }}</span>
+            </mat-radio-button>
+            <mat-radio-button value="pull-only" [disabled]="!canEnableAutoSync() && autoMode() === 'off'">
+                <span class="mode-name">{{ 'sync.autoSync.mode.pullOnly' | translate }}</span>
+                <span class="mode-hint">{{ 'sync.autoSync.mode.pullOnlyHint' | translate }}</span>
+            </mat-radio-button>
+            <mat-radio-button value="push-only" [disabled]="!canEnableAutoSync() && autoMode() === 'off'">
+                <span class="mode-name">{{ 'sync.autoSync.mode.pushOnly' | translate }}</span>
+                <span class="mode-hint">{{ 'sync.autoSync.mode.pushOnlyHint' | translate }}</span>
+            </mat-radio-button>
+        </mat-radio-group>
+    </div>
 }
