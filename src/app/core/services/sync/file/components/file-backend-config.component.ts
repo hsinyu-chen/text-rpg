@@ -1,11 +1,13 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
+import { MatRadioModule } from '@angular/material/radio';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { CORE_MAT } from '@app/shared/material/material-groups';
 import { I18nService, TranslatePipe } from '@app/core/i18n';
 import { SyncService } from '../../sync.service';
 import { SyncBackendResolver } from '../../sync-backend-resolver.service';
+import { AutoSyncMode } from '../../sync.types';
 import {
     FileBackendPermissionService,
     FileBackendNoHandleError,
@@ -15,7 +17,7 @@ import {
 @Component({
     selector: 'app-file-backend-config',
     standalone: true,
-    imports: [...CORE_MAT, MatSlideToggleModule, FormsModule, TranslatePipe],
+    imports: [...CORE_MAT, MatSlideToggleModule, MatRadioModule, FormsModule, TranslatePipe],
     templateUrl: './file-backend-config.component.html',
     styleUrl: './file-backend-config.component.scss',
     changeDetection: ChangeDetectionStrategy.OnPush
@@ -46,11 +48,11 @@ export class FileBackendConfigComponent {
         return this.i18n.translate(dictKey);
     });
 
-    autoSync = computed(() => this.backends.autoSyncEnabled().file);
+    autoMode = computed(() => this.backends.autoSyncMode().file);
 
     /** Auto-sync only works while permission is 'granted' (Chromium persistent
-     *  grant, or fresh transient grant). Block the toggle otherwise so the
-     *  user can't enable something that silently won't run. */
+     *  grant, or fresh transient grant). Block the non-off options otherwise
+     *  so the user can't enable something that silently won't run. */
     canEnableAutoSync = computed(() =>
         this.permission.handle() !== null
         && this.permission.permissionState() === 'granted'
@@ -111,8 +113,11 @@ export class FileBackendConfigComponent {
         }
     }
 
-    async toggleAutoSync(on: boolean): Promise<void> {
-        if (on) {
+    async setAutoMode(next: AutoSyncMode): Promise<void> {
+        const prev = this.autoMode();
+        if (next === prev) return;
+        const turningOn = prev === 'off' && next !== 'off';
+        if (turningOn) {
             // Confirm permission inside this click's user activation —
             // if FSA only granted a transient (not persistent) grant the
             // first sync would fail and trip the circuit breaker.
@@ -131,7 +136,7 @@ export class FileBackendConfigComponent {
                 return;
             }
         }
-        this.sync.setAutoSyncMode('file', on ? 'two-way' : 'off');
+        this.sync.setAutoSyncMode('file', next);
     }
 
     private errMsg(e: unknown): string {

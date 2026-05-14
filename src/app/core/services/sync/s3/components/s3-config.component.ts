@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
+import { MatRadioModule } from '@angular/material/radio';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { CORE_MAT } from '@app/shared/material/material-groups';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -10,7 +11,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
 import { I18nService, TranslatePipe } from '@app/core/i18n';
 import { SyncService } from '../../sync.service';
-import { S3Config } from '../../sync.types';
+import { AutoSyncMode, S3Config } from '../../sync.types';
 import { S3ConfigService } from '../s3-config.service';
 import { S3SyncBackend } from '../s3-sync-backend';
 import { SyncBackendResolver } from '../../sync-backend-resolver.service';
@@ -28,6 +29,7 @@ import { S3FileViewerDialogComponent } from './s3-file-viewer-dialog.component';
         MatFormFieldModule,
         MatInputModule,
         MatSlideToggleModule,
+        MatRadioModule,
         MatProgressSpinnerModule,
         FormsModule,
         TranslatePipe
@@ -54,7 +56,7 @@ export class S3ConfigComponent {
     forcePathStyle = signal(true);
     testing = signal(false);
 
-    autoSync = computed(() => this.backends.autoSyncEnabled().s3);
+    autoMode = computed(() => this.backends.autoSyncMode().s3);
     s3Configured = computed(() => this.s3Cfg.isConfigured());
 
     isValid = computed(() => !!(
@@ -141,10 +143,14 @@ export class S3ConfigComponent {
         }
     }
 
-    async toggleAutoSync(on: boolean): Promise<void> {
-        if (on) {
-            // Don't let users enable auto-sync until creds are confirmed working —
-            // otherwise we'd silently rack up failures and disable it again.
+    async setAutoMode(next: AutoSyncMode): Promise<void> {
+        const prev = this.autoMode();
+        if (next === prev) return;
+        // Only re-test creds on the transition from `off` to any active
+        // mode. Switching between two-way / pull-only / push-only doesn't
+        // change the underlying connection — skip the round-trip.
+        const turningOn = prev === 'off' && next !== 'off';
+        if (turningOn) {
             if (!this.s3Configured()) {
                 this.snackBar.open(this.i18n.translate('sync.s3.saveAndTestFirst'), this.i18n.translate('ui.CLOSE'), { duration: 3000 });
                 return;
@@ -164,7 +170,7 @@ export class S3ConfigComponent {
                 this.testing.set(false);
             }
         }
-        this.sync.setAutoSyncMode('s3', on ? 'two-way' : 'off');
+        this.sync.setAutoSyncMode('s3', next);
     }
 
     openFileViewer(): void {

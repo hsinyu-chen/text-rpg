@@ -166,11 +166,20 @@
     border-top: 1px solid rgba(255,255,255,0.1);
 }
 .nuke-btn, .advanced-btn { width: 100%; }
+.sync-group {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
 .sync-btn {
-    width: 100%;
+    flex: 1 1 auto;
     color: #4285f4;
     border-color: rgba(66, 133, 244, 0.5);
     &:hover { background: rgba(66, 133, 244, 0.05); }
+}
+.sync-more-btn {
+    flex: 0 0 auto;
+    color: #4285f4;
 }
 .empty-state {
     display: flex;

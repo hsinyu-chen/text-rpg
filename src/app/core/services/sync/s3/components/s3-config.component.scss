@@ -18,6 +18,36 @@
         margin-top: 4px;
     }
 
+    .auto-sync-mode {
+        grid-column: 1 / -1;
+        margin-top: 4px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+
+        .mode-label {
+            font-size: 0.95em;
+            opacity: 0.85;
+        }
+
+        .mode-options {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .mode-name {
+            font-weight: 500;
+        }
+
+        .mode-hint {
+            display: block;
+            font-size: 0.85em;
+            opacity: 0.7;
+            margin-left: 0.25em;
+        }
+    }
+
     @media (max-width: 600px) {
         grid-template-columns: 1fr;
     }

@@ -125,10 +125,27 @@
   </div>
 
   <div class="footer-actions">
-        <button mat-stroked-button class="sync-btn" (click)="syncAllToCloud()" [disabled]="state.isBusy()">
-            <mat-icon>cloud_sync</mat-icon>
-            {{ 'sidebar.bookList.syncAllBtn' | translate: { backend: syncBackends.activeBackendId() === 's3' ? 'S3' : 'Drive' } }}
-        </button>
+        <div class="sync-group">
+            <button mat-stroked-button class="sync-btn" (click)="syncAllToCloud()" [disabled]="state.isBusy()">
+                <mat-icon>cloud_sync</mat-icon>
+                {{ 'sidebar.bookList.syncAllBtn' | translate: { backend: syncBackends.activeBackendId() === 's3' ? 'S3' : 'Drive' } }}
+            </button>
+            <button mat-icon-button class="sync-more-btn" [matMenuTriggerFor]="syncMenu"
+                [disabled]="state.isBusy()"
+                [matTooltip]="'sidebar.bookList.syncMoreActionsTooltip' | translate">
+                <mat-icon>more_horiz</mat-icon>
+            </button>
+            <mat-menu #syncMenu="matMenu">
+                <button mat-menu-item (click)="pullFromCloud()">
+                    <mat-icon>cloud_download</mat-icon>
+                    <span>{{ 'sidebar.bookList.pullBtn' | translate }}</span>
+                </button>
+                <button mat-menu-item (click)="pushToCloud()">
+                    <mat-icon>cloud_upload</mat-icon>
+                    <span>{{ 'sidebar.bookList.pushBtn' | translate }}</span>
+                </button>
+            </mat-menu>
+        </div>
 
         <button mat-stroked-button color="warn" class="nuke-btn" (click)="nukeCaches()">
             <mat-icon>delete_forever</mat-icon>

@@ -1,8 +1,10 @@
 import { Component, inject, signal, output, computed, linkedSignal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { MatListModule } from '@angular/material/list';
+import { MatMenuModule } from '@angular/material/menu';
 import { MatDialog } from '@angular/material/dialog';
 import { CORE_MAT } from '@app/shared/material/material-groups';
+import { SyncDirection } from '@app/core/services/sync/sync.types';
 import { SessionService } from '@app/core/services/session.service';
 import { BookRepository } from '@app/core/services/storage/book.repository';
 import { GameEngineService } from '@app/core/services/game-engine.service';
@@ -35,6 +37,7 @@ interface BookGroup {
     imports: [
         ...CORE_MAT,
         MatListModule,
+        MatMenuModule,
         MatDividerModule,
         MatProgressSpinnerModule,
         DatePipe,
@@ -349,7 +352,19 @@ export class BookListComponent {
         await this.loadBooks();
     }
 
-    async syncAllToCloud() {
+    syncAllToCloud() {
+        return this.runDirectionalSync('two-way');
+    }
+
+    pullFromCloud() {
+        return this.runDirectionalSync('pull-only');
+    }
+
+    pushToCloud() {
+        return this.runDirectionalSync('push-only');
+    }
+
+    private async runDirectionalSync(direction: SyncDirection) {
         const backendId = this.syncBackends.activeBackendId();
         if (!this.syncBackends.isReady(backendId)) {
             await this.dialog.alert(this.t('backendNotReady'));
@@ -359,7 +374,7 @@ export class BookListComponent {
         const backendLabel = backendId === 's3' ? 'S3' : 'Drive';
         this.loading.show(this.t('syncingWith', { backend: backendLabel }));
         try {
-            const report = await this.syncService.syncAll();
+            const report = await this.syncService.syncAll(direction);
             await this.loadBooks();
             const summary = this.t('syncSummaryFormat', {
                 uploaded: report.uploaded,
