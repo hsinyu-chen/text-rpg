@@ -568,7 +568,12 @@ function insertSection(args: InsertSectionArgs, context: FileAgentContext): Tool
     insertBody = latexCheck.content;
   }
   const result = insertSectionIntoContent(content, args.heading, insertBody, args.anchor, args.anchorSectionPath);
-  if ('error' in result) return writeError(result.error);
+  if ('error' in result) {
+    const hint = result.error.startsWith('Anchor section not found')
+      ? `${result.error}. Re-call getFileOutline before retrying — an earlier edit may have renamed or moved this section, and re-firing the same path will keep failing until you re-check the current heading list.`
+      : result.error;
+    return writeError(hint);
+  }
   const oldLines = content.split('\n').length;
   context.onFileReplaced(args.filename, result.newContent);
   return {
@@ -861,7 +866,7 @@ function insertIntoSection(args: InsertIntoSectionArgs, context: FileAgentContex
   }
 
   const resolution = resolveSection(content, args.sectionPath);
-  if (resolution.kind === 'none') return writeError(`Section not found: "${args.sectionPath}"`);
+  if (resolution.kind === 'none') return writeError(`Section not found: "${args.sectionPath}". Re-call getFileOutline before retrying — an earlier edit may have renamed or moved this section, and re-firing the same path will keep failing until you re-check the current heading list.`);
   if (resolution.kind === 'ambiguous') {
     const ambig = ambiguousSectionError('replace', args.sectionPath, resolution.matches);
     return writeError(ambig.error, { matches: ambig.matches });
