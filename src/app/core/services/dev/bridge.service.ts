@@ -2,7 +2,7 @@ import {
     Injectable, signal, effect, inject, DestroyRef
 } from '@angular/core';
 import { FILE_VIEWER_OPENER } from './file-viewer-opener.token';
-import { FileAgentService } from '../file-agent/file-agent.service';
+import { EditChannelLostError, FileAgentService } from '../file-agent/file-agent.service';
 import { FileAgentSettingsStore } from '../file-agent/file-agent-settings.store';
 import { AgentPanelStateService } from '../file-agent/agent-panel-state.service';
 import { I18nService } from '@app/core/i18n';
@@ -1140,9 +1140,21 @@ export class BridgeService {
         // because each agent_ask got a fresh instance). With the shared
         // singleton, a full agentLogs() dump would re-emit every prior chat-
         // side turn, ballooning responses and confusing PS callers that diff
-        // logs.length pre/post. Same for tracking what files THIS turn wrote.
+        // logs.length pre/post.
         const logStart = agent.agentLogs().length;
-        const replacedStart = agent.lastFilesReplaced().length;
+        // lastFilesReplaced is a "last batch only" signal (overwritten per
+        // batch, never cleared), so it CAN'T be used to collect everything a
+        // multi-batch run wrote. Use a per-call collector via onFileReplaced
+        // instead. The collector also mirrors defaultOnFileReplaced behavior
+        // (write to editChannel, throw EditChannelLostError if it vanished
+        // mid-write) so write semantics stay identical to chat-side runs.
+        const turnReplacements: { filename: string; content: string }[] = [];
+        const collectingOnFileReplaced = (filename: string, content: string): void => {
+            turnReplacements.push({ filename, content });
+            const live = this.panelState.editChannel();
+            if (!live) throw new EditChannelLostError(filename, content.length);
+            live.write(filename, content);
+        };
         // Source files from the edit channel when present (write-mode contract
         // already enforced above), otherwise from the live engine state.
         const channel = this.panelState.editChannel();
@@ -1155,6 +1167,7 @@ export class BridgeService {
                 // need a proposer (proposeChatReplace) fall back to the
                 // executor's "not wired" structured error.
                 proposers: {},
+                onFileReplaced: collectingOnFileReplaced,
                 chatMessages: this.state.messages(),
                 uiLanguage: this.i18nService.currentLang(),
                 narrativeLanguage: this.appConfig.outputLanguage(),
@@ -1181,10 +1194,7 @@ export class BridgeService {
             .reverse()
             .find(e => e.role === 'model' && !e.isToolCall && !e.isToolResult);
         const finalResponse = finalEntry?.text ?? '';
-        // lastFilesReplaced is reset per turn inside runAgent, so slicing from
-        // replacedStart is defensive — same effect as reading whole array
-        // when nothing else ran concurrently.
-        const replacementsSummary = agent.lastFilesReplaced().slice(replacedStart).map(r => ({
+        const replacementsSummary = turnReplacements.map(r => ({
             filename: r.filename,
             size: r.content.length,
         }));

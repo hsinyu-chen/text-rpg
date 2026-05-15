@@ -56,12 +56,8 @@ export class ChatInputComponent {
     sys = inject(SystemStatusService);
     agentPanelState = inject(AgentPanelStateService);
     fileAgent = inject(FileAgentService);
-    /** True when the agent loop is mid-run AND the panel surface is closed —
-     *  the smart_toy toggle button pulses to flag the activity, so a user
-     *  who closed the panel mid-run still knows the agent is working. */
-    isAgentRunningHidden = computed(() =>
-        this.fileAgent.isAgentRunning() && !this.agentPanelState.isOpen() && !this.agentPanelState.pipActive()
-    );
+    // Template alias for the shared computed on FileAgentService.
+    isAgentRunningHidden = this.fileAgent.isAgentRunningHidden;
     private i18n = inject(I18nService);
     private profileRegistry = inject(PromptProfileRegistryService);
     private config = inject(ConfigService);

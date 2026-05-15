@@ -12,6 +12,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { FileUpdateService } from '@app/core/services/file-update.service';
 import { ChatMessage } from '@app/core/models/types';
 import { AutoUpdateDialogComponent } from '@app/shared/components/auto-update-dialog/auto-update-dialog.component';
+import { FULLSCREEN_DIALOG_CONFIG } from '@app/shared/material/dialog-presets';
 import { GAME_INTENTS } from '@app/core/constants/game-intents';
 import { I18nService } from '@app/core/i18n';
 
@@ -166,7 +167,7 @@ export class MessageStateService {
 
         const dialogRef = this.matDialog.open(AutoUpdateDialogComponent, {
             data: { updates },
-            panelClass: 'fullscreen-dialog'
+            ...FULLSCREEN_DIALOG_CONFIG,
         });
 
         const result = await firstValueFrom(dialogRef.afterClosed());

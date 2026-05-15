@@ -209,6 +209,14 @@ export class FileAgentService {
   };
 
   isAgentRunning = signal(false);
+  /** True when the agent loop is mid-turn AND no surface is showing it
+   *  (chat panel closed; PiP-open implies panel-open so `!isOpen()` covers
+   *  both). UI surfaces bind this to a pulse animation so the user still
+   *  sees activity. Lives here so chat-input and file-viewer share one
+   *  source of truth instead of each duplicating the logic. */
+  isAgentRunningHidden = computed(() =>
+    this.isAgentRunning() && !this.panelState.isOpen()
+  );
   agentHistory = signal<LLMContent[]>([]);
   /** Live prefill / prompt-processing progress (0..1) for providers that report it (e.g. llama.cpp). undefined when unknown or finished. */
   promptProgress = signal<number | undefined>(undefined);

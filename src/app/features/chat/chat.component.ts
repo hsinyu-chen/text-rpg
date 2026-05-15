@@ -196,12 +196,12 @@ export class ChatComponent {
             this.initScrollObservers();
         });
 
-        // Drive the agent-panel portal off three signals:
+        // Drive the agent-panel portal off two signals:
         //   isOpen — user-controlled open/close
         //   preferredMode — pip vs embedded preference (persisted)
-        //   embeddedSlotPresent (implicit, via the portal itself reading
-        //   EmbeddedAgentSlotService) — re-runs when AppComponent's @if
-        //   mounts the slot.
+        // The embedded slot is always rendered in AppComponent (no @if);
+        // EmbeddedAgentSlotService publishes its ViewContainerRef on init,
+        // so we don't need a third trigger.
         //
         // The portal's mount() is idempotent in the same mode and tears
         // down the other surface on mode change, so a single effect is

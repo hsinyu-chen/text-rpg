@@ -123,19 +123,10 @@ export class FileViewerDialogComponent implements OnDestroy {
     this.panelState.isOpen.update(v => !v);
   }
 
-  /** Smart_toy button pulses when the agent loop is running but no surface
-   *  (embedded panel / PiP / open dialog agent) is visibly showing the
-   *  conversation, so the user still sees the activity signal. */
-  isAgentRunningHidden = computed(() =>
-    this.fileAgentService.isAgentRunning()
-    && !this.panelState.isOpen()
-    && !this.panelState.pipActive()
-  );
-
-  // Template alias — fileAgentService is private, but the createWorld
-  // "Start Game" button needs to disable mid-agent-turn (agent is likely
-  // still editing world files; starting now would race the engine init).
-  isAgentRunning = computed(() => this.fileAgentService.isAgentRunning());
+  // Template aliases for shared signals on FileAgentService (which is
+  // private in this component).
+  isAgentRunningHidden = this.fileAgentService.isAgentRunningHidden;
+  isAgentRunning = this.fileAgentService.isAgentRunning;
 
   // Manual toggle for diff view (independent of sidebar mode)
   isDiffView = signal(false);

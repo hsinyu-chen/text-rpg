@@ -42,9 +42,10 @@ interface PipApi { requestWindow: (opts: { width?: number; height?: number }) =>
  *     container (which {@link PipAwareOverlayContainer} now appends inside
  *     mat-sidenav-content) cannot cover it.
  *
- * Provided at ChatComponent scope so the agent panel's owning template,
- * `FileAgentService`, and agent log all retain ChatComponent's injector
- * context across PIP/embedded swaps.
+ * Provided at ChatComponent scope so the agent panel's owning template
+ * retains ChatComponent's injector context across PIP/embedded swaps —
+ * the portal moves the embedded view between surfaces without
+ * re-creating it, which would otherwise lose any view-local state.
  */
 @Injectable()
 export class AgentPanelPortalService {

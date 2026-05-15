@@ -2,6 +2,7 @@ import { Component, inject } from '@angular/core';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { CORE_MAT } from '@app/shared/material/material-groups';
+import { FULLSCREEN_DIALOG_CONFIG } from '@app/shared/material/dialog-presets';
 
 import { GameEngineService } from '@app/core/services/game-engine.service';
 import { GameStateService } from '@app/core/services/game-state.service';
@@ -101,7 +102,7 @@ export class SidebarFileSyncComponent {
             };
 
             this.matDialog.open(SyncDialogComponent, {
-                panelClass: 'fullscreen-dialog',
+                ...FULLSCREEN_DIALOG_CONFIG,
                 disableClose: true,
                 data: dialogData
             });

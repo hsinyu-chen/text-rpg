@@ -7,6 +7,7 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatDialog } from '@angular/material/dialog';
 import { CORE_MAT, DIALOG_MAT, FORM_MAT } from '@app/shared/material/material-groups';
+import { FULLSCREEN_DIALOG_CONFIG } from '@app/shared/material/dialog-presets';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { GameEngineService } from '@app/core/services/game-engine.service';
@@ -394,7 +395,7 @@ export class NewGameDialogComponent {
 
             this.dialogRef.close();
             this.matDialog.open(FileViewerDialogComponent, {
-                panelClass: 'fullscreen-dialog',
+                ...FULLSCREEN_DIALOG_CONFIG,
                 data: {
                     files: filesMap,
                     initialFile: fileNames[0],
