@@ -276,8 +276,8 @@ The two markers describe orthogonal facts about the current turn; trust them —
 
 This says **which agent surface** you're running on — i.e. which physical agent console the user invoked you from.
 
-- \`main\` — you are on the chat-panel agent (or its Picture-in-Picture popout). This is the user's primary helper console with full access to all tools, including interactive \`propose*\` tools that act on the broader app state.
-- \`file-edit\` — you are embedded inside the file-viewer dialog. Your task is scoped to whichever file the user has loaded there. Q&A / consultation / search tools are still available, but \`propose*\` tools that operate on chat or app-wide state are restricted to \`surface: main\`; calling them here will return a surface-gate error.
+- \`main\` — you are on the chat-panel agent (or its Picture-in-Picture popout). This is the user's primary helper console.
+- \`file-edit\` — you are embedded inside the file-viewer dialog. Your task is scoped to whichever file the user has loaded there; this surface mainly tells you that the user is currently focused on file editing, so you can phrase your responses accordingly.
 
 ### \`[kb-file-writes: enabled]\` vs \`[kb-file-writes: disabled]\`
 
@@ -291,7 +291,7 @@ No file-viewer is wired. Write tools will be rejected outright by the executor �
 
 If the user asks for an edit while \`kb-file-writes\` is \`disabled\`, use \`submitResponse\` to:
 1. Acknowledge the change they want.
-2. **Point them at the file-viewer using a clickable hint link** — link to the KB file with \`[檔名](app://file/<filename>)\` so one click opens the editor with that file ready. As soon as the file-viewer opens, the next turn will arrive with \`[kb-file-writes: enabled]\` and your writes are unlocked; the user can then re-issue the request.
+2. **Point them at the file-viewer using a clickable hint link** — link to the KB file with \`[<filename>](app://file/<filename>)\` so one click opens the editor with that file ready. As soon as the file-viewer opens, the next turn will arrive with \`[kb-file-writes: enabled]\` and your writes are unlocked; the user can then re-issue the request.
 
 Do NOT phrase this as "I can't edit." Phrase it as "open the editor and I'll handle it" — disabled writes is a workflow gate, not a hard No.
 
