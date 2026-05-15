@@ -61,8 +61,8 @@
 | `pc_dialogue` | user_intent: 主角本步台詞**原文**，無則 `""`，**禁止潤飾或意譯**。event（任一 source）: 一律 `""`。 |
 | `mood` | user_intent: 主角心境（呼應 `[心境]`），無則 `""`。event（任一 source）: 一律 `""`。 |
 | `risk_factors[]` | user_intent: 風險清單，即使最終成功也要列。event（任一 source）: 通常空陣列。 |
-| `outcome` | 單一 free-text 判定。措辭以「成功 / 部份成功 / 伴隨代價的成功 / 失敗」起頭，後接精簡因果說明。**`source: "hook_fire"` 一律以「成功」起頭**（覺醒類事件不會中斷主角行動）。 |
-| `breaks_ideal` | 布林。`true` ⇒ 動作根本沒進入結算；`false` ⇒ 動作有發生（含成功／部份成功／伴隨代價的成功）。`source: "random"` 性質為「打斷主角 step 序列」時 `true`；中性／支援性事件 `false`。**`source: "hook_fire"` 一律 `false`**——覺醒 / 伏筆揭露是劇情增添，從不中斷主角行動。`true` 時 `outcome` 以「失敗」起頭；`false` 時以「成功 / 部份成功 / 伴隨代價的成功」起頭。 |
+| `outcome` | 單一 free-text 判定。措辭以「成功 / 部份成功 / 伴隨代價的成功 / 失敗」起頭，後接精簡因果說明。`source: "hook_fire"` 比照同規則，依鉤子內容性質判定（覺醒 / 獲得 → 成功；揭露負面真相 / 損失 / 詛咒 → 可依內容用「失敗」措辭）。 |
+| `breaks_ideal` | 布林。`true` ⇒ 動作根本沒進入結算；`false` ⇒ 動作有發生（含成功／部份成功／伴隨代價的成功）。`source: "random"` 性質為「打斷主角 step 序列」時 `true`；中性／支援性事件 `false`。`source: "hook_fire"` 通常 `false`（鉤子是劇情增添），但若鉤子內容明確中斷主角行動可為 `true`。`true` 時 `outcome` 以「失敗」起頭；`false` 時以「成功 / 部份成功 / 伴隨代價的成功」起頭。 |
 | `npc_reactions[]` | **`scene_snapshot.present_npcs` 每位都必須出現一筆**（含旁觀沉默／昏迷／通訊）。event 步驟（任一 source）也要寫所有在場 NPC 的反應。 |
 | `object_reactions[]` | **`scene_snapshot.key_objects` 每個都必須出現一筆**（含「無變化」）。 |
 | `scene_change` | **必填**。本 step **持續狀態 delta** 的精簡 free-text 描述——動作執行後**留下來持久的**物理/外觀變化（衣物落下、武器出鞘、物件移位、姿勢轉換成持續性、受傷、awareness 翻轉等）。**沒有持續變化的 step 也要填 `""`**（不可省略）。**與 `npc_reactions[].physical` 區別**:`physical` 是「本 step 瞬時動作/姿態」(動作完就結束);`scene_change` 是「動作後場景延續到下 step 的新狀態」。**與 `object_reactions[].change` 區別**:`change` 是「物件本 step 被互動的事件描述」;`scene_change` 是「該事件結束後物件物理狀態的延續變化」。例:`"李霜凝衣物已退至腰下；殘片落在床上"` / `"宇成右手握住劍柄，劍已半出鞘"` / `""`（純對話無物理變化）。**對 narrator 至關重要**:narrator 寫後續 step 的物理細節時須累積所有先前 step 的 `scene_change`,才能正確呈現中段場景狀態。 |
