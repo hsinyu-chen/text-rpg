@@ -36,6 +36,18 @@ export class FileAgentSettingsStore {
   readonly parallelProbeResults = signal<Record<string, boolean>>({});
 
   /**
+   * Timestamps of the last failed native-tool probe per profile. Used to
+   * skip retries for a short window so a cold-start failure (llama.cpp not
+   * warm yet at app-boot) doesn't keep getting re-fired by every effect
+   * tick — but unlike `probeResults`, a failure DOESN'T poison the cache
+   * forever: once the TTL elapses, the next kick re-attempts the probe.
+   */
+  readonly probeFailureTimestamps = signal<Record<string, number>>({});
+
+  /** Mirror of {@link probeFailureTimestamps} for the parallel-tool probe. */
+  readonly parallelProbeFailureTimestamps = signal<Record<string, number>>({});
+
+  /**
    * Per-profile in-flight markers used to dedupe concurrent probe attempts
    * across sibling FileAgentService instances. The synchronous `in probeResults`
    * check inside the resolver doesn't block races: two instances can both
@@ -59,5 +71,31 @@ export class FileAgentSettingsStore {
 
   recordParallelProbeResult(profileId: string, supports: boolean): void {
     this.parallelProbeResults.update(r => ({ ...r, [profileId]: supports }));
+  }
+
+  recordProbeFailure(profileId: string, at: number): void {
+    this.probeFailureTimestamps.update(r => ({ ...r, [profileId]: at }));
+  }
+
+  recordParallelProbeFailure(profileId: string, at: number): void {
+    this.parallelProbeFailureTimestamps.update(r => ({ ...r, [profileId]: at }));
+  }
+
+  clearProbeFailure(profileId: string): void {
+    this.probeFailureTimestamps.update(r => {
+      if (!(profileId in r)) return r;
+      const next = { ...r };
+      delete next[profileId];
+      return next;
+    });
+  }
+
+  clearParallelProbeFailure(profileId: string): void {
+    this.parallelProbeFailureTimestamps.update(r => {
+      if (!(profileId in r)) return r;
+      const next = { ...r };
+      delete next[profileId];
+      return next;
+    });
   }
 }

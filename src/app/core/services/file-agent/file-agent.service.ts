@@ -141,6 +141,12 @@ export class FileAgentService {
     parallelProbeResults: this.settings.parallelProbeResults,
     recordProbeResult: (id, n) => this.settings.recordProbeResult(id, n),
     recordParallelProbeResult: (id, s) => this.settings.recordParallelProbeResult(id, s),
+    probeFailureTimestamps: this.settings.probeFailureTimestamps,
+    parallelProbeFailureTimestamps: this.settings.parallelProbeFailureTimestamps,
+    recordProbeFailure: (id, at) => this.settings.recordProbeFailure(id, at),
+    recordParallelProbeFailure: (id, at) => this.settings.recordParallelProbeFailure(id, at),
+    clearProbeFailure: id => this.settings.clearProbeFailure(id),
+    clearParallelProbeFailure: id => this.settings.clearParallelProbeFailure(id),
     probeInflight: this.settings.probeInflight,
     parallelProbeInflight: this.settings.parallelProbeInflight
   });
