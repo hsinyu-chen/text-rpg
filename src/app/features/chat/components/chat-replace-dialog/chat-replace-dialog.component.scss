@@ -63,6 +63,23 @@
     }
 }
 
+.propose-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: rgba(79, 172, 254, 0.08);
+    border: 1px solid rgba(79, 172, 254, 0.3);
+    border-radius: 6px;
+    color: #b0d4f8;
+    font-size: 0.9rem;
+
+    mat-icon {
+        color: #4facfe;
+        flex: 0 0 auto;
+    }
+}
+
 .search-section {
     display: flex;
     flex-direction: column;

@@ -244,10 +244,96 @@ describe('buildSystemInstruction', () => {
       expect(out).toContain('ui-features');
     });
 
-    it('declares the cannot-do list', () => {
+    it('declares the cannot-do list and surfaces the approve-gated escape hatch for batch chat edits', () => {
       const out = build();
       expect(out).toContain('WHAT YOU CANNOT DO');
-      expect(out).toContain('Edit chat messages');
+      expect(out).toContain('Directly edit individual chat messages');
+      // Batch chat edits ARE possible via the propose tool; the cannot-do
+      // block must point there so the agent doesn't say "I can't" when the
+      // request is in scope.
+      expect(out).toMatch(/batch find\/replace.*chat.*proposeChatReplace/);
+    });
+
+    it('teaches the propose-tools approve-gated protocol', () => {
+      const out = build();
+      expect(out).toContain('PROPOSE TOOLS — APPROVE-GATED OPERATIONS');
+      expect(out).toContain('proposeChatReplace');
+      // Outcome shape teaching — agent must know how to read applied / cancelled / divergedFromProposal.
+      expect(out).toContain('divergedFromProposal');
+      expect(out).toMatch(/cancelled.*true|status: 'cancelled'/);
+      // Surface gate — only main.
+      expect(out).toMatch(/\[surface: main\]/);
+      expect(out).toMatch(/\[surface: file-edit\].*reject|gate will reject/i);
+    });
+
+    it('frames propose-tool outcomes as past-tense to prevent "please confirm" mis-narration', () => {
+      const out = build();
+      // The dialog is already closed by the time the tool returns — the
+      // agent must NOT keep writing "please confirm in the dialog".
+      expect(out).toMatch(/dialog has ALREADY closed|dialog is now closed/i);
+      expect(out).toMatch(/past tense/i);
+      // The outcome shape includes both structured `applied` AND the new
+      // `status` enum + `summary` to disambiguate small-model readings.
+      expect(out).toContain("status: 'committed'");
+      expect(out).toContain("status: 'cancelled'");
+      expect(out).toContain('summary');
+      // The negative training — explicit "do not write these phrases".
+      expect(out).toMatch(/NEVER write.*confirm/i);
+      expect(out).toMatch(/that wording implies the dialog is still up/i);
+    });
+
+    it('teaches the compound-modification discipline (chat AND KB move together)', () => {
+      const out = build();
+      // Renames / identifier changes spanning both surfaces have a specific
+      // playbook — the agent must not fire proposeChatReplace while the KB
+      // side is still pending, or the user ends up with a half-renamed world.
+      expect(out).toContain('Compound modifications');
+      expect(out).toMatch(/character renames|identifier.*both/i);
+      // Order: locate on BOTH sides first, then present a single plan.
+      expect(out).toMatch(/BOTH sides BEFORE doing anything/);
+      // Half-renamed-world hazard — explicitly flagged.
+      expect(out).toMatch(/half-renamed/);
+    });
+
+    it('teaches Rule 10: re-read source before retrying on error or unexpected result', () => {
+      const out = build();
+      expect(out).toContain('Rule 10');
+      expect(out).toContain('RE-READ THE SOURCE BEFORE RETRYING');
+      // Concrete recovery moves the agent must take instead of re-firing blindly.
+      expect(out).toMatch(/grep[^\n]+for the \*\*NEW\*\* value/);
+      expect(out).toMatch(/re-call.*getFileOutline/i);
+      // No-trust-your-history line.
+      expect(out).toMatch(/Never trust your own tool-call history alone/);
+    });
+
+    it('teaches Rule 3 per-file counting + tool-error-means-no-write hazards', () => {
+      const out = build();
+      // expectedTotalReplacements is per-FILE not cross-FILE.
+      expect(out).toMatch(/expectedTotalReplacements.*per-file/i);
+      // Cross-file rename → stratify by filename before issuing per-file
+      // searchReplace calls. Catches the "summed total across files" bug.
+      expect(out).toMatch(/stratify.*per-file count/i);
+      // One cross-file grep > N per-file greps. Catches the redundant
+      // re-grep-each-file pattern.
+      expect(out).toMatch(/ONE cross-file call|grep WITHOUT.*filename/);
+      expect(out).toMatch(/Do NOT issue N per-file greps|narrows your visibility/);
+      // Hard rule: tool errors mean the file is untouched; do not narrate
+      // success on a `found: N` informational field.
+      expect(out).toMatch(/errors mean nothing was written|file is untouched/i);
+      expect(out).toMatch(/found.*NOT a count of applied|found.*informational/i);
+      // The error prefix + structured flag should be taught explicitly so
+      // the LLM has TWO redundant signals for "no write happened".
+      expect(out).toContain('[NO-WRITE — file unchanged]');
+      expect(out).toContain('fileChanged: false');
+      expect(out).toContain('fileChanged: true');
+    });
+
+    it('softens the "KB is your only direct write target" claim to note propose-tools', () => {
+      const out = build();
+      expect(out).toContain('The KB is your only direct write target.');
+      // The follow-up sentence must qualify the claim — otherwise the agent
+      // will read it as "no chat edits ever" and miss proposeChatReplace.
+      expect(out).toMatch(/Other surfaces.*chat.*propose/);
     });
 
     it('routes KB-behind-chat questions to Auto Update first, direct edit last', () => {

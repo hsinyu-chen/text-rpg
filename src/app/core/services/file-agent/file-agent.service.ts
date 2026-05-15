@@ -182,6 +182,13 @@ export class FileAgentService {
   /** Live accumulated output token count. */
   generatedTokenCount = signal<number>(0);
   generatedChunkCount = signal<number>(0);
+  /** True while a propose-tool's approval dialog is open and the agent
+   *  turn is paused waiting for the user to Apply / Cancel. Distinct
+   *  from `isAgentRunning` (which is also true here) so the UI can
+   *  swap the "thinking..." indicator for an "awaiting your input"
+   *  hint and disable the prompt input to make clear the agent has
+   *  yielded — not stuck mid-generation. */
+  awaitingProposerDialog = signal(false);
   private abortController: AbortController | null = null;
 
   constructor() {
@@ -371,6 +378,11 @@ export class FileAgentService {
     }
     this.isAgentRunning.set(false);
     this.promptProgress.set(undefined);
+    // Defensive: if the user manages to hit Stop after the abort but before
+    // the in-flight proposer dialog closes (rare race), make sure the UI's
+    // "waiting for approval" indicator doesn't strand. The dialog's
+    // try/finally also clears this — this is belt-and-suspenders.
+    this.awaitingProposerDialog.set(false);
   }
 
   private resolveToolCallMode(): 'native' | 'json' {
@@ -686,7 +698,7 @@ export class FileAgentService {
       ...context,
       onFileReplaced: (f, c) => { context.onFileReplaced(f, c); singleReplaced = { filename: f, content: c }; }
     };
-    const result = executeFileTool(a, singleContext);
+    const result = await executeFileTool(a, singleContext);
     if (singleReplaced) this.lastFilesReplaced.set([singleReplaced]);
     if (result.infoLog) {
       this.agentLogs.update(logs => [...logs, { role: 'system', text: result.infoLog!, type: 'info' }]);
@@ -725,7 +737,7 @@ export class FileAgentService {
       }
       const toolEntry = buildToolCallLogEntry(a);
       this.agentLogs.update(logs => [...logs, toolEntry]);
-      const result = executeFileTool(a, batchContext);
+      const result = await executeFileTool(a, batchContext);
       if (result.infoLog) {
         this.agentLogs.update(logs => [...logs, { role: 'system', text: result.infoLog!, type: 'info' }]);
       }

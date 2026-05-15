@@ -153,11 +153,16 @@ export function sectionHasChildren(content: string, bounds: SectionBounds): bool
   return getDescendantHeaders(content, bounds).length > 0;
 }
 
+export interface AmbiguousSectionError {
+  error: string;
+  matches: { startLine: number, headerText: string }[];
+}
+
 export function ambiguousSectionError(
   op: 'read' | 'replace',
   pathStr: string,
   matches: { startLine: number, headerText: string }[]
-): Record<string, unknown> {
+): AmbiguousSectionError {
   return {
     error: `Ambiguous sectionPath "${pathStr}" — ${matches.length} sections match. Refusing to ${op} silently. Use a more specific sectionPath (include parent headings) or fall back to readFile + replaceFile if the headings are truly identical.`,
     matches: matches.map(m => ({ startLine: m.startLine + 1, headerText: m.headerText.trim() }))

@@ -273,6 +273,14 @@
                 align-items: center;
                 gap: 8px;
                 color: rgba(255, 255, 255, 0.6);
+
+                &.awaiting-user {
+                    color: #ffb74d;
+
+                    mat-icon {
+                        color: #ffb74d;
+                    }
+                }
             }
         }
     }

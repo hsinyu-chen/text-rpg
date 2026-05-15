@@ -1,4 +1,47 @@
 import type { ChatMessage } from '@app/core/models/types';
+import type { GameIntent } from '@app/core/constants/game-intents';
+
+/** Where in a chat message to search / replace. */
+export type ChatReplaceField = 'all' | 'story' | 'summary' | 'logs';
+
+/** A proposed chat-wide find/replace, identical in shape to the values the
+ *  user could fill into the chat-replace dialog by hand. */
+export interface ChatReplaceProposal {
+  search: string;
+  replace: string;
+  caseSensitive?: boolean;
+  wholeWord?: boolean;
+  regex?: boolean;
+  intentFilter?: 'all' | GameIntent;
+  roleFilter?: 'all' | 'user' | 'model';
+  fieldFilter?: ChatReplaceField;
+}
+
+/** Outcome surfaced by the chat-replace dialog after the user resolves an
+ *  agent-proposed run. `cancelled` covers both the explicit Cancel button
+ *  and closing the dialog without applying. */
+export interface ChatReplaceOutcome {
+  applied: {
+    search: string;
+    replace: string;
+    filters: {
+      intent: 'all' | GameIntent;
+      role: 'all' | 'user' | 'model';
+      field: ChatReplaceField;
+    };
+    replaceCount: number;
+  } | null;
+  cancelled: boolean;
+  /** True when the user changed any prefilled field before applying. Lets
+   *  the agent acknowledge a divergence in its next-turn narration. */
+  divergedFromProposal: boolean;
+}
+
+/** Wide return type so existing synchronous tool handlers stay unchanged;
+ *  interactive tools (e.g. proposeChatReplace) return a Promise. The
+ *  executor's caller awaits this — await on a non-thenable unwraps to
+ *  the value directly. */
+export type Awaitable<T> = T | PromiseLike<T>;
 
 export interface FileAgentContext {
   files: Map<string, string>;
@@ -28,11 +71,22 @@ export interface FileAgentContext {
    * points exist: the chat-panel console (`main`, also used for the PiP
    * popout) and the file-viewer dialog's embedded console (`file-edit`).
    * Surfaced on the user-message tag so the LLM perceives which console
-   * the user is interacting through, and reserved as a gating dimension
-   * for any future tools that should only be available on one of the two
-   * surfaces. Defaults to `main` when omitted.
+   * the user is interacting through, and used to gate interactive tools
+   * (e.g. proposeChatReplace) that only make sense on `main`. Defaults to
+   * `main` when omitted.
    */
   surface?: 'main' | 'file-edit';
+  /**
+   * Interactive proposers — closures that pop user-facing approval UI and
+   * resolve to a structured outcome. Kept off the executor module proper
+   * so the executor stays Angular-free; the AgentConsole builds each
+   * closure (matDialog.open(...).afterClosed() wrapped as a Promise) and
+   * injects them per run. Omit for surfaces / call-sites that don't host
+   * propose-tools — the handler then rejects the call with a clear error.
+   */
+  proposers?: {
+    chatReplace?: (params: ChatReplaceProposal) => Promise<ChatReplaceOutcome>;
+  };
   /**
    * Optional. When provided, the `uiMap` tool delegates here for the full
    * UI tree dump. FileAgentService injects this from `AgentHintRegistry`;
@@ -227,6 +281,17 @@ export interface ListBooksArgs extends FileToolArgsBase {
 /* eslint-disable-next-line @typescript-eslint/no-empty-object-type */
 export interface ListCollectionsArgs extends FileToolArgsBase {}
 
+export interface ProposeChatReplaceArgs extends FileToolArgsBase {
+  search: string;
+  replace: string;
+  caseSensitive?: boolean;
+  wholeWord?: boolean;
+  regex?: boolean;
+  intentFilter?: 'all' | GameIntent;
+  roleFilter?: 'all' | 'user' | 'model';
+  fieldFilter?: ChatReplaceField;
+}
+
 export type ParsedAction =
   | { action: 'readFile'; args: ReadFileArgs; callId?: string }
   | { action: 'grep'; args: GrepArgs; callId?: string }
@@ -244,6 +309,7 @@ export type ParsedAction =
   | { action: 'uiMap'; args: UiMapArgs; callId?: string }
   | { action: 'listBooks'; args: ListBooksArgs; callId?: string }
   | { action: 'listCollections'; args: ListCollectionsArgs; callId?: string }
+  | { action: 'proposeChatReplace'; args: ProposeChatReplaceArgs; callId?: string }
   | { action: 'reportProgress'; args: ReportProgressArgs; callId?: string }
   | { action: 'submitResponse'; args: SubmitResponseArgs; callId?: string };
 

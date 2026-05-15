@@ -1,6 +1,6 @@
 import { Component, inject, signal, computed, resource } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { MatDialogRef } from '@angular/material/dialog';
+import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { CORE_MAT, DIALOG_MAT, FORM_MAT } from '@app/shared/material/material-groups';
@@ -12,8 +12,17 @@ import { GAME_INTENTS, GameIntent } from '@app/core/constants/game-intents';
 import { ChatMessage } from '@app/core/models/types';
 import { LanguageService } from '@app/core/services/language.service';
 import { I18nService, TranslatePipe } from '@app/core/i18n';
+import type { ChatReplaceOutcome, ChatReplaceProposal } from '@app/core/services/file-agent/file-agent.types';
 
 export type SearchField = 'all' | 'story' | 'summary' | 'logs';
+
+/** Data shape when the dialog is opened by the file-agent's
+ *  `proposeChatReplace` tool. Omit (or pass `null`) when the user opens
+ *  the dialog manually from the chat-input toolbar — the dialog then
+ *  starts empty and `close()` returns `undefined` as before. */
+export interface ChatReplaceDialogData {
+  prefill?: ChatReplaceProposal;
+}
 
 export interface ChatMatch {
     messageId: string;
@@ -46,8 +55,18 @@ export class ChatReplaceDialogComponent {
     history = inject(ChatHistoryService);
     lang = inject(LanguageService);
     private i18n = inject(I18nService);
-    dialogRef = inject(MatDialogRef<ChatReplaceDialogComponent>);
+    dialogRef = inject<MatDialogRef<ChatReplaceDialogComponent, ChatReplaceOutcome | undefined>>(MatDialogRef);
     private snackBar = inject(MatSnackBar);
+    /** Optional — present only when opened by the file-agent's
+     *  `proposeChatReplace` tool. When absent, the dialog runs in its
+     *  original user-driven mode and `close()` returns nothing. */
+    private dialogData = inject<ChatReplaceDialogData | null>(MAT_DIALOG_DATA, { optional: true });
+
+    /** When the dialog was opened with a prefilled proposal (file-agent
+     *  flow), Apply / Cancel close the dialog with a `ChatReplaceOutcome`
+     *  reporting what actually happened — so the agent learns whether
+     *  the user accepted, tweaked, or rejected its suggestion. */
+    readonly isProposeMode = !!this.dialogData?.prefill;
 
     // Search & Replace queries
     searchQuery = signal('');
@@ -62,6 +81,38 @@ export class ChatReplaceDialogComponent {
     isCaseSensitive = signal(false);
     isRegex = signal(false);
     isWholeWord = signal(false);
+
+    constructor() {
+        const prefill = this.dialogData?.prefill;
+        if (prefill) {
+            this.searchQuery.set(prefill.search);
+            this.replaceQuery.set(prefill.replace);
+            this.isCaseSensitive.set(!!prefill.caseSensitive);
+            this.isWholeWord.set(!!prefill.wholeWord);
+            this.isRegex.set(!!prefill.regex);
+            this.intentFilter.set(prefill.intentFilter ?? 'all');
+            this.roleFilter.set(prefill.roleFilter ?? 'all');
+            this.fieldFilter.set(prefill.fieldFilter ?? 'all');
+        }
+    }
+
+    /** True iff any field has been edited away from the file-agent's
+     *  original proposal. Surfaced on the Outcome so the agent can
+     *  acknowledge that the user tweaked its suggestion. */
+    private divergedFromProposal(): boolean {
+        const p = this.dialogData?.prefill;
+        if (!p) return false;
+        return (
+            this.searchQuery() !== p.search ||
+            this.replaceQuery() !== p.replace ||
+            this.isCaseSensitive() !== !!p.caseSensitive ||
+            this.isWholeWord() !== !!p.wholeWord ||
+            this.isRegex() !== !!p.regex ||
+            this.intentFilter() !== (p.intentFilter ?? 'all') ||
+            this.roleFilter() !== (p.roleFilter ?? 'all') ||
+            this.fieldFilter() !== (p.fieldFilter ?? 'all')
+        );
+    }
 
     // Intents list (Localized via interfaceLanguage)
     intents = computed(() => {
@@ -231,6 +282,7 @@ export class ChatReplaceDialogComponent {
         const matches = this.searchResource.value();
         if (!matches || matches.length === 0) return;
 
+        const replaceCount = matches.length;
         const updatedMessages = [...this.state.messages()];
         const query = this.searchQuery();
         const replaceWith = this.replaceQuery();
@@ -269,11 +321,41 @@ export class ChatReplaceDialogComponent {
         });
 
         await this.history.commitMessages(updatedMessages);
-        this.snackBar.open(this.lang.t('REPLACE_COUNT', { count: matches.length.toString() }), this.i18n.translate('dialog.ok'), { duration: 3000 });
+
+        if (this.isProposeMode) {
+            // Agent-proposed flow: surface the final applied parameters
+            // back to the agent and close. No snackbar — the outcome is
+            // the feedback channel, and the dialog goes away anyway.
+            this.dialogRef.close({
+                applied: {
+                    search: this.searchQuery(),
+                    replace: this.replaceQuery(),
+                    filters: {
+                        intent: this.intentFilter(),
+                        role: this.roleFilter(),
+                        field: this.fieldFilter(),
+                    },
+                    replaceCount
+                },
+                cancelled: false,
+                divergedFromProposal: this.divergedFromProposal()
+            });
+            return;
+        }
+
+        this.snackBar.open(this.lang.t('REPLACE_COUNT', { count: replaceCount.toString() }), this.i18n.translate('dialog.ok'), { duration: 3000 });
         this.searchResource.reload();
     }
 
     close() {
+        if (this.isProposeMode) {
+            this.dialogRef.close({
+                applied: null,
+                cancelled: true,
+                divergedFromProposal: this.divergedFromProposal()
+            });
+            return;
+        }
         this.dialogRef.close();
     }
 }
