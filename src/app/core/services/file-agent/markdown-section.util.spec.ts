@@ -359,9 +359,9 @@ describe('ambiguousSectionError', () => {
       { startLine: 4, headerText: '## Same   ' },
       { startLine: 9, headerText: '## Same' },
     ]);
-    expect(err['error']).toMatch(/Ambiguous sectionPath "Same"/);
-    expect(err['error']).toMatch(/Refusing to read/);
-    expect(err['matches']).toEqual([
+    expect(err.error).toMatch(/Ambiguous sectionPath "Same"/);
+    expect(err.error).toMatch(/Refusing to read/);
+    expect(err.matches).toEqual([
       { startLine: 5, headerText: '## Same' },
       { startLine: 10, headerText: '## Same' },
     ]);
@@ -369,6 +369,6 @@ describe('ambiguousSectionError', () => {
 
   it('switches verb for replace operations', () => {
     const err = ambiguousSectionError('replace', 'X', []);
-    expect(err['error']).toMatch(/Refusing to replace/);
+    expect(err.error).toMatch(/Refusing to replace/);
   });
 });
