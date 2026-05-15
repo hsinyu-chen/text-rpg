@@ -2,8 +2,8 @@
 .dialog-container {
     display: flex;
     flex-direction: column;
-    height: 100vh;
-    width: 100vw;
+    height: 100%;
+    width: 100%;
 }
 
 // Header
@@ -104,8 +104,10 @@ mat-option mat-icon.legacy-profile-warn {
 .sidebar {
     width: 250px;
     min-width: 250px;
-    background: var(--mat-sys-surface-container-low);
-    border-right: 1px solid var(--mat-sys-outline-variant);
+    // Same fallback story as the mobile .sidebar below — --mat-sys-* vars
+    // aren't exposed by the active prebuilt theme.
+    background: var(--mat-sys-surface-container-low, var(--bg-surface-dark, #121212));
+    border-right: 1px solid var(--mat-sys-outline-variant, var(--border-color));
     display: flex;
     flex-direction: column;
     overflow-x: hidden;
@@ -337,8 +339,8 @@ mat-option mat-icon.legacy-profile-warn {
 // Mobile Responsive
 @media (max-width: 768px) {
     .dialog-container {
-        width: 100vw;
-        height: 100vh;
+        width: 100%;
+        height: 100%;
         max-height: none;
         max-width: none;
     }
@@ -352,12 +354,13 @@ mat-option mat-icon.legacy-profile-warn {
         box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
         width: 280px;
         min-width: 280px;
-        // PC mode used surface-container-low (subtle next to a flush editor),
-        // but in mobile overlay mode that variable is too transparent — the
-        // editor's text behind the sidebar bled through and visually mixed
-        // with the list. Bump to surface-container (one elevation step up)
-        // so the overlay sits as an opaque sheet over the editor.
-        background: var(--mat-sys-surface-container);
+        // The pink-bluegrey prebuilt theme doesn't expose --mat-sys-* vars
+        // (see styles.scss :root comment), so `surface-container` resolved to
+        // an empty string and the sidebar overlay was transparent — editor
+        // text behind bled through. Use the project's `--bg-dialog` token
+        // with a hex fallback; left the var first so a future theme upgrade
+        // that does define surface-container picks it up automatically.
+        background: var(--mat-sys-surface-container, var(--bg-dialog, #1e1e1e));
 
         &.collapsed {
             left: -280px;

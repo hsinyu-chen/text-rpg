@@ -4,14 +4,12 @@ import { AgentPanelStateService } from '@app/core/services/file-agent/agent-pane
 
 /**
  * OverlayContainer that follows the agent-console into a Document
- * Picture-in-Picture window.
- *
- * `matTooltip` / `mat-menu` / `mat-dialog` and other CDK overlays attach
- * to a single `cdk-overlay-container` div appended to a body. The base
- * `OverlayContainer` is provided at app root and caches that div in the
- * main document — once the agent-console is moved into a PiP window the
- * tooltips still render in the main doc, behind / beside the PiP window
- * where the user can't see them.
+ * Picture-in-Picture window. When PiP is inactive it defers to the stock
+ * `<body>` placement — the embedded agent-panel sibling avoids the dialog
+ * conflict via a CSS-variable width inset (see `--agent-panel-inset` in
+ * styles.scss) instead of trying to physically relocate the overlay
+ * container (which CDK 19+ hoists into the browser top-layer anyway,
+ * making DOM-relocation strategies ineffective).
  *
  * Provided at agent-console scope: only overlays opened from descendants
  * (the agent panel itself, its dropdowns) get routed to PiP. Chat

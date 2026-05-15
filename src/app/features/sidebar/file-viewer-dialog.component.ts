@@ -113,11 +113,13 @@ export class FileViewerDialogComponent implements OnDestroy {
   // Sidebar view mode: 'files' or 'search' (agent moved to its own right-column toggle)
   sidebarView = signal<'files' | 'search'>('files');
 
-  /** Right-side agent panel (header toggle). Auto-opened in createWorldMode so the build-world flow stays unchanged. */
-  isAgentPanelOpen = signal(false);
-
-  toggleAgentPanel(): void {
-    this.isAgentPanelOpen.update(v => !v);
+  /** Opens the chat-side agent panel (canonical agent surface). This dialog
+   *  registers its Monaco buffer as the agent's edit channel on mount, so
+   *  any writes the chat-side agent makes flow back into this editor. The
+   *  former in-dialog agent panel is kept only for Create World mode where
+   *  no chat-side surface exists yet. */
+  openChatSideAgent(): void {
+    this.panelState.isOpen.set(true);
   }
 
   /**
@@ -245,10 +247,12 @@ export class FileViewerDialogComponent implements OnDestroy {
       }
     }
 
-    // Auto-open agent panel when an initial prompt is supplied (Create World mode)
-    // or when explicitly requested (e.g. dev-bridge agent_open_file_viewer).
-    if ((this.data.createWorldMode && this.data.initialAgentPrompt) || this.data.openAgentPanelOnInit) {
-      this.isAgentPanelOpen.set(true);
+    // Create World mode auto-opens its inline agent via the template's
+    // @if (data.createWorldMode ...) — no signal toggle needed. The
+    // dev-bridge `openAgentPanelOnInit` flag now opens the chat-side
+    // agent panel instead of the (removed) inline one.
+    if (this.data.openAgentPanelOnInit && !this.data.createWorldMode) {
+      this.panelState.isOpen.set(true);
     }
 
     if (this.data.completionValidator) {

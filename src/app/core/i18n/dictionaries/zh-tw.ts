@@ -212,6 +212,8 @@ export const zhTW: TranslationDict = {
         AGENT_PANEL_MENU: 'AI 代理',
         AGENT_PANEL_TOOLTIP: '開關 AI 代理面板(查詢 / 編輯 KB)',
         AGENT_PANEL_CLOSE: '關閉 AI 代理面板',
+        AGENT_PANEL_POP_OUT: '彈出到獨立視窗',
+        AGENT_PANEL_BACK_TO_PAGE: '收回頁面內',
         EDITING_MODE_HINT: '編輯模式。按 Ctrl+Enter 儲存。',
         NO_ACTIVE_SESSION_PLACEHOLDER: '尚無作用中的工作階段。請建立或選擇一本書。',
         CANCEL_EDIT_TOOLTIP: '取消編輯',

@@ -212,6 +212,8 @@ export const en: TranslationDict = {
         AGENT_PANEL_MENU: 'AI Agent',
         AGENT_PANEL_TOOLTIP: 'Toggle AI Agent Panel (query / edit KB)',
         AGENT_PANEL_CLOSE: 'Close AI Agent Panel',
+        AGENT_PANEL_POP_OUT: 'Pop out to separate window',
+        AGENT_PANEL_BACK_TO_PAGE: 'Dock back into page',
         EDITING_MODE_HINT: 'Editing Mode. Ctrl+Enter to save.',
         NO_ACTIVE_SESSION_PLACEHOLDER: 'No active session. Create or select a book.',
         CANCEL_EDIT_TOOLTIP: 'Cancel Edit',

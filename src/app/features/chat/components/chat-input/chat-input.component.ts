@@ -224,10 +224,10 @@ export class ChatInputComponent {
 
     openConfigDialog() {
         this.matDialog.open(ChatConfigDialogComponent, {
-            width: '100vw',
-            height: '100vh',
-            maxWidth: '100vw',
-            maxHeight: '100vh',
+            width: '100%',
+            height: '100%',
+            maxWidth: '100%',
+            maxHeight: '100%',
             panelClass: 'fullscreen-dialog'
         });
     }
@@ -236,10 +236,10 @@ export class ChatInputComponent {
         const payload = this.engine.getPreviewPayload(this.userInput(), { intent: this.selectedIntent() });
         this.matDialog.open(PayloadDialogComponent, {
             data: payload,
-            width: '100vw',
-            height: '100vh',
-            maxWidth: '100vw',
-            maxHeight: '100vh',
+            width: '100%',
+            height: '100%',
+            maxWidth: '100%',
+            maxHeight: '100%',
             panelClass: 'fullscreen-dialog'
         });
     }
@@ -312,10 +312,10 @@ export class ChatInputComponent {
 
     openReplaceDialog() {
         this.matDialog.open(ChatReplaceDialogComponent, {
-            width: '100vw',
-            height: '100vh',
-            maxWidth: '100vw',
-            maxHeight: '100vh',
+            width: '100%',
+            height: '100%',
+            maxWidth: '100%',
+            maxHeight: '100%',
             panelClass: 'fullscreen-dialog'
         });
     }

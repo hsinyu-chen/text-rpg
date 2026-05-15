@@ -1,4 +1,5 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, computed, inject, signal } from '@angular/core';
+import { KVStore } from '../kv/kv-store';
 
 /**
  * A surface that owns an unsaved-edit buffer for KB files (typically the
@@ -11,6 +12,15 @@ export interface AgentEditChannel {
   /** Apply an edit to the buffer (Monaco update + unsaved-flag bookkeeping). */
   write: (filename: string, content: string) => void;
 }
+
+/**
+ * User's preferred presentation for the chat-side agent panel. Persisted across
+ * sessions; `'pip'` falls back to `'embedded'` at startup if the runtime has no
+ * `documentPictureInPicture` API.
+ */
+export type AgentPanelMode = 'pip' | 'embedded';
+
+const PREFERRED_MODE_KEY = 'agentPanel.preferredMode';
 
 /**
  * Cross-component state for the chat-side agent panel.
@@ -28,8 +38,39 @@ export interface AgentEditChannel {
  */
 @Injectable({ providedIn: 'root' })
 export class AgentPanelStateService {
+  private readonly kv = inject(KVStore);
+
   readonly pipActive = signal(false);
+  /**
+   * Whether the chat-side agent panel is currently open. Hoisted to root
+   * scope (away from ChatComponent's local signal) so the AppComponent shell
+   * can render or hide the in-page embedded slot without reaching into
+   * ChatComponent.
+   */
+  readonly isOpen = signal(false);
   readonly editChannel = signal<AgentEditChannel | null>(null);
+  /**
+   * Persisted user preference for how the chat-side agent panel surfaces when
+   * opened. The portal service consults this at mount time and downgrades to
+   * 'embedded' when the platform has no PiP API.
+   */
+  readonly preferredMode = signal<AgentPanelMode>(this.loadPreferredMode());
+  /**
+   * Convenience: true when the panel is currently mounted in the in-page
+   * embedded slot (preferred mode is 'embedded' and no PiP is active). The
+   * AppComponent's @if uses this to decide whether to render the slot.
+   */
+  readonly embedded = computed(() => this.preferredMode() === 'embedded' && !this.pipActive());
+
+  setPreferredMode(mode: AgentPanelMode): void {
+    this.preferredMode.set(mode);
+    this.kv.set(PREFERRED_MODE_KEY, mode);
+  }
+
+  private loadPreferredMode(): AgentPanelMode {
+    const raw = this.kv.get(PREFERRED_MODE_KEY);
+    return raw === 'pip' || raw === 'embedded' ? raw : 'embedded';
+  }
   // Lifetime-stable draft input. AgentConsoleComponent is destroyed/recreated
   // on every panel toggle (chat-side toggle, PiP open/close), so a per-component
   // signal would wipe unsent text mid-thought. Hoisting onto the singleton

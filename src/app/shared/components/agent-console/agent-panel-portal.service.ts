@@ -1,83 +1,119 @@
 import { DOCUMENT } from '@angular/common';
 import { EmbeddedViewRef, Injectable, TemplateRef, ViewContainerRef, inject } from '@angular/core';
 import { AgentPanelStateService } from '@app/core/services/file-agent/agent-panel-state.service';
+import { EmbeddedAgentSlotService } from './embedded-agent-slot.service';
+
+/**
+ * Reason the PiP window's `pagehide` fired — distinguishes Chrome's two
+ * native PiP chrome buttons:
+ *   - `'back-to-tab'`: user clicked the back-to-tab button (and the spec'd
+ *     behavior of refocusing the opener gives us a usable signal — see
+ *     pagehide handler below).
+ *   - `'close'`: user clicked the close X (or the window was closed via
+ *     `window.close()` / OS-level dismissal).
+ *
+ * Document Picture-in-Picture provides no formal event-level distinction;
+ * both paths fire only `pagehide`. The discriminator is `document.hasFocus()`
+ * on the main window at `pagehide` time: back-to-tab transfers focus to the
+ * opener BEFORE pagehide (the user asked for the opener tab), close X drops
+ * the window without re-focusing the opener. Verified empirically on
+ * Chromium 130+.
+ */
+export type PipCloseReason = 'back-to-tab' | 'close';
 
 interface MountOptions {
-  /** Called when the user closes the PiP window via OS chrome (so the caller
-   *  can flip its own open-state signal back to false). Not invoked for the
-   *  explicit unmount() path — the caller already knows in that case. */
-  onPipClosed: () => void;
+  /** Called when the PiP window closes via OS chrome (not invoked for the
+   *  explicit unmount() path — the caller already knows in that case). The
+   *  `reason` lets the caller route back-to-tab to a dock-back path and
+   *  close to a full panel-close. */
+  onPipClosed: (reason: PipCloseReason) => void;
 }
 
 interface PipApi { requestWindow: (opts: { width?: number; height?: number }) => Promise<Window> }
 
 /**
- * Mounts an agent-panel template into either a Document Picture-in-Picture
- * window (Chrome 116+) or a body-portal `<div popover="manual">` fallback.
+ * Mounts an agent-panel template into one of two surfaces:
+ *   - **PiP** (Chrome 116+ `documentPictureInPicture`) — separate browser
+ *     window with its own top-layer scope; dialogs in the main window never
+ *     compete with the panel.
+ *   - **Embedded** — an in-page sibling slot owned by AppComponent (via
+ *     {@link EmbeddedAgentSlotService}). Lives in normal stacking order
+ *     next to `mat-sidenav-container`, so the main-window CDK overlay
+ *     container (which {@link PipAwareOverlayContainer} now appends inside
+ *     mat-sidenav-content) cannot cover it.
  *
- * Provided at ChatComponent scope (not root) because the mount target —
- * a TemplateRef + ViewContainerRef — is a per-component concept. Owning
- * the full lifecycle here keeps ChatComponent focused on chat behavior.
- *
- * The two surfaces (PiP / body-portal) and their quirks (top-layer
- * re-promotion when other popovers open, MutationObserver-mirrored
- * stylesheets so Material's lazily-injected component styles reach the
- * PiP doc) all live in this file.
+ * Provided at ChatComponent scope so the agent panel's owning template,
+ * `FileAgentService`, and agent log all retain ChatComponent's injector
+ * context across PIP/embedded swaps.
  */
 @Injectable()
 export class AgentPanelPortalService {
   private readonly doc = inject(DOCUMENT);
   private readonly panelState = inject(AgentPanelStateService);
-
-  // Time window in which a click inside the panel "claims" any subsequent
-  // popover-open as ours, so the promoter doesn't re-promote our host on
-  // top of our own descendant dropdowns (mat-select / mat-menu). Wide
-  // enough to absorb the natural delay between a click handler firing and
-  // the resulting popover actually opening, narrow enough that an unrelated
-  // popover opening shortly after a panel click is still re-promoted.
-  private static readonly POPOVER_OWNERSHIP_DEBOUNCE_MS = 400;
+  private readonly embeddedSlot = inject(EmbeddedAgentSlotService);
 
   // Generation token: every mount/unmount bumps this. Async PiP open
-  // (`requestWindow` awaits a user gesture / permission grant) checks
-  // the token after resume; if it changed (panel was closed during the
-  // await), the open path aborts cleanly instead of attaching a zombie
-  // window.
+  // (`requestWindow` awaits a user gesture / permission grant) checks the
+  // token after resume; if it changed (panel was closed during the await),
+  // the open path aborts cleanly instead of attaching a zombie window.
   private mountGeneration = 0;
   private view: EmbeddedViewRef<unknown> | null = null;
-  private host: HTMLDivElement | null = null;
   private pipWin: Window | null = null;
   private pipStyleObserver: MutationObserver | null = null;
-  private popoverPromoter: ((e: Event) => void) | null = null;
-  private clickTracker: ((e: Event) => void) | null = null;
-  private lastOwnClickAt = 0;
+  private currentMode: 'pip' | 'embedded' | null = null;
 
-  mount(tpl: TemplateRef<unknown>, vcr: ViewContainerRef, opts: MountOptions): void {
-    if (this.view || this.pipWin) return;
+  isPipSupported(): boolean {
+    return !!this.getPipApi();
+  }
+
+  /**
+   * Mount the agent panel into its preferred surface. Honors
+   * `panelState.preferredMode`, with automatic downgrade to `'embedded'`
+   * if the platform lacks PiP support. Idempotent in the same mode.
+   */
+  mount(tpl: TemplateRef<unknown>, fallbackVcr: ViewContainerRef, opts: MountOptions): void {
+    const wantPip = this.panelState.preferredMode() === 'pip' && this.isPipSupported();
+    if (this.currentMode === 'pip' && wantPip) return;
+    if (this.currentMode === 'embedded' && !wantPip) return;
+
+    // Mode change (or first mount) — tear down whichever surface is up.
+    this.teardown();
     const gen = ++this.mountGeneration;
-    this.view = vcr.createEmbeddedView(tpl);
-    this.view.detectChanges();
-    const rootNodes = this.view.rootNodes as Node[];
 
-    // Prefer the native Document Picture-in-Picture API when available
-    // (Chrome 116+). It opens the agent panel in a separate browser
-    // window — no top-layer fighting with main-app dialogs/menus, and
-    // the panel's own dropdowns just work because the PiP window has
-    // its own top-layer scope. Falls back to body-portal + popover on
-    // browsers that don't support it (Firefox / Safari today).
-    const pipApi = (this.doc.defaultView as Window & {
-      documentPictureInPicture?: PipApi;
-    } | null)?.documentPictureInPicture;
-    if (pipApi) {
-      void this.openInPip(pipApi, rootNodes, gen, opts);
+    if (wantPip) {
+      this.currentMode = 'pip';
+      // We need to create the embedded view first to obtain root nodes that
+      // we then physically relocate into the PiP doc. Use the embedded slot
+      // when present (cleaner cleanup path); fall back to ChatComponent's
+      // vcr — this only happens on first mount when slot hasn't registered
+      // yet. The view is destroyed on unmount either way.
+      const vcr = this.embeddedSlot.get() ?? fallbackVcr;
+      this.view = vcr.createEmbeddedView(tpl);
+      this.view.detectChanges();
+      const rootNodes = this.view.rootNodes as Node[];
+      void this.openInPip(rootNodes, gen, opts);
     } else {
-      this.openInBodyPortal(rootNodes);
+      // Embedded mode requires the AppComponent slot to have registered. If
+      // it hasn't yet (e.g. first mount fires before AppComponent's @if
+      // renders), bail — the AgentPanelStateService.isOpen + embedded()
+      // signal will retrigger the chat-side effect once the slot appears.
+      const vcr = this.embeddedSlot.get();
+      if (!vcr) {
+        this.currentMode = null;
+        return;
+      }
+      this.currentMode = 'embedded';
+      this.view = vcr.createEmbeddedView(tpl);
+      this.view.detectChanges();
     }
   }
 
   unmount(): void {
-    // Invalidate any in-flight openInPip awaiting requestWindow.
     this.mountGeneration++;
-    this.uninstallPopoverPromoter();
+    this.teardown();
+  }
+
+  private teardown(): void {
     this.panelState.pipActive.set(false);
     this.panelState.pipDocument.set(null);
     this.pipStyleObserver?.disconnect();
@@ -86,52 +122,53 @@ export class AgentPanelPortalService {
       try { this.pipWin.close(); } catch { /* already closed */ }
       this.pipWin = null;
     }
-    if (this.host?.matches(':popover-open')) {
-      try { this.host.hidePopover(); } catch { /* race */ }
-    }
     if (this.view) {
       this.view.destroy();
       this.view = null;
     }
-    if (this.host) {
-      this.host.remove();
-      this.host = null;
-    }
+    this.currentMode = null;
   }
 
-  private async openInPip(api: PipApi, rootNodes: Node[], gen: number, opts: MountOptions): Promise<void> {
+  private getPipApi(): PipApi | undefined {
+    return (this.doc.defaultView as Window & {
+      documentPictureInPicture?: PipApi;
+    } | null)?.documentPictureInPicture;
+  }
+
+  private async openInPip(rootNodes: Node[], gen: number, opts: MountOptions): Promise<void> {
+    const api = this.getPipApi();
+    if (!api) {
+      // Caller already gated on isPipSupported() but the API may have
+      // disappeared between checks (extension toggle, etc.) — downgrade
+      // by reflecting the preference back to embedded and remounting on
+      // the next state change.
+      this.panelState.setPreferredMode('embedded');
+      return;
+    }
     let pipWin: Window;
     const pipWidth = 480;
     const pipHeight = 720;
     try {
       pipWin = await api.requestWindow({ width: pipWidth, height: pipHeight });
     } catch {
-      // user denied / call rejected (e.g. no user gesture) — fall back,
-      // but only if the user hasn't already closed the panel mid-await.
+      // user denied / call rejected (e.g. no user gesture). If the panel
+      // wasn't closed during the await, downgrade preference to embedded
+      // so the next mount tick lands the user in the in-page slot.
       if (gen !== this.mountGeneration) return;
-      this.openInBodyPortal(rootNodes);
+      this.panelState.setPreferredMode('embedded');
       return;
     }
-    // Panel was closed (and view destroyed) during the requestWindow await.
-    // Discard the now-stale window instead of attaching detached DOM to it.
     if (gen !== this.mountGeneration) {
       try { pipWin.close(); } catch { /* already closed */ }
       return;
     }
-    // Park the PiP next to the main window's right edge rather than the OS
-    // default (usually screen bottom-right). DPiP windows are real Window
-    // objects so moveTo works — but some browsers / multi-monitor setups
-    // may silently no-op, so don't rely on the result.
+    // Park the PiP next to the main window's right edge.
     try {
       const mainWin = this.doc.defaultView;
       if (mainWin) {
         const gap = 8;
         const targetX = mainWin.screenX + mainWin.outerWidth + gap;
         const targetY = mainWin.screenY;
-        // Clamp X so the PiP isn't pushed off the right screen edge on
-        // narrow displays — fall back to screen-edge alignment.
-        // `availLeft` is a non-standard but widely-supported screen prop
-        // (Firefox / Chromium); cast keeps strict TS happy.
         const screen = mainWin.screen as Screen & { availLeft?: number };
         const maxX = (screen.availLeft ?? 0) + screen.availWidth - pipWidth;
         pipWin.moveTo(Math.min(targetX, maxX), targetY);
@@ -141,30 +178,27 @@ export class AgentPanelPortalService {
     pipWin.document.body.style.margin = '0';
     pipWin.document.body.style.height = '100vh';
     pipWin.document.body.style.overflow = 'hidden';
-    // Mark the body so the shell stretches edge-to-edge inside the PiP
-    // window instead of its default min(480px, 92vw) which leaves gutters
-    // when the user resizes the PiP smaller than 480px.
     pipWin.document.body.classList.add('agent-panel-pip');
     for (const n of rootNodes) pipWin.document.body.appendChild(n);
     this.pipWin = pipWin;
-    // Expose the PiP doc to PipAwareOverlayContainer (provided at
-    // agent-console scope) so matTooltip / mat-menu / mat-dialog
-    // overlays opened inside the panel land in the PiP window instead
-    // of the main one.
     this.panelState.pipDocument.set(pipWin.document);
-    // Flag so file-viewer hides its own smart_toy button while PiP is up
-    // (otherwise we'd have two agent UIs racing). Edit routing is handled
-    // separately via panelState.editChannel — registered by whichever
-    // surface owns an unsaved-buffer (file-viewer's Monaco).
     this.panelState.pipActive.set(true);
-    // User closes the PiP window via OS chrome — sync state back.
+
+    const mainWin = this.doc.defaultView;
     pipWin.addEventListener('pagehide', () => {
+      // Distinguish Chrome's two PiP chrome buttons via main-window focus
+      // state — see PipCloseReason JSDoc. back-to-tab re-focuses the opener
+      // before this event fires, close X does not.
+      const reason: PipCloseReason = mainWin?.document?.hasFocus?.()
+        ? 'back-to-tab'
+        : 'close';
       if (this.pipWin === pipWin) {
         this.pipWin = null;
         this.panelState.pipDocument.set(null);
+        this.panelState.pipActive.set(false);
         this.pipStyleObserver?.disconnect();
         this.pipStyleObserver = null;
-        opts.onPipClosed();
+        opts.onPipClosed(reason);
       }
     });
   }
@@ -176,10 +210,6 @@ export class AgentPanelPortalService {
    * typically happens AFTER `requestWindow` resolves. A one-shot snapshot
    * misses those late additions and the PiP renders unstyled (spinner
    * SVGs as black-filled circles, etc).
-   *
-   * Snapshot the existing `<link>` / `<style>` + adoptedStyleSheets at
-   * open time, then watch `<head>` for future additions/removals while
-   * PiP is up. The observer is torn down on unmount or pagehide.
    */
   private mirrorStylesToPip(pipWin: Window): void {
     const srcHead = this.doc.head;
@@ -195,19 +225,9 @@ export class AgentPanelPortalService {
     for (const n of Array.from(srcHead.querySelectorAll('link[rel="stylesheet"], style'))) {
       cloneAndAppend(n);
     }
-    // Belt-and-braces for Constructable-Stylesheet toolchains —
-    // CSSStyleSheet instances are document-scoped, so we re-materialize
-    // the rules as fresh sheets in the PiP doc. Per-sheet try/catch:
-    // one cross-origin sheet throwing SecurityError on cssRules access
-    // must not drop the accessible same-origin sheets alongside it.
-    //
-    // KNOWN LIMITATION: this is a one-shot snapshot — there's no native
-    // way to observe adoptedStyleSheets mutations the way MutationObserver
-    // covers <style>/<link> below. Acceptable here because Angular Material
-    // (the only dynamic-style source in this app) ships its lazy-loaded
-    // component CSS as <style> tags, which the observer DOES mirror live.
-    // If a future toolchain dynamically pushes sheets onto adoptedStyleSheets
-    // after PiP open, those won't reach the PiP doc and styling will drift.
+    // adoptedStyleSheets — one-shot snapshot (no native observer for these).
+    // Per-sheet try/catch: one cross-origin SecurityError must not drop
+    // accessible same-origin sheets.
     const srcSheets = this.doc.adoptedStyleSheets;
     if (srcSheets?.length) {
       const pipCtor = (pipWin as Window & { CSSStyleSheet?: typeof CSSStyleSheet }).CSSStyleSheet;
@@ -242,67 +262,5 @@ export class AgentPanelPortalService {
       }
     });
     this.pipStyleObserver.observe(srcHead, { childList: true });
-  }
-
-  private openInBodyPortal(rootNodes: Node[]): void {
-    if (!this.host) {
-      this.host = this.doc.createElement('div');
-      this.host.className = 'agent-panel-host';
-      // popover="manual" puts us in the browser top-layer alongside
-      // every cdk-overlay dialog (CDK 19+ uses the same API). Within
-      // top-layer z-index is ignored; ordering is purely "last shown
-      // wins", so we re-promote ourselves whenever a sibling popover
-      // opens, unless the click that triggered it came from inside
-      // the panel (own dropdown / menu) — see installPopoverPromoter.
-      this.host.setAttribute('popover', 'manual');
-      this.doc.body.appendChild(this.host);
-    }
-    for (const node of rootNodes) {
-      this.host.appendChild(node);
-    }
-    try { this.host.showPopover(); } catch { /* not connected / no support */ }
-    this.installPopoverPromoter();
-  }
-
-  private installPopoverPromoter(): void {
-    if (this.popoverPromoter) return;
-    // Whenever ANY other popover opens (Material dialogs use the same
-    // popover API since CDK 19), re-show ours to bring it back to the
-    // top of the top-layer — UNLESS the popover that just opened is
-    // our own descendant (mat-select / mat-menu triggered from a click
-    // inside the panel). Detected temporally: a click inside the panel
-    // within the last 400ms marks any subsequent popover-open as
-    // "ours". Without this guard the panel covers its own dropdowns.
-    this.clickTracker = (e: Event) => {
-      if (this.host?.contains(e.target as Node)) {
-        this.lastOwnClickAt = Date.now();
-      }
-    };
-    this.doc.addEventListener('click', this.clickTracker, true);
-
-    this.popoverPromoter = (e: Event) => {
-      const target = e.target as HTMLElement;
-      if (!this.host || target === this.host) return;
-      const toggle = e as ToggleEvent;
-      if (toggle.newState !== 'open') return;
-      if (Date.now() - this.lastOwnClickAt < AgentPanelPortalService.POPOVER_OWNERSHIP_DEBOUNCE_MS) return;
-      queueMicrotask(() => {
-        const host = this.host;
-        if (!host || !host.matches(':popover-open')) return;
-        try { host.hidePopover(); host.showPopover(); } catch { /* race */ }
-      });
-    };
-    this.doc.addEventListener('toggle', this.popoverPromoter, true);
-  }
-
-  private uninstallPopoverPromoter(): void {
-    if (this.popoverPromoter) {
-      this.doc.removeEventListener('toggle', this.popoverPromoter, true);
-      this.popoverPromoter = null;
-    }
-    if (this.clickTracker) {
-      this.doc.removeEventListener('click', this.clickTracker, true);
-      this.clickTracker = null;
-    }
   }
 }

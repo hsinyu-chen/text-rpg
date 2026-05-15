@@ -297,10 +297,14 @@ export class AgentConsoleComponent implements OnDestroy {
     try {
       const ref = this.matDialog.open(mod.ChatReplaceDialogComponent, {
         data,
-        width: '100vw',
-        height: '100vh',
-        maxWidth: '100vw',
-        maxHeight: '100vh',
+        // Sizing comes from the `.fullscreen-dialog` panelClass (`100%`),
+        // which fits the cdk-overlay-container's box. Explicit `100vw/100vh`
+        // here would bleed past the in-sidenav overlay host into the
+        // embedded agent-panel area.
+        width: '100%',
+        height: '100%',
+        maxWidth: '100%',
+        maxHeight: '100%',
         panelClass: 'fullscreen-dialog',
       });
       const result = (await firstValueFrom(ref.afterClosed())) as ChatReplaceOutcome | undefined;
