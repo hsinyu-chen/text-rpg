@@ -26,6 +26,7 @@ import { getProfileDisplayName } from '@app/core/constants/prompt-profiles';
 import { ContextUsageBarComponent } from '@app/shared/components/context-usage-bar/context-usage-bar.component';
 import { AppAgentHintDirective } from '@app/core/services/agent-hints/agent-hints.directive';
 import { AgentPanelStateService } from '@app/core/services/file-agent/agent-panel-state.service';
+import { FULLSCREEN_DIALOG_CONFIG } from '@app/shared/material/dialog-presets';
 
 @Component({
     selector: 'app-chat-input',
@@ -223,24 +224,14 @@ export class ChatInputComponent {
     }
 
     openConfigDialog() {
-        this.matDialog.open(ChatConfigDialogComponent, {
-            width: '100%',
-            height: '100%',
-            maxWidth: '100%',
-            maxHeight: '100%',
-            panelClass: 'fullscreen-dialog'
-        });
+        this.matDialog.open(ChatConfigDialogComponent, FULLSCREEN_DIALOG_CONFIG);
     }
 
     openPayloadPreview() {
         const payload = this.engine.getPreviewPayload(this.userInput(), { intent: this.selectedIntent() });
         this.matDialog.open(PayloadDialogComponent, {
             data: payload,
-            width: '100%',
-            height: '100%',
-            maxWidth: '100%',
-            maxHeight: '100%',
-            panelClass: 'fullscreen-dialog'
+            ...FULLSCREEN_DIALOG_CONFIG,
         });
     }
 
@@ -311,13 +302,7 @@ export class ChatInputComponent {
     }
 
     openReplaceDialog() {
-        this.matDialog.open(ChatReplaceDialogComponent, {
-            width: '100%',
-            height: '100%',
-            maxWidth: '100%',
-            maxHeight: '100%',
-            panelClass: 'fullscreen-dialog'
-        });
+        this.matDialog.open(ChatReplaceDialogComponent, FULLSCREEN_DIALOG_CONFIG);
     }
 
     private focusInput() {

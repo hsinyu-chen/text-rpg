@@ -23,6 +23,7 @@ import { FileAgentService } from '@app/core/services/file-agent/file-agent.servi
 import { BuiltInPromptsService } from '@app/core/services/file-agent/built-in-prompts.service';
 import { I18nService, TranslatePipe } from '@app/core/i18n';
 import { CORE_MAT, FORM_MAT } from '@app/shared/material/material-groups';
+import { FULLSCREEN_DIALOG_CONFIG } from '@app/shared/material/dialog-presets';
 import type { ChatMessage } from '@app/core/models/types';
 import { AppConfigStore } from '@app/core/services/app-config-store';
 import { AgentLinkInterceptor } from '@app/core/services/agent-hints/agent-link-interceptor.service';
@@ -297,15 +298,7 @@ export class AgentConsoleComponent implements OnDestroy {
     try {
       const ref = this.matDialog.open(mod.ChatReplaceDialogComponent, {
         data,
-        // Sizing comes from the `.fullscreen-dialog` panelClass (`100%`),
-        // which fits the cdk-overlay-container's box. Explicit `100vw/100vh`
-        // here would bleed past the in-sidenav overlay host into the
-        // embedded agent-panel area.
-        width: '100%',
-        height: '100%',
-        maxWidth: '100%',
-        maxHeight: '100%',
-        panelClass: 'fullscreen-dialog',
+        ...FULLSCREEN_DIALOG_CONFIG,
       });
       const result = (await firstValueFrom(ref.afterClosed())) as ChatReplaceOutcome | undefined;
       return result ?? { applied: null, cancelled: true, divergedFromProposal: false };

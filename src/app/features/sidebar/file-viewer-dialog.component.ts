@@ -113,13 +113,13 @@ export class FileViewerDialogComponent implements OnDestroy {
   // Sidebar view mode: 'files' or 'search' (agent moved to its own right-column toggle)
   sidebarView = signal<'files' | 'search'>('files');
 
-  /** Opens the chat-side agent panel (canonical agent surface). This dialog
+  /** Toggles the chat-side agent panel (canonical agent surface). This dialog
    *  registers its Monaco buffer as the agent's edit channel on mount, so
    *  any writes the chat-side agent makes flow back into this editor. The
    *  former in-dialog agent panel is kept only for Create World mode where
    *  no chat-side surface exists yet. */
-  openChatSideAgent(): void {
-    this.panelState.isOpen.set(true);
+  toggleChatSideAgent(): void {
+    this.panelState.isOpen.update(v => !v);
   }
 
   /**

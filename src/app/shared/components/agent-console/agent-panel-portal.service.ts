@@ -82,16 +82,13 @@ export class AgentPanelPortalService {
 
     if (wantPip) {
       this.currentMode = 'pip';
-      // We need to create the embedded view first to obtain root nodes that
-      // we then physically relocate into the PiP doc. Use the embedded slot
-      // when present (cleaner cleanup path); fall back to ChatComponent's
-      // vcr — this only happens on first mount when slot hasn't registered
-      // yet. The view is destroyed on unmount either way.
-      const vcr = this.embeddedSlot.get() ?? fallbackVcr;
-      this.view = vcr.createEmbeddedView(tpl);
-      this.view.detectChanges();
-      const rootNodes = this.view.rootNodes as Node[];
-      void this.openInPip(rootNodes, gen, opts);
+      // View creation is deferred until requestWindow resolves — see
+      // openInPip below. Building it eagerly here would attach the agent
+      // DOM to the main document while the user is still approving the
+      // PiP permission prompt; if the slot isn't registered yet and the
+      // fallbackVcr lands the nodes somewhere with no `display: none`
+      // protection, the panel briefly flashes in the chat UI.
+      void this.openInPip(tpl, fallbackVcr, gen, opts);
     } else {
       // Embedded mode requires the AppComponent slot to have registered. If
       // it hasn't yet (e.g. first mount fires before AppComponent's @if
@@ -135,7 +132,12 @@ export class AgentPanelPortalService {
     } | null)?.documentPictureInPicture;
   }
 
-  private async openInPip(rootNodes: Node[], gen: number, opts: MountOptions): Promise<void> {
+  private async openInPip(
+    tpl: TemplateRef<unknown>,
+    fallbackVcr: ViewContainerRef,
+    gen: number,
+    opts: MountOptions
+  ): Promise<void> {
     const api = this.getPipApi();
     if (!api) {
       // Caller already gated on isPipSupported() but the API may have
@@ -179,6 +181,14 @@ export class AgentPanelPortalService {
     pipWin.document.body.style.height = '100vh';
     pipWin.document.body.style.overflow = 'hidden';
     pipWin.document.body.classList.add('agent-panel-pip');
+    // Create the embedded view now (after requestWindow resolved). The
+    // intermediate "in main DOM" state lasts only one microtask before
+    // we relocate root nodes into the PiP doc — short enough that the
+    // browser's next paint already sees the nodes in the PiP window.
+    const vcr = this.embeddedSlot.get() ?? fallbackVcr;
+    this.view = vcr.createEmbeddedView(tpl);
+    this.view.detectChanges();
+    const rootNodes = this.view.rootNodes as Node[];
     for (const n of rootNodes) pipWin.document.body.appendChild(n);
     this.pipWin = pipWin;
     this.panelState.pipDocument.set(pipWin.document);

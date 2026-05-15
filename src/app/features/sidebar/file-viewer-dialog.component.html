@@ -8,15 +8,16 @@
         <span class="file-title">{{ activeFile() }}</span>
         <div class="header-actions">
             @if (!panelState.pipActive()) {
-                <!-- Opens the chat-side agent panel (canonical agent surface).
-                     File-viewer's Monaco buffer is registered as the agent's
-                     edit channel on mount, so writes from the chat-side
-                     agent land in this dialog's editor. Available in Create
-                     World mode too — the chat-side panel is always reachable,
-                     independent of whether a book is active. -->
-                <button mat-icon-button (click)="openChatSideAgent()"
+                <!-- Toggles the chat-side agent panel (canonical agent
+                     surface). File-viewer's Monaco buffer is registered as
+                     the agent's edit channel on mount, so writes from the
+                     chat-side agent land in this dialog's editor. Available
+                     in Create World mode too — the chat-side panel is
+                     always reachable, independent of whether a book is
+                     active. -->
+                <button mat-icon-button (click)="toggleChatSideAgent()"
                     [class.active-agent]="panelState.isOpen()"
-                    [matTooltip]="'sidebar.fileViewer.showAgent' | translate">
+                    [matTooltip]="(panelState.isOpen() ? 'sidebar.fileViewer.hideAgent' : 'sidebar.fileViewer.showAgent') | translate">
                     <mat-icon>smart_toy</mat-icon>
                 </button>
             }

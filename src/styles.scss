@@ -168,11 +168,18 @@ body.agent-panel-embedded {
    cdk-overlay) to (viewport - agent-panel-inset). The popover element is in
    top-layer rendering but its layout box still respects CSS — we cap its
    width and shift the right edge in by the reserved inset. Backdrop too,
-   so clicks on the panel area don't dismiss the dialog. */
+   so clicks on the panel area don't dismiss the dialog.
+   Explicit `left: 0; right: auto; margin-left: 0` anchors the box to the
+   viewport's left edge — CDK's default `margin: auto` on the wrapper would
+   otherwise center the shrunk box, leaving an un-dimmed gap on the left. */
 .cdk-overlay-popover,
 .cdk-overlay-popover .cdk-overlay-backdrop {
     width: calc(100vw - var(--agent-panel-inset)) !important;
     max-width: calc(100vw - var(--agent-panel-inset)) !important;
+    left: 0 !important;
+    right: auto !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
 }
 
 /* Fullscreen Dialog Panel — fills the (now possibly shrunk) popover box. */
