@@ -81,8 +81,23 @@ function resolveAwareness(
 }
 
 export function normalizeStep(raw: Partial<AnalysisStep> | undefined): AnalysisStep {
+    // Legacy: pre-rename books emitted `kind: "random_event"`; current schema
+    // uses `kind: "event"` + `source: "random" | "hook_fire"`. Map old kind
+    // to the new pair so existing saves replay unchanged.
+    const rawKind = (raw as { kind?: string } | undefined)?.kind;
+    const isEvent = rawKind === 'event' || rawKind === 'random_event';
+    const kind: AnalysisStep['kind'] = isEvent ? 'event' : 'user_intent';
+    const rawSource = (raw as { source?: string } | undefined)?.source;
+    const source: AnalysisStep['source'] = isEvent
+        ? (rawSource === 'hook_fire' ? 'hook_fire' : 'random')
+        : '';
+    const hookTitle = source === 'hook_fire' && typeof raw?.hook_title === 'string'
+        ? raw.hook_title
+        : '';
     return {
-        kind: raw?.kind === 'random_event' ? 'random_event' : 'user_intent',
+        kind,
+        source,
+        hook_title: hookTitle,
         action: raw?.action ?? '',
         pc_dialogue: raw?.pc_dialogue ?? '',
         mood: raw?.mood ?? '',

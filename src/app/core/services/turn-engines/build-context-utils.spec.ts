@@ -18,6 +18,8 @@ const TAGS: IntentTagSet = {
 function step(overrides: Partial<AnalysisStep> = {}): AnalysisStep {
     return {
         kind: 'user_intent',
+        source: '',
+        hook_title: '',
         action: 'walk',
         pc_dialogue: '',
         mood: '',

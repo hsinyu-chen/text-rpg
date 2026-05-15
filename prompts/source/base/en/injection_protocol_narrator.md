@@ -8,10 +8,10 @@ The `[NARRATOR INPUT]` block contains structured JSON:
 
 | Field | Content |
 |---|---|
-| `ideal_outcome` | What the user hopes the full sequence achieves. |
+| `ideal_outcome` | What the user hoped to achieve (inferred only from the user's `<Action Intent>` input). |
 | `ideal_strength` | `perfectionist` / `pragmatic` / `desperate`. Drives tension handling: perfectionist faces partial success with disappointment; pragmatist with satisfaction; desperate with "at least I survived" relief. |
 | `interrupted` | Whether any step was truncated. `true` ⇒ the last entry in `analysis.steps` is the breaking step (`breaks_ideal=true`). |
-| `analysis` | Structured analysis: `scene_snapshot` (date_in_world / time_hhmm / location / environment / pc_name / pc_alias / pc_state / present_npcs[] / key_objects[]) + `steps[]` (each: action / pc_dialogue / mood / risk_factors / outcome / breaks_ideal / npc_reactions / object_reactions). Each `steps[]` element has `kind` of `"user_intent"` (a user-described action) or `"random_event"` (a resolver-injected event — NPC arrival, alarm, third-party intervention); both kinds are narrated the same way. |
+| `analysis` | Structured analysis: `scene_snapshot` (date_in_world / time_hhmm / location / environment / pc_name / pc_alias / pc_state / present_npcs[] / key_objects[]) + `steps[]` (each: kind / source / hook_title / action / pc_dialogue / mood / risk_factors / outcome / breaks_ideal / npc_reactions / object_reactions). Each `steps[]` element has `kind` of `"user_intent"` (a user-described action) or `"event"` (a resolver-injected event); events are sub-classified by `source`: `"random"` (NPC arrival, alarm, environmental shift) or `"hook_fire"` (story-hook triggered; carries `hook_title`; MUST be narrated as a full sensory awakening). |
 | `correction` (optional) | Historical story-correction rule; must obey. |
 
 ## Output (per the narrator schema)
@@ -39,7 +39,9 @@ Cheng Yangzong pushed open the tavern's wooden door...
 5. **`object_reactions[]` handling**:
    - `change == "unchanged"` ⇒ do NOT write to story
    - first appearance or actual change ⇒ render in scene description
-6. **`kind: "random_event"` steps** ⇒ narrate the same way as user_intent steps, woven into the prose at their chronological position in `steps[]`; no separate heading.
+6. **`kind: "event"` steps** ⇒ narration branches by `source`:
+   - **`source: "random"`** ⇒ narrate the same way as user_intent steps, woven into the prose at their chronological position in `steps[]`; no separate heading.
+   - **`source: "hook_fire"`** ⇒ per `system_prompt.md` "Story Guidance Handling" / "Trigger = Immediate Performance", **MUST be rendered with full sensory build-up and character reaction** — narrate the awakening / knowledge gain / identity establishment / foreshadowing revelation with concrete sensory detail, **not reduced to a single sentence**. The `action` field is a narrative seed; the finished prose adds the texture (bodily sensation of an awakening, sudden grasp of a world law, opening of a new perception). **`hook_title` MUST NOT appear in the prose** (it is a KB marker, not scene content).
 7. **`scene_snapshot.environment`** ⇒ permeate naturally through opening / between-step transitions; do not list-bullet.
 
 ### Physical detail alignment

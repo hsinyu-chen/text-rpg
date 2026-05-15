@@ -11,6 +11,8 @@ import {
 function step(overrides: Partial<AnalysisStep> = {}): AnalysisStep {
     return {
         kind: 'user_intent',
+        source: '',
+        hook_title: '',
         action: 'walk',
         pc_dialogue: '',
         mood: '',
@@ -137,15 +139,15 @@ describe('truncateAtBreak', () => {
         expect(result.scene_snapshot).toEqual(a.scene_snapshot);
     });
 
-    it('treats a random_event step the same as user_intent for truncation', () => {
+    it('treats an event step the same as user_intent for truncation', () => {
         const a = analysis([
             step({ kind: 'user_intent', action: 'a' }),
-            step({ kind: 'random_event', action: 'NPC C bursts in', breaks_ideal: true, outcome: '失敗 - 路徑被截斷' }),
+            step({ kind: 'event', source: 'random', action: 'NPC C bursts in', breaks_ideal: true, outcome: '失敗 - 路徑被截斷' }),
             step({ kind: 'user_intent', action: 'c (would-be next)' })
         ]);
         const result = truncateAtBreak(a);
         expect(result.steps).toHaveLength(2);
-        expect(result.steps[1].kind).toBe('random_event');
+        expect(result.steps[1].kind).toBe('event');
     });
 });
 
@@ -153,10 +155,10 @@ describe('structuredAnalysisSchema', () => {
     it('declares all required top-level fields', () => {
         const schema = structuredAnalysisSchema as { required?: string[] };
         expect(schema.required).toEqual(expect.arrayContaining(['scene_snapshot', 'steps']));
-        expect(schema.required).not.toContain('random_event');
+        expect(schema.required).not.toContain('event');
     });
 
-    it('step schema requires kind + breaks_ideal as boolean and lists scene reactions as required', () => {
+    it('step schema requires kind + source + hook_title + breaks_ideal and lists scene reactions as required', () => {
         const schema = structuredAnalysisSchema as {
             properties: {
                 steps: { items: { required?: string[]; properties: Record<string, { type?: string; enum?: string[] }> } };
@@ -164,11 +166,11 @@ describe('structuredAnalysisSchema', () => {
         };
         const stepReq = schema.properties.steps.items.required ?? [];
         expect(stepReq).toEqual(expect.arrayContaining([
-            'kind', 'action', 'pc_dialogue', 'mood', 'risk_factors', 'outcome', 'breaks_ideal',
+            'kind', 'source', 'hook_title', 'action', 'pc_dialogue', 'mood', 'risk_factors', 'outcome', 'breaks_ideal',
             'npc_reactions', 'object_reactions'
         ]));
         expect(schema.properties.steps.items.properties['breaks_ideal'].type).toBe('boolean');
-        expect(schema.properties.steps.items.properties['kind'].enum).toEqual(['user_intent', 'random_event']);
+        expect(schema.properties.steps.items.properties['kind'].enum).toEqual(['user_intent', 'event']);
     });
 
     it('npc_reaction schema includes a verbatim dialogue field (the bug-fix this redesign targets)', () => {

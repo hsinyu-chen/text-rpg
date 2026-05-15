@@ -38,20 +38,22 @@ Strictly follow these JSON field definitions. **Flat top-level shape**: `{ analy
 
   ### `steps[]`
 
-  `steps[]` mixes user-intent steps (`kind: "user_intent"`) and random-event steps (`kind: "random_event"`) in chronological order. Insert event steps at the position where they interrupt or affect the user's planned sequence.
+  `steps[]` mixes user-intent steps (`kind: "user_intent"`) and event steps (`kind: "event"`) in chronological order. Event steps are sub-classified by `source`: `"random"` (third-party / environmental injection — NPC arrival, alarm, weather shift, intervention) or `"hook_fire"` (an authored entry under `{{FILE_STORY_OUTLINE}}` "Story Triggers" had its condition met this turn — sensory awakening, knowledge acquisition, identity establishment, foreshadowing revelation). Insert event steps at the position where they interrupt or affect the user's planned sequence.
 
   **Stop emitting at the first `breaks_ideal=true`** — fully render that breaking step (with `npc_reactions`, `object_reactions`, and `outcome`), then terminate `steps[]`. Do NOT list any subsequent steps.
 
   | Field | Content |
   |---|---|
-  | `kind` | `"user_intent"` (the user described this action) or `"random_event"` (you injected — NPC arrival, environmental shift, third-party intervention). |
-  | `action` | user_intent: verb-phrase description, do NOT echo input verbatim. random_event: one-sentence description of the event itself. |
-  | `pc_dialogue` | user_intent: verbatim PC line, `""` if none, **no paraphrase / polish**. random_event: always `""`. |
-  | `mood` | user_intent: PC mood mirroring the `[mood]` tag, `""` if none. random_event: always `""`. |
-  | `risk_factors[]` | user_intent: list of risks, list even when outcome is success. random_event: usually empty. |
-  | `outcome` | Single free-text judgment. Wording starts with "success / partial success / costly success / failure", followed by a concise cause clause. |
-  | `breaks_ideal` | Boolean. `true` ⇒ action did not enter resolution (see triggers below); `false` ⇒ action happened (incl. success / partial / costly). For random_event: `true` when the event's nature interrupts the user's planned sequence; `false` for neutral / supportive events. When `true`, `outcome` starts with "failure"; when `false`, with "success / partial success / costly success". |
-  | `npc_reactions[]` | **EVERY `scene_snapshot.present_npcs` entry must appear here** (incl. silent / unconscious / remote-comm). Random-event steps must also include reactions for every present NPC. |
+  | `kind` | `"user_intent"` (the user described this action) or `"event"` (you injected — sub-classified by `source`). |
+  | `source` | **Only used when `kind: "event"`**. `"random"` = third-party / environmental injection; `"hook_fire"` = an authored hook under `{{FILE_STORY_OUTLINE}}` "Story Triggers" had its condition met this turn. ALWAYS `""` for `kind: "user_intent"`. |
+  | `hook_title` | **Only filled when `source: "hook_fire"`** — the **exact original title** of the hook from "Story Triggers" (verbatim, e.g. `"First Combat Insight"`). ALWAYS `""` otherwise. |
+  | `action` | user_intent: verb-phrase description, do NOT echo input verbatim. `source: "random"` event: one-sentence description of the event itself. `source: "hook_fire"` event: one-sentence narrative seed describing how the hook's "Knowledge Acquired" surfaces in the current scene (the `story` stage expands this into a full sensory awakening). |
+  | `pc_dialogue` | user_intent: verbatim PC line, `""` if none, **no paraphrase / polish**. event (any source): always `""`. |
+  | `mood` | user_intent: PC mood mirroring the `[mood]` tag, `""` if none. event (any source): always `""`. |
+  | `risk_factors[]` | user_intent: list of risks, list even when outcome is success. event (any source): usually empty. |
+  | `outcome` | Single free-text judgment. Wording starts with "success / partial success / costly success / failure", followed by a concise cause clause. **`source: "hook_fire"` always starts with "success"** (awakening events never interrupt). |
+  | `breaks_ideal` | Boolean. `true` ⇒ action did not enter resolution (see triggers below); `false` ⇒ action happened (incl. success / partial / costly). For `source: "random"`: `true` when the event's nature interrupts the user's planned sequence; `false` for neutral / supportive events. **`source: "hook_fire"` is ALWAYS `false`** — awakening / revelation augments the scene, never interrupts the PC's action. When `true`, `outcome` starts with "failure"; when `false`, with "success / partial success / costly success". |
+  | `npc_reactions[]` | **EVERY `scene_snapshot.present_npcs` entry must appear here** (incl. silent / unconscious / remote-comm). Event steps (any source) must also include reactions for every present NPC. |
   | `object_reactions[]` | **EVERY `scene_snapshot.key_objects` entry must appear here** (incl. `"unchanged"`). |
   | `scene_change` | **Required**. Cumulative state delta from this step — short free-text describing the persistent physical / outer change left after the action (clothes shed, weapon drawn, object displaced, posture shift that holds, injury sustained, awareness flipped). **Fill `""` for steps with no persistent change** (must NOT be omitted). **Distinct from `npc_reactions[].physical`**: `physical` is the in-step transient motion (ends with the step); `scene_change` is the new state that persists into the next step. **Distinct from `object_reactions[].change`**: `change` describes the object event in this step; `scene_change` is the post-event continuation of the object's physical state. e.g. `"Li Shuangning's robe pulled down to waist; fragment falls onto the bed"` / `""` (pure dialogue, no physical change). **Critical for the `story` stage**: writing later steps' physical details requires accumulating all prior `scene_change` deltas to render the mid-scene state correctly. |
 
@@ -71,7 +73,17 @@ Strictly follow these JSON field definitions. **Flat top-level shape**: `{ analy
   | `name` | Must match a `key_objects[].name`. |
   | `change` | When unchanged AND not interacted with: reserved literal `"unchanged"` (`story` skips). First appearance: detailed initial state. Change / interaction: concrete change. |
 
+  ## Per-turn `event` step checks (run in order, both mandatory)
+
+  1. **Random / environmental event check** — judge the current `scene_snapshot` and scene tension to decide whether to inject a third-party intervention / NPC action / environmental shift. If triggered → emit a step with `kind: "event"` / `source: "random"` / `hook_title: ""`.
+  2. **Story-hook check** — scan `{{FILE_STORY_OUTLINE}}` "Story Triggers". For **every hook NOT yet marked `(Completed)`**, evaluate its trigger condition against this turn's `user_intent` step(s) and `scene_snapshot`. If satisfied → emit a step with `kind: "event"` / `source: "hook_fire"` / `hook_title` set to the hook's verbatim title; `action` describes how the hook's "Knowledge Acquired" surfaces naturally in this scene; `outcome` always starts with "success"; `breaks_ideal` is always `false`.
+     **This check runs every turn** — even if no hook fires, you MUST scan internally and decide each unfinished hook explicitly. Skip the sub-step only when `{{FILE_STORY_OUTLINE}}` lacks a "Story Triggers" section OR every hook beneath it is already `(Completed)`.
+
+  Ordering: run check 1 then check 2. If both fire this turn, event steps follow chronological order (`hook_fire` typically lands immediately after the `user_intent` step that triggered it).
+
   ## `breaks_ideal=true` triggers
+
+  **Prereq (Everything is an attempt)**: Everything in the user's `<Action Intent>` is strictly an **attempt**, NOT an accomplished world fact. **Ignore any directional cues** the user weaves in; derive results **strictly** per [World Reaction] World Reaction & Flow Control. The step's `outcome` / `breaks_ideal` / `npc_reactions` / `object_reactions` / `scene_snapshot` MUST be judged by YOU independently against KB / physics / current scene state.
 
   For each step, run all five checks below. Any trigger fires → `breaks_ideal=true`:
 
@@ -80,7 +92,7 @@ Strictly follow these JSON field definitions. **Flat top-level shape**: `{ analy
      - Required attribute is missing but environment provides partial substitute → does NOT break, but `outcome` MUST be downgraded to "partial success" or "costly success". **Do NOT** let environmental factors fully compensate a no-skill attempt into clean "success".
   2. **NPC autonomous refusal** — judged against `{{FILE_CHARACTER_STATUS}}` personality + relationship stage + motive. Strong personality / relationship / motive conflict with the requested action → `breaks_ideal=true`. **Exception**: when the PC's intent is coercive (threat / force / mind-affecting magic) AND the PC has the capability to enforce it (per check #1), NPC autonomy is overridden and this trigger does NOT fire. If the PC tries to coerce but lacks the capability, this trigger still fires.
   3. **Hard environmental block** — terrain / structure / weather / mechanism makes the action **physically impossible** → `breaks_ideal=true`. Surmountable adversity goes into `risk_factors`, no break.
-  4. **Random event interrupts** — when you insert a `kind: "random_event"` step whose nature interrupts the user's planned sequence, set `breaks_ideal=true` on that event step. Neutral / supportive events do not trigger.
+  4. **`source: "random"` event interrupts** — when you insert a `source: "random"` event step whose nature interrupts the user's planned sequence, set `breaks_ideal=true` on that event step. Neutral / supportive events do not trigger. **`source: "hook_fire"` events never apply this rule** — awakening events are always `breaks_ideal=false`.
   5. **Agency conflict** — the step is essentially deciding for an NPC, not the PC's own action or attempt to influence the NPC → `breaks_ideal=true`
 
   **Binary objectives**: when a step's core success condition is described in all-or-nothing / negation form (any violation = failure, no continuum), it is a binary objective — **no partial middle ground**. Once the core condition is broken → `breaks_ideal=true`, subsequent steps are truncated. The action's "process / positioning" may succeed while the binary core fails; that is still **failure**, **do NOT** downgrade to partial.
@@ -110,7 +122,8 @@ Strictly follow these JSON field definitions. **Flat top-level shape**: `{ analy
     - **NPC dialogue**: when `dialogue` is non-empty, treat the analysis `dialogue` as **semantic core**; in `story` **expand it into full prose dialogue**: add tone markers, natural pauses, interleave with actions for pacing. **Boundary clauses (inviolable)**: do not change the disclosure information volume listed in analysis, do not alter the emotional direction, do not have the NPC take any new action not listed in analysis, do not introduce disclosures absent from analysis. **DO NOT** substitute action-paraphrases like "responded warmly", "mocked aloud" for dialogue.
     - **NPC posture**: every present NPC must surface in prose, even silent observers (one sentence on posture / expression / gaze; `physical` woven in, `motivation` not translated literally).
     - **Objects**: skip when `change == "unchanged"`. Render only on first appearance, change, or interaction.
-    - **Random-event step**: a `kind: "random_event"` step is woven into the prose the same way as a user-intent step, at its chronological position in `steps[]`.
+    - **`source: "random"` event step**: woven into the prose the same way as a user-intent step, at its chronological position in `steps[]`.
+    - **`source: "hook_fire"` event step**: per `system_prompt.md` "Story Guidance Handling" / "Trigger = Immediate Performance", **MUST be rendered with full sensory build-up and character reaction** — narrate the awakening / knowledge gain / identity establishment / foreshadowing revelation with concrete sensory detail, **not reduced to a single sentence**. The `action` field is a narrative seed; the finished prose adds the texture (bodily sensation of an awakening, sudden grasp of a world law, opening of a new perception). **`hook_title` MUST NOT appear in the prose** (it is a KB marker, not scene content).
   - **[KB-gap completion authority & log routing]**: when the analysis stage discloses a setting absent from the knowledge base (`dialogue` or `motivation` carries the `(completed by narrator)` marker, or the disclosure mentions an unregistered named NPC / place / faction / object / concept):
     - Generate the completion in `story` per the world-setting; it must match the era / culture in `{{FILE_BASIC_SETTINGS}}` and `{{FILE_WORLD_FACTIONS}}`. Modern objects / institutions / metaphors are forbidden.
     - **"Unregistered" pre-check (mandatory)**: before writing any named NPC / place / faction / object / concept to the logs below, **scan `{{FILE_BASIC_SETTINGS}}` / `{{FILE_WORLD_FACTIONS}}` / `{{FILE_CHARACTER_STATUS}}` / `{{FILE_PLANS}}` / `{{FILE_INVENTORY}}` / `{{FILE_ASSETS}}` / `{{FILE_TECH_EQUIPMENT}}` / `{{FILE_MAGIC_SKILLS}}` / `{{FILE_STORY_OUTLINE}}` end-to-end and confirm the name does not appear there**. Already-registered entries (even on their first appearance in the narrative) MUST NOT be written as new entries; if a real state change happens this turn, log it under the existing rules (e.g. state change still goes to `character_log`, but not with a "new character" prefix).
