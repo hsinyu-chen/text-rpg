@@ -61,4 +61,15 @@ describe('toAgentYaml', () => {
     const out = toAgentYaml({ result: { ok: true } });
     expect(out.endsWith('\n')).toBe(false);
   });
+
+  it('inlines duplicate object references instead of emitting YAML anchors/aliases', () => {
+    // Default yaml-package behavior would emit `&a1` on the first reference
+    // and `*a1` on the second. For a UI log read by humans, that's a regression.
+    const shared = { id: 'abc', name: 'shared' };
+    const out = toAgentYaml({ result: { first: shared, second: shared } });
+    expect(out).not.toMatch(/^\s*[*&]\w/m);
+    // Each reference should render fully twice.
+    const occurrences = (out.match(/id: abc/g) ?? []).length;
+    expect(occurrences).toBe(2);
+  });
 });

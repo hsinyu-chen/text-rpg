@@ -19,6 +19,10 @@ export function toAgentYaml(value: unknown): string {
   // which would silently violate this util's `string` return type, and
   // (b) always appends a trailing newline that shows up as a blank line in the
   // `<pre>`-rendered log entry. Coalesce + trimEnd handles both at the boundary.
-  const yaml = stringify(value, { lineWidth: 0, indent: 2 });
+  // `aliasDuplicateObjects: false` keeps the output anchor/alias-free
+  // (`&id` / `*id` markers). They save bytes when the same object is
+  // referenced twice but make the log unreadable for anyone not fluent
+  // in YAML — and the UI log is exactly where readability is the point.
+  const yaml = stringify(value, { lineWidth: 0, indent: 2, aliasDuplicateObjects: false });
   return yaml ? yaml.trimEnd() : '';
 }
