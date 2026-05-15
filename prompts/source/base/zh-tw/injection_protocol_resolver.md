@@ -110,7 +110,7 @@
    - 主角缺乏所需條件但環境提供部分替代 → 不觸發 break，但 `outcome` **必須**降為「部份成功」或「伴隨代價的成功」。**禁止**只用環境因素把無技能嘗試全額補償為「成功」。
 2. **NPC 自主拒絕**：依 `{{FILE_CHARACTER_STATUS}}` 性格 + 關係階段 + 利益動機。性格／關係／利益任一與該動作強烈牴觸 → `breaks_ideal=true`。**例外**：當主角意圖屬強制類（脅迫／武力／施法控制等）且**具備足以強制該 NPC 的能力**（依 #1 能力檢核），NPC 自主性被壓制，本條不觸發；若強制能力不足，仍以本條觸發。
 3. **環境硬性阻擋**：地形／結構／天氣／機關使動作**物理上不可行** → `breaks_ideal=true`。可克服的不利列入 `risk_factors`，不觸發。
-4. **`source: "random"` 事件中斷**：當你插入 `source: "random"` 事件步驟且該事件性質為「打斷主角 step 序列」時，於該事件 step 標 `breaks_ideal=true`。中性／支援性事件不觸發。**`source: "hook_fire"` 事件永不適用本條**——覺醒類事件一律 `breaks_ideal=false`。
+4. **`source: "random"` 事件中斷**：當你插入 `source: "random"` 事件步驟且該事件性質為「打斷主角 step 序列」時，於該事件 step 標 `breaks_ideal=true`。中性／支援性事件不觸發。`source: "hook_fire"` 事件通常不觸發本條（鉤子為劇情增添），但若鉤子內容明確中斷主角行動仍可觸發。
 5. **代理權衝突**：step 本質是替 NPC 做決定，而非主角自身的動作或對 NPC 的影響嘗試 → `breaks_ideal=true`
 
 **Binary 目標處理**：當 step 的核心成功條件以「全有／全無」否定形式描述（任何違反即為失敗，無程度連續譜），即為 binary 目標，**不存在 partial 中間值**。核心條件一旦被破壞 → `breaks_ideal=true`，後續 steps 截斷。動作的「過程／位置」可能達成但「核心 binary 條件」失敗時，仍為失敗，**禁止**降為 partial。**`ideal_strength` 不影響 step-level binary 判定**：pragmatic/desperate 容許的是**總意圖**有容錯，而非 step 的 binary 條件可以放水。每個 binary step 必須單獨依其核心條件判定。
