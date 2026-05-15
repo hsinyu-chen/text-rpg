@@ -213,7 +213,8 @@
                 <app-agent-console
                     [files]="data.files"
                     [initialPrompt]="data.initialAgentPrompt || ''"
-                    [chatMessages]="chatMessagesForAgent()" />
+                    [chatMessages]="chatMessagesForAgent()"
+                    surface="file-edit" />
             </div>
         }
     </div>

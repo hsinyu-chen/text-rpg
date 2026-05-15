@@ -24,6 +24,15 @@ export interface FileAgentContext {
    */
   readOnly?: boolean;
   /**
+   * Which physical AgentConsole instance is invoking the executor. Two mount
+   * points exist: the chat-panel console (`main`, also used for the PiP
+   * popout) and the file-viewer dialog's embedded console (`file-edit`).
+   * Surfaced on the user-message tag so the LLM perceives surface across
+   * turns, and used by interactive propose-tools (PR-A1) that only make
+   * sense on `main`. Defaults to `main` when omitted.
+   */
+  surface?: 'main' | 'file-edit';
+  /**
    * Optional. When provided, the `uiMap` tool delegates here for the full
    * UI tree dump. FileAgentService injects this from `AgentHintRegistry`;
    * the callback keeps the executor DI-free.
