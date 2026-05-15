@@ -10,7 +10,7 @@ describe('normalizeStep', () => {
     });
 
     it('migrates legacy kind:"random_event" to kind:"event" with source:"random"', () => {
-        const out = normalizeStep({ kind: 'random_event' as unknown as 'event', action: 'NPC bursts in' });
+        const out = normalizeStep({ kind: 'random_event', action: 'NPC bursts in' });
         expect(out.kind).toBe('event');
         expect(out.source).toBe('random');
         expect(out.hook_title).toBe('');
@@ -47,15 +47,15 @@ describe('normalizeStep', () => {
     it('forces source and hook_title to "" on user_intent regardless of input', () => {
         const out = normalizeStep({
             kind: 'user_intent',
-            source: 'hook_fire' as unknown as '',
-            hook_title: 'leaking title' as unknown as string
+            source: 'hook_fire',
+            hook_title: 'leaking title'
         });
         expect(out.source).toBe('');
         expect(out.hook_title).toBe('');
     });
 
     it('coerces an unknown source value on an event step to "random"', () => {
-        const out = normalizeStep({ kind: 'event', source: 'mystery' as unknown as 'random' });
+        const out = normalizeStep({ kind: 'event', source: 'mystery' });
         expect(out.source).toBe('random');
     });
 });

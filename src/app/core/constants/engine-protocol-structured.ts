@@ -114,8 +114,10 @@ export interface AnalysisStep {
      *   alarm, weather, etc.). Existing pre-rename semantics.
      * - `"hook_fire"`: an authored hook entry under `{{FILE_STORY_OUTLINE}}`
      *   "啟動劇情引導" had its trigger condition met this turn. Carries
-     *   {@link hook_title}; never `breaks_ideal=true`; narrator must give
-     *   full sensory awakening prose per `# 劇情引導處理`.
+     *   {@link hook_title}; usually `breaks_ideal=false` (hooks are
+     *   augmentations) but can be `true` when the hook content genuinely
+     *   interrupts the PC's action. Narrator must give full sensory
+     *   awakening prose per `# 劇情引導處理`.
      *
      * Always `""` for `kind: "user_intent"` steps.
      */
