@@ -503,7 +503,7 @@ function replaceSection(args: ReplaceSectionArgs, context: FileAgentContext): To
     }
     if (resolution.kind === 'ambiguous') {
       const ambig = ambiguousSectionError('replace', u.sectionPath, resolution.matches);
-      return { response: { ...ambig, error: `${NO_WRITE_PREFIX}${ambig['error'] ?? 'ambiguous section'}`, fileChanged: false } };
+      return writeError(ambig['error'] as string ?? 'ambiguous section', { matches: ambig['matches'] });
     }
     const descendants = getDescendantHeaders(content, resolution.section);
     if (descendants.length > 0 && !u.force) {
@@ -864,7 +864,7 @@ function insertIntoSection(args: InsertIntoSectionArgs, context: FileAgentContex
   if (resolution.kind === 'none') return writeError(`Section not found: "${args.sectionPath}"`);
   if (resolution.kind === 'ambiguous') {
     const ambig = ambiguousSectionError('replace', args.sectionPath, resolution.matches);
-    return { response: { ...ambig, error: `${NO_WRITE_PREFIX}${ambig['error'] ?? 'ambiguous section'}`, fileChanged: false } };
+    return writeError(ambig['error'] as string ?? 'ambiguous section', { matches: ambig['matches'] });
   }
 
   const latexCheck = checkLatex(args.content, `content (${args.sectionPath})`);
