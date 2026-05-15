@@ -352,19 +352,31 @@ function Send-BridgeChatPanelPrompt {
 # Defaults to sidebar mode (readOnly) — write tools are rejected, matching
 # the chat-side agent surface. -Mode fileViewer lets the agent call write
 # tools, but the writes hit an isolated snapshot Map; the engine's KB
-# stays untouched. -KeepHistory preserves prior turns instead of clearing.
+# stays untouched.
+#
+# History flags (mutually exclusive — pass at most one):
+#   default      keeps the singleton agent's prior turns visible to this run
+#                (matches the bridge service's default-preserve behavior)
+#   -ClearHistory  wipe agent.agentHistory before this run; use when starting
+#                  a fresh A/B comparison or whenever you don't want the
+#                  previous question's tool results to leak into context
+#   -KeepHistory   alias for the default — kept for back-compat with older
+#                  scripts; sends clearHistory=false explicitly
 function Send-BridgeAgentAsk {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory)] [string] $Prompt,
         [ValidateSet('sidebar', 'fileViewer')] [string] $Mode = 'sidebar',
-        [switch] $KeepHistory
+        [switch] $KeepHistory,
+        [switch] $ClearHistory
     )
+    if ($KeepHistory -and $ClearHistory) { throw 'Pass at most one of -KeepHistory / -ClearHistory.' }
     $body = @{
         prompt = $Prompt
         mode   = $Mode
     }
-    if ($KeepHistory) { $body.clearHistory = $false }
+    if ($ClearHistory) { $body.clearHistory = $true }
+    elseif ($KeepHistory) { $body.clearHistory = $false }
     Invoke-Bridge -Path '/agent/ask' -Body $body -TimeoutSec 600
 }
 

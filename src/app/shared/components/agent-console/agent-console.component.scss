@@ -193,6 +193,18 @@
                         border-top: 1px solid rgba(255, 255, 255, 0.05);
                     }
 
+                    // Tool call / tool result render YAML — monospace gives the
+                    // indent + key alignment that proportional-font div lacks.
+                    // <pre> needs its browser-default vertical margin reset so
+                    // it sits flush with the container chrome.
+                    pre.log-thought-text {
+                        margin: 0;
+                        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+                        color: rgba(255, 255, 255, 0.55);
+                        line-height: 1.45;
+                        overflow-x: auto;
+                    }
+
                     .log-tool-reason {
                         padding: 2px 8px 4px 26px;
                         color: rgba(255, 255, 255, 0.6);

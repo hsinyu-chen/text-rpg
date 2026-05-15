@@ -385,10 +385,14 @@ Modes:
   mutated. `replacements[]` in the response shows what the agent would
   have written. Safe to use on an active playthrough.
 
-`-KeepHistory` preserves the prior turn's `agentHistory` so you can run a
-follow-up question; default behavior wipes history per call (each Q&A is
-fresh). The agent instance is one-per-bridge — concurrent `agent_ask`
-calls return `agent_busy`.
+**History defaults to PRESERVE.** The bridge service holds a singleton
+file-agent, so each `agent_ask` sees the prior turn's `agentHistory` —
+useful for follow-up questions but a leak hazard for fresh A/B
+comparisons. Pass `-ClearHistory` whenever you start a new question
+that should not see the previous tool calls / results in context. The
+opposite `-KeepHistory` is an explicit no-op alias kept for back-compat
+(it sends `clearHistory: false`, same as the implicit default).
+Concurrent `agent_ask` calls return `agent_busy`.
 
 ### Two-call timing
 

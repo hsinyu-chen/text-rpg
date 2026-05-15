@@ -28,6 +28,7 @@ import { CollectionService } from '@app/core/services/collection.service';
 import { SessionService } from '@app/core/services/session.service';
 import { FULLSCREEN_DIALOG_CONFIG } from '@app/shared/material/dialog-presets';
 import { applyHarnessFallbacks } from './normalize-message-links.util';
+import { toAgentYaml } from './file-agent-yaml.util';
 
 /**
  * Thrown by the service's default `onFileReplaced` when a write tool fires
@@ -147,7 +148,7 @@ export class FileAgentService {
   private pushToolResultLog(response: Record<string, unknown>, toolName?: string): void {
     this.agentLogs.update(logs => [...logs, {
       role: 'system',
-      text: JSON.stringify(response, null, 2),
+      text: toAgentYaml(response),
       type: 'action' as const,
       isToolResult: true,
       isToolResultCollapsed: true,
@@ -976,7 +977,7 @@ function buildToolCallLogEntry(a: ParsedAction): AgentLogEntry & { toolName: str
   const reason = (typeof args['reason'] === 'string') ? args['reason'] : undefined;
   return {
     role: 'model',
-    text: JSON.stringify({ action: a.action, args: a.args }, null, 2),
+    text: toAgentYaml({ action: a.action, args: a.args }),
     type: 'model' as const,
     isToolCall: true,
     isToolCallCollapsed: true,
