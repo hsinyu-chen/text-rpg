@@ -759,6 +759,24 @@ export class FileAgentService {
   }
 
   /**
+   * Run a single tool call and map an `EditChannelLostError` (raised by the
+   * default onFileReplaced when the user closed the File Viewer mid-write)
+   * into a structured tool-error result, so the LLM can stop attempting
+   * further writes via the same channel this turn. Everything else
+   * propagates — those are real engine bugs, not user-driven interrupts.
+   */
+  private async executeFileToolSafe(action: ParsedAction, context: FileAgentContext) {
+    try {
+      return await executeFileTool(action, context);
+    } catch (e) {
+      if (e instanceof EditChannelLostError) {
+        return { response: { status: 'error', message: EDIT_CHANNEL_LOST_TOOL_MESSAGE, fileChanged: false } };
+      }
+      throw e;
+    }
+  }
+
+  /**
    * Single-action fast path: reuse the streaming log entry for the
    * tool-call display when the model produced no commentary, otherwise
    * append a fresh tool-call entry alongside the commentary. Either way,
@@ -797,16 +815,7 @@ export class FileAgentService {
       ...context,
       onFileReplaced: (f, c) => { context.onFileReplaced(f, c); singleReplaced = { filename: f, content: c }; }
     };
-    let result;
-    try {
-      result = await executeFileTool(a, singleContext);
-    } catch (e) {
-      if (e instanceof EditChannelLostError) {
-        result = { response: { status: 'error', message: EDIT_CHANNEL_LOST_TOOL_MESSAGE, fileChanged: false } };
-      } else {
-        throw e;
-      }
-    }
+    const result = await this.executeFileToolSafe(a, singleContext);
     if (singleReplaced) this.lastFilesReplaced.set([singleReplaced]);
     if (result.infoLog) {
       this.agentLogs.update(logs => [...logs, { role: 'system', text: result.infoLog!, type: 'info' }]);
@@ -845,16 +854,7 @@ export class FileAgentService {
       }
       const toolEntry = buildToolCallLogEntry(a);
       this.agentLogs.update(logs => [...logs, toolEntry]);
-      let result;
-      try {
-        result = await executeFileTool(a, batchContext);
-      } catch (e) {
-        if (e instanceof EditChannelLostError) {
-          result = { response: { status: 'error', message: EDIT_CHANNEL_LOST_TOOL_MESSAGE, fileChanged: false } };
-        } else {
-          throw e;
-        }
-      }
+      const result = await this.executeFileToolSafe(a, batchContext);
       if (result.infoLog) {
         this.agentLogs.update(logs => [...logs, { role: 'system', text: result.infoLog!, type: 'info' }]);
       }
