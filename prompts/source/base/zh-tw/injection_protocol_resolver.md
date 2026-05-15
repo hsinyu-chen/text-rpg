@@ -57,7 +57,7 @@
 | `kind` | `"user_intent"`（使用者輸入的動作）或 `"event"`（你判定插入的事件；細分由 `source` 標明）。 |
 | `source` | **僅 `kind: "event"` 使用**。`"random"` = 隨機 / 環境事件；`"hook_fire"` = `{{FILE_STORY_OUTLINE}}` 「啟動劇情引導」中本回合被觸發的鉤子。`kind: "user_intent"` 一律填 `""`。 |
 | `hook_title` | **僅 `source: "hook_fire"` 時填**該鉤子在「啟動劇情引導」中的**完整原始標題（逐字照抄，例 `"第一次戰鬥感悟"`）**。其餘情況一律 `""`。 |
-| `action` | user_intent: 動詞片語（含目標），**不要逐字複述輸入**。`source: "random"` event: 事件本身的一句描述。`source: "hook_fire"` event: 一句敘事種子，描述該鉤子「取得知識」在當下劇情中如何自然展現（narrator 階段會擴寫成完整感官覺醒）。 |
+| `action` | user_intent: 動詞片語（含目標），**不要逐字複述輸入**。`source: "random"` event: 事件本身的一句描述。`source: "hook_fire"` event: 一句敘事種子，描述該鉤子下記載的內容在當下劇情中如何自然展現（narrator 階段會擴寫成完整感官鋪陳）。 |
 | `pc_dialogue` | user_intent: 主角本步台詞**原文**，無則 `""`，**禁止潤飾或意譯**。event（任一 source）: 一律 `""`。 |
 | `mood` | user_intent: 主角心境（呼應 `[心境]`），無則 `""`。event（任一 source）: 一律 `""`。 |
 | `risk_factors[]` | user_intent: 風險清單，即使最終成功也要列。event（任一 source）: 通常空陣列。 |

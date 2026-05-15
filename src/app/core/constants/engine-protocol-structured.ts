@@ -122,8 +122,8 @@ export interface AnalysisStep {
     source: EventSource | '';
     /**
      * Exact hook title from `{{FILE_STORY_OUTLINE}}` "啟動劇情引導" when
-     * {@link source} is `"hook_fire"` (e.g. `"第一次戰鬥感悟"`). Always `""`
-     * for `kind: "user_intent"` and for `source: "random"` event steps.
+     * {@link source} is `"hook_fire"`. Always `""` for `kind: "user_intent"`
+     * and for `source: "random"` event steps.
      */
     hook_title: string;
     action: string;
@@ -315,11 +315,11 @@ const analysisStepSchema: Schema = {
         },
         hook_title: {
             type: 'string',
-            description: 'EXACT hook title from {{FILE_STORY_OUTLINE}} "啟動劇情引導" when `source:"hook_fire"` (e.g. "第一次戰鬥感悟"). ALWAYS "" for `kind:"user_intent"` and for `source:"random"` event steps. Reproduce the title verbatim — used downstream to cross-reference the hook entry and to append `(已完成)` at next save.'
+            description: 'EXACT hook title from {{FILE_STORY_OUTLINE}} "啟動劇情引導" when `source:"hook_fire"`. ALWAYS "" for `kind:"user_intent"` and for `source:"random"` event steps. Reproduce the title verbatim — used downstream to cross-reference the hook entry and to append `(已完成)` at next save.'
         },
         action: {
             type: 'string',
-            description: 'For user_intent: verb-phrase rewording of the user input action (e.g. "走向廣場中央" / "嘗試攻擊梨菲"). NOT a verbatim echo — paraphrase objectively. For `source:"random"` event: one-sentence description of the event itself (e.g. "凱爾推門進入並截住艾爾"). For `source:"hook_fire"` event: one-sentence framing of the hook\'s awakening / knowledge gain sourced from its 取得知識 entry (e.g. "首次斬殺怪物的瞬間,主角體內升起對魔力流動的本能感知").'
+            description: 'For user_intent: verb-phrase rewording of the user input action (e.g. "走向廣場中央" / "嘗試攻擊梨菲"). NOT a verbatim echo — paraphrase objectively. For `source:"random"` event: one-sentence description of the event itself (e.g. "凱爾推門進入並截住艾爾"). For `source:"hook_fire"` event: one-sentence narrative seed describing how the content recorded under that hook surfaces in the current scene.'
         },
         pc_dialogue: {
             type: 'string',
@@ -336,7 +336,7 @@ const analysisStepSchema: Schema = {
         },
         outcome: {
             type: 'string',
-            description: 'Single free-text judgment. For user_intent: "成功 - 勉強站穩" / "部份成功 - 達成A但B被拒" / "伴隨代價的成功 - 翻牆但扭傷腳踝" / "失敗 - 梨菲閃過並反擊". For `source:"random"` event: describe the event\'s immediate effect (e.g. "成功 - 凱爾擋在櫃檯前阻斷接近路徑" / "失敗 - 警鈴觸發，附近護衛全數警覺"). For `source:"hook_fire"` event: judge by the hook\'s content nature — awakening / gain → "成功 - 主角首次感受到體內魔力的流動"; tragic reveal / loss / curse → "失敗 - 揭露主角身世真相" or similar. No mandatory "success" override. The narrator quotes this in prose.'
+            description: 'Single free-text judgment. For user_intent: "成功 - 勉強站穩" / "部份成功 - 達成A但B被拒" / "伴隨代價的成功 - 翻牆但扭傷腳踝" / "失敗 - 梨菲閃過並反擊". For `source:"random"` event: describe the event\'s immediate effect (e.g. "成功 - 凱爾擋在櫃檯前阻斷接近路徑" / "失敗 - 警鈴觸發，附近護衛全數警覺"). For `source:"hook_fire"` event: judge by the hook\'s content nature — same wording grammar as above, no mandatory "success" override. The narrator quotes this in prose.'
         },
         breaks_ideal: {
             type: 'boolean',

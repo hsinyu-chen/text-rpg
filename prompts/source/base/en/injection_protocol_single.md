@@ -47,7 +47,7 @@ Strictly follow these JSON field definitions. **Flat top-level shape**: `{ analy
   | `kind` | `"user_intent"` (the user described this action) or `"event"` (you injected — sub-classified by `source`). |
   | `source` | **Only used when `kind: "event"`**. `"random"` = third-party / environmental injection; `"hook_fire"` = an authored hook under `{{FILE_STORY_OUTLINE}}` "Story Triggers" had its condition met this turn. ALWAYS `""` for `kind: "user_intent"`. |
   | `hook_title` | **Only filled when `source: "hook_fire"`** — the **exact original title** of the hook from "Story Triggers" (verbatim, e.g. `"First Combat Insight"`). ALWAYS `""` otherwise. |
-  | `action` | user_intent: verb-phrase description, do NOT echo input verbatim. `source: "random"` event: one-sentence description of the event itself. `source: "hook_fire"` event: one-sentence narrative seed describing how the hook's "Knowledge Acquired" surfaces in the current scene (the `story` stage expands this into a full sensory awakening). |
+  | `action` | user_intent: verb-phrase description, do NOT echo input verbatim. `source: "random"` event: one-sentence description of the event itself. `source: "hook_fire"` event: one-sentence narrative seed describing how the content recorded under the hook surfaces in the current scene (the `story` stage expands this into a full sensory build-up). |
   | `pc_dialogue` | user_intent: verbatim PC line, `""` if none, **no paraphrase / polish**. event (any source): always `""`. |
   | `mood` | user_intent: PC mood mirroring the `[mood]` tag, `""` if none. event (any source): always `""`. |
   | `risk_factors[]` | user_intent: list of risks, list even when outcome is success. event (any source): usually empty. |
