@@ -307,11 +307,11 @@ const analysisStepSchema: Schema = {
         kind: {
             type: 'string',
             enum: [...STEP_KINDS],
-            description: '"user_intent" for steps the user described in their <行動意圖>; "event" for a non-user occurrence YOU inserted (third-party / environmental injection OR an authored hook firing — see `source`). Insert event steps at the array position where they interrupt the user\'s planned sequence; if a `source:"random"` event is judged breaks_ideal=true, subsequent user_intent steps are NOT emitted. `source:"hook_fire"` events are augmentations and never breaks_ideal=true.'
+            description: '"user_intent" for steps the user described in their <行動意圖>; "event" for a non-user occurrence YOU inserted (third-party / environmental injection OR an authored hook firing — see `source`). Insert event steps at the array position where they interrupt the user\'s planned sequence; if an event is judged breaks_ideal=true, subsequent user_intent steps are NOT emitted.'
         },
         source: {
             type: 'string',
-            description: 'Sub-discriminator for `kind:"event"`. ONLY two legal values: "random" or "hook_fire". "random" = third-party / environmental injection (NPC arrival, alarm, weather shift, etc.). "hook_fire" = an authored hook entry under {{FILE_STORY_OUTLINE}} "啟動劇情引導" had its trigger condition met this turn; carries `hook_title`; narrator must give full sensory awakening prose per `# 劇情引導處理`. ALWAYS "" for `kind:"user_intent"`.'
+            description: 'Sub-discriminator. "random" or "hook_fire" when `kind:"event"`; "" when `kind:"user_intent"`. "random" = third-party / environmental injection (NPC arrival, alarm, weather shift, etc.). "hook_fire" = an authored hook entry under {{FILE_STORY_OUTLINE}} "啟動劇情引導" had its trigger condition met this turn; carries `hook_title`; narrator must give full sensory awakening prose per `# 劇情引導處理`.'
         },
         hook_title: {
             type: 'string',
