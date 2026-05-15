@@ -196,13 +196,15 @@
                     // Tool call / tool result render YAML — monospace gives the
                     // indent + key alignment that proportional-font div lacks.
                     // <pre> needs its browser-default vertical margin reset so
-                    // it sits flush with the container chrome.
+                    // it sits flush with the container chrome. Wrap behavior
+                    // (`white-space: pre-wrap`) is inherited from the base
+                    // class — keeping it means long values reflow at the
+                    // narrow-panel edge instead of forcing horizontal scroll.
                     pre.log-thought-text {
                         margin: 0;
                         font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
                         color: rgba(255, 255, 255, 0.55);
                         line-height: 1.45;
-                        overflow-x: auto;
                     }
 
                     .log-tool-reason {
