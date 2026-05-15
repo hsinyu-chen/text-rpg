@@ -311,6 +311,7 @@ const analysisStepSchema: Schema = {
         },
         source: {
             type: 'string',
+            enum: ['', 'random', 'hook_fire'],
             description: 'Sub-discriminator. "random" or "hook_fire" when `kind:"event"`; "" when `kind:"user_intent"`. "random" = third-party / environmental injection (NPC arrival, alarm, weather shift, etc.). "hook_fire" = an authored hook entry under {{FILE_STORY_OUTLINE}} "啟動劇情引導" had its trigger condition met this turn; carries `hook_title`; narrator must give full sensory awakening prose per `# 劇情引導處理`.'
         },
         hook_title: {
