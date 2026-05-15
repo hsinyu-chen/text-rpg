@@ -408,11 +408,10 @@ export class FileAgentService {
       live.write(filename, content);
       return;
     }
-    this.agentLogs.update(logs => [...logs, {
-      role: 'system',
-      text: `[user interrupt the editing] dropped write to ${filename} (${content.length} chars); File Viewer was closed mid-stream`,
-      type: 'error'
-    }]);
+    // Don't push a separate agentLogs entry here — the throw routes through
+    // executeFileToolSafe → tool-error response → pushToolResultLog, which
+    // already surfaces EDIT_CHANNEL_LOST_TOOL_MESSAGE in the console.
+    // Logging twice for the same interrupt is just noise.
     throw new EditChannelLostError(filename, content.length);
   };
 
