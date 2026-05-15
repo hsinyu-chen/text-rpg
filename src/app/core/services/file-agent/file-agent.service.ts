@@ -398,8 +398,11 @@ export class FileAgentService {
    * an aborted run) and decides whether to retry / submitResponse.
    *
    * Bound as an arrow so it can be passed by reference without losing `this`.
+   * Public so headless callers (bridge agent_ask) can wrap it with a
+   * per-call collector instead of duplicating the channel-write / log /
+   * throw logic.
    */
-  private defaultOnFileReplaced = (filename: string, content: string): void => {
+  defaultOnFileReplaced = (filename: string, content: string): void => {
     const live = this.panelState.editChannel();
     if (live) {
       live.write(filename, content);

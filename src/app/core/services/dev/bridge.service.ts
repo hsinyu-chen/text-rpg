@@ -2,7 +2,7 @@ import {
     Injectable, signal, effect, inject, DestroyRef
 } from '@angular/core';
 import { FILE_VIEWER_OPENER } from './file-viewer-opener.token';
-import { EditChannelLostError, FileAgentService } from '../file-agent/file-agent.service';
+import { FileAgentService } from '../file-agent/file-agent.service';
 import { FileAgentSettingsStore } from '../file-agent/file-agent-settings.store';
 import { AgentPanelStateService } from '../file-agent/agent-panel-state.service';
 import { I18nService } from '@app/core/i18n';
@@ -1145,15 +1145,15 @@ export class BridgeService {
         // lastFilesReplaced is a "last batch only" signal (overwritten per
         // batch, never cleared), so it CAN'T be used to collect everything a
         // multi-batch run wrote. Use a per-call collector via onFileReplaced
-        // instead. The collector also mirrors defaultOnFileReplaced behavior
-        // (write to editChannel, throw EditChannelLostError if it vanished
-        // mid-write) so write semantics stay identical to chat-side runs.
+        // instead, delegating the actual write to the service's public
+        // defaultOnFileReplaced so we keep one source of truth for channel-
+        // write + edit-channel-lost logging + throw semantics. Push to the
+        // local array ONLY after the delegate returns — if it threw, the
+        // write was dropped and the summary correctly omits it.
         const turnReplacements: { filename: string; content: string }[] = [];
         const collectingOnFileReplaced = (filename: string, content: string): void => {
+            agent.defaultOnFileReplaced(filename, content);
             turnReplacements.push({ filename, content });
-            const live = this.panelState.editChannel();
-            if (!live) throw new EditChannelLostError(filename, content.length);
-            live.write(filename, content);
         };
         // Source files from the edit channel when present (write-mode contract
         // already enforced above), otherwise from the live engine state.

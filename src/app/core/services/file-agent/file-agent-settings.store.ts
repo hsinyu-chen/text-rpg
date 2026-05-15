@@ -2,25 +2,22 @@ import { Injectable, inject, signal } from '@angular/core';
 import { KVStore } from '../kv/kv-store';
 import { LLMConfigService } from '../llm-config.service';
 
-/** Shared across all FileAgentService instances. Persists across sessions. */
+/** KV key for the file-agent's selected profile. Persists across sessions. */
 export const FILE_AGENT_PROFILE_KEY = 'file_agent_profile_id';
 
 /**
- * Singleton store for state that must stay in sync across every
- * FileAgentService instance:
+ * Singleton store for KV-backed file-agent settings + capability-probe
+ * caches:
  *
- * - `selectedProfileId`: the profile choice the user made for the file-agent.
- *   Without this store, each FileAgentService cached its own copy in a
- *   per-instance signal, so picking a profile in the file-viewer dialog
- *   didn't update the long-lived main-screen agent instance — the two would
- *   silently diverge (different default toolCallMode, different probe
- *   outcomes, different native vs JSON behaviour).
+ * - `selectedProfileId`: the profile choice the user made for the
+ *   file-agent. KV-backed so the choice survives a reload.
  * - `probeResults` / `parallelProbeResults`: same profile → same probe
- *   outcome. Caching here means the second instance reuses the first's
- *   verdict instead of racing a fresh probe.
+ *   outcome, so we cache once and let every consumer reuse the verdict
+ *   instead of re-probing.
  *
- * `agentLogs` / `agentHistory` are deliberately NOT in this store — each
- * file-agent surface (dialog vs main-screen) keeps its own conversation.
+ * Kept separate from `FileAgentService` (also a root singleton now) so the
+ * probe-cache lifetime is decoupled from the agent loop's lifetime — the
+ * agent can be torn down + recreated without losing the cached probe.
  */
 @Injectable({ providedIn: 'root' })
 export class FileAgentSettingsStore {

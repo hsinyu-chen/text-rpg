@@ -44,8 +44,8 @@ import { AgentPanelStateService } from '@app/core/services/file-agent/agent-pane
     // AgentPanelPortalService is component-scoped because each chat surface
     // owns its own embedded slot + PiP lifecycle. FileAgentService is now a
     // root singleton — every surface (chat, file-viewer createWorldMode,
-    // bridge agent_ask via child injector) reads from the SAME agent state,
-    // so closing the panel mid-run never drops history / logs / FSM state.
+    // headless bridge agent_ask) reads from the SAME agent state, so
+    // closing the panel mid-run never drops history / logs / FSM state.
     providers: [AgentPanelPortalService]
 })
 export class ChatComponent {
