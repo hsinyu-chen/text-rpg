@@ -148,26 +148,32 @@ describe('buildSystemInstruction', () => {
     });
   });
 
-  describe('surface-mode block (mode-tag protocol)', () => {
-    // The block is static — both [mode: editor] and [mode: readonly] are
-    // described in every system prompt, with the marker on the user message
-    // selecting which applies on a given turn. Decoupling readOnly from the
-    // system prompt is what keeps the LLM KV cache stable across panel toggles.
-    it('describes both modes regardless of readOnly', () => {
+  describe('surface-mode block (marker protocol)', () => {
+    // The block is static — all four marker values ([surface: main|file-edit]
+    // and [kb-file-writes: enabled|disabled]) are described in every system
+    // prompt, with the per-turn markers on each user message selecting which
+    // combination applies. Decoupling readOnly from the system prompt is what
+    // keeps the LLM KV cache stable across panel toggles.
+    it('describes both surface values and both write-capability values regardless of readOnly', () => {
       const ro = build({ readOnly: true });
       const rw = build({ readOnly: false });
       for (const out of [ro, rw]) {
-        expect(out).toContain('EDITING SURFACE — TWO MODES');
-        expect(out).toContain('[mode: editor]');
-        expect(out).toContain('[mode: readonly]');
+        expect(out).toContain('EDITING SURFACE — TWO MARKERS');
+        expect(out).toContain('[surface: main]');
+        expect(out).toContain('[surface: file-edit]');
+        expect(out).toContain('[kb-file-writes: enabled]');
+        expect(out).toContain('[kb-file-writes: disabled]');
         expect(out).toContain('app://file/');
+        // Legacy single-marker form must not leak back in.
+        expect(out).not.toContain('[mode: editor]');
+        expect(out).not.toContain('[mode: readonly]');
       }
     });
 
     it('keeps the system prompt byte-identical between readOnly modes', () => {
       // KV-cache stability invariant: the readOnly flag must NOT branch the
-      // system instruction. If this breaks, the mode marker on user messages
-      // is the right knob — not a system-prompt fork.
+      // system instruction. If this breaks, the per-turn markers on user
+      // messages are the right knob — not a system-prompt fork.
       expect(build({ readOnly: true })).toBe(build({ readOnly: false }));
     });
   });

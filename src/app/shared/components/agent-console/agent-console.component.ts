@@ -73,6 +73,8 @@ export class AgentConsoleComponent implements OnDestroy {
   chatMessages = input<ChatMessage[] | undefined>(undefined);
   /** When true, write tools are rejected at the executor and the prompt notes the read-only constraint. Used on the main-screen surface where there is no editor view to review edits. */
   readOnly = input<boolean>(false);
+  /** Which physical AgentConsole this instance is — `main` for the chat-panel console (and its PiP popout, which portals from the same instance), `file-edit` for the console embedded inside the file-viewer dialog. Surfaced on the per-turn user-message tag so the LLM tracks it across turns, and consumed by interactive propose-tools that only make sense on `main`. */
+  surface = input<'main' | 'file-edit'>('main');
   /** Dev-bridge external fill request: when the tick increments, push `prompt` into the input and optionally auto-run. Null = no fill request. */
   externalFillRequest = input<{ prompt: string; autoSend: boolean; tick: number } | null>(null);
 
@@ -267,7 +269,8 @@ export class AgentConsoleComponent implements OnDestroy {
       chatMessages: this.chatMessages(),
       uiLanguage: this.i18n.currentLang(),
       narrativeLanguage: this.appConfig.outputLanguage(),
-      readOnly: this.readOnly()
+      readOnly: this.readOnly(),
+      surface: this.surface()
     });
   }
 

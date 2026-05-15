@@ -261,21 +261,49 @@ Rules:
 - **DEFAULT to no query (= highlight).** Append \`?do=activate\` ONLY when (a) the entry is marked \`(activatable)\` in uiMap AND (b) the user explicitly asked you to do the action for them. Discovery questions ("where is X / how do I do Y") never get \`?do=activate\`.
 - **NEVER wrap an \`app://\` link OR a bare \`app://\` URL in backticks, a code fence, \`<code>\`, or \`<pre>\`.** Anything inside a code span has markdown parsing disabled — \`\\\`[file](app://file/x.md)\\\`\` and \`<code>app://file/x.md</code>\` both render as literal text and are unclickable, defeating the deep-link feature entirely. The link / URL must sit as plain markdown so the renderer turns it into an anchor element. If you want to visually distinguish it, use bold/italic OUTSIDE the link: \`**[file](app://file/x.md)**\`, never inside any code span.`;
 
-  const surfaceModeBlock = `## EDITING SURFACE — TWO MODES
+  const surfaceModeBlock = `## EDITING SURFACE — TWO MARKERS
 
-Each user message in this conversation begins with a mode marker on its own first line, e.g. \`[mode: editor]\` or \`[mode: readonly]\`. The marker tells you which surface is currently active and whether write tools will be honored on this turn. Trust the marker — it may flip between turns when the user opens / closes the file-viewer.
+Each user message in this conversation begins with two markers on dedicated lines, e.g.
 
-### \`[mode: editor]\` — write tools enabled
-The user has the file-viewer dialog open. Your write tools (\`replaceFile\` / \`searchReplace\` / \`replaceSection\` / \`insertSection\` / \`insertIntoSection\`) land in the file-viewer's Monaco editor as **unsaved** edits — they are NOT in IndexedDB until the user clicks [Save Changes] in the file-viewer's bottom-right, and the engine won't see them until then. Your editing-turn \`submitResponse\` MUST remind the user to click [Save Changes] (phrased in \`${uiLang}\`); otherwise they may close the dialog assuming it's saved and lose the work.
+\`\`\`
+[surface: main]
+[kb-file-writes: enabled]
+\`\`\`
 
-### \`[mode: readonly]\` — write tools disabled
-The file-viewer dialog is NOT open. Write tools will be rejected outright by the executor — do NOT attempt them. Q&A / consultation / search tools still work.
+The two markers describe orthogonal facts about the current turn; trust them — they may flip between turns when the user opens / closes the file-viewer or switches which agent console they are using.
 
-If the user asks for an edit while in this mode, use \`submitResponse\` to:
+### \`[surface: main]\` vs \`[surface: file-edit]\`
+
+This says **which agent surface** you're running on — i.e. which physical agent console the user invoked you from.
+
+- \`main\` — you are on the chat-panel agent (or its Picture-in-Picture popout). This is the user's primary helper console.
+- \`file-edit\` — you are embedded inside the file-viewer dialog. Your task is scoped to whichever file the user has loaded there; this surface mainly tells you that the user is currently focused on file editing, so you can phrase your responses accordingly.
+
+### \`[kb-file-writes: enabled]\` vs \`[kb-file-writes: disabled]\`
+
+This says **whether your KB-file write tools** (\`replaceFile\` / \`searchReplace\` / \`replaceSection\` / \`insertSection\` / \`insertIntoSection\`) will be honored on this turn.
+
+#### \`[kb-file-writes: enabled]\` — writes route to an editor buffer
+A file-viewer is wired to your runs. Writes land in the file-viewer's Monaco editor as **unsaved** edits — they are NOT in IndexedDB until the user clicks [Save Changes] in the file-viewer's bottom-right, and the engine won't see them until then. Your editing-turn \`submitResponse\` MUST remind the user to click [Save Changes] (phrased in \`${uiLang}\`); otherwise they may close the dialog assuming it's saved and lose the work.
+
+#### \`[kb-file-writes: disabled]\` — writes will be rejected
+No file-viewer is wired. Write tools will be rejected outright by the executor — do NOT attempt them. Q&A / consultation / search tools still work.
+
+If the user asks for an edit while \`kb-file-writes\` is \`disabled\`, use \`submitResponse\` to:
 1. Acknowledge the change they want.
-2. **Point them at the file-viewer using a clickable hint link** — link to the KB file with \`[檔名](app://file/<filename>)\` so one click opens the editor with that file ready. As soon as the file-viewer opens, the next turn will arrive with \`[mode: editor]\` and your writes are unlocked; the user can then re-issue the request.
+2. **Point them at the file-viewer using a clickable hint link** — link to the KB file with \`[<filename>](app://file/<filename>)\` so one click opens the editor with that file ready. As soon as the file-viewer opens, the next turn will arrive with \`[kb-file-writes: enabled]\` and your writes are unlocked; the user can then re-issue the request.
 
-Do NOT phrase this as "I can't edit." Phrase it as "open the editor and I'll handle it" — readonly is a workflow gate, not a hard No.`;
+Do NOT phrase this as "I can't edit." Phrase it as "open the editor and I'll handle it" — disabled writes is a workflow gate, not a hard No.
+
+### Typical combinations
+
+| \`surface\` | \`kb-file-writes\` | Meaning |
+|---|---|---|
+| \`main\` | \`disabled\` | Chat panel / PiP; no file-viewer open. Pure Q&A turn. |
+| \`main\` | \`enabled\` | Chat panel / PiP; a file-viewer is open and registered. Edits route into its Monaco. |
+| \`file-edit\` | \`enabled\` | You are inside the file-viewer dialog itself. Edits route into its Monaco. |
+
+The combination \`surface: file-edit\` + \`kb-file-writes: disabled\` should not arise in practice; if you ever see it, treat writes as rejected and inform the user.`;
 
   const modeBlock = mode === 'native'
     ? (allowParallel

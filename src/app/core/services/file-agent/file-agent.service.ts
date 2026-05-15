@@ -292,15 +292,18 @@ export class FileAgentService {
     this.generatedTokenCount.set(0);
     this.agentLogs.update(logs => [...logs, { role: 'user', text: prompt, type: 'info' }]);
 
-    // Tag the prompt with the current surface mode (editor / readonly) so
-    // the LLM perceives editor↔readonly transitions across turns without us
-    // having to rebuild the system prompt (which would invalidate the KV
-    // cache). The system prompt's "EDITING SURFACE — TWO MODES" block tells
-    // the LLM how to read the marker; runtime gating still lives on
-    // `context.readOnly` enforced by the tool executor. Only the history /
-    // LLM-bound copy carries the tag — agentLogs above shows the user's
-    // original text.
-    const tag = `[mode: ${context.readOnly ? 'readonly' : 'editor'}]\n`;
+    // Tag the prompt with two orthogonal markers so the LLM perceives both
+    // axes across turns without rebuilding the system prompt (which would
+    // invalidate the KV cache):
+    //   [surface: main|file-edit]      — which physical AgentConsole is invoking
+    //   [kb-file-writes: enabled|disabled] — whether write tools are honored
+    // The system prompt's "EDITING SURFACE" block tells the LLM how to read
+    // the markers; runtime gating still lives on `context.readOnly` enforced
+    // by the tool executor. Only the history / LLM-bound copy carries the
+    // tag — agentLogs above shows the user's original text.
+    const surface = context.surface ?? 'main';
+    const writes = context.readOnly ? 'disabled' : 'enabled';
+    const tag = `[surface: ${surface}]\n[kb-file-writes: ${writes}]\n`;
     const newHistory = [...this.agentHistory(), { role: 'user' as const, parts: [{ text: tag + prompt }] }];
     this.agentHistory.set(newHistory);
 
