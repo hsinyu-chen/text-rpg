@@ -95,20 +95,25 @@
             </div>
         }
         @if (agentService.isAgentRunning()) {
-            <div class="console-log-entry log-type-model running-indicator">
-                <mat-spinner diameter="16"></mat-spinner>
-                @if (agentService.promptProgress() !== undefined && agentService.promptProgress()! < 1) {
-                    <span class="log-text">{{ 'dialog.agentProcessingPromptPercent' | translate: { percent: ((agentService.promptProgress()! * 100) | number:'1.0-0') ?? '' } }}</span>
+            <div class="console-log-entry log-type-model running-indicator" [class.awaiting-user]="agentService.awaitingProposerDialog()">
+                @if (agentService.awaitingProposerDialog()) {
+                    <mat-icon inline="true">touch_app</mat-icon>
+                    <span class="log-text">{{ 'dialog.agentAwaitingUserApproval' | translate }}</span>
                 } @else {
-                    <span class="log-text">
-                        @if (agentService.generatedTokenCount() > 0) {
-                            {{ 'dialog.agentThinkingTokens' | translate: { count: agentService.generatedTokenCount() } }}
-                        } @else if (agentService.generatedChunkCount() > 0) {
-                            {{ 'dialog.agentThinkingChunks' | translate: { count: agentService.generatedChunkCount() } }}
-                        } @else {
-                            {{ 'dialog.agentThinkingPlain' | translate }}
-                        }
-                    </span>
+                    <mat-spinner diameter="16"></mat-spinner>
+                    @if (agentService.promptProgress() !== undefined && agentService.promptProgress()! < 1) {
+                        <span class="log-text">{{ 'dialog.agentProcessingPromptPercent' | translate: { percent: ((agentService.promptProgress()! * 100) | number:'1.0-0') ?? '' } }}</span>
+                    } @else {
+                        <span class="log-text">
+                            @if (agentService.generatedTokenCount() > 0) {
+                                {{ 'dialog.agentThinkingTokens' | translate: { count: agentService.generatedTokenCount() } }}
+                            } @else if (agentService.generatedChunkCount() > 0) {
+                                {{ 'dialog.agentThinkingChunks' | translate: { count: agentService.generatedChunkCount() } }}
+                            } @else {
+                                {{ 'dialog.agentThinkingPlain' | translate }}
+                            }
+                        </span>
+                    }
                 }
             </div>
         }
@@ -141,12 +146,18 @@
             }
         </mat-menu>
         <mat-form-field appearance="outline" class="agent-input" subscriptSizing="dynamic">
-            <textarea matInput [placeholder]="(readOnly() ? 'dialog.agentPromptPlaceholderReadOnly' : 'dialog.agentPromptPlaceholder') | translate"
+            <textarea matInput
+                     [placeholder]="(agentService.awaitingProposerDialog() ? 'dialog.agentPromptPlaceholderAwaitingApproval' : (readOnly() ? 'dialog.agentPromptPlaceholderReadOnly' : 'dialog.agentPromptPlaceholder')) | translate"
+                     [disabled]="agentService.awaitingProposerDialog()"
                      [ngModel]="agentPrompt()" (ngModelChange)="agentPrompt.set($event)"
                      (keydown.enter)="$event.preventDefault(); runAgent()"
                      rows="2"></textarea>
         </mat-form-field>
-        @if (agentService.isAgentRunning()) {
+        @if (agentService.awaitingProposerDialog()) {
+            <button mat-icon-button disabled [matTooltip]="'dialog.agentAwaitingUserApproval' | translate">
+                <mat-icon>hourglass_top</mat-icon>
+            </button>
+        } @else if (agentService.isAgentRunning()) {
             <button mat-icon-button color="warn" (click)="agentService.stopAgent()" [matTooltip]="'dialog.agentStop' | translate">
                 <mat-icon>stop_circle</mat-icon>
             </button>

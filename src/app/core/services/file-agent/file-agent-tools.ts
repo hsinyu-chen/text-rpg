@@ -44,7 +44,7 @@ export const FILE_AGENT_TOOLS: LLMFunctionDeclaration[] = [
   },
   {
     name: 'grep',
-    description: 'Search for a JavaScript regex across files and return matching lines with their file path and 1-based line number. Cheaper than reading whole files when you only need to find where something is mentioned. Defaults to searching every file; pass filename to restrict to one. When you plan to follow up with searchReplace, set contextLines to 1 or 2 so you can verify each hit is really what you want to mutate (avoid friendly-fire on edge cases like "---" inside code blocks or YAML front-matter).',
+    description: 'Search for a JavaScript regex across files and return matching lines with their file path and 1-based line number. Cheaper than reading whole files when you only need to find where something is mentioned. **DEFAULTS to searching every file** when `filename` is omitted — this is the right mode for surveying scope (e.g. "where does identifier X appear?"); the response carries `filename` on each hit so you can stratify counts per file in your head. Only pass `filename` when you specifically need to scope to one file (e.g. verifying a post-write state of one file). When you plan to follow up with searchReplace, set contextLines to 1 or 2 so you can verify each hit is really what you want to mutate (avoid friendly-fire on edge cases like "---" inside code blocks or YAML front-matter).',
     parameters: {
       type: 'object',
       properties: {
@@ -82,7 +82,7 @@ export const FILE_AGENT_TOOLS: LLMFunctionDeclaration[] = [
             required: ['pattern', 'replacement']
           }
         },
-        expectedTotalReplacements: { type: 'number', description: 'Optional safety net for the total across all entries. If provided and the total differs, the call fails and the file is unchanged.' },
+        expectedTotalReplacements: { type: 'number', description: 'Optional safety net summing replacement counts across all entries IN THIS CALL. Each searchReplace call writes to exactly ONE file, so this is a PER-FILE expected total — never a cross-file sum. When renaming across multiple files, stratify your grep results by filename first and pass the per-file count to each call. If the actual per-file total differs from this number, the entire call fails and THE FILE IS NOT CHANGED (the error response will say "File unchanged"); do not narrate success in that case.' },
         dryRun: { type: 'boolean', description: 'Optional. Default false. If true, no write happens — returns counts and up to 3 before/after samples per pattern.' }
       },
       required: ['reason', 'filename', 'replacements']
@@ -265,6 +265,25 @@ export const FILE_AGENT_TOOLS: LLMFunctionDeclaration[] = [
     }
   },
   {
+    name: 'proposeChatReplace',
+    description: 'Propose a batch find/replace across the in-game chat messages, gated behind user approval. Opens a prefilled chat-replace dialog that the user can review, adjust, or cancel — the replacement only happens when the user clicks Replace All. Returns the outcome so you can see what actually happened (`applied` carries the final search/replace + filters + replaceCount, or is null when the user cancelled; `divergedFromProposal` flags whether the user changed any field before applying). Only available on the `main` agent surface (chat panel / PiP) — calling from the `file-edit` surface returns an error. Do NOT use this tool to "preview" a search; the dialog itself is the preview, and opening it interrupts the user.',
+    parameters: {
+      type: 'object',
+      properties: {
+        reason: { type: 'string', description: REASON_DESC },
+        search: { type: 'string', description: 'The string or regex to find. With regex=false (default) this is matched literally. With regex=true this is a JavaScript regex source — no surrounding slashes, no inline flags.' },
+        replace: { type: 'string', description: 'The string to replace each match with. Pass "" to delete matches. With regex=true, $1/$2/$& backreferences are honored.' },
+        caseSensitive: { type: 'boolean', description: 'Optional. Default false (case-insensitive).' },
+        wholeWord: { type: 'boolean', description: 'Optional. Default false. Only meaningful with regex=false — wraps the search in word boundaries.' },
+        regex: { type: 'boolean', description: 'Optional. Default false. Set true to treat `search` as a JavaScript regex.' },
+        intentFilter: { type: 'string', enum: ['all', 'action', 'continue', 'fast_forward', 'system', 'save'], description: 'Optional. Default "all". Restrict to messages with this intent.' },
+        roleFilter: { type: 'string', enum: ['all', 'user', 'model'], description: 'Optional. Default "all". Restrict to user or model messages.' },
+        fieldFilter: { type: 'string', enum: ['all', 'story', 'summary', 'logs'], description: 'Optional. Default "all". Which field of each message to scan: story=narrative content, summary=engine summary, logs=structured inventory/quest/world logs.' }
+      },
+      required: ['reason', 'search', 'replace']
+    }
+  },
+  {
     name: 'reportProgress',
     description: 'Send a progress update to the user mid-task. The agent CONTINUES after this call — use it to narrate ongoing work without yielding control. Do NOT use this when the entire task is complete.',
     parameters: {
@@ -289,6 +308,7 @@ const ACTION_ENUM = [
   'readSection', 'replaceSection', 'insertSection', 'insertIntoSection',
   'listChatMessages', 'searchChatMessages', 'readChatMessage', 'readTurnLogs',
   'listBooks', 'listCollections',
+  'proposeChatReplace',
   'reportProgress', 'submitResponse'
 ];
 
@@ -312,6 +332,7 @@ export function buildJsonSchema(isLocal: boolean): object {
         { properties: { action: { type: 'string', enum: ['readTurnLogs'] }, args: { type: 'object', properties: { reason: { type: 'string' }, messageIds: { type: 'array', items: { type: 'string' } }, kinds: { type: 'array', items: { type: 'string', enum: ['character', 'world', 'inventory', 'quest'] } }, recent: { type: 'number' } }, required: ['reason'], additionalProperties: false } }, required: ['action', 'args'] },
         { properties: { action: { type: 'string', enum: ['listBooks'] }, args: { type: 'object', properties: { reason: { type: 'string' }, collectionId: { type: 'string' }, limit: { type: 'number' } }, required: ['reason'], additionalProperties: false } }, required: ['action', 'args'] },
         { properties: { action: { type: 'string', enum: ['listCollections'] }, args: { type: 'object', properties: { reason: { type: 'string' } }, required: ['reason'], additionalProperties: false } }, required: ['action', 'args'] },
+        { properties: { action: { type: 'string', enum: ['proposeChatReplace'] }, args: { type: 'object', properties: { reason: { type: 'string' }, search: { type: 'string' }, replace: { type: 'string' }, caseSensitive: { type: 'boolean' }, wholeWord: { type: 'boolean' }, regex: { type: 'boolean' }, intentFilter: { type: 'string', enum: ['all', 'action', 'continue', 'fast_forward', 'system', 'save'] }, roleFilter: { type: 'string', enum: ['all', 'user', 'model'] }, fieldFilter: { type: 'string', enum: ['all', 'story', 'summary', 'logs'] } }, required: ['reason', 'search', 'replace'], additionalProperties: false } }, required: ['action', 'args'] },
         { properties: { action: { type: 'string', enum: ['reportProgress'] }, args: { type: 'object', properties: { message: { type: 'string' } }, required: ['message'], additionalProperties: false } }, required: ['action', 'args'] },
         { properties: { action: { type: 'string', enum: ['submitResponse'] }, args: { type: 'object', properties: { message: { type: 'string' } }, required: ['message'], additionalProperties: false } }, required: ['action', 'args'] }
       ]
@@ -356,7 +377,15 @@ export function buildJsonSchema(isLocal: boolean): object {
           kinds: { type: 'array', items: { type: 'string' } },
           recent: { type: 'number' },
           contextChars: { type: 'number' },
-          collectionId: { type: 'string' }
+          collectionId: { type: 'string' },
+          search: { type: 'string' },
+          replace: { type: 'string' },
+          caseSensitive: { type: 'boolean' },
+          wholeWord: { type: 'boolean' },
+          regex: { type: 'boolean' },
+          intentFilter: { type: 'string' },
+          roleFilter: { type: 'string' },
+          fieldFilter: { type: 'string' }
         }
       }
     },

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { executeFileTool } from './file-agent-tool-executor';
-import type { FileAgentContext, ParsedAction } from './file-agent.types';
+import type { FileAgentContext, ParsedAction, ToolExecutionResult } from './file-agent.types';
 import type { ChatMessage } from '@app/core/models/types';
 
 function makeContext(files: Record<string, string>, chatMessages?: ChatMessage[]): {
@@ -14,8 +14,12 @@ function makeContext(files: Record<string, string>, chatMessages?: ChatMessage[]
   return { context: { files: map, onFileReplaced, chatMessages }, onFileReplaced };
 }
 
-function run(action: ParsedAction, ctx: FileAgentContext) {
-  return executeFileTool(action, ctx);
+// `executeFileTool` now returns `Awaitable<ToolExecutionResult>` to support
+// interactive tools like proposeChatReplace. All existing tools still
+// return synchronously, so this helper casts to keep the 100+ sync test
+// sites readable. Interactive-tool tests await `executeFileTool` directly.
+function run(action: ParsedAction, ctx: FileAgentContext): ToolExecutionResult {
+  return executeFileTool(action, ctx) as ToolExecutionResult;
 }
 
 describe('executeFileTool dispatch', () => {
@@ -38,7 +42,10 @@ describe('executeFileTool dispatch', () => {
     ];
     for (const a of writeActions) {
       const r = run(a as ParsedAction, ctx.context);
-      expect(r.response).toMatchObject({ error: expect.stringMatching(/read-only.*KB editor/) });
+      expect(r.response).toMatchObject({
+        error: expect.stringMatching(/\[NO-WRITE — file unchanged\].*read-only.*KB editor/),
+        fileChanged: false
+      });
     }
     expect(ctx.onFileReplaced).not.toHaveBeenCalled();
   });
@@ -49,6 +56,95 @@ describe('executeFileTool dispatch', () => {
     expect(run({ action: 'readFile', args: { filename: 'a.md' } }, ctx.context).response).toMatchObject({ content: 'hello' });
     expect(run({ action: 'grep', args: { pattern: 'hel' } }, ctx.context).response).toMatchObject({ count: 1 });
     expect(run({ action: 'getFileOutline', args: { filename: 'a.md' } }, ctx.context).response).toMatchObject({ outline: expect.any(Array) });
+  });
+});
+
+describe('write-tool error / success signaling convention', () => {
+  // Every write-tool error response must carry BOTH:
+  //  - `error` string prefixed with `[NO-WRITE — file unchanged]`
+  //  - structured `fileChanged: false`
+  // Every successful write must carry `fileChanged: true`. Together these
+  // give the LLM a robust "did this land?" signal that resists confusion
+  // from informational fields like `found: N`.
+
+  it('searchReplace errors carry both NO-WRITE prefix and fileChanged:false', () => {
+    const { context } = makeContext({ 'a.md': 'hello' });
+    const r = run({
+      action: 'searchReplace',
+      args: { filename: 'a.md', replacements: [{ pattern: 'nope', replacement: 'x' }] }
+    }, context);
+    expect(r.response).toMatchObject({
+      error: expect.stringMatching(/^\[NO-WRITE — file unchanged\]/),
+      fileChanged: false
+    });
+  });
+
+  it('searchReplace success carries fileChanged:true', () => {
+    const { context, onFileReplaced } = makeContext({ 'a.md': 'hello world' });
+    const r = run({
+      action: 'searchReplace',
+      args: { filename: 'a.md', replacements: [{ pattern: 'world', replacement: 'there' }] }
+    }, context);
+    expect(r.response).toMatchObject({ status: 'success', fileChanged: true, totalReplacements: 1 });
+    expect(onFileReplaced).toHaveBeenCalledTimes(1);
+  });
+
+  it('searchReplace dry-run does NOT set fileChanged:true', () => {
+    const { context, onFileReplaced } = makeContext({ 'a.md': 'hello world' });
+    const r = run({
+      action: 'searchReplace',
+      args: { filename: 'a.md', replacements: [{ pattern: 'world', replacement: 'there' }], dryRun: true }
+    }, context);
+    expect(r.response).toMatchObject({ status: 'dry-run', fileChanged: false });
+    expect(onFileReplaced).not.toHaveBeenCalled();
+  });
+
+  it('replaceFile / replaceSection / insertSection / insertIntoSection follow the same convention on missing file', () => {
+    const { context } = makeContext({});
+    const cases: ParsedAction[] = [
+      { action: 'replaceFile', args: { filename: 'x.md', content: 'hi' } },
+      { action: 'replaceSection', args: { filename: 'x.md', updates: [{ sectionPath: 'A', content: 'b' }] } },
+      { action: 'insertSection', args: { filename: 'x.md', heading: '## New' } },
+      { action: 'insertIntoSection', args: { filename: 'x.md', sectionPath: 'A', content: 'b', position: 'end' } },
+    ];
+    for (const a of cases) {
+      const r = run(a, context);
+      expect(r.response).toMatchObject({
+        error: expect.stringMatching(/^\[NO-WRITE — file unchanged\]/),
+        fileChanged: false
+      });
+    }
+  });
+
+  it('successful writes for non-searchReplace tools carry fileChanged:true', () => {
+    const md = ['# A', 'body'].join('\n');
+    const { context } = makeContext({ 'a.md': md });
+    const replaceFile = run({ action: 'replaceFile', args: { filename: 'a.md', content: '# A\nnew' } }, context);
+    expect(replaceFile.response).toMatchObject({ status: 'success', fileChanged: true });
+
+    const md2 = ['# A', 'body'].join('\n');
+    const { context: c2 } = makeContext({ 'a.md': md2 });
+    const replaceSection = run({
+      action: 'replaceSection',
+      args: { filename: 'a.md', updates: [{ sectionPath: 'A', content: 'new' }] }
+    }, c2);
+    expect(replaceSection.response).toMatchObject({ status: 'success', fileChanged: true });
+
+    const md3 = ['# A', 'body'].join('\n');
+    const { context: c3 } = makeContext({ 'a.md': md3 });
+    const insertSection = run({
+      action: 'insertSection',
+      args: { filename: 'a.md', heading: '## New' }
+    }, c3);
+    expect(insertSection.response).toMatchObject({ status: 'success', fileChanged: true });
+
+    const md4 = ['# A', 'body'].join('\n');
+    const { context: c4 } = makeContext({ 'a.md': md4 });
+    const insertInto = run({
+      action: 'insertIntoSection',
+      args: { filename: 'a.md', sectionPath: 'A', content: 'x', position: 'end' }
+    }, c4);
+    expect(insertInto.response).toMatchObject({ status: 'success', fileChanged: true });
   });
 });
 
@@ -108,7 +204,7 @@ describe('searchReplace', () => {
   it('errors when file is missing', () => {
     const { context } = makeContext({});
     const r = run({ action: 'searchReplace', args: { filename: 'x.md', replacements: [{ pattern: 'a', replacement: 'b' }] } }, context);
-    expect(r.response).toMatchObject({ error: 'File not found' });
+    expect(r.response).toMatchObject({ error: expect.stringMatching(/NO-WRITE.*File not found/), fileChanged: false });
   });
 
   it('rejects no-op replacement (pattern equals replacement, non-regex)', () => {
@@ -172,7 +268,7 @@ describe('replaceFile', () => {
   it('errors when file is missing', () => {
     const { context } = makeContext({});
     const r = run({ action: 'replaceFile', args: { filename: 'x.md', content: 'hi' } }, context);
-    expect(r.response).toMatchObject({ error: 'File not found' });
+    expect(r.response).toMatchObject({ error: expect.stringMatching(/NO-WRITE.*File not found/), fileChanged: false });
   });
 
   it('writes new content and reports line delta', () => {
@@ -950,5 +1046,159 @@ describe('listBooks / listCollections', () => {
     const ctx = makeLibraryContext({});
     const r = run({ action: 'listCollections', args: { reason: 'r' } }, ctx);
     expect(r.response).toMatchObject({ error: expect.stringMatching(/library is not available/) });
+  });
+});
+
+describe('proposeChatReplace', () => {
+  it('rejects calls from the file-edit surface without invoking the proposer', async () => {
+    const proposer = vi.fn();
+    const { context } = makeContext({});
+    context.surface = 'file-edit';
+    context.proposers = { chatReplace: proposer };
+    const r = await executeFileTool(
+      { action: 'proposeChatReplace', args: { reason: 'r', search: 'foo', replace: 'bar' } },
+      context
+    );
+    expect(r.response).toMatchObject({ error: expect.stringMatching(/main agent surface/) });
+    expect(proposer).not.toHaveBeenCalled();
+  });
+
+  it('errors when no proposer closure is wired on the main surface', async () => {
+    const { context } = makeContext({});
+    context.surface = 'main';
+    // No proposers field.
+    const r = await executeFileTool(
+      { action: 'proposeChatReplace', args: { reason: 'r', search: 'foo', replace: 'bar' } },
+      context
+    );
+    expect(r.response).toMatchObject({ error: expect.stringMatching(/proposer/) });
+  });
+
+  it('rejects empty search', async () => {
+    const proposer = vi.fn();
+    const { context } = makeContext({});
+    context.surface = 'main';
+    context.proposers = { chatReplace: proposer };
+    const r = await executeFileTool(
+      { action: 'proposeChatReplace', args: { reason: 'r', search: '', replace: 'bar' } },
+      context
+    );
+    expect(r.response).toMatchObject({ error: expect.stringMatching(/search is required/) });
+    expect(proposer).not.toHaveBeenCalled();
+  });
+
+  it('rejects non-string replace', async () => {
+    const proposer = vi.fn();
+    const { context } = makeContext({});
+    context.surface = 'main';
+    context.proposers = { chatReplace: proposer };
+    const r = await executeFileTool(
+      // Simulate an LLM that sent a non-string here.
+      { action: 'proposeChatReplace', args: { reason: 'r', search: 'foo', replace: 123 as unknown as string } },
+      context
+    );
+    expect(r.response).toMatchObject({ error: expect.stringMatching(/replace is required/) });
+    expect(proposer).not.toHaveBeenCalled();
+  });
+
+  it('passes args through to the proposer and returns its outcome with status + summary', async () => {
+    const outcome = {
+      applied: {
+        search: 'foo',
+        replace: 'bar',
+        filters: { intent: 'all' as const, role: 'all' as const, field: 'all' as const },
+        replaceCount: 7,
+      },
+      cancelled: false,
+      divergedFromProposal: false,
+    };
+    const proposer = vi.fn().mockResolvedValue(outcome);
+    const { context } = makeContext({});
+    context.surface = 'main';
+    context.proposers = { chatReplace: proposer };
+
+    const r = await executeFileTool(
+      {
+        action: 'proposeChatReplace',
+        args: {
+          reason: 'r',
+          search: 'foo',
+          replace: 'bar',
+          regex: true,
+          intentFilter: 'action',
+          fieldFilter: 'story',
+        },
+      },
+      context
+    );
+
+    expect(proposer).toHaveBeenCalledTimes(1);
+    expect(proposer).toHaveBeenCalledWith(expect.objectContaining({
+      search: 'foo',
+      replace: 'bar',
+      regex: true,
+      intentFilter: 'action',
+      fieldFilter: 'story',
+    }));
+    // Existing structured fields preserved.
+    expect(r.response).toMatchObject(outcome);
+    // New past-tense framing: committed status + summary mentioning replaceCount.
+    expect(r.response).toMatchObject({
+      status: 'committed',
+      summary: expect.stringContaining('7'),
+    });
+    expect((r.response as { summary: string }).summary).toMatch(/confirmed|modified|committed/i);
+  });
+
+  it('surfaces a cancelled outcome with cancelled status and a clear summary', async () => {
+    const outcome = { applied: null, cancelled: true, divergedFromProposal: true };
+    const proposer = vi.fn().mockResolvedValue(outcome);
+    const { context } = makeContext({});
+    context.surface = 'main';
+    context.proposers = { chatReplace: proposer };
+
+    const r = await executeFileTool(
+      { action: 'proposeChatReplace', args: { reason: 'r', search: 'foo', replace: 'bar' } },
+      context
+    );
+    expect(r.response).toMatchObject({
+      ...outcome,
+      status: 'cancelled',
+      summary: expect.stringMatching(/cancelled|declined|no.*modified/i),
+    });
+  });
+
+  it('flags divergence in the summary when the user tweaked the proposal before applying', async () => {
+    const outcome = {
+      applied: {
+        search: 'foo', replace: 'baz',
+        filters: { intent: 'all' as const, role: 'user' as const, field: 'story' as const },
+        replaceCount: 3,
+      },
+      cancelled: false,
+      divergedFromProposal: true,
+    };
+    const { context } = makeContext({});
+    context.surface = 'main';
+    context.proposers = { chatReplace: vi.fn().mockResolvedValue(outcome) };
+
+    const r = await executeFileTool(
+      { action: 'proposeChatReplace', args: { reason: 'r', search: 'foo', replace: 'bar' } },
+      context
+    );
+    expect((r.response as { summary: string }).summary).toMatch(/tweaked|diverg|with parameters/i);
+  });
+
+  it('defaults surface to main when omitted (back-compat)', async () => {
+    const proposer = vi.fn().mockResolvedValue({ applied: null, cancelled: true, divergedFromProposal: false });
+    const { context } = makeContext({});
+    // surface left undefined — should be treated as 'main'.
+    context.proposers = { chatReplace: proposer };
+    const r = await executeFileTool(
+      { action: 'proposeChatReplace', args: { reason: 'r', search: 'foo', replace: 'bar' } },
+      context
+    );
+    expect(proposer).toHaveBeenCalledTimes(1);
+    expect(r.response).toMatchObject({ cancelled: true });
   });
 });

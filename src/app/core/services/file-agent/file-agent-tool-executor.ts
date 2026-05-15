@@ -17,8 +17,10 @@ import {
   UiMapArgs,
   ListBooksArgs,
   ListCollectionsArgs,
+  ProposeChatReplaceArgs,
   ChatReadField,
-  TurnLogKind
+  TurnLogKind,
+  Awaitable
 } from './file-agent.types';
 import { ROOT_COLLECTION_ID } from '@app/core/models/types';
 import type { ChatMessage } from '@app/core/models/types';
@@ -62,12 +64,31 @@ const WRITE_ACTIONS = new Set([
 
 const READ_ONLY_REJECTION = 'This agent surface is read-only and cannot edit files — the user is on the main game screen, which has no editor view, so silent file mutations would be invisible to them. Do NOT retry write tools here. Use submitResponse to tell the user: open the KB editor (the file-viewer dialog from the sidebar) and re-issue the request there, where they can review and save the changes.';
 
+/** Prefix every write-tool error message with this marker so the LLM cannot
+ *  miss that the file was NOT modified. Paired with the structured
+ *  `fileChanged: false` field. The pair makes "did this write land?"
+ *  observable by either string sniffing or schema inspection. */
+const NO_WRITE_PREFIX = '[NO-WRITE — file unchanged] ';
+
+/** Build a write-tool error response that carries both the salient prefix
+ *  on the error string AND the structured `fileChanged: false` flag.
+ *  Use this for EVERY error path inside replaceFile / searchReplace /
+ *  replaceSection / insertSection / insertIntoSection — they are all
+ *  all-or-nothing semantics, so any error means the file is untouched. */
+function writeError(detail: string, extras: Record<string, unknown> = {}): ToolExecutionResult {
+  return { response: { error: `${NO_WRITE_PREFIX}${detail}`, fileChanged: false, ...extras } };
+}
+
+const PROPOSE_FILE_EDIT_REJECTION = 'proposeChatReplace is only available on the main agent surface (chat panel / PiP). You are currently on the file-edit surface (embedded inside the file-viewer dialog), which is scoped to a single KB file. Use submitResponse to tell the user to open the main agent console and re-issue the request there.';
+
+const PROPOSE_NO_PROPOSER_WIRED = 'proposeChatReplace cannot be dispatched in this run — the host has not wired a chat-replace proposer. This usually means the agent was invoked from a context (test harness, dev tool) that cannot open the approval dialog. Use submitResponse to acknowledge the limitation.';
+
 export function executeFileTool(
   action: ParsedAction,
   context: FileAgentContext
-): ToolExecutionResult {
+): Awaitable<ToolExecutionResult> {
   if (context.readOnly && WRITE_ACTIONS.has(action.action)) {
-    return { response: { error: READ_ONLY_REJECTION } };
+    return writeError(READ_ONLY_REJECTION);
   }
   switch (action.action) {
     case 'readFile':
@@ -102,6 +123,8 @@ export function executeFileTool(
       return listBooks(action.args, context);
     case 'listCollections':
       return listCollections(action.args, context);
+    case 'proposeChatReplace':
+      return proposeChatReplace(action.args, context);
     case 'reportProgress':
     case 'submitResponse':
       return { response: { status: 'acknowledged' } };
@@ -126,11 +149,11 @@ function truncate(s: string, max: number): string {
 function searchReplace(args: SearchReplaceArgs, context: FileAgentContext): ToolExecutionResult {
   const filename = args.filename;
   let currentContent = context.files.get(filename);
-  if (currentContent === undefined) return { response: { error: 'File not found' } };
+  if (currentContent === undefined) return writeError('File not found');
 
   const replacements = args.replacements;
   if (!Array.isArray(replacements) || replacements.length === 0) {
-    return { response: { error: 'replacements must be a non-empty array' } };
+    return writeError('replacements must be a non-empty array');
   }
 
   const dryRun = !!args.dryRun;
@@ -149,11 +172,11 @@ function searchReplace(args: SearchReplaceArgs, context: FileAgentContext): Tool
     const r = replacements[i];
     const pattern = r.pattern;
     if (typeof pattern !== 'string' || pattern.length === 0) {
-      return { response: { error: `replacements[${i}].pattern is required and must be a non-empty string` } };
+      return writeError(`replacements[${i}].pattern is required and must be a non-empty string`);
     }
     const replacement = r.replacement;
     if (typeof replacement !== 'string') {
-      return { response: { error: `replacements[${i}].replacement is required and must be a string (use "" to delete matches)` } };
+      return writeError(`replacements[${i}].replacement is required and must be a string (use "" to delete matches)`);
     }
     const isRegex = !!r.isRegex;
     const caseInsensitive = !!r.caseInsensitive;
@@ -162,12 +185,12 @@ function searchReplace(args: SearchReplaceArgs, context: FileAgentContext): Tool
     let cleanReplacement = replacement;
     if (cleanReplacement && !dryRun) {
       const latexCheck = checkLatex(cleanReplacement, `replacements[${i}].replacement`);
-      if ('error' in latexCheck) return { response: latexCheck };
+      if ('error' in latexCheck) return writeError(latexCheck.error);
       cleanReplacement = latexCheck.content;
     }
 
     if (!isRegex && pattern === cleanReplacement) {
-      return { response: { error: `replacements[${i}]: pattern and replacement are identical — this would be a no-op` } };
+      return writeError(`replacements[${i}]: pattern and replacement are identical — this would be a no-op`);
     }
 
     const source = isRegex ? pattern : escapeRegex(pattern);
@@ -181,19 +204,17 @@ function searchReplace(args: SearchReplaceArgs, context: FileAgentContext): Tool
       regex = new RegExp(source, flags);
       nonGlobal = new RegExp(source, flags.replace('g', ''));
     } catch (e) {
-      return { response: { error: `replacements[${i}]: invalid regex "${pattern}": ${e instanceof Error ? e.message : String(e)}` } };
+      return writeError(`replacements[${i}]: invalid regex "${pattern}": ${e instanceof Error ? e.message : String(e)}`);
     }
 
     const matches = Array.from(currentContent.matchAll(regex));
     const count = matches.length;
 
     if (r.expectedCount !== undefined && count !== r.expectedCount) {
-      return {
-        response: {
-          error: `replacements[${i}]: expectedCount mismatch for pattern "${pattern}" — expected ${r.expectedCount}, found ${count}. File unchanged.`,
-          found: count
-        }
-      };
+      return writeError(
+        `replacements[${i}]: expectedCount mismatch for pattern "${pattern}" — expected ${r.expectedCount}, found ${count}.`,
+        { found: count }
+      );
     }
 
     const samples: { line: number; before: string; after: string }[] = [];
@@ -211,22 +232,17 @@ function searchReplace(args: SearchReplaceArgs, context: FileAgentContext): Tool
   }
 
   if (expectedTotal !== undefined && totalReplacements !== expectedTotal) {
-    return {
-      response: {
-        error: `expectedTotalReplacements mismatch: expected ${expectedTotal}, found ${totalReplacements}. File unchanged.`,
-        found: totalReplacements,
-        details: results
-      }
-    };
+    return writeError(
+      `expectedTotalReplacements mismatch: expected ${expectedTotal}, found ${totalReplacements}.`,
+      { found: totalReplacements, details: results }
+    );
   }
 
   if (!dryRun && totalReplacements === 0) {
-    return {
-      response: {
-        error: 'No matches found for any pattern. File unchanged. Re-grep to confirm what should match.',
-        details: results
-      }
-    };
+    return writeError(
+      'No matches found for any pattern. Re-grep with the REPLACEMENT value first to check whether the file is already in the target state (a successful earlier edit will make the original pattern disappear) before retrying.',
+      { details: results }
+    );
   }
 
   if (!dryRun) {
@@ -236,6 +252,7 @@ function searchReplace(args: SearchReplaceArgs, context: FileAgentContext): Tool
   return {
     response: {
       status: dryRun ? 'dry-run' : 'success',
+      fileChanged: !dryRun,
       summary: `searchReplace in ${filename}: ${totalReplacements} replacement(s) across ${replacements.length} pattern(s).`,
       totalReplacements,
       details: results,
@@ -326,9 +343,9 @@ function grep(args: GrepArgs, context: FileAgentContext): ToolExecutionResult {
 
 function replaceFile(args: ReplaceFileArgs, context: FileAgentContext): ToolExecutionResult {
   const oldContent = context.files.get(args.filename);
-  if (oldContent === undefined) return { response: { error: 'File not found' } };
+  if (oldContent === undefined) return writeError('File not found');
   const latexCheck = checkLatex(args.content, 'content');
-  if ('error' in latexCheck) return { response: latexCheck };
+  if ('error' in latexCheck) return writeError(latexCheck.error);
   const newFileContent = latexCheck.content;
   const oldLines = oldContent.split('\n').length;
   const newLines = newFileContent.split('\n').length;
@@ -338,6 +355,7 @@ function replaceFile(args: ReplaceFileArgs, context: FileAgentContext): ToolExec
   return {
     response: {
       status: 'success',
+      fileChanged: true,
       summary: `File ${args.filename} replaced. Lines: ${oldLines} -> ${newLines} (${diffStr})`,
       totalLines: newLines
     },
@@ -450,11 +468,11 @@ function readSection(args: ReadSectionArgs, context: FileAgentContext): ToolExec
 function replaceSection(args: ReplaceSectionArgs, context: FileAgentContext): ToolExecutionResult {
   const filename = args.filename;
   const content = context.files.get(filename);
-  if (content === undefined) return { response: { error: 'File not found' } };
+  if (content === undefined) return writeError('File not found');
 
   const updates = args.updates;
   if (!Array.isArray(updates) || updates.length === 0) {
-    return { response: { error: 'updates must be a non-empty array' } };
+    return writeError('updates must be a non-empty array');
   }
 
   // Apply from BOTTOM to TOP so earlier startLines remain valid as we mutate.
@@ -468,31 +486,30 @@ function replaceSection(args: ReplaceSectionArgs, context: FileAgentContext): To
 
   for (const u of updates) {
     if (typeof u.sectionPath !== 'string' || u.sectionPath.length === 0) {
-      return { response: { error: 'each update entry requires a non-empty sectionPath' } };
+      return writeError('each update entry requires a non-empty sectionPath');
     }
     if (typeof u.content !== 'string') {
-      return { response: { error: `updates entry for "${u.sectionPath}" requires a string "content" (use "" to clear the body)` } };
+      return writeError(`updates entry for "${u.sectionPath}" requires a string "content" (use "" to clear the body)`);
     }
     let body = u.content;
     if (body) {
       const latexCheck = checkLatex(body, `content (${u.sectionPath})`);
-      if ('error' in latexCheck) return { response: latexCheck };
+      if ('error' in latexCheck) return writeError(latexCheck.error);
       body = latexCheck.content;
     }
     const resolution = resolveSection(content, u.sectionPath);
     if (resolution.kind === 'none') {
-      return { response: { error: `Section not found: "${u.sectionPath}"` } };
+      return writeError(`Section not found: "${u.sectionPath}". Re-call getFileOutline before retrying — an earlier edit may have renamed or moved this section, and re-firing the same path will keep failing until you re-check the current heading list.`);
     }
     if (resolution.kind === 'ambiguous') {
-      return { response: ambiguousSectionError('replace', u.sectionPath, resolution.matches) };
+      const ambig = ambiguousSectionError('replace', u.sectionPath, resolution.matches);
+      return { response: { ...ambig, error: `${NO_WRITE_PREFIX}${ambig['error'] ?? 'ambiguous section'}`, fileChanged: false } };
     }
     const descendants = getDescendantHeaders(content, resolution.section);
     if (descendants.length > 0 && !u.force) {
-      return {
-        response: {
-          error: `Section "${u.sectionPath}" contains subsections that would be permanently deleted: [${descendants.map(h => `"${h}"`).join(', ')}]. To proceed anyway, pass force: true on this update entry. Otherwise, target each child directly by path (e.g. "${u.sectionPath}>ChildName"), or use insertSection to add new subsections.`
-        }
-      };
+      return writeError(
+        `Section "${u.sectionPath}" contains subsections that would be permanently deleted: [${descendants.map(h => `"${h}"`).join(', ')}]. To proceed anyway, pass force: true on this update entry. Otherwise, target each child directly by path (e.g. "${u.sectionPath}>ChildName"), or use insertSection to add new subsections.`
+      );
     }
     resolvedUpdates.push({ bounds: resolution.section, content: body, newTitle: u.newTitle, path: u.sectionPath });
   }
@@ -520,6 +537,7 @@ function replaceSection(args: ReplaceSectionArgs, context: FileAgentContext): To
   return {
     response: {
       status: 'success',
+      fileChanged: true,
       summary: `Successfully updated ${updates.length} section(s) in ${filename}`,
       totalLines: currentLines.length
     },
@@ -529,33 +547,34 @@ function replaceSection(args: ReplaceSectionArgs, context: FileAgentContext): To
 
 function insertSection(args: InsertSectionArgs, context: FileAgentContext): ToolExecutionResult {
   const content = context.files.get(args.filename);
-  if (content === undefined) return { response: { error: 'File not found' } };
+  if (content === undefined) return writeError('File not found');
   if (!args.heading || !args.heading.match(/^#{1,6}\s+\S/)) {
-    return { response: { error: 'heading must start with 1-6 # characters followed by text, e.g. "## New Section"' } };
+    return writeError('heading must start with 1-6 # characters followed by text, e.g. "## New Section"');
   }
   if ((args.anchor === 'before' || args.anchor === 'after' || args.anchor === 'append-into') && !args.anchorSectionPath) {
-    return { response: { error: `anchor "${args.anchor}" requires anchorSectionPath` } };
+    return writeError(`anchor "${args.anchor}" requires anchorSectionPath`);
   }
   if (args.content) {
     const firstNonEmpty = args.content.match(/^\s*(\S.*)$/m)?.[1];
     const canonical = (s: string) => s.replace(/\s+/g, ' ').trim();
     if (firstNonEmpty && canonical(firstNonEmpty) === canonical(args.heading)) {
-      return { response: { error: `content must NOT repeat the heading line — the runtime emits "${args.heading}" from the "heading" arg, then your content directly below. Including the heading inside content produces two identical headings. Pass body content only.` } };
+      return writeError(`content must NOT repeat the heading line — the runtime emits "${args.heading}" from the "heading" arg, then your content directly below. Including the heading inside content produces two identical headings. Pass body content only.`);
     }
   }
   let insertBody = args.content;
   if (insertBody) {
     const latexCheck = checkLatex(insertBody, 'content');
-    if ('error' in latexCheck) return { response: latexCheck };
+    if ('error' in latexCheck) return writeError(latexCheck.error);
     insertBody = latexCheck.content;
   }
   const result = insertSectionIntoContent(content, args.heading, insertBody, args.anchor, args.anchorSectionPath);
-  if ('error' in result) return { response: { error: result.error } };
+  if ('error' in result) return writeError(result.error);
   const oldLines = content.split('\n').length;
   context.onFileReplaced(args.filename, result.newContent);
   return {
     response: {
       status: 'success',
+      fileChanged: true,
       summary: `Inserted "${args.heading}" at line ${result.insertedAtLine} in ${args.filename}. Lines: ${oldLines} -> ${result.newContent.split('\n').length}`,
       insertedAtLine: result.insertedAtLine,
       totalLines: result.newContent.split('\n').length
@@ -829,26 +848,27 @@ function readTurnLogs(args: ReadTurnLogsArgs, context: FileAgentContext): ToolEx
 function insertIntoSection(args: InsertIntoSectionArgs, context: FileAgentContext): ToolExecutionResult {
   const filename = args.filename;
   const content = context.files.get(filename);
-  if (content === undefined) return { response: { error: 'File not found' } };
+  if (content === undefined) return writeError('File not found');
 
   if (typeof args.sectionPath !== 'string' || args.sectionPath.length === 0) {
-    return { response: { error: 'sectionPath is required' } };
+    return writeError('sectionPath is required');
   }
   if (typeof args.content !== 'string' || args.content.length === 0) {
-    return { response: { error: 'content is required and must be a non-empty string' } };
+    return writeError('content is required and must be a non-empty string');
   }
   if (args.position !== 'start' && args.position !== 'end') {
-    return { response: { error: 'position must be "start" or "end"' } };
+    return writeError('position must be "start" or "end"');
   }
 
   const resolution = resolveSection(content, args.sectionPath);
-  if (resolution.kind === 'none') return { response: { error: `Section not found: "${args.sectionPath}"` } };
+  if (resolution.kind === 'none') return writeError(`Section not found: "${args.sectionPath}"`);
   if (resolution.kind === 'ambiguous') {
-    return { response: ambiguousSectionError('replace', args.sectionPath, resolution.matches) };
+    const ambig = ambiguousSectionError('replace', args.sectionPath, resolution.matches);
+    return { response: { ...ambig, error: `${NO_WRITE_PREFIX}${ambig['error'] ?? 'ambiguous section'}`, fileChanged: false } };
   }
 
   const latexCheck = checkLatex(args.content, `content (${args.sectionPath})`);
-  if ('error' in latexCheck) return { response: latexCheck };
+  if ('error' in latexCheck) return writeError(latexCheck.error);
   const insertBody = latexCheck.content;
   const insertLines = insertBody.split('\n');
 
@@ -874,6 +894,7 @@ function insertIntoSection(args: InsertIntoSectionArgs, context: FileAgentContex
   return {
     response: {
       status: 'success',
+      fileChanged: true,
       summary: `Inserted ${insertLines.length} line(s) at ${args.position} of "${args.sectionPath}" in ${filename}. Lines: ${oldTotalLines} -> ${newLines.length}`,
       insertedAtLine: insertAt + 1,
       insertedLineCount: insertLines.length,
@@ -955,4 +976,48 @@ function listCollections(_args: ListCollectionsArgs, context: FileAgentContext):
       count: collections.length
     }
   };
+}
+
+async function proposeChatReplace(
+  args: ProposeChatReplaceArgs,
+  context: FileAgentContext
+): Promise<ToolExecutionResult> {
+  if ((context.surface ?? 'main') !== 'main') {
+    return { response: { error: PROPOSE_FILE_EDIT_REJECTION } };
+  }
+  if (typeof args.search !== 'string' || args.search.length === 0) {
+    return { response: { error: 'search is required and must be a non-empty string' } };
+  }
+  if (typeof args.replace !== 'string') {
+    return { response: { error: 'replace is required and must be a string (use "" to delete matches)' } };
+  }
+
+  const proposer = context.proposers?.chatReplace;
+  if (!proposer) {
+    return { response: { error: PROPOSE_NO_PROPOSER_WIRED } };
+  }
+
+  const outcome = await proposer({
+    search: args.search,
+    replace: args.replace,
+    caseSensitive: args.caseSensitive,
+    wholeWord: args.wholeWord,
+    regex: args.regex,
+    intentFilter: args.intentFilter,
+    roleFilter: args.roleFilter,
+    fieldFilter: args.fieldFilter,
+  });
+
+  // Surface the outcome with explicit past-tense framing. The proposer's
+  // `applied` field is structured but its name is ambiguous (could read
+  // as "what would be applied"); smaller models have mis-narrated a
+  // committed outcome as "please confirm in the dialog". The added
+  // `status` enum and natural-language `summary` make the past tense
+  // impossible to miss: the dialog is closed by the time this tool
+  // returns, and whatever happened HAS happened.
+  const status = outcome.cancelled ? 'cancelled' : 'committed';
+  const summary = outcome.cancelled
+    ? 'User cancelled the proposal dialog. NO chat messages were modified. The dialog is now closed. Do NOT ask the user to confirm — they already declined.'
+    : `User confirmed the proposal dialog. ${outcome.applied!.replaceCount} chat-message field(s) WERE modified${outcome.divergedFromProposal ? ' (with parameters tweaked from your original proposal — see `applied` for the actually-applied values)' : ''}. The dialog is now closed and the change is committed. Do NOT ask the user to "confirm" again — that already happened.`;
+  return { response: { ...outcome, status, summary } };
 }

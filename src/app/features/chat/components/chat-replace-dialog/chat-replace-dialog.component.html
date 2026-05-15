@@ -10,6 +10,13 @@
     </div>
 
     <div class="dialog-content">
+        @if (isProposeMode) {
+        <div class="propose-banner">
+            <mat-icon>auto_awesome</mat-icon>
+            <span>{{ lang.t('AGENT_PROPOSAL_NOTICE') }}</span>
+        </div>
+        }
+
         <!-- Search & Replace Inputs -->
         <div class="search-section">
             <div class="input-row">

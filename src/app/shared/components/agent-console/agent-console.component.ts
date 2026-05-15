@@ -29,7 +29,8 @@ import { AgentLinkInterceptor } from '@app/core/services/agent-hints/agent-link-
 import { AgentHintRegistry } from '@app/core/services/agent-hints/agent-hints.registry';
 import { AgentPanelStateService } from '@app/core/services/file-agent/agent-panel-state.service';
 import { PipAwareOverlayContainer } from './pip-aware-overlay-container';
-import type { AgentLogEntry } from '@app/core/services/file-agent/file-agent.types';
+import type { AgentLogEntry, ChatReplaceOutcome, ChatReplaceProposal } from '@app/core/services/file-agent/file-agent.types';
+import { firstValueFrom } from 'rxjs';
 
 @Component({
   selector: 'app-agent-console',
@@ -270,8 +271,43 @@ export class AgentConsoleComponent implements OnDestroy {
       uiLanguage: this.i18n.currentLang(),
       narrativeLanguage: this.appConfig.outputLanguage(),
       readOnly: this.readOnly(),
-      surface: this.surface()
+      surface: this.surface(),
+      proposers: {
+        chatReplace: (params) => this.openProposeChatReplace(params),
+      }
     });
+  }
+
+  /**
+   * Pop the chat-replace dialog in propose-mode (prefilled with the
+   * agent's proposal) and surface what the user actually did back to the
+   * agent. Lazy-imported so the dialog bundle isn't pulled in unless the
+   * agent actually fires the tool. If the dialog returns `undefined` —
+   * e.g. ESC-closed before resolving — treat that as cancellation.
+   */
+  private async openProposeChatReplace(params: ChatReplaceProposal): Promise<ChatReplaceOutcome> {
+    const mod = await import('@app/features/chat/components/chat-replace-dialog/chat-replace-dialog.component');
+    const data: import('@app/features/chat/components/chat-replace-dialog/chat-replace-dialog.component').ChatReplaceDialogData = { prefill: params };
+    // Flip the "awaiting your approval" signal so the console UI swaps the
+    // "thinking…" indicator and disables the prompt input. Without this,
+    // the user sees a spinner while the dialog is up and assumes the agent
+    // is still generating — making the dialog feel like a backdrop, not
+    // the active blocker.
+    this.agentService.awaitingProposerDialog.set(true);
+    try {
+      const ref = this.matDialog.open(mod.ChatReplaceDialogComponent, {
+        data,
+        width: '100vw',
+        height: '100vh',
+        maxWidth: '100vw',
+        maxHeight: '100vh',
+        panelClass: 'fullscreen-dialog',
+      });
+      const result = (await firstValueFrom(ref.afterClosed())) as ChatReplaceOutcome | undefined;
+      return result ?? { applied: null, cancelled: true, divergedFromProposal: false };
+    } finally {
+      this.agentService.awaitingProposerDialog.set(false);
+    }
   }
 
   /**
