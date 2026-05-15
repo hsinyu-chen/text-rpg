@@ -383,8 +383,14 @@ export class FileAgentService {
         const msg = err instanceof Error ? err.message : String(err);
         this.agentLogs.update(logs => [...logs, { role: 'system', text: `Error: ${msg}`, type: 'error' }]);
       }
-      this.isAgentRunning.set(false);
     } finally {
+      // Single guaranteed reset point. Inner methods (consumeStream,
+      // handleJsonParseError, handleSubmitResponse, processAgentTurn's
+      // commentary-only branch) still flip the signal early so the UI
+      // can react before the call stack unwinds, but this finally ensures
+      // every exit path — including setupTurn returning null mid-recursion
+      // when selectedProfileId becomes null — also clears it.
+      this.isAgentRunning.set(false);
       this.abortController = null;
     }
   }
@@ -537,7 +543,7 @@ export class FileAgentService {
     if (parsed.actions.length === 1) {
       await this.executeSingleAction(parsed.actions[0], context, mode, ctx);
     } else {
-      await this.executeBatchActions(parsed.actions, context, mode);
+      await this.executeBatchActions(parsed.actions, context, mode, ctx);
     }
   }
 
@@ -830,9 +836,17 @@ export class FileAgentService {
    * shared replacements collector, then recurse. lastFilesReplaced is set
    * once at end — Angular signal batching would otherwise lose
    * intermediate updates inside the synchronous loop.
+   *
+   * Streaming-entry reuse mirrors executeSingleAction: when the model
+   * produced no useful commentary (native + empty accumulatedText, or any
+   * JSON-mode batch where the streaming entry holds the raw JSON body that
+   * the parsed tool entries already convey), the FIRST action overwrites
+   * the streaming entry instead of appending — otherwise the log shows an
+   * empty "MODEL" entry or a raw-JSON duplicate above the parsed tool
+   * entries. Subsequent actions always append.
    */
   private async executeBatchActions(
-    actions: ParsedAction[], context: FileAgentContext, mode: 'native' | 'json'
+    actions: ParsedAction[], context: FileAgentContext, mode: 'native' | 'json', ctx: TurnContext
   ): Promise<void> {
     const executed: { action: ParsedAction; response: Record<string, unknown> }[] = [];
     const batchReplacements: { filename: string; content: string }[] = [];
@@ -844,15 +858,28 @@ export class FileAgentService {
     // is stable for the batch, so resolve once and reuse.
     const labels = this.harnessLabels();
 
+    const hasUsefulCommentary = mode === 'native' && ctx.accumulatedText.trim().length > 0;
+    let streamingEntryAvailable = !hasUsefulCommentary;
+
     for (const a of actions) {
       if (a.action === 'reportProgress') {
         const message = this.processAgentMessage(a.args.message, labels);
-        this.agentLogs.update(logs => [...logs, { role: 'model', text: message, type: 'model' as const }]);
+        if (streamingEntryAvailable) {
+          this.updateLogAt(ctx.currentLogIndex, e => ({ ...e, text: message, isToolCall: false }));
+          streamingEntryAvailable = false;
+        } else {
+          this.agentLogs.update(logs => [...logs, { role: 'model', text: message, type: 'model' as const }]);
+        }
         executed.push({ action: a, response: { status: 'acknowledged' } });
         continue;
       }
       const toolEntry = buildToolCallLogEntry(a);
-      this.agentLogs.update(logs => [...logs, toolEntry]);
+      if (streamingEntryAvailable) {
+        this.updateLogAt(ctx.currentLogIndex, e => ({ ...e, ...toolEntry }));
+        streamingEntryAvailable = false;
+      } else {
+        this.agentLogs.update(logs => [...logs, toolEntry]);
+      }
       const result = await this.executeFileToolSafe(a, batchContext);
       if (result.infoLog) {
         this.agentLogs.update(logs => [...logs, { role: 'system', text: result.infoLog!, type: 'info' }]);
