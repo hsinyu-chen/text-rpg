@@ -15,5 +15,10 @@ import { stringify } from 'yaml';
  * characters get quoted automatically.
  */
 export function toAgentYaml(value: unknown): string {
-  return stringify(value, { lineWidth: 0, indent: 2 });
+  // `yaml.stringify` (a) returns undefined when the input itself is undefined,
+  // which would silently violate this util's `string` return type, and
+  // (b) always appends a trailing newline that shows up as a blank line in the
+  // `<pre>`-rendered log entry. Coalesce + trimEnd handles both at the boundary.
+  const yaml = stringify(value, { lineWidth: 0, indent: 2 });
+  return yaml ? yaml.trimEnd() : '';
 }

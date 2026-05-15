@@ -52,4 +52,13 @@ describe('toAgentYaml', () => {
     const value = { result: { found: false, error: null, count: 0 } };
     expect(parse(toAgentYaml(value))).toEqual(value);
   });
+
+  it('returns an empty string for undefined input (honors the string return type)', () => {
+    expect(toAgentYaml(undefined)).toBe('');
+  });
+
+  it('strips the trailing newline so <pre> rendering does not gain a blank line', () => {
+    const out = toAgentYaml({ result: { ok: true } });
+    expect(out.endsWith('\n')).toBe(false);
+  });
 });
