@@ -86,8 +86,13 @@ The program assembles the user-facing scene header `[<date_in_world> <time_hhmm>
 ## Per-turn `event` step checks (run in order, both mandatory)
 
 1. **Random / environmental event check** — judge the current `scene_snapshot` and scene tension to decide whether to inject a third-party intervention / NPC action / environmental shift. If triggered → emit a step with `kind: "event"` / `source: "random"` / `hook_title: ""`.
-2. **Story-hook check** — scan `{{FILE_STORY_OUTLINE}}` "Story Triggers". For **every hook NOT yet marked `(Completed)`**, evaluate its trigger condition against this turn's `user_intent` step(s) and `scene_snapshot`. If satisfied → emit a step with `kind: "event"` / `source: "hook_fire"` / `hook_title` set to the hook's verbatim title; `action` describes how the hook's "Knowledge Acquired" surfaces naturally in this scene; `outcome` always starts with "success"; `breaks_ideal` is always `false`.
-   **This check runs every turn** — even if no hook fires, you MUST scan internally and decide each unfinished hook explicitly. Skip the sub-step only when `{{FILE_STORY_OUTLINE}}` lacks a "Story Triggers" section OR every hook beneath it is already `(Completed)`.
+2. **Story-hook check** — for **every hook** under `{{FILE_STORY_OUTLINE}}` "Story Triggers", run **a dual "already-fired" check (any condition true → treat as fired, skip)**:
+   - (a) **KB already marked `(Completed)`**.
+   - (b) **Recent turns' `summary` / `analysis.steps[]` already contain a `hook_fire` with the same `hook_title`** (in-session self-check that guards against re-firing during the window before the `(Completed)` marker lands in KB; the marker is written at the next save, not at trigger time).
+
+   Both negative → evaluate the trigger condition against this turn's `user_intent` step(s) and `scene_snapshot`. If satisfied → emit a step with `kind: "event"` / `source: "hook_fire"` / `hook_title` set to the hook's verbatim title; `action` **MUST cover every item recorded under the hook in one shot** — do not split across multiple turns; `outcome` and `breaks_ideal` are judged based on the hook's content (no special override; follow the same rules as other steps).
+
+   **This check runs every turn** — even if no hook fires, you MUST scan internally and decide each hook explicitly. Skip the sub-step only when `{{FILE_STORY_OUTLINE}}` lacks a "Story Triggers" section OR every hook beneath it is already `(Completed)`.
 
 Ordering: run check 1 then check 2. If both fire this turn, event steps follow chronological order (`hook_fire` typically lands immediately after the `user_intent` step that triggered it).
 

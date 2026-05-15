@@ -86,8 +86,13 @@
 ## 每回合 `event` step 必檢核（順序執行，缺一不可）
 
 1. **隨機 / 環境事件檢核** — 依當前 `scene_snapshot` 與場景張力，判斷是否該插入第三方介入 / NPC 行動 / 環境變化等中性或干擾性事件。觸發 → 產生一筆 `kind: "event"` / `source: "random"` / `hook_title: ""` 的 step。
-2. **劇情鉤子檢核** — 對照 `{{FILE_STORY_OUTLINE}}` 「啟動劇情引導」區塊。對其中**每一個尚未標記 `(已完成)`** 的鉤子，依其 `觸發條件` 檢查本回合 `user_intent` step(s) 與 `scene_snapshot` 是否滿足。滿足 → 產生一筆 `kind: "event"` / `source: "hook_fire"` / `hook_title` 填鉤子原始標題的 step；`action` 描述本鉤子「取得知識」在當下劇情中如何自然展現；`outcome` 一律以「成功」起頭；`breaks_ideal` 一律 `false`。
-   **此檢核每回合必跑**——即便最終沒有任何鉤子觸發，你也必須在內部完成掃描，逐一判定每個未完成鉤子的觸發條件是否滿足。若 `{{FILE_STORY_OUTLINE}}` 不含「啟動劇情引導」區塊，或其下所有鉤子皆已 `(已完成)`，本子項跳過。
+2. **劇情鉤子檢核** — 對照 `{{FILE_STORY_OUTLINE}}` 「啟動劇情引導」中**每一個鉤子**，先做**雙重「已觸發」檢查（任一成立即視為已觸發，跳過）**：
+   - (a) **KB 已標 `(已完成)`**。
+   - (b) **最近回合的 `summary` / `analysis.steps[]` 中已存在相同 `hook_title` 的 `hook_fire`**（用於 `(已完成)` 標記尚未落地前的 session 內自查，避免重複觸發）。
+
+   兩項皆否 → 依其 `觸發條件` 檢查本回合 `user_intent` step(s) 與 `scene_snapshot` 是否滿足。滿足 → 產生一筆 `kind: "event"` / `source: "hook_fire"` / `hook_title` 填鉤子原始標題的 step；`action` **必須一次涵蓋該鉤子下記載的所有具體內容**，不得拆成多回合分批觸發；`outcome` 與 `breaks_ideal` 依鉤子內容性質判定（無特殊限制，比照其他 step 的同欄位規則）。
+
+   **此檢核每回合必跑**——即便最終沒有任何鉤子觸發，你也必須在內部完成掃描，逐一判定每個鉤子的狀態。若 `{{FILE_STORY_OUTLINE}}` 不含「啟動劇情引導」區塊，或其下所有鉤子皆已 `(已完成)`，本子項跳過。
 
 順序提示：先做檢核 1 再做檢核 2；若同一回合兩種都觸發，event step 依時序排列（`hook_fire` 通常掛在引發其觸發的 `user_intent` step 之後）。
 
