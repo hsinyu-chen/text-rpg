@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { FileAgentService } from './file-agent.service';
@@ -56,6 +56,10 @@ function setup(opts: {
 }
 
 describe('FileAgentService — profile persistence', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('uses KV-stored profile id when present, ignoring main-chat active', () => {
     const { svc } = setup({
       kvSeed: { [FILE_AGENT_PROFILE_KEY]: 'p-kv' },
@@ -96,7 +100,7 @@ describe('FileAgentService — profile persistence', () => {
     expect(first.selectedProfileId).toBe(store.selectedProfileId);
   });
 
-  it('caches the static-fallback verdict when the probe throws, so a flaky endpoint is not re-hit', async () => {
+  it('records a failure timestamp instead of poisoning the cache when the probe throws', async () => {
     let calls = 0;
     const failingProbe = (): Promise<boolean> => {
       calls++;
@@ -107,21 +111,82 @@ describe('FileAgentService — profile persistence', () => {
     const { svc } = setup({
       mainChatActive: 'p-1',
       profiles: [profile],
-      providerCaps: { supportsNativeToolCalls: false }, // static fallback says JSON
+      providerCaps: { supportsNativeToolCalls: false }, // static default would say JSON
       probeNativeToolSupport: failingProbe
     });
 
     await svc.capability.kickToolSupportProbe('p-1');
     expect(calls).toBe(1);
 
-    // Static fallback got cached, so the resolver settles on "Auto: JSON (probed)"
-    // and a follow-up kick short-circuits via alreadyProbed.
+    // Failure must NOT promote to probeResults — otherwise a flaky cold-start
+    // would freeze the verdict to JSON forever. The reason therefore stays
+    // on the static-default branch, NOT "(probed)".
     const store = TestBed.inject(FileAgentSettingsStore);
-    expect(store.probeResults()['p-1']).toBe(false);
-    expect(svc.capability.effectiveToolCallReason()).toBe('Auto: JSON (probed)');
+    expect(store.probeResults()['p-1']).toBeUndefined();
+    expect(typeof store.probeFailureTimestamps()['p-1']).toBe('number');
+    expect(svc.capability.effectiveToolCallReason()).toBe('Auto: JSON (default)');
+  });
+
+  it('skips re-attempt within the failure TTL window', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1));
+    let calls = 0;
+    const probe = (): Promise<boolean> => {
+      calls++;
+      return Promise.reject(new Error('network timeout'));
+    };
+
+    const profile = { id: 'p-1', provider: 'test-provider', settings: {} };
+    const { svc } = setup({
+      mainChatActive: 'p-1',
+      profiles: [profile],
+      probeNativeToolSupport: probe
+    });
 
     await svc.capability.kickToolSupportProbe('p-1');
-    expect(calls).toBe(1); // not retried
+    expect(calls).toBe(1);
+
+    // 5s elapsed — still inside the 10s TTL → must NOT re-fire.
+    vi.advanceTimersByTime(5_000);
+    await svc.capability.kickToolSupportProbe('p-1');
+    expect(calls).toBe(1);
+  });
+
+  it('re-attempts the probe after the failure TTL elapses', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 0, 1));
+    let calls = 0;
+    let nextResult: boolean | null = null;
+    const probe = (): Promise<boolean> => {
+      calls++;
+      if (nextResult === null) return Promise.reject(new Error('cold start'));
+      return Promise.resolve(nextResult);
+    };
+
+    const profile = { id: 'p-1', provider: 'test-provider', settings: {} };
+    const { svc } = setup({
+      mainChatActive: 'p-1',
+      profiles: [profile],
+      providerCaps: { supportsNativeToolCalls: false }, // default would say JSON
+      probeNativeToolSupport: probe
+    });
+
+    await svc.capability.kickToolSupportProbe('p-1');
+    expect(calls).toBe(1);
+    expect(svc.capability.effectiveToolCallReason()).toBe('Auto: JSON (default)');
+
+    // 11s elapsed — beyond the 10s TTL → next kick must retry. This time
+    // the endpoint is warm and reports native support, so the verdict flips
+    // permanently to probed=true.
+    vi.advanceTimersByTime(11_000);
+    nextResult = true;
+    await svc.capability.kickToolSupportProbe('p-1');
+    expect(calls).toBe(2);
+
+    const store = TestBed.inject(FileAgentSettingsStore);
+    expect(store.probeResults()['p-1']).toBe(true);
+    expect(store.probeFailureTimestamps()['p-1']).toBeUndefined(); // cleared on success
+    expect(svc.capability.effectiveToolCallReason()).toBe('Auto: Native (probed)');
   });
 
   it('parallel kickToolSupportProbe calls dedupe via the store inflight set', async () => {

@@ -29,11 +29,28 @@ export class FileAgentSettingsStore {
     this.kv.get(FILE_AGENT_PROFILE_KEY) ?? this.llmConfigService.activeProfileId()
   );
 
-  /** Per-profile native-tool-call probe verdict. In-memory only — re-probed once per session. */
+  /**
+   * Per-profile native-tool-call probe verdict. In-memory only. Success
+   * verdicts are permanent within the session; failures land in
+   * {@link probeFailureTimestamps} instead and self-clear after TTL so a
+   * cold-start blip doesn't poison the cache.
+   */
   readonly probeResults = signal<Record<string, boolean>>({});
 
   /** Per-profile parallel-tool-call probe verdict. */
   readonly parallelProbeResults = signal<Record<string, boolean>>({});
+
+  /**
+   * Timestamps of the last failed native-tool probe per profile. Used to
+   * skip retries for a short window so a cold-start failure (llama.cpp not
+   * warm yet at app-boot) doesn't keep getting re-fired by every effect
+   * tick — but unlike `probeResults`, a failure DOESN'T poison the cache
+   * forever: once the TTL elapses, the next kick re-attempts the probe.
+   */
+  readonly probeFailureTimestamps = signal<Record<string, number>>({});
+
+  /** Mirror of {@link probeFailureTimestamps} for the parallel-tool probe. */
+  readonly parallelProbeFailureTimestamps = signal<Record<string, number>>({});
 
   /**
    * Per-profile in-flight markers used to dedupe concurrent probe attempts
@@ -59,5 +76,31 @@ export class FileAgentSettingsStore {
 
   recordParallelProbeResult(profileId: string, supports: boolean): void {
     this.parallelProbeResults.update(r => ({ ...r, [profileId]: supports }));
+  }
+
+  recordProbeFailure(profileId: string, at: number): void {
+    this.probeFailureTimestamps.update(r => ({ ...r, [profileId]: at }));
+  }
+
+  recordParallelProbeFailure(profileId: string, at: number): void {
+    this.parallelProbeFailureTimestamps.update(r => ({ ...r, [profileId]: at }));
+  }
+
+  clearProbeFailure(profileId: string): void {
+    this.probeFailureTimestamps.update(r => {
+      if (!(profileId in r)) return r;
+      const next = { ...r };
+      delete next[profileId];
+      return next;
+    });
+  }
+
+  clearParallelProbeFailure(profileId: string): void {
+    this.parallelProbeFailureTimestamps.update(r => {
+      if (!(profileId in r)) return r;
+      const next = { ...r };
+      delete next[profileId];
+      return next;
+    });
   }
 }

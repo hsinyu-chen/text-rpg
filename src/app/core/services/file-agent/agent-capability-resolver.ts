@@ -6,6 +6,15 @@ import { ToolCallMode } from './file-agent.types';
 
 const TOOL_CALL_MODE_KEY_PREFIX = 'file_agent_tool_call_mode:';
 
+/**
+ * How long to hold off a probe retry after the previous attempt threw.
+ * Long enough to avoid retry storms inside one user turn (effect ticks +
+ * sibling instances both kicking), short enough that a cold-start failure
+ * (e.g. llama.cpp not yet warm at app-boot) self-heals on the next
+ * profile switch / `agent_ask` without forcing the user to F5.
+ */
+export const PROBE_FAILURE_TTL_MS = 10_000;
+
 export interface AgentCapabilityResolverDeps {
     selectedProfileId: Signal<string | null>;
     agentProfiles: Signal<LLMConfig[]>;
@@ -16,6 +25,18 @@ export interface AgentCapabilityResolverDeps {
     parallelProbeResults: Signal<Record<string, boolean>>;
     recordProbeResult: (profileId: string, native: boolean) => void;
     recordParallelProbeResult: (profileId: string, supports: boolean) => void;
+    /**
+     * Timestamps of the most recent failed probe attempt per profile.
+     * The resolver consults these to suppress retries within
+     * {@link PROBE_FAILURE_TTL_MS} — but failed probes are NOT promoted to
+     * `probeResults`, so once the TTL elapses the next kick retries.
+     */
+    probeFailureTimestamps: Signal<Record<string, number>>;
+    parallelProbeFailureTimestamps: Signal<Record<string, number>>;
+    recordProbeFailure: (profileId: string, at: number) => void;
+    recordParallelProbeFailure: (profileId: string, at: number) => void;
+    clearProbeFailure: (profileId: string) => void;
+    clearParallelProbeFailure: (profileId: string) => void;
     /** Cross-instance in-flight markers — set true while a probe is awaiting, so a sibling instance doesn't fire a duplicate request. */
     probeInflight: Set<string>;
     parallelProbeInflight: Set<string>;
@@ -127,27 +148,26 @@ export class AgentCapabilityResolver {
         const provider = this.deps.llmProviderRegistry.getProvider(profile.provider);
         if (!provider) return;
 
-        // Skip when a verdict is already cached (sibling instance recorded it)
-        // OR when a sibling probe is in-flight for this profile. The
-        // inflight short-circuit prevents the race where two instances both
-        // see no cached result, both fire the (network-backed) probe in
-        // parallel, and both write the same answer. Sets live on the shared
-        // FileAgentSettingsStore so every sibling consults the same marker.
+        // Skip when a verdict is already cached (sibling instance recorded
+        // a SUCCESS — those are permanent), when a sibling probe is
+        // in-flight (cross-instance dedupe via the shared inflight Set on
+        // FileAgentSettingsStore), OR when a recent FAILURE timestamp is
+        // still within TTL. Failures are intentionally not promoted to
+        // `probeResults` — that would freeze a cold-start blip into a
+        // permanent JSON-mode verdict until F5. `Date.now()` is read at
+        // each check site (not hoisted), because the native await can
+        // span the TTL window before the parallel branch evaluates.
         const alreadyProbed = profileId in this.deps.probeResults();
-        if (readExplicitNativeFlag(profile.settings) === undefined && provider.probeNativeToolSupport && !alreadyProbed && !this.deps.probeInflight.has(profileId)) {
+        const lastFailure = this.deps.probeFailureTimestamps()[profileId];
+        const recentlyFailed = typeof lastFailure === 'number' && (Date.now() - lastFailure) < PROBE_FAILURE_TTL_MS;
+        if (readExplicitNativeFlag(profile.settings) === undefined && provider.probeNativeToolSupport && !alreadyProbed && !recentlyFailed && !this.deps.probeInflight.has(profileId)) {
             this.deps.probeInflight.add(profileId);
             try {
                 const result = await provider.probeNativeToolSupport(profile.settings);
                 this.deps.recordProbeResult(profileId, result);
+                this.deps.clearProbeFailure(profileId);
             } catch {
-                // Probe failed (timeout, 404, network blip). Settle the verdict
-                // to the provider's static capability so a flaky endpoint
-                // isn't re-hit on every subsequent signal change — without
-                // this, alreadyProbed stayed false and any later kick
-                // (profile switch, sibling instance constructing) would
-                // relaunch the same failing request.
-                const cap = provider.getCapabilities(profile.settings);
-                this.deps.recordProbeResult(profileId, !!cap?.supportsNativeToolCalls);
+                this.deps.recordProbeFailure(profileId, Date.now());
             } finally {
                 this.deps.probeInflight.delete(profileId);
             }
@@ -155,15 +175,16 @@ export class AgentCapabilityResolver {
 
         const parallelExplicit = profile.settings.additionalSettings?.['supportsParallelToolCalls'];
         const alreadyProbedParallel = profileId in this.deps.parallelProbeResults();
-        if (typeof parallelExplicit !== 'boolean' && provider.probeParallelToolSupport && !alreadyProbedParallel && !this.deps.parallelProbeInflight.has(profileId)) {
+        const lastParallelFailure = this.deps.parallelProbeFailureTimestamps()[profileId];
+        const parallelRecentlyFailed = typeof lastParallelFailure === 'number' && (Date.now() - lastParallelFailure) < PROBE_FAILURE_TTL_MS;
+        if (typeof parallelExplicit !== 'boolean' && provider.probeParallelToolSupport && !alreadyProbedParallel && !parallelRecentlyFailed && !this.deps.parallelProbeInflight.has(profileId)) {
             this.deps.parallelProbeInflight.add(profileId);
             try {
                 const result = await provider.probeParallelToolSupport(profile.settings);
                 this.deps.recordParallelProbeResult(profileId, result);
+                this.deps.clearParallelProbeFailure(profileId);
             } catch {
-                // Same retry-loop fix as the native probe above.
-                const cap = provider.getCapabilities(profile.settings);
-                this.deps.recordParallelProbeResult(profileId, !!cap?.supportsParallelToolCalls);
+                this.deps.recordParallelProbeFailure(profileId, Date.now());
             } finally {
                 this.deps.parallelProbeInflight.delete(profileId);
             }
