@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, effect, viewChild } from '@angular/core';
+import { Component, DestroyRef, ViewContainerRef, afterNextRender, computed, effect, inject, signal, viewChild } from '@angular/core';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
@@ -30,6 +30,9 @@ import { WakeLockService } from './core/services/wake-lock.service';
 import { BackgroundFetchService } from './core/services/background-fetch.service';
 import { BridgeService } from './core/services/dev/bridge.service';
 import { I18nService, TranslatePipe } from './core/i18n';
+import { AgentPanelStateService } from './core/services/file-agent/agent-panel-state.service';
+import { DOCUMENT } from '@angular/common';
+import { EmbeddedAgentSlotService } from './shared/components/agent-console/embedded-agent-slot.service';
 
 
 @Component({
@@ -54,6 +57,11 @@ import { I18nService, TranslatePipe } from './core/i18n';
 export class AppComponent {
   engine = inject(GameEngineService);
   state = inject(GameStateService);
+  protected agentPanelState = inject(AgentPanelStateService);
+  private embeddedSlotRegistry = inject(EmbeddedAgentSlotService);
+  private embeddedAgentSlot = viewChild('embeddedAgentSlot', { read: ViewContainerRef });
+  private appDestroyRef = inject(DestroyRef);
+  private doc = inject(DOCUMENT);
   protected appConfig = inject(AppConfigStore);
   session = inject(SessionService); // Public for template access if needed, or private
   loading = inject(LoadingService);
@@ -148,6 +156,27 @@ export class AppComponent {
       const update = this.sync.remoteUpdateAvailable();
       if (!update) return;
       this.handleRemoteUpdate(update.bookId);
+    });
+
+    // Embedded slot is always rendered (visibility is CSS-driven via
+    // [class.is-active]), so its ViewContainerRef is stable for the
+    // AppComponent's lifetime. Register once after first render.
+    afterNextRender(() => {
+      const slot = this.embeddedAgentSlot();
+      if (slot) this.embeddedSlotRegistry.set(slot);
+      this.appDestroyRef.onDestroy(() => {
+        if (slot && this.embeddedSlotRegistry.get() === slot) this.embeddedSlotRegistry.set(null);
+      });
+    });
+
+    // Reflect "embedded agent panel is visible" onto <body> as a class so
+    // global stylesheets (e.g. the .cdk-overlay-popover width override that
+    // reserves room for the panel) can react without DI. CDK 19+ hoists
+    // overlays into the browser top-layer; CSS is the only way to constrain
+    // them, and a body class is the simplest cross-cutting hook.
+    effect(() => {
+      const showEmbedded = this.agentPanelState.embedded() && this.agentPanelState.isOpen();
+      this.doc.body.classList.toggle('agent-panel-embedded', showEmbedded);
     });
 
     // PWA — service worker fetched a new app version; ask user to reload to activate.

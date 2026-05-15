@@ -7,6 +7,7 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatDialog } from '@angular/material/dialog';
 import { CORE_MAT, DIALOG_MAT, FORM_MAT } from '@app/shared/material/material-groups';
+import { FULLSCREEN_DIALOG_CONFIG } from '@app/shared/material/dialog-presets';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import { GameEngineService } from '@app/core/services/game-engine.service';
@@ -20,6 +21,8 @@ import { WORLD_PRESETS } from '@app/core/constants/world-preset';
 import { WorldCompletionValidator } from '@app/core/services/file-agent/world-completion-validator';
 import { LLMConfigService } from '@app/core/services/llm-config.service';
 import { AppAgentHintDirective } from '@app/core/services/agent-hints/agent-hints.directive';
+import { FileAgentService } from '@app/core/services/file-agent/file-agent.service';
+import { DialogService } from '@app/core/services/dialog.service';
 
 const BLANK_FILES_EN = [
     '1.Base_Settings.md', '2.Story_Outline.md', '3.Character_Status.md',
@@ -58,6 +61,8 @@ export class NewGameDialogComponent {
     private http = inject(HttpClient);
     private snackBar = inject(MatSnackBar);
     private matDialog = inject(MatDialog);
+    private fileAgent = inject(FileAgentService);
+    private dialogService = inject(DialogService);
     private llmConfig = inject(LLMConfigService);
     private i18n = inject(I18nService);
 
@@ -297,6 +302,32 @@ export class NewGameDialogComponent {
 
     async submitCreateWorld(): Promise<void> {
         if (!this.isCreateWorldValid()) return;
+        // FileAgentService is a root singleton — any prior chat-side / file-edit
+        // turn's history is still live. createWorldMode is a fresh start, so
+        // warn before clobbering. Cancel aborts so the user can capture the
+        // conversation first (e.g. via Copy Log) before retrying.
+        //
+        // Running-agent check is separate: clearHistory() and runAgent() both
+        // early-return while isAgentRunning, so if we let the flow proceed
+        // here the clear no-ops AND the createWorld initial prompt later
+        // silently fails — user sees an empty file-viewer. Block outright.
+        if (this.fileAgent.isAgentRunning()) {
+            await this.dialogService.alert(
+                this.t('agentBusyMessage'),
+                this.t('agentBusyTitle'),
+            );
+            return;
+        }
+        if (this.fileAgent.agentHistory().length > 0 || this.fileAgent.agentLogs().length > 0) {
+            const ok = await this.dialogService.confirm(
+                this.t('existingAgentChatMessage'),
+                this.t('existingAgentChatTitle'),
+                this.t('existingAgentChatConfirm'),
+                this.t('existingAgentChatCancel'),
+            );
+            if (!ok) return;
+            this.fileAgent.clearHistory();
+        }
         this.isLoading.set(true);
         try {
             const isZh = this.isZhLang();
@@ -364,7 +395,7 @@ export class NewGameDialogComponent {
 
             this.dialogRef.close();
             this.matDialog.open(FileViewerDialogComponent, {
-                panelClass: 'fullscreen-dialog',
+                ...FULLSCREEN_DIALOG_CONFIG,
                 data: {
                     files: filesMap,
                     initialFile: fileNames[0],

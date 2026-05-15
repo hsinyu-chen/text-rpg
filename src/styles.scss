@@ -144,18 +144,60 @@ markdown {
     background-color: #1e1e1e;
 }
 
-/* Fullscreen Dialog Panel */
+/* Dialog "right inset" used by the popover/backdrop overrides below. When
+   the embedded agent panel is visible (body.agent-panel-embedded — toggled
+   from AppComponent), this reserves the panel's width so dialogs / menus /
+   tooltips don't paint over the panel area. CDK 19+ hoists overlays into the
+   browser top-layer (viewport-coordinate-space), so DOM-relocation tricks
+   are useless — only viewport-relative CSS width/right works. */
+:root {
+    --agent-panel-inset: 0px;
+}
+body.agent-panel-embedded {
+    --agent-panel-inset: min(480px, 40vw);
+}
+@media (max-width: 800px) {
+    /* Mobile: panel is a full-viewport overlay (see app.component.scss);
+       no room to "shrink" the dialog to, so don't inset at all. */
+    body.agent-panel-embedded {
+        --agent-panel-inset: 0px;
+    }
+}
+
+/* Constrain CDK 19+ top-layer popovers to (viewport - agent-panel-inset)
+   so a fullscreen dialog does not overlap the docked agent panel.
+   Scoped via `:has(.fullscreen-dialog)` so the rule only applies to popover
+   containers that actually hold a fullscreen dialog — mat-menu / mat-tooltip
+   / mat-select dropdowns share the `.cdk-overlay-popover` container class
+   (CDK 19+ defaults usePopover=true) and would otherwise get their
+   positioning context narrowed, causing flip/push reposition for menus
+   anchored near the right edge of the viewport.
+   Backdrop is constrained too so clicks on the panel area don't dismiss the
+   dialog. `left: 0; right: auto; margin-left: 0` anchors the box to the
+   viewport's left edge — CDK's default `margin: auto` on the wrapper would
+   otherwise center the shrunk box, leaving an un-dimmed gap on the left. */
+.cdk-overlay-popover:has(.fullscreen-dialog),
+.cdk-overlay-popover:has(.fullscreen-dialog) .cdk-overlay-backdrop {
+    width: calc(100vw - var(--agent-panel-inset)) !important;
+    max-width: calc(100vw - var(--agent-panel-inset)) !important;
+    left: 0 !important;
+    right: auto !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+}
+
+/* Fullscreen Dialog Panel — fills the (now possibly shrunk) popover box. */
 .fullscreen-dialog {
-    max-width: 100vw !important;
-    max-height: 100vh !important;
-    width: 100vw !important;
-    height: 100vh !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
+    width: 100% !important;
+    height: 100% !important;
 
     .mdc-dialog__surface {
-        max-width: 100vw !important;
-        max-height: 100vh !important;
-        width: 100vw !important;
-        height: 100vh !important;
+        max-width: 100% !important;
+        max-height: 100% !important;
+        width: 100% !important;
+        height: 100% !important;
         border-radius: 0 !important;
         background-color: var(--bg-dialog) !important;
     }
@@ -256,61 +298,25 @@ markdown {
     animation: agent-hint-spotlight-pulse 2s ease-out forwards;
 }
 
-// Agent panel host uses popover="manual" so it shares the browser top-layer
-// with cdk-overlay dialogs (CDK 19+ uses the same popover API). Top-layer
-// ignores z-index — ordering is purely "last shown wins" — so chat.component
-// re-promotes us via hide+show whenever a sibling popover opens. Default
-// popover UA styles add margin/border/inset:auto we reset for full-edge fit.
-.agent-panel-host {
-    position: fixed;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    left: auto;
-    // Popover UA sets `height: fit-content`, which collapses to content size
-    // and ignores top/bottom. Force full viewport height explicitly.
-    height: 100dvh;
-    width: auto;
-    margin: 0;
-    padding: 0;
-    border: none;
-    background: transparent;
-    color: inherit;
-    overflow: visible;
-    pointer-events: auto;
+// PiP window body — `.agent-panel-pip` is added by AgentPanelPortalService
+// when the agent panel is mounted into a separate browser window. Match the
+// dark Material surface so the agent console doesn't sit on a default-white
+// background (the cloned <style> tags style the console itself but not the
+// PiP doc's body, which lives in a fresh document).
+body.agent-panel-pip {
+    background: var(--mat-sys-surface-container, #1e1e1e);
+    color: var(--text-main, #e0e0e0);
 }
-.agent-panel-host:not(:popover-open) {
-    display: none;
-}
+
+// Agent-panel layout — fills whichever surface mounts it (the embedded
+// `.agent-panel-embedded` <aside> in AppComponent, or the PiP window body).
+// Each surface owns its outer chrome (background / border / shadow / size);
+// the shell just lays out the header + console vertically.
 .agent-panel-shell {
     display: flex;
     flex-direction: column;
-    width: min(480px, 92vw);
-    min-width: 320px;
-    height: 100%;
-    background: var(--mat-sys-surface-container, #1e1e1e);
-    border-left: 1px solid rgba(255, 255, 255, 0.1);
-    box-shadow: -4px 0 10px rgba(0, 0, 0, 0.4);
-}
-// On phones / narrow viewports take the full width (modal-style overlay).
-// Below 600px the min-width:320px floor in the base rule would otherwise
-// leave only a sliver of the page visible behind a near-fullwidth panel —
-// might as well commit to fullscreen.
-@media (max-width: 600px) {
-    .agent-panel-host .agent-panel-shell {
-        width: 100vw;
-        min-width: 0;
-        border-left: none;
-    }
-}
-// Picture-in-Picture window — the agent panel IS the entire content of a
-// separate browser window, so fill the viewport (no gutters, no shadow).
-body.agent-panel-pip .agent-panel-shell {
     width: 100%;
-    min-width: 0;
     height: 100%;
-    border-left: none;
-    box-shadow: none;
 }
 .agent-panel-shell .agent-panel-header {
     display: flex;

@@ -18,6 +18,7 @@ import { LocalStorageKVStore } from './core/services/kv/local-storage-kv-store';
 import { SYNC_BACKEND_PROVIDERS } from './core/services/sync/sync-backends.providers';
 import { FILE_VIEWER_OPENER, FileViewerOpener } from './core/services/dev/file-viewer-opener.token';
 import { FileViewerDialogComponent } from './features/sidebar/file-viewer-dialog.component';
+import { FULLSCREEN_DIALOG_CONFIG } from './shared/material/dialog-presets';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -67,7 +68,7 @@ export const appConfig: ApplicationConfig = {
               return { alreadyOpen: true };
             }
             dialog.open(FileViewerDialogComponent, {
-              panelClass: 'fullscreen-dialog',
+              ...FULLSCREEN_DIALOG_CONFIG,
               data: req,
             });
             return { alreadyOpen: false };

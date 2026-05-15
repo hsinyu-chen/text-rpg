@@ -29,8 +29,7 @@ import { AgentLinkInterceptor } from '@app/core/services/agent-hints/agent-link-
 import { AgentHintRegistry } from '@app/core/services/agent-hints/agent-hints.registry';
 import { AgentPanelStateService } from '@app/core/services/file-agent/agent-panel-state.service';
 import { PipAwareOverlayContainer } from './pip-aware-overlay-container';
-import type { AgentLogEntry, ChatReplaceOutcome, ChatReplaceProposal } from '@app/core/services/file-agent/file-agent.types';
-import { firstValueFrom } from 'rxjs';
+import type { AgentLogEntry } from '@app/core/services/file-agent/file-agent.types';
 
 @Component({
   selector: 'app-agent-console',
@@ -89,6 +88,9 @@ export class AgentConsoleComponent implements OnDestroy {
   private linkInterceptor = inject(AgentLinkInterceptor);
   private hintRegistry = inject(AgentHintRegistry);
   private panelState = inject(AgentPanelStateService);
+  // Used by openHintDebug (dev-only). The propose-chat-replace dialog used
+  // to live here too but moved into FileAgentService (proposer is part of
+  // the agent FSM, not the view).
   private matDialog = inject(MatDialog);
   /** Memoizes `breadcrumbifyLinks` by source text — same input string ⇒ same output reference, so <markdown [data]> doesn't re-parse on every CD. */
   private readonly breadcrumbCache = new WeakMap<AgentLogEntry, { src: string; out: string }>();
@@ -233,81 +235,23 @@ export class AgentConsoleComponent implements OnDestroy {
     const prompt = this.agentPrompt().trim();
     if (!prompt) return;
     this.agentPrompt.set('');
-    // Writable runs require a registered edit channel (file-viewer's Monaco
-    // buffer); read/write both route through it so the surface's own Save flow
-    // remains the single persistence path. The chat-side panel is `readOnly`
-    // when no channel is registered, so the executor never invokes write tools
-    // and we never reach the no-channel branch here.
-    //
-    // onFileReplaced re-reads the channel at write time, not at turn-start:
-    // if the file-viewer closes mid-stream the captured reference goes stale,
-    // and writing through it lands in an orphaned buffer. Channel-vanished
-    // mid-stream ⇒ drop the write (with a warning) rather than fall through
-    // to `this.files().set(...)`, which would mutate the engine's live
-    // loadedFiles map directly — bypassing Monaco, the unsaved-flag, and the
-    // Save → IndexedDB flow.
+    // The console is a pure view onto FileAgentService — it does NOT hold any
+    // agent state (history, logs, FSM) and does NOT capture closures the loop
+    // needs. The service builds onFileReplaced + proposers internally from
+    // its root deps (AgentPanelStateService, MatDialog) so closing this
+    // console mid-turn drops nothing the loop relies on. Initial `files` is
+    // sourced from the edit channel when one is registered (file-viewer's
+    // Monaco buffer); otherwise the caller-passed snapshot is used (engine's
+    // live loadedFiles map for chat-side, dialog's working map for createWorld).
     const channelAtStart = this.panelState.editChannel();
     await this.agentService.runAgent(prompt, {
       files: channelAtStart ? channelAtStart.read() : this.files(),
-      onFileReplaced: (filename, content) => {
-        const live = this.panelState.editChannel();
-        if (live) {
-          live.write(filename, content);
-        } else {
-          // Channel went null mid-stream — file-viewer was closed by the user
-          // after the agent run started. Push a visible log entry so the user
-          // sees the dropped write, and throw so the tool call propagates an
-          // error back to the LLM. The model then stops fanning out further
-          // writes this turn instead of silently no-op'ing each one.
-          this.agentService.agentLogs.update(logs => [...logs, {
-            role: 'system',
-            text: `[user interrupt the editing] dropped write to ${filename} (${content.length} chars); File Viewer was closed mid-stream`,
-            type: 'error'
-          }]);
-          throw new Error('[user interrupt the editing] the editing surface (File Viewer) was closed by the user; no further writes will be applied this turn');
-        }
-      },
       chatMessages: this.chatMessages(),
       uiLanguage: this.i18n.currentLang(),
       narrativeLanguage: this.appConfig.outputLanguage(),
       readOnly: this.readOnly(),
       surface: this.surface(),
-      proposers: {
-        chatReplace: (params) => this.openProposeChatReplace(params),
-      }
     });
-  }
-
-  /**
-   * Pop the chat-replace dialog in propose-mode (prefilled with the
-   * agent's proposal) and surface what the user actually did back to the
-   * agent. Lazy-imported so the dialog bundle isn't pulled in unless the
-   * agent actually fires the tool. If the dialog returns `undefined` —
-   * e.g. ESC-closed before resolving — treat that as cancellation.
-   */
-  private async openProposeChatReplace(params: ChatReplaceProposal): Promise<ChatReplaceOutcome> {
-    const mod = await import('@app/features/chat/components/chat-replace-dialog/chat-replace-dialog.component');
-    const data: import('@app/features/chat/components/chat-replace-dialog/chat-replace-dialog.component').ChatReplaceDialogData = { prefill: params };
-    // Flip the "awaiting your approval" signal so the console UI swaps the
-    // "thinking…" indicator and disables the prompt input. Without this,
-    // the user sees a spinner while the dialog is up and assumes the agent
-    // is still generating — making the dialog feel like a backdrop, not
-    // the active blocker.
-    this.agentService.awaitingProposerDialog.set(true);
-    try {
-      const ref = this.matDialog.open(mod.ChatReplaceDialogComponent, {
-        data,
-        width: '100vw',
-        height: '100vh',
-        maxWidth: '100vw',
-        maxHeight: '100vh',
-        panelClass: 'fullscreen-dialog',
-      });
-      const result = (await firstValueFrom(ref.afterClosed())) as ChatReplaceOutcome | undefined;
-      return result ?? { applied: null, cancelled: true, divergedFromProposal: false };
-    } finally {
-      this.agentService.awaitingProposerDialog.set(false);
-    }
   }
 
   /**

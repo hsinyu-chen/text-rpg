@@ -66,9 +66,20 @@
 -->
 <ng-template #agentPanelTpl>
     <div class="agent-panel-shell">
+        <!--
+            Header is only rendered in embedded mode. PiP windows have native
+            chrome (close X / back button) — the portal treats that close as
+            a dock-back-to-page action, so no in-panel buttons are needed.
+        -->
         @if (!panelState.pipActive()) {
             <div class="agent-panel-header">
-                <button mat-icon-button (click)="isAgentSidebarOpen.set(false)"
+                @if (isPipSupported()) {
+                    <button mat-icon-button (click)="switchAgentPanelTo('pip')"
+                        [matTooltip]="'ui.AGENT_PANEL_POP_OUT' | translate">
+                        <mat-icon>picture_in_picture_alt</mat-icon>
+                    </button>
+                }
+                <button mat-icon-button (click)="panelState.isOpen.set(false)"
                     [matTooltip]="'ui.AGENT_PANEL_CLOSE' | translate">
                     <mat-icon>close</mat-icon>
                 </button>

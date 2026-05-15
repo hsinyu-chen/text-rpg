@@ -173,6 +173,35 @@
         inset 0 0 0 1px rgba(255, 255, 255, 0.08) !important;
 }
 
+// Agent-running-while-hidden: the loop is mid-turn but the panel is closed
+// (no embedded slot, no PiP). Pulse the FAB so the user still gets a signal
+// the agent is working, even with no console visible. Tinted to the primary
+// pink to distinguish from the tertiary `pip-active` state.
+@keyframes agent-running-pulse {
+    0%, 100% {
+        box-shadow: 0 0 0 0 rgba(var(--app-primary-rgb, 194, 24, 91), 0.6);
+        transform: scale(1);
+    }
+    50% {
+        box-shadow: 0 0 0 8px rgba(var(--app-primary-rgb, 194, 24, 91), 0);
+        transform: scale(1.05);
+    }
+}
+.agent-btn.agent-running-pulse {
+    animation: agent-running-pulse 1.6s ease-in-out infinite;
+    background-color: var(--app-primary, #c2185b) !important;
+    color: #fff !important;
+}
+// Mobile-menu item — keep the pulse subtle (no scale, only a left-bar glow)
+// since a menu item isn't a FAB and scale would clip the menu surface.
+@keyframes agent-running-pulse-menu {
+    0%, 100% { background-color: rgba(var(--app-primary-rgb, 194, 24, 91), 0.0); }
+    50%      { background-color: rgba(var(--app-primary-rgb, 194, 24, 91), 0.25); }
+}
+.mat-mdc-menu-item.agent-running-pulse {
+    animation: agent-running-pulse-menu 1.6s ease-in-out infinite;
+}
+
 .mobile-menu-btn {
     display: none; // Hidden by default on desktop
     background-color: #424242 !important;

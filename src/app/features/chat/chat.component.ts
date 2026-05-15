@@ -16,7 +16,6 @@ import { ChatInputComponent } from './components/chat-input/chat-input.component
 import { TurnUpdatePanelComponent } from './components/turn-update-panel/turn-update-panel.component';
 import { I18nService, TranslatePipe } from '@app/core/i18n';
 import { AgentConsoleComponent } from '@app/shared/components/agent-console/agent-console.component';
-import { FileAgentService } from '@app/core/services/file-agent/file-agent.service';
 import { AppConfigStore } from '@app/core/services/app-config-store';
 import { BridgeService } from '@app/core/services/dev/bridge.service';
 import { AgentMessageJumperService } from '@app/core/services/agent-hints/agent-message-jumper.service';
@@ -42,12 +41,12 @@ import { AgentPanelStateService } from '@app/core/services/file-agent/agent-pane
     templateUrl: './chat.component.html',
     styleUrl: './chat.component.scss',
     changeDetection: ChangeDetectionStrategy.OnPush,
-    // FileAgentService owns the agent log + history signals; provide here so
-    // the main-screen agent has its own instance, independent from any file-
-    // viewer dialog the user might open simultaneously. KV-backed profile
-    // selection (see file-agent.service.ts FILE_AGENT_PROFILE_KEY) keeps the
-    // pre-selected profile in sync across instances.
-    providers: [FileAgentService, AgentPanelPortalService]
+    // AgentPanelPortalService is component-scoped because each chat surface
+    // owns its own embedded slot + PiP lifecycle. FileAgentService is now a
+    // root singleton — every surface (chat, file-viewer createWorldMode,
+    // headless bridge agent_ask) reads from the SAME agent state, so
+    // closing the panel mid-run never drops history / logs / FSM state.
+    providers: [AgentPanelPortalService]
 })
 export class ChatComponent {
     engine = inject(GameEngineService);
@@ -72,7 +71,9 @@ export class ChatComponent {
     editingMessageId = signal<string | null>(null);
     showScrollButton = signal(false);
     isSidebarOpen = signal(false);
-    isAgentSidebarOpen = signal(false);
+    // Reflects panelState.isOpen — local alias kept for template bindings
+    // (chat-input close button etc.) that already read it through this name.
+    isAgentSidebarOpen = this.panelState.isOpen;
 
     /**
      * Files map passed into <app-agent-console>. Always the engine's live map —
@@ -108,8 +109,11 @@ export class ChatComponent {
     private hasInitialScrolled = false;
     private prevLastCotOpen = false;
 
-    /** Bridge-driven fill request forwarded into AgentConsoleComponent; null until the bridge sends one, then tick-versioned payloads. */
-    agentConsoleFillRequest = signal<{ prompt: string; autoSend: boolean; tick: number } | null>(null);
+    /** Forwarded directly from AgentPanelStateService.fillRequest — chat-side
+     *  agent-console reads via input. The signal already encodes "panel open"
+     *  semantics (panelState.pushFillRequest flips isOpen), so no per-source
+     *  effect wiring is needed; AgentConsoleComponent dedupes by tick. */
+    agentConsoleFillRequest = this.panelState.fillRequest;
 
     constructor() {
         // Bridge-driven open requests (dev-only). The tick counter increments
@@ -123,21 +127,6 @@ export class ChatComponent {
                 lastTick = tick;
                 this.isAgentSidebarOpen.set(true);
             }
-        });
-
-        // Bridge-driven fill: when the bridge pushes a prompt into the chat
-        // panel, ensure the panel is open and forward the payload to
-        // agent-console. The bridge handler already increments
-        // openChatAgentPanelTick, so the open-effect above will fire too;
-        // setting here covers the case where the open-tick handler runs
-        // before the agent-console has mounted.
-        let lastFillPayloadTick = this.bridge.chatPanelPromptFill()?.tick ?? 0;
-        effect(() => {
-            const fill = this.bridge.chatPanelPromptFill();
-            if (!fill || fill.tick === lastFillPayloadTick) return;
-            lastFillPayloadTick = fill.tick;
-            this.isAgentSidebarOpen.set(true);
-            this.agentConsoleFillRequest.set(fill);
         });
 
         // app://message/<id>[/<action>] link clicked in agent-console →
@@ -207,19 +196,36 @@ export class ChatComponent {
             this.initScrollObservers();
         });
 
-        // Manually portal the agent panel into <body>. We tried CDK Overlay
-        // first but CDK 19+ defaults to the native popover API: wrappers carry
-        // `popover="manual"` and render into the browser top-layer, which
-        // IGNORES z-index — ordering is purely "last-shown wins". Any dialog
-        // opened after the agent panel paints over it. A plain body-level
-        // <div> with z-index 1100 lives in normal stacking order, above
-        // cdk-overlay-container (z:1000).
+        // Drive the agent-panel portal off two signals:
+        //   isOpen — user-controlled open/close
+        //   preferredMode — pip vs embedded preference (persisted)
+        // The embedded slot is always rendered in AppComponent (no @if);
+        // EmbeddedAgentSlotService publishes its ViewContainerRef on init,
+        // so we don't need a third trigger.
+        //
+        // The portal's mount() is idempotent in the same mode and tears
+        // down the other surface on mode change, so a single effect is
+        // enough — no manual previous-mode bookkeeping here.
         effect(() => {
-            const open = this.isAgentSidebarOpen();
+            const open = this.panelState.isOpen();
             const tpl = this.agentPanelTpl();
+            // Read preferredMode so the effect re-runs on PIP <-> embedded
+            // swaps and mount() picks up the new mode.
+            this.panelState.preferredMode();
             if (open && tpl) {
                 this.agentPanelPortal.mount(tpl, this.viewContainerRef, {
-                    onPipClosed: () => this.isAgentSidebarOpen.set(false),
+                    // PiP-side close from the browser chrome — the portal
+                    // service teases apart back-to-tab vs close X via the
+                    // main-window focus heuristic (see PipCloseReason in
+                    // agent-panel-portal.service.ts). back-to-tab docks back
+                    // into the page; close X drops the panel entirely.
+                    onPipClosed: (reason) => {
+                        if (reason === 'back-to-tab') {
+                            this.panelState.setPreferredMode('embedded');
+                        } else {
+                            this.panelState.isOpen.set(false);
+                        }
+                    },
                 });
             } else {
                 this.agentPanelPortal.unmount();
@@ -392,6 +398,20 @@ export class ChatComponent {
 
     toggleAgentSidebar() {
         this.isAgentSidebarOpen.update(v => !v);
+    }
+
+    /** Template-readable flag for whether the runtime exposes the Document
+     *  Picture-in-Picture API — gates the "pop out" button in the embedded
+     *  header. */
+    isPipSupported(): boolean {
+        return this.agentPanelPortal.isPipSupported();
+    }
+
+    /** Persist the user's preferred surface and let the portal effect swap
+     *  modes on the next tick. The state service writes through to KVStore so
+     *  the choice survives reloads. */
+    switchAgentPanelTo(mode: 'pip' | 'embedded'): void {
+        this.panelState.setPreferredMode(mode);
     }
 
     // Hard cap on stabilization — cv:auto cascades can shift layout multiple

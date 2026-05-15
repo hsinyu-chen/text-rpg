@@ -4,6 +4,7 @@ import { MatDialog } from '@angular/material/dialog';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatTabsModule } from '@angular/material/tabs';
 import { CORE_MAT } from '@app/shared/material/material-groups';
+import { FULLSCREEN_DIALOG_CONFIG } from '@app/shared/material/dialog-presets';
 
 import { GameEngineService } from '@app/core/services/game-engine.service';
 import { GameStateService } from '@app/core/services/game-state.service';
@@ -80,7 +81,7 @@ export class SidebarComponent {
   viewFile(initialFile: string) {
     // Pass all loaded files to the dialog with the clicked file as initial selection
     this.matDialog.open(FileViewerDialogComponent, {
-      panelClass: 'fullscreen-dialog',
+      ...FULLSCREEN_DIALOG_CONFIG,
       data: {
         files: this.state.loadedFiles(),
         initialFile

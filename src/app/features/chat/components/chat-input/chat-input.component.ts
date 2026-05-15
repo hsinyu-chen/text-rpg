@@ -26,6 +26,8 @@ import { getProfileDisplayName } from '@app/core/constants/prompt-profiles';
 import { ContextUsageBarComponent } from '@app/shared/components/context-usage-bar/context-usage-bar.component';
 import { AppAgentHintDirective } from '@app/core/services/agent-hints/agent-hints.directive';
 import { AgentPanelStateService } from '@app/core/services/file-agent/agent-panel-state.service';
+import { FileAgentService } from '@app/core/services/file-agent/file-agent.service';
+import { FULLSCREEN_DIALOG_CONFIG } from '@app/shared/material/dialog-presets';
 
 @Component({
     selector: 'app-chat-input',
@@ -53,6 +55,9 @@ export class ChatInputComponent {
     lang = inject(LanguageService);
     sys = inject(SystemStatusService);
     agentPanelState = inject(AgentPanelStateService);
+    fileAgent = inject(FileAgentService);
+    // Template alias for the shared computed on FileAgentService.
+    isAgentRunningHidden = this.fileAgent.isAgentRunningHidden;
     private i18n = inject(I18nService);
     private profileRegistry = inject(PromptProfileRegistryService);
     private config = inject(ConfigService);
@@ -223,24 +228,14 @@ export class ChatInputComponent {
     }
 
     openConfigDialog() {
-        this.matDialog.open(ChatConfigDialogComponent, {
-            width: '100vw',
-            height: '100vh',
-            maxWidth: '100vw',
-            maxHeight: '100vh',
-            panelClass: 'fullscreen-dialog'
-        });
+        this.matDialog.open(ChatConfigDialogComponent, FULLSCREEN_DIALOG_CONFIG);
     }
 
     openPayloadPreview() {
         const payload = this.engine.getPreviewPayload(this.userInput(), { intent: this.selectedIntent() });
         this.matDialog.open(PayloadDialogComponent, {
             data: payload,
-            width: '100vw',
-            height: '100vh',
-            maxWidth: '100vw',
-            maxHeight: '100vh',
-            panelClass: 'fullscreen-dialog'
+            ...FULLSCREEN_DIALOG_CONFIG,
         });
     }
 
@@ -311,13 +306,7 @@ export class ChatInputComponent {
     }
 
     openReplaceDialog() {
-        this.matDialog.open(ChatReplaceDialogComponent, {
-            width: '100vw',
-            height: '100vh',
-            maxWidth: '100vw',
-            maxHeight: '100vh',
-            panelClass: 'fullscreen-dialog'
-        });
+        this.matDialog.open(ChatReplaceDialogComponent, FULLSCREEN_DIALOG_CONFIG);
     }
 
     private focusInput() {

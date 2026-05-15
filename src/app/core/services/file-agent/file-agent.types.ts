@@ -114,6 +114,22 @@ export interface FileAgentContext {
 }
 
 /**
+ * Public input shape for `FileAgentService.runAgent`. Looser than the
+ * executor-internal `FileAgentContext` — `onFileReplaced` is optional (the
+ * service supplies a default that routes writes through
+ * `AgentPanelStateService.editChannel` and throws `EditChannelLostError` when
+ * the channel is null, e.g. file-viewer closed mid-turn). UI surfaces omit it;
+ * bridge / tests pass their own to keep writes isolated from live state.
+ *
+ * `proposers` is similarly optional — the service wires a `MatDialog`-backed
+ * chatReplace proposer when omitted; bridge / tests can omit to fall back to
+ * the executor's "not wired" tool-error response.
+ */
+export interface FileAgentRunInput extends Omit<FileAgentContext, 'onFileReplaced'> {
+  onFileReplaced?: (filename: string, content: string) => void;
+}
+
+/**
  * Slim projection of `Book` used by the `listBooks` tool. The full Book
  * carries `messages: ChatMessage[]` and `files: [...]` (tens of MB on long
  * playthroughs); the agent only needs identity + routing fields, so callers

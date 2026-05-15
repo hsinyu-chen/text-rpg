@@ -17,7 +17,6 @@ import { CacheManagerService } from '@app/core/services/cache-manager.service';
 import { FileAgentService } from '@app/core/services/file-agent/file-agent.service';
 import { AgentPanelStateService } from '@app/core/services/file-agent/agent-panel-state.service';
 import { WorldCompletionValidator } from '@app/core/services/file-agent/world-completion-validator';
-import { AgentConsoleComponent } from '@app/shared/components/agent-console/agent-console.component';
 import { SessionService } from '@app/core/services/session.service';
 import { findAtxHeadings } from '@app/core/utils/markdown.util';
 import { FileSearchEngine, type SearchResult } from './file-search/file-search-engine';
@@ -63,12 +62,14 @@ export interface MarkdownHeader {
     MatFormFieldModule,
     FormsModule,
     MonacoEditorComponent,
-    AgentConsoleComponent,
     TranslatePipe
   ],
   templateUrl: './file-viewer-dialog.component.html',
   styleUrl: './file-viewer-dialog.component.scss',
-  providers: [FileAgentService, FileSearchEngine]
+  // FileAgentService is now a root singleton (state survives panel/dialog
+  // close). createWorldMode entry warns + offers a clear when the singleton
+  // already holds non-empty chat from a previous turn.
+  providers: [FileSearchEngine]
 })
 export class FileViewerDialogComponent implements OnDestroy {
   data = inject(MAT_DIALOG_DATA) as FileViewerDialogData;
@@ -113,24 +114,20 @@ export class FileViewerDialogComponent implements OnDestroy {
   // Sidebar view mode: 'files' or 'search' (agent moved to its own right-column toggle)
   sidebarView = signal<'files' | 'search'>('files');
 
-  /** Right-side agent panel (header toggle). Auto-opened in createWorldMode so the build-world flow stays unchanged. */
-  isAgentPanelOpen = signal(false);
-
-  toggleAgentPanel(): void {
-    this.isAgentPanelOpen.update(v => !v);
+  /** Toggles the chat-side agent panel (canonical agent surface). This dialog
+   *  registers its Monaco buffer as the agent's edit channel on mount, so
+   *  any writes the chat-side agent makes flow back into this editor. The
+   *  former in-dialog agent panel is kept only for Create World mode where
+   *  no chat-side surface exists yet. */
+  toggleChatSideAgent(): void {
+    this.panelState.isOpen.update(v => !v);
   }
 
-  /**
-   * In-game chat snapshot passed to the agent console so the chat-aware tools
-   * (listChatMessages, searchChatMessages, readChatMessage, readTurnLogs) can
-   * verify "what the story actually said" before mutating KB files. Undefined
-   * in createWorldMode — there is no game yet, so the tools should report no
-   * chat history rather than scan an empty array.
-   */
-  chatMessagesForAgent = computed(() =>
-    this.data.createWorldMode ? undefined : this.state.messages()
-  );
-  
+  // Template aliases for shared signals on FileAgentService (which is
+  // private in this component).
+  isAgentRunningHidden = this.fileAgentService.isAgentRunningHidden;
+  isAgentRunning = this.fileAgentService.isAgentRunning;
+
   // Manual toggle for diff view (independent of sidebar mode)
   isDiffView = signal(false);
 
@@ -245,10 +242,16 @@ export class FileViewerDialogComponent implements OnDestroy {
       }
     }
 
-    // Auto-open agent panel when an initial prompt is supplied (Create World mode)
-    // or when explicitly requested (e.g. dev-bridge agent_open_file_viewer).
-    if ((this.data.createWorldMode && this.data.initialAgentPrompt) || this.data.openAgentPanelOnInit) {
-      this.isAgentPanelOpen.set(true);
+    // Create World mode now hands its `initialAgentPrompt` off to the chat-
+    // side agent panel via panelState.pushFillRequest (which auto-opens the
+    // panel + ticks the payload so AgentConsoleComponent's externalFillRequest
+    // effect fires runAgent). The previous inline agent block under this
+    // dialog was removed — same singleton FileAgentService now backs all
+    // surfaces, so there's no reason to mount a parallel console.
+    if (this.data.createWorldMode && this.data.initialAgentPrompt) {
+      this.panelState.pushFillRequest(this.data.initialAgentPrompt, true);
+    } else if (this.data.openAgentPanelOnInit) {
+      this.panelState.isOpen.set(true);
     }
 
     if (this.data.completionValidator) {
