@@ -148,18 +148,18 @@ export class AgentCapabilityResolver {
         const provider = this.deps.llmProviderRegistry.getProvider(profile.provider);
         if (!provider) return;
 
-        const now = Date.now();
-
         // Skip when a verdict is already cached (sibling instance recorded
         // a SUCCESS — those are permanent), when a sibling probe is
         // in-flight (cross-instance dedupe via the shared inflight Set on
         // FileAgentSettingsStore), OR when a recent FAILURE timestamp is
         // still within TTL. Failures are intentionally not promoted to
         // `probeResults` — that would freeze a cold-start blip into a
-        // permanent JSON-mode verdict until F5.
+        // permanent JSON-mode verdict until F5. `Date.now()` is read at
+        // each check site (not hoisted), because the native await can
+        // span the TTL window before the parallel branch evaluates.
         const alreadyProbed = profileId in this.deps.probeResults();
         const lastFailure = this.deps.probeFailureTimestamps()[profileId];
-        const recentlyFailed = typeof lastFailure === 'number' && (now - lastFailure) < PROBE_FAILURE_TTL_MS;
+        const recentlyFailed = typeof lastFailure === 'number' && (Date.now() - lastFailure) < PROBE_FAILURE_TTL_MS;
         if (readExplicitNativeFlag(profile.settings) === undefined && provider.probeNativeToolSupport && !alreadyProbed && !recentlyFailed && !this.deps.probeInflight.has(profileId)) {
             this.deps.probeInflight.add(profileId);
             try {
@@ -176,7 +176,7 @@ export class AgentCapabilityResolver {
         const parallelExplicit = profile.settings.additionalSettings?.['supportsParallelToolCalls'];
         const alreadyProbedParallel = profileId in this.deps.parallelProbeResults();
         const lastParallelFailure = this.deps.parallelProbeFailureTimestamps()[profileId];
-        const parallelRecentlyFailed = typeof lastParallelFailure === 'number' && (now - lastParallelFailure) < PROBE_FAILURE_TTL_MS;
+        const parallelRecentlyFailed = typeof lastParallelFailure === 'number' && (Date.now() - lastParallelFailure) < PROBE_FAILURE_TTL_MS;
         if (typeof parallelExplicit !== 'boolean' && provider.probeParallelToolSupport && !alreadyProbedParallel && !parallelRecentlyFailed && !this.deps.parallelProbeInflight.has(profileId)) {
             this.deps.parallelProbeInflight.add(profileId);
             try {

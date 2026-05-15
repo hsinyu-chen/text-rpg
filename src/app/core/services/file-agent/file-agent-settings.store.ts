@@ -29,7 +29,12 @@ export class FileAgentSettingsStore {
     this.kv.get(FILE_AGENT_PROFILE_KEY) ?? this.llmConfigService.activeProfileId()
   );
 
-  /** Per-profile native-tool-call probe verdict. In-memory only — re-probed once per session. */
+  /**
+   * Per-profile native-tool-call probe verdict. In-memory only. Success
+   * verdicts are permanent within the session; failures land in
+   * {@link probeFailureTimestamps} instead and self-clear after TTL so a
+   * cold-start blip doesn't poison the cache.
+   */
   readonly probeResults = signal<Record<string, boolean>>({});
 
   /** Per-profile parallel-tool-call probe verdict. */
