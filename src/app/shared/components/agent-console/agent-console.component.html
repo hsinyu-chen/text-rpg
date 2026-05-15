@@ -67,7 +67,7 @@
                                     <div class="log-tool-reason">{{ log.reason }}</div>
                                 }
                                 @if (!log.isToolCallCollapsed) {
-                                    <div class="log-thought-text">{{ log.text }}</div>
+                                    <pre class="log-thought-text">{{ log.text }}</pre>
                                 }
                             </div>
                         } @else if (log.isToolResult) {
@@ -77,7 +77,7 @@
                                     <span>{{ log.toolName ? ('dialog.agentToolResult' | translate: { name: log.toolName }) : ('dialog.agentToolResultFallback' | translate) }}</span>
                                 </div>
                                 @if (!log.isToolResultCollapsed) {
-                                    <div class="log-thought-text">{{ log.text }}</div>
+                                    <pre class="log-thought-text">{{ log.text }}</pre>
                                 }
                             </div>
                         } @else {
