@@ -363,14 +363,13 @@ function Send-BridgeChatPanelPrompt {
 #   -KeepHistory   alias for the default — kept for back-compat with older
 #                  scripts; sends clearHistory=false explicitly
 function Send-BridgeAgentAsk {
-    [CmdletBinding()]
+    [CmdletBinding(DefaultParameterSetName = 'Default')]
     param(
         [Parameter(Mandatory)] [string] $Prompt,
         [ValidateSet('sidebar', 'fileViewer')] [string] $Mode = 'sidebar',
-        [switch] $KeepHistory,
-        [switch] $ClearHistory
+        [Parameter(ParameterSetName = 'Keep')] [switch] $KeepHistory,
+        [Parameter(ParameterSetName = 'Clear')] [switch] $ClearHistory
     )
-    if ($KeepHistory -and $ClearHistory) { throw 'Pass at most one of -KeepHistory / -ClearHistory.' }
     $body = @{
         prompt = $Prompt
         mode   = $Mode
