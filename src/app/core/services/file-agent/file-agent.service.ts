@@ -1,8 +1,13 @@
 import { Injectable, inject, signal, computed, resource, effect } from '@angular/core';
+import { MatDialog } from '@angular/material/dialog';
+import { firstValueFrom } from 'rxjs';
 import { LLMConfigService } from '../llm-config.service';
 import { LLMProviderRegistryService } from '../llm-provider-registry.service';
 import { LLMContent, LLMPart, LLMFunctionCall } from '@hcs/llm-core';
-import { FileAgentContext, AgentLogEntry, ParsedAction } from './file-agent.types';
+import {
+  FileAgentContext, FileAgentRunInput, AgentLogEntry, ParsedAction,
+  ChatReplaceProposal, ChatReplaceOutcome
+} from './file-agent.types';
 import { FILE_AGENT_TOOLS, buildJsonSchema } from './file-agent-tools';
 import { buildSystemInstruction } from './file-agent-prompts';
 import { executeFileTool } from './file-agent-tool-executor';
@@ -17,10 +22,31 @@ import { FileAgentSettingsStore } from './file-agent-settings.store';
 import { I18nService } from '@app/core/i18n';
 import { getLocale } from '@app/core/constants/locales';
 import { AgentHintRegistry } from '@app/core/services/agent-hints/agent-hints.registry';
+import { AgentPanelStateService } from './agent-panel-state.service';
 import { BookRepository } from '@app/core/services/storage/book.repository';
 import { CollectionService } from '@app/core/services/collection.service';
 import { SessionService } from '@app/core/services/session.service';
+import { FULLSCREEN_DIALOG_CONFIG } from '@app/shared/material/dialog-presets';
 import { applyHarnessFallbacks } from './normalize-message-links.util';
+
+/**
+ * Thrown by the service's default `onFileReplaced` when a write tool fires
+ * but the registered edit channel (file-viewer's Monaco buffer) is gone —
+ * typically because the user closed the File Viewer dialog mid-turn. The
+ * `executeSingleAction` / `executeBatchActions` catch sites convert this
+ * into a structured tool error response so the LLM sees the failure as
+ * just-another tool error and stops attempting further writes, instead of
+ * the whole `runAgent` aborting with an uncaught error.
+ */
+export class EditChannelLostError extends Error {
+  constructor(public readonly filename: string, public readonly size: number) {
+    super(`Edit channel lost mid-write: ${filename} (${size} chars dropped)`);
+    this.name = 'EditChannelLostError';
+  }
+}
+
+const EDIT_CHANNEL_LOST_TOOL_MESSAGE =
+  '[user interrupt the editing] The editing surface (File Viewer) was closed by the user mid-turn; this write was dropped. STOP attempting further writes this turn — open a fresh turn after the user re-opens the File Viewer. Use submitResponse to acknowledge the interruption.';
 
 // ParsedAction args come through an `as unknown` cast — runtime shape isn't
 // guaranteed. Coerce non-string `message` payloads (hallucinated objects /
@@ -70,7 +96,7 @@ export type { FileAgentContext, ToolCallMode } from './file-agent.types';
  *    +----------------------------------------+
  *      (Inject tool result & next turn)
  */
-@Injectable()
+@Injectable({ providedIn: 'root' })
 export class FileAgentService {
   private llmConfigService = inject(LLMConfigService);
   private llmProviderRegistry = inject(LLMProviderRegistryService);
@@ -81,6 +107,13 @@ export class FileAgentService {
   private bookRepo = inject(BookRepository);
   private collections = inject(CollectionService);
   private session = inject(SessionService);
+  // `panelState` + `matDialog` power the default `onFileReplaced` and
+  // `proposers.chatReplace` that runAgent supplies when the caller omits them.
+  // UI surfaces (AgentConsoleComponent) now omit both — the agent loop is
+  // owned end-to-end by this service, so closing the console mid-turn no
+  // longer drops a closure the loop still needs.
+  private panelState = inject(AgentPanelStateService);
+  private matDialog = inject(MatDialog);
   private completionValidator: WorldCompletionValidator | null = null;
 
   setCompletionValidator(v: WorldCompletionValidator): void {
@@ -285,7 +318,7 @@ export class FileAgentService {
     this.agentLogs.set([]);
   }
 
-  async runAgent(prompt: string, context: FileAgentContext): Promise<void> {
+  async runAgent(prompt: string, input: FileAgentRunInput): Promise<void> {
     if (!prompt || this.isAgentRunning()) return;
 
     const profileId = this.selectedProfileId();
@@ -308,8 +341,8 @@ export class FileAgentService {
     // the markers; runtime gating still lives on `context.readOnly` enforced
     // by the tool executor. Only the history / LLM-bound copy carries the
     // tag — agentLogs above shows the user's original text.
-    const surface = context.surface ?? 'main';
-    const writes = context.readOnly ? 'disabled' : 'enabled';
+    const surface = input.surface ?? 'main';
+    const writes = input.readOnly ? 'disabled' : 'enabled';
     const tag = `[surface: ${surface}]\n[kb-file-writes: ${writes}]\n`;
     const newHistory = [...this.agentHistory(), { role: 'user' as const, parts: [{ text: tag + prompt }] }];
     this.agentHistory.set(newHistory);
@@ -320,15 +353,17 @@ export class FileAgentService {
     // block an editing turn that doesn't touch listBooks at all. Run the two
     // IDB-backed snapshot reads in parallel; they're independent.
     const [books, collections] = await Promise.all([
-      context.books ?? this.snapshotBooks(),
-      context.collections ?? this.snapshotCollections(),
+      input.books ?? this.snapshotBooks(),
+      input.collections ?? this.snapshotCollections(),
     ]);
     const augmentedContext: FileAgentContext = {
-      ...context,
-      uiMap: context.uiMap ?? (() => this.hintRegistry.buildUiMap()),
+      ...input,
+      onFileReplaced: input.onFileReplaced ?? this.defaultOnFileReplaced,
+      proposers: input.proposers ?? this.defaultProposers(),
+      uiMap: input.uiMap ?? (() => this.hintRegistry.buildUiMap()),
       books,
       collections,
-      activeBookId: context.activeBookId ?? this.session.currentBookId(),
+      activeBookId: input.activeBookId ?? this.session.currentBookId(),
     };
 
     try {
@@ -343,6 +378,59 @@ export class FileAgentService {
       this.isAgentRunning.set(false);
     } finally {
       this.abortController = null;
+    }
+  }
+
+  /**
+   * Default write sink for UI surfaces. Reads the current edit channel at
+   * write time (NOT at runAgent start) — if the file-viewer closes mid-turn
+   * the channel is null and we throw `EditChannelLostError`. The catch site
+   * in `executeSingleAction` / `executeBatchActions` converts that into a
+   * tool error response so the LLM sees the failure as a tool error (not
+   * an aborted run) and decides whether to retry / submitResponse.
+   *
+   * Bound as an arrow so it can be passed by reference without losing `this`.
+   */
+  private defaultOnFileReplaced = (filename: string, content: string): void => {
+    const live = this.panelState.editChannel();
+    if (live) {
+      live.write(filename, content);
+      return;
+    }
+    this.agentLogs.update(logs => [...logs, {
+      role: 'system',
+      text: `[user interrupt the editing] dropped write to ${filename} (${content.length} chars); File Viewer was closed mid-stream`,
+      type: 'error'
+    }]);
+    throw new EditChannelLostError(filename, content.length);
+  };
+
+  /**
+   * Default `proposers` bag for UI surfaces. Opens the chat-replace approval
+   * dialog via the root MatDialog, surfacing `awaitingProposerDialog` to swap
+   * the spinner for a "waiting for your approval" hint in the console UI.
+   * Bridge / tests pass their own proposers (usually omitted — the executor
+   * then returns a structured "not wired" error).
+   */
+  private defaultProposers(): FileAgentContext['proposers'] {
+    return {
+      chatReplace: (params: ChatReplaceProposal) => this.openProposeChatReplace(params),
+    };
+  }
+
+  private async openProposeChatReplace(params: ChatReplaceProposal): Promise<ChatReplaceOutcome> {
+    const mod = await import('@app/features/chat/components/chat-replace-dialog/chat-replace-dialog.component');
+    const data: import('@app/features/chat/components/chat-replace-dialog/chat-replace-dialog.component').ChatReplaceDialogData = { prefill: params };
+    this.awaitingProposerDialog.set(true);
+    try {
+      const ref = this.matDialog.open(mod.ChatReplaceDialogComponent, {
+        data,
+        ...FULLSCREEN_DIALOG_CONFIG,
+      });
+      const result = (await firstValueFrom(ref.afterClosed())) as ChatReplaceOutcome | undefined;
+      return result ?? { applied: null, cancelled: true, divergedFromProposal: false };
+    } finally {
+      this.awaitingProposerDialog.set(false);
     }
   }
 
@@ -698,7 +786,16 @@ export class FileAgentService {
       ...context,
       onFileReplaced: (f, c) => { context.onFileReplaced(f, c); singleReplaced = { filename: f, content: c }; }
     };
-    const result = await executeFileTool(a, singleContext);
+    let result;
+    try {
+      result = await executeFileTool(a, singleContext);
+    } catch (e) {
+      if (e instanceof EditChannelLostError) {
+        result = { response: { status: 'error', message: EDIT_CHANNEL_LOST_TOOL_MESSAGE, fileChanged: false } };
+      } else {
+        throw e;
+      }
+    }
     if (singleReplaced) this.lastFilesReplaced.set([singleReplaced]);
     if (result.infoLog) {
       this.agentLogs.update(logs => [...logs, { role: 'system', text: result.infoLog!, type: 'info' }]);
@@ -737,7 +834,16 @@ export class FileAgentService {
       }
       const toolEntry = buildToolCallLogEntry(a);
       this.agentLogs.update(logs => [...logs, toolEntry]);
-      const result = await executeFileTool(a, batchContext);
+      let result;
+      try {
+        result = await executeFileTool(a, batchContext);
+      } catch (e) {
+        if (e instanceof EditChannelLostError) {
+          result = { response: { status: 'error', message: EDIT_CHANNEL_LOST_TOOL_MESSAGE, fileChanged: false } };
+        } else {
+          throw e;
+        }
+      }
       if (result.infoLog) {
         this.agentLogs.update(logs => [...logs, { role: 'system', text: result.infoLog!, type: 'info' }]);
       }

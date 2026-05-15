@@ -16,7 +16,6 @@ import { ChatInputComponent } from './components/chat-input/chat-input.component
 import { TurnUpdatePanelComponent } from './components/turn-update-panel/turn-update-panel.component';
 import { I18nService, TranslatePipe } from '@app/core/i18n';
 import { AgentConsoleComponent } from '@app/shared/components/agent-console/agent-console.component';
-import { FileAgentService } from '@app/core/services/file-agent/file-agent.service';
 import { AppConfigStore } from '@app/core/services/app-config-store';
 import { BridgeService } from '@app/core/services/dev/bridge.service';
 import { AgentMessageJumperService } from '@app/core/services/agent-hints/agent-message-jumper.service';
@@ -42,12 +41,12 @@ import { AgentPanelStateService } from '@app/core/services/file-agent/agent-pane
     templateUrl: './chat.component.html',
     styleUrl: './chat.component.scss',
     changeDetection: ChangeDetectionStrategy.OnPush,
-    // FileAgentService owns the agent log + history signals; provide here so
-    // the main-screen agent has its own instance, independent from any file-
-    // viewer dialog the user might open simultaneously. KV-backed profile
-    // selection (see file-agent.service.ts FILE_AGENT_PROFILE_KEY) keeps the
-    // pre-selected profile in sync across instances.
-    providers: [FileAgentService, AgentPanelPortalService]
+    // AgentPanelPortalService is component-scoped because each chat surface
+    // owns its own embedded slot + PiP lifecycle. FileAgentService is now a
+    // root singleton — every surface (chat, file-viewer createWorldMode,
+    // bridge agent_ask via child injector) reads from the SAME agent state,
+    // so closing the panel mid-run never drops history / logs / FSM state.
+    providers: [AgentPanelPortalService]
 })
 export class ChatComponent {
     engine = inject(GameEngineService);
@@ -110,8 +109,11 @@ export class ChatComponent {
     private hasInitialScrolled = false;
     private prevLastCotOpen = false;
 
-    /** Bridge-driven fill request forwarded into AgentConsoleComponent; null until the bridge sends one, then tick-versioned payloads. */
-    agentConsoleFillRequest = signal<{ prompt: string; autoSend: boolean; tick: number } | null>(null);
+    /** Forwarded directly from AgentPanelStateService.fillRequest — chat-side
+     *  agent-console reads via input. The signal already encodes "panel open"
+     *  semantics (panelState.pushFillRequest flips isOpen), so no per-source
+     *  effect wiring is needed; AgentConsoleComponent dedupes by tick. */
+    agentConsoleFillRequest = this.panelState.fillRequest;
 
     constructor() {
         // Bridge-driven open requests (dev-only). The tick counter increments
@@ -125,21 +127,6 @@ export class ChatComponent {
                 lastTick = tick;
                 this.isAgentSidebarOpen.set(true);
             }
-        });
-
-        // Bridge-driven fill: when the bridge pushes a prompt into the chat
-        // panel, ensure the panel is open and forward the payload to
-        // agent-console. The bridge handler already increments
-        // openChatAgentPanelTick, so the open-effect above will fire too;
-        // setting here covers the case where the open-tick handler runs
-        // before the agent-console has mounted.
-        let lastFillPayloadTick = this.bridge.chatPanelPromptFill()?.tick ?? 0;
-        effect(() => {
-            const fill = this.bridge.chatPanelPromptFill();
-            if (!fill || fill.tick === lastFillPayloadTick) return;
-            lastFillPayloadTick = fill.tick;
-            this.isAgentSidebarOpen.set(true);
-            this.agentConsoleFillRequest.set(fill);
         });
 
         // app://message/<id>[/<action>] link clicked in agent-console →

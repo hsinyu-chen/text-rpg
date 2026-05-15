@@ -1,10 +1,10 @@
 import {
-    Injectable, signal, effect, inject, DestroyRef,
-    EnvironmentInjector, createEnvironmentInjector
+    Injectable, signal, effect, inject, DestroyRef
 } from '@angular/core';
 import { FILE_VIEWER_OPENER } from './file-viewer-opener.token';
 import { FileAgentService } from '../file-agent/file-agent.service';
 import { FileAgentSettingsStore } from '../file-agent/file-agent-settings.store';
+import { AgentPanelStateService } from '../file-agent/agent-panel-state.service';
 import { I18nService } from '@app/core/i18n';
 import { SessionService } from '../session.service';
 import { GameStateService } from '../game-state.service';
@@ -329,13 +329,13 @@ export class BridgeService {
     private providerRegistry = inject(LLMProviderRegistryService);
     private llmConfig = inject(LLMConfigService);
     private fileAgentSettings = inject(FileAgentSettingsStore);
+    private panelState = inject(AgentPanelStateService);
     private destroyRef = inject(DestroyRef);
     private win = inject(WINDOW);
     private kv = inject(KVStore);
     private books = inject(BookRepository);
     private files = inject(FileRepository);
     private fileViewerOpener = inject(FILE_VIEWER_OPENER);
-    private envInjector = inject(EnvironmentInjector);
     private i18nService = inject(I18nService);
     private hintRegistry = inject(AgentHintRegistry);
     private matDialog = inject(MatDialog);
@@ -343,23 +343,17 @@ export class BridgeService {
     private prompts = inject(PromptRepository);
 
     /**
-     * Lazy headless FileAgentService instance for `agent_ask`. Lives in a
-     * child injector so it doesn't share state with the sidebar / file-viewer
-     * agent panels — their `providers: [FileAgentService]` already gives each
-     * its own instance; the bridge gets a third, dedicated one for outside-
-     * driven Q&A. Created on first use because most sessions never call
-     * agent_ask, and FileAgentService spins up a KV-backed settings store.
+     * Bridge runs `agent_ask` against the SAME root-singleton FileAgentService
+     * the UI uses — bridge calls show up in the user's chat-side console, and
+     * writes require the user to have a File Viewer open (the singleton's
+     * default `onFileReplaced` routes through `AgentPanelStateService.editChannel`).
+     * No more isolated instance: state, logs, and FSM all flow through one
+     * canonical service so what the dev sees in the UI matches what the bridge
+     * thinks happened. The bridge stays headless only in the sense that it
+     * passes `proposers: {}` to opt out of the singleton's MatDialog-based
+     * approval dialog (which would block silently from a script call).
      */
-    private bridgeFileAgent: FileAgentService | null = null;
-    private getBridgeFileAgent(): FileAgentService {
-        if (!this.bridgeFileAgent) {
-            const child = createEnvironmentInjector(
-                [FileAgentService], this.envInjector, 'bridge-file-agent'
-            );
-            this.bridgeFileAgent = child.get(FileAgentService);
-        }
-        return this.bridgeFileAgent;
-    }
+    private fileAgent = inject(FileAgentService);
 
     /**
      * Tick counter that ChatComponent watches via effect to open its
@@ -369,13 +363,9 @@ export class BridgeService {
      */
     readonly openChatAgentPanelTick = signal(0);
 
-    /**
-     * Drives a prompt into the visible chat-side agent panel's input box
-     * (and optionally auto-sends). ChatComponent forwards this into the
-     * AgentConsoleComponent via signal input. Tick on the payload so
-     * successive identical prompts still re-fire the effect.
-     */
-    readonly chatPanelPromptFill = signal<{ prompt: string; autoSend: boolean; tick: number } | null>(null);
+    // Prompt-fill mechanism now lives on AgentPanelStateService.fillRequest /
+    // .pushFillRequest — shared with file-viewer createWorldMode hand-off so
+    // non-dev sources don't have to depend on this dev-bridge service.
 
     private static readonly VALID_INTENTS: ReadonlySet<string> = new Set(Object.values(GAME_INTENTS));
 
@@ -1096,13 +1086,10 @@ export class BridgeService {
             this.send({ type: 'action_error', requestId, error: 'invalid_prompt' });
             return;
         }
-        // Open the panel too — caller doesn't have to pair with a separate open call.
-        this.openChatAgentPanelTick.update(n => n + 1);
-        this.chatPanelPromptFill.update(v => ({
-            prompt,
-            autoSend: Boolean(autoSend),
-            tick: (v?.tick ?? 0) + 1,
-        }));
+        // pushFillRequest already flips panelState.isOpen → drop the legacy
+        // openChatAgentPanelTick bump (kept on the service only as a back-
+        // compat signal for any subscriber that still watches it).
+        this.panelState.pushFillRequest(prompt, Boolean(autoSend));
         this.send({ type: 'agent_fill_chat_panel_prompt_response', requestId, ok: true });
     }
 
@@ -1113,12 +1100,27 @@ export class BridgeService {
             this.send({ type: 'action_error', requestId, error: 'invalid_prompt' });
             return;
         }
-        const agent = this.getBridgeFileAgent();
+        const agent = this.fileAgent;
         if (agent.isAgentRunning()) {
             this.send({ type: 'action_error', requestId, error: 'agent_busy' });
             return;
         }
-        if (clearHistory !== false) agent.clearHistory();
+        const readOnly = mode !== 'fileViewer';
+        // Writes are not isolated anymore — they land through the singleton's
+        // default onFileReplaced, which writes via AgentPanelStateService.edit
+        // Channel (the user's open File Viewer's Monaco buffer). Refuse early
+        // when the caller asks for a write-mode run but no editor surface is
+        // mounted, so the failure is intent-explicit rather than masquerading
+        // as "every write tool returned an edit_channel_lost error".
+        if (!readOnly && !this.panelState.editChannel()) {
+            this.send({ type: 'action_error', requestId, error: 'no_edit_channel', detail: 'fileViewer mode requires an open File Viewer. Use agent_open_file_viewer first.' });
+            return;
+        }
+        // clearHistory now defaults to FALSE (preserve). When the bridge ran a
+        // separate instance, wiping per call was safe — it was the bridge's
+        // own scratch state. With the singleton, a default-wipe destroys the
+        // user's chat-side conversation, so opt-in is the safer policy.
+        if (clearHistory === true) agent.clearHistory();
 
         // Ensure the tool-support probe has settled before runAgent picks
         // a mode. The FileAgentService constructor kicks the probe via an
@@ -1133,34 +1135,39 @@ export class BridgeService {
             try { await agent.capability.kickToolSupportProbe(profileId); } catch { /* swallow — probe also swallows */ }
         }
 
-        // Snapshot the engine's KB for an isolated run — write tools mutate
-        // this Map, never the live state.loadedFiles. The caller gets a
-        // diff via the response so they can see what the agent WOULD have
-        // written, without trashing an active playthrough.
-        const files = new Map(this.state.loadedFiles());
-        const replacements: { filename: string; content: string }[] = [];
-        const readOnly = mode !== 'fileViewer';
-        const context = {
-            files,
-            onFileReplaced: (filename: string, content: string) => {
-                files.set(filename, content);
-                replacements.push({ filename, content });
-            },
-            chatMessages: this.state.messages(),
-            uiLanguage: this.i18nService.currentLang(),
-            narrativeLanguage: this.appConfig.outputLanguage(),
-            readOnly
-        };
-
+        // Snapshot the log length BEFORE the run so we can return only the
+        // entries this turn produced (previously the whole-log return worked
+        // because each agent_ask got a fresh instance). With the shared
+        // singleton, a full agentLogs() dump would re-emit every prior chat-
+        // side turn, ballooning responses and confusing PS callers that diff
+        // logs.length pre/post. Same for tracking what files THIS turn wrote.
+        const logStart = agent.agentLogs().length;
+        const replacedStart = agent.lastFilesReplaced().length;
+        // Source files from the edit channel when present (write-mode contract
+        // already enforced above), otherwise from the live engine state.
+        const channel = this.panelState.editChannel();
+        const files = channel ? channel.read() : new Map(this.state.loadedFiles());
         try {
-            await agent.runAgent(prompt, context);
+            await agent.runAgent(prompt, {
+                files,
+                // Empty proposers bag — opts out of the singleton's MatDialog
+                // default so a headless agent_ask never pops UI. Tools that
+                // need a proposer (proposeChatReplace) fall back to the
+                // executor's "not wired" structured error.
+                proposers: {},
+                chatMessages: this.state.messages(),
+                uiLanguage: this.i18nService.currentLang(),
+                narrativeLanguage: this.appConfig.outputLanguage(),
+                readOnly,
+            });
         } catch (e) {
             const detail = e instanceof Error ? e.message : 'unknown';
             this.send({ type: 'action_error', requestId, error: 'agent_failed', detail });
             return;
         }
 
-        const logs = agent.agentLogs().map(e => ({
+        const turnLogs = agent.agentLogs().slice(logStart);
+        const logs = turnLogs.map(e => ({
             role: e.role,
             type: e.type,
             text: e.text,
@@ -1170,14 +1177,14 @@ export class BridgeService {
             ...(e.toolName ? { toolName: e.toolName } : {}),
             ...(e.reason ? { reason: e.reason } : {}),
         }));
-        // Final agent answer = the last model entry that is NOT a tool call /
-        // tool result. submitResponse overwrites its streaming entry with
-        // the final text + isToolCall=false, so it lands here.
-        const finalEntry = [...agent.agentLogs()]
+        const finalEntry = [...turnLogs]
             .reverse()
             .find(e => e.role === 'model' && !e.isToolCall && !e.isToolResult);
         const finalResponse = finalEntry?.text ?? '';
-        const replacementsSummary = replacements.map(r => ({
+        // lastFilesReplaced is reset per turn inside runAgent, so slicing from
+        // replacedStart is defensive — same effect as reading whole array
+        // when nothing else ran concurrently.
+        const replacementsSummary = agent.lastFilesReplaced().slice(replacedStart).map(r => ({
             filename: r.filename,
             size: r.content.length,
         }));

@@ -26,6 +26,7 @@ import { getProfileDisplayName } from '@app/core/constants/prompt-profiles';
 import { ContextUsageBarComponent } from '@app/shared/components/context-usage-bar/context-usage-bar.component';
 import { AppAgentHintDirective } from '@app/core/services/agent-hints/agent-hints.directive';
 import { AgentPanelStateService } from '@app/core/services/file-agent/agent-panel-state.service';
+import { FileAgentService } from '@app/core/services/file-agent/file-agent.service';
 import { FULLSCREEN_DIALOG_CONFIG } from '@app/shared/material/dialog-presets';
 
 @Component({
@@ -54,6 +55,13 @@ export class ChatInputComponent {
     lang = inject(LanguageService);
     sys = inject(SystemStatusService);
     agentPanelState = inject(AgentPanelStateService);
+    fileAgent = inject(FileAgentService);
+    /** True when the agent loop is mid-run AND the panel surface is closed —
+     *  the smart_toy toggle button pulses to flag the activity, so a user
+     *  who closed the panel mid-run still knows the agent is working. */
+    isAgentRunningHidden = computed(() =>
+        this.fileAgent.isAgentRunning() && !this.agentPanelState.isOpen() && !this.agentPanelState.pipActive()
+    );
     private i18n = inject(I18nService);
     private profileRegistry = inject(PromptProfileRegistryService);
     private config = inject(ConfigService);

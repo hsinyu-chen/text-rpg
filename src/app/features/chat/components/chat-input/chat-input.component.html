@@ -61,7 +61,8 @@
                 <mat-icon>history</mat-icon>
                 <span>{{ 'ui.TURN_UPDATES_MENU' | translate }}</span>
             </button>
-            <button mat-menu-item (click)="toggleAgentSidebar.emit()">
+            <button mat-menu-item (click)="toggleAgentSidebar.emit()"
+                [class.agent-running-pulse]="isAgentRunningHidden()">
                 <mat-icon>smart_toy</mat-icon>
                 <span>{{ 'ui.AGENT_PANEL_MENU' | translate }}</span>
             </button>
@@ -137,6 +138,7 @@
         <!-- AI Agent Panel Button -->
         <button mat-mini-fab class="agent-btn desktop-only"
             [class.pip-active]="agentPanelState.pipActive()"
+            [class.agent-running-pulse]="isAgentRunningHidden()"
             [disabled]="state.status() === 'generating'"
             (click)="toggleAgentSidebar.emit()" (hintActivate)="toggleAgentSidebar.emit()"
             appAgentHint="chat-input/agent-panel"

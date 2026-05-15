@@ -7,20 +7,19 @@
         </button>
         <span class="file-title">{{ activeFile() }}</span>
         <div class="header-actions">
-            @if (!panelState.pipActive()) {
-                <!-- Toggles the chat-side agent panel (canonical agent
-                     surface). File-viewer's Monaco buffer is registered as
-                     the agent's edit channel on mount, so writes from the
-                     chat-side agent land in this dialog's editor. Available
-                     in Create World mode too — the chat-side panel is
-                     always reachable, independent of whether a book is
-                     active. -->
-                <button mat-icon-button (click)="toggleChatSideAgent()"
-                    [class.active-agent]="panelState.isOpen()"
-                    [matTooltip]="(panelState.isOpen() ? 'sidebar.fileViewer.hideAgent' : 'sidebar.fileViewer.showAgent') | translate">
-                    <mat-icon>smart_toy</mat-icon>
-                </button>
-            }
+            <!-- Toggles the chat-side agent panel (canonical agent surface).
+                 File-viewer's Monaco buffer is registered as the agent's
+                 edit channel on mount, so writes from the chat-side agent
+                 land in this dialog's editor. Always visible (including
+                 while PiP is active — same as chat-input's smart_toy);
+                 clicking while PiP is open closes the PiP via the shared
+                 isOpen signal. -->
+            <button mat-icon-button (click)="toggleChatSideAgent()"
+                [class.active-agent]="panelState.isOpen()"
+                [class.agent-running-pulse]="isAgentRunningHidden()"
+                [matTooltip]="(panelState.isOpen() ? 'sidebar.fileViewer.hideAgent' : 'sidebar.fileViewer.showAgent') | translate">
+                <mat-icon>smart_toy</mat-icon>
+            </button>
             <button mat-icon-button (click)="toggleDiffView()"
                 [class.active-diff]="isDiffView()"
                 [matTooltip]="(isDiffView() ? 'sidebar.fileViewer.showNormalView' : 'sidebar.fileViewer.showDiffView') | translate">
@@ -210,28 +209,14 @@
             }
         </div>
 
-        <!-- Inline agent panel — kept only for Create World mode where there
-             is no active book / chat-side agent surface yet. Normal file
-             editing routes the smart_toy header button to the chat-side
-             agent panel instead (registered edit channel funnels writes
-             back into this dialog's Monaco buffer). -->
-        @if (data.createWorldMode && !panelState.pipActive()) {
-            <div class="agent-panel" (click)="$event.stopPropagation()"
-                (keydown)="$event.stopPropagation()" tabindex="-1">
-                <app-agent-console
-                    [files]="data.files"
-                    [initialPrompt]="data.initialAgentPrompt || ''"
-                    [chatMessages]="chatMessagesForAgent()"
-                    surface="file-edit" />
-            </div>
-        }
     </div>
 
     <!-- Footer Actions -->
     <mat-dialog-actions align="end">
         @if (data.createWorldMode) {
             <button mat-flat-button color="accent" (click)="startGame()"
-                [disabled]="isStartingGame()"
+                [disabled]="isStartingGame() || isAgentRunning()"
+                [matTooltip]="isAgentRunning() ? ('sidebar.fileViewer.startGameAgentBusyTooltip' | translate) : ''"
                 style="font-weight: bold; background: linear-gradient(45deg, #4facfe 0%, #00f2fe 100%); color: white;">
                 <mat-icon>play_arrow</mat-icon>
                 {{ (isStartingGame() ? 'sidebar.fileViewer.starting' : 'sidebar.fileViewer.startGameBtn') | translate }}

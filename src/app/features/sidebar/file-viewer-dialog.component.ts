@@ -17,7 +17,6 @@ import { CacheManagerService } from '@app/core/services/cache-manager.service';
 import { FileAgentService } from '@app/core/services/file-agent/file-agent.service';
 import { AgentPanelStateService } from '@app/core/services/file-agent/agent-panel-state.service';
 import { WorldCompletionValidator } from '@app/core/services/file-agent/world-completion-validator';
-import { AgentConsoleComponent } from '@app/shared/components/agent-console/agent-console.component';
 import { SessionService } from '@app/core/services/session.service';
 import { findAtxHeadings } from '@app/core/utils/markdown.util';
 import { FileSearchEngine, type SearchResult } from './file-search/file-search-engine';
@@ -63,12 +62,14 @@ export interface MarkdownHeader {
     MatFormFieldModule,
     FormsModule,
     MonacoEditorComponent,
-    AgentConsoleComponent,
     TranslatePipe
   ],
   templateUrl: './file-viewer-dialog.component.html',
   styleUrl: './file-viewer-dialog.component.scss',
-  providers: [FileAgentService, FileSearchEngine]
+  // FileAgentService is now a root singleton (state survives panel/dialog
+  // close). createWorldMode entry warns + offers a clear when the singleton
+  // already holds non-empty chat from a previous turn.
+  providers: [FileSearchEngine]
 })
 export class FileViewerDialogComponent implements OnDestroy {
   data = inject(MAT_DIALOG_DATA) as FileViewerDialogData;
@@ -122,17 +123,20 @@ export class FileViewerDialogComponent implements OnDestroy {
     this.panelState.isOpen.update(v => !v);
   }
 
-  /**
-   * In-game chat snapshot passed to the agent console so the chat-aware tools
-   * (listChatMessages, searchChatMessages, readChatMessage, readTurnLogs) can
-   * verify "what the story actually said" before mutating KB files. Undefined
-   * in createWorldMode — there is no game yet, so the tools should report no
-   * chat history rather than scan an empty array.
-   */
-  chatMessagesForAgent = computed(() =>
-    this.data.createWorldMode ? undefined : this.state.messages()
+  /** Smart_toy button pulses when the agent loop is running but no surface
+   *  (embedded panel / PiP / open dialog agent) is visibly showing the
+   *  conversation, so the user still sees the activity signal. */
+  isAgentRunningHidden = computed(() =>
+    this.fileAgentService.isAgentRunning()
+    && !this.panelState.isOpen()
+    && !this.panelState.pipActive()
   );
-  
+
+  // Template alias — fileAgentService is private, but the createWorld
+  // "Start Game" button needs to disable mid-agent-turn (agent is likely
+  // still editing world files; starting now would race the engine init).
+  isAgentRunning = computed(() => this.fileAgentService.isAgentRunning());
+
   // Manual toggle for diff view (independent of sidebar mode)
   isDiffView = signal(false);
 
@@ -247,11 +251,15 @@ export class FileViewerDialogComponent implements OnDestroy {
       }
     }
 
-    // Create World mode auto-opens its inline agent via the template's
-    // @if (data.createWorldMode ...) — no signal toggle needed. The
-    // dev-bridge `openAgentPanelOnInit` flag now opens the chat-side
-    // agent panel instead of the (removed) inline one.
-    if (this.data.openAgentPanelOnInit && !this.data.createWorldMode) {
+    // Create World mode now hands its `initialAgentPrompt` off to the chat-
+    // side agent panel via panelState.pushFillRequest (which auto-opens the
+    // panel + ticks the payload so AgentConsoleComponent's externalFillRequest
+    // effect fires runAgent). The previous inline agent block under this
+    // dialog was removed — same singleton FileAgentService now backs all
+    // surfaces, so there's no reason to mount a parallel console.
+    if (this.data.createWorldMode && this.data.initialAgentPrompt) {
+      this.panelState.pushFillRequest(this.data.initialAgentPrompt, true);
+    } else if (this.data.openAgentPanelOnInit) {
       this.panelState.isOpen.set(true);
     }
 

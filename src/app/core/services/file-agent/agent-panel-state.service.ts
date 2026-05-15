@@ -96,4 +96,27 @@ export class AgentPanelStateService {
       if (this.editChannel() === channel) this.editChannel.set(null);
     };
   }
+
+  /**
+   * Tick-versioned fill request for the chat-side agent input. Sources that
+   * want to land a prefilled prompt (dev-bridge `agent_fill_chat_panel_prompt`,
+   * file-viewer createWorldMode's initial-agent-prompt hand-off, anything else
+   * the future adds) push through `pushFillRequest`; the chat embedded console
+   * subscribes via its `externalFillRequest` input and replays the prompt into
+   * its textarea, optionally auto-running it.
+   *
+   * Lives on this root service rather than the (previously bridge-owned) signal
+   * so non-dev sources can share the mechanism without taking a dev-bridge
+   * dependency.
+   */
+  readonly fillRequest = signal<{ prompt: string; autoSend: boolean; tick: number } | null>(null);
+
+  /** Bump the fill-request tick (so the chat-side console's effect sees a
+   *  new payload even if `prompt`/`autoSend` repeat) and force the panel
+   *  open — the user shouldn't have to also click the toggle to see the
+   *  prefilled text. */
+  pushFillRequest(prompt: string, autoSend: boolean): void {
+    this.isOpen.set(true);
+    this.fillRequest.update(v => ({ prompt, autoSend, tick: (v?.tick ?? 0) + 1 }));
+  }
 }
