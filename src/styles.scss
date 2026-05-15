@@ -164,16 +164,20 @@ body.agent-panel-embedded {
     }
 }
 
-/* Constrain CDK 19+ top-layer popovers (mat-dialog / mat-menu / mat-tooltip /
-   cdk-overlay) to (viewport - agent-panel-inset). The popover element is in
-   top-layer rendering but its layout box still respects CSS — we cap its
-   width and shift the right edge in by the reserved inset. Backdrop too,
-   so clicks on the panel area don't dismiss the dialog.
-   Explicit `left: 0; right: auto; margin-left: 0` anchors the box to the
+/* Constrain CDK 19+ top-layer popovers to (viewport - agent-panel-inset)
+   so a fullscreen dialog does not overlap the docked agent panel.
+   Scoped via `:has(.fullscreen-dialog)` so the rule only applies to popover
+   containers that actually hold a fullscreen dialog — mat-menu / mat-tooltip
+   / mat-select dropdowns share the `.cdk-overlay-popover` container class
+   (CDK 19+ defaults usePopover=true) and would otherwise get their
+   positioning context narrowed, causing flip/push reposition for menus
+   anchored near the right edge of the viewport.
+   Backdrop is constrained too so clicks on the panel area don't dismiss the
+   dialog. `left: 0; right: auto; margin-left: 0` anchors the box to the
    viewport's left edge — CDK's default `margin: auto` on the wrapper would
    otherwise center the shrunk box, leaving an un-dimmed gap on the left. */
-.cdk-overlay-popover,
-.cdk-overlay-popover .cdk-overlay-backdrop {
+.cdk-overlay-popover:has(.fullscreen-dialog),
+.cdk-overlay-popover:has(.fullscreen-dialog) .cdk-overlay-backdrop {
     width: calc(100vw - var(--agent-panel-inset)) !important;
     max-width: calc(100vw - var(--agent-panel-inset)) !important;
     left: 0 !important;
