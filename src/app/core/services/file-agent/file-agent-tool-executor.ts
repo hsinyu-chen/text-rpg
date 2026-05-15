@@ -1023,6 +1023,6 @@ async function proposeChatReplace(
   const status = outcome.cancelled ? 'cancelled' : 'committed';
   const summary = outcome.cancelled
     ? 'User cancelled the proposal dialog. NO chat messages were modified. The dialog is now closed. Do NOT ask the user to confirm — they already declined.'
-    : `User confirmed the proposal dialog. ${outcome.applied!.replaceCount} chat-message field(s) WERE modified${outcome.divergedFromProposal ? ' (with parameters tweaked from your original proposal — see `applied` for the actually-applied values)' : ''}. The dialog is now closed and the change is committed. Do NOT ask the user to "confirm" again — that already happened.`;
+    : `User confirmed the proposal dialog. ${outcome.applied!.replaceCount} replacement(s) WERE applied${outcome.divergedFromProposal ? ' (with parameters tweaked from your original proposal — see `applied` for the actually-applied values)' : ''}. The dialog is now closed and the change is committed. Do NOT ask the user to "confirm" again — that already happened.`;
   return { response: { ...outcome, status, summary } };
 }
