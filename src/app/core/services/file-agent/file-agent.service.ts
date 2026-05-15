@@ -328,6 +328,10 @@ export class FileAgentService {
 
   async runAgent(prompt: string, input: FileAgentRunInput): Promise<void> {
     if (!prompt || this.isAgentRunning()) return;
+    // Clear "last batch's writes" so observers (file-viewer's diff-view
+    // effect, etc.) don't keep showing the prior turn's replacements while
+    // this turn is still in its thinking phase.
+    this.lastFilesReplaced.set([]);
 
     const profileId = this.selectedProfileId();
     if (!profileId) {

@@ -42,10 +42,13 @@ interface PipApi { requestWindow: (opts: { width?: number; height?: number }) =>
  *     container (which {@link PipAwareOverlayContainer} now appends inside
  *     mat-sidenav-content) cannot cover it.
  *
- * Provided at ChatComponent scope so the agent panel's owning template
- * retains ChatComponent's injector context across PIP/embedded swaps —
- * the portal moves the embedded view between surfaces without
- * re-creating it, which would otherwise lose any view-local state.
+ * Provided at ChatComponent scope: each surface swap (embedded → PiP or
+ * back) destroys the current embedded view and creates a fresh one in the
+ * new target document, so there is one portal per chat lifetime — its
+ * destruction is tied to ChatComponent's teardown. The agent's
+ * conversation / FSM state lives on the root-singleton FileAgentService,
+ * so view re-creation doesn't lose data; only ephemeral view-local
+ * scroll position, focus, etc. reset across swaps.
  */
 @Injectable()
 export class AgentPanelPortalService {
