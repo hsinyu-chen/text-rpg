@@ -217,12 +217,15 @@ function formatStep(step: AnalysisStep | null | undefined, ordinal: number, trun
 
     const action = step.action || labels.NO_ACTION;
     const mood = step.mood ? ` _(${step.mood})_` : '';
-    const isEvent = step.kind === 'random_event';
+    const isEvent = step.kind === 'event';
     const stepLabel = isEvent ? labels.STEP_EVENT : labels.STEP_ACTION;
+    const hookTag = (isEvent && step.source === 'hook_fire' && step.hook_title)
+        ? ` _(hook: ${step.hook_title})_`
+        : '';
     const header = `**[${stepLabel}${ordinal}]**`;
 
     const parts: string[] = [];
-    parts.push(`${header} ${icon} ${action}${mood}`);
+    parts.push(`${header} ${icon} ${action}${mood}${hookTag}`);
 
     if (step.pc_dialogue) {
         parts.push(`   - ${labels.PC_DIALOGUE}: "${stripDialogueQuotes(step.pc_dialogue)}"`);

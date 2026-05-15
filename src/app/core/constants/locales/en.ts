@@ -45,14 +45,14 @@ When chat history or stateUpdates summary contains a \`correction:\` entry, trea
 - All fields (prose, \`*_log\`, step \`state_changes\` / \`target\`) must align with the correction; on conflict, the correction wins.
 - Declared corrections persist across turns; they do not silently expire.
 - The \`correction\` field is the single source of "reason / rule" — other fields write only the corrected final state, no \`校正\` / calibration markers, no recap of the correction process.`,
-        IDEAL_OUTCOME_CONSTRAINT_TEMPLATE: `## User-declared ideal_outcome (top priority)
+        IDEAL_OUTCOME_CONSTRAINT_TEMPLATE: `## User-declared ideal_outcome
 
 The user has declared ideal_outcome as:
 ~~~
 {0}
 ~~~
 
-**You MUST** judge every step against this and **MUST NOT** infer your own. Echo this value verbatim into the schema's \`ideal_outcome\` field.`
+Do not infer — pass this value directly into the schema's \`ideal_outcome\` field (verbatim). All other rules for this field apply as usual.`
     },
     sectionHeaders: {
         START_SCENE: '## Start Scene',

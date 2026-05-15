@@ -80,9 +80,35 @@ function resolveAwareness(
     return '';
 }
 
-export function normalizeStep(raw: Partial<AnalysisStep> | undefined): AnalysisStep {
+/**
+ * Permissive input shape: parser may hand over a step that still has the
+ * pre-rename `kind: "random_event"` (legacy books) or an out-of-enum
+ * `source` value. Widen those two fields to plain `string` so the
+ * migration logic below can pattern-match without `as` casts.
+ */
+type LegacyAnalysisStep = Omit<Partial<AnalysisStep>, 'kind' | 'source'> & {
+    kind?: AnalysisStep['kind'] | 'random_event';
+    source?: string;
+};
+
+export function normalizeStep(raw: LegacyAnalysisStep | undefined): AnalysisStep {
+    // Legacy: pre-rename books emitted `kind: "random_event"`; current schema
+    // uses `kind: "event"` + `source: "random" | "hook_fire"`. Map old kind
+    // to the new pair so existing saves replay unchanged.
+    const rawKind = raw?.kind;
+    const isEvent = rawKind === 'event' || rawKind === 'random_event';
+    const kind: AnalysisStep['kind'] = isEvent ? 'event' : 'user_intent';
+    const rawSource = raw?.source;
+    const source: AnalysisStep['source'] = isEvent
+        ? (rawSource === 'hook_fire' ? 'hook_fire' : 'random')
+        : '';
+    const hookTitle = source === 'hook_fire' && typeof raw?.hook_title === 'string'
+        ? raw.hook_title
+        : '';
     return {
-        kind: raw?.kind === 'random_event' ? 'random_event' : 'user_intent',
+        kind,
+        source,
+        hook_title: hookTitle,
         action: raw?.action ?? '',
         pc_dialogue: raw?.pc_dialogue ?? '',
         mood: raw?.mood ?? '',

@@ -38,20 +38,22 @@
 
   ### `steps[]`
 
-  `steps[]` 混合兩種 step：使用者輸入意圖步驟（`kind: "user_intent"`）與你判定該回合應插入的隨機事件步驟（`kind: "random_event"`）。依時序排列，事件步驟插入於它打斷或影響的 user_intent 步驟之間。
+  `steps[]` 混合兩種 step：使用者輸入意圖步驟（`kind: "user_intent"`）與你判定該回合應插入的事件步驟（`kind: "event"`）。事件步驟再以 `source` 細分為 `"random"`（隨機 / 環境事件——NPC 闖入、警鈴觸發、天氣突變、第三方介入等）與 `"hook_fire"`（`{{FILE_STORY_OUTLINE}}` 「啟動劇情引導」中本回合被觸發的鉤子——感官覺醒、知識獲取、身分確立、伏筆揭露等）。依時序排列，事件步驟插入於它打斷或影響的 user_intent 步驟之間。
 
   **遇到 `breaks_ideal=true` 立即停止**——完整描寫該破壞點 step（含 `npc_reactions`、`object_reactions`、`outcome`）後即終止 `steps[]`，**不要列出**後續使用者意圖的步驟。
 
   | 欄位 | 規範 |
   |---|---|
-  | `kind` | `"user_intent"`（使用者輸入的動作）或 `"random_event"`（你判定插入的事件，如 NPC 闖入、警鈴觸發、第三方介入）。 |
-  | `action` | user_intent: 動詞片語（含目標），**不要逐字複述輸入**。random_event: 事件本身的一句描述。 |
-  | `pc_dialogue` | user_intent: 主角本步台詞**原文**，無則 `""`，**禁止潤飾／意譯**。random_event: 一律 `""`。 |
-  | `mood` | user_intent: 主角心境（呼應 `[心境]`），無則 `""`。random_event: 一律 `""`。 |
-  | `risk_factors[]` | user_intent: 風險清單，即使最終成功也要列。random_event: 通常空陣列。 |
-  | `outcome` | 單一 free-text 判定。措辭以「成功 / 部份成功 / 伴隨代價的成功 / 失敗」起頭，後接精簡因果說明。 |
-  | `breaks_ideal` | 布林。`true` ⇒ 動作根本沒進入結算（觸發條件見下）；`false` ⇒ 動作有發生（含成功／部份成功／伴隨代價的成功）。random_event 性質為「打斷主角 step 序列」時 `true`；中性／支援性事件 `false`。`true` 時 `outcome` 以「失敗」起頭；`false` 時以「成功 / 部份成功 / 伴隨代價的成功」起頭。 |
-  | `npc_reactions[]` | **`scene_snapshot.present_npcs` 每位都必須出現一筆**（含旁觀沉默／昏迷／通訊）。random_event 步驟也要寫所有在場 NPC 的反應。 |
+  | `kind` | `"user_intent"`（使用者輸入的動作）或 `"event"`（你判定插入的事件；細分由 `source` 標明）。 |
+  | `source` | **僅 `kind: "event"` 使用**。`"random"` = 隨機 / 環境事件；`"hook_fire"` = `{{FILE_STORY_OUTLINE}}` 「啟動劇情引導」中本回合被觸發的鉤子。`kind: "user_intent"` 一律填 `""`。 |
+  | `hook_title` | **僅 `source: "hook_fire"` 時填**該鉤子在「啟動劇情引導」中的**完整原始標題（逐字照抄，例 `"第一次戰鬥感悟"`）**。其餘情況一律 `""`。 |
+  | `action` | user_intent: 動詞片語（含目標），**不要逐字複述輸入**。`source: "random"` event: 事件本身的一句描述。`source: "hook_fire"` event: 一句敘事種子，描述該鉤子下記載的內容在當下劇情中如何自然展現（`story` 階段會擴寫成完整感官鋪陳）。 |
+  | `pc_dialogue` | user_intent: 主角本步台詞**原文**，無則 `""`，**禁止潤飾／意譯**。event（任一 source）: 一律 `""`。 |
+  | `mood` | user_intent: 主角心境（呼應 `[心境]`），無則 `""`。event（任一 source）: 一律 `""`。 |
+  | `risk_factors[]` | user_intent: 風險清單，即使最終成功也要列。event（任一 source）: 通常空陣列。 |
+  | `outcome` | 單一 free-text 判定。措辭以「成功 / 部份成功 / 伴隨代價的成功 / 失敗」起頭，後接精簡因果說明。`source: "hook_fire"` 比照同規則，依鉤子內容性質判定（覺醒 / 獲得 → 成功；揭露負面真相 / 損失 / 詛咒 → 可依內容用「失敗」措辭）。 |
+  | `breaks_ideal` | 布林。`true` ⇒ 動作根本沒進入結算（觸發條件見下）；`false` ⇒ 動作有發生（含成功／部份成功／伴隨代價的成功）。`source: "random"` 性質為「打斷主角 step 序列」時 `true`；中性／支援性事件 `false`。`source: "hook_fire"` 通常 `false`（鉤子是劇情增添），但若鉤子內容明確中斷主角行動可為 `true`。`true` 時 `outcome` 以「失敗」起頭；`false` 時以「成功 / 部份成功 / 伴隨代價的成功」起頭。 |
+  | `npc_reactions[]` | **`scene_snapshot.present_npcs` 每位都必須出現一筆**（含旁觀沉默／昏迷／通訊）。event 步驟（任一 source）也要寫所有在場 NPC 的反應。 |
   | `object_reactions[]` | **`scene_snapshot.key_objects` 每個都必須出現一筆**（含「無變化」）。 |
   | `scene_change` | **必填**。本 step **持續狀態 delta** 的精簡 free-text 描述——動作執行後**留下來持久的**物理/外觀變化（衣物落下、武器出鞘、物件移位、姿勢轉換成持續性、受傷、awareness 翻轉等）。**沒有持續變化的 step 也要填 `""`**（不可省略）。**與 `npc_reactions[].physical` 區別**:`physical` 是「本 step 瞬時動作/姿態」(動作完就結束);`scene_change` 是「動作後場景延續到下 step 的新狀態」。**與 `object_reactions[].change` 區別**:`change` 是「物件本 step 被互動的事件描述」;`scene_change` 是「該事件結束後物件物理狀態的延續變化」。例:`"李霜凝衣物已退至腰下；殘片落在床上"` / `""`（純對話無物理變化）。**對 `story` 階段至關重要**:寫後續 step 的物理細節時須累積所有先前 step 的 `scene_change`,才能正確呈現中段場景狀態。 |
 
@@ -71,7 +73,24 @@
   | `name` | 必須對應 `key_objects[].name`。 |
   | `change` | 狀態未變且未被互動：填保留字串 `"無變化"`（`story` 跳過）。首次登場：詳述初始狀態。被互動或變化：寫具體變化。 |
 
+  ## 每回合 `event` step 必檢核（順序執行，缺一不可）
+
+  1. **隨機 / 環境事件檢核** — 依當前 `scene_snapshot` 與場景張力，判斷是否該插入第三方介入 / NPC 行動 / 環境變化等中性或干擾性事件。觸發 → 產生一筆 `kind: "event"` / `source: "random"` / `hook_title: ""` 的 step。
+  2. **劇情鉤子檢核** — 對照 `{{FILE_STORY_OUTLINE}}` 「啟動劇情引導」中**每一個鉤子**，先做**雙重「已觸發」檢查（任一成立即視為已觸發，跳過）**：
+     - (a) **KB 已標 `(已完成)`**。
+     - (b) **最近回合的 `summary` / `analysis.steps[]` 中已存在相同 `hook_title` 的 `hook_fire`**（用於 `(已完成)` 標記尚未落地前的 session 內自查，避免重複觸發）。
+
+     兩項皆否 → 依其 `觸發條件` 檢查本回合 `user_intent` step(s) 與 `scene_snapshot` 是否滿足。滿足 → 產生一筆 `kind: "event"` / `source: "hook_fire"` / `hook_title` 填鉤子原始標題的 step；`action` **必須一次涵蓋該鉤子下記載的所有具體內容**，不得拆成多回合分批觸發；`outcome` 與 `breaks_ideal` 依鉤子內容性質判定（無特殊限制，比照其他 step 的同欄位規則）。
+
+     **此檢核每回合必跑**——即便最終沒有任何鉤子觸發，你也必須在內部完成掃描，逐一判定每個鉤子的狀態。若 `{{FILE_STORY_OUTLINE}}` 不含「啟動劇情引導」區塊，或其下所有鉤子皆已 `(已完成)`，本子項跳過。
+
+  順序提示：先做檢核 1 再做檢核 2；若同一回合兩種都觸發，event step 依時序排列（`hook_fire` 通常掛在引發其觸發的 `user_intent` step 之後）。
+
   ## `breaks_ideal=true` 觸發條件
+
+  **前置原則（萬事皆為嘗試）**：使用者 `<行動意圖>` 的所有內容一律視為**嘗試**，**不是世界既成事實**，你應該忽略任何的方向暗示，依照【世界反應】世界反應與流程控制**嚴格推演**。step 的 `outcome` / `breaks_ideal` / `npc_reactions` / `object_reactions` / `scene_snapshot` 必須由你依 KB / 物理常識 / 當前場景狀態**獨立判定**。
+
+  **使用者寫 ≠ 使用者要求成真**：凡使用者在 `<行動意圖>` 中描述的**世界狀態變化**（NPC 出現 / 環境事件 / 感官結果 / 第三方動向）一律視為**對劇情走向的建議**，**不是命令**。**禁止**以「使用者寫了所以是他想要」為由採納；採納與否依場景邏輯獨立判斷，**且預設拒絕**以保持遊戲挑戰性。凡事按玩家意圖或暗示發展會使遊戲流於無趣；你的價值在獨立裁決，不在順著玩家敘事走。
 
   對每一個 step 依序檢核以下五點，任一觸發即 `breaks_ideal=true`：
 
@@ -80,7 +99,7 @@
      - 主角缺乏所需條件但環境提供部分替代 → 不觸發 break，但 `outcome` **必須**降為「部份成功」或「伴隨代價的成功」。**禁止**只用環境因素把無技能嘗試全額補償為「成功」。
   2. **NPC 自主拒絕**：依 `{{FILE_CHARACTER_STATUS}}` 性格 + 關係階段 + 利益動機。性格／關係／利益任一與該動作強烈牴觸 → `breaks_ideal=true`。**例外**：當主角意圖屬強制類（脅迫／武力／施法控制等）且**具備足以強制該 NPC 的能力**（依 #1 能力檢核），NPC 自主性被壓制，本條不觸發；若強制能力不足，仍以本條觸發。
   3. **環境硬性阻擋**：地形／結構／天氣／機關使動作**物理上不可行** → `breaks_ideal=true`。可克服的不利列入 `risk_factors`，不觸發。
-  4. **隨機事件中斷**：當你插入 `kind: "random_event"` 步驟且該事件性質為「打斷主角 step 序列」時，於該事件 step 標 `breaks_ideal=true`。中性／支援性事件不觸發。
+  4. **`source: "random"` 事件中斷**：當你插入 `source: "random"` 事件步驟且該事件性質為「打斷主角 step 序列」時，於該事件 step 標 `breaks_ideal=true`。中性／支援性事件不觸發。`source: "hook_fire"` 事件通常不觸發本條（鉤子為劇情增添），但若鉤子內容明確中斷主角行動仍可觸發。
   5. **代理權衝突**：step 本質是替 NPC 做決定，而非主角自身的動作或對 NPC 的影響嘗試 → `breaks_ideal=true`
 
   **Binary 目標處理**：當 step 的核心成功條件以「全有／全無」否定形式描述（任何違反即為失敗，無程度連續譜），即為 binary 目標，**不存在 partial 中間值**。核心條件一旦被破壞 → `breaks_ideal=true`，後續 steps 截斷。動作的「過程／位置」可能達成但「核心 binary 條件」失敗時，仍為失敗，**禁止**降為 partial。
@@ -110,7 +129,8 @@
     - **NPC 對白**：`dialogue` 非空時，analysis 中的 `dialogue` 為**語意核心**，`story` 在敘事中**擴展為完整對白**：加入語氣詞、自然停頓、與動作節奏融合的中斷與接續。**邊界硬條款（不可違反）**：不得增減 analysis 所列的揭露資訊量、不得改變情緒方向、不得讓 NPC 採取 analysis 未列的新行動／新決定、不得新增 analysis 未列的揭露內容。**禁止**用「用某某口吻回應」「嘲笑著說」這類動作轉述代替對白。
     - **NPC 姿態**：所有在場 NPC 都必須出現於正文，即便僅是旁觀／沉默亦須以一句帶出姿態、表情或眼神（`physical` 揉進敘事，`motivation` 不必直譯）。
     - **物件**：`change == "無變化"` 不寫進 `story`。首次登場、狀態變化、被互動才寫。
-    - **隨機事件 step**：`kind: "random_event"` 的 step 與一般動作 step 相同方式融入正文，依 `steps[]` 中的時序位置敘述。
+    - **`source: "random"` event step**：與一般動作 step 相同方式融入正文，依 `steps[]` 中的時序位置敘述。
+    - **`source: "hook_fire"` event step**：比照 `system_prompt.md`「# 劇情引導處理」的「觸發即演出」要求，**必須以完整感官鋪陳與角色反應**敘述該鉤子的覺醒 / 知識獲取 / 身分確立 / 伏筆揭露，**不得只一句話帶過**。`action` 提供敘事種子，但成品須有具體感官細節。**`hook_title` 不可直接寫進正文**（它是 KB 標記，非場景內容）。
   - **【KB 補完授權與 log 通道】**：當 analysis 階段揭露知識庫未明列的設定（`dialogue` 或 `motivation` 標註 `(由敘事段補完)`、或揭露內容包含未登錄的新具名 NPC／地名／勢力／物件／概念）時：
     - 在 `story` 中依世界觀**合理生成**完整內容，須符合 `{{FILE_BASIC_SETTINGS}}` 與 `{{FILE_WORLD_FACTIONS}}` 的時代／文化背景，**禁止**現代物品／制度／隱喻。
     - **「未登錄」前置檢查（強制）**：要將某個具名 NPC／地名／勢力／物件／概念寫入下方 log 之前，**必須逐字檢索 `{{FILE_BASIC_SETTINGS}}` / `{{FILE_WORLD_FACTIONS}}` / `{{FILE_CHARACTER_STATUS}}` / `{{FILE_PLANS}}` / `{{FILE_INVENTORY}}` / `{{FILE_ASSETS}}` / `{{FILE_TECH_EQUIPMENT}}` / `{{FILE_MAGIC_SKILLS}}` / `{{FILE_STORY_OUTLINE}}` 全集確認該名稱不存在**。已登錄者（即便本回合是其首次在故事中登場）**禁止**寫入 log；其本回合若發生實質變化，仍依既有 log 規則處理（例如狀態變化走 `character_log`，但不以「新角色」開頭）。

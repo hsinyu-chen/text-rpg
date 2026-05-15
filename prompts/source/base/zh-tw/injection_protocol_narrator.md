@@ -8,10 +8,10 @@
 
 | 欄位 | 內容 |
 |---|---|
-| `ideal_outcome` | 使用者整串輸入想達成什麼。 |
+| `ideal_outcome` | 使用者想達成什麼（僅從使用者的 `<行動意圖>` 推斷）。 |
 | `ideal_strength` | `perfectionist` / `pragmatic` / `desperate`。影響張力處理：完美主義者面對部分成功要寫出落差；務實者寫出滿足；絕望者寫出「至少活下來」的味道。 |
 | `interrupted` | 是否有步驟被截斷。`true` ⇒ `analysis.steps` 最後一筆是 `breaks_ideal=true` 的破壞點。 |
-| `analysis` | 結構化分析：`scene_snapshot`（date_in_world / time_hhmm / location / environment / pc_name / pc_alias / pc_state / present_npcs[] / key_objects[]）+ `steps[]`（每筆含 action / pc_dialogue / mood / risk_factors / outcome / breaks_ideal / npc_reactions / object_reactions）。`steps[]` 元素的 `kind` 可能為 `"user_intent"`（使用者動作）或 `"random_event"`（resolver 插入的事件，如 NPC 闖入、警鈴觸發）；兩種以相同方式敘述，差別只在 step 的來源。 |
+| `analysis` | 結構化分析：`scene_snapshot`（date_in_world / time_hhmm / location / environment / pc_name / pc_alias / pc_state / present_npcs[] / key_objects[]）+ `steps[]`（每筆含 kind / source / hook_title / action / pc_dialogue / mood / risk_factors / outcome / breaks_ideal / npc_reactions / object_reactions）。`steps[]` 元素的 `kind` 可能為 `"user_intent"`（使用者動作）或 `"event"`（resolver 插入的事件）；event 再以 `source` 細分為 `"random"`（隨機 / 環境事件，如 NPC 闖入、警鈴觸發）與 `"hook_fire"`（劇情鉤子觸發；附帶 `hook_title`，必須以完整感官覺醒敘述）。 |
 | `correction`（選填） | 歷史劇情修正規則，必須遵守。 |
 
 ## 輸出（依 narrator schema）
@@ -39,7 +39,9 @@
 5. **`object_reactions[]` 處理**：
    - `change == "無變化"` ⇒ 不寫進 story
    - 首次登場或實際變化 ⇒ 寫進場景描寫
-6. **`kind: "random_event"` 步驟** ⇒ 與 user_intent 步驟相同方式敘述，依其在 `steps[]` 中的時序位置融入正文，不另起標題。
+6. **`kind: "event"` 步驟** ⇒ 依 `source` 分流敘述：
+   - **`source: "random"`** ⇒ 與 user_intent 步驟相同方式敘述，依其在 `steps[]` 中的時序位置融入正文，不另起標題。
+   - **`source: "hook_fire"`** ⇒ 比照 `system_prompt.md`「# 劇情引導處理」的「觸發即演出」要求，**必須以完整感官鋪陳與角色反應**敘述該鉤子的覺醒 / 知識獲取 / 身分確立 / 伏筆揭露，**不得只一句話帶過**。`action` 提供敘事種子，但成品須有具體感官細節（如體內某種變化的觸感、世界法則的瞬間頓悟、新感知能力的開啟）。**`hook_title` 不可直接寫進正文**（它是 KB 標記，非場景內容）。
 7. **`scene_snapshot.environment`** ⇒ 在正文開頭或步驟間自然滲入；不要列點羅列。
 
 ### 物理細節對齊

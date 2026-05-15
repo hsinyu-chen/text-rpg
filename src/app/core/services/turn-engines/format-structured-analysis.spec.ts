@@ -5,6 +5,8 @@ import { AnalysisStep, SceneSnapshot, StructuredAnalysis } from '@app/core/const
 function step(overrides: Partial<AnalysisStep> = {}): AnalysisStep {
     return {
         kind: 'user_intent',
+        source: '',
+        hook_title: '',
         action: 'walk',
         pc_dialogue: '',
         mood: '',
@@ -265,16 +267,33 @@ describe('formatStructuredAnalysis', () => {
         expect(out).toContain('梨菲反擊; 大雨影響');
     });
 
-    it('renders random_event steps with the [事件N] header instead of [動作N]', () => {
+    it('renders event steps with the [事件N] header instead of [動作N]', () => {
         const out = formatStructuredAnalysis(analysis({
             steps: [
                 step({ kind: 'user_intent', action: 'walk to plaza' }),
-                step({ kind: 'random_event', action: '雷劈附近樹木', outcome: '失敗 - 主角被氣浪震退', breaks_ideal: true })
+                step({ kind: 'event', source: 'random', action: '雷劈附近樹木', outcome: '失敗 - 主角被氣浪震退', breaks_ideal: true })
             ]
         }));
         expect(out).toContain('[動作1]** ✅ walk to plaza');
         expect(out).toContain('[事件2]** 🔴 雷劈附近樹木');
         expect(out).toContain('主角被氣浪震退');
+    });
+
+    it('annotates hook_fire event steps with the hook title', () => {
+        const out = formatStructuredAnalysis(analysis({
+            steps: [
+                step({
+                    kind: 'event',
+                    source: 'hook_fire',
+                    hook_title: '第一次戰鬥感悟',
+                    action: '主角體內升起對魔力流動的本能感知',
+                    outcome: '成功 - 主角首次感受到體內魔力的流動',
+                    breaks_ideal: false
+                })
+            ]
+        }));
+        expect(out).toContain('[事件1]** ✅');
+        expect(out).toContain('_(hook: 第一次戰鬥感悟)_');
     });
 
     it('strips model-emitted CJK / ASCII quote wrappers so analysis panel does not show 「「...」」', () => {
@@ -315,7 +334,7 @@ describe('formatStructuredAnalysis', () => {
             }),
             steps: [
                 step({ kind: 'user_intent', action: 'walk', pc_dialogue: 'hello', risk_factors: ['slip'] }),
-                step({ kind: 'random_event', action: 'lightning', breaks_ideal: true, outcome: 'failed' })
+                step({ kind: 'event', source: 'random', action: 'lightning', breaks_ideal: true, outcome: 'failed' })
             ]
         }), 'English');
         expect(out).toContain('[Scene]');
