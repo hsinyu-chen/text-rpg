@@ -16,6 +16,7 @@ import { provideServiceWorker } from '@angular/service-worker';
 import { KVStore } from './core/services/kv/kv-store';
 import { LocalStorageKVStore } from './core/services/kv/local-storage-kv-store';
 import { SYNC_BACKEND_PROVIDERS } from './core/services/sync/sync-backends.providers';
+import { MULTI_AGENT_SAVE_PROVIDERS } from './core/services/multi-agent-save/multi-agent-save.providers';
 import { FILE_VIEWER_OPENER, FileViewerOpener } from './core/services/dev/file-viewer-opener.token';
 import { FileViewerDialogComponent } from './features/sidebar/file-viewer-dialog.component';
 import { FULLSCREEN_DIALOG_CONFIG } from './shared/material/dialog-presets';
@@ -29,6 +30,7 @@ export const appConfig: ApplicationConfig = {
     { provide: KVStore, useClass: LocalStorageKVStore },
 
     ...SYNC_BACKEND_PROVIDERS,
+    ...MULTI_AGENT_SAVE_PROVIDERS,
 
     // Monorepo wiring — the LLMSettingsComponent profile manager and the
     // stateless provider classes expect these tokens provided at app root.

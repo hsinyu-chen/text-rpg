@@ -1,0 +1,108 @@
+<h2 mat-dialog-title>{{ 'multiAgentSave.providerDebug.title' | translate }}</h2>
+<mat-dialog-content class="provider-debug-content">
+    <p class="hint-text">{{ 'multiAgentSave.providerDebug.hint' | translate }}</p>
+
+    <mat-tab-group>
+        <mat-tab [label]="('multiAgentSave.providerDebug.charactersTab' | translate) + ' (' + characters().length + ')'">
+            @if (characters().length === 0) {
+                <p class="empty-state">{{ 'multiAgentSave.providerDebug.charactersEmpty' | translate }}</p>
+            } @else {
+                @for (group of characterGroups(); track group.group) {
+                    <h3 class="group-heading">
+                        {{ group.group }}
+                        <span class="group-count">({{ group.entries.length }})</span>
+                    </h3>
+                    <mat-accordion multi>
+                        @for (entry of group.entries; track entry.headingPath) {
+                            <mat-expansion-panel>
+                                <mat-expansion-panel-header>
+                                    <mat-panel-title>{{ entry.name }}</mat-panel-title>
+                                    <mat-panel-description class="entry-meta">
+                                        {{ 'multiAgentSave.providerDebug.linesLabel' | translate: { start: entry.startLine + 1, end: entry.endLine + 1 } }}
+                                    </mat-panel-description>
+                                </mat-expansion-panel-header>
+                                <pre class="raw-text">{{ entry.rawText }}</pre>
+                            </mat-expansion-panel>
+                        }
+                    </mat-accordion>
+                }
+            }
+        </mat-tab>
+
+        <mat-tab [label]="('multiAgentSave.providerDebug.factionsTab' | translate) + ' (' + factions().length + ')'">
+            @if (factions().length === 0) {
+                <p class="empty-state">{{ 'multiAgentSave.providerDebug.factionsEmpty' | translate }}</p>
+            } @else {
+                @for (group of factionGroups(); track group.group) {
+                    <h3 class="group-heading">
+                        {{ group.group }}
+                        <span class="group-count">({{ group.entries.length }})</span>
+                    </h3>
+                    <mat-accordion multi>
+                        @for (entry of group.entries; track entry.headingPath) {
+                            <mat-expansion-panel>
+                                <mat-expansion-panel-header>
+                                    <mat-panel-title>{{ entry.name }}</mat-panel-title>
+                                    <mat-panel-description class="entry-meta">
+                                        {{ 'multiAgentSave.providerDebug.linesLabel' | translate: { start: entry.startLine + 1, end: entry.endLine + 1 } }}
+                                    </mat-panel-description>
+                                </mat-expansion-panel-header>
+                                <pre class="raw-text">{{ entry.rawText }}</pre>
+                            </mat-expansion-panel>
+                        }
+                    </mat-accordion>
+                }
+            }
+        </mat-tab>
+
+        <mat-tab [label]="('multiAgentSave.providerDebug.eventsTab' | translate) + ' (' + events().length + ')'">
+            <p class="slice-info">
+                {{ 'multiAgentSave.providerDebug.sliceInfo' | translate: { mode: saveContextMode(), turns: smartContextTurns() } }}
+            </p>
+            @if (events().length === 0) {
+                <p class="empty-state">{{ 'multiAgentSave.providerDebug.eventsEmpty' | translate }}</p>
+            } @else {
+                <mat-accordion multi>
+                    @for (event of events(); track event.messageId) {
+                        <mat-expansion-panel>
+                            <mat-expansion-panel-header>
+                                <mat-panel-title class="event-title">
+                                    <code class="event-id">{{ event.eventId }}</code>
+                                    <span class="event-scene-header">{{ event.sceneHeader || ('multiAgentSave.providerDebug.noSceneHeader' | translate) }}</span>
+                                </mat-panel-title>
+                            </mat-expansion-panel-header>
+
+                            <div class="event-body">
+                                @if (event.summary) {
+                                    <div class="event-field">
+                                        <strong>summary:</strong>
+                                        <span>{{ event.summary }}</span>
+                                    </div>
+                                }
+                                @for (field of ['character_log', 'inventory_log', 'quest_log', 'world_log']; track field) {
+                                    @if ($any(event)[field].length > 0) {
+                                        <div class="event-field">
+                                            <strong>{{ field }}:</strong>
+                                            <ul>
+                                                @for (entry of $any(event)[field]; track $index) {
+                                                    <li>{{ entry }}</li>
+                                                }
+                                            </ul>
+                                        </div>
+                                    }
+                                }
+                                <div class="event-field event-meta">
+                                    <strong>{{ 'multiAgentSave.providerDebug.messageIdLabel' | translate }}:</strong>
+                                    <code>{{ event.messageId }}</code>
+                                </div>
+                            </div>
+                        </mat-expansion-panel>
+                    }
+                </mat-accordion>
+            }
+        </mat-tab>
+    </mat-tab-group>
+</mat-dialog-content>
+<mat-dialog-actions align="end">
+    <button mat-button (click)="close()">{{ 'multiAgentSave.providerDebug.close' | translate }}</button>
+</mat-dialog-actions>

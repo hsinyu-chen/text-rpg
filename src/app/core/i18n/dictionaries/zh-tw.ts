@@ -516,6 +516,9 @@ export const zhTW: TranslationDict = {
         snapshotDownloadFailed: '設定下載失敗：{{error}}',
         snapshotUploadingProgress: '上傳設定中…',
         snapshotDownloadingProgress: '下載設定中…',
+        multiAgentSaveSection: '多代理存檔（實驗中）',
+        multiAgentSaveSectionHint: '按 NPC 分頭模擬的存檔管線正在建構中。orchestrator 落地前存檔流程不變。可用除錯按鈕檢視資料 provider 從目前 Book 抽出的內容。',
+        providerDebugButton: 'Provider 除錯…',
     },
     app: {
         setupRequired: '需要先設定',
@@ -1085,6 +1088,23 @@ export const zhTW: TranslationDict = {
             unknownScheme: '未知的 app scheme:{{scheme}}',
             mainArea: '主畫面',
             noMessages: '尚未有任何對話訊息',
+        },
+    },
+    multiAgentSave: {
+        providerDebug: {
+            title: '多代理存檔 — Provider 除錯',
+            hint: '唯讀檢視資料 provider 從目前 Book 抽出的內容。當存檔結果不符預期時,先確認 provider 餵給後續 stage 的輸入有沒有問題。',
+            charactersTab: '人物',
+            factionsTab: '勢力',
+            eventsTab: '場景事件',
+            charactersEmpty: '找不到 NPC 條目。確認 3.人物狀態.md 任一 L1 段落下有 level-2 標題。',
+            factionsEmpty: '找不到勢力條目。確認 6.勢力與世界.md 任一 L1 段落下有 level-2 標題。',
+            eventsEmpty: '目前切片內沒有事件。請先開始對話,或切換存檔上下文模式。',
+            linesLabel: '第 {{start}}–{{end}} 行',
+            sliceInfo: '切片:saveContextMode={{mode}}、smartContextTurns={{turns}}',
+            noSceneHeader: '(無場景表頭)',
+            messageIdLabel: '訊息 id',
+            close: '關閉',
         },
     },
 };
