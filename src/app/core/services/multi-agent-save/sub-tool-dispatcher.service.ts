@@ -19,12 +19,6 @@ export interface DispatchInput {
 export interface DispatchResult {
     /** Concatenated `<save>` XML blocks ready for FileUpdateParser. */
     xml: string;
-    /** How many tools actually emitted XML (state: 'done'). */
-    doneCount: number;
-    /** How many tools were skipped (`empty_section` + `not_yet_implemented`). */
-    skippedCount: number;
-    /** How many tools were skipped specifically as `not_yet_implemented`. */
-    notYetImplementedCount: number;
 }
 
 /**
@@ -49,24 +43,18 @@ export class SubToolDispatcherService {
 
     dispatch(input: DispatchInput): DispatchResult {
         const xmlParts: string[] = [];
-        let doneCount = 0;
-        let skippedCount = 0;
-        let notYetImplementedCount = 0;
 
         for (const tool of MECHANICAL_TOOL_NAMES) {
             const entryId = this.progress.startEntry('sub-tool', { toolName: tool });
 
             if (!hasContent(input.manifest, tool)) {
                 this.progress.skip(entryId, 'empty_section');
-                skippedCount++;
                 continue;
             }
 
             const handler = MECHANICAL_HANDLERS[tool];
             if (!handler) {
                 this.progress.skip(entryId, 'not_yet_implemented');
-                skippedCount++;
-                notYetImplementedCount++;
                 continue;
             }
 
@@ -76,8 +64,6 @@ export class SubToolDispatcherService {
                 // targetFileFor returns null. Treat as unimplemented rather
                 // than crashing.
                 this.progress.skip(entryId, 'not_yet_implemented');
-                skippedCount++;
-                notYetImplementedCount++;
                 continue;
             }
 
@@ -89,40 +75,29 @@ export class SubToolDispatcherService {
                     // `remove`s missed the line lookup). Same UX as an empty
                     // section.
                     this.progress.skip(entryId, 'empty_section');
-                    skippedCount++;
                     continue;
                 }
                 xmlParts.push(xml);
                 this.progress.appendOutput(entryId, xml);
                 this.progress.finishEntry(entryId, 'done');
-                doneCount++;
             } catch (err: unknown) {
                 const msg = err instanceof Error ? err.message : String(err);
                 this.progress.finishEntry(entryId, 'failed', msg);
-                // Failed sections do NOT count as skipped — caller can read
-                // the entries() array to discover failures.
             }
         }
 
-        // LLM sub-tool sections: Phase 1 just records skip entries. Skipping
-        // empty sections silently here keeps the dialog free of N empty
-        // "charactersToUpdate" cards when the manifest didn't request any.
+        // LLM sub-tool sections: Phase 1 just records skip entries when the
+        // manifest actually requested any. Empty sections are skipped silently
+        // so the dialog isn't padded with N empty cards.
         for (const tool of ['charactersToUpdate', 'factionsToUpdate'] as const) {
             const list = input.manifest[tool];
             if (list && list.length > 0) {
                 const entryId = this.progress.startEntry('sub-tool', { toolName: tool });
                 this.progress.skip(entryId, 'not_yet_implemented');
-                skippedCount++;
-                notYetImplementedCount++;
             }
         }
 
-        return {
-            xml: xmlParts.join('\n'),
-            doneCount,
-            skippedCount,
-            notYetImplementedCount,
-        };
+        return { xml: xmlParts.join('\n') };
     }
 }
 

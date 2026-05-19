@@ -46,7 +46,6 @@ describe('SubToolDispatcherService', () => {
             kbFiles: new Map(),
         });
         expect(result.xml).toBe('');
-        expect(result.doneCount).toBe(0);
         const entries = svc.tracker.entries();
         expect(entries.every(e => e.state === 'skipped' && e.statusReason === 'empty_section')).toBe(true);
         // 13 mechanical tools in MECHANICAL_TOOL_NAMES — every one gets one entry.
@@ -63,7 +62,6 @@ describe('SubToolDispatcherService', () => {
             coreFilenames: files(),
             kbFiles: new Map([['9.物品欄.md', '']]),
         });
-        expect(result.doneCount).toBe(1);
         expect(result.xml).toContain('<save file="9.物品欄.md"');
         expect(result.xml).toContain('長劍');
 
@@ -78,12 +76,14 @@ describe('SubToolDispatcherService', () => {
             assetsDeltas: [{ op: 'add', item: '金幣 100' }],
             charactersToCreate: [{ name: 'X', group: 'Y', draftedFields: { 身分: 'Z' } }],
         };
-        const result = svc.dispatcher.dispatch({
+        svc.dispatcher.dispatch({
             manifest,
             coreFilenames: files(),
             kbFiles: new Map(),
         });
-        expect(result.notYetImplementedCount).toBeGreaterThanOrEqual(2);
+        const tracker = svc.tracker.entries();
+        const notImpl = tracker.filter(e => e.state === 'skipped' && e.statusReason === 'not_yet_implemented');
+        expect(notImpl.length).toBeGreaterThanOrEqual(2);
         const assetsEntry = svc.tracker.entries().find(e => e.toolName === 'assetsDeltas');
         expect(assetsEntry?.state).toBe('skipped');
         expect(assetsEntry?.statusReason).toBe('not_yet_implemented');

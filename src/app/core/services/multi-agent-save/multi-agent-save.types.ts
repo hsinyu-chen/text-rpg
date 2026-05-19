@@ -195,7 +195,13 @@ export interface SaveManifest {
   factionsToMove?: EntityMove[];
   charactersToUpdate?: EntityUpdate[];
   factionsToUpdate?: EntityUpdate[];
-  completenessAudit: CompletenessAudit;
+  /**
+   * Optional in the validator path so truncated responses (max_tokens) can
+   * still apply their partial section deltas — see manifest.schema.ts.
+   * SaveAgent is asked to always emit this for completeness tracking, but
+   * the dispatcher does not depend on it.
+   */
+  completenessAudit?: CompletenessAudit;
 }
 
 // ============================================================================

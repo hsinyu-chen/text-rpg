@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { SAVE_MANIFEST_SCHEMA, validateManifest } from './manifest.schema';
 
 describe('SAVE_MANIFEST_SCHEMA shape', () => {
-    it('declares completenessAudit as required at the top level', () => {
+    it('declares no required fields at the top level (allows truncation salvage)', () => {
         const schema = SAVE_MANIFEST_SCHEMA as { required?: string[] };
-        expect(schema.required).toEqual(['completenessAudit']);
+        expect(schema.required).toBeUndefined();
     });
 
     it('lists every optional manifest field as an array of objects', () => {
@@ -32,10 +32,12 @@ describe('validateManifest', () => {
         expect(r.ok).toBe(true);
     });
 
-    it('rejects when completenessAudit is missing', () => {
-        const r = validateManifest({});
-        expect(r.ok).toBe(false);
-        if (!r.ok) expect(r.error).toMatch(/completenessAudit/);
+    it('accepts manifests missing completenessAudit (truncation salvage)', () => {
+        // The schema is loose on completenessAudit because a max_tokens
+        // truncation often drops the tail — better to apply partial section
+        // deltas than reject the whole save. Orchestrator still warns via
+        // finishReason in that case.
+        expect(validateManifest({}).ok).toBe(true);
     });
 
     it('rejects when value is not an object', () => {

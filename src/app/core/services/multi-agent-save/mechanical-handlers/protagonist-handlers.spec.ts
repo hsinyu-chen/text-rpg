@@ -129,4 +129,13 @@ describe('applyInventoryDeltas', () => {
         ], { targetFile: FILE, fileContent });
         expect(xml).toContain('<target>    - 鐵劍</target>');
     });
+
+    it('preserves the target indent on the update replacement (no list-flattening)', () => {
+        const fileContent = '## 攜帶\n    - 鐵劍\n    - 木盾';
+        const xml = applyInventoryDeltas([
+            { op: 'update', item: '鐵劍', details: '刃口缺損' },
+        ], { targetFile: FILE, fileContent });
+        // Indent (4 spaces) must round-trip from target → replacement.
+        expect(xml).toContain('<replacement>    - 鐵劍 — 刃口缺損</replacement>');
+    });
 });

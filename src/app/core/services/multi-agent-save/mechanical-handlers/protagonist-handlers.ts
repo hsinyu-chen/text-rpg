@@ -73,7 +73,12 @@ export function applyInventoryDeltas(deltas: readonly InventoryDelta[], ctx: Mec
             case 'update': {
                 const existing = findItemLine(lines, delta.item);
                 if (existing) {
-                    ops.push({ kind: 'replace', target: existing, replacement: formatItemLine(delta) });
+                    // Mirror the target's leading indent on the replacement
+                    // so a nested list item ("    - 鐵劍") stays nested.
+                    // Without this, an update would silently flatten the
+                    // list structure.
+                    const indent = existing.match(/^\s*/)?.[0] ?? '';
+                    ops.push({ kind: 'replace', target: existing, replacement: indent + formatItemLine(delta) });
                 } else {
                     // The model thinks the item should exist post-ACT but it's
                     // not in the current file — treat as an add. Safer than

@@ -1,13 +1,11 @@
 import { Injectable, inject } from '@angular/core';
-import { firstValueFrom } from 'rxjs';
 import type { LLMContent } from '@hcs/llm-core';
 import { MatDialog } from '@angular/material/dialog';
 import { ContextBuilderService } from '../context-builder.service';
 import { LLMProviderRegistryService } from '../llm-provider-registry.service';
 import { GameStateService } from '../game-state.service';
-import { SessionService } from '../session.service';
-import { FileUpdateService, FileUpdate } from '../file-update.service';
 import { FileUpdateParser } from '../file-update-parser';
+import type { FileUpdate } from '../file-update.service';
 import { AutoUpdateDialogComponent } from '@app/shared/components/auto-update-dialog/auto-update-dialog.component';
 import { SaveProgressDialogComponent } from '@app/features/multi-agent-save/save-progress-dialog.component';
 import { SaveAgentRunnerService } from './save-agent-runner.service';
@@ -51,8 +49,6 @@ export class MultiAgentSaveService {
     private contextBuilder = inject(ContextBuilderService);
     private providerRegistry = inject(LLMProviderRegistryService);
     private state = inject(GameStateService);
-    private session = inject(SessionService);
-    private fileUpdate = inject(FileUpdateService);
     private saveAgent = inject(SaveAgentRunnerService);
     private dispatcher = inject(SubToolDispatcherService);
     private progress = inject(SaveProgressTracker);
@@ -161,28 +157,22 @@ export class MultiAgentSaveService {
                 kbFiles: this.state.loadedFiles(),
             });
 
-            // 5. Parse → FileUpdate[].
-            if (!dispatchResult.xml) {
-                // Nothing to apply — close progress dialog after the user reads it.
-                this.snackBar.open(
-                    this.i18n.translate('multiAgentSave.run.emptyResult'),
-                    this.i18n.translate('ui.CLOSE'),
-                    { duration: 6000 },
-                );
-                return;
-            }
+            // 5. Parse → FileUpdate[]. Empty xml ≡ no work for any handler;
+            //    the progress dialog already shows every section's outcome
+            //    (empty_section / not_yet_implemented), so we just let it
+            //    stay open with its Close button — no extra snackbar needed.
+            if (!dispatchResult.xml) return;
 
             const updates = FileUpdateParser.parse(dispatchResult.xml);
 
-            // 6. Open AutoUpdateDialog. Close the progress dialog first so the
-            //    user isn't looking at two stacked modals. Use the same
-            //    FULLSCREEN config + afterClosed-driven apply flow as the
-            //    legacy save path (message-state.service.ts) — the dialog
-            //    only returns the user-selected updates; the orchestrator
-            //    owns the persistence call so the contract matches
-            //    auto-update-dialog's existing afterClosed payload.
+            // 6. Hand off to AutoUpdateDialog. It applies internally via
+            //    engine.updateSingleFile + saveCurrentSessionToBook (which
+            //    bumps lastActiveAt itself) and closes with a boolean —
+            //    there's no FileUpdate[] returned via afterClosed, so we
+            //    don't post-process here. Close the progress dialog first
+            //    so the user isn't looking at two stacked modals.
             dialogRef.close();
-            await this.applySelectedUpdates(updates);
+            this.openAutoUpdateDialog(updates);
         } catch (err: unknown) {
             // User-initiated cancellation (Cancel button → AbortController.abort()).
             // Stream error names vary by provider — match the common ones rather
@@ -248,32 +238,16 @@ export class MultiAgentSaveService {
     }
 
     /**
-     * Opens AutoUpdateDialog and applies whatever the user confirmed.
-     * Same shape as `message-state.service.ts:openAutoUpdateDialog` — the
-     * dialog returns a (possibly filtered) `FileUpdate[]` via afterClosed;
-     * empty / undefined ≡ user cancelled or unchecked everything.
+     * Hands the dispatcher's `FileUpdate[]` to AutoUpdateDialog. The dialog
+     * runs its own apply pipeline (`engine.updateSingleFile` per group,
+     * `saveCurrentSessionToBook` for timestamp bumps) and closes with a
+     * boolean — no afterClosed-driven post-processing needed here.
      */
-    private async applySelectedUpdates(updates: FileUpdate[]): Promise<void> {
-        const dialogRef = this.dialog.open(AutoUpdateDialogComponent, {
+    private openAutoUpdateDialog(updates: FileUpdate[]): void {
+        this.dialog.open(AutoUpdateDialogComponent, {
             data: { updates },
             ...FULLSCREEN_DIALOG_CONFIG,
         });
-
-        const result = await firstValueFrom(dialogRef.afterClosed());
-        if (!result || !Array.isArray(result) || result.length === 0) return;
-
-        const applied = await this.fileUpdate.applyUpdates(result);
-        // bumpTimestamp must be true so cloud sync sees the KB edit as a
-        // real change. Legacy save calls `engine.loadFiles(false)` whose
-        // default is `bumpTimestamp=true`, but SessionService.loadFiles
-        // defaults `bumpTimestamp=false` — we have to pass it explicitly
-        // since we can't inject GameEngineService (circular DI).
-        await this.session.loadFiles(false, true);
-        this.snackBar.open(
-            this.i18n.translate('ui.APPLIED_FILE_UPDATES', { count: applied.length }),
-            this.i18n.translate('ui.CLOSE'),
-            { duration: 3000 },
-        );
     }
 }
 

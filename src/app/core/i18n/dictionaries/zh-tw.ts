@@ -1118,7 +1118,6 @@ export const zhTW: TranslationDict = {
             close: '關閉',
         },
         run: {
-            emptyResult: 'SaveAgent 沒有產出任何更新（manifest 全部區段為空或被略過）。',
             failedPrefix: 'Multi-Agent Save 失敗：',
             finishWarning: 'SaveAgent 異常結束（{{reason}}）— manifest 可能被截斷,結果可能不完整。',
             notConfigured: '尚未完成設定，無法執行多代理存檔。',

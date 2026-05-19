@@ -115,8 +115,8 @@ describe('SaveAgentRunnerService', () => {
     it('marks the entry failed and throws when manifest fails validation', async () => {
         const { runner, tracker } = setup();
         const provider = new MockLLMProvider();
-        // Missing completenessAudit — manifest validation should reject.
-        provider.enqueueJsonStream('{}');
+        // Non-object → fails the top-level isObject check (which still rejects).
+        provider.enqueueJsonStream('[]');
 
         await expect(runner.run(defaultInput(provider))).rejects.toThrow(/manifest invalid/);
         const entry = tracker.entries()[0];

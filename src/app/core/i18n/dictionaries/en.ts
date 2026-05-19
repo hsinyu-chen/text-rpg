@@ -1118,7 +1118,6 @@ export const en: TranslationDict = {
             close: 'Close',
         },
         run: {
-            emptyResult: 'SaveAgent emitted no updates (every manifest section was empty or skipped).',
             failedPrefix: 'Multi-Agent Save failed: ',
             finishWarning: 'SaveAgent finished abnormally ({{reason}}) — the manifest may be truncated; the result could be incomplete.',
             notConfigured: 'Setup is not complete; multi-agent save cannot run.',

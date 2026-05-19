@@ -85,7 +85,11 @@ const entityUpdate = {
 export const SAVE_MANIFEST_SCHEMA: Schema = {
     type: 'object',
     description: 'SaveAgent manifest — top-level routing output. The dispatcher reads each field and fires the matching sub-tool.',
-    required: ['completenessAudit'],
+    // completenessAudit is requested but not in `required` — a truncated
+    // response (max_tokens) typically drops the tail of the JSON, and we'd
+    // rather salvage the per-section deltas the model did emit than fail
+    // the whole manifest. The orchestrator's `finishReason` warning still
+    // tells the user the result is partial.
     properties: {
         storyOutlineBlock: { type: 'string', description: 'Full story-outline block for this ACT. Empty string = no update.' },
         inventoryDeltas: { type: 'array', items: deltaItem },
@@ -141,19 +145,24 @@ export type ManifestValidationResult =
 export function validateManifest(value: unknown): ManifestValidationResult {
     if (!isObject(value)) return { ok: false, error: 'manifest is not an object' };
 
+    // completenessAudit is optional in the validator — see schema comment.
+    // When present, validate its inner shape; missing is acceptable for
+    // truncated responses.
     const audit = value['completenessAudit'];
-    if (!isObject(audit)) return { ok: false, error: 'completenessAudit is missing or not an object' };
-    if (!isStringArray(audit['processedLogIds'])) {
-        return { ok: false, error: 'completenessAudit.processedLogIds is not a string[]' };
-    }
-    const skipped = audit['skippedLogIds'];
-    if (!Array.isArray(skipped)) {
-        return { ok: false, error: 'completenessAudit.skippedLogIds is not an array' };
-    }
-    for (let i = 0; i < skipped.length; i++) {
-        const s = skipped[i];
-        if (!isObject(s) || typeof s['logId'] !== 'string' || typeof s['reason'] !== 'string') {
-            return { ok: false, error: `completenessAudit.skippedLogIds[${i}] missing logId/reason` };
+    if (audit !== undefined) {
+        if (!isObject(audit)) return { ok: false, error: 'completenessAudit is not an object' };
+        if (!isStringArray(audit['processedLogIds'])) {
+            return { ok: false, error: 'completenessAudit.processedLogIds is not a string[]' };
+        }
+        const skipped = audit['skippedLogIds'];
+        if (!Array.isArray(skipped)) {
+            return { ok: false, error: 'completenessAudit.skippedLogIds is not an array' };
+        }
+        for (let i = 0; i < skipped.length; i++) {
+            const s = skipped[i];
+            if (!isObject(s) || typeof s['logId'] !== 'string' || typeof s['reason'] !== 'string') {
+                return { ok: false, error: `completenessAudit.skippedLogIds[${i}] missing logId/reason` };
+            }
         }
     }
 

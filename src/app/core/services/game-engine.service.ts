@@ -26,6 +26,7 @@ import { SceneBootService } from './scene-boot.service';
 import { TurnCommitService, TurnContext, RunTurnOptions } from './turn-commit.service';
 import { SaveSettingsStore } from './multi-agent-save/save-settings.store';
 import { MultiAgentSaveService } from './multi-agent-save/multi-agent-save.service';
+import { SaveProgressTracker } from './multi-agent-save/progress/save-progress-tracker.service';
 
 export type { RunTurnOptions } from './turn-commit.service';
 
@@ -71,6 +72,7 @@ export class GameEngineService {
     private i18n = inject(I18nService);
     private saveSettings = inject(SaveSettingsStore);
     private multiAgentSave = inject(MultiAgentSaveService);
+    private saveProgress = inject(SaveProgressTracker);
 
     private currentAbortController: AbortController | null = null;
 
@@ -99,6 +101,11 @@ export class GameEngineService {
         // first turn's stream. Auto-resend microtasks fire after phase 8 has
         // flipped status='idle', so this guard never blocks them.
         if (this.state.status() === 'generating') return;
+        // Multi-agent save bypasses startTurn, so it never flips status to
+        // 'generating'. Without this second guard, an auto-resend / hotkey /
+        // agent trigger could race a save-in-progress and corrupt shared
+        // context state.
+        if (this.saveProgress.isRunning()) return;
         console.log('[GameEngine] sendMessage received with intent:', options?.intent);
         if (!this.validateRunTurnArgs(userText, options)) return;
 
