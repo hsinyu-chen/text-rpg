@@ -1,0 +1,135 @@
+:host {
+    display: block;
+    min-width: 0;
+}
+
+.save-progress-content {
+    min-width: 0;
+    width: 760px;
+    max-width: 90vw;
+    max-height: 75vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.empty-state {
+    padding: 1.5rem;
+    text-align: center;
+    opacity: 0.6;
+}
+
+.entry-title {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    flex: 1 1 auto;
+    gap: 0.5em;
+
+    .state-icon {
+        font-size: 1.1rem;
+        width: 1.1rem;
+        height: 1.1rem;
+        // Per-state color hints — uses [attr.data-state] selector.
+        &[data-state='running']  { color: var(--mat-sys-primary); }
+        &[data-state='done']     { color: #43a047; }
+        &[data-state='skipped']  { opacity: 0.5; }
+        &[data-state='failed']   { color: var(--mat-sys-error); }
+        &[data-state='retry']    { color: #fb8c00; }
+    }
+
+    .tool-name {
+        font-family: 'Fira Code', 'Consolas', monospace;
+        font-size: 0.9rem;
+    }
+
+    .entity-name {
+        opacity: 0.75;
+        font-size: 0.9rem;
+    }
+}
+
+.entry-meta {
+    font-size: 0.8rem;
+    opacity: 0.75;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+    flex: 1 1 auto;
+    gap: 0.3em;
+}
+
+.status-reason {
+    font-family: 'Fira Code', 'Consolas', monospace;
+    font-size: 0.75rem;
+}
+
+.pp-progress {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 0.5rem 0;
+
+    mat-progress-bar {
+        flex: 1 1 auto;
+    }
+
+    .pp-label {
+        font-size: 0.8rem;
+        opacity: 0.7;
+        white-space: nowrap;
+    }
+}
+
+.cot-details {
+    margin: 0.5rem 0;
+
+    summary {
+        cursor: pointer;
+        font-size: 0.85rem;
+        opacity: 0.75;
+        user-select: none;
+    }
+
+    .cot-text {
+        font-family: 'Fira Code', 'Consolas', monospace;
+        font-size: 0.8rem;
+        white-space: pre-wrap;
+        word-break: break-word;
+        background: rgba(0, 0, 0, 0.04);
+        padding: 0.5rem 0.75rem;
+        border-radius: 4px;
+        max-height: 220px;
+        overflow: auto;
+        margin: 0.4rem 0 0;
+    }
+}
+
+.output-text {
+    font-family: 'Fira Code', 'Consolas', monospace;
+    font-size: 0.8rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+    background: rgba(0, 0, 0, 0.04);
+    padding: 0.5rem 0.75rem;
+    border-radius: 4px;
+    max-height: 280px;
+    overflow: auto;
+    margin: 0.4rem 0;
+}
+
+.usage-line {
+    display: flex;
+    gap: 1rem;
+    font-size: 0.75rem;
+    opacity: 0.7;
+    font-family: 'Fira Code', 'Consolas', monospace;
+    margin-top: 0.3rem;
+}
+
+.total-usage {
+    flex: 1 1 auto;
+    font-size: 0.8rem;
+    opacity: 0.75;
+    font-family: 'Fira Code', 'Consolas', monospace;
+}
