@@ -25,6 +25,19 @@
     height: 100%;
     position: relative;
     overflow: hidden;
+
+    // While a multi-agent save runs, dim + freeze the chat surface. The
+    // SaveProgressDialog is already modal (disableClose + backdrop) so
+    // pointer-events is belt-and-suspenders for the edge case where the
+    // dialog backdrop's z-index loses to a portaled tooltip / menu.
+    &.save-locked {
+        > * {
+            pointer-events: none;
+            opacity: 0.45;
+            filter: grayscale(0.3);
+            transition: opacity 200ms ease, filter 200ms ease;
+        }
+    }
 }
 
 
