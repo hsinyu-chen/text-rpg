@@ -218,16 +218,34 @@ export abstract class BaseToolCallAgent<TAction extends BaseAction, TContext> {
             return;
         }
 
-        const terminalAction = parsed.actions.find(a => this.isTerminal(a));
-        if (terminalAction) {
-            await this.handleTerminalAction(context, terminalAction, mode, ctx, turnCount);
-            return;
+        // Split terminal from non-terminal. Run non-terminals first in
+        // order, then the terminal (if any). The old "find terminal →
+        // early return" path silently dropped non-terminal siblings of a
+        // terminal in a parallel batch — native+allowParallel models can
+        // legitimately emit e.g. [writeFile, submitResponse] and we must
+        // execute the write before finalizing on the response.
+        const nonTerminal: TAction[] = [];
+        let terminalAction: TAction | null = null;
+        for (const a of parsed.actions) {
+            if (this.isTerminal(a)) {
+                // Keep the last terminal if the model emits multiple — the
+                // earlier ones are degenerate; only the last one's message
+                // would survive the streaming-entry overwrite anyway.
+                terminalAction = a;
+            } else {
+                nonTerminal.push(a);
+            }
         }
 
-        if (parsed.actions.length === 1) {
-            await this.executeSingleAction(parsed.actions[0], context, mode, ctx, turnCount);
-        } else {
-            await this.executeBatchActions(parsed.actions, context, mode, ctx, turnCount);
+        // When a terminal follows, executeBatchActions must NOT consume the
+        // streaming log entry (terminal's final message writes it) and must
+        // NOT recurse for a next turn (terminal handler will stop the loop).
+        if (nonTerminal.length > 0) {
+            await this.executeBatchActions(nonTerminal, context, mode, ctx, turnCount, terminalAction !== null);
+        }
+
+        if (terminalAction) {
+            await this.handleTerminalAction(context, terminalAction, mode, ctx, turnCount);
         }
     }
 
@@ -446,45 +464,14 @@ export abstract class BaseToolCallAgent<TAction extends BaseAction, TContext> {
     }
 
     /**
-     * Single-action fast path: reuse the streaming log entry for the
-     * tool-call display when the model produced no commentary, otherwise
-     * append a fresh tool-call entry alongside the commentary. Either way,
-     * execute the tool, log the result, and recurse.
-     */
-    protected async executeSingleAction(
-        a: TAction, context: TContext, mode: 'native' | 'json', ctx: TurnContext, turnCount = 0,
-    ): Promise<void> {
-        if (a.action === 'reportProgress') {
-            // a.args is `unknown` (TAction is generic) — TS won't narrow on
-            // a.action alone. Pass to processToolMessageArg which already
-            // accepts unknown and coerces.
-            const message = this.processToolMessageArg(readArg(a.args, 'message'));
-            this.updateLogAt(ctx.currentLogIndex, e => ({ ...e, text: message, isToolCall: false }));
-            this.appendToolResults([{ action: a, response: { status: 'acknowledged' } }], mode);
-            await this.processAgentTurn(context, 0, turnCount + 1);
-            return;
-        }
-
-        const toolEntry = this.buildToolCallLogEntry(a);
-        const hasUsefulCommentary = mode === 'native' && ctx.accumulatedText.trim().length > 0;
-        if (hasUsefulCommentary) {
-            this.agentLogs.update(logs => [...logs, toolEntry]);
-        } else {
-            this.updateLogAt(ctx.currentLogIndex, e => ({ ...e, ...toolEntry }));
-        }
-
-        const result = await this.dispatchTool(a, context);
-        if (result.infoLog) {
-            this.agentLogs.update(logs => [...logs, { role: 'system', text: result.infoLog!, type: 'info' }]);
-        }
-        this.pushToolResultLog(result.response, toolEntry.toolName);
-        this.appendToolResults([{ action: a, response: result.response }], mode);
-        await this.processAgentTurn(context, 0, turnCount + 1);
-    }
-
-    /**
-     * Multi-action batch: append a fresh log entry per action (so each tool
-     * call is visible on its own line), execute each in turn, then recurse.
+     * Per-batch tool execution loop. Handles N≥1 non-terminal actions
+     * uniformly: the first call can reuse the streaming log entry when
+     * there's no useful commentary, subsequent calls always append fresh.
+     *
+     * `hasTerminalAfter=true` reserves the streaming entry for the
+     * terminal handler's final message and skips the recursive next-turn
+     * call (the terminal handler stops the loop instead). See the
+     * `processAgentTurn` split above for the sequencing.
      *
      * Lifecycle hooks `onBatchLoopStart` / `onBatchLoopEnd` bracket the
      * per-action loop so subclasses can coalesce per-tool side effects
@@ -494,11 +481,16 @@ export abstract class BaseToolCallAgent<TAction extends BaseAction, TContext> {
      */
     protected async executeBatchActions(
         actions: TAction[], context: TContext, mode: 'native' | 'json', ctx: TurnContext, turnCount = 0,
+        hasTerminalAfter = false,
     ): Promise<void> {
         const executed: { action: TAction; response: Record<string, unknown> }[] = [];
 
         const hasUsefulCommentary = mode === 'native' && ctx.accumulatedText.trim().length > 0;
-        let streamingEntryAvailable = !hasUsefulCommentary;
+        // When a terminal action follows this batch, reserve the streaming
+        // log entry for the terminal's final message — non-terminals must
+        // append fresh entries so the terminal handler's write to
+        // ctx.currentLogIndex doesn't clobber a tool-call entry.
+        let streamingEntryAvailable = !hasUsefulCommentary && !hasTerminalAfter;
 
         this.onBatchLoopStart();
         try {
@@ -535,7 +527,12 @@ export abstract class BaseToolCallAgent<TAction extends BaseAction, TContext> {
         }
 
         this.appendToolResults(executed, mode);
-        await this.processAgentTurn(context, 0, turnCount + 1);
+        // Caller handles the next step when terminal follows — terminal's
+        // handleTerminalAction stops the loop, so skipping the recurse here
+        // is required (not just an optimization).
+        if (!hasTerminalAfter) {
+            await this.processAgentTurn(context, 0, turnCount + 1);
+        }
     }
 
     /**
