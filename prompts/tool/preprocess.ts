@@ -13,6 +13,11 @@ export interface PreprocessResult {
   processed: string;
   sourceMap: SourceMap;
   diagnostics: Diagnostic[];
+  /** All partial files successfully recursed into (whether or not they emitted
+   *  any lines). An aggregator partial whose body is purely include directives
+   *  contributes no lines to `sourceMap`, but must still count as referenced
+   *  for orphan-partial detection. */
+  referencedPartials: Set<string>;
 }
 
 export interface PreprocessOptions {
@@ -38,6 +43,7 @@ export function preprocess(
   const diagnostics: Diagnostic[] = [];
   const outLines: string[] = [];
   const outMap: SourceMap['lines'] = [];
+  const referencedPartials = new Set<string>();
   const maxDepth = opts.maxDepth ?? DEFAULT_MAX_INCLUDE_DEPTH;
   const baseDir = resolve(opts.baseDir);
 
@@ -46,6 +52,7 @@ export function preprocess(
     content: string,
     chain: string[],
   ): void => {
+    if (content === '') return;
     const stripped = content.endsWith('\n') ? content.slice(0, -1) : content;
     const lines = stripped.split('\n');
     for (let i = 0; i < lines.length; i++) {
@@ -93,6 +100,7 @@ export function preprocess(
         continue;
       }
 
+      referencedPartials.add(targetAbs);
       const partialContent = readUtf8Lf(targetAbs);
       expand(targetAbs, partialContent, [...chain, targetAbs]);
     }
@@ -105,6 +113,7 @@ export function preprocess(
     processed,
     sourceMap: { lines: outMap },
     diagnostics,
+    referencedPartials,
   };
 }
 
@@ -121,30 +130,6 @@ function resolvePartialPath(rawPath: string, baseDir: string): string | null {
   const normRel = rel.replace(/\\/g, '/');
   if (!normRel.startsWith(PARTIALS_PREFIX)) return null;
   return abs;
-}
-
-/** Format a (host file, processed line) pair using a source map. Returns the
- *  original (file, line) when the line came from the host, or a "via partial"
- *  reference when the line was inlined from a partial. */
-export function formatSourceLocation(
-  hostFile: string,
-  processedLine: number,
-  sourceMap: SourceMap | undefined,
-  baseDir: string,
-): { file: string; line: number; via?: string } {
-  if (!sourceMap || processedLine < 1 || processedLine > sourceMap.lines.length) {
-    return { file: hostFile, line: processedLine };
-  }
-  const entry = sourceMap.lines[processedLine - 1];
-  if (entry.file === hostFile) {
-    return { file: hostFile, line: entry.line };
-  }
-  const partialRel = relative(baseDir, entry.file).replace(/\\/g, '/');
-  return {
-    file: hostFile,
-    line: processedLine,
-    via: `${partialRel}:${entry.line}`,
-  };
 }
 
 /** Recursively list .md files under `dir`, returning forward-slash paths

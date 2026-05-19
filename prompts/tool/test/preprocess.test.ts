@@ -203,6 +203,40 @@ describe('plain-text passthrough of foreign anchors', () => {
   });
 });
 
+describe('referencedPartials tracking', () => {
+  it('includes aggregator partials whose body is only include directives', () => {
+    write('partials/aggregator.md', '<!--@include:partials/leaf.md-->\n');
+    write('partials/leaf.md', 'leaf\n');
+    const host = write('host.md', '<!--@include:partials/aggregator.md-->\n');
+    const { referencedPartials } = preprocess(
+      host, '<!--@include:partials/aggregator.md-->\n', { baseDir },
+    );
+    expect(referencedPartials.has(join(partialRoot, 'aggregator.md'))).toBe(true);
+    expect(referencedPartials.has(join(partialRoot, 'leaf.md'))).toBe(true);
+  });
+
+  it('does not include host file in referencedPartials', () => {
+    write('partials/a.md', 'a\n');
+    const host = write('host.md', '<!--@include:partials/a.md-->\n');
+    const { referencedPartials } = preprocess(
+      host, '<!--@include:partials/a.md-->\n', { baseDir },
+    );
+    expect(referencedPartials.has(host)).toBe(false);
+  });
+});
+
+describe('empty partial', () => {
+  it('inlines an empty partial without producing spurious newlines', () => {
+    write('partials/empty.md', '');
+    const host = write('host.md', 'a\n<!--@include:partials/empty.md-->\nb\n');
+    const { processed, diagnostics } = preprocess(
+      host, 'a\n<!--@include:partials/empty.md-->\nb\n', { baseDir },
+    );
+    expect(diagnostics.filter(d => d.level === 'error')).toEqual([]);
+    expect(processed).toBe('a\nb\n');
+  });
+});
+
 describe('include directive matches only standalone lines', () => {
   it('does not substitute @include embedded in another sentence', () => {
     write('partials/a.md', 'A-BODY\n');

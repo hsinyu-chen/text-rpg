@@ -66,9 +66,9 @@ export function runPipeline(cfg: VariantConfig = config): PipelineOutput {
     if (!entry) {
       const raw = readUtf8Lf(baseFile);
       const pre = preprocess(baseFile, raw, { baseDir });
-      for (const e of pre.sourceMap.lines) {
-        if (e.file !== baseFile) referencedPartialFiles.add(e.file);
-      }
+      // Use referencedPartials (includes aggregator-only partials whose body
+      // contributes no output lines), not sourceMap.lines.
+      for (const p of pre.referencedPartials) referencedPartialFiles.add(p);
       diagnostics.push(...pre.diagnostics);
       entry = { processed: pre.processed, sourceMap: pre.sourceMap };
       preprocessCache.set(baseFile, entry);

@@ -196,6 +196,25 @@ describe('@include directive', () => {
     )).toBe(true);
   });
 
+  it('does not flag an aggregator-only partial as orphaned', () => {
+    const rel = (p: string) => join(tmpDir, p);
+    // aggregator.md has no literal lines, only an include directive — its
+    // body contributes zero lines to sourceMap.
+    write('base/zh-tw/partials/aggregator.md', '<!--@include:partials/leaf.md-->\n');
+    write('base/zh-tw/partials/leaf.md', 'leaf body\n');
+    write('base/zh-tw/x.md', '<!--@include:partials/aggregator.md-->\n');
+    const cfg: VariantConfig = {
+      ...configIn(rel),
+      per_file: { 'x.md': { passthrough: true } },
+    };
+    const out = runPipeline(cfg);
+    expect(out.diagnostics.some(d =>
+      d.level === 'warning'
+      && d.message.includes('orphaned partial')
+      && d.message.includes('aggregator.md'),
+    )).toBe(false);
+  });
+
   it('errors on @include cycle', () => {
     const rel = (p: string) => join(tmpDir, p);
     write('base/zh-tw/partials/a.md', '<!--@include:partials/b.md-->\n');

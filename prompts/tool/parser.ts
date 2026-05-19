@@ -164,11 +164,16 @@ function remapDiagnostic(
   const viaRel = baseDir
     ? relative(baseDir, entry.file).replace(/\\/g, '/')
     : entry.file;
+  // Keep host reference baseDir-relative so the diagnostic stays portable
+  // across machines (pipeline.ts only normalizes the `file` field).
+  const hostRel = baseDir
+    ? relative(baseDir, hostFile).replace(/\\/g, '/')
+    : hostFile;
   return {
     ...d,
     line: entry.line,
     file: entry.file,
-    message: `${remappedMessage} (via ${viaRel}, host ${hostFile})`,
+    message: `${remappedMessage} (via ${viaRel}, host ${hostRel})`,
   };
 }
 
