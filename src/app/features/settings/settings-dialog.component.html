@@ -198,6 +198,17 @@
         </div>
 
         <div class="advanced-section">
+            <h3>{{ 'settings.multiAgentSaveSection' | translate }}</h3>
+            <p class="hint-text">{{ 'settings.multiAgentSaveSectionHint' | translate }}</p>
+            <div class="button-row">
+                <button mat-stroked-button (click)="openProviderDebug()">
+                    <mat-icon>bug_report</mat-icon>
+                    {{ 'settings.providerDebugButton' | translate }}
+                </button>
+            </div>
+        </div>
+
+        <div class="advanced-section">
             <h3>{{ 'settings.debugBridge' | translate }}</h3>
             <p class="hint-text">
                 {{ 'settings.debugBridgeHint' | translate }}
