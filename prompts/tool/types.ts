@@ -58,6 +58,13 @@ export interface Diagnostic {
   message: string;
 }
 
+/** Maps each line of preprocess output back to (file, line) in the original
+ *  source. Index = 0-based line number in processed text; value = original
+ *  location. Produced by `preprocess`, consumed by parser diagnostics. */
+export interface SourceMap {
+  lines: Array<{ file: string; line: number }>;
+}
+
 export interface VariantConfig {
   base_dirs: Record<string, string>;
   layer_dirs: Record<string, string>;

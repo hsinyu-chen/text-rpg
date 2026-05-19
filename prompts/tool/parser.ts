@@ -1,8 +1,9 @@
 import { readFileSync } from 'node:fs';
+import { relative } from 'node:path';
 
 import {
   AstBlock, Diagnostic, FileAst, LayerAst, LayerOp,
-  OP_KINDS, OpKind, SlotNode,
+  OP_KINDS, OpKind, SlotNode, SourceMap,
 } from './types';
 
 /** Read a file as UTF-8 with CRLF normalized to LF. */
@@ -37,24 +38,52 @@ export function readSource(path: string): { lines: string[]; raw: string } {
 }
 
 export function parseBaseFile(filePath: string): { ast: FileAst; diagnostics: Diagnostic[] } {
-  const { lines } = readSource(filePath);
+  const raw = readUtf8Lf(filePath);
+  return parseBaseFileFromString(filePath, raw);
+}
+
+export function parseBaseFileFromString(
+  filePath: string,
+  content: string,
+  sourceMap?: SourceMap,
+  baseDir?: string,
+): { ast: FileAst; diagnostics: Diagnostic[] } {
+  const stripped = content.endsWith('\n') ? content.slice(0, -1) : content;
+  const lines = stripped.split('\n');
   const { ast: internal, diagnostics } = parseLines(filePath, lines);
   const slots = new Map<string, SlotNode>();
   for (const [id, s] of internal.slots) {
+    const { line: originalLine, source: originalSource } =
+      mapStart(s.startLine, filePath, sourceMap);
     slots.set(id, {
       id: s.id, body: s.body, isRemove: s.isRemove,
       insideFence: s.insideFence,
-      startLine: s.startLine, source: s.source,
+      startLine: originalLine,
+      source: originalSource ?? s.source,
     });
   }
+  const remapped = sourceMap
+    ? diagnostics.map(d => remapDiagnostic(d, filePath, sourceMap, baseDir))
+    : diagnostics;
   return {
     ast: { filePath, slots, blocks: internal.blocks },
-    diagnostics,
+    diagnostics: remapped,
   };
 }
 
 export function parseLayerFile(filePath: string): { ast: LayerAst; diagnostics: Diagnostic[] } {
-  const { lines } = readSource(filePath);
+  const raw = readUtf8Lf(filePath);
+  return parseLayerFileFromString(filePath, raw);
+}
+
+export function parseLayerFileFromString(
+  filePath: string,
+  content: string,
+  sourceMap?: SourceMap,
+  baseDir?: string,
+): { ast: LayerAst; diagnostics: Diagnostic[] } {
+  const stripped = content.endsWith('\n') ? content.slice(0, -1) : content;
+  const lines = stripped.split('\n');
   const { ast: internal, diagnostics } = parseLines(filePath, lines);
 
   // Layer files: invariant content outside slots is ignored, but warn if non-whitespace.
@@ -75,15 +104,77 @@ export function parseLayerFile(filePath: string): { ast: LayerAst; diagnostics: 
   const ops: LayerOp[] = [];
   for (const [, slot] of internal.slots) {
     const op: OpKind = slot.parsedOp ?? 'content-replace';
+    const { line: originalLine, source: originalSource } =
+      mapStart(slot.startLine, filePath, sourceMap);
     ops.push({
       slotId: slot.id,
       op,
       body: slot.body,
-      source: filePath,
-      startLine: slot.startLine,
+      source: originalSource ?? filePath,
+      startLine: originalLine,
     });
   }
-  return { ast: { filePath, ops }, diagnostics };
+  const remapped = sourceMap
+    ? diagnostics.map(d => remapDiagnostic(d, filePath, sourceMap, baseDir))
+    : diagnostics;
+  return { ast: { filePath, ops }, diagnostics: remapped };
+}
+
+function mapStart(
+  processedLine: number,
+  hostFile: string,
+  sourceMap?: SourceMap,
+): { line: number; source?: string } {
+  if (!sourceMap || processedLine < 1 || processedLine > sourceMap.lines.length) {
+    return { line: processedLine };
+  }
+  const entry = sourceMap.lines[processedLine - 1];
+  if (entry.file === hostFile) return { line: entry.line };
+  // Slot originating inside a partial — keep host as the "owner" for layer
+  // resolution but reflect the partial as the source for manifest purposes.
+  return { line: entry.line, source: entry.file };
+}
+
+function remapDiagnostic(
+  d: Diagnostic,
+  hostFile: string,
+  sourceMap: SourceMap,
+  baseDir?: string,
+): Diagnostic {
+  if (d.line === undefined) return d;
+  if (d.line < 1 || d.line > sourceMap.lines.length) return d;
+  const entry = sourceMap.lines[d.line - 1];
+
+  // Embedded "(also at line N)" / "(open at line N ...)" references must also
+  // be remapped — they were emitted in processed-line space.
+  const remappedMessage = d.message.replace(/\bline (\d+)\b/g, (whole, num: string) => {
+    const n = Number(num);
+    if (!Number.isFinite(n) || n < 1 || n > sourceMap.lines.length) return whole;
+    const e = sourceMap.lines[n - 1];
+    if (e.file === hostFile) return `line ${e.line}`;
+    const viaRel = baseDir
+      ? relative(baseDir, e.file).replace(/\\/g, '/')
+      : e.file;
+    return `line ${e.line} of ${viaRel}`;
+  });
+
+  if (entry.file === hostFile) {
+    return { ...d, line: entry.line, message: remappedMessage };
+  }
+  const viaRel = baseDir
+    ? relative(baseDir, entry.file).replace(/\\/g, '/')
+    : entry.file;
+  // Keep host reference baseDir-relative so the diagnostic stays portable
+  // across machines (pipeline.ts only normalizes the `file` field).
+  const hostRel = baseDir
+    ? relative(baseDir, hostFile).replace(/\\/g, '/')
+    : hostFile;
+  return {
+    ...d,
+    line: entry.line,
+    file: entry.file,
+    message: `${remappedMessage} (via ${viaRel}, host ${hostRel})`,
+  };
 }
 
 function parseLines(filePath: string, lines: string[]): { ast: InternalAst; diagnostics: Diagnostic[] } {
