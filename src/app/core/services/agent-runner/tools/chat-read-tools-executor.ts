@@ -211,9 +211,11 @@ function readChatMessage(args: ReadChatMessageArgs, context: ChatReadContext): T
     }
 
     const allowed: ChatReadField[] = ['content', 'thought', 'logs', 'analysis', 'summary', 'intent'];
-    const include = (args.include && args.include.length > 0)
-        ? args.include.filter(f => allowed.includes(f))
-        : ['content' as ChatReadField];
+    // Filter first, then fall back to ['content'] if nothing survived — covers
+    // both "include omitted" and "include contained only invalid field names"
+    // with one path. Matches the docstring's documented default.
+    const filtered = (args.include ?? []).filter(f => allowed.includes(f));
+    const include: ChatReadField[] = filtered.length > 0 ? filtered : ['content'];
 
     interface Result {
         id: string;
