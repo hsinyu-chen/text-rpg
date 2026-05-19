@@ -130,12 +130,16 @@ describe('applyInventoryDeltas', () => {
         expect(xml).toContain('<target>    - 鐵劍</target>');
     });
 
-    it('preserves the target indent on the update replacement (no list-flattening)', () => {
+    it('mirrors the target indent on the update replacement (explicit contract)', () => {
+        // The XML the handler emits matches the file column exactly.
+        // Apply-time, FileUpdateParser.dedent strips this whitespace and
+        // file-update.service's aware/lazy heuristic re-indents, so the
+        // on-disk result is unchanged by removing this — but the explicit
+        // emission stays readable + survives future apply-pipeline changes.
         const fileContent = '## 攜帶\n    - 鐵劍\n    - 木盾';
         const xml = applyInventoryDeltas([
             { op: 'update', item: '鐵劍', details: '刃口缺損' },
         ], { targetFile: FILE, fileContent });
-        // Indent (4 spaces) must round-trip from target → replacement.
         expect(xml).toContain('<replacement>    - 鐵劍 — 刃口缺損</replacement>');
     });
 });

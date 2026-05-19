@@ -74,9 +74,21 @@ export function applyInventoryDeltas(deltas: readonly InventoryDelta[], ctx: Mec
                 const existing = findItemLine(lines, delta.item);
                 if (existing) {
                     // Mirror the target's leading indent on the replacement
-                    // so a nested list item ("    - 鐵劍") stays nested.
-                    // Without this, an update would silently flatten the
-                    // list structure.
+                    // as an explicit contract — what the handler emits
+                    // matches what the file column expects.
+                    //
+                    // Strictly speaking this is belt-and-suspenders today:
+                    // FileUpdateParser.dedent() strips the leading
+                    // whitespace from <replacement> at parse time, and
+                    // file-update.service's aware-vs-lazy heuristic
+                    // re-indents the bare replacement to file column for
+                    // single-line ops. So apply-time the user sees the
+                    // right thing even without this prefix. The explicit
+                    // emission still wins on:
+                    //   - readability of the resulting <save> XML
+                    //   - robustness if the apply heuristic ever changes
+                    //   - multi-line replacements (a future op shape)
+                    //     where dedent would NOT strip per-line indent.
                     const indent = existing.match(/^\s*/)?.[0] ?? '';
                     ops.push({ kind: 'replace', target: existing, replacement: indent + formatItemLine(delta) });
                 } else {
