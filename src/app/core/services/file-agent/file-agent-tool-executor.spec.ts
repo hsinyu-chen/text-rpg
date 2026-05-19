@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { executeFileTool } from './file-agent-tool-executor';
+import { dispatchKbReadTool } from '../agent-runner/tools/kb-read-tools-executor';
+import { dispatchChatReadTool } from '../agent-runner/tools/chat-read-tools-executor';
 import type { FileAgentContext, ParsedAction, ToolExecutionResult } from './file-agent.types';
 import type { ChatMessage } from '@app/core/models/types';
 
@@ -14,11 +16,26 @@ function makeContext(files: Record<string, string>, chatMessages?: ChatMessage[]
   return { context: { files: map, onFileReplaced, chatMessages }, onFileReplaced };
 }
 
-// `executeFileTool` now returns `Awaitable<ToolExecutionResult>` to support
-// interactive tools like proposeChatReplace. All existing tools still
-// return synchronously, so this helper casts to keep the 100+ sync test
-// sites readable. Interactive-tool tests await `executeFileTool` directly.
+/**
+ * Routes the action to the same per-domain dispatcher chain
+ * FileAgentService.dispatchTool uses in production:
+ *  1. KB read tools (readFile / grep / getFileOutline / readSection)
+ *  2. Chat read tools (listChatMessages / searchChatMessages / readChatMessage / readTurnLogs)
+ *  3. executeFileTool (write + UI-help + propose + flow-control + readOnly gate)
+ *
+ * Without step 3 the spec couldn't test write tools; without 1+2 we'd be
+ * exercising the back-compat fallthrough inside executeFileTool which is
+ * unreachable from production. The chain here is the production-equivalent
+ * code path, just without the FileAgentService class wrapper.
+ *
+ * Sync cast keeps the 100+ existing sync test sites readable;
+ * proposeChatReplace tests await `executeFileTool` directly.
+ */
 function run(action: ParsedAction, ctx: FileAgentContext): ToolExecutionResult {
+  const kbRead = dispatchKbReadTool(action, ctx);
+  if (kbRead !== null) return kbRead;
+  const chatRead = dispatchChatReadTool(action, ctx);
+  if (chatRead !== null) return chatRead;
   return executeFileTool(action, ctx) as ToolExecutionResult;
 }
 
@@ -594,16 +611,19 @@ describe('listChatMessages', () => {
     expect(r.response).toMatchObject({ error: expect.stringMatching(/No chat history available/) });
   });
 
-  it('returns outline without content, excluding hidden by default', () => {
+  it('returns outline newest-first, without content, excluding hidden by default', () => {
     const { context } = makeContext({}, makeChat());
     const r = run({ action: 'listChatMessages', args: { reason: 'check' } }, context);
     const messages = (r.response as { messages: { id: string; charCount: number; hasLogs: boolean; summary?: string }[] }).messages;
-    expect(messages.map(m => m.id)).toEqual(['m1', 'm2', 'm4', 'm5', 'm6']);
+    // Newest-first per the tool docstring — m6 is the latest model message,
+    // m1 is the oldest user message. m3 is hidden, excluded by default.
+    expect(messages.map(m => m.id)).toEqual(['m6', 'm5', 'm4', 'm2', 'm1']);
     expect(messages[0]).not.toHaveProperty('content');
-    expect(messages[0].charCount).toBe('Let me grab the EMP rifle.'.length);
-    expect(messages[1].hasLogs).toBe(true);
-    expect(messages[3].hasLogs).toBe(false);
-    expect(messages[0].summary).toBe('pick up rifle');
+    // m6 is the newest; its content is the keycard prose.
+    expect(messages[0].charCount).toBe('You find a keycard labeled "Sector 7".'.length);
+    expect(messages[0].hasLogs).toBe(true);   // m6 carries inventory + quest logs
+    expect(messages[2].hasLogs).toBe(true);   // m4 carries world_log
+    expect(messages[messages.length - 1].summary).toBe('pick up rifle'); // m1 oldest
   });
 
   it('includes hidden when flagged', () => {
@@ -613,19 +633,21 @@ describe('listChatMessages', () => {
     expect(ids).toContain('m3');
   });
 
-  it('respects limit (returns newest N)', () => {
+  it('respects limit (returns newest N, newest-first)', () => {
     const { context } = makeContext({}, makeChat());
     const r = run({ action: 'listChatMessages', args: { reason: 'check', limit: 2 } }, context);
     const resp = r.response as { messages: { id: string }[]; olderRemaining: number };
-    expect(resp.messages.map(m => m.id)).toEqual(['m5', 'm6']);
+    // limit:2 keeps the 2 newest (m5, m6) ordered newest-first.
+    expect(resp.messages.map(m => m.id)).toEqual(['m6', 'm5']);
     expect(resp.olderRemaining).toBe(3); // m1, m2, m4 still visible-and-older
   });
 
-  it('paginates with before (exclusive cutoff)', () => {
+  it('paginates with before (exclusive cutoff, newest-first)', () => {
     const { context } = makeContext({}, makeChat());
     const r = run({ action: 'listChatMessages', args: { reason: 'check', before: 'm4', limit: 10 } }, context);
     const ids = (r.response as { messages: { id: string }[] }).messages.map(m => m.id);
-    expect(ids).toEqual(['m1', 'm2']);
+    // Cut at m4 leaves m1+m2 in scope, returned newest-first.
+    expect(ids).toEqual(['m2', 'm1']);
   });
 
   it('errors when before id is not found', () => {
@@ -677,11 +699,14 @@ describe('searchChatMessages', () => {
     expect(r.response).toMatchObject({ error: expect.stringMatching(/Invalid regex/) });
   });
 
-  it('searches content by default and skips hidden', () => {
+  it('searches content by default and skips hidden, newest-first', () => {
     const { context } = makeContext({}, makeChat());
     const r = run({ action: 'searchChatMessages', args: { reason: 'check', pattern: 'EMP' } }, context);
     const resp = r.response as { hits: { messageId: string; scope: string }[]; count: number };
-    expect(resp.hits.map(h => h.messageId)).toEqual(['m1', 'm2']);
+    // Newest-first iteration: m2 (model response mentioning EMP rifle) before
+    // m1 (user message mentioning EMP rifle). Matches listChatMessages's
+    // newest-first convention so limit-hits keep the most recent matches.
+    expect(resp.hits.map(h => h.messageId)).toEqual(['m2', 'm1']);
     expect(resp.hits.every(h => h.scope === 'content')).toBe(true);
   });
 
@@ -797,6 +822,13 @@ describe('readChatMessage', () => {
     expect(m['thought']).toBeUndefined();
     expect(m['logs']).toBeUndefined();
     expect(m['summary']).toBeUndefined();
+  });
+
+  it('falls back to content default when include contains only invalid field names', () => {
+    const { context } = makeContext({}, makeChat());
+    const r = run({ action: 'readChatMessage', args: { reason: 'check', messageIds: ['m2'], include: ['totallyMadeUp', 'alsoBogus'] as never } }, context);
+    const m = (r.response as { messages: Record<string, unknown>[] }).messages[0];
+    expect(m['content']).toBe('You take the EMP rifle from the rack.');
   });
 
   it('reports per-id error for missing ids without failing the call', () => {

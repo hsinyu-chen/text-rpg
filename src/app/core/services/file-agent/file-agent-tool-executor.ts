@@ -2,30 +2,19 @@ import {
   FileAgentContext,
   ToolExecutionResult,
   ParsedAction,
-  ReadFileArgs,
-  GrepArgs,
   SearchReplaceArgs,
   ReplaceFileArgs,
-  ReadSectionArgs,
   ReplaceSectionArgs,
   InsertSectionArgs,
   InsertIntoSectionArgs,
-  ListChatMessagesArgs,
-  SearchChatMessagesArgs,
-  ReadChatMessageArgs,
-  ReadTurnLogsArgs,
   UiMapArgs,
   ListBooksArgs,
   ListCollectionsArgs,
   ProposeChatReplaceArgs,
-  ChatReadField,
-  TurnLogKind,
   Awaitable
 } from './file-agent.types';
 import { ROOT_COLLECTION_ID } from '@app/core/models/types';
-import type { ChatMessage } from '@app/core/models/types';
 import {
-  parseMarkdownOutline,
   resolveSection,
   ambiguousSectionError,
   getDescendantHeaders,
@@ -33,20 +22,8 @@ import {
   SectionBounds
 } from './markdown-section.util';
 import { detectLatexViolations, latexViolationError, sanitizeLatexToUnicode } from '@app/core/utils/latex.util';
-
-/**
- * Coerce an LLM-supplied numeric arg into a bounded int. JSON-mode tool calls
- * are not schema-validated before reaching here, so a stringy "abc" or null
- * would slip into Math.floor → NaN and then bypass Math.min/Math.max
- * (NaN propagates through both). Treat null/undefined/non-finite as "missing,
- * use default" while still respecting an explicit 0 (e.g. contextChars: 0).
- */
-function clampInt(value: unknown, min: number, max: number, defaultValue: number): number {
-  if (value === undefined || value === null) return defaultValue;
-  const n = typeof value === 'number' ? value : Number(value);
-  if (!Number.isFinite(n)) return defaultValue;
-  return Math.min(max, Math.max(min, Math.floor(n)));
-}
+import { KB_WRITE_TOOL_NAMES, READ_ONLY_REJECTION } from '../agent-runner/tools/kb-write-tools';
+import { clampInt } from '../agent-runner/tools/tool-helpers';
 
 /** Returns the content to write (original or auto-sanitized), or an error if LaTeX remains after sanitization. */
 function checkLatex(content: string, label: string): { content: string } | { error: string } {
@@ -56,13 +33,6 @@ function checkLatex(content: string, label: string): { content: string } | { err
   if (!remaining.length) return { content: sanitized };
   return latexViolationError(remaining, label);
 }
-
-/** Tools that mutate files. Rejected when context.readOnly is set. */
-const WRITE_ACTIONS = new Set([
-  'replaceFile', 'searchReplace', 'replaceSection', 'insertSection', 'insertIntoSection'
-]);
-
-const READ_ONLY_REJECTION = 'This agent surface is read-only and cannot edit files — the user is on the main game screen, which has no editor view, so silent file mutations would be invisible to them. Do NOT retry write tools here. Use submitResponse to tell the user: open the KB editor (the file-viewer dialog from the sidebar) and re-issue the request there, where they can review and save the changes.';
 
 /** Prefix every write-tool error message with this marker so the LLM cannot
  *  miss that the file was NOT modified. Paired with the structured
@@ -83,56 +53,59 @@ const PROPOSE_FILE_EDIT_REJECTION = 'proposeChatReplace is only available on the
 
 const PROPOSE_NO_PROPOSER_WIRED = 'proposeChatReplace cannot be dispatched in this run — the host has not wired a chat-replace proposer. This usually means the agent was invoked from a context (test harness, dev tool) that cannot open the approval dialog. Use submitResponse to acknowledge the limitation.';
 
+/** Action subset executeFileTool handles after read tools are dispatched
+ *  by FileAgentService.dispatchTool's super.dispatchReadTool call. The
+ *  Exclude here lets the switch default fire a TS exhaustive-check error
+ *  if a new file-agent-specific action is added to ParsedAction but not
+ *  cased below. */
+type FileAgentNonReadAction = Exclude<
+  ParsedAction,
+  { action: 'readFile' | 'grep' | 'getFileOutline' | 'readSection' | 'listChatMessages' | 'searchChatMessages' | 'readChatMessage' | 'readTurnLogs' }
+>;
+
 export function executeFileTool(
   action: ParsedAction,
   context: FileAgentContext
 ): Awaitable<ToolExecutionResult> {
-  if (context.readOnly && WRITE_ACTIONS.has(action.action)) {
+  if (context.readOnly && KB_WRITE_TOOL_NAMES.has(action.action)) {
     return writeError(READ_ONLY_REJECTION);
   }
-  switch (action.action) {
-    case 'readFile':
-      return readFile(action.args, context);
-    case 'grep':
-      return grep(action.args, context);
+
+  // executeFileTool handles ONLY the file-agent-specific tools (write +
+  // UI-help + propose + flow-control). Read tools are pre-dispatched by
+  // FileAgentService.dispatchTool's super.dispatchReadTool call before
+  // reaching here. The spec's `run` helper mirrors that production chain.
+  const nonReadAction = action as FileAgentNonReadAction;
+  switch (nonReadAction.action) {
     case 'searchReplace':
-      return searchReplace(action.args, context);
+      return searchReplace(nonReadAction.args, context);
     case 'replaceFile':
-      return replaceFile(action.args, context);
-    case 'getFileOutline':
-      return getFileOutline(action.args, context);
-    case 'readSection':
-      return readSection(action.args, context);
+      return replaceFile(nonReadAction.args, context);
     case 'replaceSection':
-      return replaceSection(action.args, context);
+      return replaceSection(nonReadAction.args, context);
     case 'insertSection':
-      return insertSection(action.args, context);
+      return insertSection(nonReadAction.args, context);
     case 'insertIntoSection':
-      return insertIntoSection(action.args, context);
-    case 'listChatMessages':
-      return listChatMessages(action.args, context);
-    case 'searchChatMessages':
-      return searchChatMessages(action.args, context);
-    case 'readChatMessage':
-      return readChatMessage(action.args, context);
-    case 'readTurnLogs':
-      return readTurnLogs(action.args, context);
+      return insertIntoSection(nonReadAction.args, context);
     case 'uiMap':
-      return uiMap(action.args, context);
+      return uiMap(nonReadAction.args, context);
     case 'listBooks':
-      return listBooks(action.args, context);
+      return listBooks(nonReadAction.args, context);
     case 'listCollections':
-      return listCollections(action.args, context);
+      return listCollections(nonReadAction.args, context);
     case 'proposeChatReplace':
-      return proposeChatReplace(action.args, context);
+      return proposeChatReplace(nonReadAction.args, context);
     case 'reportProgress':
     case 'submitResponse':
       return { response: { status: 'acknowledged' } };
     default: {
-      // Exhaustive check
-      const exhaustiveCheck: never = action;
+      // Exhaustive check — TS errors here if a new file-agent action is
+      // added to ParsedAction but not cased above. Cast back through
+      // unknown for the runtime error message in case a caller bypasses
+      // typing and sends an unrecognised action.
+      const exhaustiveCheck: never = nonReadAction;
       return {
-        response: { error: `Unknown function: ${(exhaustiveCheck as { action: string }).action}` },
+        response: { error: `Unknown function: ${(exhaustiveCheck as unknown as { action: string }).action}` },
       };
     }
   }
@@ -262,85 +235,6 @@ function searchReplace(args: SearchReplaceArgs, context: FileAgentContext): Tool
   };
 }
 
-function readFile(args: ReadFileArgs, context: FileAgentContext): ToolExecutionResult {
-  const content = context.files.get(args.filename);
-  if (content === undefined) return { response: { error: 'File not found' } };
-  const lines = content.split('\n');
-  const totalLines = lines.length;
-  const startLineArg = args.startLine;
-  const lineCount = args.lineCount;
-  if (startLineArg === undefined && lineCount === undefined) {
-    return { response: { content, startLine: 1, endLine: totalLines, totalLines, truncated: false } };
-  }
-  const startIdx = Math.max(0, (startLineArg ?? 1) - 1);
-  const endIdx = lineCount !== undefined
-    ? Math.min(totalLines, startIdx + Math.max(0, lineCount))
-    : totalLines;
-  const sliced = lines.slice(startIdx, endIdx).join('\n');
-  return {
-    response: {
-      content: sliced,
-      startLine: startIdx + 1,
-      endLine: endIdx,
-      totalLines,
-      truncated: endIdx < totalLines
-    }
-  };
-}
-
-function grep(args: GrepArgs, context: FileAgentContext): ToolExecutionResult {
-  const pattern = args.pattern;
-  if (typeof pattern !== 'string' || pattern.length === 0) {
-    return { response: { error: 'pattern is required and must be a non-empty string' } };
-  }
-  let regex: RegExp;
-  try {
-    regex = new RegExp(pattern, args.caseInsensitive ? 'i' : '');
-  } catch (e) {
-    return { response: { error: `Invalid regex: ${e instanceof Error ? e.message : String(e)}` } };
-  }
-  const maxResults = typeof args.maxResults === 'number' && args.maxResults > 0
-    ? Math.floor(args.maxResults)
-    : 100;
-  const contextLines = typeof args.contextLines === 'number' && args.contextLines > 0
-    ? Math.min(10, Math.floor(args.contextLines))
-    : 0;
-  const filename = args.filename;
-
-  let filesToSearch: [string, string][];
-  if (filename) {
-    const fileContent = context.files.get(filename);
-    if (fileContent === undefined) return { response: { error: 'File not found' } };
-    filesToSearch = [[filename, fileContent]];
-  } else {
-    filesToSearch = Array.from(context.files.entries());
-  }
-
-  interface Match { filename: string, line: number, text: string, before?: string[], after?: string[] }
-  const matches: Match[] = [];
-  let truncated = false;
-  outer: for (const [fname, fileContent] of filesToSearch) {
-    const lines = fileContent.split('\n');
-    for (let i = 0; i < lines.length; i++) {
-      if (regex.test(lines[i])) {
-        if (matches.length >= maxResults) {
-          truncated = true;
-          break outer;
-        }
-        const m: Match = { filename: fname, line: i + 1, text: lines[i] };
-        if (contextLines > 0) {
-          const beforeStart = Math.max(0, i - contextLines);
-          const afterEnd = Math.min(lines.length, i + 1 + contextLines);
-          if (beforeStart < i) m.before = lines.slice(beforeStart, i);
-          if (afterEnd > i + 1) m.after = lines.slice(i + 1, afterEnd);
-        }
-        matches.push(m);
-      }
-    }
-  }
-  return { response: { matches, count: matches.length, truncated } };
-}
-
 function replaceFile(args: ReplaceFileArgs, context: FileAgentContext): ToolExecutionResult {
   const oldContent = context.files.get(args.filename);
   if (oldContent === undefined) return writeError('File not found');
@@ -360,108 +254,6 @@ function replaceFile(args: ReplaceFileArgs, context: FileAgentContext): ToolExec
       totalLines: newLines
     },
     infoLog: `Successfully updated ${args.filename}`
-  };
-}
-
-function getFileOutline(args: { filename: string }, context: FileAgentContext): ToolExecutionResult {
-  const content = context.files.get(args.filename);
-  if (content === undefined) return { response: { error: 'File not found' } };
-  return {
-    response: {
-      outline: parseMarkdownOutline(args.filename, content),
-      totalLines: content.split('\n').length
-    }
-  };
-}
-
-function readSection(args: ReadSectionArgs, context: FileAgentContext): ToolExecutionResult {
-  const filename = args.filename;
-  const content = context.files.get(filename);
-  if (content === undefined) return { response: { error: 'File not found' } };
-
-  const paths = args.sectionPaths;
-  if (!Array.isArray(paths) || paths.length === 0) {
-    return { response: { error: 'sectionPaths must be a non-empty array' } };
-  }
-
-  const lines = content.split('\n');
-  interface SectionResult {
-    path: string;
-    header?: string;
-    content?: string;
-    startLine?: number;
-    endLine?: number;
-    error?: string;
-    truncated?: boolean;
-    note?: string;
-  }
-  const results: SectionResult[] = [];
-  let totalLines = 0;
-  const LINE_LIMIT = 500;
-  let truncated = false;
-
-  for (const path of paths) {
-    const resolution = resolveSection(content, path);
-    if (resolution.kind === 'none') {
-      results.push({ path, error: 'Section not found' });
-      continue;
-    }
-    if (resolution.kind === 'ambiguous') {
-      results.push({ path, error: `Ambiguous path: matches ${resolution.matches.length} sections` });
-      continue;
-    }
-
-    const bounds = resolution.section;
-    const sectionLines = lines.slice(bounds.startLine + 1, bounds.endLine + 1);
-    // Report the line range of the returned body (heading excluded), so an LLM
-    // mapping content back to the file doesn't need to subtract the heading offset.
-    const bodyStart = bounds.startLine + 2;
-
-    if (totalLines + sectionLines.length > LINE_LIMIT) {
-      const allowed = LINE_LIMIT - totalLines;
-      if (allowed > 0) {
-        results.push({
-          path,
-          header: bounds.headerText,
-          content: sectionLines.slice(0, allowed).join('\n'),
-          startLine: bodyStart,
-          endLine: bodyStart + allowed - 1,
-          truncated: true,
-          note: `Truncated: exceeded ${LINE_LIMIT} lines total limit.`
-        });
-        totalLines += allowed;
-      } else {
-        results.push({ path, header: bounds.headerText, error: 'Skipped: already at total lines limit' });
-      }
-      truncated = true;
-    } else if (sectionLines.length === 0) {
-      // Heading with no body — omit the range entirely; reporting bodyStart..bodyStart-1
-      // would be misleading, and there is no content to map back to.
-      results.push({
-        path,
-        header: bounds.headerText,
-        content: ''
-      });
-    } else {
-      results.push({
-        path,
-        header: bounds.headerText,
-        content: sectionLines.join('\n'),
-        startLine: bodyStart,
-        endLine: bounds.endLine + 1
-      });
-      totalLines += sectionLines.length;
-    }
-  }
-
-  return {
-    response: {
-      sections: results,
-      totalLinesRead: totalLines,
-      totalLines: lines.length,
-      truncated,
-      note: truncated ? `Some results were truncated to fit the ${LINE_LIMIT} lines limit.` : undefined
-    }
   };
 }
 
@@ -588,268 +380,6 @@ function insertSection(args: InsertSectionArgs, context: FileAgentContext): Tool
   };
 }
 
-// ===== Chat-aware tools ======================================================
-
-const NO_CHAT_HISTORY = 'No chat history available. The agent is running outside an in-game session (e.g. world creation mode) or no turns have been played yet.';
-
-function requireChat(context: FileAgentContext): ChatMessage[] | { response: Record<string, unknown> } {
-  const msgs = context.chatMessages;
-  if (!msgs || msgs.length === 0) return { response: { error: NO_CHAT_HISTORY } };
-  return msgs;
-}
-
-function logKindToField(kind: TurnLogKind): keyof ChatMessage {
-  switch (kind) {
-    case 'character': return 'character_log';
-    case 'world': return 'world_log';
-    case 'inventory': return 'inventory_log';
-    case 'quest': return 'quest_log';
-  }
-}
-
-function listChatMessages(args: ListChatMessagesArgs, context: FileAgentContext): ToolExecutionResult {
-  const chat = requireChat(context);
-  if (!Array.isArray(chat)) return chat as ToolExecutionResult;
-
-  const limit = clampInt(args.limit, 1, 100, 30);
-  const includeHidden = !!args.includeHidden;
-  const includeSaves = !!args.includeSaves;
-
-  // Resolve the pagination cursor against unfiltered chat first — otherwise a
-  // `before` id that exists but was filtered out (hidden / save-intent) under
-  // this call's flags would 404, even though the LLM legitimately got that id
-  // from a previous call with different flags. Apply filters AFTER the cut.
-  let pool: ChatMessage[] = chat;
-  if (args.before) {
-    const cutIdx = chat.findIndex(m => m.id === args.before);
-    if (cutIdx === -1) {
-      return { response: { error: `before id "${args.before}" not found in current chat history` } };
-    }
-    pool = chat.slice(0, cutIdx);
-  }
-  if (!includeHidden) pool = pool.filter(m => !m.isHidden);
-  if (!includeSaves) pool = pool.filter(m => m.intent !== 'save');
-
-  const slice = pool.slice(Math.max(0, pool.length - limit));
-  const filteredCounts = {
-    hidden: includeHidden ? 0 : chat.filter(m => m.isHidden).length,
-    save: includeSaves ? 0 : chat.filter(m => m.intent === 'save').length
-  };
-  const messages = slice.map(m => {
-    const hasLogs = !!(m.character_log?.length || m.world_log?.length || m.inventory_log?.length || m.quest_log?.length);
-    return {
-      id: m.id,
-      url: `app://message/${m.id}`,
-      role: m.role,
-      charCount: (m.content ?? '').length,
-      summary: m.summary || undefined,
-      intent: m.intent || undefined,
-      hasLogs
-    };
-  });
-
-  return {
-    response: {
-      messages,
-      returned: messages.length,
-      totalVisible: pool.length,
-      totalAll: chat.length,
-      olderRemaining: pool.length - messages.length,
-      oldestReturnedId: messages[0]?.id,
-      newestReturnedId: messages[messages.length - 1]?.id,
-      filtered: filteredCounts
-    }
-  };
-}
-
-function searchChatMessages(args: SearchChatMessagesArgs, context: FileAgentContext): ToolExecutionResult {
-  const chat = requireChat(context);
-  if (!Array.isArray(chat)) return chat as ToolExecutionResult;
-
-  if (typeof args.pattern !== 'string' || args.pattern.length === 0) {
-    return { response: { error: 'pattern is required and must be a non-empty string' } };
-  }
-  let regex: RegExp;
-  try {
-    regex = new RegExp(args.pattern, args.caseInsensitive ? 'gi' : 'g');
-  } catch (e) {
-    return { response: { error: `Invalid regex: ${e instanceof Error ? e.message : String(e)}` } };
-  }
-
-  const scope = args.scope ?? 'content';
-  const limit = clampInt(args.limit, 1, 300, 100);
-  const contextChars = clampInt(args.contextChars, 0, 400, 80);
-  const includeSaves = !!args.includeSaves;
-  const PER_MESSAGE_CAP = 3;
-
-  const fieldsForScope: ('content' | 'thought' | 'summary')[] =
-    scope === 'all' ? ['content', 'thought', 'summary'] : [scope];
-
-  interface Hit { messageId: string; url: string; role: string; scope: string; snippet: string; matchIndex: number; moreInSameMessage?: number }
-  const hits: Hit[] = [];
-  let truncated = false;
-  let suppressedSaves = 0;
-
-  outer: for (const m of chat) {
-    if (m.isHidden) continue;
-    if (!includeSaves && m.intent === 'save') { suppressedSaves++; continue; }
-    // Build snippets only up to PER_MESSAGE_CAP; keep counting beyond it so
-    // moreInSameMessage reflects the true overflow without paying the
-    // string-slice cost for every regex hit on long bodies / broad patterns.
-    const perMessageHits: Hit[] = [];
-    let totalMessageHits = 0;
-    for (const field of fieldsForScope) {
-      const raw = (m as unknown as Record<string, unknown>)[field];
-      if (typeof raw !== 'string' || raw.length === 0) continue;
-      regex.lastIndex = 0;
-      let match: RegExpExecArray | null;
-      while ((match = regex.exec(raw)) !== null) {
-        if (perMessageHits.length < PER_MESSAGE_CAP) {
-          const start = Math.max(0, match.index - contextChars);
-          const end = Math.min(raw.length, match.index + match[0].length + contextChars);
-          const snippet = (start > 0 ? '…' : '') + raw.slice(start, end) + (end < raw.length ? '…' : '');
-          perMessageHits.push({ messageId: m.id, url: `app://message/${m.id}`, role: m.role, scope: field, snippet, matchIndex: match.index });
-        }
-        totalMessageHits++;
-        if (match.index === regex.lastIndex) regex.lastIndex++;
-      }
-    }
-    if (perMessageHits.length === 0) continue;
-    if (totalMessageHits > PER_MESSAGE_CAP) {
-      const last = perMessageHits[perMessageHits.length - 1];
-      perMessageHits[perMessageHits.length - 1] = { ...last, moreInSameMessage: totalMessageHits - PER_MESSAGE_CAP };
-    }
-    for (const h of perMessageHits) {
-      // Limit check BEFORE push, so `truncated` only flips when there's at
-      // least one keep entry we genuinely cannot include. A pump that fills
-      // hits to exactly `limit` on the last available hit ends the outer
-      // loop naturally (no more matching messages → no re-entry of this
-      // inner block) and truncated stays false.
-      if (hits.length >= limit) { truncated = true; break outer; }
-      hits.push(h);
-    }
-  }
-
-  const notes: string[] = [];
-  if (truncated) notes.push(`Stopped at limit=${limit}; at least one further match was not returned. Raise limit or narrow the pattern.`);
-  if (suppressedSaves > 0) notes.push(`${suppressedSaves} save-intent turn(s) skipped (administrative file-update turns). Pass includeSaves:true to include them.`);
-
-  return {
-    response: {
-      hits,
-      count: hits.length,
-      truncated,
-      suppressedSaves: suppressedSaves > 0 ? suppressedSaves : undefined,
-      note: notes.length ? notes.join(' ') : undefined
-    }
-  };
-}
-
-function readChatMessage(args: ReadChatMessageArgs, context: FileAgentContext): ToolExecutionResult {
-  const chat = requireChat(context);
-  if (!Array.isArray(chat)) return chat as ToolExecutionResult;
-
-  const ids = args.messageIds;
-  if (!Array.isArray(ids) || ids.length === 0) {
-    return { response: { error: 'messageIds must be a non-empty array' } };
-  }
-
-  const allowed: ChatReadField[] = ['content', 'thought', 'logs', 'analysis', 'summary', 'intent'];
-  const include = (args.include && args.include.length > 0)
-    ? args.include.filter(f => allowed.includes(f))
-    : ['content' as ChatReadField];
-
-  interface Result {
-    id: string;
-    /** Clickable agent-console URL — outputting `[label](url)` in the response lets the user jump to this message. */
-    url: string;
-    role?: string;
-    content?: string;
-    thought?: string;
-    analysis?: string;
-    summary?: string;
-    intent?: string;
-    logs?: {
-      character?: string[];
-      world?: string[];
-      inventory?: string[];
-      quest?: string[];
-    };
-    error?: string;
-  }
-
-  const byId = new Map(chat.map(m => [m.id, m]));
-  const results: Result[] = ids.map(id => {
-    const m = byId.get(id);
-    if (!m) return { id, url: `app://message/${id}`, error: 'Message not found' };
-    const r: Result = { id, url: `app://message/${id}`, role: m.role };
-    for (const f of include) {
-      if (f === 'logs') {
-        const logs: Result['logs'] = {};
-        if (m.character_log?.length) logs.character = m.character_log;
-        if (m.world_log?.length) logs.world = m.world_log;
-        if (m.inventory_log?.length) logs.inventory = m.inventory_log;
-        if (m.quest_log?.length) logs.quest = m.quest_log;
-        r.logs = logs;
-      } else {
-        const v = (m as unknown as Record<string, unknown>)[f];
-        if (typeof v === 'string' && v.length > 0) {
-          (r as unknown as Record<string, unknown>)[f] = v;
-        }
-      }
-    }
-    return r;
-  });
-
-  return { response: { messages: results } };
-}
-
-function readTurnLogs(args: ReadTurnLogsArgs, context: FileAgentContext): ToolExecutionResult {
-  const chat = requireChat(context);
-  if (!Array.isArray(chat)) return chat as ToolExecutionResult;
-
-  const kindList: TurnLogKind[] = (args.kinds && args.kinds.length > 0)
-    ? args.kinds
-    : ['character', 'world', 'inventory', 'quest'];
-
-  let pool: ChatMessage[];
-  if (args.messageIds && args.messageIds.length > 0) {
-    const byId = new Map(chat.map(m => [m.id, m]));
-    pool = [];
-    const missing: string[] = [];
-    for (const id of args.messageIds) {
-      const m = byId.get(id);
-      if (m) pool.push(m); else missing.push(id);
-    }
-    if (missing.length) {
-      return { response: { error: `Message id(s) not found: ${missing.join(', ')}` } };
-    }
-  } else {
-    const recent = clampInt(args.recent, 1, 100, 20);
-    pool = chat.slice(Math.max(0, chat.length - recent));
-  }
-
-  interface Group { messageId: string; role: string; kind: TurnLogKind; entries: string[] }
-  const groups: Group[] = [];
-  for (const m of pool) {
-    for (const kind of kindList) {
-      const entries = m[logKindToField(kind)] as string[] | undefined;
-      if (entries && entries.length > 0) {
-        groups.push({ messageId: m.id, role: m.role, kind, entries });
-      }
-    }
-  }
-
-  return {
-    response: {
-      groups,
-      count: groups.length,
-      scanned: pool.length,
-      note: groups.length === 0 ? 'No log entries found in the scanned range — none of those turns wrote to character_log / world_log / inventory_log / quest_log.' : undefined
-    }
-  };
-}
-
 function insertIntoSection(args: InsertIntoSectionArgs, context: FileAgentContext): ToolExecutionResult {
   const filename = args.filename;
   const content = context.files.get(filename);
@@ -969,16 +499,22 @@ function listCollections(_args: ListCollectionsArgs, context: FileAgentContext):
     bookCountById.set(b.collectionId, (bookCountById.get(b.collectionId) ?? 0) + 1);
   }
 
+  // Sort alphabetically by display name — there's no temporal axis on
+  // collections (unlike listBooks's lastActiveAt) so insertion order is
+  // arbitrary. Matches the "lists need stable ordering" rule applied to
+  // grep / listChatMessages / searchChatMessages in this PR.
+  const sorted = [...collections].sort((a, b) => a.name.localeCompare(b.name));
+
   return {
     response: {
-      collections: collections.map(c => ({
+      collections: sorted.map(c => ({
         id: c.id,
         url: `app://collection/${c.id}`,
         name: c.name,
         bookCount: bookCountById.get(c.id) ?? 0,
         isRoot: c.id === ROOT_COLLECTION_ID
       })),
-      count: collections.length
+      count: sorted.length
     }
   };
 }
