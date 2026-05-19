@@ -194,7 +194,7 @@ const ITEM_BOUNDARY_RE = /[\s\-—:：(（［【「,，;；。!！?？\]】}｝)
  *
  * Strategy mirrors {@link applyInventoryDeltas} but at the section level:
  * - **`add`**: append `\n## 「{title}」計畫\n\n{body}` at file root.
- * - **`remove`**: look up the L2 block via {@link findMarkdownSections};
+ * - **`remove`**: look up the L2 block via {@link lookupSectionBlock};
  *   emit a delete on the verbatim block text. Ambiguous (multiple matches)
  *   or missing → silently drop.
  * - **`update`**: same look-up; emit a replace from the existing block to the
@@ -203,6 +203,11 @@ const ITEM_BOUNDARY_RE = /[\s\-—:：(（［【「,，;；。!！?？\]】}｝)
  *
  * `body` may be omitted on `remove` (ignored anyway) and empty on
  * `add` / `update` — an empty body still produces a valid heading-only entry.
+ *
+ * **Locale gotcha**: the `「…」計畫` heading wrap is zh-tw-specific (the blank
+ * world template for zh ships `8.計畫.md`; the en blank world template does
+ * not ship a Plans file yet). When en plans land, this wrap will move into
+ * AppLocale alongside `kbSectionHeadings`.
  */
 export function applyPlansDeltas(deltas: readonly PlanDelta[], ctx: MechanicalHandlerContext): string {
     if (deltas.length === 0) return '';

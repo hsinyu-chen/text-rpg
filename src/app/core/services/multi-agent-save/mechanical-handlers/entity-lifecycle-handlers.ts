@@ -47,7 +47,7 @@ export function createEntities(
 }
 
 /**
- * For each delete, finds the entity's L2 block via {@link findMarkdownSections}
+ * For each delete, finds the entity's L2 block via {@link lookupSectionBlock}
  * and emits a delete op on that block. Ambiguous matches (same name under
  * different L1 groups) are dropped — Phase 1 doesn't disambiguate. The
  * `reason` field lands in the trace only, never in the emitted XML.
@@ -90,7 +90,12 @@ export function moveEntities(
         if (!block) continue;
         deleteOps.push({ kind: 'delete', target: block });
         const ctxPath = `# ${m.toGroup}`;
-        pushToMap(appendsByGroup, ctxPath, { kind: 'append', replacement: block });
+        // Leading newline mirrors `renderEntityBody`'s output so consecutive
+        // moves into the same target group don't smash heading lines together
+        // (`## 李四\n…- 劍士\n## 王五` with no blank line). FileUpdateParser's
+        // dedent strips it back off the <target> path but preserves it on
+        // appends, which is exactly what we want here.
+        pushToMap(appendsByGroup, ctxPath, { kind: 'append', replacement: `\n${block}` });
     }
 
     const parts: string[] = [];

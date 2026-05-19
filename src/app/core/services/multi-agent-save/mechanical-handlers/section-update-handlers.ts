@@ -13,8 +13,10 @@ import type { MechanicalHandlerContext } from './protagonist-handlers';
  * 1:1 — see `partials/save-xml-format.md`.
  *
  * Entries are grouped by `sectionPath` so multiple replacements on the same
- * section land in a single `<save>` block. Empty replacements on `target`-less
- * entries are dropped (nothing to append).
+ * section land in a single `<save>` block. Degenerate ops are dropped at the
+ * handler boundary:
+ * - `target` omitted AND `replacement` empty → nothing to append
+ * - `target` present but empty string → would match every position; refuse
  *
  * Returns `''` when every entry was empty / dropped; the dispatcher reads that
  * as `empty_section` so a no-op section doesn't render a `done` entry.
