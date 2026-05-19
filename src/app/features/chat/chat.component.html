@@ -6,7 +6,7 @@
     </mat-sidenav>
 
     <mat-sidenav-content class="chat-sidenav-content">
-        <div class="chat-container">
+        <div class="chat-container" [class.save-locked]="isSaveInProgress()">
 
             <!-- Thread -->
             <div class="thread-area" #scrollContainer>

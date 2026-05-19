@@ -97,3 +97,181 @@ export interface FactionEntry {
   endLine: number;
   rawText: string;
 }
+
+// ============================================================================
+// SaveAgent Manifest
+// ============================================================================
+
+/** Add/remove/update — one verb across inventory / assets / plans. */
+export type DeltaOp = 'add' | 'remove' | 'update';
+
+export interface InventoryDelta {
+  op: DeltaOp;
+  /** Item name (original wording). `remove` may use the bare name. */
+  item: string;
+  /**
+   * New-state description appended after the item name on `add` / `update`.
+   * When omitted the handler falls back to a bare `- item` line, which is a
+   * valid (if terse) inventory entry. Strongly encouraged for `add` /
+   * `update` so the entry is self-documenting; ignored on `remove`.
+   */
+  details?: string;
+}
+
+export interface PlanDelta {
+  op: DeltaOp;
+  title: string;
+  /** Full entry body. Strongly encouraged for `add` / `update`; ignored on `remove`. */
+  body?: string;
+}
+
+/** Free-form section update keyed by a breadcrumb path like `# X > ## Y`. */
+export interface SectionUpdate {
+  sectionPath: string;
+  content: string;
+}
+
+export interface CharacterCreate {
+  name: string;
+  /** L1 group heading text verbatim. */
+  group: string;
+  /**
+   * Initial entry fields (身分 / 基本設定 / 最後已知位置 / 初始目前心態 …)
+   * keyed by the canonical field name. SaveAgent fills these — Phase 1 does
+   * no LLM polish layer on top.
+   */
+  draftedFields: Record<string, string>;
+}
+
+export interface EntityDelete {
+  name: string;
+  reason: string;
+}
+
+export interface EntityMove {
+  name: string;
+  /** Target L1 group heading text. */
+  toGroup: string;
+  reason: string;
+}
+
+export interface EntityUpdate {
+  name: string;
+  /** Optional motivation hint — trace-only, does not influence sub-tool visibility filter. */
+  reasonHint?: string;
+}
+
+export interface SkippedLog {
+  logId: string;
+  reason: string;
+}
+
+export interface CompletenessAudit {
+  processedLogIds: string[];
+  skippedLogIds: SkippedLog[];
+}
+
+/**
+ * SaveAgent's top-level routing output. The dispatcher walks each field and
+ * fires the matching sub-tool (mechanical handler or LLM chain).
+ *
+ * **Phase 1 status**: only `inventoryDeltas` has a wired handler. Other
+ * fields parse + validate but the dispatcher marks them `not_yet_implemented`
+ * in the progress trace.
+ */
+export interface SaveManifest {
+  storyOutlineBlock?: string;
+  inventoryDeltas?: InventoryDelta[];
+  assetsDeltas?: InventoryDelta[];
+  plansDeltas?: PlanDelta[];
+  techEquipmentUpdates?: SectionUpdate[];
+  magicSkillsUpdates?: SectionUpdate[];
+  worldFeaturesUpdates?: SectionUpdate[];
+  charactersToCreate?: CharacterCreate[];
+  factionsToCreate?: CharacterCreate[];
+  charactersToDelete?: EntityDelete[];
+  factionsToDelete?: EntityDelete[];
+  charactersToMove?: EntityMove[];
+  factionsToMove?: EntityMove[];
+  charactersToUpdate?: EntityUpdate[];
+  factionsToUpdate?: EntityUpdate[];
+  /**
+   * Optional in the validator path so truncated responses (max_tokens) can
+   * still apply their partial section deltas — see manifest.schema.ts.
+   * SaveAgent is asked to always emit this for completeness tracking, but
+   * the dispatcher does not depend on it.
+   */
+  completenessAudit?: CompletenessAudit;
+}
+
+// ============================================================================
+// Progress events — emitted by every layer (SaveAgent / dispatcher / sub-tool)
+// for the SaveProgressDialog to render per-entry cards.
+// ============================================================================
+
+export type SavePhase = 'manifest' | 'dispatch' | 'sub-tool' | 'finalize';
+export type SaveEntryState = 'running' | 'retry' | 'done' | 'skipped' | 'failed';
+
+/**
+ * One immutable entry shown as a card in `SaveProgressDialog`. The tracker
+ * starts an entry with `state: 'running'`, accumulates streaming chunks
+ * (`thought`, `output`, `ppProgress`, `usage`), and resolves it to `done` /
+ * `skipped` / `failed`.
+ *
+ * `entryId` is unique per session — generated at entry-start time, used by
+ * the dialog template's `@for` track expression.
+ */
+export interface SaveProgressEntry {
+    entryId: string;
+    phase: SavePhase;
+    state: SaveEntryState;
+    /** Manifest field / mechanical tool name (e.g. `inventoryDeltas`). */
+    toolName?: string;
+    /** For LLM sub-tools: which entity is being updated. */
+    entityName?: string;
+    /** Streamed CoT — accumulated, shown in a collapsible details panel. */
+    thought: string;
+    /** Streamed structured output — JSON / XML, shown in a code block. */
+    output: string;
+    /** Prefill / prompt-processing progress (0-1 ratio reported by the provider). */
+    ppProgress?: number;
+    /** Token usage totals reported by the provider. */
+    usage?: { prompt: number; candidates: number; cached: number };
+    /** Set on `failed` / `skipped`; rendered as the entry's status reason. */
+    statusReason?: string;
+    /** Set on `failed` / `done` / `skipped`; ISO timestamp for trace export. */
+    finishedAt?: string;
+    /** ISO timestamp set at entry creation. */
+    startedAt: string;
+}
+
+/** Reason codes for `state: 'skipped'`. */
+export type SaveSkipReason =
+    | 'not_yet_implemented'
+    | 'user_aborted'
+    | 'empty_section'
+    | 'validation_failed';
+
+/**
+ * Mechanical sub-tool identifiers — one per manifest section the dispatcher
+ * walks. Used as the `toolName` field on progress events. Whether each name
+ * is *implemented* is separately gated by registry membership in
+ * `mechanical-handlers/index.ts`; unimplemented entries emit a
+ * `not_yet_implemented` skip.
+ */
+export const MECHANICAL_TOOL_NAMES = [
+  'storyOutlineBlock',
+  'inventoryDeltas',
+  'assetsDeltas',
+  'plansDeltas',
+  'techEquipmentUpdates',
+  'magicSkillsUpdates',
+  'worldFeaturesUpdates',
+  'charactersToCreate',
+  'factionsToCreate',
+  'charactersToDelete',
+  'factionsToDelete',
+  'charactersToMove',
+  'factionsToMove',
+] as const;
+export type MechanicalToolName = typeof MECHANICAL_TOOL_NAMES[number];
