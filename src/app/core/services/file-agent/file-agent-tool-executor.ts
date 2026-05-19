@@ -22,8 +22,6 @@ import {
   SectionBounds
 } from './markdown-section.util';
 import { detectLatexViolations, latexViolationError, sanitizeLatexToUnicode } from '@app/core/utils/latex.util';
-import { dispatchKbReadTool } from '../agent-runner/tools/kb-read-tools-executor';
-import { dispatchChatReadTool } from '../agent-runner/tools/chat-read-tools-executor';
 import { KB_WRITE_TOOL_NAMES, READ_ONLY_REJECTION } from '../agent-runner/tools/kb-write-tools';
 import { clampInt } from '../agent-runner/tools/tool-helpers';
 
@@ -55,6 +53,16 @@ const PROPOSE_FILE_EDIT_REJECTION = 'proposeChatReplace is only available on the
 
 const PROPOSE_NO_PROPOSER_WIRED = 'proposeChatReplace cannot be dispatched in this run — the host has not wired a chat-replace proposer. This usually means the agent was invoked from a context (test harness, dev tool) that cannot open the approval dialog. Use submitResponse to acknowledge the limitation.';
 
+/** Action subset executeFileTool handles after read tools are dispatched
+ *  by FileAgentService.dispatchTool's super.dispatchReadTool call. The
+ *  Exclude here lets the switch default fire a TS exhaustive-check error
+ *  if a new file-agent-specific action is added to ParsedAction but not
+ *  cased below. */
+type FileAgentNonReadAction = Exclude<
+  ParsedAction,
+  { action: 'readFile' | 'grep' | 'getFileOutline' | 'readSection' | 'listChatMessages' | 'searchChatMessages' | 'readChatMessage' | 'readTurnLogs' }
+>;
+
 export function executeFileTool(
   action: ParsedAction,
   context: FileAgentContext
@@ -63,45 +71,41 @@ export function executeFileTool(
     return writeError(READ_ONLY_REJECTION);
   }
 
-  // Read-tool dispatch — UNREACHABLE in production (FileAgentService.dispatchTool
-  // intercepts read actions via super.dispatchReadTool before falling through
-  // to this function). Kept here for back-compat with the standalone spec
-  // (file-agent-tool-executor.spec.ts), which exercises read tools through
-  // executeFileTool directly. When that spec migrates to call
-  // dispatchKbReadTool / dispatchChatReadTool directly, these two lines can
-  // be deleted along with the imports.
-  const kbRead = dispatchKbReadTool(action, context);
-  if (kbRead !== null) return kbRead;
-
-  const chatRead = dispatchChatReadTool(action, context);
-  if (chatRead !== null) return chatRead;
-
-  // Write + UI-help + propose + flow-control are file-agent-specific for now.
-  switch (action.action) {
+  // executeFileTool handles ONLY the file-agent-specific tools (write +
+  // UI-help + propose + flow-control). Read tools are pre-dispatched by
+  // FileAgentService.dispatchTool's super.dispatchReadTool call before
+  // reaching here. The spec's `run` helper mirrors that production chain.
+  const nonReadAction = action as FileAgentNonReadAction;
+  switch (nonReadAction.action) {
     case 'searchReplace':
-      return searchReplace(action.args, context);
+      return searchReplace(nonReadAction.args, context);
     case 'replaceFile':
-      return replaceFile(action.args, context);
+      return replaceFile(nonReadAction.args, context);
     case 'replaceSection':
-      return replaceSection(action.args, context);
+      return replaceSection(nonReadAction.args, context);
     case 'insertSection':
-      return insertSection(action.args, context);
+      return insertSection(nonReadAction.args, context);
     case 'insertIntoSection':
-      return insertIntoSection(action.args, context);
+      return insertIntoSection(nonReadAction.args, context);
     case 'uiMap':
-      return uiMap(action.args, context);
+      return uiMap(nonReadAction.args, context);
     case 'listBooks':
-      return listBooks(action.args, context);
+      return listBooks(nonReadAction.args, context);
     case 'listCollections':
-      return listCollections(action.args, context);
+      return listCollections(nonReadAction.args, context);
     case 'proposeChatReplace':
-      return proposeChatReplace(action.args, context);
+      return proposeChatReplace(nonReadAction.args, context);
     case 'reportProgress':
     case 'submitResponse':
       return { response: { status: 'acknowledged' } };
     default: {
+      // Exhaustive check — TS errors here if a new file-agent action is
+      // added to ParsedAction but not cased above. Cast back through
+      // unknown for the runtime error message in case a caller bypasses
+      // typing and sends an unrecognised action.
+      const exhaustiveCheck: never = nonReadAction;
       return {
-        response: { error: `Unknown function: ${(action as { action: string }).action}` },
+        response: { error: `Unknown function: ${(exhaustiveCheck as unknown as { action: string }).action}` },
       };
     }
   }

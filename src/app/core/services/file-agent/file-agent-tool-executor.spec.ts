@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { executeFileTool } from './file-agent-tool-executor';
+import { dispatchKbReadTool } from '../agent-runner/tools/kb-read-tools-executor';
+import { dispatchChatReadTool } from '../agent-runner/tools/chat-read-tools-executor';
 import type { FileAgentContext, ParsedAction, ToolExecutionResult } from './file-agent.types';
 import type { ChatMessage } from '@app/core/models/types';
 
@@ -14,11 +16,26 @@ function makeContext(files: Record<string, string>, chatMessages?: ChatMessage[]
   return { context: { files: map, onFileReplaced, chatMessages }, onFileReplaced };
 }
 
-// `executeFileTool` now returns `Awaitable<ToolExecutionResult>` to support
-// interactive tools like proposeChatReplace. All existing tools still
-// return synchronously, so this helper casts to keep the 100+ sync test
-// sites readable. Interactive-tool tests await `executeFileTool` directly.
+/**
+ * Routes the action to the same per-domain dispatcher chain
+ * FileAgentService.dispatchTool uses in production:
+ *  1. KB read tools (readFile / grep / getFileOutline / readSection)
+ *  2. Chat read tools (listChatMessages / searchChatMessages / readChatMessage / readTurnLogs)
+ *  3. executeFileTool (write + UI-help + propose + flow-control + readOnly gate)
+ *
+ * Without step 3 the spec couldn't test write tools; without 1+2 we'd be
+ * exercising the back-compat fallthrough inside executeFileTool which is
+ * unreachable from production. The chain here is the production-equivalent
+ * code path, just without the FileAgentService class wrapper.
+ *
+ * Sync cast keeps the 100+ existing sync test sites readable;
+ * proposeChatReplace tests await `executeFileTool` directly.
+ */
 function run(action: ParsedAction, ctx: FileAgentContext): ToolExecutionResult {
+  const kbRead = dispatchKbReadTool(action, ctx);
+  if (kbRead !== null) return kbRead;
+  const chatRead = dispatchChatReadTool(action, ctx);
+  if (chatRead !== null) return chatRead;
   return executeFileTool(action, ctx) as ToolExecutionResult;
 }
 
