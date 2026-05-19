@@ -20,6 +20,7 @@ import { getLanguagesList } from '@app/core/constants/locales';
 import { UI_LOCALES, type InterfaceLanguageSetting, TranslatePipe } from '@app/core/i18n';
 import { LLMProfilesDialogComponent } from './llm-profiles-dialog.component';
 import { ProviderDebugDialogComponent } from '@app/features/multi-agent-save/provider-debug-dialog.component';
+import { SaveSettingsStore, SaveMode } from '@app/core/services/multi-agent-save/save-settings.store';
 import { BridgeService } from '@app/core/services/dev/bridge.service';
 import { AppAgentHintDirective } from '@app/core/services/agent-hints/agent-hints.directive';
 
@@ -54,6 +55,7 @@ export class SettingsDialogComponent {
   loading = inject(LoadingService);
   private settingsSync = inject(SettingsSyncService);
   bridge = inject(BridgeService);
+  private saveSettings = inject(SaveSettingsStore);
 
   /** List of profiles, reactive to the storage layer. */
   profiles = this.llmConfig.profiles;
@@ -77,6 +79,7 @@ export class SettingsDialogComponent {
   idleOnBlur = signal(false);
   enableAdultDeclaration = signal(true);
   engineMode = signal<'single' | 'two-call'>('single');
+  saveMode = signal<SaveMode>('legacy');
   outputLanguage = signal('default');
   customOutputLanguage = signal('');
   languages: { value: string; label: string }[] = getLanguagesList();
@@ -151,6 +154,7 @@ export class SettingsDialogComponent {
     this.idleOnBlur.set(this.appConfig.idleOnBlur());
     this.enableAdultDeclaration.set(this.appConfig.enableAdultDeclaration());
     this.engineMode.set(this.appConfig.engineMode());
+    this.saveMode.set(this.saveSettings.saveMode());
 
     const lang = this.appConfig.outputLanguage();
     const isPresetLang = this.languages.some(l => l.value === lang);
@@ -201,6 +205,8 @@ export class SettingsDialogComponent {
     };
 
     await this.engine.saveConfig(commonConfig);
+
+    this.saveSettings.setSaveMode(this.saveMode());
 
     this.bridge.setUrl(this.debugBridgeUrl().trim());
     this.bridge.setEnabled(this.debugBridgeEnabled());

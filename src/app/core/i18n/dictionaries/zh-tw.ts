@@ -517,8 +517,15 @@ export const zhTW: TranslationDict = {
         snapshotUploadingProgress: '上傳設定中…',
         snapshotDownloadingProgress: '下載設定中…',
         multiAgentSaveSection: '多代理存檔（實驗中）',
-        multiAgentSaveSectionHint: '按 NPC 分頭模擬的存檔管線正在建構中。orchestrator 落地前存檔流程不變。可用除錯按鈕檢視資料 provider 從目前 Book 抽出的內容。',
+        multiAgentSaveSectionHint: '按 NPC 分頭模擬的存檔管線。可選 Legacy（原本流程）或 Multi-Agent（新管線，Phase 1 僅支援部分子工具）。可用除錯按鈕檢視資料 provider 從目前 Book 抽出的內容。',
         providerDebugButton: 'Provider 除錯…',
+        saveMode: {
+            label: '存檔模式',
+            legacy: 'Legacy（單一 LLM call 產出 XML）',
+            multiAgent: 'Multi-Agent（manifest + dispatcher）',
+            legacyHint: '原本的存檔流程：主 LLM 一次性產出所有 save XML。',
+            multiAgentHint: '實驗性管線：先由 SaveAgent 產 manifest，再分派給各 sub-tool。Phase 1 僅 inventoryDeltas 接通，其他類別會跳過並標記為 not yet implemented。',
+        },
     },
     app: {
         setupRequired: '需要先設定',

@@ -517,8 +517,15 @@ export const en: TranslationDict = {
         snapshotUploadingProgress: 'Uploading settings...',
         snapshotDownloadingProgress: 'Downloading settings...',
         multiAgentSaveSection: 'Multi-Agent Save (Experimental)',
-        multiAgentSaveSectionHint: 'Per-NPC simulation pipeline under construction. Save flow is unchanged until the orchestrator lands. Use the debug button to inspect what the data providers extract from the current Book.',
+        multiAgentSaveSectionHint: 'Per-NPC simulation pipeline. Choose Legacy (current flow) or Multi-Agent (new pipeline, Phase 1 supports only a subset of sub-tools). Use the debug button to inspect what the data providers extract from the current Book.',
         providerDebugButton: 'Provider Debug…',
+        saveMode: {
+            label: 'Save Mode',
+            legacy: 'Legacy (single LLM call emits XML)',
+            multiAgent: 'Multi-Agent (manifest + dispatcher)',
+            legacyHint: 'Original save flow: the main LLM emits all save XML in one pass.',
+            multiAgentHint: 'Experimental pipeline: a SaveAgent emits a manifest, then each sub-tool handles its slice. Phase 1 only wires inventoryDeltas — other categories are skipped and marked not yet implemented.',
+        },
     },
     app: {
         setupRequired: 'Setup Required',

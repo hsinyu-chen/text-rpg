@@ -200,6 +200,22 @@
         <div class="advanced-section">
             <h3>{{ 'settings.multiAgentSaveSection' | translate }}</h3>
             <p class="hint-text">{{ 'settings.multiAgentSaveSectionHint' | translate }}</p>
+
+            <div class="form-row">
+                <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>{{ 'settings.saveMode.label' | translate }}</mat-label>
+                    <mat-select [(ngModel)]="saveMode">
+                        <mat-option value="legacy">{{ 'settings.saveMode.legacy' | translate }}</mat-option>
+                        <mat-option value="multi-agent">{{ 'settings.saveMode.multiAgent' | translate }}</mat-option>
+                    </mat-select>
+                    @if (saveMode() === 'multi-agent') {
+                        <mat-hint>{{ 'settings.saveMode.multiAgentHint' | translate }}</mat-hint>
+                    } @else {
+                        <mat-hint>{{ 'settings.saveMode.legacyHint' | translate }}</mat-hint>
+                    }
+                </mat-form-field>
+            </div>
+
             <div class="button-row">
                 <button mat-stroked-button (click)="openProviderDebug()">
                     <mat-icon>bug_report</mat-icon>
