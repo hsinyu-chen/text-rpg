@@ -93,10 +93,20 @@ function formatItemLine(delta: InventoryDelta): string {
 }
 
 /**
- * First markdown list item line whose content contains the item name as a
- * substring. Accepts indented list items (`  - foo`) — common when items
- * live under a category sub-heading. Returns the line verbatim (including
- * any leading indent) so the resulting `<target>` matches the file exactly.
+ * First markdown list item line whose body starts with the given item name
+ * followed by either a separator (` — ` / `:` / ` (`) or end-of-line.
+ * Anchoring rather than naive substring matching avoids two failure modes:
+ *
+ * 1. `item: "短刀"` accidentally matching `- 短刀（藍刃）` and overwriting
+ *    the wrong row on `update` / wrong delete on `remove`.
+ * 2. A non-anchored `update` hit short-circuiting the "fall back to append"
+ *    branch in {@link applyInventoryDeltas} (the model says "item should
+ *    exist post-ACT" but it actually doesn't — we want an add, not an
+ *    overwrite of a similarly-named entry).
+ *
+ * Accepts indented list items (`  - foo`) — common when items live under a
+ * category sub-heading. Returns the line verbatim (including any leading
+ * indent) so the resulting `<target>` matches the file exactly.
  *
  * Takes a pre-split line array rather than the raw file content so a
  * delta-loop can split once and reuse — see {@link applyInventoryDeltas}.
@@ -104,9 +114,27 @@ function formatItemLine(delta: InventoryDelta): string {
 function findItemLine(lines: readonly string[], itemName: string): string | null {
     if (!itemName) return null;
     for (const line of lines) {
-        if (line.trimStart().startsWith('- ') && line.includes(itemName)) {
+        const trimmed = line.trimStart();
+        if (!trimmed.startsWith('- ')) continue;
+        // After the leading `- `, the next chars must BE the item name, and
+        // what follows must be a separator or end-of-string. e.g.
+        //   `- 短刀`            → match for item="短刀"
+        //   `- 短刀 — desc`     → match for item="短刀"
+        //   `- 短刀（藍刃）`    → match for item="短刀" (Chinese paren boundary)
+        //   `- 短刀子`          → NO match for item="短刀"
+        const afterDash = trimmed.slice(2);
+        if (!afterDash.startsWith(itemName)) continue;
+        const next = afterDash.charAt(itemName.length);
+        if (next === '' || ITEM_BOUNDARY_RE.test(next)) {
             return line;
         }
     }
     return null;
 }
+
+/**
+ * Characters that legally terminate an item-name token in our handler's
+ * eyes. Covers ASCII separators (space, hyphen, colon, paren) plus the
+ * Chinese full-width variants the LLM often emits (`：`, `（`, etc.).
+ */
+const ITEM_BOUNDARY_RE = /[\s\-—:：(（［【「]/;

@@ -71,12 +71,13 @@ export class MultiAgentSaveService {
         // guard doesn't fire for multi-agent save (we bypass startTurn), so a
         // user double-clicking the save button would otherwise spawn two
         // concurrent runs sharing the same SaveProgressTracker.
-        if (this.progress.isRunning()) return;
-
-        // Precondition guards: parallel to GameEngineService.startSession's
-        // sanity checks — multi-agent save bypasses prepareCacheOrAbort so
-        // it must self-validate. Empty KB → SaveAgent would still produce
-        // a manifest and the dispatcher would silently do nothing.
+        // Precondition guards (parallel to GameEngineService.startSession's
+        // sanity checks): multi-agent save bypasses prepareCacheOrAbort so it
+        // must self-validate. Empty KB → SaveAgent would still produce a
+        // manifest and the dispatcher would silently do nothing. Run BEFORE
+        // any state mutation (reset / setRunning) so an early-aborted run
+        // doesn't clear a tracker entry the user is still inspecting from a
+        // prior run.
         if (!this.state.isConfigured()) {
             this.snackBar.open(
                 this.i18n.translate('multiAgentSave.run.notConfigured'),
@@ -93,6 +94,8 @@ export class MultiAgentSaveService {
             );
             return;
         }
+
+        if (this.progress.isRunning()) return;
 
         this.progress.reset();
         this.progress.setRunning(true);

@@ -70,7 +70,7 @@ describe('applyInventoryDeltas', () => {
         expect(xml.match(/<update>/g)).toHaveLength(3);
     });
 
-    it('substring-matches the item line (handles "鐵劍 x1" / "鐵劍 (新)" form variants)', () => {
+    it('matches item-name on a space-separated quantity suffix ("鐵劍 x1")', () => {
         const fileContent = '- 鐵劍 x1\n- 木盾';
         const xml = applyInventoryDeltas([
             { op: 'update', item: '鐵劍', details: '損壞' },
@@ -86,6 +86,35 @@ describe('applyInventoryDeltas', () => {
         expect(xml).toContain('<target>- 鐵劍</target>');
         // The "備註：鐵劍" line is not a list item — must not be picked.
         expect(xml).not.toContain('備註');
+    });
+
+    it('anchors item name on a word-boundary so "短刀" does NOT match "短刀子"', () => {
+        const fileContent = '- 短刀子\n- 木盾';
+        const xml = applyInventoryDeltas([
+            { op: 'remove', item: '短刀' },
+        ], { targetFile: FILE, fileContent });
+        expect(xml).toBe('');
+    });
+
+    it('matches when item name is followed by a Chinese paren (common LLM output)', () => {
+        const fileContent = '- 短刀（藍刃）\n- 木盾';
+        const xml = applyInventoryDeltas([
+            { op: 'remove', item: '短刀' },
+        ], { targetFile: FILE, fileContent });
+        expect(xml).toContain('<target>- 短刀（藍刃）</target>');
+    });
+
+    it('falls back to append on op:update when no anchored match exists', () => {
+        // Item name "短刀" should not anchor-match "短刀子", so the update
+        // should append a new entry rather than silently overwriting the
+        // unrelated "短刀子" row.
+        const fileContent = '- 短刀子\n- 木盾';
+        const xml = applyInventoryDeltas([
+            { op: 'update', item: '短刀', details: '從遺跡取得' },
+        ], { targetFile: FILE, fileContent });
+        expect(xml).toContain('<replacement>\n- 短刀 — 從遺跡取得</replacement>');
+        expect(xml).not.toContain('<target>');
+        expect(xml).not.toContain('短刀子');
     });
 
     it('matches indented list items (preserves leading whitespace in target)', () => {
