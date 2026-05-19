@@ -23,7 +23,11 @@ export function writeStoryOutlineBlock(
     if (!trimmed) return '';
     const heading = ctx.kbSectionHeadings.STORY_OUTLINE_CHRONICLE;
     if (!heading) return '';
+    // Leading `\n` separates this ACT block from the preceding chronicle
+    // content; no trailing `\n` because the NEXT ACT append brings its own
+    // leading `\n` — trailing here would stack a second blank line every
+    // save. Matches `renderEntityBody` / `renderPlanBlock` shape.
     return saveBlock(ctx.targetFile, `# ${heading}`, [
-        { kind: 'append', replacement: `\n${trimmed}\n` },
+        { kind: 'append', replacement: `\n${trimmed}` },
     ]);
 }

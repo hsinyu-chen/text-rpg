@@ -136,6 +136,11 @@ function renderEntityBody(c: CharacterCreate): string {
     const entries = Object.entries(c.draftedFields ?? {});
     if (entries.length === 0) return '';
     const fieldLines = entries.map(([k, v]) => `- **${k}**: ${v}`).join('\n');
-    return `\n## ${c.name}\n\n${fieldLines}\n`;
+    // Leading `\n` provides the blank-line separator between this entry and
+    // the preceding section content; no trailing `\n` because the NEXT entry
+    // (or another append) brings its own leading `\n`, and trailing here would
+    // stack a second blank line on every append boundary. Mirrors
+    // `renderPlanBlock`'s shape.
+    return `\n## ${c.name}\n\n${fieldLines}`;
 }
 

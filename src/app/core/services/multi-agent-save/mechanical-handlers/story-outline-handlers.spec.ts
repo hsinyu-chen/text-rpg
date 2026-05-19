@@ -18,7 +18,7 @@ describe('writeStoryOutlineBlock', () => {
             CTX,
         );
         expect(xml).toContain(`<save file="${FILE}" context="# 劇情綱要">`);
-        expect(xml).toContain('<replacement>\n## Act.2 - 戰役\n\n- **戰況**：勝利\n</replacement>');
+        expect(xml).toContain('<replacement>\n## Act.2 - 戰役\n\n- **戰況**：勝利</replacement>');
         expect(xml).not.toContain('<target>');
     });
 
@@ -46,6 +46,6 @@ describe('writeStoryOutlineBlock', () => {
             '   \n\n## Act.3\nbody\n\n   ',
             CTX,
         );
-        expect(xml).toContain('<replacement>\n## Act.3\nbody\n</replacement>');
+        expect(xml).toContain('<replacement>\n## Act.3\nbody</replacement>');
     });
 });
