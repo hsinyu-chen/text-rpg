@@ -37,11 +37,11 @@ export interface ChatReplaceOutcome {
   divergedFromProposal: boolean;
 }
 
-/** Wide return type so existing synchronous tool handlers stay unchanged;
- *  interactive tools (e.g. proposeChatReplace) return a Promise. The
- *  executor's caller awaits this — await on a non-thenable unwraps to
- *  the value directly. */
-export type Awaitable<T> = T | PromiseLike<T>;
+// Awaitable / AgentLogEntry / ToolExecutionResult moved to
+// `agent-runner/agent-runner.types.ts` so the dependency direction stays
+// one-way (file-agent → agent-runner). Re-exported here for back-compat
+// with existing imports across the codebase.
+export type { Awaitable, AgentLogEntry, ToolExecutionResult } from '../agent-runner/agent-runner.types';
 
 export interface FileAgentContext {
   files: Map<string, string>;
@@ -156,20 +156,7 @@ export interface CollectionSummary {
 
 export type ToolCallMode = 'auto' | 'native' | 'json';
 
-export interface AgentLogEntry {
-  role: string;
-  text: string;
-  type: 'info' | 'error' | 'model' | 'action';
-  thought?: string;
-  isThoughtCollapsed?: boolean;
-  isToolCall?: boolean;
-  isToolCallCollapsed?: boolean;
-  isToolResult?: boolean;
-  isToolResultCollapsed?: boolean;
-  toolName?: string;
-  /** One-line caption shown next to a collapsed tool-call entry — surfaces the model's stated `reason` arg so the user (and the model on later turns) can see intent without expanding the entry. */
-  reason?: string;
-}
+// AgentLogEntry moved to agent-runner/agent-runner.types.ts; re-exported above.
 
 /** Common args present on every file-operation tool. `reason` is required at the JSON-schema layer — typed optional here so unit tests calling executeFileTool directly don't have to repeat boilerplate. */
 export interface FileToolArgsBase {
@@ -329,9 +316,4 @@ export type ParsedAction =
   | { action: 'reportProgress'; args: ReportProgressArgs; callId?: string }
   | { action: 'submitResponse'; args: SubmitResponseArgs; callId?: string };
 
-/** Result of executing a single file tool. */
-export interface ToolExecutionResult {
-  response: Record<string, unknown>;
-  /** Optional info log to surface to the user (e.g. "Successfully updated X"). */
-  infoLog?: string;
-}
+// ToolExecutionResult moved to agent-runner/agent-runner.types.ts; re-exported above.

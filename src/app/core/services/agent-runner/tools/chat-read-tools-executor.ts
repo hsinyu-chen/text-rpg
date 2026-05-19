@@ -1,3 +1,4 @@
+import type { ToolExecutionResult } from '../agent-runner.types';
 import type {
     ListChatMessagesArgs,
     SearchChatMessagesArgs,
@@ -6,7 +7,6 @@ import type {
     ChatReadField,
     TurnLogKind,
     ParsedAction,
-    ToolExecutionResult,
 } from '../../file-agent/file-agent.types';
 import type { ChatMessage } from '@app/core/models/types';
 import { clampInt } from './tool-helpers';

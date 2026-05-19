@@ -1,5 +1,6 @@
 import { LLMFunctionDeclaration } from '@hcs/llm-core';
-import { Awaitable, ParsedAction, ToolExecutionResult } from '../file-agent/file-agent.types';
+import { Awaitable, ToolExecutionResult } from './agent-runner.types';
+import { ParsedAction } from '../file-agent/file-agent.types';
 import { BaseToolCallAgent } from './base-tool-call-agent';
 import { KB_READ_TOOLS } from './tools/kb-read-tools';
 import { CHAT_READ_TOOLS } from './tools/chat-read-tools';

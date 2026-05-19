@@ -1,10 +1,10 @@
+import type { ToolExecutionResult } from '../agent-runner.types';
 import type {
     ReadFileArgs,
     GrepArgs,
     GetFileOutlineArgs,
     ReadSectionArgs,
     ParsedAction,
-    ToolExecutionResult,
 } from '../../file-agent/file-agent.types';
 import { parseMarkdownOutline, resolveSection } from '../../file-agent/markdown-section.util';
 import { clampInt } from './tool-helpers';

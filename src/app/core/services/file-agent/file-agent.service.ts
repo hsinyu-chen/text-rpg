@@ -259,7 +259,8 @@ export class FileAgentService extends ReadOnlyAgent<ParsedAction> {
 
     this.abortController = new AbortController();
     this.isAgentRunning.set(true);
-    this.generatedTokenCount.set(0);
+    // generatedTokenCount / generatedChunkCount / promptProgress get reset
+    // per-turn at the top of BaseToolCallAgent.processAgentTurn.
     this.agentLogs.update(logs => [...logs, { role: 'user', text: prompt, type: 'info' }]);
 
     // Tag the prompt with two orthogonal markers so the LLM perceives both
@@ -456,10 +457,9 @@ export class FileAgentService extends ReadOnlyAgent<ParsedAction> {
 
     const genConfig = this.buildGenConfig(mode, cap.isLocalProvider);
 
-    // Reset progress signals for this turn before the stream lands.
-    this.generatedTokenCount.set(0);
-    this.generatedChunkCount.set(0);
-    this.promptProgress.set(undefined);
+    // Per-turn signal resets (generatedTokenCount / generatedChunkCount /
+    // promptProgress) are owned by BaseToolCallAgent.processAgentTurn so every
+    // subclass gets consistent state — no redundant reset here.
 
     return { provider, providerSettings: profile.settings as unknown as Record<string, unknown>, mode, allowParallel, systemInstruction, genConfig };
   }

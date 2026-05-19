@@ -1,12 +1,9 @@
 import { signal } from '@angular/core';
 import { LLMContent, LLMFunctionCall, LLMFunctionDeclaration, LLMPart, LLMProvider } from '@hcs/llm-core';
-import {
-    AgentLogEntry,
-    Awaitable,
-    FileAgentContext,
-    ParsedAction,
-    ToolExecutionResult,
-} from '../file-agent/file-agent.types';
+import { AgentLogEntry, Awaitable, ToolExecutionResult } from './agent-runner.types';
+// FileAgentContext + ParsedAction remain file-agent-specific (the
+// default-bound generics; subclasses substitute their own).
+import { FileAgentContext, ParsedAction } from '../file-agent/file-agent.types';
 import {
     AgentStreamChunk,
     AgentStreamEvent,
@@ -186,6 +183,14 @@ export abstract class BaseToolCallAgent<TAction extends ParsedAction = ParsedAct
             this.isAgentRunning.set(false);
             return;
         }
+        // Reset per-turn observability signals before the new stream lands.
+        // Owned here (not in subclass resolveTurnSetup overrides) so every
+        // subclass — including ones that don't think to reset — gets a clean
+        // state on each loop iteration.
+        this.generatedTokenCount.set(0);
+        this.generatedChunkCount.set(0);
+        this.promptProgress.set(undefined);
+
         const setup = this.resolveTurnSetup(context);
         if (!setup) return;
         const { provider, providerSettings, mode, allowParallel, systemInstruction, genConfig } = setup;
