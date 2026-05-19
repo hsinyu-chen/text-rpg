@@ -7,6 +7,7 @@ import type {
     ToolExecutionResult,
 } from '../../file-agent/file-agent.types';
 import { parseMarkdownOutline, resolveSection } from '../../file-agent/markdown-section.util';
+import { clampInt } from './tool-helpers';
 
 /**
  * Context subset the kb-read tool executors need. Just the file snapshot —
@@ -69,12 +70,14 @@ function grep(args: GrepArgs, context: KbReadContext): ToolExecutionResult {
     } catch (e) {
         return { response: { error: `Invalid regex: ${e instanceof Error ? e.message : String(e)}` } };
     }
-    const maxResults = typeof args.maxResults === 'number' && args.maxResults > 0
-        ? Math.floor(args.maxResults)
-        : 100;
-    const contextLines = typeof args.contextLines === 'number' && args.contextLines > 0
-        ? Math.min(10, Math.floor(args.contextLines))
-        : 0;
+    // Use clampInt for consistency with chat-read tools and to defend against
+    // non-numeric LLM hallucinations (NaN propagation through Math.floor).
+    // maxResults cap of 1000 is much higher than the historical default 100
+    // but matches what the docstring offers ("higher values risk filling the
+    // context window") — clamping prevents abuse, defaulting preserves
+    // existing behavior.
+    const maxResults = clampInt(args.maxResults, 1, 1000, 100);
+    const contextLines = clampInt(args.contextLines, 0, 10, 0);
     const filename = args.filename;
 
     let filesToSearch: [string, string][];

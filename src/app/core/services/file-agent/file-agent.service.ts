@@ -493,6 +493,14 @@ export class FileAgentService extends ReadOnlyAgent<ParsedAction> {
     return toAgentYaml({ action: a.action, args: a.args });
   }
 
+  /** File-agent action labels include the target filename so the trace
+   *  log header reads `readFile(foo.md)` instead of just `readFile`. */
+  protected override formatToolName(a: ParsedAction): string {
+    const args = a.args as unknown as Record<string, unknown>;
+    const filename = (typeof args['filename'] === 'string') ? args['filename'] : '';
+    return `${a.action}(${filename})`;
+  }
+
   /** WorldCompletionValidator hook for the submitResponse terminal action.
    *  Returns `valid: true` when no validator is set (e.g. file-agent invoked
    *  outside world-creation mode) or when the world is already marked

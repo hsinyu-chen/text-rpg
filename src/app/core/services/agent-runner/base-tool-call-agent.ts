@@ -528,14 +528,12 @@ export abstract class BaseToolCallAgent<TAction extends ParsedAction = ParsedAct
 
     /**
      * Build the AgentLogEntry shape used to display a non-progress tool
-     * call. Default toolName format is `actionName(filename)` — subclass
-     * can override for richer formatting (e.g. file-agent uses YAML for
-     * pretty arg display).
+     * call. Default toolName is just `action.action` — subclasses with
+     * domain-specific argument shapes (file-agent's `filename`, save-sim's
+     * `entityName`) override {@link formatToolName} to enrich the label.
      */
     protected buildToolCallLogEntry(a: TAction): AgentLogEntry & { toolName: string } {
         const args = (a as unknown as { args: Record<string, unknown> }).args;
-        const filename = (typeof args['filename'] === 'string') ? args['filename'] : '';
-        const toolName = `${a.action}(${filename})`;
         const reason = (typeof args['reason'] === 'string') ? args['reason'] : undefined;
         return {
             role: 'model',
@@ -543,9 +541,18 @@ export abstract class BaseToolCallAgent<TAction extends ParsedAction = ParsedAct
             type: 'model' as const,
             isToolCall: true,
             isToolCallCollapsed: true,
-            toolName,
+            toolName: this.formatToolName(a),
             reason,
         };
+    }
+
+    /**
+     * How the tool name renders in the trace log header. Default just uses
+     * the action verb (`readFile`); subclasses can append domain-specific
+     * descriptors (`readFile(foo.md)`, `proposeDiff(李四)`) by overriding.
+     */
+    protected formatToolName(a: TAction): string {
+        return a.action;
     }
 
     /** How the action body is rendered into the trace log entry's `text`. */
@@ -585,11 +592,15 @@ export function parseActionsFromOutput<TAction extends ParsedAction>(
         })) as unknown as TAction[];
         return { ok: true, actions };
     }
+    // Explicit empty / no-object guard: an LLM response with zero `{` chars
+    // is unambiguously "no tool call" — fall through to ok:[] (commentary-
+    // only finish) rather than feed an unparseable raw string into JSON.parse
+    // and rely on the catch to retry. Avoids burning one of the 3 retry
+    // attempts on a model that just typed prose.
+    const jsonMatch = accumulatedText.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return { ok: true, actions: [] };
     try {
-        let jsonString = accumulatedText;
-        const jsonMatch = accumulatedText.match(/\{[\s\S]*\}/);
-        if (jsonMatch) jsonString = jsonMatch[0];
-        const raw = JSON.parse(jsonString);
+        const raw = JSON.parse(jsonMatch[0]);
         if (raw && typeof raw.action === 'string') {
             return {
                 ok: true,
