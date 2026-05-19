@@ -141,6 +141,90 @@ describe('orphaned layer file warning', () => {
   });
 });
 
+describe('@include directive', () => {
+  it('resolves @include in a base file before slot composition', () => {
+    const rel = (p: string) => join(tmpDir, p);
+    write('base/zh-tw/partials/intro.md', 'intro line\n');
+    write('base/zh-tw/x.md',
+      '<!--@slot:s-->\n<!--@include:partials/intro.md-->\nslot tail\n<!--@end-->\nfoot\n');
+    const cfg = configIn(rel);
+    const out = runPipeline(cfg);
+    expect(out.diagnostics.filter(d => d.level === 'error')).toEqual([]);
+    const outFile = resolve(rel('out/x.md'));
+    expect(out.files.get(outFile)).toBe('intro line\nslot tail\nfoot\n');
+  });
+
+  it('resolves @include for a passthrough file (no slot composition)', () => {
+    const rel = (p: string) => join(tmpDir, p);
+    write('base/zh-tw/partials/shared.md', 'shared body\n');
+    write('base/zh-tw/note.md', 'header\n\n<!--@include:partials/shared.md-->\n');
+    const cfg: VariantConfig = {
+      ...configIn(rel),
+      per_file: { 'note.md': { passthrough: true } },
+    };
+    const out = runPipeline(cfg);
+    expect(out.diagnostics.filter(d => d.level === 'error')).toEqual([]);
+    const outFile = resolve(rel('out/note.md'));
+    expect(out.files.get(outFile)).toBe('header\n\nshared body\n');
+  });
+
+  it('cloud layer override on a slot whose body comes from a partial', () => {
+    const rel = (p: string) => join(tmpDir, p);
+    write('base/zh-tw/partials/p.md', 'partial body\n');
+    write('base/zh-tw/x.md', '<!--@slot:s-->\n<!--@include:partials/p.md-->\n<!--@end-->\n');
+    write('layers/cloud/zh-tw/x.md', '<!--@slot:s-->\noverride wins\n<!--@end-->\n');
+    const cfg = configIn(rel);
+    const out = runPipeline(cfg);
+    expect(out.diagnostics.filter(d => d.level === 'error')).toEqual([]);
+    expect(out.files.get(resolve(rel('out/x.md')))).toBe('override wins\n');
+  });
+
+  it('warns on a partial that no host file includes', () => {
+    const rel = (p: string) => join(tmpDir, p);
+    write('base/zh-tw/partials/used.md', 'used\n');
+    write('base/zh-tw/partials/orphan.md', 'never referenced\n');
+    write('base/zh-tw/x.md', '<!--@include:partials/used.md-->\n');
+    const cfg: VariantConfig = {
+      ...configIn(rel),
+      per_file: { 'x.md': { passthrough: true } },
+    };
+    const out = runPipeline(cfg);
+    expect(out.diagnostics.some(d =>
+      d.level === 'warning'
+      && d.message.includes('orphaned partial')
+      && d.message.includes('orphan.md'),
+    )).toBe(true);
+  });
+
+  it('errors on @include cycle', () => {
+    const rel = (p: string) => join(tmpDir, p);
+    write('base/zh-tw/partials/a.md', '<!--@include:partials/b.md-->\n');
+    write('base/zh-tw/partials/b.md', '<!--@include:partials/a.md-->\n');
+    write('base/zh-tw/x.md', '<!--@include:partials/a.md-->\n');
+    const cfg: VariantConfig = {
+      ...configIn(rel),
+      per_file: { 'x.md': { passthrough: true } },
+    };
+    const out = runPipeline(cfg);
+    expect(out.diagnostics.some(d => d.level === 'error' && d.message.includes('cycle'))).toBe(true);
+  });
+
+  it('does not descend into partials/ when enumerating host files', () => {
+    const rel = (p: string) => join(tmpDir, p);
+    write('base/zh-tw/partials/used.md', 'partial\n');
+    write('base/zh-tw/x.md', '<!--@include:partials/used.md-->\n');
+    const cfg: VariantConfig = {
+      ...configIn(rel),
+      per_file: { 'x.md': { passthrough: true } },
+    };
+    const out = runPipeline(cfg);
+    // Only x.md should be rendered as a host file; the partial must not appear
+    // as an independent output.
+    const hostOutputs = [...out.files.keys()].filter(p => p.endsWith('used.md'));
+    expect(hostOutputs).toEqual([]);
+  });
+});
+
 describe('idempotent on existing output', () => {
   it('rebuild over existing output produces same bytes', () => {
     const rel = (p: string) => join(tmpDir, p);

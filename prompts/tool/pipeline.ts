@@ -2,14 +2,18 @@ import { existsSync, readdirSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 
 import { compose } from './composer';
-import { parseBaseFile, parseLayerFile, readUtf8Lf } from './parser';
+import {
+  parseBaseFileFromString, parseLayerFileFromString, readUtf8Lf,
+} from './parser';
+import { listMdFilesRecursive, preprocess } from './preprocess';
 import { render } from './renderer';
 import { config } from './variants.config';
 import {
-  Diagnostic, LayerAst, Manifest, ManifestEntry, VariantConfig,
+  Diagnostic, LayerAst, Manifest, ManifestEntry, SourceMap, VariantConfig,
 } from './types';
 
 export const REPO_ROOT = resolve(__dirname, '..', '..');
+export const PARTIALS_SUBDIR = 'partials';
 
 export interface PipelineOutput {
   files: Map<string, string>;
@@ -43,25 +47,59 @@ export function runPipeline(cfg: VariantConfig = config): PipelineOutput {
     }
   }
 
+  // Track which partial files were referenced (transitively) by any host
+  // file's preprocess. Partials present on disk but never included are
+  // emitted as a warning at the end.
+  const referencedPartialFiles = new Set<string>();
+
   // Cache parsed source files — multiple variants share base + layer dirs
   // (e.g. zh-tw/default and zh-tw/local share the same base; cloud-overrides
   // serves both zh-tw/default and en/default). Re-parsing duplicates
   // diagnostics in the output.
-  const baseCache = new Map<string, ReturnType<typeof parseBaseFile>>();
-  const cachedParseBase = (baseFile: string) => {
-    let entry = baseCache.get(baseFile);
+  interface PreprocessEntry {
+    processed: string;
+    sourceMap: SourceMap;
+  }
+  const preprocessCache = new Map<string, PreprocessEntry>();
+  const cachedPreprocess = (baseFile: string, baseDir: string): PreprocessEntry => {
+    let entry = preprocessCache.get(baseFile);
     if (!entry) {
-      entry = parseBaseFile(baseFile);
-      baseCache.set(baseFile, entry);
-      diagnostics.push(...entry.diagnostics);
+      const raw = readUtf8Lf(baseFile);
+      const pre = preprocess(baseFile, raw, { baseDir });
+      for (const e of pre.sourceMap.lines) {
+        if (e.file !== baseFile) referencedPartialFiles.add(e.file);
+      }
+      diagnostics.push(...pre.diagnostics);
+      entry = { processed: pre.processed, sourceMap: pre.sourceMap };
+      preprocessCache.set(baseFile, entry);
     }
     return entry;
   };
-  const layerCache = new Map<string, ReturnType<typeof parseLayerFile>>();
+
+  interface BaseParseEntry {
+    ast: ReturnType<typeof parseBaseFileFromString>['ast'];
+    diagnostics: Diagnostic[];
+  }
+  const baseCache = new Map<string, BaseParseEntry>();
+  const cachedParseBase = (baseFile: string, baseDir: string): BaseParseEntry => {
+    let entry = baseCache.get(baseFile);
+    if (!entry) {
+      const pre = cachedPreprocess(baseFile, baseDir);
+      const parsed = parseBaseFileFromString(baseFile, pre.processed, pre.sourceMap, baseDir);
+      entry = { ast: parsed.ast, diagnostics: parsed.diagnostics };
+      baseCache.set(baseFile, entry);
+      diagnostics.push(...parsed.diagnostics);
+    }
+    return entry;
+  };
+  const layerCache = new Map<string, ReturnType<typeof parseLayerFileFromString>>();
   const cachedParseLayer = (layerFile: string) => {
     let entry = layerCache.get(layerFile);
     if (!entry) {
-      entry = parseLayerFile(layerFile);
+      const raw = readUtf8Lf(layerFile);
+      // v1: layer files do NOT preprocess. Stray @include lines in a layer
+      // file fall through to parser, which flags them as unknown anchors.
+      entry = parseLayerFileFromString(layerFile, raw);
       layerCache.set(layerFile, entry);
       diagnostics.push(...entry.diagnostics);
     }
@@ -79,8 +117,10 @@ export function runPipeline(cfg: VariantConfig = config): PipelineOutput {
       const perFile = cfg.per_file[fileName];
 
       if (perFile?.passthrough) {
-        const raw = readUtf8Lf(baseFile);
-        const final = raw.endsWith('\n') ? raw : raw + '\n';
+        // Passthrough still resolves @include directives (so injection_save and
+        // friends can use partials), but skips slot/layer composition.
+        const pre = cachedPreprocess(baseFile, baseDir);
+        const final = pre.processed.endsWith('\n') ? pre.processed : pre.processed + '\n';
         files.set(outFile, final);
         entries.push({
           variantKey,
@@ -90,7 +130,7 @@ export function runPipeline(cfg: VariantConfig = config): PipelineOutput {
         continue;
       }
 
-      const baseParse = cachedParseBase(baseFile);
+      const baseParse = cachedParseBase(baseFile, baseDir);
 
       const layerAsts: Array<{ name: string; ast: LayerAst }> = [];
       for (const layerName of variantDef.layers) {
@@ -150,6 +190,26 @@ export function runPipeline(cfg: VariantConfig = config): PipelineOutput {
             message: `orphaned layer file: no base file matches '${fileName}' in ${lang}`,
           });
         }
+      }
+    }
+  }
+
+  // Orphaned-partial warning: any .md under <base>/partials/ that no host
+  // file included. Mirrors the orphan-layer check; partials are scanned
+  // recursively (subfolders allowed).
+  for (const baseDirRel of Object.values(cfg.base_dirs)) {
+    const baseDir = abs(baseDirRel);
+    if (!existsSync(baseDir)) continue;
+    const partialRoot = join(baseDir, PARTIALS_SUBDIR);
+    if (!existsSync(partialRoot)) continue;
+    for (const fileName of listMdFilesRecursive(partialRoot)) {
+      const partialFile = join(partialRoot, fileName);
+      if (!referencedPartialFiles.has(partialFile)) {
+        diagnostics.push({
+          level: 'warning',
+          file: relRepo(partialFile),
+          message: `orphaned partial: no host file includes 'partials/${fileName}'`,
+        });
       }
     }
   }

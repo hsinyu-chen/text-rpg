@@ -13,17 +13,7 @@ User requests an analysis of plot progress **since the `--- ACT START ---` marke
 
 > **User scope override**: If the `<Save>` input explicitly narrows scope (e.g., "save only inventory", "update just the location", "fix only X"), the user's specified scope **supersedes** the completeness mandate — produce ONLY the requested updates and omit the rest. Completeness applies to the default unscoped save.
 
-### Mandatory Completeness Checklist
-Before outputting, verify you have processed:
-- [ ] **ALL** `inventory_log` entries → corresponding file updates
-- [ ] **ALL** `character_log` entries → `{{FILE_CHARACTER_STATUS}}` updates
-- [ ] **ALL** `quest_log` entries → `{{FILE_PLANS}}` updates  
-- [ ] **ALL** `world_log` entries → corresponding file updates
-- [ ] **ALL** state changes mentioned in `summary` logs → reflected in files
-- [ ] Story Outline updated with current ACT events
-- [ ] **Newly generated people/things/location details from `Look`/`Observe` actions** → persisted to the corresponding files
-
-**If ANY log entry lacks a corresponding `<save>` update, your output is INCOMPLETE and INVALID.**
+<!--@include:partials/save-completeness-checklist.md-->
 
 > [!IMPORTANT]
 > **[Persist Observation-Generated Settings]**: If this ACT generated new people/things/location details via `Look`/`Observe` and logged them, you **MUST** persist them into the proper files (characters → `{{FILE_CHARACTER_STATUS}}`; world/location/specialty/faction → `{{FILE_WORLD_FACTIONS}}`; equipment specs → `{{FILE_TECH_EQUIPMENT}}`). **FORBIDDEN** to leave generated details only in the logs.
@@ -33,113 +23,9 @@ Before outputting, verify you have processed:
 - All content must be output directly in the `story` field.
 - All analysis work should be done in the `thinking` phase.
 
-### XML Tag Format
+<!--@include:partials/save-xml-format.md-->
 
-#### 1. `<save file="Filename" context="Path">`
-Defines target file and node path:
-- **`file`**: Full filepath (e.g., `{{FILE_CHARACTER_STATUS}}`)
-- **`context`**: **MUST** be an **existing** header string from the original file, including `#`, spaces, and `**` bold markers.
-- Use ` > ` to separate levels (e.g., `# Core Characters > ## Cheng Yangzong`).
-- Set to empty string `""` if targeting the file root.
-- **FORBIDDEN** to use non-existent/new headers in `context`
-
-#### 2. `<update>`
-Wraps a single atomic update. A `<save>` can contain multiple `<update>` tags.
-
-#### 3. `<target>` [Optional]
-The original content to be replaced. MUST match the file content **exactly** (including indentation and symbols).
-- **Continuity**: Must be a **complete and continuous** block from the file.
-- **Efficiency**: Should contain the **minimum scope** needed for the change.
-- If omitted, content is **Appended** to the end of the `context` node.
-- **Reference-template exclusion**: Content inside any `## Save Format` code fence is documentation for the XML format itself, NOT real data. It MUST NOT appear as `<target>` and MUST NOT be edited. When adding new entries to such files, use the Add operation (omit `<target>`) targeting a sibling section of `## Save Format` under the file root.
-
-#### 4. `<replacement>`
-The new content.
-
-### Operation Types
-- **Replace**: Provide both `<target>` and `<replacement>`.
-- **Add**: Provide only `<replacement>` (Appends to node).
-- **Delete**: Provide only `<target>` with no `<replacement>` (or empty `<replacement></replacement>`).
-- **Full File Replace**: `context=""` and no `<target>`.
-
-### Correct Format for Adding New Entries
-When adding a new header entry (e.g., new character), `context` should point to the **parent node** (an existing header). The new header MUST be inside `<replacement>`:
-```xml
-<!-- ✓ Correct: Adding character under existing category -->
-<save file="{{FILE_CHARACTER_STATUS}}" context="# Core Characters">
-  <update>
-    <replacement>
-## New Character Name
-- **Identity**: xxx
-    </replacement>
-  </update>
-</save>
-```
-
-### Example
-```xml
-<save file="{{FILE_CHARACTER_STATUS}}" context="# Core Characters > ## Cheng Yangzong">
-  <update>
-    <target>
-      - **Last Known Location**: Office
-    </target>
-    <replacement>
-      - **Last Known Location**: Restaurant (08:30)
-    </replacement>
-  </update>
-</save>
-```
-
-## File Classification Rules
-
-### File Responsibilities
-
-| File | Recorded Content | Forbidden |
-|------|------------------|-----------|
-| `{{FILE_ASSETS}}` | **Protagonist-owned** cash, real estate / base layouts, items deposited at bases/inns or in third-party safekeeping (non-carried) | Carried items, magic, equipment, **NPC personal property** |
-| `{{FILE_TECH_EQUIPMENT}}` | **Detailed Specs/Settings** of developed or discovered technology, equipment, tools, vehicles | Magic itself, spells, **Current Stock** |
-| `{{FILE_WORLD_FACTIONS}}` | Faction dynamics, world building (see details below) | Personal quests, user plans, equipment items |
-| `{{FILE_MAGIC_SKILLS}}` | Protagonist's party's **mastered, learned, or actively researched** formulas, casting process, spell logic, combat skills | Magic items, enchanted gear, **Observed NPC magic** |
-| `{{FILE_PLANS}}` | Accepted quests, personal goals, progress | World events, faction dynamics |
-| `{{FILE_INVENTORY}}` | **Protagonist-owned, carried** weapons, armor, consumables, materials, magical items (pocket / backpack / portable spaces — judge "carried" by setting) | Real estate, large vehicles, **Detailed Specs**, **NPC personal items** |
-
-> **[Protagonist-Owned Only]**: `{{FILE_ASSETS}}` and `{{FILE_INVENTORY}}` record ONLY items personally owned by the protagonist. Personal property of companions, love interests, employers, hosts, and other **NPCs goes to `{{FILE_CHARACTER_STATUS}}`** under that NPC's `### Known Significant Possessions` section. Even if the protagonist is temporarily sheltered, hosted, or kept as a kept-man, the host's belongings are NOT the protagonist's possessions.
-
-**{{FILE_BASIC_SETTINGS}}** is READ-ONLY. Record all world building in `{{FILE_WORLD_FACTIONS}}`.
-
-> [!IMPORTANT]
-> **Item Archiving Absolute Rule**: Any physical item **held, discovered, or researched** by the protagonist (including **equipment, magic items, technical products, mechanical vehicles**) **MUST** be classified under `{{FILE_INVENTORY}}` or `{{FILE_TECH_EQUIPMENT}}`.
-> - **FORBIDDEN** to place physical equipment or technical products in `{{FILE_WORLD_FACTIONS}}`, even if they contain rich historical backgrounds or technical settings.
-> - **World Lore**: If the item involves important background (e.g., ruin relics, lost technology), record the lore or principles directly in the **"Notes"** field under that item.
-> - **Technical Items**: Newly developed technical products (e.g., new firearms, mechanical devices) belong to `{{FILE_TECH_EQUIPMENT}}` and should not be treated as "Faction Dynamics".
-> - Example:
->   ```markdown
->   ## Ancient Short Sword (Arcadian Style)
->   - **Type**: One-handed Sword
->   - **Description**: Forged from metal of the same origin as the ruins, with excellent magical conductivity.
->   - **Notes**: Standard issue sidearm for Ruin Guardians. The metal alloy is unique to the Arcadian civilization.
->   ```
-
-### `{{FILE_WORLD_FACTIONS}}` Scope
-- **Faction Dynamics**: Major/Secondary/Retired factions' nature and current status
-- **Core World View**: Major world settings (threats, artifact lore)
-- **Key Items**: Plot-critical artifacts, relics (not held by protagonist)
-- **Special Materials**: Newly discovered rare materials, sources, processing
-- **Otherworld Mapping**: Spices, plants, ingredients ↔ Earth equivalents
-- **Discovered Landmarks**: Cities, locations, shops the protagonist discovers
-- **Landmark Status Changes**: Key location state changes (destruction, renovation, occupation, etc.)
-
-### Tech & Equipment vs Inventory
-- **`{{FILE_MAGIC_SKILLS}}`**: Records the **"Learned Capability"**. If the protagonist masters a spell or weapon technique, it goes here.
-- **Observed Magic/World Settings**: If a spell is only **observed** (used by an NPC) or discovered as lore but NOT learned, it goes to **`{{FILE_WORLD_FACTIONS}}`** (under Core World View or Faction dynamics).
-- **Physical Media**: A magic scroll or book that hasn't been learned yet goes to **`{{FILE_INVENTORY}}`**.
-
-> [!IMPORTANT]
-> **Archiving Absolute Rules**:
-> 1. **Detailed Settings/Specs**: Any equipment/item **developed or discovered** with specific lore/stats MUST have its **Detailed Definition** recorded in `{{FILE_TECH_EQUIPMENT}}`.
-> 2. **Learned Skills**: ONLY record spells and skills that the protagonist's party has **actually mastered, learned, or is actively researching**.
-> 3. **Possession**: The fact that the protagonist **holds** a physical item MUST be recorded in `{{FILE_INVENTORY}}`.
-> 4. **Forbidden**: Do NOT put learned skills in `{{FILE_WORLD_FACTIONS}}`. Do NOT put observed NPC magic in `{{FILE_MAGIC_SKILLS}}`.
+<!--@include:partials/save-file-classification.md-->
 
 
 ## Specific File Update Rules
@@ -163,49 +49,9 @@ ACT Format:
 > - Excerpt important characters' key quotes.
 
 
-### Character Status (`{{FILE_CHARACTER_STATUS}}`)
-- **All-Field Review**: You MUST review and update **any field within the character entry** that has changed based on the current ACT and LOGs (e.g., **Current Status, Injuries, Relationship, Favorability, Current Goals**, etc.).
-- **Last Known Location**: Update this field whenever encountering a character or learning their movement: `Location(yyy/MM/dd HH:mm)`.
-- **Critical Turning Point**: ONLY add this if the character's core values, behavior, or fate undergoes a **fundamental qualitative change**. When adding a Critical Turning Point, **also evaluate** whether `### Core Values and Behavior Guidelines` needs to be updated to reflect the change.
-- **ABSOLUTE PROHIBITION for the Player Character**: NEVER add `### Key Turning Points` or `### Core Values and Behavior Guidelines` to the protagonist's section.
+<!--@include:partials/save-character-status-rules.md-->
 
-## LOG Integration Rules & State Calculation
-
-- **[State Synchronization Rule]**: The provided files are records from before this ACT started. You MUST merge the accumulated changes **after the `--- ACT START ---` marker** (from `character_log`, `inventory_log`, `quest_log`, and `world_log`) to calculate the **"Accurate Current State"** before writing it into the file update commands (XML) below.
-
-If the current ACT (starting from `--- ACT START ---`) has LOG content, you **MUST** automatically generate corresponding `<save>` updates:
-
-### `inventory_log` → Target Files
-- Protagonist's money change → `{{FILE_ASSETS}}`
-- Protagonist-owned base / real estate acquisition or change → `{{FILE_ASSETS}}`
-- Protagonist-owned but **deposited at a base / inn / third-party safekeeping** (non-carried) items → `{{FILE_ASSETS}}` under the corresponding base layout
-- Protagonist's **carried (on-person)** items → `{{FILE_INVENTORY}}`
-
-### `character_log` → `{{FILE_CHARACTER_STATUS}}`
-- **First Encounter Evaluation**: If a character is encountered for the first time (not in file), you **MUST** evaluate if they are significant.
-  - **Unique Name Principle**: ONLY records characters with a **unique proper name** and **substantial plot influence**.
-  - **ABSOLUTE PROHIBITION**: Forbidden to record any character using generic labels, titles, or numbering (e.g., "Guard A", "Bandit B", "Random Villager", "Passerby", "Guard Member", etc.).
-  - **Excluded Categories**: One-time scene NPCs, background filler characters, or NPCs providing minimal information.
-- **Significance Criteria**: If the character is involved in **delivering quests, providing/requesting resources, or providing key information**, OR has a **unique name or a specific title** (e.g., "Manager XXX", "Village Head OO"), OR the **protagonist actively attempts to interact with them, asks for their name, or explicitly expresses interest**, they **MUST** be added to ensure narrative continuity.
-
-- **Exit & Pruning Mechanism**: To prevent file bloat, proactively prune entries under these conditions:
-  - **Death**: Remove from categories and move to `# Deceased Characters`.
-  - **Functional Task Completed**: If a `# Secondary Characters` entry has fulfilled purpose and will not logically reappear, **proactively delete** their entry.
-  - **Permanent Departure**: If a character has "permanently left the stage", move to `# Historical Figures` or delete.
-
-- **Possession Change Handling**: Each `Possession Change:` entry in `character_log` MUST be written into the `### Known Significant Possessions` subsection under that NPC's entry, and the subsection's `**Last Updated**` line MUST be refreshed to the current turn's timestamp. If the NPC entry has no such subsection, add it in the same position as `### Core Values and Behavior Guidelines` (immediately before it).
-
-- **Learned Capability Handling**: When `character_log` records a capability the protagonist has acquired (any skill, magic ability, sensory perception, technique, or similar trait that fits the schema of `{{FILE_MAGIC_SKILLS}}` by nature), route the entry to `{{FILE_MAGIC_SKILLS}}` as a new Magic or Skill entry per the file's schema (choose by nature: martial / weapon / movement / body technique → Skill; magical formula / sensory awareness / mana operation → Magic). **Do NOT** duplicate the entry into `{{FILE_CHARACTER_STATUS}}` — `{{FILE_MAGIC_SKILLS}}` is the canonical home for learned capabilities. If the log line names a source (typically a Story Trigger), preserve it as a `**Source**` / `**Acquired Via**` note on the new entry.
-
-### `quest_log` → `{{FILE_PLANS}}`
-- Quests/Plans
-- **One-Act exclusion**: If a quest is both opened and resolved within the same ACT and has no narrative extension or follow-up, do NOT create an entry for it in this file. `{{FILE_PLANS}}` tracks ongoing multi-ACT objectives only; one-shot resolved quests are already captured in the Story Outline.
-- **Pruning Mechanism**: Proactively delete items that are **completed** and have no further influence on subsequent plots to prevent file bloat.
-
-### `world_log` → Target Files
-- World events/factions/world building → `{{FILE_WORLD_FACTIONS}}`
-- Protagonist's party's tech specs/blueprints development → `{{FILE_TECH_EQUIPMENT}}`
-- Protagonist's party's magic & skills development → `{{FILE_MAGIC_SKILLS}}`
+<!--@include:partials/save-log-mapping.md-->
 
 ## This Turn Reminders
 - `analysis` and `summary` fields MUST be empty string `""`.
