@@ -15,20 +15,6 @@
  * `eventId` is the 8-char prefix of `messageId` — stable within a save run,
  * compact enough for LLM JSON output to reference without ballooning tokens.
  */
-/**
- * Names of the array-of-strings log fields carried on `SceneEvent` and
- * the source `ChatMessage`. `as const` so consumers (Debug UI template,
- * Stage B-1 prompt builders) can iterate with full type safety instead of
- * casting through `$any(event)[field]`.
- */
-export const SCENE_EVENT_LOG_FIELDS = [
-  'character_log',
-  'inventory_log',
-  'quest_log',
-  'world_log',
-] as const;
-export type SceneEventLogField = typeof SCENE_EVENT_LOG_FIELDS[number];
-
 export interface SceneEvent {
   eventId: string;
   messageId: string;
@@ -45,6 +31,20 @@ export interface SceneEvent {
   quest_log: string[];
   world_log: string[];
 }
+
+/**
+ * Names of the array-of-strings log fields carried on `SceneEvent` and
+ * the source `ChatMessage`. `as const` so consumers (Debug UI template,
+ * Stage B-1 prompt builders) can iterate with full type safety instead of
+ * casting through `$any(event)[field]`.
+ */
+export const SCENE_EVENT_LOG_FIELDS = [
+  'character_log',
+  'inventory_log',
+  'quest_log',
+  'world_log',
+] as const;
+export type SceneEventLogField = typeof SCENE_EVENT_LOG_FIELDS[number];
 
 /**
  * One NPC entry extracted from `3.人物狀態.md`. `headingPath` is the

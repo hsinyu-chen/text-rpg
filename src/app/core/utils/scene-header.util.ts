@@ -17,7 +17,9 @@
  */
 
 const SCENE_HEADER_RE = /\[\s*[^\]]*\d+[^\]]*\]/;
-const TIME_MARKER_RE = /\[T\s+[^\]]+\]/;
+// Whitespace after `[T` is optional to match `TIME_MARKER_GLOBAL_RE` /
+// legacy `context-builder.service.ts` — model output isn't guaranteed to
+// put a space between `T` and the timestamp body.
 const TIME_MARKER_GLOBAL_RE = /\[T\s*([^\]]+)\]/g;
 
 /** First `[…]` bracket containing ASCII digit, or '' when absent. */
@@ -57,10 +59,18 @@ export function extractTimeMarkerRange(content: string | undefined): string {
 export function extractSceneHeader(content: string | undefined): string {
   const base = extractBaseSceneHeader(content);
   if (!content) return base;
-  const tMatch = content.match(TIME_MARKER_RE);
-  if (!tMatch) return base;
-  const time = tMatch[0];
+  // Use the range-aware helper so a single message with two `[T …]`
+  // brackets (action start + end) gets the compacted `[T s~T e]` form,
+  // matching the convention `context-builder.service.ts` uses for
+  // summary-block prefixes.
+  const time = extractTimeMarkerRange(content);
+  if (!time) return base;
   if (!base) return time;
-  if (base.includes(time)) return base;
+  // If the base header is itself a `[T …]` bracket (a single time
+  // marker that happened to contain an ASCII digit like `12:42`),
+  // the time range already covers it — return just the range form.
+  // Otherwise base is a different header (e.g. `[Act.2 - …]`) and we
+  // want both.
+  if (base.startsWith('[T')) return time;
   return `${base} ${time}`;
 }

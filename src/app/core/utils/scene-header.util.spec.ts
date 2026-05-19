@@ -52,4 +52,20 @@ describe('extractSceneHeader', () => {
   it('returns "" when neither pattern matches', () => {
     expect(extractSceneHeader('no brackets here')).toBe('');
   });
+
+  it('compacts two time markers in a single message into the range form', () => {
+    const content = '[T 12:42]\n...action...\n[T 13:15]';
+    expect(extractSceneHeader(content)).toBe('[T 12:42~T 13:15]');
+  });
+
+  it('combines base header with compacted multi-marker range', () => {
+    const content = '[Act.2 - 西街突襲] [T 12:42] body [T 14:35]';
+    expect(extractSceneHeader(content)).toBe('[Act.2 - 西街突襲] [T 12:42~T 14:35]');
+  });
+
+  it('still matches `[T...]` without a space after T (legacy parity)', () => {
+    // Whitespace after `[T` is optional per TIME_MARKER_GLOBAL_RE; the
+    // earlier `\s+` form would have missed this.
+    expect(extractSceneHeader('[T大宋 景德三年]')).toBe('[T大宋 景德三年]');
+  });
 });
