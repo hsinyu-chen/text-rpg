@@ -29,16 +29,19 @@ export function buildJsonSchema(tools: LLMFunctionDeclaration[], isLocal: boolea
 }
 
 function buildLocalAnyOf(tools: LLMFunctionDeclaration[]): unknown[] {
-    return tools.map(tool => ({
-        properties: {
-            action: { type: 'string', enum: [tool.name] },
-            args: {
-                ...stripDescriptions(tool.parameters as Record<string, unknown>),
-                additionalProperties: false,
+    return tools.map(tool => {
+        const strippedParams = stripDescriptions(tool.parameters as Record<string, unknown>) as Record<string, unknown>;
+        return {
+            properties: {
+                action: { type: 'string', enum: [tool.name] },
+                args: {
+                    ...strippedParams,
+                    additionalProperties: false,
+                },
             },
-        },
-        required: ['action', 'args'],
-    }));
+            required: ['action', 'args'],
+        };
+    });
 }
 
 function buildCloudUnion(tools: LLMFunctionDeclaration[]): object {
