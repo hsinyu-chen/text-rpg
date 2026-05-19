@@ -523,24 +523,24 @@ export class FileAgentService extends ReadOnlyAgent<ParsedAction, FileAgentConte
   }
 
   /**
-   * Accumulator for the multi-action batch path. `null` outside a batch —
-   * dispatchTool then emits `lastFilesReplaced.set(...)` per-call (single
-   * action mode). When set (between `onBatchLoopStart` / `onBatchLoopEnd`),
-   * dispatchTool pushes per-call writes into here instead, and onBatchLoopEnd
-   * emits ONE signal update after the loop completes. Prevents file-viewer
-   * diff-view flicker between awaited dispatchTool calls in a batch.
+   * Per-batch accumulator. Set between `onBatchLoopStart` / `onBatchLoopEnd`
+   * so dispatchTool can push per-call writes here, and `onBatchLoopEnd`
+   * emits ONE `lastFilesReplaced.set(...)` after the loop completes —
+   * prevents file-viewer diff-view flicker between awaited dispatchTool
+   * calls in a multi-write batch. Always non-null during `dispatchTool`
+   * because every action is routed through `executeBatchActions` (which
+   * brackets the loop with the hooks); the executeSingleAction fast path
+   * was removed in eb3866d1.
    */
-  private batchReplacementsCollector: { filename: string; content: string }[] | null = null;
+  private batchReplacementsCollector: { filename: string; content: string }[] = [];
 
   protected override onBatchLoopStart(): void {
     this.batchReplacementsCollector = [];
   }
 
   protected override onBatchLoopEnd(): void {
-    const collected = this.batchReplacementsCollector;
-    this.batchReplacementsCollector = null;
-    if (collected && collected.length > 0) {
-      this.lastFilesReplaced.set(collected);
+    if (this.batchReplacementsCollector.length > 0) {
+      this.lastFilesReplaced.set(this.batchReplacementsCollector);
     }
   }
 
@@ -549,11 +549,10 @@ export class FileAgentService extends ReadOnlyAgent<ParsedAction, FileAgentConte
    * - Falling back to `executeFileTool` for file-agent tools (write +
    *   UI-help + propose + flow-control) when the read-tool dispatcher
    *   doesn't claim the action.
-   * - Wrapping `context.onFileReplaced` to surface each write into
-   *   `lastFilesReplaced` so the file-viewer diff-view effect picks them up.
-   *   In batch mode (between `onBatchLoopStart` / `onBatchLoopEnd`), writes
-   *   accumulate locally for a single end-of-loop signal update; in
-   *   single-action mode, the signal fires per call.
+   * - Wrapping `context.onFileReplaced` to push each per-tool write into
+   *   `batchReplacementsCollector`, which `onBatchLoopEnd` emits as ONE
+   *   `lastFilesReplaced.set(...)` after the loop — prevents file-viewer
+   *   diff-view flicker on multi-write batches.
    * - Catching `EditChannelLostError` (raised when the user closes the
    *   File Viewer mid-write) and returning a structured tool error so the
    *   LLM treats it as a tool failure (not an aborted run) and stops
@@ -566,24 +565,17 @@ export class FileAgentService extends ReadOnlyAgent<ParsedAction, FileAgentConte
     if (read !== null) return read;
 
     // File-agent-specific tools (write / UI-help / propose / flow-control).
-    // Wrap onFileReplaced so each per-tool write surfaces into lastFilesReplaced.
-    const replaced: { filename: string; content: string }[] = [];
+    // Wrap onFileReplaced so each per-tool write surfaces into the
+    // batch-end lastFilesReplaced signal.
     const wrapped: FileAgentContext = {
       ...context,
-      onFileReplaced: (f, c) => { context.onFileReplaced(f, c); replaced.push({ filename: f, content: c }); },
+      onFileReplaced: (f, c) => {
+        context.onFileReplaced(f, c);
+        this.batchReplacementsCollector.push({ filename: f, content: c });
+      },
     };
     try {
-      const result = await executeFileTool(action, wrapped);
-      if (replaced.length > 0) {
-        if (this.batchReplacementsCollector !== null) {
-          // Batch mode — defer the signal update to onBatchLoopEnd.
-          this.batchReplacementsCollector.push(...replaced);
-        } else {
-          // Single-action mode — fire the signal immediately.
-          this.lastFilesReplaced.set(replaced);
-        }
-      }
-      return result;
+      return await executeFileTool(action, wrapped);
     } catch (e) {
       if (e instanceof EditChannelLostError) {
         return { response: { status: 'error', message: EDIT_CHANNEL_LOST_TOOL_MESSAGE, fileChanged: false } };

@@ -824,6 +824,13 @@ describe('readChatMessage', () => {
     expect(m['summary']).toBeUndefined();
   });
 
+  it('falls back to content default when include contains only invalid field names', () => {
+    const { context } = makeContext({}, makeChat());
+    const r = run({ action: 'readChatMessage', args: { reason: 'check', messageIds: ['m2'], include: ['totallyMadeUp', 'alsoBogus'] as never } }, context);
+    const m = (r.response as { messages: Record<string, unknown>[] }).messages[0];
+    expect(m['content']).toBe('You take the EMP rifle from the rack.');
+  });
+
   it('reports per-id error for missing ids without failing the call', () => {
     const { context } = makeContext({}, makeChat());
     const r = run({ action: 'readChatMessage', args: { reason: 'check', messageIds: ['m2', 'nope'] } }, context);
