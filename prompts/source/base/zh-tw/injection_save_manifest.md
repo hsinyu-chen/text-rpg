@@ -26,7 +26,10 @@
 - `storyOutlineBlock`：本 ACT 整段劇情綱要區塊。依編年史原則寫好（5-8 個時間節點、策略/傷亡/轉折、關鍵台詞）。空字串代表不更新。
 - `inventoryDeltas / assetsDeltas`：逐條 `{ op: add/remove/update, item, details? }`。`details` 為新狀態描述（add / update 強烈建議填寫；`remove` 操作會忽略此欄位）。
 - `plansDeltas`：逐條 `{ op, title, body? }`。任務 / 個人目標的增刪改。
-- `techEquipmentUpdates / magicSkillsUpdates / worldFeaturesUpdates`：逐條 `{ sectionPath, content }`。`sectionPath` 用 ` > ` 分隔（如 `# 已開發武器 > ## 短弓改`）。
+- `techEquipmentUpdates / magicSkillsUpdates / worldFeaturesUpdates`：逐條 `{ sectionPath, target?, replacement }`。
+  - `sectionPath` 用 ` > ` 分隔（如 `# 已開發武器 > ## 短弓改`），且必須是原檔已存在的標題路徑。
+  - 省略 `target` → `replacement` 追加在該 section 結尾（**新增**）；提供 `target` → 替換該 section 內**完全一致**的原文片段（**替換**，包含縮排與符號）。
+  - 同一 `sectionPath` 可拆多條（多個小幅替換）；dispatcher 會把同 path 的條目組進同一個 `<save>` block。
 - `charactersToCreate / factionsToCreate`：本回新出現、需要落檔的 entity。`draftedFields` 寫好所有初始欄位（身分 / 基本設定 / 最後已知位置 / 初始目前心態 等），鍵名照 `<!--@include:partials/save-character-status-rules.md-->` 規範。
 - `charactersToDelete / factionsToDelete`：標記死亡 / 退場。`reason` 寫清楚原因（劇情死亡 / 永久脫離劇情等）。
 - `charactersToMove / factionsToMove`：跨 L1 group 移動（如「核心人物 → 已故人物」）。`toGroup` 寫目標 L1 group 文字。

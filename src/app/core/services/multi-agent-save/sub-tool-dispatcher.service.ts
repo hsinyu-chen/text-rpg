@@ -12,6 +12,12 @@ export interface DispatchInput {
     manifest: SaveManifest;
     /** Active locale's coreFilenames map — handler `targetFile` resolution. */
     coreFilenames: AppLocale['coreFilenames'];
+    /**
+     * Active locale's KB section heading map. Handlers that pin
+     * `<save context="…">` to a locale-specific heading (e.g. story-outline)
+     * read from this.
+     */
+    kbSectionHeadings: AppLocale['kbSectionHeadings'];
     /** Snapshot of loaded KB files at save time — handlers use this for line-lookups. */
     kbFiles: ReadonlyMap<string, string>;
 }
@@ -69,7 +75,11 @@ export class SubToolDispatcherService {
 
             const fileContent = input.kbFiles.get(targetFile) ?? '';
             try {
-                const xml = handler(input.manifest, { targetFile, fileContent });
+                const xml = handler(input.manifest, {
+                    targetFile,
+                    fileContent,
+                    kbSectionHeadings: input.kbSectionHeadings,
+                });
                 if (!xml) {
                     // Handler ran but every op was dropped (e.g. all
                     // `remove`s missed the line lookup). Same UX as an empty

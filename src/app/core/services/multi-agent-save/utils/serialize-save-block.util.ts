@@ -29,9 +29,13 @@ export type SaveUpdateOp =
  *   expected to land here).
  * - `context` is the heading-path breadcrumb (`# Foo > ## Bar`) or the
  *   file-root marker `""`.
- * - The XML attribute encoder escapes `&`, `<`, `>`, `"` defensively even
- *   though `context` is model-generated free text — a stray `"` in a section
- *   path would otherwise break the attribute.
+ * - The XML attribute encoder escapes `&`, `<`, `"` — NOT `>`. The `>` is
+ *   literal because the downstream {@link import('@app/core/services/file-update-parser').FileUpdateParser}
+ *   does NOT decode entities and {@link import('@app/core/services/markdown-range-matcher').MarkdownRangeMatcher}
+ *   splits the context on `>` to derive the heading breadcrumb. Escaping `>`
+ *   to `&gt;` would survive the parse and break the split (`"# A &gt"`), so
+ *   the section would never resolve. The legacy save format
+ *   (`partials/save-xml-format.md`) uses unescaped `>` for the same reason.
  */
 export function saveBlock(file: string, context: string, ops: readonly SaveUpdateOp[]): string {
     if (ops.length === 0) return '';
@@ -71,10 +75,13 @@ function containsClosingTag(op: SaveUpdateOp): boolean {
 }
 
 function escapeAttr(s: string): string {
+    // `>` deliberately omitted — see saveBlock JSDoc above. The downstream
+    // parser splits the context on literal `>` to derive heading breadcrumbs,
+    // so any `&gt;` round-trip would land as a string-literal `&gt` in the
+    // first segment and the heading lookup would silently miss.
     return s
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;');
 }
 

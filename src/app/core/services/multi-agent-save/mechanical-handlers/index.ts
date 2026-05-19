@@ -1,6 +1,9 @@
 import type { AppLocale } from '@app/core/constants/locales/locale.interface';
 import type { MechanicalToolName, SaveManifest } from '../multi-agent-save.types';
-import { applyInventoryDeltas, type MechanicalHandlerContext } from './protagonist-handlers';
+import { applyInventoryDeltas, applyPlansDeltas, type MechanicalHandlerContext } from './protagonist-handlers';
+import { writeStoryOutlineBlock } from './story-outline-handlers';
+import { applySectionUpdates } from './section-update-handlers';
+import { createEntities, deleteEntities, moveEntities } from './entity-lifecycle-handlers';
 
 type CoreFilenames = AppLocale['coreFilenames'];
 
@@ -12,7 +15,7 @@ type CoreFilenames = AppLocale['coreFilenames'];
  *   dispatcher) keeps the per-tool TS type narrow at the call site and lets a
  *   single handler look at sibling sections if it ever needs to.
  * - `ctx` — the dispatcher-assembled context (target file name + file contents
- *   for line-lookups).
+ *   for line-lookups + locale heading map).
  *
  * Returns the `<save>...</save>` XML fragment, or `''` when the relevant
  * manifest slice was empty / no ops survived (dispatcher then marks the
@@ -28,36 +31,54 @@ export type MechanicalHandler = (manifest: SaveManifest, ctx: MechanicalHandlerC
  * Used by the dispatcher to build the {@link MechanicalHandlerContext}
  * before invoking the registry entry.
  *
- * Returns `null` for tools the registry has not wired yet (Phase 1: only
- * `inventoryDeltas`). The dispatcher reads `null` as the cue to mark the
- * entry `skipped: not_yet_implemented`.
+ * Returns `null` only for tools the registry has not wired yet; today every
+ * `MechanicalToolName` resolves to a file. The dispatcher reads `null` as
+ * the cue to mark the entry `skipped: not_yet_implemented`.
  */
 export function targetFileFor(tool: MechanicalToolName, files: CoreFilenames): string | null {
     switch (tool) {
         case 'inventoryDeltas': return files.INVENTORY;
-        case 'assetsDeltas':
-        case 'plansDeltas':
-        case 'storyOutlineBlock':
-        case 'techEquipmentUpdates':
-        case 'magicSkillsUpdates':
-        case 'worldFeaturesUpdates':
+        case 'assetsDeltas': return files.ASSETS;
+        case 'plansDeltas': return files.PLANS;
+        case 'storyOutlineBlock': return files.STORY_OUTLINE;
+        case 'techEquipmentUpdates': return files.TECH_EQUIPMENT;
+        case 'magicSkillsUpdates': return files.MAGIC;
+        case 'worldFeaturesUpdates': return files.WORLD_FACTIONS;
         case 'charactersToCreate':
-        case 'factionsToCreate':
         case 'charactersToDelete':
-        case 'factionsToDelete':
         case 'charactersToMove':
+            return files.CHARACTER_STATUS;
+        case 'factionsToCreate':
+        case 'factionsToDelete':
         case 'factionsToMove':
-            return null;
+            return files.WORLD_FACTIONS;
     }
 }
 
 /**
  * Registry of wired mechanical handlers. The dispatcher iterates
- * `MECHANICAL_TOOL_NAMES` and looks up here; absence ≡ "Phase 1 doesn't
- * implement this tool yet". The dispatcher emits a `not_yet_implemented`
- * skip in that case, so SaveAgent's manifest can still drive a partial save
- * end-to-end while the remaining handlers land in follow-up commits.
+ * `MECHANICAL_TOOL_NAMES` and looks up here; absence ≡ "tool not implemented",
+ * surfaced as a `not_yet_implemented` skip in progress trace. Phase 1 A2 wires
+ * every mechanical tool; the only remaining gap is the LLM sub-tools
+ * (`charactersToUpdate` / `factionsToUpdate`), which the dispatcher routes
+ * separately.
+ *
+ * Character + faction lifecycle entries share the same helper because the
+ * type, mechanics, and file shape are identical — only `ctx.targetFile`
+ * differs, and that's resolved by {@link targetFileFor}.
  */
 export const MECHANICAL_HANDLERS: Partial<Record<MechanicalToolName, MechanicalHandler>> = {
-    inventoryDeltas: (manifest, ctx) => applyInventoryDeltas(manifest.inventoryDeltas ?? [], ctx),
+    inventoryDeltas: (m, ctx) => applyInventoryDeltas(m.inventoryDeltas ?? [], ctx),
+    assetsDeltas: (m, ctx) => applyInventoryDeltas(m.assetsDeltas ?? [], ctx),
+    plansDeltas: (m, ctx) => applyPlansDeltas(m.plansDeltas ?? [], ctx),
+    storyOutlineBlock: (m, ctx) => writeStoryOutlineBlock(m.storyOutlineBlock, ctx),
+    techEquipmentUpdates: (m, ctx) => applySectionUpdates(m.techEquipmentUpdates ?? [], ctx),
+    magicSkillsUpdates: (m, ctx) => applySectionUpdates(m.magicSkillsUpdates ?? [], ctx),
+    worldFeaturesUpdates: (m, ctx) => applySectionUpdates(m.worldFeaturesUpdates ?? [], ctx),
+    charactersToCreate: (m, ctx) => createEntities(m.charactersToCreate ?? [], ctx),
+    factionsToCreate: (m, ctx) => createEntities(m.factionsToCreate ?? [], ctx),
+    charactersToDelete: (m, ctx) => deleteEntities(m.charactersToDelete ?? [], ctx),
+    factionsToDelete: (m, ctx) => deleteEntities(m.factionsToDelete ?? [], ctx),
+    charactersToMove: (m, ctx) => moveEntities(m.charactersToMove ?? [], ctx),
+    factionsToMove: (m, ctx) => moveEntities(m.factionsToMove ?? [], ctx),
 };

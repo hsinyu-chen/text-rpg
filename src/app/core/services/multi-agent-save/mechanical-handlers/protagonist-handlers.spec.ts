@@ -2,16 +2,20 @@ import { describe, expect, it } from 'vitest';
 import { applyInventoryDeltas } from './protagonist-handlers';
 
 const FILE = '9.物品欄.md';
+const HEADINGS = { STORY_OUTLINE_CHRONICLE: '劇情綱要' };
+
+// Shorthand used everywhere below; only `fileContent` actually varies per test.
+const ctx = (fileContent: string) => ({ targetFile: FILE, fileContent, kbSectionHeadings: HEADINGS });
 
 describe('applyInventoryDeltas', () => {
     it('returns empty string for an empty delta array', () => {
-        expect(applyInventoryDeltas([], { targetFile: FILE, fileContent: '' })).toBe('');
+        expect(applyInventoryDeltas([], ctx(''))).toBe('');
     });
 
     it('appends a new item line for op:add (with details, empty file = no leading newline)', () => {
         const xml = applyInventoryDeltas([
             { op: 'add', item: '長劍', details: '一柄精鋼長劍' },
-        ], { targetFile: FILE, fileContent: '' });
+        ], ctx(''));
         expect(xml).toContain(`<save file="${FILE}" context="">`);
         // Empty file: no leading newline to avoid a stray blank line at file head.
         expect(xml).toContain('<replacement>- 長劍 — 一柄精鋼長劍</replacement>');
@@ -21,14 +25,14 @@ describe('applyInventoryDeltas', () => {
     it('appends just the item name when details is omitted', () => {
         const xml = applyInventoryDeltas([
             { op: 'add', item: '麻繩' },
-        ], { targetFile: FILE, fileContent: '' });
+        ], ctx(''));
         expect(xml).toContain('<replacement>- 麻繩</replacement>');
     });
 
     it('prepends a newline before append when the file already has content', () => {
         const xml = applyInventoryDeltas([
             { op: 'add', item: '麻繩' },
-        ], { targetFile: FILE, fileContent: '- 鐵劍' });
+        ], ctx('- 鐵劍'));
         expect(xml).toContain('<replacement>\n- 麻繩</replacement>');
     });
 
@@ -36,7 +40,7 @@ describe('applyInventoryDeltas', () => {
         const fileContent = '- 鐵劍 (舊)\n- 麻繩\n- 木盾';
         const xml = applyInventoryDeltas([
             { op: 'remove', item: '麻繩' },
-        ], { targetFile: FILE, fileContent });
+        ], ctx(fileContent));
         expect(xml).toContain('<target>- 麻繩</target>');
         expect(xml).toContain('<replacement></replacement>');
     });
@@ -44,7 +48,7 @@ describe('applyInventoryDeltas', () => {
     it('silently drops op:remove when no matching line exists', () => {
         const xml = applyInventoryDeltas([
             { op: 'remove', item: '不存在的物品' },
-        ], { targetFile: FILE, fileContent: '- 麻繩\n- 木盾' });
+        ], ctx('- 麻繩\n- 木盾'));
         // No matching line → no ops → empty XML
         expect(xml).toBe('');
     });
@@ -53,7 +57,7 @@ describe('applyInventoryDeltas', () => {
         const fileContent = '- 鐵劍\n- 木盾';
         const xml = applyInventoryDeltas([
             { op: 'update', item: '鐵劍', details: '刃口出現缺口' },
-        ], { targetFile: FILE, fileContent });
+        ], ctx(fileContent));
         expect(xml).toContain('<target>- 鐵劍</target>');
         expect(xml).toContain('<replacement>- 鐵劍 — 刃口出現缺口</replacement>');
     });
@@ -61,7 +65,7 @@ describe('applyInventoryDeltas', () => {
     it('falls back to append for op:update when the item is not in the file', () => {
         const xml = applyInventoryDeltas([
             { op: 'update', item: '新發現的卷軸', details: '殘破不堪' },
-        ], { targetFile: FILE, fileContent: '- 鐵劍' });
+        ], ctx('- 鐵劍'));
         // Append rather than emit a stale target — safer for FileUpdateParser.
         expect(xml).toContain('<replacement>\n- 新發現的卷軸 — 殘破不堪</replacement>');
         expect(xml).not.toContain('<target>');
@@ -73,7 +77,7 @@ describe('applyInventoryDeltas', () => {
             { op: 'add', item: '麻繩' },
             { op: 'remove', item: '木盾' },
             { op: 'update', item: '鐵劍', details: '刃口出現缺口' },
-        ], { targetFile: FILE, fileContent });
+        ], ctx(fileContent));
         expect(xml.match(/<save\b/g)).toHaveLength(1);
         expect(xml.match(/<update>/g)).toHaveLength(3);
     });
@@ -82,7 +86,7 @@ describe('applyInventoryDeltas', () => {
         const fileContent = '- 鐵劍 x1\n- 木盾';
         const xml = applyInventoryDeltas([
             { op: 'update', item: '鐵劍', details: '損壞' },
-        ], { targetFile: FILE, fileContent });
+        ], ctx(fileContent));
         expect(xml).toContain('<target>- 鐵劍 x1</target>');
     });
 
@@ -90,7 +94,7 @@ describe('applyInventoryDeltas', () => {
         const fileContent = '## 主物品\n- 鐵劍\n備註：鐵劍出自鍛造師之手';
         const xml = applyInventoryDeltas([
             { op: 'remove', item: '鐵劍' },
-        ], { targetFile: FILE, fileContent });
+        ], ctx(fileContent));
         expect(xml).toContain('<target>- 鐵劍</target>');
         // The "備註：鐵劍" line is not a list item — must not be picked.
         expect(xml).not.toContain('備註');
@@ -100,7 +104,7 @@ describe('applyInventoryDeltas', () => {
         const fileContent = '- 短刀子\n- 木盾';
         const xml = applyInventoryDeltas([
             { op: 'remove', item: '短刀' },
-        ], { targetFile: FILE, fileContent });
+        ], ctx(fileContent));
         expect(xml).toBe('');
     });
 
@@ -111,7 +115,7 @@ describe('applyInventoryDeltas', () => {
         const fileContent = '- v1.0\n- 木盾';
         const xml = applyInventoryDeltas([
             { op: 'remove', item: 'v1' },
-        ], { targetFile: FILE, fileContent });
+        ], ctx(fileContent));
         expect(xml).toBe('');
     });
 
@@ -119,7 +123,7 @@ describe('applyInventoryDeltas', () => {
         const fileContent = '- v1.0\n- 木盾';
         const xml = applyInventoryDeltas([
             { op: 'remove', item: 'v1.0' },
-        ], { targetFile: FILE, fileContent });
+        ], ctx(fileContent));
         expect(xml).toContain('<target>- v1.0</target>');
     });
 
@@ -127,7 +131,7 @@ describe('applyInventoryDeltas', () => {
         const fileContent = '* 鐵劍\n* 木盾';
         const xml = applyInventoryDeltas([
             { op: 'remove', item: '鐵劍' },
-        ], { targetFile: FILE, fileContent });
+        ], ctx(fileContent));
         expect(xml).toContain('<target>* 鐵劍</target>');
     });
 
@@ -135,7 +139,7 @@ describe('applyInventoryDeltas', () => {
         const fileContent = '+ 鐵劍\n+ 木盾';
         const xml = applyInventoryDeltas([
             { op: 'remove', item: '鐵劍' },
-        ], { targetFile: FILE, fileContent });
+        ], ctx(fileContent));
         expect(xml).toContain('<target>+ 鐵劍</target>');
     });
 
@@ -143,7 +147,7 @@ describe('applyInventoryDeltas', () => {
         const fileContent = '- 短刀（藍刃）\n- 木盾';
         const xml = applyInventoryDeltas([
             { op: 'remove', item: '短刀' },
-        ], { targetFile: FILE, fileContent });
+        ], ctx(fileContent));
         expect(xml).toContain('<target>- 短刀（藍刃）</target>');
     });
 
@@ -154,7 +158,7 @@ describe('applyInventoryDeltas', () => {
         const fileContent = '- 短刀子\n- 木盾';
         const xml = applyInventoryDeltas([
             { op: 'update', item: '短刀', details: '從遺跡取得' },
-        ], { targetFile: FILE, fileContent });
+        ], ctx(fileContent));
         expect(xml).toContain('<replacement>\n- 短刀 — 從遺跡取得</replacement>');
         expect(xml).not.toContain('<target>');
         expect(xml).not.toContain('短刀子');
@@ -169,7 +173,7 @@ describe('applyInventoryDeltas', () => {
         const fileContent = '## 攜帶\n    - 鐵劍\n    - 木盾';
         const xml = applyInventoryDeltas([
             { op: 'remove', item: '鐵劍' },
-        ], { targetFile: FILE, fileContent });
+        ], ctx(fileContent));
         expect(xml).toContain('<target>    - 鐵劍</target>');
     });
 
@@ -182,7 +186,7 @@ describe('applyInventoryDeltas', () => {
         const fileContent = '## 攜帶\n    - 鐵劍\n    - 木盾';
         const xml = applyInventoryDeltas([
             { op: 'update', item: '鐵劍', details: '刃口缺損' },
-        ], { targetFile: FILE, fileContent });
+        ], ctx(fileContent));
         expect(xml).toContain('<replacement>    - 鐵劍 — 刃口缺損</replacement>');
     });
 });

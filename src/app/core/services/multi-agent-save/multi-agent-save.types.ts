@@ -125,10 +125,25 @@ export interface PlanDelta {
   body?: string;
 }
 
-/** Free-form section update keyed by a breadcrumb path like `# X > ## Y`. */
+/**
+ * Section-scoped update keyed by a breadcrumb path like `# X > ## Y`. Mirrors
+ * the legacy `<save context="…"><update><target>…</target><replacement>…`
+ * shape 1:1:
+ * - `target` omitted → append `replacement` at section end
+ * - `target` present, `replacement` non-empty → replace that exact substring
+ * - `target` present, `replacement` empty → delete that exact substring (the
+ *   FileUpdateParser reads `<replacement></replacement>` as a delete; this is
+ *   a small in-section snippet removal, NOT a section-or-entity teardown —
+ *   for those use the `*ToDelete` lifecycle slots)
+ *
+ * No top-level deletion of the whole sectionPath — that's a lifecycle
+ * operation outside this shape.
+ */
 export interface SectionUpdate {
   sectionPath: string;
-  content: string;
+  /** Exact existing substring to replace / delete. Omit for append-at-end semantics. */
+  target?: string;
+  replacement: string;
 }
 
 export interface CharacterCreate {
