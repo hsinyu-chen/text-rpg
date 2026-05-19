@@ -35,6 +35,9 @@ When performing the <Save> command, please only compare and synchronize based on
         PLANS: '8.Plans.md',
         INVENTORY: '9.Inventory.md'
     },
+    kbSectionHeadings: {
+        STORY_OUTLINE_CHRONICLE: 'Story Outline',
+    },
     promptHoles: {
         LANGUAGE_RULE: "You MUST output ALL content in English. Use vivid, descriptive English prose."
     },

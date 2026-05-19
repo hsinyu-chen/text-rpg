@@ -50,6 +50,17 @@ describe('saveBlock', () => {
         expect(xml).toContain('context="# X &amp; &quot;Y&quot;"');
     });
 
+    it('keeps the literal `>` in context attributes (downstream split contract)', () => {
+        // FileUpdateParser does NOT decode entities, and MarkdownRangeMatcher
+        // splits `context` on literal `>` to derive breadcrumbs. Entity-
+        // encoding `>` corrupts the first segment as `# X &gt`.
+        const xml = saveBlock('x.md', '# X > ## Y', [
+            { kind: 'append', replacement: 'z' },
+        ]);
+        expect(xml).toContain('context="# X > ## Y"');
+        expect(xml).not.toContain('&gt;');
+    });
+
     it('drops ops whose target / replacement contains a literal closing tag', () => {
         // No real LLM emits these in practice, but the parser regex would
         // close early on the first match, corrupting the rest of the stream.

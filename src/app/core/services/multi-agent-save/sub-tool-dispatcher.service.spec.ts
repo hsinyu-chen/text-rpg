@@ -23,6 +23,8 @@ const emptyManifest: SaveManifest = {
     completenessAudit: { processedLogIds: [], skippedLogIds: [] },
 };
 
+const HEADINGS = { STORY_OUTLINE_CHRONICLE: '劇情綱要' };
+
 function setup() {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({});
@@ -43,6 +45,7 @@ describe('SubToolDispatcherService', () => {
         const result = svc.dispatcher.dispatch({
             manifest: emptyManifest,
             coreFilenames: files(),
+            kbSectionHeadings: HEADINGS,
             kbFiles: new Map(),
         });
         expect(result.xml).toBe('');
@@ -60,6 +63,7 @@ describe('SubToolDispatcherService', () => {
         const result = svc.dispatcher.dispatch({
             manifest,
             coreFilenames: files(),
+            kbSectionHeadings: HEADINGS,
             kbFiles: new Map([['9.物品欄.md', '']]),
         });
         expect(result.xml).toContain('<save file="9.物品欄.md"');
@@ -70,23 +74,37 @@ describe('SubToolDispatcherService', () => {
         expect(invEntry?.output).toContain('長劍');
     });
 
-    it('marks unwired mechanical tools as not_yet_implemented when manifest provides content', () => {
+    it('routes assetsDeltas + charactersToCreate through their now-wired handlers', () => {
+        // A2 wired every mechanical tool. The previous "not_yet_implemented"
+        // skip on assets / character-create has been replaced with real XML
+        // output via the dispatch path.
         const manifest: SaveManifest = {
             ...emptyManifest,
             assetsDeltas: [{ op: 'add', item: '金幣 100' }],
             charactersToCreate: [{ name: 'X', group: 'Y', draftedFields: { 身分: 'Z' } }],
         };
-        svc.dispatcher.dispatch({
+        const result = svc.dispatcher.dispatch({
             manifest,
             coreFilenames: files(),
+            kbSectionHeadings: HEADINGS,
             kbFiles: new Map(),
         });
-        const tracker = svc.tracker.entries();
-        const notImpl = tracker.filter(e => e.state === 'skipped' && e.statusReason === 'not_yet_implemented');
-        expect(notImpl.length).toBeGreaterThanOrEqual(2);
-        const assetsEntry = svc.tracker.entries().find(e => e.toolName === 'assetsDeltas');
-        expect(assetsEntry?.state).toBe('skipped');
-        expect(assetsEntry?.statusReason).toBe('not_yet_implemented');
+        expect(result.xml).toContain('<save file="4.資產.md"');
+        expect(result.xml).toContain('金幣 100');
+        expect(result.xml).toContain('<save file="3.人物狀態.md"');
+        expect(result.xml).toContain('## X');
+
+        const entries = svc.tracker.entries();
+        expect(entries.find(e => e.toolName === 'assetsDeltas')?.state).toBe('done');
+        expect(entries.find(e => e.toolName === 'charactersToCreate')?.state).toBe('done');
+        // No mechanical tool should be reported as not_yet_implemented any more.
+        const notImpl = entries.filter(e =>
+            e.state === 'skipped' &&
+            e.statusReason === 'not_yet_implemented' &&
+            e.toolName !== 'charactersToUpdate' &&
+            e.toolName !== 'factionsToUpdate',
+        );
+        expect(notImpl).toHaveLength(0);
     });
 
     it('records LLM sub-tool sections as not_yet_implemented when populated', () => {
@@ -97,6 +115,7 @@ describe('SubToolDispatcherService', () => {
         svc.dispatcher.dispatch({
             manifest,
             coreFilenames: files(),
+            kbSectionHeadings: HEADINGS,
             kbFiles: new Map(),
         });
         const llmEntry = svc.tracker.entries().find(e => e.toolName === 'charactersToUpdate');
@@ -108,6 +127,7 @@ describe('SubToolDispatcherService', () => {
         svc.dispatcher.dispatch({
             manifest: emptyManifest,
             coreFilenames: files(),
+            kbSectionHeadings: HEADINGS,
             kbFiles: new Map(),
         });
         const llmEntries = svc.tracker.entries()
@@ -125,6 +145,7 @@ describe('SubToolDispatcherService', () => {
         svc.dispatcher.dispatch({
             manifest,
             coreFilenames: files(),
+            kbSectionHeadings: HEADINGS,
             kbFiles: new Map([['9.物品欄.md', '']]),
         });
         const entry = svc.tracker.entries().find(e => e.toolName === 'inventoryDeltas');

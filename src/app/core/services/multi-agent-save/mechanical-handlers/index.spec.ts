@@ -21,27 +21,49 @@ const emptyManifest: SaveManifest = {
     completenessAudit: { processedLogIds: [], skippedLogIds: [] },
 };
 
-describe('targetFileFor', () => {
-    it('maps inventoryDeltas to INVENTORY', () => {
-        expect(targetFileFor('inventoryDeltas', files())).toBe('9.物品欄.md');
-    });
+const HEADINGS = { STORY_OUTLINE_CHRONICLE: '劇情綱要' };
+const ctxFor = (file: string, fileContent = '') => ({ targetFile: file, fileContent, kbSectionHeadings: HEADINGS });
 
-    it('returns null for tools Phase 1 has not wired', () => {
-        expect(targetFileFor('assetsDeltas', files())).toBeNull();
-        expect(targetFileFor('plansDeltas', files())).toBeNull();
-        expect(targetFileFor('charactersToCreate', files())).toBeNull();
-        expect(targetFileFor('worldFeaturesUpdates', files())).toBeNull();
+describe('targetFileFor', () => {
+    it('maps every mechanical tool to the right locale file', () => {
+        // A2 wires every mechanical tool; only LLM sub-tools
+        // (charactersToUpdate / factionsToUpdate) live outside this map.
+        const f = files();
+        expect(targetFileFor('inventoryDeltas', f)).toBe(f.INVENTORY);
+        expect(targetFileFor('assetsDeltas', f)).toBe(f.ASSETS);
+        expect(targetFileFor('plansDeltas', f)).toBe(f.PLANS);
+        expect(targetFileFor('storyOutlineBlock', f)).toBe(f.STORY_OUTLINE);
+        expect(targetFileFor('techEquipmentUpdates', f)).toBe(f.TECH_EQUIPMENT);
+        expect(targetFileFor('magicSkillsUpdates', f)).toBe(f.MAGIC);
+        expect(targetFileFor('worldFeaturesUpdates', f)).toBe(f.WORLD_FACTIONS);
+        expect(targetFileFor('charactersToCreate', f)).toBe(f.CHARACTER_STATUS);
+        expect(targetFileFor('charactersToDelete', f)).toBe(f.CHARACTER_STATUS);
+        expect(targetFileFor('charactersToMove', f)).toBe(f.CHARACTER_STATUS);
+        expect(targetFileFor('factionsToCreate', f)).toBe(f.WORLD_FACTIONS);
+        expect(targetFileFor('factionsToDelete', f)).toBe(f.WORLD_FACTIONS);
+        expect(targetFileFor('factionsToMove', f)).toBe(f.WORLD_FACTIONS);
     });
 });
 
 describe('MECHANICAL_HANDLERS registry', () => {
-    it('exposes a wired inventoryDeltas handler', () => {
-        expect(MECHANICAL_HANDLERS.inventoryDeltas).toBeDefined();
+    it('wires every mechanical tool — A2 closes the Phase 1 mechanical surface', () => {
+        // The dispatcher reads "absent from registry" as `not_yet_implemented`.
+        // For Phase 1 A2 every mechanical tool must be present; only
+        // charactersToUpdate / factionsToUpdate (LLM sub-tools) remain.
+        const expected = [
+            'inventoryDeltas', 'assetsDeltas', 'plansDeltas', 'storyOutlineBlock',
+            'techEquipmentUpdates', 'magicSkillsUpdates', 'worldFeaturesUpdates',
+            'charactersToCreate', 'charactersToDelete', 'charactersToMove',
+            'factionsToCreate', 'factionsToDelete', 'factionsToMove',
+        ] as const;
+        for (const tool of expected) {
+            expect(MECHANICAL_HANDLERS[tool], `handler for ${tool}`).toBeDefined();
+        }
     });
 
     it('inventoryDeltas handler returns the empty string for an empty manifest section', () => {
         const h = MECHANICAL_HANDLERS.inventoryDeltas!;
-        const xml = h(emptyManifest, { targetFile: '9.物品欄.md', fileContent: '' });
+        const xml = h(emptyManifest, ctxFor('9.物品欄.md'));
         expect(xml).toBe('');
     });
 
@@ -50,16 +72,24 @@ describe('MECHANICAL_HANDLERS registry', () => {
         const xml = h({
             ...emptyManifest,
             inventoryDeltas: [{ op: 'add', item: '長劍' }],
-        }, { targetFile: '9.物品欄.md', fileContent: '' });
+        }, ctxFor('9.物品欄.md'));
         expect(xml).toContain('<save file="9.物品欄.md"');
         expect(xml).toContain('長劍');
     });
 
-    it('Phase 1 unwired tools are intentionally absent from the registry (not stubbed)', () => {
-        // The dispatcher distinguishes "wired but empty" from "not implemented"
-        // by registry membership — preserve that contract here.
-        expect(MECHANICAL_HANDLERS.assetsDeltas).toBeUndefined();
-        expect(MECHANICAL_HANDLERS.charactersToCreate).toBeUndefined();
-        expect(MECHANICAL_HANDLERS.worldFeaturesUpdates).toBeUndefined();
+    it('assetsDeltas and inventoryDeltas share the same handler body (same type, same mechanics)', () => {
+        // DRY check: the registry routes both to applyInventoryDeltas. A buggy
+        // future re-implementation that diverges these will be caught here.
+        const inv = MECHANICAL_HANDLERS.inventoryDeltas!;
+        const ast = MECHANICAL_HANDLERS.assetsDeltas!;
+        const xmlInv = inv({
+            ...emptyManifest,
+            inventoryDeltas: [{ op: 'add', item: 'X' }],
+        }, ctxFor('inv.md'));
+        const xmlAst = ast({
+            ...emptyManifest,
+            assetsDeltas: [{ op: 'add', item: 'X' }],
+        }, ctxFor('inv.md'));
+        expect(xmlInv).toBe(xmlAst);
     });
 });
