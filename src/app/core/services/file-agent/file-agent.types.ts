@@ -37,11 +37,36 @@ export interface ChatReplaceOutcome {
   divergedFromProposal: boolean;
 }
 
-// Awaitable / AgentLogEntry / ToolExecutionResult moved to
-// `agent-runner/agent-runner.types.ts` so the dependency direction stays
-// one-way (file-agent → agent-runner). Re-exported here for back-compat
-// with existing imports across the codebase.
-export type { Awaitable, AgentLogEntry, ToolExecutionResult } from '../agent-runner/agent-runner.types';
+// Generic agent-runner types are re-exported here for back-compat with
+// existing imports across the codebase. Source of truth lives in
+// `agent-runner/agent-runner.types.ts` so the agent-runner module has zero
+// imports back into file-agent (one-way dependency: file-agent → agent-runner).
+export type {
+  Awaitable,
+  AgentLogEntry,
+  ToolExecutionResult,
+  BaseAction,
+  BaseToolArgs,
+  // Read-only args + supporting types — declared in agent-runner because
+  // the corresponding tool catalogs (KB_READ_TOOLS / CHAT_READ_TOOLS) and
+  // dispatchers live there.
+  ReadFileArgs,
+  GrepArgs,
+  GetFileOutlineArgs,
+  ReadSectionArgs,
+  ListChatMessagesArgs,
+  SearchChatMessagesArgs,
+  ReadChatMessageArgs,
+  ReadTurnLogsArgs,
+  ChatReadField,
+  TurnLogKind,
+  ChatSearchScope,
+  ReadOnlyAction,
+} from '../agent-runner/agent-runner.types';
+
+// ReadOnlyAction is the only moved type actually referenced in code below
+// (the rest are pure re-exports). Import explicitly so the union below resolves.
+import type { ReadOnlyAction } from '../agent-runner/agent-runner.types';
 
 export interface FileAgentContext {
   files: Map<string, string>;
@@ -156,28 +181,24 @@ export interface CollectionSummary {
 
 export type ToolCallMode = 'auto' | 'native' | 'json';
 
-// AgentLogEntry moved to agent-runner/agent-runner.types.ts; re-exported above.
+// AgentLogEntry / FileToolArgsBase / ReadFileArgs / GrepArgs /
+// GetFileOutlineArgs / ReadSectionArgs / ListChatMessagesArgs /
+// SearchChatMessagesArgs / ReadChatMessageArgs / ReadTurnLogsArgs /
+// ChatReadField / ChatSearchScope / TurnLogKind moved to
+// `agent-runner/agent-runner.types.ts`. Re-exported at the top of this file
+// (under their original names — `FileToolArgsBase` is now an alias for
+// `BaseToolArgs`).
 
-/** Common args present on every file-operation tool. `reason` is required at the JSON-schema layer — typed optional here so unit tests calling executeFileTool directly don't have to repeat boilerplate. */
-export interface FileToolArgsBase {
-  reason?: string;
-}
+import type { BaseToolArgs } from '../agent-runner/agent-runner.types';
 
-export interface ReadFileArgs extends FileToolArgsBase {
-  filename: string;
-  startLine?: number;
-  lineCount?: number;
-}
+/** Back-compat alias. New code should import `BaseToolArgs` from agent-runner. */
+export type FileToolArgsBase = BaseToolArgs;
 
-export interface GrepArgs extends FileToolArgsBase {
-  pattern: string;
-  filename?: string;
-  caseInsensitive?: boolean;
-  maxResults?: number;
-  contextLines?: number;
-}
+// ============================================================================
+// File-agent-specific args + WriteOnlyAction
+// ============================================================================
 
-export interface SearchReplaceArgs extends FileToolArgsBase {
+export interface SearchReplaceArgs extends BaseToolArgs {
   filename: string;
   replacements: {
     pattern: string;
@@ -191,17 +212,12 @@ export interface SearchReplaceArgs extends FileToolArgsBase {
   dryRun?: boolean;
 }
 
-export interface ReplaceFileArgs extends FileToolArgsBase {
+export interface ReplaceFileArgs extends BaseToolArgs {
   filename: string;
   content: string;
 }
 
-export interface ReadSectionArgs extends FileToolArgsBase {
-  filename: string;
-  sectionPaths: string[];
-}
-
-export interface ReplaceSectionArgs extends FileToolArgsBase {
+export interface ReplaceSectionArgs extends BaseToolArgs {
   filename: string;
   updates: {
     sectionPath: string;
@@ -211,7 +227,7 @@ export interface ReplaceSectionArgs extends FileToolArgsBase {
   }[];
 }
 
-export interface InsertSectionArgs extends FileToolArgsBase {
+export interface InsertSectionArgs extends BaseToolArgs {
   filename: string;
   heading: string;
   content?: string;
@@ -219,15 +235,11 @@ export interface InsertSectionArgs extends FileToolArgsBase {
   anchorSectionPath?: string;
 }
 
-export interface InsertIntoSectionArgs extends FileToolArgsBase {
+export interface InsertIntoSectionArgs extends BaseToolArgs {
   filename: string;
   sectionPath: string;
   content: string;
   position: 'start' | 'end';
-}
-
-export interface GetFileOutlineArgs extends FileToolArgsBase {
-  filename: string;
 }
 
 export interface ReportProgressArgs {
@@ -238,43 +250,10 @@ export interface SubmitResponseArgs {
   message: string;
 }
 
-export type ChatSearchScope = 'content' | 'thought' | 'summary' | 'all';
-export type ChatReadField = 'content' | 'thought' | 'logs' | 'analysis' | 'summary' | 'intent';
-export type TurnLogKind = 'character' | 'world' | 'inventory' | 'quest';
-
-export interface ListChatMessagesArgs extends FileToolArgsBase {
-  limit?: number;
-  before?: string;
-  includeHidden?: boolean;
-  /** Default false. Save turns (intent === 'save') are engine-administrative file-update turns full of XML tags — usually noise for narrative questions. Set true only when the user is asking about KB-write history itself. */
-  includeSaves?: boolean;
-}
-
-export interface SearchChatMessagesArgs extends FileToolArgsBase {
-  pattern: string;
-  scope?: ChatSearchScope;
-  caseInsensitive?: boolean;
-  limit?: number;
-  contextChars?: number;
-  /** Default false. See ListChatMessagesArgs.includeSaves. */
-  includeSaves?: boolean;
-}
-
-export interface ReadChatMessageArgs extends FileToolArgsBase {
-  messageIds: string[];
-  include?: ChatReadField[];
-}
-
-export interface ReadTurnLogsArgs extends FileToolArgsBase {
-  messageIds?: string[];
-  kinds?: TurnLogKind[];
-  recent?: number;
-}
-
 /* eslint-disable-next-line @typescript-eslint/no-empty-object-type */
-export interface UiMapArgs extends FileToolArgsBase {}
+export interface UiMapArgs extends BaseToolArgs {}
 
-export interface ListBooksArgs extends FileToolArgsBase {
+export interface ListBooksArgs extends BaseToolArgs {
   /** Optional. Filter to one collection only. */
   collectionId?: string;
   /** Default 50, capped at 200. */
@@ -282,9 +261,9 @@ export interface ListBooksArgs extends FileToolArgsBase {
 }
 
 /* eslint-disable-next-line @typescript-eslint/no-empty-object-type */
-export interface ListCollectionsArgs extends FileToolArgsBase {}
+export interface ListCollectionsArgs extends BaseToolArgs {}
 
-export interface ProposeChatReplaceArgs extends FileToolArgsBase {
+export interface ProposeChatReplaceArgs extends BaseToolArgs {
   search: string;
   replace: string;
   caseSensitive?: boolean;
@@ -295,20 +274,17 @@ export interface ProposeChatReplaceArgs extends FileToolArgsBase {
   fieldFilter?: ChatReplaceField;
 }
 
-export type ParsedAction =
-  | { action: 'readFile'; args: ReadFileArgs; callId?: string }
-  | { action: 'grep'; args: GrepArgs; callId?: string }
+/**
+ * File-agent-specific actions: KB writes + UI-help + propose-chat-replace +
+ * flow-control. file-agent's `ParsedAction = ReadOnlyAction | WriteOnlyAction`
+ * (defined below) is the full union FileAgentService extends ReadOnlyAgent with.
+ */
+export type WriteOnlyAction =
   | { action: 'searchReplace'; args: SearchReplaceArgs; callId?: string }
   | { action: 'replaceFile'; args: ReplaceFileArgs; callId?: string }
-  | { action: 'getFileOutline'; args: GetFileOutlineArgs; callId?: string }
-  | { action: 'readSection'; args: ReadSectionArgs; callId?: string }
   | { action: 'replaceSection'; args: ReplaceSectionArgs; callId?: string }
   | { action: 'insertSection'; args: InsertSectionArgs; callId?: string }
   | { action: 'insertIntoSection'; args: InsertIntoSectionArgs; callId?: string }
-  | { action: 'listChatMessages'; args: ListChatMessagesArgs; callId?: string }
-  | { action: 'searchChatMessages'; args: SearchChatMessagesArgs; callId?: string }
-  | { action: 'readChatMessage'; args: ReadChatMessageArgs; callId?: string }
-  | { action: 'readTurnLogs'; args: ReadTurnLogsArgs; callId?: string }
   | { action: 'uiMap'; args: UiMapArgs; callId?: string }
   | { action: 'listBooks'; args: ListBooksArgs; callId?: string }
   | { action: 'listCollections'; args: ListCollectionsArgs; callId?: string }
@@ -316,4 +292,10 @@ export type ParsedAction =
   | { action: 'reportProgress'; args: ReportProgressArgs; callId?: string }
   | { action: 'submitResponse'; args: SubmitResponseArgs; callId?: string };
 
-// ToolExecutionResult moved to agent-runner/agent-runner.types.ts; re-exported above.
+/**
+ * Full file-agent action union — discriminated by `action` name.
+ * Recomposed from the read subset (in agent-runner) + the write/UI/flow
+ * subset (declared above). Save-sim's PerEntitySaveAgent will define its
+ * own ParsedAction equivalent (ReadOnlyAction | SaveSimCommitAction).
+ */
+export type ParsedAction = ReadOnlyAction | WriteOnlyAction;

@@ -1,9 +1,6 @@
 import { signal } from '@angular/core';
 import { LLMContent, LLMFunctionCall, LLMFunctionDeclaration, LLMPart, LLMProvider } from '@hcs/llm-core';
-import { AgentLogEntry, Awaitable, ToolExecutionResult } from './agent-runner.types';
-// FileAgentContext + ParsedAction remain file-agent-specific (the
-// default-bound generics; subclasses substitute their own).
-import { FileAgentContext, ParsedAction } from '../file-agent/file-agent.types';
+import { AgentLogEntry, Awaitable, BaseAction, ToolExecutionResult } from './agent-runner.types';
 import {
     AgentStreamChunk,
     AgentStreamEvent,
@@ -71,7 +68,7 @@ export interface TerminalValidationResult {
  * on the leaf subclasses so each can pick its scope (singleton vs
  * per-instance) and own its DI dependencies.
  */
-export abstract class BaseToolCallAgent<TAction extends ParsedAction = ParsedAction, TContext = FileAgentContext> {
+export abstract class BaseToolCallAgent<TAction extends BaseAction, TContext> {
     // ===== Loop state (observable by UI + traces) =====
     readonly agentHistory = signal<LLMContent[]>([]);
     readonly agentLogs = signal<AgentLogEntry[]>([]);
@@ -458,7 +455,10 @@ export abstract class BaseToolCallAgent<TAction extends ParsedAction = ParsedAct
         a: TAction, context: TContext, mode: 'native' | 'json', ctx: TurnContext, turnCount = 0,
     ): Promise<void> {
         if (a.action === 'reportProgress') {
-            const message = this.processToolMessageArg(a.args['message']);
+            // a.args is `unknown` (TAction is generic) — TS won't narrow on
+            // a.action alone. Pass to processToolMessageArg which already
+            // accepts unknown and coerces.
+            const message = this.processToolMessageArg(readArg(a.args, 'message'));
             this.updateLogAt(ctx.currentLogIndex, e => ({ ...e, text: message, isToolCall: false }));
             this.appendToolResults([{ action: a, response: { status: 'acknowledged' } }], mode);
             await this.processAgentTurn(context, 0, turnCount + 1);
@@ -485,6 +485,12 @@ export abstract class BaseToolCallAgent<TAction extends ParsedAction = ParsedAct
     /**
      * Multi-action batch: append a fresh log entry per action (so each tool
      * call is visible on its own line), execute each in turn, then recurse.
+     *
+     * Lifecycle hooks `onBatchLoopStart` / `onBatchLoopEnd` bracket the
+     * per-action loop so subclasses can coalesce per-tool side effects
+     * (e.g. file-agent batches its `lastFilesReplaced` signal update so
+     * the file-viewer's diff-view doesn't flicker through intermediate
+     * states between awaited dispatchTool calls). Default no-op.
      */
     protected async executeBatchActions(
         actions: TAction[], context: TContext, mode: 'native' | 'json', ctx: TurnContext, turnCount = 0,
@@ -494,36 +500,57 @@ export abstract class BaseToolCallAgent<TAction extends ParsedAction = ParsedAct
         const hasUsefulCommentary = mode === 'native' && ctx.accumulatedText.trim().length > 0;
         let streamingEntryAvailable = !hasUsefulCommentary;
 
-        for (const a of actions) {
-            if (a.action === 'reportProgress') {
-                const message = this.processToolMessageArg(a.args['message']);
+        this.onBatchLoopStart();
+        try {
+            for (const a of actions) {
+                if (a.action === 'reportProgress') {
+                    const message = this.processToolMessageArg(readArg(a.args, 'message'));
+                    if (streamingEntryAvailable) {
+                        this.updateLogAt(ctx.currentLogIndex, e => ({ ...e, text: message, isToolCall: false }));
+                        streamingEntryAvailable = false;
+                    } else {
+                        this.agentLogs.update(logs => [...logs, { role: 'model', text: message, type: 'model' as const }]);
+                    }
+                    executed.push({ action: a, response: { status: 'acknowledged' } });
+                    continue;
+                }
+                const toolEntry = this.buildToolCallLogEntry(a);
                 if (streamingEntryAvailable) {
-                    this.updateLogAt(ctx.currentLogIndex, e => ({ ...e, text: message, isToolCall: false }));
+                    this.updateLogAt(ctx.currentLogIndex, e => ({ ...e, ...toolEntry }));
                     streamingEntryAvailable = false;
                 } else {
-                    this.agentLogs.update(logs => [...logs, { role: 'model', text: message, type: 'model' as const }]);
+                    this.agentLogs.update(logs => [...logs, toolEntry]);
                 }
-                executed.push({ action: a, response: { status: 'acknowledged' } });
-                continue;
+                const result = await this.dispatchTool(a, context);
+                if (result.infoLog) {
+                    this.agentLogs.update(logs => [...logs, { role: 'system', text: result.infoLog!, type: 'info' }]);
+                }
+                this.pushToolResultLog(result.response, toolEntry.toolName);
+                executed.push({ action: a, response: result.response });
             }
-            const toolEntry = this.buildToolCallLogEntry(a);
-            if (streamingEntryAvailable) {
-                this.updateLogAt(ctx.currentLogIndex, e => ({ ...e, ...toolEntry }));
-                streamingEntryAvailable = false;
-            } else {
-                this.agentLogs.update(logs => [...logs, toolEntry]);
-            }
-            const result = await this.dispatchTool(a, context);
-            if (result.infoLog) {
-                this.agentLogs.update(logs => [...logs, { role: 'system', text: result.infoLog!, type: 'info' }]);
-            }
-            this.pushToolResultLog(result.response, toolEntry.toolName);
-            executed.push({ action: a, response: result.response });
+        } finally {
+            // Always pair with onBatchLoopStart so subclass flag state is
+            // restored even if an action throws.
+            this.onBatchLoopEnd();
         }
 
         this.appendToolResults(executed, mode);
         await this.processAgentTurn(context, 0, turnCount + 1);
     }
+
+    /**
+     * Fires before the multi-action loop begins iterating. Subclass override
+     * point for "I'm about to dispatch N tools — start collecting per-tool
+     * side effects so I can emit them once when the loop ends." Default no-op.
+     */
+    protected onBatchLoopStart(): void { /* no-op */ }
+
+    /**
+     * Fires after the multi-action loop finishes (before `appendToolResults`
+     * + recursive next turn). Subclass override point for "emit the batched
+     * side effects collected during the loop." Default no-op.
+     */
+    protected onBatchLoopEnd(): void { /* no-op */ }
 
     /**
      * Append a single user-role message containing all tool responses from
@@ -559,8 +586,8 @@ export abstract class BaseToolCallAgent<TAction extends ParsedAction = ParsedAct
      * `entityName`) override {@link formatToolName} to enrich the label.
      */
     protected buildToolCallLogEntry(a: TAction): AgentLogEntry & { toolName: string } {
-        const args = a.args;
-        const reason = ('reason' in args && typeof args.reason === 'string') ? args.reason : undefined;
+        const reasonArg = readArg(a.args, 'reason');
+        const reason = typeof reasonArg === 'string' ? reasonArg : undefined;
         return {
             role: 'model',
             text: this.formatToolCallEntryText(a),
@@ -600,12 +627,27 @@ export abstract class BaseToolCallAgent<TAction extends ParsedAction = ParsedAct
 }
 
 /**
+ * Read a single arg key off a generic action's `args: unknown`. Returns
+ * undefined when args isn't an object or the key is missing — caller does
+ * the typeof check on the returned value.
+ *
+ * BaseAction's `args: unknown` keeps subclass action unions free to use
+ * specific arg interfaces, but the base loop's a few generic accesses
+ * (reportProgress.message / submitResponse.message / reason on every call)
+ * need to read through this helper since TS can't narrow on the generic.
+ */
+function readArg(args: unknown, key: string): unknown {
+    if (args === null || typeof args !== 'object') return undefined;
+    return (args as Record<string, unknown>)[key];
+}
+
+/**
  * Pure parse: native mode wraps `LLMFunctionCall[]` into action shape; JSON
  * mode tolerates surrounding noise (`/\{[\s\S]*\}/` extracts the outermost
  * JSON object) and validates the action shape. Failure path is a single
  * sentinel — caller drives the retry policy.
  */
-export function parseActionsFromOutput<TAction extends ParsedAction>(
+export function parseActionsFromOutput<TAction extends BaseAction>(
     mode: 'native' | 'json',
     accumulatedText: string,
     nativeFunctionCalls: LLMFunctionCall[],

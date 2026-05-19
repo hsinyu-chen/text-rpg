@@ -1,11 +1,11 @@
-import type { ToolExecutionResult } from '../agent-runner.types';
 import type {
+    BaseAction,
     ReadFileArgs,
     GrepArgs,
     GetFileOutlineArgs,
     ReadSectionArgs,
-    ParsedAction,
-} from '../../file-agent/file-agent.types';
+    ToolExecutionResult,
+} from '../agent-runner.types';
 import { parseMarkdownOutline, resolveSection } from '../../file-agent/markdown-section.util';
 import { clampInt } from './tool-helpers';
 
@@ -23,12 +23,12 @@ export interface KbReadContext {
  * this family — the caller (a higher-level agent dispatcher) falls through
  * to other domain dispatchers in that case.
  */
-export function dispatchKbReadTool(action: ParsedAction, context: KbReadContext): ToolExecutionResult | null {
+export function dispatchKbReadTool(action: BaseAction, context: KbReadContext): ToolExecutionResult | null {
     switch (action.action) {
-        case 'readFile': return readFile(action.args, context);
-        case 'grep': return grep(action.args, context);
-        case 'getFileOutline': return getFileOutline(action.args, context);
-        case 'readSection': return readSection(action.args, context);
+        case 'readFile': return readFile(action.args as ReadFileArgs, context);
+        case 'grep': return grep(action.args as GrepArgs, context);
+        case 'getFileOutline': return getFileOutline(action.args as GetFileOutlineArgs, context);
+        case 'readSection': return readSection(action.args as ReadSectionArgs, context);
         default: return null;
     }
 }

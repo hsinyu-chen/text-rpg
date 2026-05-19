@@ -1,6 +1,5 @@
 import { LLMFunctionDeclaration } from '@hcs/llm-core';
-import { Awaitable, ToolExecutionResult } from './agent-runner.types';
-import { ParsedAction } from '../file-agent/file-agent.types';
+import { Awaitable, BaseAction, ReadOnlyAction, ToolExecutionResult } from './agent-runner.types';
 import { BaseToolCallAgent } from './base-tool-call-agent';
 import { KB_READ_TOOLS } from './tools/kb-read-tools';
 import { CHAT_READ_TOOLS } from './tools/chat-read-tools';
@@ -37,7 +36,7 @@ export type ReadOnlyAgentContext = KbReadContext & ChatReadContext;
  *  fresh array via `super.tools` (which returns this constant by reference). */
 const READ_ONLY_TOOLS: readonly LLMFunctionDeclaration[] = [...KB_READ_TOOLS, ...CHAT_READ_TOOLS];
 
-export abstract class ReadOnlyAgent<TAction extends ParsedAction = ParsedAction, TContext extends ReadOnlyAgentContext = ReadOnlyAgentContext>
+export abstract class ReadOnlyAgent<TAction extends BaseAction = ReadOnlyAction, TContext extends ReadOnlyAgentContext = ReadOnlyAgentContext>
     extends BaseToolCallAgent<TAction, TContext> {
 
     protected get tools(): LLMFunctionDeclaration[] {

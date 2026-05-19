@@ -77,7 +77,7 @@ export type { FileAgentContext, ToolCallMode } from './file-agent.types';
  *      (Inject tool result & next turn)
  */
 @Injectable({ providedIn: 'root' })
-export class FileAgentService extends ReadOnlyAgent<ParsedAction> {
+export class FileAgentService extends ReadOnlyAgent<ParsedAction, FileAgentContext> {
   private llmConfigService = inject(LLMConfigService);
   private llmProviderRegistry = inject(LLMProviderRegistryService);
   private kv = inject(KVStore);
@@ -523,12 +523,37 @@ export class FileAgentService extends ReadOnlyAgent<ParsedAction> {
   }
 
   /**
+   * Accumulator for the multi-action batch path. `null` outside a batch —
+   * dispatchTool then emits `lastFilesReplaced.set(...)` per-call (single
+   * action mode). When set (between `onBatchLoopStart` / `onBatchLoopEnd`),
+   * dispatchTool pushes per-call writes into here instead, and onBatchLoopEnd
+   * emits ONE signal update after the loop completes. Prevents file-viewer
+   * diff-view flicker between awaited dispatchTool calls in a batch.
+   */
+  private batchReplacementsCollector: { filename: string; content: string }[] | null = null;
+
+  protected override onBatchLoopStart(): void {
+    this.batchReplacementsCollector = [];
+  }
+
+  protected override onBatchLoopEnd(): void {
+    const collected = this.batchReplacementsCollector;
+    this.batchReplacementsCollector = null;
+    if (collected && collected.length > 0) {
+      this.lastFilesReplaced.set(collected);
+    }
+  }
+
+  /**
    * Augments ReadOnlyAgent.dispatchTool by:
    * - Falling back to `executeFileTool` for file-agent tools (write +
    *   UI-help + propose + flow-control) when the read-tool dispatcher
    *   doesn't claim the action.
    * - Wrapping `context.onFileReplaced` to surface each write into
    *   `lastFilesReplaced` so the file-viewer diff-view effect picks them up.
+   *   In batch mode (between `onBatchLoopStart` / `onBatchLoopEnd`), writes
+   *   accumulate locally for a single end-of-loop signal update; in
+   *   single-action mode, the signal fires per call.
    * - Catching `EditChannelLostError` (raised when the user closes the
    *   File Viewer mid-write) and returning a structured tool error so the
    *   LLM treats it as a tool failure (not an aborted run) and stops
@@ -549,7 +574,15 @@ export class FileAgentService extends ReadOnlyAgent<ParsedAction> {
     };
     try {
       const result = await executeFileTool(action, wrapped);
-      if (replaced.length > 0) this.lastFilesReplaced.set(replaced);
+      if (replaced.length > 0) {
+        if (this.batchReplacementsCollector !== null) {
+          // Batch mode — defer the signal update to onBatchLoopEnd.
+          this.batchReplacementsCollector.push(...replaced);
+        } else {
+          // Single-action mode — fire the signal immediately.
+          this.lastFilesReplaced.set(replaced);
+        }
+      }
       return result;
     } catch (e) {
       if (e instanceof EditChannelLostError) {

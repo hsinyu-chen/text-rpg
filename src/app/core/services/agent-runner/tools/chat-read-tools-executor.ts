@@ -1,13 +1,13 @@
-import type { ToolExecutionResult } from '../agent-runner.types';
 import type {
+    BaseAction,
     ListChatMessagesArgs,
     SearchChatMessagesArgs,
     ReadChatMessageArgs,
     ReadTurnLogsArgs,
     ChatReadField,
     TurnLogKind,
-    ParsedAction,
-} from '../../file-agent/file-agent.types';
+    ToolExecutionResult,
+} from '../agent-runner.types';
 import type { ChatMessage } from '@app/core/models/types';
 import { clampInt } from './tool-helpers';
 
@@ -28,12 +28,12 @@ const NO_CHAT_HISTORY = 'No chat history available. The agent is running outside
  * Dispatcher for the chat-read tool family. Returns null for actions outside
  * this family.
  */
-export function dispatchChatReadTool(action: ParsedAction, context: ChatReadContext): ToolExecutionResult | null {
+export function dispatchChatReadTool(action: BaseAction, context: ChatReadContext): ToolExecutionResult | null {
     switch (action.action) {
-        case 'listChatMessages': return listChatMessages(action.args, context);
-        case 'searchChatMessages': return searchChatMessages(action.args, context);
-        case 'readChatMessage': return readChatMessage(action.args, context);
-        case 'readTurnLogs': return readTurnLogs(action.args, context);
+        case 'listChatMessages': return listChatMessages(action.args as ListChatMessagesArgs, context);
+        case 'searchChatMessages': return searchChatMessages(action.args as SearchChatMessagesArgs, context);
+        case 'readChatMessage': return readChatMessage(action.args as ReadChatMessageArgs, context);
+        case 'readTurnLogs': return readTurnLogs(action.args as ReadTurnLogsArgs, context);
         default: return null;
     }
 }
