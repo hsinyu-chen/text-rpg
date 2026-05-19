@@ -495,16 +495,22 @@ function listCollections(_args: ListCollectionsArgs, context: FileAgentContext):
     bookCountById.set(b.collectionId, (bookCountById.get(b.collectionId) ?? 0) + 1);
   }
 
+  // Sort alphabetically by display name — there's no temporal axis on
+  // collections (unlike listBooks's lastActiveAt) so insertion order is
+  // arbitrary. Matches the "lists need stable ordering" rule applied to
+  // grep / listChatMessages / searchChatMessages in this PR.
+  const sorted = [...collections].sort((a, b) => a.name.localeCompare(b.name));
+
   return {
     response: {
-      collections: collections.map(c => ({
+      collections: sorted.map(c => ({
         id: c.id,
         url: `app://collection/${c.id}`,
         name: c.name,
         bookCount: bookCountById.get(c.id) ?? 0,
         isRoot: c.id === ROOT_COLLECTION_ID
       })),
-      count: collections.length
+      count: sorted.length
     }
   };
 }

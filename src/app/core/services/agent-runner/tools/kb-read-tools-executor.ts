@@ -86,7 +86,12 @@ function grep(args: GrepArgs, context: KbReadContext): ToolExecutionResult {
         if (fileContent === undefined) return { response: { error: 'File not found' } };
         filesToSearch = [[filename, fileContent]];
     } else {
-        filesToSearch = Array.from(context.files.entries());
+        // Sort by filename so cross-file grep results are deterministic — the
+        // model otherwise sees results in Map insertion order, which depends
+        // on session load order and varies across runs. Matches the "lists
+        // need stable ordering" rule applied to listCollections /
+        // listChatMessages / searchChatMessages in this PR.
+        filesToSearch = Array.from(context.files.entries()).sort((a, b) => a[0].localeCompare(b[0]));
     }
 
     interface Match { filename: string; line: number; text: string; before?: string[]; after?: string[] }

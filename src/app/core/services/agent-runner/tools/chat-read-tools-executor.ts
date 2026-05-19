@@ -141,7 +141,12 @@ function searchChatMessages(args: SearchChatMessagesArgs, context: ChatReadConte
     let truncated = false;
     let suppressedSaves = 0;
 
-    outer: for (const m of chat) {
+    // Iterate newest-first so limit-hit truncation keeps the most recent
+    // matches — aligns with listChatMessages's newest-first convention and
+    // matches the chat sidebar's "scroll up = older" mental model. Hidden +
+    // save-intent filters still apply per message regardless of direction.
+    outer: for (let i = chat.length - 1; i >= 0; i--) {
+        const m = chat[i];
         if (m.isHidden) continue;
         if (!includeSaves && m.intent === 'save') { suppressedSaves++; continue; }
         // Build snippets only up to PER_MESSAGE_CAP; keep counting beyond it so

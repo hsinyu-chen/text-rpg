@@ -682,11 +682,14 @@ describe('searchChatMessages', () => {
     expect(r.response).toMatchObject({ error: expect.stringMatching(/Invalid regex/) });
   });
 
-  it('searches content by default and skips hidden', () => {
+  it('searches content by default and skips hidden, newest-first', () => {
     const { context } = makeContext({}, makeChat());
     const r = run({ action: 'searchChatMessages', args: { reason: 'check', pattern: 'EMP' } }, context);
     const resp = r.response as { hits: { messageId: string; scope: string }[]; count: number };
-    expect(resp.hits.map(h => h.messageId)).toEqual(['m1', 'm2']);
+    // Newest-first iteration: m2 (model response mentioning EMP rifle) before
+    // m1 (user message mentioning EMP rifle). Matches listChatMessages's
+    // newest-first convention so limit-hits keep the most recent matches.
+    expect(resp.hits.map(h => h.messageId)).toEqual(['m2', 'm1']);
     expect(resp.hits.every(h => h.scope === 'content')).toBe(true);
   });
 
