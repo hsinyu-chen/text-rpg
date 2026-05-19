@@ -46,6 +46,10 @@ export interface MechanicalHandlerContext {
 export function applyInventoryDeltas(deltas: readonly InventoryDelta[], ctx: MechanicalHandlerContext): string {
     if (deltas.length === 0) return '';
 
+    // Split once up-front so a manifest with N deltas does one pass over the
+    // file instead of N. Inventory files in real KBs sit around ~50-200 lines;
+    // the wasted work is small but the fix is free.
+    const lines = ctx.fileContent.split('\n');
     const ops: SaveUpdateOp[] = [];
     for (const delta of deltas) {
         switch (delta.op) {
@@ -54,7 +58,7 @@ export function applyInventoryDeltas(deltas: readonly InventoryDelta[], ctx: Mec
                 break;
             }
             case 'remove': {
-                const existing = findItemLine(ctx.fileContent, delta.item);
+                const existing = findItemLine(lines, delta.item);
                 if (existing) {
                     // FileUpdateParser.dedent strips the leading/trailing
                     // blank lines off <target>, so we can't actually send
@@ -67,7 +71,7 @@ export function applyInventoryDeltas(deltas: readonly InventoryDelta[], ctx: Mec
                 break;
             }
             case 'update': {
-                const existing = findItemLine(ctx.fileContent, delta.item);
+                const existing = findItemLine(lines, delta.item);
                 if (existing) {
                     ops.push({ kind: 'replace', target: existing, replacement: formatItemLine(delta) });
                 } else {
@@ -93,10 +97,13 @@ function formatItemLine(delta: InventoryDelta): string {
  * substring. Accepts indented list items (`  - foo`) — common when items
  * live under a category sub-heading. Returns the line verbatim (including
  * any leading indent) so the resulting `<target>` matches the file exactly.
+ *
+ * Takes a pre-split line array rather than the raw file content so a
+ * delta-loop can split once and reuse — see {@link applyInventoryDeltas}.
  */
-function findItemLine(fileContent: string, itemName: string): string | null {
+function findItemLine(lines: readonly string[], itemName: string): string | null {
     if (!itemName) return null;
-    for (const line of fileContent.split('\n')) {
+    for (const line of lines) {
         if (line.trimStart().startsWith('- ') && line.includes(itemName)) {
             return line;
         }

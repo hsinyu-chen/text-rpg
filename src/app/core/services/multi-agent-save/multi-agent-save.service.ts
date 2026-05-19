@@ -73,6 +73,27 @@ export class MultiAgentSaveService {
         // concurrent runs sharing the same SaveProgressTracker.
         if (this.progress.isRunning()) return;
 
+        // Precondition guards: parallel to GameEngineService.startSession's
+        // sanity checks — multi-agent save bypasses prepareCacheOrAbort so
+        // it must self-validate. Empty KB → SaveAgent would still produce
+        // a manifest and the dispatcher would silently do nothing.
+        if (!this.state.isConfigured()) {
+            this.snackBar.open(
+                this.i18n.translate('multiAgentSave.run.notConfigured'),
+                this.i18n.translate('ui.CLOSE'),
+                { duration: 6000, panelClass: ['snackbar-warning'] },
+            );
+            return;
+        }
+        if (this.state.loadedFiles().size === 0) {
+            this.snackBar.open(
+                this.i18n.translate('multiAgentSave.run.noFiles'),
+                this.i18n.translate('ui.CLOSE'),
+                { duration: 6000, panelClass: ['snackbar-warning'] },
+            );
+            return;
+        }
+
         this.progress.reset();
         this.progress.setRunning(true);
 
@@ -239,7 +260,12 @@ export class MultiAgentSaveService {
         if (!result || !Array.isArray(result) || result.length === 0) return;
 
         const applied = await this.fileUpdate.applyUpdates(result);
-        await this.session.loadFiles(false);
+        // bumpTimestamp must be true so cloud sync sees the KB edit as a
+        // real change. Legacy save calls `engine.loadFiles(false)` whose
+        // default is `bumpTimestamp=true`, but SessionService.loadFiles
+        // defaults `bumpTimestamp=false` — we have to pass it explicitly
+        // since we can't inject GameEngineService (circular DI).
+        await this.session.loadFiles(false, true);
         this.snackBar.open(
             this.i18n.translate('ui.APPLIED_FILE_UPDATES', { count: applied.length }),
             this.i18n.translate('ui.CLOSE'),
@@ -265,5 +291,6 @@ function isAbortError(err: unknown): boolean {
  */
 function isCleanFinish(finishReason: string): boolean {
     const normalized = finishReason.toLowerCase();
+    // 'null' covers providers that stringify a literal null finishReason.
     return normalized === 'stop' || normalized === 'null' || normalized === '';
 }

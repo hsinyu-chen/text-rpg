@@ -198,10 +198,6 @@ export interface SaveManifest {
   completenessAudit: CompletenessAudit;
 }
 
-/**
- * Mechanical sub-tool identifiers — one per dispatch branch the handler
- * registry implements. Used as the `toolName` field on progress events.
- */
 // ============================================================================
 // Progress events — emitted by every layer (SaveAgent / dispatcher / sub-tool)
 // for the SaveProgressDialog to render per-entry cards.
