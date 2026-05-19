@@ -98,16 +98,10 @@ export function moveEntities(
         pushToMap(appendsByGroup, ctxPath, { kind: 'append', replacement: `\n${block}` });
     }
 
-    const parts: string[] = [];
-    if (deleteOps.length > 0) {
-        const deleteBlock = saveBlock(ctx.targetFile, '', deleteOps);
-        if (deleteBlock) parts.push(deleteBlock);
-    }
-    for (const [groupPath, ops] of appendsByGroup) {
-        const block = saveBlock(ctx.targetFile, groupPath, ops);
-        if (block) parts.push(block);
-    }
-    return parts.join('\n');
+    const deleteXml = saveBlock(ctx.targetFile, '', deleteOps);
+    const appendXmls = [...appendsByGroup.entries()]
+        .map(([groupPath, ops]) => saveBlock(ctx.targetFile, groupPath, ops));
+    return [deleteXml, ...appendXmls].filter(s => s.length > 0).join('\n');
 }
 
 /**

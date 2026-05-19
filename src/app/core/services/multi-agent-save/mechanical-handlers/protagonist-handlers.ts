@@ -245,7 +245,7 @@ export function applyPlansDeltas(deltas: readonly PlanDelta[], ctx: MechanicalHa
 }
 
 function renderPlanBlock(heading: string, body: string | undefined): string {
-    const trimmedBody = (body ?? '').replace(/^\n+/, '').replace(/\n+$/, '');
+    const trimmedBody = (body ?? '').trim();
     return trimmedBody ? `## ${heading}\n\n${trimmedBody}` : `## ${heading}`;
 }
 
