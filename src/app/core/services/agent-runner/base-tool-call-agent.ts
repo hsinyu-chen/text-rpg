@@ -453,7 +453,7 @@ export abstract class BaseToolCallAgent<TAction extends ParsedAction = ParsedAct
         a: TAction, context: TContext, mode: 'native' | 'json', ctx: TurnContext, turnCount = 0,
     ): Promise<void> {
         if (a.action === 'reportProgress') {
-            const message = this.processToolMessageArg((a as unknown as { args: { message: unknown } }).args.message);
+            const message = this.processToolMessageArg(a.args['message']);
             this.updateLogAt(ctx.currentLogIndex, e => ({ ...e, text: message, isToolCall: false }));
             this.appendToolResults([{ action: a, response: { status: 'acknowledged' } }], mode);
             await this.processAgentTurn(context, 0, turnCount + 1);
@@ -491,7 +491,7 @@ export abstract class BaseToolCallAgent<TAction extends ParsedAction = ParsedAct
 
         for (const a of actions) {
             if (a.action === 'reportProgress') {
-                const message = this.processToolMessageArg((a as unknown as { args: { message: unknown } }).args.message);
+                const message = this.processToolMessageArg(a.args['message']);
                 if (streamingEntryAvailable) {
                     this.updateLogAt(ctx.currentLogIndex, e => ({ ...e, text: message, isToolCall: false }));
                     streamingEntryAvailable = false;
@@ -554,8 +554,8 @@ export abstract class BaseToolCallAgent<TAction extends ParsedAction = ParsedAct
      * `entityName`) override {@link formatToolName} to enrich the label.
      */
     protected buildToolCallLogEntry(a: TAction): AgentLogEntry & { toolName: string } {
-        const args = (a as unknown as { args: Record<string, unknown> }).args;
-        const reason = (typeof args['reason'] === 'string') ? args['reason'] : undefined;
+        const args = a.args;
+        const reason = ('reason' in args && typeof args.reason === 'string') ? args.reason : undefined;
         return {
             role: 'model',
             text: this.formatToolCallEntryText(a),
@@ -578,7 +578,7 @@ export abstract class BaseToolCallAgent<TAction extends ParsedAction = ParsedAct
 
     /** How the action body is rendered into the trace log entry's `text`. */
     protected formatToolCallEntryText(a: TAction): string {
-        return JSON.stringify({ action: a.action, args: (a as unknown as { args: unknown }).args });
+        return JSON.stringify({ action: a.action, args: a.args });
     }
 
     // ===== Helper exposed for subclass setup =====
