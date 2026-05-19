@@ -151,10 +151,13 @@ export class MultiAgentSaveService {
                 );
             }
 
-            // 4. Dispatcher — fans out to mechanical handlers (Phase 1: inventoryDeltas only).
+            // 4. Dispatcher — fans out to mechanical handlers. Phase 1 A2 wires
+            //    every mechanical tool; LLM sub-tools land in a later slice.
+            const locale = getLocale(lang);
             const dispatchResult = this.dispatcher.dispatch({
                 manifest,
-                coreFilenames: getLocale(lang).coreFilenames,
+                coreFilenames: locale.coreFilenames,
+                kbSectionHeadings: locale.kbSectionHeadings,
                 kbFiles: this.state.loadedFiles(),
             });
 

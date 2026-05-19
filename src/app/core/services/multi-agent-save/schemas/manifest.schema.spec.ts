@@ -116,7 +116,7 @@ describe('validateManifest', () => {
             inventoryDeltas: [{ op: 'add', item: 'x', details: 'y' }],
             assetsDeltas: [],
             plansDeltas: [{ op: 'add', title: 'p', body: 'b' }],
-            techEquipmentUpdates: [{ sectionPath: '# X > ## Y', content: 'z' }],
+            techEquipmentUpdates: [{ sectionPath: '# X > ## Y', target: 'old', replacement: 'new' }],
             magicSkillsUpdates: [],
             worldFeaturesUpdates: [],
             charactersToCreate: [],
