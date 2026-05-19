@@ -12,7 +12,7 @@ import { GAME_INTENTS, STORY_INTENTS } from '../constants/game-intents';
 import { IdealStrength, StructuredAnalysis } from '../constants/engine-protocol-structured';
 import { applyIntentTag, buildResolverUserMessage, buildNarratorUserMessage } from './turn-engines/build-context-utils';
 import { stripSystemMainMarker } from './profile-compat';
-import { extractBaseSceneHeader, extractTimeMarkerRange } from '@app/core/utils/scene-header.util';
+import { extractSceneHeader } from '@app/core/utils/scene-header.util';
 
 // Engine prompt directives (HISTORICAL_CORRECTION_RULE, IDEAL_OUTCOME_CONSTRAINT)
 // live in the locale files under `enginePromptDirectives`. Engine behaviour,
@@ -233,17 +233,7 @@ export class ContextBuilderService {
                     const stateUpdates: string[] = this.getDetailFields(m);
 
                     if (stateUpdates.length > 0) {
-                        const baseHeader = extractBaseSceneHeader(m.content);
-                        const timeHeader = extractTimeMarkerRange(m.content);
-                        // If base is itself a `[T …]` bracket, the time range
-                        // already covers it — drop base to avoid emitting
-                        // `[T 12:00] [T 12:00~T 13:00]`. Regex (not
-                        // `startsWith`) so leading whitespace inside the
-                        // bracket (`[ T 12:42]`, allowed by SCENE_HEADER_RE)
-                        // still gets caught.
-                        const finalHeader = (timeHeader && /^\[\s*T/.test(baseHeader))
-                            ? timeHeader
-                            : [baseHeader, timeHeader].filter(h => !!h).join(' ');
+                        const finalHeader = extractSceneHeader(m.content);
                         currentBlockText += (finalHeader ? `${finalHeader} ` : '') + `---\n${stateUpdates.join('\n')}\n---\n`;
                         modelCountInCurrentBlock++;
 

@@ -1103,6 +1103,7 @@ export const en: TranslationDict = {
             linesLabel: 'lines {{start}}–{{end}}',
             sliceInfo: 'Slice: saveContextMode={{mode}}, smartContextTurns={{turns}}',
             noSceneHeader: '(no scene header)',
+            summaryLabel: 'summary',
             messageIdLabel: 'message id',
             close: 'Close',
         },

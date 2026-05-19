@@ -1103,6 +1103,7 @@ export const zhTW: TranslationDict = {
             linesLabel: '第 {{start}}–{{end}} 行',
             sliceInfo: '切片:saveContextMode={{mode}}、smartContextTurns={{turns}}',
             noSceneHeader: '(無場景表頭)',
+            summaryLabel: '摘要',
             messageIdLabel: '訊息 id',
             close: '關閉',
         },
