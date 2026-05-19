@@ -79,12 +79,12 @@
                                         <span>{{ event.summary }}</span>
                                     </div>
                                 }
-                                @for (field of ['character_log', 'inventory_log', 'quest_log', 'world_log']; track field) {
-                                    @if ($any(event)[field].length > 0) {
+                                @for (field of logFields; track field) {
+                                    @if (event[field].length > 0) {
                                         <div class="event-field">
                                             <strong>{{ field }}:</strong>
                                             <ul>
-                                                @for (entry of $any(event)[field]; track $index) {
+                                                @for (entry of event[field]; track $index) {
                                                     <li>{{ entry }}</li>
                                                 }
                                             </ul>

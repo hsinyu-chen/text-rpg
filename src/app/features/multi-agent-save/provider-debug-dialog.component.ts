@@ -6,12 +6,14 @@ import { TranslatePipe } from '@app/core/i18n';
 import { GameStateService } from '@app/core/services/game-state.service';
 import { AppConfigStore } from '@app/core/services/app-config-store';
 import { CHARACTER_PROVIDER, FACTION_PROVIDER, SCENE_EVENT_PROVIDER } from '@app/core/services/multi-agent-save/multi-agent-save.tokens';
+import { SCENE_EVENT_LOG_FIELDS } from '@app/core/services/multi-agent-save/multi-agent-save.types';
 
 /**
- * Inspector for the multi-agent save data providers (Phase 1: Character
- * and SceneEvent only). Read-only — opens from Settings, shows what each
- * provider extracts from the currently loaded Book + chat state, so a
- * regression in extraction can be diagnosed without firing a real save run.
+ * Inspector for the multi-agent save data providers (Phase 0: Character,
+ * Faction, and Scene Events). Read-only — opens from Settings, shows what
+ * each provider extracts from the currently loaded Book + chat state, so
+ * a regression in extraction can be diagnosed without firing a real save
+ * run.
  *
  * Provider outputs go through `resource()` because the interfaces are
  * Awaitable (Phase 4 swap to LLM-extracting variants is on the roadmap).
@@ -42,14 +44,17 @@ export class ProviderDebugDialogComponent {
   readonly saveContextMode = this.state.saveContextMode;
   readonly smartContextTurns = this.appConfig.smartContextTurns;
 
+  /** Exposed for the template's typed `@for` over each SceneEvent's log arrays. */
+  readonly logFields = SCENE_EVENT_LOG_FIELDS;
+
   readonly charactersResource = resource({
     params: () => ({ files: this.state.loadedFiles() }),
-    loader: ({ params }) => Promise.resolve(this.characterProvider.listCharacters(params.files)),
+    loader: async ({ params }) => this.characterProvider.listCharacters(params.files),
   });
 
   readonly factionsResource = resource({
     params: () => ({ files: this.state.loadedFiles() }),
-    loader: ({ params }) => Promise.resolve(this.factionProvider.listFactions(params.files)),
+    loader: async ({ params }) => this.factionProvider.listFactions(params.files),
   });
 
   readonly eventsResource = resource({
@@ -58,10 +63,10 @@ export class ProviderDebugDialogComponent {
       saveContextMode: this.saveContextMode(),
       smartContextTurns: this.smartContextTurns(),
     }),
-    loader: ({ params }) => Promise.resolve(this.sceneEventProvider.listEvents(params.messages, {
+    loader: async ({ params }) => this.sceneEventProvider.listEvents(params.messages, {
       saveContextMode: params.saveContextMode,
       smartContextTurns: params.smartContextTurns,
-    })),
+    }),
   });
 
   readonly characters = computed(() => this.charactersResource.value() ?? []);

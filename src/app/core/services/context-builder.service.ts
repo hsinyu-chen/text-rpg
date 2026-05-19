@@ -12,6 +12,7 @@ import { GAME_INTENTS, STORY_INTENTS } from '../constants/game-intents';
 import { IdealStrength, StructuredAnalysis } from '../constants/engine-protocol-structured';
 import { applyIntentTag, buildResolverUserMessage, buildNarratorUserMessage } from './turn-engines/build-context-utils';
 import { stripSystemMainMarker } from './profile-compat';
+import { extractBaseSceneHeader, extractTimeMarkerRange } from '@app/core/utils/scene-header.util';
 
 // Engine prompt directives (HISTORICAL_CORRECTION_RULE, IDEAL_OUTCOME_CONSTRAINT)
 // live in the locale files under `enginePromptDirectives`. Engine behaviour,
@@ -232,21 +233,13 @@ export class ContextBuilderService {
                     const stateUpdates: string[] = this.getDetailFields(m);
 
                     if (stateUpdates.length > 0) {
-                        const headerMatch = m.content.match(/\[\s*[^\]]*\d+[^\]]*\]/);
-                        const baseHeader = headerMatch ? headerMatch[0] : '';
-
-                        // Extract time markers
-                        const tMatches = [...m.content.matchAll(/\[T\s*([^\]]+)\]/g)];
-                        let timeHeader = '';
-                        if (tMatches.length > 1) {
-                            const start = tMatches[0][1].trim();
-                            const end = tMatches[tMatches.length - 1][1].trim();
-                            timeHeader = `[T ${start}~T ${end}]`;
-                        } else if (tMatches.length === 1) {
-                            timeHeader = tMatches[0][0];
-                        }
-
-                        const finalHeader = [baseHeader, timeHeader].filter(h => !!h).join(' ');
+                        const baseHeader = extractBaseSceneHeader(m.content);
+                        const timeHeader = extractTimeMarkerRange(m.content);
+                        // If base header IS the time marker (single [T ...] bracket
+                        // that carries an ASCII digit like '12:42'), don't double it.
+                        const finalHeader = (timeHeader && baseHeader.includes(timeHeader))
+                            ? baseHeader
+                            : [baseHeader, timeHeader].filter(h => !!h).join(' ');
                         currentBlockText += (finalHeader ? `${finalHeader} ` : '') + `---\n${stateUpdates.join('\n')}\n---\n`;
                         modelCountInCurrentBlock++;
 

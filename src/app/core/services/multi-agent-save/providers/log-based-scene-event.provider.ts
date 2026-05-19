@@ -9,18 +9,31 @@ import { SceneEventOptions, SceneEventProvider } from './scene-event-provider.in
  * chat messages by reading their `summary` / `*_log` fields and the
  * first-line bracket header on `content`.
  *
- * Slicing logic mirrors `ContextBuilderService.getLLMHistorySegments`:
- *  - apply the same default filter (drop ref-only messages unless they
- *    carry tool responses) so the event view tracks what legacy save sees
- *  - then a window cap by `saveContextMode`:
- *      'full'         → no cap
+ * Slice semantics:
+ *  - same default ref-only filter as `ContextBuilderService.getLLMHistorySegments`
+ *    (drops ref-only messages unless they carry a `functionResponse` part)
+ *  - recent-window cap by `saveContextMode`:
+ *      'full'         → no cap (every model message in the chat)
  *      'smart'        → last `smartContextTurns * 2` messages
  *      'summarized'   → last 2 messages
  *
- * Rule of Three: this is the 2nd site that needs the save-time slice
- * (context-builder's `getLLMHistorySegments` is the 1st). Inlined here
- * pending a 3rd caller — keep this comment so a future occurrence knows
- * to extract a shared helper instead of growing a third copy.
+ * This does NOT end-to-end mirror `getLLMHistorySegments`. That method
+ * returns `[...compressed, ...recent]` where past turns are folded into
+ * summary blocks. SceneEvent has no summary equivalent (events are
+ * structured per-message and would lose their identity if compressed),
+ * so this provider intentionally emits events only from messages in the
+ * recent window. Past turns are NOT recoverable as events.
+ *
+ * For the multi-agent save pipeline that's the right semantics:
+ *  - SaveAgent (routing call) sees the full chat history via
+ *    `ContextBuilder` snapshot — KV cache makes that cheap
+ *  - Stage B-1 (per-entity visibility filter) operates on the recent
+ *    window of structured events; older state lives in the entity's KB
+ *    card (`目前心態` etc.) which is fed separately
+ *
+ * Rule of Three: this is the 2nd site that needs save-time recent-window
+ * slicing (context-builder's `getLLMHistorySegments` is the 1st). Inlined
+ * here pending a 3rd caller — extract a shared helper at that point.
  */
 @Injectable({ providedIn: 'root' })
 export class LogBasedSceneEventProvider implements SceneEventProvider {

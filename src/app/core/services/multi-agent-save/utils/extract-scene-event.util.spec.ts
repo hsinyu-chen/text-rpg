@@ -58,7 +58,19 @@ describe('extractSceneEvent', () => {
     expect(e.sceneHeader).toBe('[T 大宋 景德三年 三月初九 12:42]');
   });
 
-  it('returns empty sceneHeader when bracket has no digit', () => {
+  it('falls back to [T ...] time marker when no bracket carries an ASCII digit (pure CJK date)', () => {
+    const content = '[T 大宋 景德三年 三月初九]\n\nstory body';
+    const e = extractSceneEvent(msg({ content, summary: 's' }))!;
+    expect(e.sceneHeader).toBe('[T 大宋 景德三年 三月初九]');
+  });
+
+  it('combines base header + time marker when both present', () => {
+    const content = '[Act.2 - 西街突襲] [T 大宋 景德三年 三月初九 12:42]\nstory';
+    const e = extractSceneEvent(msg({ content, summary: 's' }))!;
+    expect(e.sceneHeader).toBe('[Act.2 - 西街突襲] [T 大宋 景德三年 三月初九 12:42]');
+  });
+
+  it('returns empty sceneHeader when no digit-bracket and no [T ...] marker exists', () => {
     const e = extractSceneEvent(msg({ content: '[no digits here]\nbody', summary: 's' }))!;
     expect(e.sceneHeader).toBe('');
   });

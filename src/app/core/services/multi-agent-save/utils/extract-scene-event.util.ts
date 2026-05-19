@@ -1,13 +1,6 @@
 import { ChatMessage } from '@app/core/models/types';
+import { extractSceneHeader } from '@app/core/utils/scene-header.util';
 import { SceneEvent } from '../multi-agent-save.types';
-
-/**
- * First-line bracket header detection — mirrors the regex in
- * `ContextBuilderService.getLLMHistorySegments` (looks for the first
- * `[...digit...]` token on the message content). Same character class so a
- * model output that satisfies one path satisfies the other.
- */
-const SCENE_HEADER_RE = /\[\s*[^\]]*\d+[^\]]*\]/;
 
 /**
  * Extract a {@link SceneEvent} from a single chat message. Returns `null`
@@ -35,13 +28,10 @@ export function extractSceneEvent(msg: ChatMessage): SceneEvent | null {
     world_log.length > 0;
   if (!hasPayload) return null;
 
-  const headerMatch = msg.content?.match(SCENE_HEADER_RE);
-  const sceneHeader = headerMatch ? headerMatch[0] : '';
-
   return {
     eventId: msg.id.slice(0, 8),
     messageId: msg.id,
-    sceneHeader,
+    sceneHeader: extractSceneHeader(msg.content),
     summary,
     character_log: [...character_log],
     inventory_log: [...inventory_log],
