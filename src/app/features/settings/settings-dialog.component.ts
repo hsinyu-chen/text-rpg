@@ -19,6 +19,7 @@ import { SettingsSyncService } from '@app/core/services/settings-sync.service';
 import { getLanguagesList } from '@app/core/constants/locales';
 import { UI_LOCALES, type InterfaceLanguageSetting, TranslatePipe } from '@app/core/i18n';
 import { LLMProfilesDialogComponent } from './llm-profiles-dialog.component';
+import { ProviderDebugDialogComponent } from '@app/features/multi-agent-save/provider-debug-dialog.component';
 import { BridgeService } from '@app/core/services/dev/bridge.service';
 import { AppAgentHintDirective } from '@app/core/services/agent-hints/agent-hints.directive';
 
@@ -169,6 +170,13 @@ export class SettingsDialogComponent {
       maxWidth: '95vw',
       maxHeight: '90vh',
       panelClass: 'llm-profiles-dialog-panel'
+    });
+  }
+
+  openProviderDebug(): void {
+    this.matDialog.open(ProviderDebugDialogComponent, {
+      maxWidth: '95vw',
+      maxHeight: '90vh',
     });
   }
 
