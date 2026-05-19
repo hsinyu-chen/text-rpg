@@ -8,14 +8,15 @@ import {
   FileAgentContext, FileAgentRunInput, AgentLogEntry, ParsedAction,
   ChatReplaceProposal, ChatReplaceOutcome
 } from './file-agent.types';
-import { FILE_AGENT_TOOLS, buildJsonSchema } from './file-agent-tools';
+import { FILE_AGENT_TOOLS } from './file-agent-tools';
+import { buildJsonSchema } from '../agent-runner/tool-schema-builder';
 import { buildSystemInstruction } from './file-agent-prompts';
 import { executeFileTool } from './file-agent-tool-executor';
 import { WorldCompletionValidator } from './world-completion-validator';
 import { sanitizeLatexToUnicode } from '@app/core/utils/latex.util';
 import {
   processAgentStream, AgentStreamEvent, AgentStreamResult, AgentStreamChunk
-} from './agent-stream-processor';
+} from '../agent-runner/agent-stream-processor';
 import { AgentCapabilityResolver } from './agent-capability-resolver';
 import { KVStore } from '../kv/kv-store';
 import { FileAgentSettingsStore } from './file-agent-settings.store';
@@ -606,7 +607,7 @@ export class FileAgentService {
 
     const genConfig: Record<string, unknown> = mode === 'native'
       ? { tools: FILE_AGENT_TOOLS, signal: this.abortController?.signal }
-      : { responseSchema: buildJsonSchema(cap.isLocalProvider), responseMimeType: 'application/json', signal: this.abortController?.signal };
+      : { responseSchema: buildJsonSchema(FILE_AGENT_TOOLS, cap.isLocalProvider), responseMimeType: 'application/json', signal: this.abortController?.signal };
 
     // Reset progress signals for this turn before the stream lands.
     this.generatedTokenCount.set(0);

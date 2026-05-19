@@ -303,92 +303,9 @@ export const FILE_AGENT_TOOLS: LLMFunctionDeclaration[] = [
   }
 ];
 
-const ACTION_ENUM = [
-  'readFile', 'replaceFile', 'getFileOutline', 'grep', 'searchReplace',
-  'readSection', 'replaceSection', 'insertSection', 'insertIntoSection',
-  'listChatMessages', 'searchChatMessages', 'readChatMessage', 'readTurnLogs',
-  'listBooks', 'listCollections',
-  'proposeChatReplace',
-  'reportProgress', 'submitResponse'
-];
-
-export function buildJsonSchema(isLocal: boolean): object {
-  if (isLocal) {
-    return {
-      type: 'object',
-      anyOf: [
-        { properties: { action: { type: 'string', enum: ['readFile'] }, args: { type: 'object', properties: { reason: { type: 'string' }, filename: { type: 'string' }, startLine: { type: 'number' }, lineCount: { type: 'number' } }, required: ['reason', 'filename'], additionalProperties: false } }, required: ['action', 'args'] },
-        { properties: { action: { type: 'string', enum: ['replaceFile'] }, args: { type: 'object', properties: { reason: { type: 'string' }, filename: { type: 'string' }, content: { type: 'string' } }, required: ['reason', 'filename', 'content'], additionalProperties: false } }, required: ['action', 'args'] },
-        { properties: { action: { type: 'string', enum: ['getFileOutline'] }, args: { type: 'object', properties: { reason: { type: 'string' }, filename: { type: 'string' } }, required: ['reason', 'filename'], additionalProperties: false } }, required: ['action', 'args'] },
-        { properties: { action: { type: 'string', enum: ['grep'] }, args: { type: 'object', properties: { reason: { type: 'string' }, pattern: { type: 'string' }, filename: { type: 'string' }, caseInsensitive: { type: 'boolean' }, maxResults: { type: 'number' }, contextLines: { type: 'number' } }, required: ['reason', 'pattern'], additionalProperties: false } }, required: ['action', 'args'] },
-        { properties: { action: { type: 'string', enum: ['searchReplace'] }, args: { type: 'object', properties: { reason: { type: 'string' }, filename: { type: 'string' }, replacements: { type: 'array', items: { type: 'object', properties: { pattern: { type: 'string' }, replacement: { type: 'string' }, isRegex: { type: 'boolean' }, caseInsensitive: { type: 'boolean' }, multiline: { type: 'boolean' }, expectedCount: { type: 'number' } }, required: ['pattern', 'replacement'] } }, expectedTotalReplacements: { type: 'number' }, dryRun: { type: 'boolean' } }, required: ['reason', 'filename', 'replacements'], additionalProperties: false } }, required: ['action', 'args'] },
-        { properties: { action: { type: 'string', enum: ['readSection'] }, args: { type: 'object', properties: { reason: { type: 'string' }, filename: { type: 'string' }, sectionPaths: { type: 'array', items: { type: 'string' } } }, required: ['reason', 'filename', 'sectionPaths'], additionalProperties: false } }, required: ['action', 'args'] },
-        { properties: { action: { type: 'string', enum: ['replaceSection'] }, args: { type: 'object', properties: { reason: { type: 'string' }, filename: { type: 'string' }, updates: { type: 'array', items: { type: 'object', properties: { sectionPath: { type: 'string' }, content: { type: 'string' }, newTitle: { type: 'string' }, force: { type: 'boolean' } }, required: ['sectionPath', 'content'] } } }, required: ['reason', 'filename', 'updates'], additionalProperties: false } }, required: ['action', 'args'] },
-        { properties: { action: { type: 'string', enum: ['insertSection'] }, args: { type: 'object', properties: { reason: { type: 'string' }, filename: { type: 'string' }, heading: { type: 'string' }, content: { type: 'string' }, anchor: { type: 'string', enum: ['prepend', 'before', 'after', 'append-into'] }, anchorSectionPath: { type: 'string' } }, required: ['reason', 'filename', 'heading'], additionalProperties: false } }, required: ['action', 'args'] },
-        { properties: { action: { type: 'string', enum: ['insertIntoSection'] }, args: { type: 'object', properties: { reason: { type: 'string' }, filename: { type: 'string' }, sectionPath: { type: 'string' }, content: { type: 'string' }, position: { type: 'string', enum: ['start', 'end'] } }, required: ['reason', 'filename', 'sectionPath', 'content', 'position'], additionalProperties: false } }, required: ['action', 'args'] },
-        { properties: { action: { type: 'string', enum: ['listChatMessages'] }, args: { type: 'object', properties: { reason: { type: 'string' }, limit: { type: 'number' }, before: { type: 'string' }, includeHidden: { type: 'boolean' }, includeSaves: { type: 'boolean' } }, required: ['reason'], additionalProperties: false } }, required: ['action', 'args'] },
-        { properties: { action: { type: 'string', enum: ['searchChatMessages'] }, args: { type: 'object', properties: { reason: { type: 'string' }, pattern: { type: 'string' }, scope: { type: 'string', enum: ['content', 'thought', 'summary', 'all'] }, caseInsensitive: { type: 'boolean' }, limit: { type: 'number' }, contextChars: { type: 'number' }, includeSaves: { type: 'boolean' } }, required: ['reason', 'pattern', 'scope'], additionalProperties: false } }, required: ['action', 'args'] },
-        { properties: { action: { type: 'string', enum: ['readChatMessage'] }, args: { type: 'object', properties: { reason: { type: 'string' }, messageIds: { type: 'array', items: { type: 'string' } }, include: { type: 'array', items: { type: 'string', enum: ['content', 'thought', 'logs', 'analysis', 'summary', 'intent'] } } }, required: ['reason', 'messageIds'], additionalProperties: false } }, required: ['action', 'args'] },
-        { properties: { action: { type: 'string', enum: ['readTurnLogs'] }, args: { type: 'object', properties: { reason: { type: 'string' }, messageIds: { type: 'array', items: { type: 'string' } }, kinds: { type: 'array', items: { type: 'string', enum: ['character', 'world', 'inventory', 'quest'] } }, recent: { type: 'number' } }, required: ['reason'], additionalProperties: false } }, required: ['action', 'args'] },
-        { properties: { action: { type: 'string', enum: ['listBooks'] }, args: { type: 'object', properties: { reason: { type: 'string' }, collectionId: { type: 'string' }, limit: { type: 'number' } }, required: ['reason'], additionalProperties: false } }, required: ['action', 'args'] },
-        { properties: { action: { type: 'string', enum: ['listCollections'] }, args: { type: 'object', properties: { reason: { type: 'string' } }, required: ['reason'], additionalProperties: false } }, required: ['action', 'args'] },
-        { properties: { action: { type: 'string', enum: ['proposeChatReplace'] }, args: { type: 'object', properties: { reason: { type: 'string' }, search: { type: 'string' }, replace: { type: 'string' }, caseSensitive: { type: 'boolean' }, wholeWord: { type: 'boolean' }, regex: { type: 'boolean' }, intentFilter: { type: 'string', enum: ['all', 'action', 'continue', 'fast_forward', 'system', 'save'] }, roleFilter: { type: 'string', enum: ['all', 'user', 'model'] }, fieldFilter: { type: 'string', enum: ['all', 'story', 'summary', 'logs'] } }, required: ['reason', 'search', 'replace'], additionalProperties: false } }, required: ['action', 'args'] },
-        { properties: { action: { type: 'string', enum: ['reportProgress'] }, args: { type: 'object', properties: { message: { type: 'string' } }, required: ['message'], additionalProperties: false } }, required: ['action', 'args'] },
-        { properties: { action: { type: 'string', enum: ['submitResponse'] }, args: { type: 'object', properties: { message: { type: 'string' } }, required: ['message'], additionalProperties: false } }, required: ['action', 'args'] }
-      ]
-    };
-  }
-  return {
-    type: 'object',
-    properties: {
-      action: { type: 'string', enum: ACTION_ENUM, description: 'The tool to use.' },
-      args: {
-        type: 'object',
-        description: 'Arguments for the tool. Required fields depend on the action. All file-operation actions also require a "reason" string.',
-        properties: {
-          reason: { type: 'string', description: REASON_DESC },
-          filename: { type: 'string' },
-          content: { type: 'string' },
-          sectionPath: { type: 'string' },
-          sectionPaths: { type: 'array', items: { type: 'string' } },
-          updates: { type: 'array', items: { type: 'object' } },
-          replacements: { type: 'array', items: { type: 'object' } },
-          expectedTotalReplacements: { type: 'number' },
-          newTitle: { type: 'string' },
-          message: { type: 'string' },
-          startLine: { type: 'number' },
-          lineCount: { type: 'number' },
-          pattern: { type: 'string' },
-          caseInsensitive: { type: 'boolean' },
-          maxResults: { type: 'number' },
-          contextLines: { type: 'number' },
-          dryRun: { type: 'boolean' },
-          heading: { type: 'string' },
-          anchor: { type: 'string' },
-          anchorSectionPath: { type: 'string' },
-          position: { type: 'string' },
-          limit: { type: 'number' },
-          before: { type: 'string' },
-          includeHidden: { type: 'boolean' },
-          includeSaves: { type: 'boolean' },
-          scope: { type: 'string' },
-          messageIds: { type: 'array', items: { type: 'string' } },
-          include: { type: 'array', items: { type: 'string' } },
-          kinds: { type: 'array', items: { type: 'string' } },
-          recent: { type: 'number' },
-          contextChars: { type: 'number' },
-          collectionId: { type: 'string' },
-          search: { type: 'string' },
-          replace: { type: 'string' },
-          caseSensitive: { type: 'boolean' },
-          wholeWord: { type: 'boolean' },
-          regex: { type: 'boolean' },
-          intentFilter: { type: 'string' },
-          roleFilter: { type: 'string' },
-          fieldFilter: { type: 'string' }
-        }
-      }
-    },
-    required: ['action', 'args']
-  };
-}
+// buildJsonSchema is now generic and lives at
+// `core/services/agent-runner/tool-schema-builder.ts`. Callers pass
+// `FILE_AGENT_TOOLS` explicitly. The old hand-coded version silently dropped
+// `uiMap` from both ACTION_ENUM and the anyOf union — generic version walks
+// the tool catalog and can't miss entries (regression-tested in
+// `tool-schema-builder.spec.ts`).
