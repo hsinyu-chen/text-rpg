@@ -32,8 +32,8 @@ your job is "decide + supply the necessary facts".
   chronicle rules (5-8 time-marker bullets, strategies / casualties /
   turning points, key dialogue). Empty string = no update.
 - `inventoryDeltas / assetsDeltas`: per-entry `{ op: add/remove/update, item, details? }`.
-  `details` describes the new state (required for add / update; may be
-  omitted for remove).
+  `details` describes the new state (required for add / update; ignored
+  for remove).
 - `plansDeltas`: per-entry `{ op, title, body? }` for quests / personal goals.
 - `techEquipmentUpdates / magicSkillsUpdates / worldFeaturesUpdates`:
   per-entry `{ sectionPath, content }`. `sectionPath` uses ` > ` separators

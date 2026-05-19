@@ -24,7 +24,7 @@
 ### 機械 sub-tool 區段（你提供具體內容，dispatcher 機械式組 XML）
 
 - `storyOutlineBlock`：本 ACT 整段劇情綱要區塊。依編年史原則寫好（5-8 個時間節點、策略/傷亡/轉折、關鍵台詞）。空字串代表不更新。
-- `inventoryDeltas / assetsDeltas`：逐條 `{ op: add/remove/update, item, details? }`。`details` 為新狀態描述（add / update 必填，remove 可省略）。
+- `inventoryDeltas / assetsDeltas`：逐條 `{ op: add/remove/update, item, details? }`。`details` 為新狀態描述（add / update 必填；`remove` 操作會忽略此欄位）。
 - `plansDeltas`：逐條 `{ op, title, body? }`。任務 / 個人目標的增刪改。
 - `techEquipmentUpdates / magicSkillsUpdates / worldFeaturesUpdates`：逐條 `{ sectionPath, content }`。`sectionPath` 用 ` > ` 分隔（如 `# 已開發武器 > ## 短弓改`）。
 - `charactersToCreate / factionsToCreate`：本回新出現、需要落檔的 entity。`draftedFields` 寫好所有初始欄位（身分 / 基本設定 / 最後已知位置 / 初始目前心態 等），鍵名照 `<!--@include:partials/save-character-status-rules.md-->` 規範。

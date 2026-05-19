@@ -103,13 +103,13 @@ export class MultiAgentSaveService {
             // lock — `finally` still runs setRunning(false).
             const abortController = new AbortController();
             const dialogRef = this.dialog.open(SaveProgressDialogComponent, {
+                data: { abortController },
                 width: '780px',
                 maxWidth: '95vw',
                 maxHeight: '90vh',
                 disableClose: true,
                 panelClass: 'save-progress-dialog-panel',
             });
-            dialogRef.componentInstance.attachAbort(abortController);
 
             // 1. Snapshot turn context (provider, cache, history, language).
             const buildCtx = this.contextBuilder.snapshotForTurn();

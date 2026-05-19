@@ -1,5 +1,5 @@
-import { Component, computed, inject, signal } from '@angular/core';
-import { MatDialogRef } from '@angular/material/dialog';
+import { Component, computed, inject } from '@angular/core';
+import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatChipsModule } from '@angular/material/chips';
 import { CORE_MAT, DIALOG_MAT, PROGRESS_MAT } from '@app/shared/material/material-groups';
@@ -26,6 +26,10 @@ import { AutoScrollBottomDirective } from './auto-scroll-bottom.directive';
  * dialog data so the dialog can abort the in-flight LLM call without
  * needing to know orchestrator internals.
  */
+export interface SaveProgressDialogData {
+    abortController: AbortController;
+}
+
 @Component({
     selector: 'app-save-progress-dialog',
     standalone: true,
@@ -44,30 +48,23 @@ import { AutoScrollBottomDirective } from './auto-scroll-bottom.directive';
 export class SaveProgressDialogComponent {
     private dialogRef = inject(MatDialogRef<SaveProgressDialogComponent>);
     private tracker = inject(SaveProgressTracker);
-
     /**
-     * Optional abort signal source — orchestrator passes its controller via
-     * `dialog.componentInstance.attachAbort()` after opening, so the dialog
-     * doesn't depend on the orchestrator existing at construction time.
-     *
-     * Held in a signal so `canCancel`'s computed actually re-runs when
-     * `attachAbort` fires (a plain class field doesn't notify dependents).
+     * Abort source supplied by the orchestrator at open time via
+     * MAT_DIALOG_DATA — declarative dependency, no temporal coupling
+     * around when `attachAbort` is called. Non-null from construction,
+     * so `canCancel` only needs to track the isRunning signal.
      */
-    private abortController = signal<AbortController | null>(null);
+    private data = inject<SaveProgressDialogData>(MAT_DIALOG_DATA);
 
     readonly entries = this.tracker.entries;
     readonly isRunning = this.tracker.isRunning;
 
     readonly totalUsage = computed(() => this.tracker.totalUsage());
 
-    readonly canCancel = computed(() => this.isRunning() && this.abortController() !== null);
-
-    attachAbort(controller: AbortController): void {
-        this.abortController.set(controller);
-    }
+    readonly canCancel = computed(() => this.isRunning());
 
     cancel(): void {
-        this.abortController()?.abort();
+        this.data.abortController.abort();
     }
 
     close(): void {

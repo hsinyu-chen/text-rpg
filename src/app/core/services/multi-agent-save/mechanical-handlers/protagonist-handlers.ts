@@ -30,14 +30,15 @@ export interface MechanicalHandlerContext {
  *   is provided) to the file. `context=""` so FileUpdateParser appends at
  *   file root — the inventory file has no nested headings worth aiming at
  *   for Phase 1.
- * - **`remove`**: scan the file for a line that contains the item name
- *   (substring match, case-sensitive). If found, emit a `delete` op with
- *   that exact line. If not found, the delta is silently dropped — the
- *   caller's audit list captures it.
- * - **`update`**: same line-lookup as `remove`. If found, emit a `replace`
- *   op with `details` (or just the item name) as the new line content. If
- *   not found, fall back to `add` semantics — append the new line as a new
- *   item, since the LLM clearly thinks this item should exist post-ACT.
+ * - **`remove`**: scan the file for a list-item line whose body starts with
+ *   the item name (anchored match — see {@link findItemLine}). If found,
+ *   emit a `delete` op with that exact line. If not found, the delta is
+ *   silently dropped — the caller's audit list captures it.
+ * - **`update`**: same anchored line-lookup as `remove`. If found, emit a
+ *   `replace` op with `details` (or just the item name) as the new line
+ *   content. If not found, fall back to `add` semantics — append the new
+ *   line as a new item, since the LLM clearly thinks this item should
+ *   exist post-ACT.
  *
  * Returns `''` when every delta was dropped, so the dispatcher can decide
  * whether to mark the entry as `done` (some XML emitted) or `skipped`
@@ -132,16 +133,21 @@ function findItemLine(lines: readonly string[], itemName: string): string | null
     if (!itemName) return null;
     for (const line of lines) {
         const trimmed = line.trimStart();
-        if (!trimmed.startsWith('- ')) continue;
-        // After the leading `- `, the next chars must BE the item name, and
-        // what follows must be a separator or end-of-string. e.g.
+        // CommonMark / GFM unordered list markers — `-`, `*`, and `+` all
+        // valid. The LLM almost always emits `-` for zh-tw content, but
+        // user-edited KBs or legacy data may use any. Strip the marker
+        // before anchored-matching the item name.
+        const markerMatch = trimmed.match(/^([-*+])\s/);
+        if (!markerMatch) continue;
+        // After the leading `<marker> `, the next chars must BE the item
+        // name, and what follows must be a separator or end-of-string. e.g.
         //   `- 短刀`            → match for item="短刀"
         //   `- 短刀 — desc`     → match for item="短刀"
         //   `- 短刀（藍刃）`    → match for item="短刀" (Chinese paren boundary)
         //   `- 短刀子`          → NO match for item="短刀"
-        const afterDash = trimmed.slice(2);
-        if (!afterDash.startsWith(itemName)) continue;
-        const next = afterDash.charAt(itemName.length);
+        const afterMarker = trimmed.slice(markerMatch[0].length);
+        if (!afterMarker.startsWith(itemName)) continue;
+        const next = afterMarker.charAt(itemName.length);
         if (next === '' || ITEM_BOUNDARY_RE.test(next)) {
             return line;
         }

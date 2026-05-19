@@ -115,6 +115,22 @@ describe('applyInventoryDeltas', () => {
         expect(xml).toContain('<target>- v1.0</target>');
     });
 
+    it('matches list items written with the `*` marker (CommonMark)', () => {
+        const fileContent = '* 鐵劍\n* 木盾';
+        const xml = applyInventoryDeltas([
+            { op: 'remove', item: '鐵劍' },
+        ], { targetFile: FILE, fileContent });
+        expect(xml).toContain('<target>* 鐵劍</target>');
+    });
+
+    it('matches list items written with the `+` marker (CommonMark)', () => {
+        const fileContent = '+ 鐵劍\n+ 木盾';
+        const xml = applyInventoryDeltas([
+            { op: 'remove', item: '鐵劍' },
+        ], { targetFile: FILE, fileContent });
+        expect(xml).toContain('<target>+ 鐵劍</target>');
+    });
+
     it('matches when item name is followed by a Chinese paren (common LLM output)', () => {
         const fileContent = '- 短刀（藍刃）\n- 木盾';
         const xml = applyInventoryDeltas([
