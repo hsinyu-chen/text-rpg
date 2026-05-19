@@ -1,6 +1,6 @@
 import type { CharacterCreate, EntityDelete, EntityMove } from '../multi-agent-save.types';
 import { saveBlock, type SaveUpdateOp } from '../utils/serialize-save-block.util';
-import { lookupSectionBlock, pushToMap } from '../utils/handler-helpers.util';
+import { lookupSectionBlock, pushToMap, stripHeadingPrefix } from '../utils/handler-helpers.util';
 import type { MechanicalHandlerContext } from './protagonist-handlers';
 
 /**
@@ -32,10 +32,10 @@ export function createEntities(
         const body = renderEntityBody(c);
         if (!body) continue;
         // `# {group}` is the breadcrumb context the FileUpdateParser expects.
-        // We don't strip an existing `#` prefix from the model output — the
-        // schema describes `group` as "L1 group heading text verbatim" which
-        // means the text WITHOUT the leading `#`.
-        const ctxPath = `# ${c.group}`;
+        // {@link stripHeadingPrefix} guards against the model returning the
+        // group text WITH a leading `#` (the schema describes it as bare
+        // text, but local models drift).
+        const ctxPath = `# ${stripHeadingPrefix(c.group)}`;
         pushToMap(grouped, ctxPath, { kind: 'append', replacement: body });
     }
 
@@ -89,7 +89,7 @@ export function moveEntities(
         const block = lookupEntityBlock(ctx.fileContent, lines, m.name);
         if (!block) continue;
         deleteOps.push({ kind: 'delete', target: block });
-        const ctxPath = `# ${m.toGroup}`;
+        const ctxPath = `# ${stripHeadingPrefix(m.toGroup)}`;
         // Leading newline mirrors `renderEntityBody`'s output so consecutive
         // moves into the same target group don't smash heading lines together
         // (`## 李四\n…- 劍士\n## 王五` with no blank line). FileUpdateParser's
@@ -111,7 +111,7 @@ export function moveEntities(
  */
 function lookupEntityBlock(content: string, lines: readonly string[], name: string): string | null {
     if (!name) return null;
-    return lookupSectionBlock(content, lines, `## ${name}`);
+    return lookupSectionBlock(content, lines, `## ${stripHeadingPrefix(name)}`);
 }
 
 /**
@@ -134,7 +134,8 @@ function renderEntityBody(c: CharacterCreate): string {
     // the preceding section content; no trailing `\n` because the NEXT entry
     // (or another append) brings its own leading `\n`, and trailing here would
     // stack a second blank line on every append boundary. Mirrors
-    // `renderPlanBlock`'s shape.
-    return `\n## ${c.name}\n\n${fieldLines}`;
+    // `renderPlanBlock`'s shape. `stripHeadingPrefix` defends against model
+    // output that includes the `## ` prefix in `c.name` itself.
+    return `\n## ${stripHeadingPrefix(c.name)}\n\n${fieldLines}`;
 }
 

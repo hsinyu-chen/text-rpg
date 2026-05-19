@@ -57,6 +57,19 @@ describe('createEntities', () => {
         ], ctxFor(''));
         expect(xml).toBe('');
     });
+
+    it('strips any leading `#` prefix the model put on `group` or `name` (defensive)', () => {
+        // Schema says these are bare text, but local models drift. Without the
+        // strip we would emit `context="# # 核心人物"` and `## ## 李四` — both
+        // silently break the heading-path lookup.
+        const bare = createEntities([
+            { name: '李四', group: '核心人物', draftedFields: { f: 'v' } },
+        ], ctxFor(''));
+        const prefixed = createEntities([
+            { name: '## 李四', group: '# 核心人物', draftedFields: { f: 'v' } },
+        ], ctxFor(''));
+        expect(prefixed).toBe(bare);
+    });
 });
 
 describe('deleteEntities', () => {
@@ -109,6 +122,16 @@ describe('deleteEntities', () => {
         expect(xml.match(/<save\b/g)).toHaveLength(1);
         expect(xml.match(/<update>/g)).toHaveLength(2);
         expect(xml).toContain(`<save file="${FILE}" context="">`);
+    });
+
+    it('strips a leading `## ` prefix the model put on the entity `name` (defensive lookup)', () => {
+        // Without stripHeadingPrefix, `name: "## 王五"` would resolve as
+        // `findMarkdownSections(content, "## ## 王五")` and silently miss.
+        const xml = deleteEntities([
+            { name: '## 王五', reason: '已故' },
+        ], { targetFile: FILE, fileContent: FILE_WITH_BODY, kbSectionHeadings: { STORY_OUTLINE_CHRONICLE: "" } });
+        expect(xml).toContain('## 王五');
+        expect(xml).toContain('<target>');
     });
 
     it('does NOT include the `reason` field in the emitted XML (trace-only)', () => {

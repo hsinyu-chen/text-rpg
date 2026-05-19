@@ -90,4 +90,20 @@ describe('applyPlansDeltas', () => {
         ], EMPTY_CTX);
         expect(xml).toBe('');
     });
+
+    it('strips redundant `「…」計畫` wrapping the model added to `title` (defensive)', () => {
+        // Bare, fully-wrapped, and partially-wrapped inputs all collapse to the
+        // same emitted heading — schema says bare, but models drift.
+        const bare = applyPlansDeltas([
+            { op: 'add', title: '潛入魔王城', body: 'x' },
+        ], EMPTY_CTX);
+        const wrapped = applyPlansDeltas([
+            { op: 'add', title: '「潛入魔王城」計畫', body: 'x' },
+        ], EMPTY_CTX);
+        const bracketsOnly = applyPlansDeltas([
+            { op: 'add', title: '「潛入魔王城」', body: 'x' },
+        ], EMPTY_CTX);
+        expect(wrapped).toBe(bare);
+        expect(bracketsOnly).toBe(bare);
+    });
 });

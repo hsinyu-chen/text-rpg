@@ -217,7 +217,13 @@ export function applyPlansDeltas(deltas: readonly PlanDelta[], ctx: MechanicalHa
     const ops: SaveUpdateOp[] = [];
     for (const delta of deltas) {
         if (!delta.title) continue;
-        const heading = `「${delta.title}」計畫`;
+        // Defensive against models that include the brackets / `計畫` suffix in
+        // `title` themselves — strip whichever boundary they shipped so we
+        // re-wrap exactly once. The locale-template move is documented in the
+        // function JSDoc as a deferred refactor; this guard mitigates the
+        // sharp edge today.
+        const bareTitle = delta.title.replace(/^「/, '').replace(/」計畫$/, '').replace(/」$/, '');
+        const heading = `「${bareTitle}」計畫`;
         switch (delta.op) {
             case 'add': {
                 ops.push({ kind: 'append', replacement: appendPrefix + renderPlanBlock(heading, delta.body) });

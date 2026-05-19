@@ -1,6 +1,20 @@
 import { findMarkdownSections } from '@app/core/services/file-agent/markdown-section.util';
 
 /**
+ * Strips a leading ATX heading prefix (`#`, `##`, … plus any whitespace) off
+ * model-supplied text. Used at every spot where the manifest hands us a
+ * "heading text verbatim" string and we prepend our own `#` count: the schema
+ * description is ambiguous, and local models occasionally include the prefix
+ * themselves, which would otherwise round-trip as `# # 核心人物` and silently
+ * break heading-path lookups.
+ *
+ * Returns the input unchanged when no prefix is present.
+ */
+export function stripHeadingPrefix(text: string): string {
+    return text.replace(/^#+\s*/, '');
+}
+
+/**
  * Insertion-ordered map-push: `(map[key] ??= []).push(value)` without the
  * pitfalls of nullish-assignment on Map values. Shared across mechanical
  * handlers that group XML ops by some key (sectionPath, L1 group, etc.).
