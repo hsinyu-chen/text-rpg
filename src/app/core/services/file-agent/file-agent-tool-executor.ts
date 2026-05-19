@@ -24,7 +24,7 @@ import {
 import { detectLatexViolations, latexViolationError, sanitizeLatexToUnicode } from '@app/core/utils/latex.util';
 import { dispatchKbReadTool } from '../agent-runner/tools/kb-read-tools-executor';
 import { dispatchChatReadTool } from '../agent-runner/tools/chat-read-tools-executor';
-import { KB_WRITE_TOOL_NAMES } from '../agent-runner/tools/kb-write-tools';
+import { KB_WRITE_TOOL_NAMES, READ_ONLY_REJECTION } from '../agent-runner/tools/kb-write-tools';
 import { clampInt } from '../agent-runner/tools/tool-helpers';
 
 /** Returns the content to write (original or auto-sanitized), or an error if LaTeX remains after sanitization. */
@@ -35,8 +35,6 @@ function checkLatex(content: string, label: string): { content: string } | { err
   if (!remaining.length) return { content: sanitized };
   return latexViolationError(remaining, label);
 }
-
-const READ_ONLY_REJECTION = 'This agent surface is read-only and cannot edit files — the user is on the main game screen, which has no editor view, so silent file mutations would be invisible to them. Do NOT retry write tools here. Use submitResponse to tell the user: open the KB editor (the file-viewer dialog from the sidebar) and re-issue the request there, where they can review and save the changes.';
 
 /** Prefix every write-tool error message with this marker so the LLM cannot
  *  miss that the file was NOT modified. Paired with the structured

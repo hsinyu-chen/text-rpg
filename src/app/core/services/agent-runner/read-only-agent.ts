@@ -31,11 +31,16 @@ export type ReadOnlyAgentContext = KbReadContext & ChatReadContext;
  * Subclasses MAY override `get tools` / `dispatchTool` to ADD more tools
  * by spreading `super.tools` and falling through to `super.dispatchTool`.
  */
+/** The canonical read-only catalog — cached at module load so the getter
+ *  doesn't reallocate per turn. Subclasses that ADD tools spread into a
+ *  fresh array via `super.tools` (which returns this constant by reference). */
+const READ_ONLY_TOOLS: readonly LLMFunctionDeclaration[] = [...KB_READ_TOOLS, ...CHAT_READ_TOOLS];
+
 export abstract class ReadOnlyAgent<TAction extends ParsedAction = ParsedAction, TContext extends ReadOnlyAgentContext = ReadOnlyAgentContext>
     extends BaseToolCallAgent<TAction, TContext> {
 
     protected get tools(): LLMFunctionDeclaration[] {
-        return [...KB_READ_TOOLS, ...CHAT_READ_TOOLS];
+        return READ_ONLY_TOOLS as LLMFunctionDeclaration[];
     }
 
     protected dispatchTool(action: TAction, context: TContext): Awaitable<ToolExecutionResult> {

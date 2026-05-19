@@ -372,9 +372,7 @@ export abstract class BaseToolCallAgent<TAction extends ParsedAction = ParsedAct
         this.agentLogs.update(logs => [...logs, { role: 'system', text: `Error parsing JSON, asking model to retry... (${retryCount + 1}/3)`, type: 'error' }]);
         this.agentHistory.update(h => [...h, {
             role: 'user',
-            parts: [{
-                text: 'Your previous response could not be parsed as JSON. Reply ONLY with a valid JSON object matching the tool schema — no commentary, no markdown fences.',
-            }],
+            parts: [{ text: JSON.stringify({ error: 'Invalid JSON format. Please output ONLY valid JSON matching the schema without any markdown formatting, thought processes, or extra text.' }) }],
         }]);
         await this.processAgentTurn(context, retryCount + 1);
     }

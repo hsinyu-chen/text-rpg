@@ -48,14 +48,6 @@ export class EditChannelLostError extends Error {
 const EDIT_CHANNEL_LOST_TOOL_MESSAGE =
   '[user interrupt the editing] The editing surface (File Viewer) was closed by the user mid-turn; this write was dropped. STOP attempting further writes this turn — open a fresh turn after the user re-opens the File Viewer. Use submitResponse to acknowledge the interruption.';
 
-// ParsedAction args come through an `as unknown` cast — runtime shape isn't
-// guaranteed. Coerce non-string `message` payloads (hallucinated objects /
-// null / number) to '' before piping into sanitizeLatexToUnicode +
-// applyHarnessFallbacks, both of which assume string input.
-function getStringArg(val: unknown): string {
-  return typeof val === 'string' ? val : '';
-}
-
 export type { FileAgentContext, ToolCallMode } from './file-agent.types';
 
 /**
@@ -314,12 +306,13 @@ export class FileAgentService extends ReadOnlyAgent<ParsedAction> {
         this.agentLogs.update(logs => [...logs, { role: 'system', text: `Error: ${msg}`, type: 'error' }]);
       }
     } finally {
-      // Single guaranteed reset point. Inner methods (consumeStream,
-      // handleJsonParseError, handleSubmitResponse, processAgentTurn's
-      // commentary-only branch) still flip the signal early so the UI
-      // can react before the call stack unwinds, but this finally ensures
-      // every exit path — including setupTurn returning null mid-recursion
-      // when selectedProfileId becomes null — also clears it.
+      // Single guaranteed reset point. Inner methods on BaseToolCallAgent
+      // (consumeStream / handleJsonParseError / handleTerminalAction /
+      // processAgentTurn's commentary-only branch) still flip the signal
+      // early so the UI can react before the call stack unwinds, but this
+      // finally ensures every exit path — including resolveTurnSetup
+      // returning null mid-recursion when selectedProfileId becomes null —
+      // also clears it.
       this.isAgentRunning.set(false);
       this.abortController = null;
     }
@@ -329,9 +322,9 @@ export class FileAgentService extends ReadOnlyAgent<ParsedAction> {
    * Default write sink for UI surfaces. Reads the current edit channel at
    * write time (NOT at runAgent start) — if the file-viewer closes mid-turn
    * the channel is null and we throw `EditChannelLostError`. The catch site
-   * in `executeSingleAction` / `executeBatchActions` converts that into a
-   * tool error response so the LLM sees the failure as a tool error (not
-   * an aborted run) and decides whether to retry / submitResponse.
+   * in our `dispatchTool` override converts that into a tool error response
+   * so the LLM sees the failure as a tool error (not an aborted run) and
+   * decides whether to retry / submitResponse.
    *
    * Bound as an arrow so it can be passed by reference without losing `this`.
    * Public so headless callers (bridge agent_ask) can wrap it with a
@@ -345,7 +338,7 @@ export class FileAgentService extends ReadOnlyAgent<ParsedAction> {
       return;
     }
     // Don't push a separate agentLogs entry here — the throw routes through
-    // executeFileToolSafe → tool-error response → pushToolResultLog, which
+    // dispatchTool's catch → tool-error response → pushToolResultLog, which
     // already surfaces EDIT_CHANNEL_LOST_TOOL_MESSAGE in the console.
     // Logging twice for the same interrupt is just noise.
     throw new EditChannelLostError(filename, content.length);
@@ -487,9 +480,10 @@ export class FileAgentService extends ReadOnlyAgent<ParsedAction> {
     return applyHarnessFallbacks(sanitizeLatexToUnicode(text), this.harnessLabels());
   }
 
-  protected override processToolMessageArg(rawArg: unknown): string {
-    return this.processModelText(getStringArg(rawArg));
-  }
+  // processToolMessageArg uses the base default (string-coerce + delegate to
+  // processModelText) — file-agent doesn't need an override because the
+  // string-coercion + harness pipeline are already chained through
+  // processModelText above.
 
   protected override formatToolResult(response: Record<string, unknown>): string {
     return toAgentYaml(response);

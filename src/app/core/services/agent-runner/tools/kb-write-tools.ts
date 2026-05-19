@@ -124,3 +124,10 @@ export const KB_WRITE_TOOLS: LLMFunctionDeclaration[] = [
 /** Tool names that mutate files. Centralised so the runtime can gate write
  *  tools when `context.readOnly` is true without duplicating the list. */
 export const KB_WRITE_TOOL_NAMES: ReadonlySet<string> = new Set(KB_WRITE_TOOLS.map(t => t.name));
+
+/** Error message returned to the LLM when a write tool fires on an
+ *  agent surface that opted into `context.readOnly` (e.g. file-agent's
+ *  chat-panel main surface where there is no editor view, so silent file
+ *  mutations would be invisible to the user). Lives with KB_WRITE_TOOL_NAMES
+ *  so any downstream agent that gates write tools reads from one place. */
+export const READ_ONLY_REJECTION = 'This agent surface is read-only and cannot edit files — the user is on the main game screen, which has no editor view, so silent file mutations would be invisible to them. Do NOT retry write tools here. Use submitResponse to tell the user: open the KB editor (the file-viewer dialog from the sidebar) and re-issue the request there, where they can review and save the changes.';
