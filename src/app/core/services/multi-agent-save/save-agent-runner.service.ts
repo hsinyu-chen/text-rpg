@@ -98,8 +98,17 @@ export class SaveAgentRunnerService {
                 }
             }
         } catch (err: unknown) {
-            const msg = err instanceof Error ? err.message : String(err);
-            this.progress.finishEntry(entryId, 'failed', `stream error: ${msg}`);
+            // Distinguish user-initiated cancellation from a real failure —
+            // the entry reads "skipped: user_aborted" instead of "failed:
+            // stream error: AbortError" so the dialog doesn't lie about the
+            // outcome. The orchestrator's catch still suppresses the error
+            // snackbar via isAbortError.
+            if (input.signal.aborted) {
+                this.progress.skip(entryId, 'user_aborted');
+            } else {
+                const msg = err instanceof Error ? err.message : String(err);
+                this.progress.finishEntry(entryId, 'failed', `stream error: ${msg}`);
+            }
             throw err;
         }
 

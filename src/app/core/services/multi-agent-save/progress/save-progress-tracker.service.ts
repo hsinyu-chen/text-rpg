@@ -29,9 +29,15 @@ export class SaveProgressTracker {
     private _isRunning = signal(false);
     readonly isRunning = this._isRunning.asReadonly();
 
+    /**
+     * Clears the entry ledger. Lifecycle state (`isRunning`) is NOT touched
+     * here — the orchestrator's `finally` block is the canonical site for
+     * `setRunning(false)`, and `reset()` is called at run start (where the
+     * orchestrator is about to call `setRunning(true)`). Touching it here
+     * would emit a spurious false-then-true signal flip.
+     */
     reset(): void {
         this._entries.set([]);
-        this._isRunning.set(false);
     }
 
     setRunning(running: boolean): void {

@@ -78,11 +78,14 @@ describe('SaveProgressTracker', () => {
         expect(tracker.totalUsage()).toEqual({ prompt: 15, candidates: 3, cached: 11 });
     });
 
-    it('reset clears entries + isRunning flag', () => {
+    it('reset clears entries but leaves isRunning alone (orchestrator owns lifecycle)', () => {
         tracker.startEntry('manifest');
         tracker.setRunning(true);
         tracker.reset();
         expect(tracker.entries()).toEqual([]);
-        expect(tracker.isRunning()).toBe(false);
+        // isRunning untouched by reset — caller's responsibility (the
+        // orchestrator calls reset() then setRunning(true) in sequence; a
+        // false-then-true flip from reset would emit a spurious signal).
+        expect(tracker.isRunning()).toBe(true);
     });
 });
