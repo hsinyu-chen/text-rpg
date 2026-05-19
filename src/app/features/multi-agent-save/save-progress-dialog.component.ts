@@ -6,6 +6,7 @@ import { CORE_MAT, DIALOG_MAT, PROGRESS_MAT } from '@app/shared/material/materia
 import { TranslatePipe } from '@app/core/i18n';
 import { SaveProgressTracker } from '@app/core/services/multi-agent-save/progress/save-progress-tracker.service';
 import type { SaveProgressEntry } from '@app/core/services/multi-agent-save/multi-agent-save.types';
+import { AutoScrollBottomDirective } from './auto-scroll-bottom.directive';
 
 /**
  * Modal dialog rendered for the duration of one multi-agent save run.
@@ -35,6 +36,7 @@ import type { SaveProgressEntry } from '@app/core/services/multi-agent-save/mult
         MatExpansionModule,
         MatChipsModule,
         TranslatePipe,
+        AutoScrollBottomDirective,
     ],
     templateUrl: './save-progress-dialog.component.html',
     styleUrl: './save-progress-dialog.component.scss',

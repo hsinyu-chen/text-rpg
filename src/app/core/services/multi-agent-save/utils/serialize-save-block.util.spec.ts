@@ -50,11 +50,15 @@ describe('saveBlock', () => {
         expect(xml).toContain('context="# X &amp; &quot;Y&quot;"');
     });
 
-    it('escapes `<` in target/replacement content to prevent tag bleed', () => {
+    it('passes target/replacement content through verbatim (FileUpdateParser does not decode entities)', () => {
+        // & in content must survive a roundtrip — escaping it would persist
+        // the literal "Salt &amp; Pepper" to disk, breaking subsequent line
+        // lookups + the user's reading of the file.
         const xml = saveBlock('x.md', '', [
-            { kind: 'replace', target: 'before</target>after', replacement: 'r' },
+            { kind: 'replace', target: '- Salt & Pepper', replacement: '- Salt & Pepper (黑胡椒)' },
         ]);
-        expect(xml).toContain('before&lt;/target&gt;after');
-        expect(xml).not.toContain('before</target>after</target>');
+        expect(xml).toContain('<target>- Salt & Pepper</target>');
+        expect(xml).toContain('<replacement>- Salt & Pepper (黑胡椒)</replacement>');
+        expect(xml).not.toContain('&amp;');
     });
 });

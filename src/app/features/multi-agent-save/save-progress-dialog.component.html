@@ -19,7 +19,17 @@
                         <mat-panel-description class="entry-meta">
                             <span class="state-label">{{ ('multiAgentSave.progress.state.' + entry.state) | translate }}</span>
                             @if (entry.statusReason) {
-                                <span class="status-reason">— {{ ('multiAgentSave.progress.reason.' + entry.statusReason) | translate }}</span>
+                                <!--
+                                  'skipped' reasons are enum keys (SaveSkipReason) and translate.
+                                  'failed' reasons are raw error messages from the provider /
+                                  validator and must render verbatim — translating them would
+                                  emit the i18n key as visible UI text.
+                                -->
+                                @if (entry.state === 'skipped') {
+                                    <span class="status-reason">— {{ ('multiAgentSave.progress.reason.' + entry.statusReason) | translate }}</span>
+                                } @else {
+                                    <span class="status-reason">— {{ entry.statusReason }}</span>
+                                }
                             }
                         </mat-panel-description>
                     </mat-expansion-panel-header>
@@ -34,12 +44,12 @@
                     @if (entry.thought) {
                         <details class="cot-details" [open]="entry.state === 'running'">
                             <summary>{{ 'multiAgentSave.progress.cotLabel' | translate }}</summary>
-                            <pre class="cot-text">{{ entry.thought }}</pre>
+                            <pre class="cot-text" [appAutoScrollBottom]="entry.thought">{{ entry.thought }}</pre>
                         </details>
                     }
 
                     @if (entry.output) {
-                        <pre class="output-text">{{ entry.output }}</pre>
+                        <pre class="output-text" [appAutoScrollBottom]="entry.output">{{ entry.output }}</pre>
                     }
 
                     @if (entry.usage) {

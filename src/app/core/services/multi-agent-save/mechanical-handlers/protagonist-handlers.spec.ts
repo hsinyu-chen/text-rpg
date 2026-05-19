@@ -78,7 +78,7 @@ describe('applyInventoryDeltas', () => {
         expect(xml).toContain('<target>- 鐵劍 x1</target>');
     });
 
-    it('only matches lines that start with "- "', () => {
+    it('only matches markdown list items (skips non-list lines that contain the item name)', () => {
         const fileContent = '## 主物品\n- 鐵劍\n備註：鐵劍出自鍛造師之手';
         const xml = applyInventoryDeltas([
             { op: 'remove', item: '鐵劍' },
@@ -86,5 +86,18 @@ describe('applyInventoryDeltas', () => {
         expect(xml).toContain('<target>- 鐵劍</target>');
         // The "備註：鐵劍" line is not a list item — must not be picked.
         expect(xml).not.toContain('備註');
+    });
+
+    it('matches indented list items (preserves leading whitespace in target)', () => {
+        // Real KBs nest items under category sub-headings:
+        //   ## 攜帶
+        //     - 鐵劍
+        // The target must include the leading whitespace so FileUpdateParser
+        // sees an exact-match line.
+        const fileContent = '## 攜帶\n    - 鐵劍\n    - 木盾';
+        const xml = applyInventoryDeltas([
+            { op: 'remove', item: '鐵劍' },
+        ], { targetFile: FILE, fileContent });
+        expect(xml).toContain('<target>    - 鐵劍</target>');
     });
 });

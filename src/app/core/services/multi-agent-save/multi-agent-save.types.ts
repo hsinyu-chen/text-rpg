@@ -250,6 +250,13 @@ export type SaveSkipReason =
     | 'empty_section'
     | 'validation_failed';
 
+/**
+ * Mechanical sub-tool identifiers — one per manifest section the dispatcher
+ * walks. Used as the `toolName` field on progress events. Whether each name
+ * is *implemented* is separately gated by registry membership in
+ * `mechanical-handlers/index.ts`; unimplemented entries emit a
+ * `not_yet_implemented` skip.
+ */
 export const MECHANICAL_TOOL_NAMES = [
   'storyOutlineBlock',
   'inventoryDeltas',

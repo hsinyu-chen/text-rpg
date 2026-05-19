@@ -42,11 +42,11 @@ export function saveBlock(file: string, context: string, ops: readonly SaveUpdat
 function serializeOp(op: SaveUpdateOp): string {
     switch (op.kind) {
         case 'replace':
-            return `  <update>\n    <target>${escapeText(op.target)}</target>\n    <replacement>${escapeText(op.replacement)}</replacement>\n  </update>`;
+            return `  <update>\n    <target>${op.target}</target>\n    <replacement>${op.replacement}</replacement>\n  </update>`;
         case 'append':
-            return `  <update>\n    <replacement>${escapeText(op.replacement)}</replacement>\n  </update>`;
+            return `  <update>\n    <replacement>${op.replacement}</replacement>\n  </update>`;
         case 'delete':
-            return `  <update>\n    <target>${escapeText(op.target)}</target>\n    <replacement></replacement>\n  </update>`;
+            return `  <update>\n    <target>${op.target}</target>\n    <replacement></replacement>\n  </update>`;
     }
 }
 
@@ -58,14 +58,9 @@ function escapeAttr(s: string): string {
         .replace(/"/g, '&quot;');
 }
 
-/**
- * `<target>` / `<replacement>` content is normally treated as opaque by
- * FileUpdateParser (which does character-level whitespace matching), but a
- * literal `</target>` / `</replacement>` inside the payload would close the
- * tag early. Escape `<` to `&lt;` defensively — model output rarely contains
- * raw `<` / `>` but the cost of escaping is zero and the cost of NOT is
- * silent corruption.
- */
-function escapeText(s: string): string {
-    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
+// NOTE: We do NOT escape `<` / `&` inside <target> / <replacement>.
+// `FileUpdateParser.parse` doesn't decode entities, so any escape here would
+// be persisted *as literal text* into the KB file (e.g. "Salt & Pepper" →
+// "Salt &amp; Pepper" on disk). Real model output rarely contains literal
+// `</target>` / `</replacement>` tags inside save payloads; the legacy save
+// path runs unescaped through the same parser and that's been stable.

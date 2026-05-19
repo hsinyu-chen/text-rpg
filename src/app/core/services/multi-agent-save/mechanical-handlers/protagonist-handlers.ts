@@ -89,14 +89,15 @@ function formatItemLine(delta: InventoryDelta): string {
 }
 
 /**
- * First line beginning with `- ` whose content contains the item name as a
- * substring. Returns the line including its leading hyphen/space but
- * excluding the trailing newline.
+ * First markdown list item line whose content contains the item name as a
+ * substring. Accepts indented list items (`  - foo`) — common when items
+ * live under a category sub-heading. Returns the line verbatim (including
+ * any leading indent) so the resulting `<target>` matches the file exactly.
  */
 function findItemLine(fileContent: string, itemName: string): string | null {
     if (!itemName) return null;
     for (const line of fileContent.split('\n')) {
-        if (line.startsWith('- ') && line.includes(itemName)) {
+        if (line.trimStart().startsWith('- ') && line.includes(itemName)) {
             return line;
         }
     }

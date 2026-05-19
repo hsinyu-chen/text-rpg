@@ -1,9 +1,12 @@
 import { Injectable, inject } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
 import type { LLMContent } from '@hcs/llm-core';
 import { MatDialog } from '@angular/material/dialog';
 import { ContextBuilderService } from '../context-builder.service';
 import { LLMProviderRegistryService } from '../llm-provider-registry.service';
 import { GameStateService } from '../game-state.service';
+import { SessionService } from '../session.service';
+import { FileUpdateService, FileUpdate } from '../file-update.service';
 import { FileUpdateParser } from '../file-update-parser';
 import { AutoUpdateDialogComponent } from '@app/shared/components/auto-update-dialog/auto-update-dialog.component';
 import { SaveProgressDialogComponent } from '@app/features/multi-agent-save/save-progress-dialog.component';
@@ -12,6 +15,7 @@ import { SubToolDispatcherService } from './sub-tool-dispatcher.service';
 import { SaveProgressTracker } from './progress/save-progress-tracker.service';
 import { getLocale, getLangFolder } from '@app/core/constants/locales';
 import { DEFAULT_PROFILE_ID, getProfileBasePath } from '@app/core/constants/prompt-profiles';
+import { FULLSCREEN_DIALOG_CONFIG } from '@app/shared/material/dialog-presets';
 import { I18nService } from '@app/core/i18n';
 import { MatSnackBar } from '@angular/material/snack-bar';
 
@@ -47,6 +51,8 @@ export class MultiAgentSaveService {
     private contextBuilder = inject(ContextBuilderService);
     private providerRegistry = inject(LLMProviderRegistryService);
     private state = inject(GameStateService);
+    private session = inject(SessionService);
+    private fileUpdate = inject(FileUpdateService);
     private saveAgent = inject(SaveAgentRunnerService);
     private dispatcher = inject(SubToolDispatcherService);
     private progress = inject(SaveProgressTracker);
@@ -61,20 +67,29 @@ export class MultiAgentSaveService {
      * placeholder substitution mirrors `ContextBuilder.augmentSingleCallHistory`.
      */
     async run(userInput: string): Promise<void> {
+        // Re-entrancy guard. GameEngineService.sendMessage's status==='generating'
+        // guard doesn't fire for multi-agent save (we bypass startTurn), so a
+        // user double-clicking the save button would otherwise spawn two
+        // concurrent runs sharing the same SaveProgressTracker.
+        if (this.progress.isRunning()) return;
+
         this.progress.reset();
         this.progress.setRunning(true);
 
-        const abortController = new AbortController();
-        const dialogRef = this.dialog.open(SaveProgressDialogComponent, {
-            width: '780px',
-            maxWidth: '95vw',
-            maxHeight: '90vh',
-            disableClose: true,
-            panelClass: 'save-progress-dialog-panel',
-        });
-        dialogRef.componentInstance.attachAbort(abortController);
-
         try {
+            // Modal dialog + abort controller live inside the try so a
+            // synchronous throw from `dialog.open()` doesn't strand the UI
+            // lock — `finally` still runs setRunning(false).
+            const abortController = new AbortController();
+            const dialogRef = this.dialog.open(SaveProgressDialogComponent, {
+                width: '780px',
+                maxWidth: '95vw',
+                maxHeight: '90vh',
+                disableClose: true,
+                panelClass: 'save-progress-dialog-panel',
+            });
+            dialogRef.componentInstance.attachAbort(abortController);
+
             // 1. Snapshot turn context (provider, cache, history, language).
             const buildCtx = this.contextBuilder.snapshotForTurn();
             const provider = buildCtx.provider;
@@ -92,7 +107,7 @@ export class MultiAgentSaveService {
             const systemInstruction = this.contextBuilder.getEffectiveSystemInstruction(buildCtx, !omitKB);
 
             // 3. SaveAgent — emits the manifest JSON.
-            const { manifest } = await this.saveAgent.run({
+            const saveAgentResult = await this.saveAgent.run({
                 provider,
                 providerConfig: this.providerRegistry.getActiveConfig(),
                 systemInstruction,
@@ -100,6 +115,20 @@ export class MultiAgentSaveService {
                 history,
                 signal: abortController.signal,
             });
+            const { manifest, finishReason } = saveAgentResult;
+
+            // SaveAgent finishing on anything other than `stop` typically means
+            // truncation (max_tokens) — bestEffortJsonParser will still close
+            // brackets to salvage a structurally-valid manifest, but it's
+            // *incomplete*. Warn rather than letting the user think a partial
+            // save was the whole story.
+            if (finishReason && !isCleanFinish(finishReason)) {
+                this.snackBar.open(
+                    this.i18n.translate('multiAgentSave.run.finishWarning', { reason: finishReason }),
+                    this.i18n.translate('ui.CLOSE'),
+                    { duration: 8000, panelClass: ['snackbar-warning'] },
+                );
+            }
 
             // 4. Dispatcher — fans out to mechanical handlers (Phase 1: inventoryDeltas only).
             const dispatchResult = this.dispatcher.dispatch({
@@ -122,16 +151,14 @@ export class MultiAgentSaveService {
             const updates = FileUpdateParser.parse(dispatchResult.xml);
 
             // 6. Open AutoUpdateDialog. Close the progress dialog first so the
-            //    user isn't looking at two stacked modals.
+            //    user isn't looking at two stacked modals. Use the same
+            //    FULLSCREEN config + afterClosed-driven apply flow as the
+            //    legacy save path (message-state.service.ts) — the dialog
+            //    only returns the user-selected updates; the orchestrator
+            //    owns the persistence call so the contract matches
+            //    auto-update-dialog's existing afterClosed payload.
             dialogRef.close();
-
-            this.dialog.open(AutoUpdateDialogComponent, {
-                data: { updates },
-                width: '90vw',
-                maxWidth: '1200px',
-                maxHeight: '90vh',
-                panelClass: 'auto-update-dialog-panel',
-            });
+            await this.applySelectedUpdates(updates);
         } catch (err: unknown) {
             // User-initiated cancellation (Cancel button → AbortController.abort()).
             // Stream error names vary by provider — match the common ones rather
@@ -167,10 +194,14 @@ export class MultiAgentSaveService {
      */
     private async loadManifestPrompt(lang: string, profileId: string): Promise<string> {
         const langFolder = getLangFolder(lang);
-        const candidates = [`${getProfileBasePath(langFolder, profileId)}/${MANIFEST_PROMPT_FILENAME}`];
-        if (profileId !== DEFAULT_PROFILE_ID) {
-            candidates.push(`${getProfileBasePath(langFolder, DEFAULT_PROFILE_ID)}/${MANIFEST_PROMPT_FILENAME}`);
-        }
+        const activePath = `${getProfileBasePath(langFolder, profileId)}/${MANIFEST_PROMPT_FILENAME}`;
+        const defaultPath = `${getProfileBasePath(langFolder, DEFAULT_PROFILE_ID)}/${MANIFEST_PROMPT_FILENAME}`;
+        // Push the default-profile fallback only when its resolved path
+        // differs — user profiles without a `subDir` resolve to the same
+        // language-root path as the cloud default, so the second fetch
+        // would be pure duplication.
+        const candidates = [activePath];
+        if (defaultPath !== activePath) candidates.push(defaultPath);
 
         for (const path of candidates) {
             try {
@@ -191,17 +222,48 @@ export class MultiAgentSaveService {
         const merged = manifestPrompt.replace(/\{\{USER_INPUT\}\}/g, () => userInput);
         return [...history, { role: 'user', parts: [{ text: merged }] }];
     }
+
+    /**
+     * Opens AutoUpdateDialog and applies whatever the user confirmed.
+     * Same shape as `message-state.service.ts:openAutoUpdateDialog` — the
+     * dialog returns a (possibly filtered) `FileUpdate[]` via afterClosed;
+     * empty / undefined ≡ user cancelled or unchecked everything.
+     */
+    private async applySelectedUpdates(updates: FileUpdate[]): Promise<void> {
+        const dialogRef = this.dialog.open(AutoUpdateDialogComponent, {
+            data: { updates },
+            ...FULLSCREEN_DIALOG_CONFIG,
+        });
+
+        const result = await firstValueFrom(dialogRef.afterClosed());
+        if (!result || !Array.isArray(result) || result.length === 0) return;
+
+        const applied = await this.fileUpdate.applyUpdates(result);
+        await this.session.loadFiles(false);
+        this.snackBar.open(
+            this.i18n.translate('ui.APPLIED_FILE_UPDATES', { count: applied.length }),
+            this.i18n.translate('ui.CLOSE'),
+            { duration: 3000 },
+        );
+    }
 }
 
 /**
- * `AbortController.abort()` surfaces differently across providers — DOMException
- * with name='AbortError', plain Error with message containing 'aborted', or a
- * provider-specific subclass. Match the common cases so user-initiated cancels
- * never look like real failures.
+ * Standard DOMException name for `AbortController.abort()`-propagated errors.
+ * Keep the check tight — matching the message string would swallow real
+ * provider errors that happen to contain "aborted" (e.g. "request aborted
+ * by upstream proxy", "session abort: invalid token").
  */
 function isAbortError(err: unknown): boolean {
-    if (!(err instanceof Error)) return false;
-    if (err.name === 'AbortError') return true;
-    const msg = err.message.toLowerCase();
-    return msg.includes('aborted') || msg.includes('abort');
+    return err instanceof Error && err.name === 'AbortError';
+}
+
+/**
+ * Provider finishReason values that we consider "clean completion" — anything
+ * else (max_tokens, safety, recitation, length, …) means the manifest may be
+ * truncated even when bestEffortJsonParser closed the brackets.
+ */
+function isCleanFinish(finishReason: string): boolean {
+    const normalized = finishReason.toLowerCase();
+    return normalized === 'stop' || normalized === 'null' || normalized === '';
 }

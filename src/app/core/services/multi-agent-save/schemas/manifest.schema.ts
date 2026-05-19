@@ -7,7 +7,7 @@ const deltaItem = {
     properties: {
         op: { type: 'string', enum: ['add', 'remove', 'update'] },
         item: { type: 'string', description: 'Item name (original wording)' },
-        details: { type: 'string', description: 'New-state description; required for add/update' },
+        details: { type: 'string', description: 'New-state description appended after the item name. Strongly encouraged for add/update; omit for remove. May be omitted entirely if the bare item name is the full entry.' },
     },
 } as const;
 
@@ -17,7 +17,7 @@ const planItem = {
     properties: {
         op: { type: 'string', enum: ['add', 'remove', 'update'] },
         title: { type: 'string' },
-        body: { type: 'string', description: 'Full entry body for add/update' },
+        body: { type: 'string', description: 'Full entry body. Strongly encouraged for add/update; ignored on remove.' },
     },
 } as const;
 
