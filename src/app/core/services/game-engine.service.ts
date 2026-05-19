@@ -112,9 +112,16 @@ export class GameEngineService {
         // Multi-agent save: independent dispatch path. Bypasses the entire
         // 8-phase chat pipeline — no user message in chat history, no model
         // message, no story-protocol composition. The orchestrator owns its
-        // own progress dialog + AutoUpdateDialog open + error surfacing.
+        // own progress dialog + AutoUpdateDialog open + error surfacing,
+        // but route the call through handleTurnError too so a defensive
+        // throw (e.g. signal setup error, DI failure) still surfaces via
+        // the same snackbar / status='error' path as the chat pipeline.
         if (options?.intent === GAME_INTENTS.SAVE && this.saveSettings.saveMode() === 'multi-agent') {
-            await this.multiAgentSave.run(userText);
+            try {
+                await this.multiAgentSave.run(userText);
+            } catch (e: unknown) {
+                await this.handleTurnError(e);
+            }
             return;
         }
 

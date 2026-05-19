@@ -152,8 +152,14 @@ function findItemLine(lines: readonly string[], itemName: string): string | null
 /**
  * Characters that legally terminate an item-name token in our handler's
  * eyes. Covers ASCII separators (space, hyphen, colon, paren, comma,
- * semicolon, period) plus the Chinese full-width variants the LLM often
- * emits (`：`, `（`, `，`, `；`, `。`, etc.). zh-tw is the primary content
+ * semicolon) plus the Chinese full-width variants the LLM often emits
+ * (`：`, `（`, `，`, `；`, `。`, etc.). zh-tw is the primary content
  * language so the Chinese variants are not edge cases.
+ *
+ * Note: ASCII `.` is deliberately excluded. Item names routinely contain
+ * literal dots — version numbers ("v1.0"), file extensions, abbreviations
+ * — so treating `.` as a boundary would let `item="v1"` falsely anchor on
+ * `- v1.0`. Chinese `。` stays in because it's a sentence terminator and
+ * almost never appears mid-name.
  */
-const ITEM_BOUNDARY_RE = /[\s\-—:：(（［【「,，;；.。]/;
+const ITEM_BOUNDARY_RE = /[\s\-—:：(（［【「,，;；。]/;

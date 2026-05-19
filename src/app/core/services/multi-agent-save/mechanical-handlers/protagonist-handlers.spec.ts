@@ -96,6 +96,25 @@ describe('applyInventoryDeltas', () => {
         expect(xml).toBe('');
     });
 
+    it('does NOT anchor "v1" against "v1.0" — ASCII dot is not a boundary', () => {
+        // Real items have version numbers / file extensions; treating `.`
+        // as a boundary would let a stale "v1" item silently overwrite the
+        // upgraded "v1.0" row on update.
+        const fileContent = '- v1.0\n- 木盾';
+        const xml = applyInventoryDeltas([
+            { op: 'remove', item: 'v1' },
+        ], { targetFile: FILE, fileContent });
+        expect(xml).toBe('');
+    });
+
+    it('matches exact "v1.0" item name (dot inside name, end of line)', () => {
+        const fileContent = '- v1.0\n- 木盾';
+        const xml = applyInventoryDeltas([
+            { op: 'remove', item: 'v1.0' },
+        ], { targetFile: FILE, fileContent });
+        expect(xml).toContain('<target>- v1.0</target>');
+    });
+
     it('matches when item name is followed by a Chinese paren (common LLM output)', () => {
         const fileContent = '- 短刀（藍刃）\n- 木盾';
         const xml = applyInventoryDeltas([
