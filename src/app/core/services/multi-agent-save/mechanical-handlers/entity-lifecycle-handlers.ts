@@ -1,6 +1,6 @@
 import type { CharacterCreate, EntityDelete, EntityMove } from '../multi-agent-save.types';
 import { saveBlock, type SaveUpdateOp } from '../utils/serialize-save-block.util';
-import { findMarkdownSections } from '@app/core/services/file-agent/markdown-section.util';
+import { lookupSectionBlock, pushToMap } from '../utils/handler-helpers.util';
 import type { MechanicalHandlerContext } from './protagonist-handlers';
 
 /**
@@ -36,7 +36,7 @@ export function createEntities(
         // schema describes `group` as "L1 group heading text verbatim" which
         // means the text WITHOUT the leading `#`.
         const ctxPath = `# ${c.group}`;
-        push(grouped, ctxPath, { kind: 'append', replacement: body });
+        pushToMap(grouped, ctxPath, { kind: 'append', replacement: body });
     }
 
     if (grouped.size === 0) return '';
@@ -90,7 +90,7 @@ export function moveEntities(
         if (!block) continue;
         deleteOps.push({ kind: 'delete', target: block });
         const ctxPath = `# ${m.toGroup}`;
-        push(appendsByGroup, ctxPath, { kind: 'append', replacement: block });
+        pushToMap(appendsByGroup, ctxPath, { kind: 'append', replacement: block });
     }
 
     const parts: string[] = [];
@@ -106,17 +106,13 @@ export function moveEntities(
 }
 
 /**
- * `## {name}` look-up, returning the verbatim block text from the file so it
- * can be used as a `<target>` for delete / replace ops. Returns null for
- * "not found" AND for "ambiguous" (multiple matches) — Phase 1 doesn't
- * disambiguate same-named L2 entries under different L1 groups.
+ * `## {name}` look-up wrapper around the shared {@link lookupSectionBlock}
+ * helper — handler-local because the heading prefix is fixed at L2 for
+ * character / faction entries and the caller passes only the bare name.
  */
 function lookupEntityBlock(content: string, lines: readonly string[], name: string): string | null {
     if (!name) return null;
-    const matches = findMarkdownSections(content, `## ${name}`);
-    if (matches.length !== 1) return null;
-    const { startLine, endLine } = matches[0];
-    return lines.slice(startLine, endLine + 1).join('\n');
+    return lookupSectionBlock(content, lines, `## ${name}`);
 }
 
 /**
@@ -138,11 +134,3 @@ function renderEntityBody(c: CharacterCreate): string {
     return `\n## ${c.name}\n\n${fieldLines}\n`;
 }
 
-function push<K, V>(map: Map<K, V[]>, key: K, value: V): void {
-    const list = map.get(key);
-    if (list) {
-        list.push(value);
-    } else {
-        map.set(key, [value]);
-    }
-}

@@ -13,7 +13,9 @@ describe('applySectionUpdates', () => {
         const xml = applySectionUpdates([
             { sectionPath: '# 已開發武器 > ## 短弓改', replacement: '* **狀態**: 完工' },
         ], CTX);
-        expect(xml).toContain(`<save file="${FILE}" context="# 已開發武器 &gt; ## 短弓改">`);
+        // `>` is NOT entity-escaped — see escapeAttr JSDoc. The downstream
+        // parser splits on literal `>` to derive the heading breadcrumb.
+        expect(xml).toContain(`<save file="${FILE}" context="# 已開發武器 > ## 短弓改">`);
         expect(xml).toContain('<replacement>* **狀態**: 完工</replacement>');
         expect(xml).not.toContain('<target>');
     });
@@ -80,11 +82,15 @@ describe('applySectionUpdates', () => {
         expect(xml).toBe('');
     });
 
-    it('escapes the context attribute against ">" / "<" in section paths', () => {
-        // ` > ` separator must be entity-encoded so the XML attribute parses.
+    it('keeps the literal `>` in context attributes (NOT entity-encoded)', () => {
+        // Critical for round-tripping: the FileUpdateParser does not decode
+        // entities and MarkdownRangeMatcher splits the context on literal `>`
+        // to derive the heading breadcrumb. Entity-encoding `>` would corrupt
+        // the first segment as `# X &gt`.
         const xml = applySectionUpdates([
             { sectionPath: '# X > ## Y', replacement: 'z' },
         ], CTX);
-        expect(xml).toContain('context="# X &gt; ## Y"');
+        expect(xml).toContain('context="# X > ## Y"');
+        expect(xml).not.toContain('&gt;');
     });
 });

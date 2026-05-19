@@ -1,5 +1,6 @@
 import type { SectionUpdate } from '../multi-agent-save.types';
 import { saveBlock, type SaveUpdateOp } from '../utils/serialize-save-block.util';
+import { pushToMap } from '../utils/handler-helpers.util';
 import type { MechanicalHandlerContext } from './protagonist-handlers';
 
 /**
@@ -34,12 +35,12 @@ export function applySectionUpdates(
             // `<replacement></replacement>` no-op that bloats trace output
             // without changing the file — skip it.
             if (!u.replacement) continue;
-            push(grouped, u.sectionPath, { kind: 'append', replacement: u.replacement });
+            pushToMap(grouped, u.sectionPath, { kind: 'append', replacement: u.replacement });
         } else {
             // Replace exact substring. Empty target is degenerate (matches
             // every position); skip rather than emit broken XML.
             if (!u.target) continue;
-            push(grouped, u.sectionPath, { kind: 'replace', target: u.target, replacement: u.replacement });
+            pushToMap(grouped, u.sectionPath, { kind: 'replace', target: u.target, replacement: u.replacement });
         }
     }
 
@@ -49,13 +50,4 @@ export function applySectionUpdates(
         .map(([sectionPath, ops]) => saveBlock(ctx.targetFile, sectionPath, ops))
         .filter(s => s.length > 0)
         .join('\n');
-}
-
-function push<K, V>(map: Map<K, V[]>, key: K, value: V): void {
-    const list = map.get(key);
-    if (list) {
-        list.push(value);
-    } else {
-        map.set(key, [value]);
-    }
 }

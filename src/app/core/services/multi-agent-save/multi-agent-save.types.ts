@@ -130,13 +130,18 @@ export interface PlanDelta {
  * the legacy `<save context="…"><update><target>…</target><replacement>…`
  * shape 1:1:
  * - `target` omitted → append `replacement` at section end
- * - `target` present → replace that exact substring inside the section
+ * - `target` present, `replacement` non-empty → replace that exact substring
+ * - `target` present, `replacement` empty → delete that exact substring (the
+ *   FileUpdateParser reads `<replacement></replacement>` as a delete; this is
+ *   a small in-section snippet removal, NOT a section-or-entity teardown —
+ *   for those use the `*ToDelete` lifecycle slots)
  *
- * Deletion isn't surfaced — entity-lifecycle sections carry that separately.
+ * No top-level deletion of the whole sectionPath — that's a lifecycle
+ * operation outside this shape.
  */
 export interface SectionUpdate {
   sectionPath: string;
-  /** Exact existing substring to replace. Omit for append-at-end semantics. */
+  /** Exact existing substring to replace / delete. Omit for append-at-end semantics. */
   target?: string;
   replacement: string;
 }

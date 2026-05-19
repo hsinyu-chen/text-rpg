@@ -1,6 +1,6 @@
 import type { InventoryDelta, PlanDelta } from '../multi-agent-save.types';
 import { saveBlock, type SaveUpdateOp } from '../utils/serialize-save-block.util';
-import { findMarkdownSections } from '@app/core/services/file-agent/markdown-section.util';
+import { lookupSectionBlock } from '../utils/handler-helpers.util';
 
 /**
  * Context passed to every mechanical handler — the dispatcher's job to
@@ -245,8 +245,5 @@ function renderPlanBlock(heading: string, body: string | undefined): string {
 }
 
 function lookupPlanBlock(content: string, lines: readonly string[], heading: string): string | null {
-    const matches = findMarkdownSections(content, `## ${heading}`);
-    if (matches.length !== 1) return null;
-    const { startLine, endLine } = matches[0];
-    return lines.slice(startLine, endLine + 1).join('\n');
+    return lookupSectionBlock(content, lines, `## ${heading}`);
 }
