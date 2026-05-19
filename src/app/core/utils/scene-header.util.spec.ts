@@ -68,4 +68,5 @@ describe('extractSceneHeader', () => {
     // earlier `\s+` form would have missed this.
     expect(extractSceneHeader('[T大宋 景德三年]')).toBe('[T大宋 景德三年]');
   });
+
 });

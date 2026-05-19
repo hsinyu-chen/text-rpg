@@ -235,10 +235,14 @@ export class ContextBuilderService {
                     if (stateUpdates.length > 0) {
                         const baseHeader = extractBaseSceneHeader(m.content);
                         const timeHeader = extractTimeMarkerRange(m.content);
-                        // If base header IS the time marker (single [T ...] bracket
-                        // that carries an ASCII digit like '12:42'), don't double it.
-                        const finalHeader = (timeHeader && baseHeader.includes(timeHeader))
-                            ? baseHeader
+                        // If base is itself a `[T …]` bracket, the time range
+                        // already covers it — drop base to avoid emitting
+                        // `[T 12:00] [T 12:00~T 13:00]`. Regex (not
+                        // `startsWith`) so leading whitespace inside the
+                        // bracket (`[ T 12:42]`, allowed by SCENE_HEADER_RE)
+                        // still gets caught.
+                        const finalHeader = (timeHeader && /^\[\s*T/.test(baseHeader))
+                            ? timeHeader
                             : [baseHeader, timeHeader].filter(h => !!h).join(' ');
                         currentBlockText += (finalHeader ? `${finalHeader} ` : '') + `---\n${stateUpdates.join('\n')}\n---\n`;
                         modelCountInCurrentBlock++;

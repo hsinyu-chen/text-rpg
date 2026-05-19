@@ -69,8 +69,8 @@ export function extractSceneHeader(content: string | undefined): string {
   // If the base header is itself a `[T …]` bracket (a single time
   // marker that happened to contain an ASCII digit like `12:42`),
   // the time range already covers it — return just the range form.
-  // Otherwise base is a different header (e.g. `[Act.2 - …]`) and we
-  // want both.
-  if (base.startsWith('[T')) return time;
+  // Regex (not `startsWith`) so leading whitespace inside the bracket
+  // (`[ T 12:42]`, allowed by SCENE_HEADER_RE) still gets caught.
+  if (/^\[\s*T/.test(base)) return time;
   return `${base} ${time}`;
 }
