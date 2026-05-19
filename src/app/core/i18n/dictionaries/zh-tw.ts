@@ -1114,5 +1114,31 @@ export const zhTW: TranslationDict = {
             messageIdLabel: '訊息 id',
             close: '關閉',
         },
+        run: {
+            emptyResult: 'SaveAgent 沒有產出任何更新（manifest 全部區段為空或被略過）。',
+            failedPrefix: 'Multi-Agent Save 失敗：',
+        },
+        progress: {
+            title: '多代理存檔 — 進行中',
+            waitingForStart: '正在啟動 SaveAgent…',
+            ppLabel: 'PP',
+            cotLabel: '思考',
+            totalLabel: '累計 token',
+            cancel: '中斷',
+            close: '關閉',
+            state: {
+                running: '進行中',
+                retry: '重試',
+                done: '完成',
+                skipped: '略過',
+                failed: '失敗',
+            },
+            reason: {
+                not_yet_implemented: 'Phase 1 尚未實作',
+                user_aborted: '使用者中斷',
+                empty_section: '本區段無內容',
+                validation_failed: '驗證失敗',
+            },
+        },
     },
 };

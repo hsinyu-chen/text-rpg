@@ -1114,5 +1114,31 @@ export const en: TranslationDict = {
             messageIdLabel: 'message id',
             close: 'Close',
         },
+        run: {
+            emptyResult: 'SaveAgent emitted no updates (every manifest section was empty or skipped).',
+            failedPrefix: 'Multi-Agent Save failed: ',
+        },
+        progress: {
+            title: 'Multi-Agent Save — In Progress',
+            waitingForStart: 'Starting SaveAgent…',
+            ppLabel: 'PP',
+            cotLabel: 'Chain of thought',
+            totalLabel: 'Total tokens',
+            cancel: 'Cancel',
+            close: 'Close',
+            state: {
+                running: 'Running',
+                retry: 'Retry',
+                done: 'Done',
+                skipped: 'Skipped',
+                failed: 'Failed',
+            },
+            reason: {
+                not_yet_implemented: 'Not implemented in Phase 1',
+                user_aborted: 'User aborted',
+                empty_section: 'Section empty',
+                validation_failed: 'Validation failed',
+            },
+        },
     },
 };

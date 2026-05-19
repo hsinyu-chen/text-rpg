@@ -24,6 +24,8 @@ import { DEFAULT_PROFILE_ID } from '../constants/prompt-profiles';
 
 import { SceneBootService } from './scene-boot.service';
 import { TurnCommitService, TurnContext, RunTurnOptions } from './turn-commit.service';
+import { SaveSettingsStore } from './multi-agent-save/save-settings.store';
+import { MultiAgentSaveService } from './multi-agent-save/multi-agent-save.service';
 
 export type { RunTurnOptions } from './turn-commit.service';
 
@@ -67,6 +69,8 @@ export class GameEngineService {
     private sceneBoot = inject(SceneBootService);
     private commitService = inject(TurnCommitService);
     private i18n = inject(I18nService);
+    private saveSettings = inject(SaveSettingsStore);
+    private multiAgentSave = inject(MultiAgentSaveService);
 
     private currentAbortController: AbortController | null = null;
 
@@ -97,6 +101,15 @@ export class GameEngineService {
         if (this.state.status() === 'generating') return;
         console.log('[GameEngine] sendMessage received with intent:', options?.intent);
         if (!this.validateRunTurnArgs(userText, options)) return;
+
+        // Multi-agent save: independent dispatch path. Bypasses the entire
+        // 8-phase chat pipeline — no user message in chat history, no model
+        // message, no story-protocol composition. The orchestrator owns its
+        // own progress dialog + AutoUpdateDialog open + error surfacing.
+        if (options?.intent === GAME_INTENTS.SAVE && this.saveSettings.saveMode() === 'multi-agent') {
+            await this.multiAgentSave.run(userText);
+            return;
+        }
 
         const turn = await this.startTurn(userText, options);
         if (!(await this.prepareCacheOrAbort(turn))) return;

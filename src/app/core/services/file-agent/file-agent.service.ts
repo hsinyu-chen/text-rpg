@@ -23,6 +23,7 @@ import { I18nService } from '@app/core/i18n';
 import { getLocale } from '@app/core/constants/locales';
 import { AgentHintRegistry } from '@app/core/services/agent-hints/agent-hints.registry';
 import { AgentPanelStateService } from './agent-panel-state.service';
+import { SaveProgressTracker } from '../multi-agent-save/progress/save-progress-tracker.service';
 import { BookRepository } from '@app/core/services/storage/book.repository';
 import { CollectionService } from '@app/core/services/collection.service';
 import { SessionService } from '@app/core/services/session.service';
@@ -115,6 +116,12 @@ export class FileAgentService {
   // longer drops a closure the loop still needs.
   private panelState = inject(AgentPanelStateService);
   private matDialog = inject(MatDialog);
+  // Live gate from the multi-agent save subsystem — when a save run is in
+  // flight the file-agent must stay quiet. The dialog masks chat input but
+  // the agent console is its own surface, so it gets its own check.
+  private saveProgress = inject(SaveProgressTracker);
+  /** True when a multi-agent save is in progress — used for `[disabled]` on agent triggers. */
+  isBlockedBySave = this.saveProgress.isRunning;
   private completionValidator: WorldCompletionValidator | null = null;
 
   setCompletionValidator(v: WorldCompletionValidator): void {
@@ -334,7 +341,7 @@ export class FileAgentService {
   }
 
   async runAgent(prompt: string, input: FileAgentRunInput): Promise<void> {
-    if (!prompt || this.isAgentRunning()) return;
+    if (!prompt || this.isAgentRunning() || this.isBlockedBySave()) return;
     // Clear "last batch's writes" so observers (file-viewer's diff-view
     // effect, etc.) don't keep showing the prior turn's replacements while
     // this turn is still in its thinking phase.

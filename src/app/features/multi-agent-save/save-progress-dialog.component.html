@@ -1,0 +1,71 @@
+<h2 mat-dialog-title>{{ 'multiAgentSave.progress.title' | translate }}</h2>
+<mat-dialog-content class="save-progress-content">
+    @if (entries().length === 0) {
+        <p class="empty-state">{{ 'multiAgentSave.progress.waitingForStart' | translate }}</p>
+    } @else {
+        <mat-accordion multi>
+            @for (entry of entries(); track entry.entryId) {
+                <mat-expansion-panel [expanded]="entry.state === 'running'">
+                    <mat-expansion-panel-header>
+                        <mat-panel-title class="entry-title">
+                            <mat-icon class="state-icon" [attr.data-state]="entry.state">
+                                {{ stateIcon(entry.state) }}
+                            </mat-icon>
+                            <span class="tool-name">{{ entry.toolName || entry.phase }}</span>
+                            @if (entry.entityName) {
+                                <span class="entity-name">— {{ entry.entityName }}</span>
+                            }
+                        </mat-panel-title>
+                        <mat-panel-description class="entry-meta">
+                            <span class="state-label">{{ ('multiAgentSave.progress.state.' + entry.state) | translate }}</span>
+                            @if (entry.statusReason) {
+                                <span class="status-reason">— {{ ('multiAgentSave.progress.reason.' + entry.statusReason) | translate }}</span>
+                            }
+                        </mat-panel-description>
+                    </mat-expansion-panel-header>
+
+                    @if (entry.ppProgress !== undefined && entry.state === 'running') {
+                        <div class="pp-progress">
+                            <mat-progress-bar mode="determinate" [value]="ppPercent(entry)"></mat-progress-bar>
+                            <span class="pp-label">{{ 'multiAgentSave.progress.ppLabel' | translate }}: {{ ppPercent(entry) }}%</span>
+                        </div>
+                    }
+
+                    @if (entry.thought) {
+                        <details class="cot-details" [open]="entry.state === 'running'">
+                            <summary>{{ 'multiAgentSave.progress.cotLabel' | translate }}</summary>
+                            <pre class="cot-text">{{ entry.thought }}</pre>
+                        </details>
+                    }
+
+                    @if (entry.output) {
+                        <pre class="output-text">{{ entry.output }}</pre>
+                    }
+
+                    @if (entry.usage) {
+                        <div class="usage-line">
+                            <span>prompt: {{ entry.usage.prompt }}</span>
+                            <span>cand: {{ entry.usage.candidates }}</span>
+                            <span>cached: {{ entry.usage.cached }}</span>
+                        </div>
+                    }
+                </mat-expansion-panel>
+            }
+        </mat-accordion>
+    }
+</mat-dialog-content>
+<mat-dialog-actions align="end">
+    <div class="total-usage">
+        {{ 'multiAgentSave.progress.totalLabel' | translate }}:
+        prompt {{ totalUsage().prompt }} / cand {{ totalUsage().candidates }} / cached {{ totalUsage().cached }}
+    </div>
+    @if (canCancel()) {
+        <button mat-stroked-button color="warn" (click)="cancel()">
+            <mat-icon>cancel</mat-icon>
+            {{ 'multiAgentSave.progress.cancel' | translate }}
+        </button>
+    }
+    @if (!isRunning()) {
+        <button mat-button (click)="close()">{{ 'multiAgentSave.progress.close' | translate }}</button>
+    }
+</mat-dialog-actions>
