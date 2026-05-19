@@ -109,14 +109,19 @@ export interface InventoryDelta {
   op: DeltaOp;
   /** Item name (original wording). `remove` may use the bare name. */
   item: string;
-  /** New-state description. Required for `add` / `update`; ignored on `remove`. */
+  /**
+   * New-state description appended after the item name on `add` / `update`.
+   * When omitted the handler falls back to a bare `- item` line, which is a
+   * valid (if terse) inventory entry. Strongly encouraged for `add` /
+   * `update` so the entry is self-documenting; ignored on `remove`.
+   */
   details?: string;
 }
 
 export interface PlanDelta {
   op: DeltaOp;
   title: string;
-  /** Full entry body. Required for `add` / `update`. */
+  /** Full entry body. Strongly encouraged for `add` / `update`; ignored on `remove`. */
   body?: string;
 }
 

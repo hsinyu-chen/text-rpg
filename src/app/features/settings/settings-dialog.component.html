@@ -208,13 +208,30 @@
                         <mat-option value="legacy">{{ 'settings.saveMode.legacy' | translate }}</mat-option>
                         <mat-option value="multi-agent">{{ 'settings.saveMode.multiAgent' | translate }}</mat-option>
                     </mat-select>
-                    @if (saveMode() === 'multi-agent') {
-                        <mat-hint>{{ 'settings.saveMode.multiAgentHint' | translate }}</mat-hint>
-                    } @else {
-                        <mat-hint>{{ 'settings.saveMode.legacyHint' | translate }}</mat-hint>
-                    }
                 </mat-form-field>
             </div>
+            <p class="hint-text mode-hint">
+                @if (saveMode() === 'multi-agent') {
+                    {{ 'settings.saveMode.multiAgentHint' | translate }}
+                } @else {
+                    {{ 'settings.saveMode.legacyHint' | translate }}
+                }
+            </p>
+
+            @if (saveMode() === 'multi-agent') {
+                <div class="form-row">
+                    <mat-form-field appearance="outline" class="full-width">
+                        <mat-label>{{ 'settings.saveMode.subToolProfileLabel' | translate }}</mat-label>
+                        <mat-select [(ngModel)]="saveSubToolProfileId">
+                            <mat-option [value]="''">{{ 'settings.saveMode.subToolProfileSameAsMain' | translate }}</mat-option>
+                            @for (p of profiles(); track p.id) {
+                                <mat-option [value]="p.id">{{ p.name }} ({{ p.provider }})</mat-option>
+                            }
+                        </mat-select>
+                    </mat-form-field>
+                </div>
+                <p class="hint-text mode-hint">{{ 'settings.saveMode.subToolProfileHint' | translate }}</p>
+            }
 
             <div class="button-row">
                 <button mat-stroked-button (click)="openProviderDebug()">

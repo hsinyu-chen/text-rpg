@@ -9,6 +9,7 @@ export function isSaveMode(v: unknown): v is SaveMode {
 
 const KEYS = {
     saveMode: 'mas_save_mode',
+    subToolProfileId: 'mas_sub_tool_profile_id',
 } as const;
 
 /**
@@ -25,13 +26,32 @@ export class SaveSettingsStore {
     private _saveMode = signal<SaveMode>('legacy');
     readonly saveMode = this._saveMode.asReadonly();
 
+    /**
+     * LLM profile id used by Phase 2+ LLM-backed sub-tools (update_character /
+     * update_faction). Empty string means "same as the main chat profile" —
+     * the orchestrator falls back to the active LLMProvider config in that
+     * case. Phase 1 stores the picker value but doesn't wire it (no LLM
+     * sub-tools yet); persisting it now lets users pre-configure ahead of
+     * Phase 2 without losing their selection across releases.
+     */
+    private _subToolProfileId = signal<string>('');
+    readonly subToolProfileId = this._subToolProfileId.asReadonly();
+
     constructor() {
         const raw = this.kv.get(KEYS.saveMode);
         if (isSaveMode(raw)) this._saveMode.set(raw);
+
+        const profileId = this.kv.get(KEYS.subToolProfileId);
+        if (profileId !== null) this._subToolProfileId.set(profileId);
     }
 
     setSaveMode(mode: SaveMode): void {
         this._saveMode.set(mode);
         this.kv.set(KEYS.saveMode, mode);
+    }
+
+    setSubToolProfileId(id: string): void {
+        this._subToolProfileId.set(id);
+        this.kv.set(KEYS.subToolProfileId, id);
     }
 }

@@ -56,10 +56,12 @@ export function applyInventoryDeltas(deltas: readonly InventoryDelta[], ctx: Mec
             case 'remove': {
                 const existing = findItemLine(ctx.fileContent, delta.item);
                 if (existing) {
-                    // Trailing newline included so the deletion doesn't leave a
-                    // blank line behind — FileUpdateParser does whitespace-
-                    // sensitive matching, so the line + its terminator come out
-                    // together.
+                    // FileUpdateParser.dedent strips the leading/trailing
+                    // blank lines off <target>, so we can't actually send
+                    // "line + newline" as the apply-time target. Consecutive
+                    // removes may therefore leave one blank line per deletion;
+                    // AutoUpdateDialog surfaces the resulting diff for user
+                    // approval, so a stray blank isn't catastrophic.
                     ops.push({ kind: 'delete', target: existing });
                 }
                 break;

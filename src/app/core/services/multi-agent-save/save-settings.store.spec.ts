@@ -35,4 +35,24 @@ describe('SaveSettingsStore', () => {
         store.setSaveMode('legacy');
         expect(kv.get('mas_save_mode')).toBe('legacy');
     });
+
+    it('defaults subToolProfileId to "" (same-as-main) when KV is empty', () => {
+        expect(setup().store.subToolProfileId()).toBe('');
+    });
+
+    it('loads + persists subToolProfileId through KV', () => {
+        expect(setup({ mas_sub_tool_profile_id: 'local-small' }).store.subToolProfileId()).toBe('local-small');
+
+        const { store, kv } = setup();
+        store.setSubToolProfileId('cloud-gemini-2-flash');
+        expect(store.subToolProfileId()).toBe('cloud-gemini-2-flash');
+        expect(kv.get('mas_sub_tool_profile_id')).toBe('cloud-gemini-2-flash');
+
+        // Empty string is a legal value (= "same as main"), distinct from
+        // KV-absent. Verifies setter writes the empty string rather than
+        // skipping the KV write.
+        store.setSubToolProfileId('');
+        expect(store.subToolProfileId()).toBe('');
+        expect(kv.get('mas_sub_tool_profile_id')).toBe('');
+    });
 });

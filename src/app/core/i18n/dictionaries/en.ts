@@ -525,6 +525,9 @@ export const en: TranslationDict = {
             multiAgent: 'Multi-Agent (manifest + dispatcher)',
             legacyHint: 'Original save flow: the main LLM emits all save XML in one pass.',
             multiAgentHint: 'Experimental pipeline: a SaveAgent emits a manifest, then each sub-tool handles its slice. Phase 1 only wires inventoryDeltas — other categories are skipped and marked not yet implemented.',
+            subToolProfileLabel: 'Sub-tool LLM profile',
+            subToolProfileSameAsMain: 'Same as main chat (default)',
+            subToolProfileHint: "Phase 2+ LLM sub-tools (update_character / update_faction) will use this profile. Phase 1 just stores the selection — pre-configure now if you want; a smaller / local model saves cost.",
         },
     },
     app: {

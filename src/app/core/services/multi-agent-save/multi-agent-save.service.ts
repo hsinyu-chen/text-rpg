@@ -4,7 +4,6 @@ import { MatDialog } from '@angular/material/dialog';
 import { ContextBuilderService } from '../context-builder.service';
 import { LLMProviderRegistryService } from '../llm-provider-registry.service';
 import { GameStateService } from '../game-state.service';
-import { AppConfigStore } from '../app-config-store';
 import { FileUpdateParser } from '../file-update-parser';
 import { AutoUpdateDialogComponent } from '@app/shared/components/auto-update-dialog/auto-update-dialog.component';
 import { SaveProgressDialogComponent } from '@app/features/multi-agent-save/save-progress-dialog.component';
@@ -48,7 +47,6 @@ export class MultiAgentSaveService {
     private contextBuilder = inject(ContextBuilderService);
     private providerRegistry = inject(LLMProviderRegistryService);
     private state = inject(GameStateService);
-    private appConfig = inject(AppConfigStore);
     private saveAgent = inject(SaveAgentRunnerService);
     private dispatcher = inject(SubToolDispatcherService);
     private progress = inject(SaveProgressTracker);
@@ -125,7 +123,6 @@ export class MultiAgentSaveService {
 
             // 6. Open AutoUpdateDialog. Close the progress dialog first so the
             //    user isn't looking at two stacked modals.
-            this.progress.setRunning(false);
             dialogRef.close();
 
             this.dialog.open(AutoUpdateDialogComponent, {
@@ -136,6 +133,15 @@ export class MultiAgentSaveService {
                 panelClass: 'auto-update-dialog-panel',
             });
         } catch (err: unknown) {
+            // User-initiated cancellation (Cancel button → AbortController.abort()).
+            // Stream error names vary by provider — match the common ones rather
+            // than the snackbar treating "I cancelled" as a scary failure.
+            if (isAbortError(err)) {
+                console.log('[MultiAgentSave] Run aborted by user.');
+                // Leave the progress dialog open so the user sees which entries
+                // completed before the abort.
+                return;
+            }
             const msg = err instanceof Error ? err.message : String(err);
             console.error('[MultiAgentSave] Run failed:', err);
             this.snackBar.open(
@@ -143,29 +149,28 @@ export class MultiAgentSaveService {
                 this.i18n.translate('ui.CLOSE'),
                 { duration: 10000, panelClass: ['snackbar-error'] },
             );
-            // Leave the progress dialog open so the user can inspect failed
-            // entries; switch isRunning off so the Cancel button hides and
-            // Close shows.
-            this.progress.setRunning(false);
         } finally {
+            // Single canonical reset site — `setRunning(false)` hides the
+            // dialog's Cancel button + lets the chat mask lift, both on
+            // success and on any thrown / aborted exit.
             this.progress.setRunning(false);
         }
     }
 
     /**
      * Loads `injection_save_manifest.md` with the same profile-fallback chain
-     * `InjectionService` uses: try active prompt profile first, fall back to
-     * the default (built-in) profile, fall back to the language-folder root.
+     * `InjectionService` uses: try the active profile first, fall back to the
+     * default (built-in cloud) profile. The cloud profile's `getProfileBasePath`
+     * resolves to `assets/system_files/${lang}` (cloud has `subDir: null`),
+     * so the language-root path is implicitly covered by the default-profile
+     * fallback — no separate third candidate.
      */
     private async loadManifestPrompt(lang: string, profileId: string): Promise<string> {
         const langFolder = getLangFolder(lang);
-        const candidates = [
-            `${getProfileBasePath(langFolder, profileId)}/${MANIFEST_PROMPT_FILENAME}`,
-        ];
+        const candidates = [`${getProfileBasePath(langFolder, profileId)}/${MANIFEST_PROMPT_FILENAME}`];
         if (profileId !== DEFAULT_PROFILE_ID) {
             candidates.push(`${getProfileBasePath(langFolder, DEFAULT_PROFILE_ID)}/${MANIFEST_PROMPT_FILENAME}`);
         }
-        candidates.push(`assets/system_files/${langFolder}/${MANIFEST_PROMPT_FILENAME}`);
 
         for (const path of candidates) {
             try {
@@ -186,4 +191,17 @@ export class MultiAgentSaveService {
         const merged = manifestPrompt.replace(/\{\{USER_INPUT\}\}/g, () => userInput);
         return [...history, { role: 'user', parts: [{ text: merged }] }];
     }
+}
+
+/**
+ * `AbortController.abort()` surfaces differently across providers — DOMException
+ * with name='AbortError', plain Error with message containing 'aborted', or a
+ * provider-specific subclass. Match the common cases so user-initiated cancels
+ * never look like real failures.
+ */
+function isAbortError(err: unknown): boolean {
+    if (!(err instanceof Error)) return false;
+    if (err.name === 'AbortError') return true;
+    const msg = err.message.toLowerCase();
+    return msg.includes('aborted') || msg.includes('abort');
 }

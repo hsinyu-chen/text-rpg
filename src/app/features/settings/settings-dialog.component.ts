@@ -80,6 +80,7 @@ export class SettingsDialogComponent {
   enableAdultDeclaration = signal(true);
   engineMode = signal<'single' | 'two-call'>('single');
   saveMode = signal<SaveMode>('legacy');
+  saveSubToolProfileId = signal<string>('');
   outputLanguage = signal('default');
   customOutputLanguage = signal('');
   languages: { value: string; label: string }[] = getLanguagesList();
@@ -155,6 +156,7 @@ export class SettingsDialogComponent {
     this.enableAdultDeclaration.set(this.appConfig.enableAdultDeclaration());
     this.engineMode.set(this.appConfig.engineMode());
     this.saveMode.set(this.saveSettings.saveMode());
+    this.saveSubToolProfileId.set(this.saveSettings.subToolProfileId());
 
     const lang = this.appConfig.outputLanguage();
     const isPresetLang = this.languages.some(l => l.value === lang);
@@ -207,6 +209,7 @@ export class SettingsDialogComponent {
     await this.engine.saveConfig(commonConfig);
 
     this.saveSettings.setSaveMode(this.saveMode());
+    this.saveSettings.setSubToolProfileId(this.saveSubToolProfileId());
 
     this.bridge.setUrl(this.debugBridgeUrl().trim());
     this.bridge.setEnabled(this.debugBridgeEnabled());
