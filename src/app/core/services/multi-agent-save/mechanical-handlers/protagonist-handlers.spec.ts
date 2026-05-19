@@ -8,12 +8,13 @@ describe('applyInventoryDeltas', () => {
         expect(applyInventoryDeltas([], { targetFile: FILE, fileContent: '' })).toBe('');
     });
 
-    it('appends a new item line for op:add (with details)', () => {
+    it('appends a new item line for op:add (with details, empty file = no leading newline)', () => {
         const xml = applyInventoryDeltas([
             { op: 'add', item: '長劍', details: '一柄精鋼長劍' },
         ], { targetFile: FILE, fileContent: '' });
         expect(xml).toContain(`<save file="${FILE}" context="">`);
-        expect(xml).toContain('<replacement>\n- 長劍 — 一柄精鋼長劍</replacement>');
+        // Empty file: no leading newline to avoid a stray blank line at file head.
+        expect(xml).toContain('<replacement>- 長劍 — 一柄精鋼長劍</replacement>');
         expect(xml).not.toContain('<target>');
     });
 
@@ -21,6 +22,13 @@ describe('applyInventoryDeltas', () => {
         const xml = applyInventoryDeltas([
             { op: 'add', item: '麻繩' },
         ], { targetFile: FILE, fileContent: '' });
+        expect(xml).toContain('<replacement>- 麻繩</replacement>');
+    });
+
+    it('prepends a newline before append when the file already has content', () => {
+        const xml = applyInventoryDeltas([
+            { op: 'add', item: '麻繩' },
+        ], { targetFile: FILE, fileContent: '- 鐵劍' });
         expect(xml).toContain('<replacement>\n- 麻繩</replacement>');
     });
 

@@ -51,11 +51,15 @@ export function applyInventoryDeltas(deltas: readonly InventoryDelta[], ctx: Mec
     // file instead of N. Inventory files in real KBs sit around ~50-200 lines;
     // the wasted work is small but the fix is free.
     const lines = ctx.fileContent.split('\n');
+    // Leading newline before appended items separates them from existing
+    // content. Empty file (first entry creating the inventory list) doesn't
+    // need one — would otherwise leave a stray blank line at file head.
+    const appendPrefix = ctx.fileContent.length > 0 ? '\n' : '';
     const ops: SaveUpdateOp[] = [];
     for (const delta of deltas) {
         switch (delta.op) {
             case 'add': {
-                ops.push({ kind: 'append', replacement: '\n' + formatItemLine(delta) });
+                ops.push({ kind: 'append', replacement: appendPrefix + formatItemLine(delta) });
                 break;
             }
             case 'remove': {
@@ -96,7 +100,7 @@ export function applyInventoryDeltas(deltas: readonly InventoryDelta[], ctx: Mec
                     // The model thinks the item should exist post-ACT but it's
                     // not in the current file — treat as an add. Safer than
                     // emitting a stale target that won't match.
-                    ops.push({ kind: 'append', replacement: '\n' + formatItemLine(delta) });
+                    ops.push({ kind: 'append', replacement: appendPrefix + formatItemLine(delta) });
                 }
                 break;
             }
@@ -158,9 +162,10 @@ function findItemLine(lines: readonly string[], itemName: string): string | null
 /**
  * Characters that legally terminate an item-name token in our handler's
  * eyes. Covers ASCII separators (space, hyphen, colon, paren, comma,
- * semicolon) plus the Chinese full-width variants the LLM often emits
- * (`：`, `（`, `，`, `；`, `。`, etc.). zh-tw is the primary content
- * language so the Chinese variants are not edge cases.
+ * semicolon, bang, question, close brackets) plus the Chinese full-width
+ * variants the LLM often emits (`：`, `（`, `，`, `；`, `。`, `！`, `？`,
+ * close brackets, etc.). zh-tw is the primary content language so the
+ * Chinese variants are not edge cases.
  *
  * Note: ASCII `.` is deliberately excluded. Item names routinely contain
  * literal dots — version numbers ("v1.0"), file extensions, abbreviations
@@ -168,4 +173,4 @@ function findItemLine(lines: readonly string[], itemName: string): string | null
  * `- v1.0`. Chinese `。` stays in because it's a sentence terminator and
  * almost never appears mid-name.
  */
-const ITEM_BOUNDARY_RE = /[\s\-—:：(（［【「,，;；。]/;
+const ITEM_BOUNDARY_RE = /[\s\-—:：(（［【「,，;；。!！?？\]】}｝)）]/;

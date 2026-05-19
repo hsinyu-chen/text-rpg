@@ -35,11 +35,24 @@ export type SaveUpdateOp =
  */
 export function saveBlock(file: string, context: string, ops: readonly SaveUpdateOp[]): string {
     if (ops.length === 0) return '';
-    const inner = ops.map(serializeOp).join('\n');
+    // serializeOp may drop ops whose content would corrupt XML (e.g. a
+    // literal `</target>` substring); filter the empties so we never emit a
+    // childless `<save>...</save>` shell.
+    const inner = ops.map(serializeOp).filter(s => s.length > 0).join('\n');
+    if (!inner) return '';
     return `<save file="${escapeAttr(file)}" context="${escapeAttr(context)}">\n${inner}\n</save>`;
 }
 
 function serializeOp(op: SaveUpdateOp): string {
+    // Defensive validation: a literal `</target>` or `</replacement>` in op
+    // content would close the wrapping tag early and corrupt the XML stream.
+    // FileUpdateParser doesn't decode entities (intentional — see comment
+    // below), and the legacy LLM-emitted save path has the same constraint,
+    // so this is a content invariant the handler must enforce. Skip the op
+    // (return empty) rather than emit broken XML; the dispatcher's
+    // progress entry will surface as `done` with shorter output.
+    if (containsClosingTag(op)) return '';
+
     switch (op.kind) {
         case 'replace':
             return `  <update>\n    <target>${op.target}</target>\n    <replacement>${op.replacement}</replacement>\n  </update>`;
@@ -48,6 +61,13 @@ function serializeOp(op: SaveUpdateOp): string {
         case 'delete':
             return `  <update>\n    <target>${op.target}</target>\n    <replacement></replacement>\n  </update>`;
     }
+}
+
+const CLOSING_TAG_RE = /<\/(target|replacement)>/i;
+function containsClosingTag(op: SaveUpdateOp): boolean {
+    if ('target' in op && CLOSING_TAG_RE.test(op.target)) return true;
+    if ('replacement' in op && CLOSING_TAG_RE.test(op.replacement)) return true;
+    return false;
 }
 
 function escapeAttr(s: string): string {

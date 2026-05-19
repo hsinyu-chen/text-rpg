@@ -117,6 +117,18 @@ export class GameEngineService {
         // throw (e.g. signal setup error, DI failure) still surfaces via
         // the same snackbar / status='error' path as the chat pipeline.
         if (options?.intent === GAME_INTENTS.SAVE && this.saveSettings.saveMode() === 'multi-agent') {
+            // Legacy-fork profiles can be missing the manifest prompt or
+            // carry stale schema text; do the same autoswitch the chat
+            // pipeline runs before composing a turn. The notification
+            // surfaces via the same snackbar path as the legacy chat flow.
+            const switchedFromLegacy = await this.autoSwitchIfLegacyProfile();
+            if (switchedFromLegacy) {
+                this.snackBar.open(
+                    this.i18n.translate('ui.LEGACY_PROFILE_AUTOSWITCH'),
+                    this.i18n.translate('ui.CLOSE'),
+                    { duration: 8000, panelClass: ['snackbar-warning'] },
+                );
+            }
             try {
                 await this.multiAgentSave.run(userText);
             } catch (e: unknown) {

@@ -50,6 +50,26 @@ describe('saveBlock', () => {
         expect(xml).toContain('context="# X &amp; &quot;Y&quot;"');
     });
 
+    it('drops ops whose target / replacement contains a literal closing tag', () => {
+        // No real LLM emits these in practice, but the parser regex would
+        // close early on the first match, corrupting the rest of the stream.
+        // Better to silently drop than to corrupt.
+        const xml = saveBlock('x.md', '', [
+            { kind: 'replace', target: '- weird </target> name', replacement: 'r' },
+            { kind: 'append', replacement: '- legit' },
+        ]);
+        // The bad op is dropped; the second op still emits its <save> block.
+        expect(xml).toContain('- legit');
+        expect(xml).not.toContain('</target> name');
+    });
+
+    it('returns empty when every op is dropped (no childless <save> shell)', () => {
+        const xml = saveBlock('x.md', '', [
+            { kind: 'replace', target: 'foo</target>', replacement: 'bar' },
+        ]);
+        expect(xml).toBe('');
+    });
+
     it('passes target/replacement content through verbatim (FileUpdateParser does not decode entities)', () => {
         // & in content must survive a roundtrip — escaping it would persist
         // the literal "Salt &amp; Pepper" to disk, breaking subsequent line
