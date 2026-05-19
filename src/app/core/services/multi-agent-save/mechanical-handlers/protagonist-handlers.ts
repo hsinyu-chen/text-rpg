@@ -1,5 +1,6 @@
-import type { InventoryDelta } from '../multi-agent-save.types';
+import type { InventoryDelta, PlanDelta } from '../multi-agent-save.types';
 import { saveBlock, type SaveUpdateOp } from '../utils/serialize-save-block.util';
+import { lookupSectionBlock } from '../utils/handler-helpers.util';
 
 /**
  * Context passed to every mechanical handler — the dispatcher's job to
@@ -19,6 +20,16 @@ export interface MechanicalHandlerContext {
      * (the file-creation case is handled by `add` → append).
      */
     fileContent: string;
+    /**
+     * Locale-specific KB section heading texts the dispatcher needs to pin
+     * `<save context="…">` to (e.g. the Story Outline chronicle heading
+     * differs zh `劇情綱要` vs en `Story Outline`). Threaded from
+     * {@link import('@app/core/constants/locales/locale.interface').AppLocale.kbSectionHeadings}
+     * by the dispatcher.
+     */
+    kbSectionHeadings: {
+        STORY_OUTLINE_CHRONICLE: string;
+    };
 }
 
 /**
@@ -174,3 +185,76 @@ function findItemLine(lines: readonly string[], itemName: string): string | null
  * almost never appears mid-name.
  */
 const ITEM_BOUNDARY_RE = /[\s\-—:：(（［【「,，;；。!！?？\]】}｝)）]/;
+
+/**
+ * Translates `plansDeltas` into `<save>` XML for the Plans KB file. Plans live
+ * as `## 「{title}」計畫` L2 blocks (per the template in `8.計畫.md`); the
+ * handler owns the heading wrapping so SaveAgent's `title` is just the plan
+ * name, no brackets / suffix.
+ *
+ * Strategy mirrors {@link applyInventoryDeltas} but at the section level:
+ * - **`add`**: append `\n## 「{title}」計畫\n\n{body}` at file root.
+ * - **`remove`**: look up the L2 block via {@link lookupSectionBlock};
+ *   emit a delete on the verbatim block text. Ambiguous (multiple matches)
+ *   or missing → silently drop.
+ * - **`update`**: same look-up; emit a replace from the existing block to the
+ *   rewrapped new body. Missing → fall back to `add` (SaveAgent clearly
+ *   thinks this plan should exist post-ACT).
+ *
+ * `body` may be omitted on `remove` (ignored anyway) and empty on
+ * `add` / `update` — an empty body still produces a valid heading-only entry.
+ *
+ * **Locale gotcha**: the `「…」計畫` heading wrap is zh-tw-specific (the blank
+ * world template for zh ships `8.計畫.md`; the en blank world template does
+ * not ship a Plans file yet). When en plans land, this wrap will move into
+ * AppLocale alongside `kbSectionHeadings`.
+ */
+export function applyPlansDeltas(deltas: readonly PlanDelta[], ctx: MechanicalHandlerContext): string {
+    if (deltas.length === 0) return '';
+
+    const lines = ctx.fileContent.split('\n');
+    const appendPrefix = ctx.fileContent.length > 0 ? '\n' : '';
+    const ops: SaveUpdateOp[] = [];
+    for (const delta of deltas) {
+        if (!delta.title) continue;
+        // Defensive against models that include the brackets / `計畫` suffix in
+        // `title` themselves — strip whichever boundary they shipped so we
+        // re-wrap exactly once. The locale-template move is documented in the
+        // function JSDoc as a deferred refactor; this guard mitigates the
+        // sharp edge today.
+        const bareTitle = delta.title.replace(/^「/, '').replace(/」計畫$/, '').replace(/」$/, '');
+        const heading = `「${bareTitle}」計畫`;
+        switch (delta.op) {
+            case 'add': {
+                ops.push({ kind: 'append', replacement: appendPrefix + renderPlanBlock(heading, delta.body) });
+                break;
+            }
+            case 'remove': {
+                const block = lookupPlanBlock(ctx.fileContent, lines, heading);
+                if (block) {
+                    ops.push({ kind: 'delete', target: block });
+                }
+                break;
+            }
+            case 'update': {
+                const block = lookupPlanBlock(ctx.fileContent, lines, heading);
+                if (block) {
+                    ops.push({ kind: 'replace', target: block, replacement: renderPlanBlock(heading, delta.body) });
+                } else {
+                    ops.push({ kind: 'append', replacement: appendPrefix + renderPlanBlock(heading, delta.body) });
+                }
+                break;
+            }
+        }
+    }
+    return saveBlock(ctx.targetFile, '', ops);
+}
+
+function renderPlanBlock(heading: string, body: string | undefined): string {
+    const trimmedBody = (body ?? '').trim();
+    return trimmedBody ? `## ${heading}\n\n${trimmedBody}` : `## ${heading}`;
+}
+
+function lookupPlanBlock(content: string, lines: readonly string[], heading: string): string | null {
+    return lookupSectionBlock(content, lines, `## ${heading}`);
+}

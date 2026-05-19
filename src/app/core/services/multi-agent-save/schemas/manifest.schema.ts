@@ -23,10 +23,11 @@ const planItem = {
 
 const sectionItem = {
     type: 'object',
-    required: ['sectionPath', 'content'],
+    required: ['sectionPath', 'replacement'],
     properties: {
         sectionPath: { type: 'string', description: "Breadcrumb like '# 已開發武器 > ## 短弓改'" },
-        content: { type: 'string' },
+        target: { type: 'string', description: 'Exact existing substring to replace. Omit to append the replacement at section end.' },
+        replacement: { type: 'string', description: 'New content. When target is omitted this is appended at the end of the section.' },
     },
 } as const;
 
@@ -251,7 +252,9 @@ function validateSectionArray(v: unknown, fieldName: string): string | null {
         const e = v[i];
         if (!isObject(e)) return `${fieldName}[${i}] is not an object`;
         if (typeof e['sectionPath'] !== 'string') return `${fieldName}[${i}].sectionPath missing`;
-        if (typeof e['content'] !== 'string') return `${fieldName}[${i}].content missing`;
+        if (typeof e['replacement'] !== 'string') return `${fieldName}[${i}].replacement missing`;
+        const target = e['target'];
+        if (target !== undefined && typeof target !== 'string') return `${fieldName}[${i}].target must be string`;
     }
     return null;
 }

@@ -35,6 +35,9 @@ export const ZH_TW_LOCALE: AppLocale = {
         PLANS: '8.計畫.md',
         INVENTORY: '9.物品欄.md'
     },
+    kbSectionHeadings: {
+        STORY_OUTLINE_CHRONICLE: '劇情綱要',
+    },
     promptHoles: {
         LANGUAGE_RULE: "必須使用繁體中文進行創作，嚴禁使用中國用語。"
     },

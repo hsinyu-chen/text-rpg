@@ -36,8 +36,14 @@ your job is "decide + supply the necessary facts".
   for remove).
 - `plansDeltas`: per-entry `{ op, title, body? }` for quests / personal goals.
 - `techEquipmentUpdates / magicSkillsUpdates / worldFeaturesUpdates`:
-  per-entry `{ sectionPath, content }`. `sectionPath` uses ` > ` separators
-  (e.g. `# Tech > ## Hand Crossbow Mk2`).
+  per-entry `{ sectionPath, target?, replacement }`.
+  - `sectionPath` uses ` > ` separators (e.g. `# Tech > ## Hand Crossbow Mk2`)
+    and must be an existing heading path in the file.
+  - Omit `target` → `replacement` is appended at the end of that section
+    (**add**); provide `target` → that **exact substring** (matching indentation
+    and punctuation) inside the section is replaced (**replace**).
+  - Multiple small replacements on the same `sectionPath` are fine — the
+    dispatcher groups same-path entries into a single `<save>` block.
 - `charactersToCreate / factionsToCreate`: entities first appearing this
   ACT that need a KB entry. Fill `draftedFields` with all initial fields
   (identity / base settings / last known location / initial mindset etc.)
