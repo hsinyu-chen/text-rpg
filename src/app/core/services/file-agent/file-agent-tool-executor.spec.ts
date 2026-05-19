@@ -594,16 +594,19 @@ describe('listChatMessages', () => {
     expect(r.response).toMatchObject({ error: expect.stringMatching(/No chat history available/) });
   });
 
-  it('returns outline without content, excluding hidden by default', () => {
+  it('returns outline newest-first, without content, excluding hidden by default', () => {
     const { context } = makeContext({}, makeChat());
     const r = run({ action: 'listChatMessages', args: { reason: 'check' } }, context);
     const messages = (r.response as { messages: { id: string; charCount: number; hasLogs: boolean; summary?: string }[] }).messages;
-    expect(messages.map(m => m.id)).toEqual(['m1', 'm2', 'm4', 'm5', 'm6']);
+    // Newest-first per the tool docstring — m6 is the latest model message,
+    // m1 is the oldest user message. m3 is hidden, excluded by default.
+    expect(messages.map(m => m.id)).toEqual(['m6', 'm5', 'm4', 'm2', 'm1']);
     expect(messages[0]).not.toHaveProperty('content');
-    expect(messages[0].charCount).toBe('Let me grab the EMP rifle.'.length);
-    expect(messages[1].hasLogs).toBe(true);
-    expect(messages[3].hasLogs).toBe(false);
-    expect(messages[0].summary).toBe('pick up rifle');
+    // m6 is the newest; its content is the keycard prose.
+    expect(messages[0].charCount).toBe('You find a keycard labeled "Sector 7".'.length);
+    expect(messages[0].hasLogs).toBe(true);   // m6 carries inventory + quest logs
+    expect(messages[2].hasLogs).toBe(true);   // m4 carries world_log
+    expect(messages[messages.length - 1].summary).toBe('pick up rifle'); // m1 oldest
   });
 
   it('includes hidden when flagged', () => {
@@ -613,19 +616,21 @@ describe('listChatMessages', () => {
     expect(ids).toContain('m3');
   });
 
-  it('respects limit (returns newest N)', () => {
+  it('respects limit (returns newest N, newest-first)', () => {
     const { context } = makeContext({}, makeChat());
     const r = run({ action: 'listChatMessages', args: { reason: 'check', limit: 2 } }, context);
     const resp = r.response as { messages: { id: string }[]; olderRemaining: number };
-    expect(resp.messages.map(m => m.id)).toEqual(['m5', 'm6']);
+    // limit:2 keeps the 2 newest (m5, m6) ordered newest-first.
+    expect(resp.messages.map(m => m.id)).toEqual(['m6', 'm5']);
     expect(resp.olderRemaining).toBe(3); // m1, m2, m4 still visible-and-older
   });
 
-  it('paginates with before (exclusive cutoff)', () => {
+  it('paginates with before (exclusive cutoff, newest-first)', () => {
     const { context } = makeContext({}, makeChat());
     const r = run({ action: 'listChatMessages', args: { reason: 'check', before: 'm4', limit: 10 } }, context);
     const ids = (r.response as { messages: { id: string }[] }).messages.map(m => m.id);
-    expect(ids).toEqual(['m1', 'm2']);
+    // Cut at m4 leaves m1+m2 in scope, returned newest-first.
+    expect(ids).toEqual(['m2', 'm1']);
   });
 
   it('errors when before id is not found', () => {

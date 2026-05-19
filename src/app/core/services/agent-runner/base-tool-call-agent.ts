@@ -161,11 +161,31 @@ export abstract class BaseToolCallAgent<TAction extends ParsedAction = ParsedAct
     // ===== Loop (driven by subclass's runAgent wrapper) =====
 
     /**
+     * Hard cap on recursive `processAgentTurn` depth — defends against
+     * runaway loops from a buggy `validateBeforeTerminal` that keeps
+     * rejecting or a model that emits tool calls forever without
+     * `submitResponse`. Subclasses (e.g. save-sim's per-entity agent
+     * which expects tighter budgets) MAY override; 50 is generous for
+     * file-agent's chat-panel + file-edit use cases. The 3-cap on JSON
+     * parse retries is separate and additive.
+     */
+    protected readonly maxTurns: number = 50;
+
+    /**
      * The core recursive loop. Subclass `runAgent(prompt, input)` typically
      * does its own setup (history seeding, log push, context augmentation)
      * and then calls this with the augmented context.
      */
-    protected async processAgentTurn(context: TContext, retryCount = 0): Promise<void> {
+    protected async processAgentTurn(context: TContext, retryCount = 0, turnCount = 0): Promise<void> {
+        if (turnCount >= this.maxTurns) {
+            this.agentLogs.update(logs => [...logs, {
+                role: 'system',
+                text: `Agent loop exceeded maxTurns=${this.maxTurns} — stopping to prevent runaway. The model never reached a terminal action (e.g. submitResponse) or pre-terminal validation kept rejecting. Inspect the trace to diagnose.`,
+                type: 'error',
+            }]);
+            this.isAgentRunning.set(false);
+            return;
+        }
         const setup = this.resolveTurnSetup(context);
         if (!setup) return;
         const { provider, providerSettings, mode, allowParallel, systemInstruction, genConfig } = setup;
@@ -183,7 +203,7 @@ export abstract class BaseToolCallAgent<TAction extends ParsedAction = ParsedAct
 
         const parsed = parseActionsFromOutput<TAction>(mode, ctx.accumulatedText, result.nativeFunctionCalls);
         if (!parsed.ok) {
-            await this.handleJsonParseError(context, retryCount, ctx);
+            await this.handleJsonParseError(context, retryCount, ctx, turnCount);
             return;
         }
 
@@ -198,14 +218,14 @@ export abstract class BaseToolCallAgent<TAction extends ParsedAction = ParsedAct
 
         const terminalAction = parsed.actions.find(a => this.isTerminal(a));
         if (terminalAction) {
-            await this.handleTerminalAction(context, terminalAction, mode, ctx);
+            await this.handleTerminalAction(context, terminalAction, mode, ctx, turnCount);
             return;
         }
 
         if (parsed.actions.length === 1) {
-            await this.executeSingleAction(parsed.actions[0], context, mode, ctx);
+            await this.executeSingleAction(parsed.actions[0], context, mode, ctx, turnCount);
         } else {
-            await this.executeBatchActions(parsed.actions, context, mode, ctx);
+            await this.executeBatchActions(parsed.actions, context, mode, ctx, turnCount);
         }
     }
 
@@ -360,7 +380,7 @@ export abstract class BaseToolCallAgent<TAction extends ParsedAction = ParsedAct
      * and recurse with retryCount+1. Bail with a logged error after 3 tries.
      */
     protected async handleJsonParseError(
-        context: TContext, retryCount: number, ctx: TurnContext,
+        context: TContext, retryCount: number, ctx: TurnContext, turnCount = 0,
     ): Promise<void> {
         this.appendModelTurnToHistory('json', ctx);
 
@@ -374,7 +394,7 @@ export abstract class BaseToolCallAgent<TAction extends ParsedAction = ParsedAct
             role: 'user',
             parts: [{ text: JSON.stringify({ error: 'Invalid JSON format. Please output ONLY valid JSON matching the schema without any markdown formatting, thought processes, or extra text.' }) }],
         }]);
-        await this.processAgentTurn(context, retryCount + 1);
+        await this.processAgentTurn(context, retryCount + 1, turnCount + 1);
     }
 
     /**
@@ -388,6 +408,7 @@ export abstract class BaseToolCallAgent<TAction extends ParsedAction = ParsedAct
         terminalAction: TAction,
         mode: 'native' | 'json',
         ctx: TurnContext,
+        turnCount = 0,
     ): Promise<void> {
         const validation = this.validateBeforeTerminal(terminalAction, context);
         if (!validation.valid) {
@@ -401,7 +422,7 @@ export abstract class BaseToolCallAgent<TAction extends ParsedAction = ParsedAct
             this.appendToolResults([{ action: terminalAction, response: { status: 'acknowledged' } }], mode);
             this.agentHistory.update(h => [...h, { role: 'user', parts: [{ text: msg }] }]);
             this.agentLogs.update(logs => [...logs, { role: 'system', text: msg, type: 'info' }]);
-            await this.processAgentTurn(context);
+            await this.processAgentTurn(context, 0, turnCount + 1);
             return;
         }
 
@@ -429,13 +450,13 @@ export abstract class BaseToolCallAgent<TAction extends ParsedAction = ParsedAct
      * execute the tool, log the result, and recurse.
      */
     protected async executeSingleAction(
-        a: TAction, context: TContext, mode: 'native' | 'json', ctx: TurnContext,
+        a: TAction, context: TContext, mode: 'native' | 'json', ctx: TurnContext, turnCount = 0,
     ): Promise<void> {
         if (a.action === 'reportProgress') {
             const message = this.processToolMessageArg((a as unknown as { args: { message: unknown } }).args.message);
             this.updateLogAt(ctx.currentLogIndex, e => ({ ...e, text: message, isToolCall: false }));
             this.appendToolResults([{ action: a, response: { status: 'acknowledged' } }], mode);
-            await this.processAgentTurn(context);
+            await this.processAgentTurn(context, 0, turnCount + 1);
             return;
         }
 
@@ -453,7 +474,7 @@ export abstract class BaseToolCallAgent<TAction extends ParsedAction = ParsedAct
         }
         this.pushToolResultLog(result.response, toolEntry.toolName);
         this.appendToolResults([{ action: a, response: result.response }], mode);
-        await this.processAgentTurn(context);
+        await this.processAgentTurn(context, 0, turnCount + 1);
     }
 
     /**
@@ -461,7 +482,7 @@ export abstract class BaseToolCallAgent<TAction extends ParsedAction = ParsedAct
      * call is visible on its own line), execute each in turn, then recurse.
      */
     protected async executeBatchActions(
-        actions: TAction[], context: TContext, mode: 'native' | 'json', ctx: TurnContext,
+        actions: TAction[], context: TContext, mode: 'native' | 'json', ctx: TurnContext, turnCount = 0,
     ): Promise<void> {
         const executed: { action: TAction; response: Record<string, unknown> }[] = [];
 
@@ -496,7 +517,7 @@ export abstract class BaseToolCallAgent<TAction extends ParsedAction = ParsedAct
         }
 
         this.appendToolResults(executed, mode);
-        await this.processAgentTurn(context);
+        await this.processAgentTurn(context, 0, turnCount + 1);
     }
 
     /**

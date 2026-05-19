@@ -76,7 +76,12 @@ function listChatMessages(args: ListChatMessagesArgs, context: ChatReadContext):
     if (!includeHidden) pool = pool.filter(m => !m.isHidden);
     if (!includeSaves) pool = pool.filter(m => m.intent !== 'save');
 
-    const slice = pool.slice(Math.max(0, pool.length - limit));
+    // Slice the last `limit` chronological messages, then reverse so the
+    // result is newest-first — matches the tool docstring ("newest first")
+    // and matches the sidebar's intuitive "scroll up = older" mental model
+    // the agent reasons with. oldestReturnedId / newestReturnedId flip
+    // accordingly.
+    const slice = pool.slice(Math.max(0, pool.length - limit)).reverse();
     const filteredCounts = {
         hidden: includeHidden ? 0 : chat.filter(m => m.isHidden).length,
         save: includeSaves ? 0 : chat.filter(m => m.intent === 'save').length,
@@ -101,8 +106,8 @@ function listChatMessages(args: ListChatMessagesArgs, context: ChatReadContext):
             totalVisible: pool.length,
             totalAll: chat.length,
             olderRemaining: pool.length - messages.length,
-            oldestReturnedId: messages[0]?.id,
-            newestReturnedId: messages[messages.length - 1]?.id,
+            oldestReturnedId: messages[messages.length - 1]?.id,
+            newestReturnedId: messages[0]?.id,
             filtered: filteredCounts,
         },
     };
