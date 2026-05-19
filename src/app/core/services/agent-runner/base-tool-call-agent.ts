@@ -74,7 +74,7 @@ export interface TerminalValidationResult {
  * on the leaf subclasses so each can pick its scope (singleton vs
  * per-instance) and own its DI dependencies.
  */
-export abstract class BaseToolCallAgent<TAction extends ParsedAction = ParsedAction> {
+export abstract class BaseToolCallAgent<TAction extends ParsedAction = ParsedAction, TContext = FileAgentContext> {
     // ===== Loop state (observable by UI + traces) =====
     readonly agentHistory = signal<LLMContent[]>([]);
     readonly agentLogs = signal<AgentLogEntry[]>([]);
@@ -93,7 +93,7 @@ export abstract class BaseToolCallAgent<TAction extends ParsedAction = ParsedAct
     protected abstract get tools(): LLMFunctionDeclaration[];
 
     /** Dispatches a single parsed action to its implementation handler. */
-    protected abstract dispatchTool(action: TAction, context: FileAgentContext): Awaitable<ToolExecutionResult>;
+    protected abstract dispatchTool(action: TAction, context: TContext): Awaitable<ToolExecutionResult>;
 
     /** True when this action ends the agent loop (e.g. submitResponse, proposeDiff). */
     protected abstract isTerminal(action: TAction): boolean;
@@ -107,7 +107,7 @@ export abstract class BaseToolCallAgent<TAction extends ParsedAction = ParsedAct
      * profile selected). The base loop bails silently in that case —
      * subclass already logged the user-facing reason.
      */
-    protected abstract resolveTurnSetup(context: FileAgentContext): TurnSetup | null;
+    protected abstract resolveTurnSetup(context: TContext): TurnSetup | null;
 
     // ===== Subclass-overridable hooks (defaulted) =====
 
@@ -115,7 +115,7 @@ export abstract class BaseToolCallAgent<TAction extends ParsedAction = ParsedAct
      * Pre-terminal validation. Default: always valid. file-agent overrides
      * to enforce {@link import('../file-agent/world-completion-validator').WorldCompletionValidator}.
      */
-    protected validateBeforeTerminal(action: TAction, context: FileAgentContext): TerminalValidationResult {
+    protected validateBeforeTerminal(action: TAction, context: TContext): TerminalValidationResult {
         // Default: no completion gate. Subclasses (file-agent's
         // WorldCompletionValidator) override to inspect `action` + `context`.
         void action;
@@ -165,7 +165,7 @@ export abstract class BaseToolCallAgent<TAction extends ParsedAction = ParsedAct
      * does its own setup (history seeding, log push, context augmentation)
      * and then calls this with the augmented context.
      */
-    protected async processAgentTurn(context: FileAgentContext, retryCount = 0): Promise<void> {
+    protected async processAgentTurn(context: TContext, retryCount = 0): Promise<void> {
         const setup = this.resolveTurnSetup(context);
         if (!setup) return;
         const { provider, providerSettings, mode, allowParallel, systemInstruction, genConfig } = setup;
@@ -360,7 +360,7 @@ export abstract class BaseToolCallAgent<TAction extends ParsedAction = ParsedAct
      * and recurse with retryCount+1. Bail with a logged error after 3 tries.
      */
     protected async handleJsonParseError(
-        context: FileAgentContext, retryCount: number, ctx: TurnContext,
+        context: TContext, retryCount: number, ctx: TurnContext,
     ): Promise<void> {
         this.appendModelTurnToHistory('json', ctx);
 
@@ -386,16 +386,23 @@ export abstract class BaseToolCallAgent<TAction extends ParsedAction = ParsedAct
      * proposeDiff captures the diff to instance state).
      */
     protected async handleTerminalAction(
-        context: FileAgentContext,
+        context: TContext,
         terminalAction: TAction,
         mode: 'native' | 'json',
         ctx: TurnContext,
     ): Promise<void> {
         const validation = this.validateBeforeTerminal(terminalAction, context);
-        if (!validation.valid && validation.errorMessage) {
+        if (!validation.valid) {
+            // The contract requires errorMessage when valid is false — the LLM
+            // needs SOMETHING to retry against. Fall back to a generic message
+            // rather than silently treating the terminal as successful, which
+            // would let a misconfigured subclass burn through to "agent stopped"
+            // without telling the user / model why.
+            const msg = validation.errorMessage
+                ?? 'Pre-terminal validation rejected the response without supplying a reason.';
             this.appendToolResults([{ action: terminalAction, response: { status: 'acknowledged' } }], mode);
-            this.agentHistory.update(h => [...h, { role: 'user', parts: [{ text: validation.errorMessage! }] }]);
-            this.agentLogs.update(logs => [...logs, { role: 'system', text: validation.errorMessage!, type: 'info' }]);
+            this.agentHistory.update(h => [...h, { role: 'user', parts: [{ text: msg }] }]);
+            this.agentLogs.update(logs => [...logs, { role: 'system', text: msg, type: 'info' }]);
             await this.processAgentTurn(context);
             return;
         }
@@ -424,7 +431,7 @@ export abstract class BaseToolCallAgent<TAction extends ParsedAction = ParsedAct
      * execute the tool, log the result, and recurse.
      */
     protected async executeSingleAction(
-        a: TAction, context: FileAgentContext, mode: 'native' | 'json', ctx: TurnContext,
+        a: TAction, context: TContext, mode: 'native' | 'json', ctx: TurnContext,
     ): Promise<void> {
         if (a.action === 'reportProgress') {
             const message = this.processToolMessageArg((a as unknown as { args: { message: unknown } }).args.message);
@@ -456,7 +463,7 @@ export abstract class BaseToolCallAgent<TAction extends ParsedAction = ParsedAct
      * call is visible on its own line), execute each in turn, then recurse.
      */
     protected async executeBatchActions(
-        actions: TAction[], context: FileAgentContext, mode: 'native' | 'json', ctx: TurnContext,
+        actions: TAction[], context: TContext, mode: 'native' | 'json', ctx: TurnContext,
     ): Promise<void> {
         const executed: { action: TAction; response: Record<string, unknown> }[] = [];
 

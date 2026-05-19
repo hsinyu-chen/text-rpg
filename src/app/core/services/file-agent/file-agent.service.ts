@@ -473,11 +473,10 @@ export class FileAgentService extends ReadOnlyAgent<ParsedAction> {
 
   // ===== ReadOnlyAgent / BaseToolCallAgent overrides =====
 
-  /** Cached i18n label for the harness-fallback link rewriter — looked up
-   *  once on construction; if i18n locale changes mid-session callers can
-   *  reload via `selectProfile` or just live with the cached label since it
-   *  only governs auto-link display text. */
-  private cachedHarnessLabels(): { messageLink: string } {
+  /** i18n label for the harness-fallback link rewriter. Looked up per-call
+   *  so locale switches mid-session take effect on the next tool result;
+   *  i18n.translate is a Map lookup so per-call cost is negligible. */
+  private harnessLabels(): { messageLink: string } {
     return { messageLink: this.i18n.translate('dialog.agentHarnessMessageLink') };
   }
 
@@ -485,7 +484,7 @@ export class FileAgentService extends ReadOnlyAgent<ParsedAction> {
    *  (code-unwrap / empty-label backfill / relabel ugly / GUID auto-link /
    *  adjacent-dup collapse). Base default is identity. */
   protected override processModelText(text: string): string {
-    return applyHarnessFallbacks(sanitizeLatexToUnicode(text), this.cachedHarnessLabels());
+    return applyHarnessFallbacks(sanitizeLatexToUnicode(text), this.harnessLabels());
   }
 
   protected override processToolMessageArg(rawArg: unknown): string {
@@ -500,10 +499,12 @@ export class FileAgentService extends ReadOnlyAgent<ParsedAction> {
     return toAgentYaml({ action: a.action, args: a.args });
   }
 
-  /** WorldCompletionValidator hook for the submitResponse terminal action. */
-  protected override validateBeforeTerminal(_action: ParsedAction, _context: FileAgentContext): TerminalValidationResult {
-    void _action;
-    void _context;
+  /** WorldCompletionValidator hook for the submitResponse terminal action.
+   *  Returns `valid: true` when no validator is set (e.g. file-agent invoked
+   *  outside world-creation mode) or when the world is already marked
+   *  completed. The action / context args are unused — gate state lives
+   *  entirely on `this.completionValidator`. */
+  protected override validateBeforeTerminal(): TerminalValidationResult {
     if (this.completionValidator && !this.completionValidator.isCompleted) {
       const v = this.completionValidator.validate();
       if (!v.valid) return { valid: false, errorMessage: v.errorMessage };

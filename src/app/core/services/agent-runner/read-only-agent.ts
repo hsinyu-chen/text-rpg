@@ -1,10 +1,14 @@
 import { LLMFunctionDeclaration } from '@hcs/llm-core';
-import { Awaitable, FileAgentContext, ParsedAction, ToolExecutionResult } from '../file-agent/file-agent.types';
+import { Awaitable, ParsedAction, ToolExecutionResult } from '../file-agent/file-agent.types';
 import { BaseToolCallAgent } from './base-tool-call-agent';
 import { KB_READ_TOOLS } from './tools/kb-read-tools';
 import { CHAT_READ_TOOLS } from './tools/chat-read-tools';
-import { dispatchKbReadTool } from './tools/kb-read-tools-executor';
-import { dispatchChatReadTool } from './tools/chat-read-tools-executor';
+import { dispatchKbReadTool, KbReadContext } from './tools/kb-read-tools-executor';
+import { dispatchChatReadTool, ChatReadContext } from './tools/chat-read-tools-executor';
+
+/** Minimum context shape a `ReadOnlyAgent` subclass must provide — file
+ *  snapshot for kb-read tools + optional chat snapshot for chat-read tools. */
+export type ReadOnlyAgentContext = KbReadContext & ChatReadContext;
 
 /**
  * Read-only tool catalog layer on top of {@link BaseToolCallAgent}. Exposes
@@ -27,14 +31,14 @@ import { dispatchChatReadTool } from './tools/chat-read-tools-executor';
  * Subclasses MAY override `get tools` / `dispatchTool` to ADD more tools
  * by spreading `super.tools` and falling through to `super.dispatchTool`.
  */
-export abstract class ReadOnlyAgent<TAction extends ParsedAction = ParsedAction>
-    extends BaseToolCallAgent<TAction> {
+export abstract class ReadOnlyAgent<TAction extends ParsedAction = ParsedAction, TContext extends ReadOnlyAgentContext = ReadOnlyAgentContext>
+    extends BaseToolCallAgent<TAction, TContext> {
 
     protected get tools(): LLMFunctionDeclaration[] {
         return [...KB_READ_TOOLS, ...CHAT_READ_TOOLS];
     }
 
-    protected dispatchTool(action: TAction, context: FileAgentContext): Awaitable<ToolExecutionResult> {
+    protected dispatchTool(action: TAction, context: TContext): Awaitable<ToolExecutionResult> {
         const result = this.dispatchReadTool(action, context);
         if (result !== null) return result;
         return { response: { error: `Unknown read-only action: ${action.action}` } };
@@ -46,7 +50,7 @@ export abstract class ReadOnlyAgent<TAction extends ParsedAction = ParsedAction>
      * (write / commit / etc.) call this from their own `dispatchTool`
      * override, then fall through to their own handlers on null.
      */
-    protected dispatchReadTool(action: TAction, context: FileAgentContext): ToolExecutionResult | null {
+    protected dispatchReadTool(action: TAction, context: TContext): ToolExecutionResult | null {
         const kbRead = dispatchKbReadTool(action, context);
         if (kbRead !== null) return kbRead;
 

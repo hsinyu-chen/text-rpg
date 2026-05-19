@@ -65,8 +65,13 @@ export function executeFileTool(
     return writeError(READ_ONLY_REJECTION);
   }
 
-  // Read tools live in shared agent-runner/tools/ executors — same code path
-  // for any agent (file-agent here, save-sim's per-entity agent in B).
+  // Read-tool dispatch — UNREACHABLE in production (FileAgentService.dispatchTool
+  // intercepts read actions via super.dispatchReadTool before falling through
+  // to this function). Kept here for back-compat with the standalone spec
+  // (file-agent-tool-executor.spec.ts), which exercises read tools through
+  // executeFileTool directly. When that spec migrates to call
+  // dispatchKbReadTool / dispatchChatReadTool directly, these two lines can
+  // be deleted along with the imports.
   const kbRead = dispatchKbReadTool(action, context);
   if (kbRead !== null) return kbRead;
 
