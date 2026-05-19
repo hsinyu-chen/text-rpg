@@ -1,4 +1,4 @@
-import { Component, computed, inject } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { MatDialogRef } from '@angular/material/dialog';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatChipsModule } from '@angular/material/chips';
@@ -49,22 +49,25 @@ export class SaveProgressDialogComponent {
      * Optional abort signal source — orchestrator passes its controller via
      * `dialog.componentInstance.attachAbort()` after opening, so the dialog
      * doesn't depend on the orchestrator existing at construction time.
+     *
+     * Held in a signal so `canCancel`'s computed actually re-runs when
+     * `attachAbort` fires (a plain class field doesn't notify dependents).
      */
-    private abortController: AbortController | null = null;
+    private abortController = signal<AbortController | null>(null);
 
     readonly entries = this.tracker.entries;
     readonly isRunning = this.tracker.isRunning;
 
     readonly totalUsage = computed(() => this.tracker.totalUsage());
 
-    readonly canCancel = computed(() => this.isRunning() && this.abortController !== null);
+    readonly canCancel = computed(() => this.isRunning() && this.abortController() !== null);
 
     attachAbort(controller: AbortController): void {
-        this.abortController = controller;
+        this.abortController.set(controller);
     }
 
     cancel(): void {
-        this.abortController?.abort();
+        this.abortController()?.abort();
     }
 
     close(): void {

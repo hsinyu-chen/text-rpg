@@ -1,4 +1,5 @@
 import { Injectable, inject } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
 import type { LLMContent } from '@hcs/llm-core';
 import { MatDialog } from '@angular/material/dialog';
 import { ContextBuilderService } from '../context-builder.service';
@@ -170,9 +171,12 @@ export class MultiAgentSaveService {
             //    bumps lastActiveAt itself) and closes with a boolean —
             //    there's no FileUpdate[] returned via afterClosed, so we
             //    don't post-process here. Close the progress dialog first
-            //    so the user isn't looking at two stacked modals.
+            //    so the user isn't looking at two stacked modals. AWAIT
+            //    the close so the chat surface stays save-locked + the
+            //    sendMessage re-entrancy guard stays armed while the user
+            //    reviews / applies updates.
             dialogRef.close();
-            this.openAutoUpdateDialog(updates);
+            await this.openAutoUpdateDialog(updates);
         } catch (err: unknown) {
             // User-initiated cancellation (Cancel button → AbortController.abort()).
             // Stream error names vary by provider — match the common ones rather
@@ -242,12 +246,17 @@ export class MultiAgentSaveService {
      * runs its own apply pipeline (`engine.updateSingleFile` per group,
      * `saveCurrentSessionToBook` for timestamp bumps) and closes with a
      * boolean — no afterClosed-driven post-processing needed here.
+     *
+     * Returns the afterClosed promise so the orchestrator can keep the
+     * save-locked surface up + the sendMessage re-entrancy guard armed
+     * while the user reviews the diff.
      */
-    private openAutoUpdateDialog(updates: FileUpdate[]): void {
-        this.dialog.open(AutoUpdateDialogComponent, {
+    private async openAutoUpdateDialog(updates: FileUpdate[]): Promise<void> {
+        const ref = this.dialog.open(AutoUpdateDialogComponent, {
             data: { updates },
             ...FULLSCREEN_DIALOG_CONFIG,
         });
+        await firstValueFrom(ref.afterClosed());
     }
 }
 
