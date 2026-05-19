@@ -24,7 +24,7 @@
 ### 機械 sub-tool 區段（你提供具體內容，dispatcher 機械式組 XML）
 
 - `storyOutlineBlock`：本 ACT 整段劇情綱要區塊。依編年史原則寫好（5-8 個時間節點、策略/傷亡/轉折、關鍵台詞）。空字串代表不更新。
-- `inventoryDeltas / assetsDeltas`：逐條 `{ op: add/remove/update, item, details? }`。`details` 為新狀態描述（add / update 必填；`remove` 操作會忽略此欄位）。
+- `inventoryDeltas / assetsDeltas`：逐條 `{ op: add/remove/update, item, details? }`。`details` 為新狀態描述（add / update 強烈建議填寫；`remove` 操作會忽略此欄位）。
 - `plansDeltas`：逐條 `{ op, title, body? }`。任務 / 個人目標的增刪改。
 - `techEquipmentUpdates / magicSkillsUpdates / worldFeaturesUpdates`：逐條 `{ sectionPath, content }`。`sectionPath` 用 ` > ` 分隔（如 `# 已開發武器 > ## 短弓改`）。
 - `charactersToCreate / factionsToCreate`：本回新出現、需要落檔的 entity。`draftedFields` 寫好所有初始欄位（身分 / 基本設定 / 最後已知位置 / 初始目前心態 等），鍵名照 `<!--@include:partials/save-character-status-rules.md-->` 規範。
@@ -43,7 +43,7 @@
 
 ### 稽核 — `completenessAudit`
 
-必填。列出本 ACT 所有 model 訊息的 `messageId`（log id）：
+強烈建議填寫。列出本 ACT 所有 model 訊息的 `messageId`（log id）：
 
 - `processedLogIds`：該 log 的事實已落入 manifest 某區段（mechanical 或 LLM）。
 - `skippedLogIds`：該 log 跳過 + `reason`。允許的 reason：

@@ -527,7 +527,7 @@ export const zhTW: TranslationDict = {
             multiAgentHint: '實驗性管線：先由 SaveAgent 產 manifest，再分派給各 sub-tool。Phase 1 僅 inventoryDeltas 接通，其他類別會跳過並標記為 not yet implemented。',
             subToolProfileLabel: '子工具 LLM 設定檔',
             subToolProfileSameAsMain: '與主對話相同（預設）',
-            subToolProfileHint: 'Phase 2+ 的 LLM 子工具（update_character / update_faction）會用這個設定檔。Phase 1 僅儲存,不會實際使用。建議選小模型 / 本地模型省成本。',
+            subToolProfileHint: 'Phase 2+ 的 LLM 子工具（update_character / update_faction）會用這個設定檔。Phase 1 僅儲存，不會實際使用。建議選小模型 / 本地模型省成本。',
         },
     },
     app: {
