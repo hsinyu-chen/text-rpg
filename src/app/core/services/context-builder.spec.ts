@@ -232,12 +232,6 @@ describe('ContextBuilderService', () => {
             expect(builder.intentInjection(ctx, 'system')).toBe('SYS');
         });
 
-        it('returns empty string for SAVE intent (handled by MultiAgentSaveService, not the turn engine)', () => {
-            // The dynamicSave context field was retired; SAVE never had any
-            // way to inject into the turn-engine path again.
-            expect(builder.intentInjection(emptyCtx(), 'save')).toBe('');
-        });
-
         it('returns empty string for unknown intent', () => {
             expect(builder.intentInjection(emptyCtx(), 'unknown-intent')).toBe('');
         });

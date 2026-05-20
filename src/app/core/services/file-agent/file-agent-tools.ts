@@ -164,22 +164,21 @@ export const FILE_AGENT_TOOLS: LLMFunctionDeclaration[] = [
   },
   {
     name: 'listChatMessages',
-    description: 'Outline of recent chat messages — cheap preview without bodies. Returns id, role, charCount, summary, intent, hasLogs. USE FIRST for any timing / sequence / pacing / "is X reasonable" question — summaries usually suffice. Also use first when the user references the story but no specific phrase. Paginate older with before=oldest-id-seen. Skips save-intent (engine file-update) turns by default. Errors if no chat history is available.',
+    description: 'Outline of recent chat messages — cheap preview without bodies. Returns id, role, charCount, summary, intent, hasLogs. USE FIRST for any timing / sequence / pacing / "is X reasonable" question — summaries usually suffice. Also use first when the user references the story but no specific phrase. Paginate older with before=oldest-id-seen. Errors if no chat history is available.',
     parameters: {
       type: 'object',
       properties: {
         reason: { type: 'string', description: REASON_DESC },
         limit: { type: 'number', description: 'Maximum number of messages to return, newest first (default 30, capped at 100).' },
         before: { type: 'string', description: 'Optional. Return only messages older than this message id. Use the oldest id from a prior call to paginate backwards.' },
-        includeHidden: { type: 'boolean', description: 'Optional. Default false. Set true to include messages flagged isHidden (engine-suppressed system turns).' },
-        includeSaves: { type: 'boolean', description: 'Optional. Default false. Set true ONLY if the user is asking about KB-write history itself — save-intent turns contain XML update tags, not narrative.' }
+        includeHidden: { type: 'boolean', description: 'Optional. Default false. Set true to include messages flagged isHidden (engine-suppressed system turns).' }
       },
       required: ['reason']
     }
   },
   {
     name: 'searchChatMessages',
-    description: 'Regex search across in-game chat messages — the chat-side analogue of grep. Returns hits with messageId, role, the scope that matched, and a snippet. Each message is capped at 3 hits (the 3rd carries moreInSameMessage:N) — multiple matches inside the same turn no longer dominate results. PREFER this over readChatMessage when you have a specific phrase, name, or token to find. For TIMING / SEQUENCE / pacing questions, listChatMessages with summaries is usually a cheaper first step. scope is REQUIRED and controls which field is searched — see the scope parameter docs for when to pick "content" / "thought" / "summary" / "all". For event-lookup questions ("when did X / who did Y") prefer "summary"; "content" is for verbatim phrase / quote / name lookups only. Save-intent turns are skipped by default. Tool errors if no chat history is available.',
+    description: 'Regex search across in-game chat messages — the chat-side analogue of grep. Returns hits with messageId, role, the scope that matched, and a snippet. Each message is capped at 3 hits (the 3rd carries moreInSameMessage:N) — multiple matches inside the same turn no longer dominate results. PREFER this over readChatMessage when you have a specific phrase, name, or token to find. For TIMING / SEQUENCE / pacing questions, listChatMessages with summaries is usually a cheaper first step. scope is REQUIRED and controls which field is searched — see the scope parameter docs for when to pick "content" / "thought" / "summary" / "all". For event-lookup questions ("when did X / who did Y") prefer "summary"; "content" is for verbatim phrase / quote / name lookups only. Tool errors if no chat history is available.',
     parameters: {
       type: 'object',
       properties: {
@@ -188,8 +187,7 @@ export const FILE_AGENT_TOOLS: LLMFunctionDeclaration[] = [
         scope: { type: 'string', enum: ['content', 'thought', 'summary', 'all'], description: 'REQUIRED. Each chat turn carries parallel fields — pick which to scan:\n  - "content": player-visible narrative prose (long-form story, dialogue, action). Use for phrase / quote / proper-name lookups.\n  - "thought": engine chain-of-thought (why this turn went the way it did). Use for "why did the engine decide X" questions.\n  - "summary": engine-emitted dense one-liner with structured event markers (typically pipe-separated actor-verb-object segments). Highest event density per byte; the most reliable hit when you do not know the exact phrasing the narrative used. Use for "when did X happen / who did Y / which turn ASSIGNED/GRANTED/COMPLETED Z" event-lookup questions — pattern-matching on narrative content often misses these because the canonical event verb only appears in summary.\n  - "all": scan content + thought + summary together. Use when uncertain.\nDecide by question shape, not by habit — content-only searches frequently miss event lookups.' },
         caseInsensitive: { type: 'boolean', description: 'Optional. Default false.' },
         limit: { type: 'number', description: 'Maximum hits to return across all messages (default 100, capped at 300).' },
-        contextChars: { type: 'number', description: 'Optional. Default 80. Characters of context around each match in the returned snippet (capped at 400).' },
-        includeSaves: { type: 'boolean', description: 'Optional. Default false. Set true ONLY if the user is asking about KB-write history itself.' }
+        contextChars: { type: 'number', description: 'Optional. Default 80. Characters of context around each match in the returned snippet (capped at 400).' }
       },
       required: ['reason', 'pattern', 'scope']
     }
@@ -276,7 +274,7 @@ export const FILE_AGENT_TOOLS: LLMFunctionDeclaration[] = [
         caseSensitive: { type: 'boolean', description: 'Optional. Default false (case-insensitive).' },
         wholeWord: { type: 'boolean', description: 'Optional. Default false. Only meaningful with regex=false — wraps the search in word boundaries.' },
         regex: { type: 'boolean', description: 'Optional. Default false. Set true to treat `search` as a JavaScript regex.' },
-        intentFilter: { type: 'string', enum: ['all', 'action', 'continue', 'fast_forward', 'system', 'save'], description: 'Optional. Default "all". Restrict to messages with this intent.' },
+        intentFilter: { type: 'string', enum: ['all', 'action', 'continue', 'fast_forward', 'system'], description: 'Optional. Default "all". Restrict to messages with this intent.' },
         roleFilter: { type: 'string', enum: ['all', 'user', 'model'], description: 'Optional. Default "all". Restrict to user or model messages.' },
         fieldFilter: { type: 'string', enum: ['all', 'story', 'summary', 'logs'], description: 'Optional. Default "all". Which field of each message to scan: story=narrative content, summary=engine summary, logs=structured inventory/quest/world logs.' }
       },
@@ -326,13 +324,13 @@ export function buildJsonSchema(isLocal: boolean): object {
         { properties: { action: { type: 'string', enum: ['replaceSection'] }, args: { type: 'object', properties: { reason: { type: 'string' }, filename: { type: 'string' }, updates: { type: 'array', items: { type: 'object', properties: { sectionPath: { type: 'string' }, content: { type: 'string' }, newTitle: { type: 'string' }, force: { type: 'boolean' } }, required: ['sectionPath', 'content'] } } }, required: ['reason', 'filename', 'updates'], additionalProperties: false } }, required: ['action', 'args'] },
         { properties: { action: { type: 'string', enum: ['insertSection'] }, args: { type: 'object', properties: { reason: { type: 'string' }, filename: { type: 'string' }, heading: { type: 'string' }, content: { type: 'string' }, anchor: { type: 'string', enum: ['prepend', 'before', 'after', 'append-into'] }, anchorSectionPath: { type: 'string' } }, required: ['reason', 'filename', 'heading'], additionalProperties: false } }, required: ['action', 'args'] },
         { properties: { action: { type: 'string', enum: ['insertIntoSection'] }, args: { type: 'object', properties: { reason: { type: 'string' }, filename: { type: 'string' }, sectionPath: { type: 'string' }, content: { type: 'string' }, position: { type: 'string', enum: ['start', 'end'] } }, required: ['reason', 'filename', 'sectionPath', 'content', 'position'], additionalProperties: false } }, required: ['action', 'args'] },
-        { properties: { action: { type: 'string', enum: ['listChatMessages'] }, args: { type: 'object', properties: { reason: { type: 'string' }, limit: { type: 'number' }, before: { type: 'string' }, includeHidden: { type: 'boolean' }, includeSaves: { type: 'boolean' } }, required: ['reason'], additionalProperties: false } }, required: ['action', 'args'] },
-        { properties: { action: { type: 'string', enum: ['searchChatMessages'] }, args: { type: 'object', properties: { reason: { type: 'string' }, pattern: { type: 'string' }, scope: { type: 'string', enum: ['content', 'thought', 'summary', 'all'] }, caseInsensitive: { type: 'boolean' }, limit: { type: 'number' }, contextChars: { type: 'number' }, includeSaves: { type: 'boolean' } }, required: ['reason', 'pattern', 'scope'], additionalProperties: false } }, required: ['action', 'args'] },
+        { properties: { action: { type: 'string', enum: ['listChatMessages'] }, args: { type: 'object', properties: { reason: { type: 'string' }, limit: { type: 'number' }, before: { type: 'string' }, includeHidden: { type: 'boolean' } }, required: ['reason'], additionalProperties: false } }, required: ['action', 'args'] },
+        { properties: { action: { type: 'string', enum: ['searchChatMessages'] }, args: { type: 'object', properties: { reason: { type: 'string' }, pattern: { type: 'string' }, scope: { type: 'string', enum: ['content', 'thought', 'summary', 'all'] }, caseInsensitive: { type: 'boolean' }, limit: { type: 'number' }, contextChars: { type: 'number' } }, required: ['reason', 'pattern', 'scope'], additionalProperties: false } }, required: ['action', 'args'] },
         { properties: { action: { type: 'string', enum: ['readChatMessage'] }, args: { type: 'object', properties: { reason: { type: 'string' }, messageIds: { type: 'array', items: { type: 'string' } }, include: { type: 'array', items: { type: 'string', enum: ['content', 'thought', 'logs', 'analysis', 'summary', 'intent'] } } }, required: ['reason', 'messageIds'], additionalProperties: false } }, required: ['action', 'args'] },
         { properties: { action: { type: 'string', enum: ['readTurnLogs'] }, args: { type: 'object', properties: { reason: { type: 'string' }, messageIds: { type: 'array', items: { type: 'string' } }, kinds: { type: 'array', items: { type: 'string', enum: ['character', 'world', 'inventory', 'quest'] } }, recent: { type: 'number' } }, required: ['reason'], additionalProperties: false } }, required: ['action', 'args'] },
         { properties: { action: { type: 'string', enum: ['listBooks'] }, args: { type: 'object', properties: { reason: { type: 'string' }, collectionId: { type: 'string' }, limit: { type: 'number' } }, required: ['reason'], additionalProperties: false } }, required: ['action', 'args'] },
         { properties: { action: { type: 'string', enum: ['listCollections'] }, args: { type: 'object', properties: { reason: { type: 'string' } }, required: ['reason'], additionalProperties: false } }, required: ['action', 'args'] },
-        { properties: { action: { type: 'string', enum: ['proposeChatReplace'] }, args: { type: 'object', properties: { reason: { type: 'string' }, search: { type: 'string' }, replace: { type: 'string' }, caseSensitive: { type: 'boolean' }, wholeWord: { type: 'boolean' }, regex: { type: 'boolean' }, intentFilter: { type: 'string', enum: ['all', 'action', 'continue', 'fast_forward', 'system', 'save'] }, roleFilter: { type: 'string', enum: ['all', 'user', 'model'] }, fieldFilter: { type: 'string', enum: ['all', 'story', 'summary', 'logs'] } }, required: ['reason', 'search', 'replace'], additionalProperties: false } }, required: ['action', 'args'] },
+        { properties: { action: { type: 'string', enum: ['proposeChatReplace'] }, args: { type: 'object', properties: { reason: { type: 'string' }, search: { type: 'string' }, replace: { type: 'string' }, caseSensitive: { type: 'boolean' }, wholeWord: { type: 'boolean' }, regex: { type: 'boolean' }, intentFilter: { type: 'string', enum: ['all', 'action', 'continue', 'fast_forward', 'system'] }, roleFilter: { type: 'string', enum: ['all', 'user', 'model'] }, fieldFilter: { type: 'string', enum: ['all', 'story', 'summary', 'logs'] } }, required: ['reason', 'search', 'replace'], additionalProperties: false } }, required: ['action', 'args'] },
         { properties: { action: { type: 'string', enum: ['reportProgress'] }, args: { type: 'object', properties: { message: { type: 'string' } }, required: ['message'], additionalProperties: false } }, required: ['action', 'args'] },
         { properties: { action: { type: 'string', enum: ['submitResponse'] }, args: { type: 'object', properties: { message: { type: 'string' } }, required: ['message'], additionalProperties: false } }, required: ['action', 'args'] }
       ]
@@ -370,7 +368,6 @@ export function buildJsonSchema(isLocal: boolean): object {
           limit: { type: 'number' },
           before: { type: 'string' },
           includeHidden: { type: 'boolean' },
-          includeSaves: { type: 'boolean' },
           scope: { type: 'string' },
           messageIds: { type: 'array', items: { type: 'string' } },
           include: { type: 'array', items: { type: 'string' } },

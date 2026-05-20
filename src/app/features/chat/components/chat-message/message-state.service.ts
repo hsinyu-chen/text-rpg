@@ -1,31 +1,22 @@
 import { Injectable, inject, signal, linkedSignal, computed } from '@angular/core';
 import { Clipboard } from '@angular/cdk/clipboard';
-import { firstValueFrom } from 'rxjs';
 import { GameEngineService } from '@app/core/services/game-engine.service';
 import { GameStateService } from '@app/core/services/game-state.service';
-import { AppConfigStore } from '@app/core/services/app-config-store';
 import { DialogService } from '@app/core/services/dialog.service';
 import { SessionService } from '@app/core/services/session.service';
 import { BookRepository } from '@app/core/services/storage/book.repository';
-import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { FileUpdateService } from '@app/core/services/file-update.service';
 import { ChatMessage } from '@app/core/models/types';
-import { AutoUpdateDialogComponent } from '@app/shared/components/auto-update-dialog/auto-update-dialog.component';
-import { FULLSCREEN_DIALOG_CONFIG } from '@app/shared/material/dialog-presets';
 import { I18nService } from '@app/core/i18n';
 
 @Injectable()
 export class MessageStateService {
     private engine = inject(GameEngineService);
     private gameState = inject(GameStateService);
-    private appConfig = inject(AppConfigStore);
     private dialog = inject(DialogService);
     private session = inject(SessionService);
     private books = inject(BookRepository);
-    private matDialog = inject(MatDialog);
     private snackBar = inject(MatSnackBar);
-    private updateService = inject(FileUpdateService);
     private clipboard = inject(Clipboard);
     private i18n = inject(I18nService);
 
@@ -154,32 +145,6 @@ export class MessageStateService {
         this.isEditing.set(false);
     }
 
-    async openAutoUpdateDialog() {
-        const msg = this.message();
-        if (msg.role !== 'model') return;
-
-        const updates = this.updateService.parseUpdates(msg.content);
-        if (updates.length === 0) {
-            await this.dialog.alert(this.i18n.translate('ui.NO_FILE_UPDATES'));
-            return;
-        }
-
-        const dialogRef = this.matDialog.open(AutoUpdateDialogComponent, {
-            data: { updates },
-            ...FULLSCREEN_DIALOG_CONFIG,
-        });
-
-        const result = await firstValueFrom(dialogRef.afterClosed());
-        if (result && Array.isArray(result) && result.length > 0) {
-            const results = await this.updateService.applyUpdates(result);
-            await this.engine.loadFiles(false);
-            this.snackBar.open(
-                this.i18n.translate('ui.APPLIED_FILE_UPDATES', { count: results.length }),
-                this.i18n.translate('ui.CLOSE'),
-                { duration: 3000 },
-            );
-        }
-    }
 
 
     copyPairJSON() {

@@ -98,11 +98,7 @@ export class ChatInputComponent {
     toggleAgentSidebar = output<void>();
 
     // Local State
-    // SAVE intent is driven exclusively by the save button (see `saveProgress`)
-    // — it opens a confirm dialog and fires engine.sendMessage('', { intent: SAVE })
-    // directly. Listing it in the intent dropdown would offer a no-op text-input
-    // route since multi-agent save ignores user text content beyond a range hint.
-    intents = Object.values(GAME_INTENTS).filter(i => i !== GAME_INTENTS.SAVE);
+    intents = Object.values(GAME_INTENTS);
     private originalIntentBeforeEdit: string | null = null;
 
     getIntentLabel(intent: string): string {
@@ -124,7 +120,6 @@ export class ChatInputComponent {
         if (intent === GAME_INTENTS.ACTION) return 'play_arrow';
         if (intent === GAME_INTENTS.FAST_FORWARD) return 'fast_forward';
         if (intent === GAME_INTENTS.SYSTEM) return 'settings';
-        if (intent === GAME_INTENTS.SAVE) return 'save';
         if (intent === GAME_INTENTS.CONTINUE) return 'arrow_forward';
         return 'help';
     }
@@ -133,7 +128,6 @@ export class ChatInputComponent {
         if (intent === GAME_INTENTS.ACTION) return 'var(--intent-action)';
         if (intent === GAME_INTENTS.FAST_FORWARD) return 'var(--intent-fastforward)';
         if (intent === GAME_INTENTS.SYSTEM) return 'var(--intent-system)';
-        if (intent === GAME_INTENTS.SAVE) return 'var(--intent-save)';
         if (intent === GAME_INTENTS.CONTINUE) return 'var(--intent-continue)';
         return 'inherit';
     }
@@ -226,12 +220,7 @@ export class ChatInputComponent {
             this.i18n.translate('ui.CANCEL'),
         );
         if (!confirmed) return;
-        // Empty userText — multi-agent save reads the manifest prompt's
-        // {{USER_INPUT}} slot as a "scope hint" (e.g. "only inventory"), which
-        // we deliberately leave unspecified for the default save button flow.
-        // The user can still type a range hint by routing through a custom UI
-        // later; for now the button = save-everything contract.
-        void this.engine.sendMessage('', { intent: GAME_INTENTS.SAVE });
+        void this.engine.runSave();
     }
 
     cancelEdit() {
@@ -267,14 +256,12 @@ export class ChatInputComponent {
         let filename = 'act_export.md';
 
         for (let i = messages.length - 2; i >= 0; i--) {
-            const isSaveOrSystem = messages[i].role === 'user' && (
-                messages[i].content.includes(GAME_INTENTS.SAVE) ||
+            const isSystem = messages[i].role === 'user' && (
                 messages[i].content.includes(GAME_INTENTS.SYSTEM) ||
-                messages[i].intent === GAME_INTENTS.SAVE ||
                 messages[i].intent === GAME_INTENTS.SYSTEM
             );
 
-            if (isSaveOrSystem) {
+            if (isSystem) {
                 const nextMsg = messages[i + 1];
                 if (nextMsg && nextMsg.role === 'model') {
                     const match = nextMsg.content.match(/## Act\.(\d+)/i);

@@ -11,8 +11,7 @@ const TAGS: IntentTagSet = {
     ACTION: '<行動意圖>',
     CONTINUE: '<繼續>',
     FAST_FORWARD: '<快轉>',
-    SYSTEM: '<系統>',
-    SAVE: '<存檔>'
+    SYSTEM: '<系統>'
 };
 
 function step(overrides: Partial<AnalysisStep> = {}): AnalysisStep {
@@ -66,7 +65,7 @@ describe('applyIntentTag', () => {
     });
 
     it('treats whitespace before the tag as already-tagged (skip prepend)', () => {
-        expect(applyIntentTag('  <存檔>tail', 'save', TAGS)).toBe('  <存檔>tail');
+        expect(applyIntentTag('  <系統>tail', 'system', TAGS)).toBe('  <系統>tail');
     });
 
     it('uses the snake_case fast_forward intent value (matches GAME_INTENTS)', () => {

@@ -12,7 +12,6 @@ const FAKE_I18N: Record<string, string> = {
   'ui.FORK_FROM_HERE_TOOLTIP': 'Fork from here',
   'ui.DELETE_ALL_FOLLOWING': 'Delete This and All Following',
   'ui.DELETE_MESSAGE': 'Delete Message',
-  'ui.AUTO_UPDATE_FILES': 'Auto Update Files',
   'sidebar.controls.startNewGame': 'Start New Game',
   'sidebar.controls.createNext': 'Create Next',
   'sidebar.controls.createScene': 'Create Scene',
@@ -79,14 +78,12 @@ describe('buildSystemInstruction', () => {
   describe('locale interpolation — intentTags', () => {
     it('lists English intent tags when locale is en-US', () => {
       const out = build({ locale: EN_US_LOCALE });
-      expect(out).toContain(EN_US_LOCALE.intentTags.SAVE);
       expect(out).toContain(EN_US_LOCALE.intentTags.ACTION);
       expect(out).toContain(EN_US_LOCALE.intentTags.SYSTEM);
     });
 
     it('lists zh-tw intent tags when locale is zh-tw', () => {
       const out = build({ locale: ZH_TW_LOCALE });
-      expect(out).toContain(ZH_TW_LOCALE.intentTags.SAVE);
       expect(out).toContain(ZH_TW_LOCALE.intentTags.ACTION);
     });
   });
@@ -336,12 +333,11 @@ describe('buildSystemInstruction', () => {
       expect(out).toMatch(/Other surfaces.*chat.*propose/);
     });
 
-    it('routes KB-behind-chat questions to Auto Update first, direct edit last', () => {
+    it('routes KB-behind-chat questions to re-running Save first, direct edit last', () => {
       const out = build();
       expect(out).toContain('When the user asks about a KB-sync gap');
       expect(out).toMatch(/Trigger.*user.*raised/i);
-      expect(out).toContain('Auto Update Files');
-      expect(out).toMatch(/Re-run Auto Update/i);
+      expect(out).toMatch(/Suggest re-running Save/i);
       expect(out).toMatch(/last resort/i);
     });
 

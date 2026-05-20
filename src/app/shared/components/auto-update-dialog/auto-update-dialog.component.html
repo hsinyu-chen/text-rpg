@@ -169,12 +169,6 @@
 </mat-dialog-content>
 
 <mat-dialog-actions align="end">
-    @if (hunks.hasAnyMismatch()) {
-    <button mat-stroked-button color="warn" (click)="onRegenerateSave()">
-        <mat-icon>refresh</mat-icon>
-        {{ 'ui.REGENERATE_SAVE_BTN' | translate }}
-    </button>
-    }
     <button mat-button (click)="onCancel()">{{ 'dialog.cancel' | translate }}</button>
     @if (hunks.activeGroup(); as group) {
     <button mat-stroked-button color="accent" (click)="onApplyFile(group)" [disabled]="!hunks.hasSelectedInGroup(group)">

@@ -30,7 +30,9 @@ const LEGACY_INTENT_TAG_MAP: Map<string, string> = (() => {
         m.set(t.ACTION, GAME_INTENTS.ACTION);
         m.set(t.FAST_FORWARD, GAME_INTENTS.FAST_FORWARD);
         m.set(t.SYSTEM, GAME_INTENTS.SYSTEM);
-        m.set(t.SAVE, GAME_INTENTS.SAVE);
+        // Phase A retired the SAVE chat intent; map legacy tag to the bare
+        // literal so isLegacySaveMessage strips these rows on load.
+        m.set(t.SAVE, 'save');
         m.set(t.CONTINUE, GAME_INTENTS.CONTINUE);
     }
     return m;
@@ -40,6 +42,13 @@ function migrateIntent(m: ChatMessage): ChatMessage {
     if (!m.intent) return m;
     const canonical = LEGACY_INTENT_TAG_MAP.get(m.intent);
     return canonical ? { ...m, intent: canonical } : m;
+}
+
+// Phase A retires the chat-side SAVE intent — multi-agent save no longer
+// writes user/model messages into history. Strip pre-existing SAVE rows so
+// the UI doesn't render orphaned chips for a flow that's been removed.
+function isLegacySaveMessage(m: ChatMessage): boolean {
+    return m.intent === 'save';
 }
 
 function migrateLegacyCorrection(raw: ChatMessage & { isCorrection?: boolean }): ChatMessage {
@@ -545,9 +554,10 @@ export class SessionService {
             await this.chatRepo.deleteMessages();
             await this.chatRepo.deleteSunkUsage();
             // Repair corrupted LaTeX in existing messages from older sessions
-            const repairedMessages = book.messages.map(raw => {
-                const m = migrateLegacyCorrection(migrateIntent(raw));
-                return {
+            const repairedMessages = book.messages
+                .map(raw => migrateLegacyCorrection(migrateIntent(raw)))
+                .filter(m => !isLegacySaveMessage(m))
+                .map(m => ({
                     ...m,
                     content: repairCorruptedLatex(m.content),
                     thought: m.thought ? repairCorruptedLatex(m.thought) : m.thought,
@@ -561,8 +571,7 @@ export class SessionService {
                         ...p,
                         text: p.text ? (m.role === 'model' && (p.thought || p.thoughtSignature) ? repairCorruptedLatex(p.text) : convertLatexToSymbols(p.text)) : p.text
                     })) || []
-                };
-            });
+                }));
             await this.chatRepo.saveMessages(repairedMessages);
             this.state.messages.set(repairedMessages);
             if (repairedMessages.length > 0) this.isContextInjected = true;
@@ -882,7 +891,9 @@ export class SessionService {
      */
     async importSession(save: SessionSave) {
         // Restore messages (apply same legacy migrations as the other load paths)
-        const migrated = save.messages.map(m => migrateLegacyCorrection(migrateIntent(m)));
+        const migrated = save.messages
+            .map(m => migrateLegacyCorrection(migrateIntent(m)))
+            .filter(m => !isLegacySaveMessage(m));
         this.state.messages.set(migrated);
         await this.chatRepo.saveMessages(migrated);
 
@@ -971,7 +982,9 @@ export class SessionService {
     async loadHistoryFromStorage() {
         const saved = await this.chatRepo.getMessages();
         if (saved && Array.isArray(saved)) {
-            const migrated = saved.map(m => migrateLegacyCorrection(migrateIntent(m)));
+            const migrated = saved
+                .map(m => migrateLegacyCorrection(migrateIntent(m)))
+                .filter(m => !isLegacySaveMessage(m));
             this.state.messages.set(migrated);
             if (saved.length > 0) {
                 this.isContextInjected = true;

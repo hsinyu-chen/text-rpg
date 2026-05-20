@@ -499,9 +499,6 @@ export class ContextBuilderService {
             case GAME_INTENTS.CONTINUE: return ctx.dynamicContinue;
             case GAME_INTENTS.FAST_FORWARD: return ctx.dynamicFastforward;
             case GAME_INTENTS.SYSTEM: return ctx.dynamicSystem;
-            // SAVE intent never reaches the turn-engine path — game-engine
-            // early-returns to MultiAgentSaveService, which builds its own
-            // history. No case here.
             default: return '';
         }
     }
@@ -640,8 +637,6 @@ export class ContextBuilderService {
         }
 
         const tags = getIntentTags(lang);
-        // SAVE intent is excluded — it never reaches the turn-engine
-        // augmentation path (game-engine early-returns to MultiAgentSaveService).
         const intentTagMap: Record<string, string> = {
             [GAME_INTENTS.ACTION]: tags.ACTION,
             [GAME_INTENTS.CONTINUE]: tags.CONTINUE,

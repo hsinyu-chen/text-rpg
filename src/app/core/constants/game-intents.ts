@@ -6,7 +6,6 @@ export const GAME_INTENTS = {
     ACTION: 'action',
     FAST_FORWARD: 'fast_forward',
     SYSTEM: 'system',
-    SAVE: 'save',
     CONTINUE: 'continue'
 } as const;
 
