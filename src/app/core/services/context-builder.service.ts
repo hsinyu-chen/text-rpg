@@ -500,7 +500,9 @@ export class ContextBuilderService {
             case GAME_INTENTS.CONTINUE: return ctx.dynamicContinue;
             case GAME_INTENTS.FAST_FORWARD: return ctx.dynamicFastforward;
             case GAME_INTENTS.SYSTEM: return ctx.dynamicSystem;
-            case GAME_INTENTS.SAVE: return ctx.dynamicSave;
+            // SAVE intent never reaches the turn-engine path — game-engine
+            // early-returns to MultiAgentSaveService, which builds its own
+            // history. No case here.
             default: return '';
         }
     }

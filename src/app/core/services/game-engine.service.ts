@@ -239,8 +239,12 @@ export class GameEngineService {
             userText,
             options,
             currentIntent: options?.intent || GAME_INTENTS.ACTION,
-            // <存檔> intent forces full context regardless of UI setting.
-            forceFullContext: options?.intent === GAME_INTENTS.SAVE,
+            // Save intents bypass the turn engine entirely (see early return
+            // in sendMessage), so only non-save turns reach startTurn — the
+            // SAVE → full-context branch is unreachable from here. The
+            // multi-agent save service still forces full context internally
+            // when it composes its own history.
+            forceFullContext: false,
             switchedFromLegacy,
             userMsgId,
             modelMsgId
