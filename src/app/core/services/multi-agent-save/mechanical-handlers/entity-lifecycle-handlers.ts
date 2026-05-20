@@ -10,9 +10,10 @@ import type { MechanicalHandlerContext } from './protagonist-handlers';
  * single set of helpers serves both — the registry just routes by
  * `ctx.targetFile`.
  *
- * Failure semantics: handler-side issues (entity not found, ambiguous name,
- * empty drafted fields) are dropped silently. The dispatcher reads an empty
- * XML return as `empty_section`; manifest-level audits are SaveAgent's job.
+ * Failure semantics: handler-side issues (entity not found, unresolved
+ * breadcrumb path, empty drafted fields) are dropped silently. The dispatcher
+ * reads an empty XML return as `empty_section`; manifest-level audits are
+ * SaveAgent's job.
  */
 
 /**
@@ -47,10 +48,12 @@ export function createEntities(
 }
 
 /**
- * For each delete, finds the entity's L2 block via {@link lookupSectionBlock}
- * and emits a delete op on that block. Ambiguous matches (same name under
- * different L1 groups) are dropped — Phase 1 doesn't disambiguate. The
- * `reason` field lands in the trace only, never in the emitted XML.
+ * For each delete, looks up the L2 entity block by its model-supplied
+ * `sectionPath` breadcrumb (`# 核心人物 > ## 李四`) and emits a delete op on
+ * that block. Multi-level breadcrumbs disambiguate same-name entities across
+ * L1 groups; an unresolved path (typo, stale name, deleted upstream) drops
+ * the op silently. The `reason` field lands in the trace only, never in the
+ * emitted XML.
  */
 export function deleteEntities(
     deletes: readonly EntityDelete[],
@@ -60,7 +63,7 @@ export function deleteEntities(
     const lines = ctx.fileContent.split('\n');
     const ops: SaveUpdateOp[] = [];
     for (const d of deletes) {
-        const block = lookupEntityBlock(ctx.fileContent, lines, d.name);
+        const block = lookupSectionBlock(ctx.fileContent, lines, d.sectionPath);
         if (block) {
             ops.push({ kind: 'delete', target: block });
         }
@@ -70,10 +73,10 @@ export function deleteEntities(
 }
 
 /**
- * Move = delete the original L2 block + append a copy of it under the target
- * L1 group. Emits the delete in a root-context `<save>` and the append in a
- * `# {toGroup}` context block. Drops the move silently when the entity isn't
- * found or matches ambiguously.
+ * Move = delete the original L2 block at `fromSectionPath` + append a copy of
+ * it under the target L1 group. Emits the delete in a root-context `<save>`
+ * and the append in a `# {toGroup}` context block. Drops the move silently
+ * when `fromSectionPath` does not resolve in the current file.
  */
 export function moveEntities(
     moves: readonly EntityMove[],
@@ -86,7 +89,7 @@ export function moveEntities(
     const appendsByGroup = new Map<string, SaveUpdateOp[]>();
     for (const m of moves) {
         if (!m.toGroup) continue;
-        const block = lookupEntityBlock(ctx.fileContent, lines, m.name);
+        const block = lookupSectionBlock(ctx.fileContent, lines, m.fromSectionPath);
         if (!block) continue;
         deleteOps.push({ kind: 'delete', target: block });
         const ctxPath = `# ${stripHeadingPrefix(m.toGroup)}`;
@@ -102,16 +105,6 @@ export function moveEntities(
     const appendXmls = [...appendsByGroup.entries()]
         .map(([groupPath, ops]) => saveBlock(ctx.targetFile, groupPath, ops));
     return [deleteXml, ...appendXmls].filter(s => s.length > 0).join('\n');
-}
-
-/**
- * `## {name}` look-up wrapper around the shared {@link lookupSectionBlock}
- * helper — handler-local because the heading prefix is fixed at L2 for
- * character / faction entries and the caller passes only the bare name.
- */
-function lookupEntityBlock(content: string, lines: readonly string[], name: string): string | null {
-    if (!name) return null;
-    return lookupSectionBlock(content, lines, `## ${stripHeadingPrefix(name)}`);
 }
 
 /**

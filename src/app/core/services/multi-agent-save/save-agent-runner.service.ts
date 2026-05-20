@@ -1,8 +1,9 @@
 import { Injectable, inject } from '@angular/core';
 import type { LLMContent, LLMProvider, LLMProviderConfig, LLMUsageMetadata } from '@hcs/llm-core';
+import type { Schema } from '@app/core/models/types';
 import { ContentParserService } from '../content-parser.service';
 import { mergeUsage } from '../llm-usage-merge';
-import { SAVE_MANIFEST_SCHEMA, validateManifest } from './schemas/manifest.schema';
+import { validateManifest } from './schemas/manifest.schema';
 import type { SaveManifest } from './multi-agent-save.types';
 import { SaveProgressTracker } from './progress/save-progress-tracker.service';
 
@@ -13,6 +14,14 @@ export interface SaveAgentInput {
     cachedContentName?: string;
     history: LLMContent[];
     signal: AbortSignal;
+    /**
+     * Response schema for structured output — mode-specific. 1-call mode passes
+     * `SAVE_MANIFEST_SCHEMA_1CALL` (entityUpdate.updates required); multi-call
+     * mode passes `SAVE_MANIFEST_SCHEMA_MULTICALL` (entityUpdate forbids
+     * updates via `additionalProperties: false`). The runner stays
+     * mode-agnostic — orchestrator picks the schema based on settings.
+     */
+    responseSchema: Schema;
 }
 
 export interface SaveAgentResult {
@@ -56,7 +65,7 @@ export class SaveAgentRunnerService {
                 input.systemInstruction,
                 {
                     cachedContentName: input.cachedContentName,
-                    responseSchema: SAVE_MANIFEST_SCHEMA,
+                    responseSchema: input.responseSchema,
                     responseMimeType: 'application/json',
                     intent: 'save',
                     signal: input.signal,

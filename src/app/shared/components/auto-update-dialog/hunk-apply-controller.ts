@@ -57,8 +57,8 @@ export interface HunkApplyHost {
  * state, the recomputed-on-every-edit `combinedContent`, drag-reorder, and
  * the calibration state machine (selection-anchored target+context inference).
  *
- * Does NOT own: editor instance, file writes, dialog ref, regenerate-save
- * prompt assembly. Provided in the dialog's `providers` array (per-instance).
+ * Does NOT own: editor instance, file writes, dialog ref. Provided in the
+ * dialog's `providers` array (per-instance).
  */
 @Injectable()
 export class HunkApplyController {
@@ -138,10 +138,6 @@ export class HunkApplyController {
 
   hasMismatch(group: GroupedUpdate): boolean {
     return group.updates.some((u) => u.status && u.status.exists && !u.status.matched);
-  }
-
-  hasAnyMismatch(): boolean {
-    return this.groupedUpdates().some((g) => this.hasMismatch(g));
   }
 
   hasSelectedUpdates(): boolean {

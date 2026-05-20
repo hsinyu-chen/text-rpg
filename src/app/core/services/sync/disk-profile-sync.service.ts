@@ -24,7 +24,6 @@ const TYPE_FILENAME: Record<PromptType, string> = {
     continue: 'continue.md',
     fastforward: 'fastforward.md',
     system: 'system.md',
-    save: 'save.md',
     system_main: 'system_main.md',
     postprocess: 'postprocess.js',
     protocol_single: 'protocol_single.md',

@@ -13,7 +13,7 @@ import { REASON_DESC } from './tool-helpers';
 
 export const LIST_CHAT_MESSAGES_TOOL: LLMFunctionDeclaration = {
     name: 'listChatMessages',
-    description: 'Outline of recent chat messages — cheap preview without bodies. Returns id, role, charCount, summary, intent, hasLogs. USE FIRST for any timing / sequence / pacing / "is X reasonable" question — summaries usually suffice. Also use first when the user references the story but no specific phrase. Paginate older with before=oldest-id-seen. Skips save-intent (engine file-update) turns by default. Errors if no chat history is available.',
+    description: 'Outline of recent chat messages — cheap preview without bodies. Returns id, role, charCount, summary, intent, hasLogs. USE FIRST for any timing / sequence / pacing / "is X reasonable" question — summaries usually suffice. Also use first when the user references the story but no specific phrase. Paginate older with before=oldest-id-seen. Errors if no chat history is available.',
     parameters: {
         type: 'object',
         properties: {
@@ -21,7 +21,6 @@ export const LIST_CHAT_MESSAGES_TOOL: LLMFunctionDeclaration = {
             limit: { type: 'number', description: 'Maximum number of messages to return, newest first (default 30, capped at 100).' },
             before: { type: 'string', description: 'Optional. Return only messages older than this message id. Use the oldest id from a prior call to paginate backwards.' },
             includeHidden: { type: 'boolean', description: 'Optional. Default false. Set true to include messages flagged isHidden (engine-suppressed system turns).' },
-            includeSaves: { type: 'boolean', description: 'Optional. Default false. Set true ONLY if the user is asking about KB-write history itself — save-intent turns contain XML update tags, not narrative.' },
         },
         required: ['reason'],
     },
@@ -29,7 +28,7 @@ export const LIST_CHAT_MESSAGES_TOOL: LLMFunctionDeclaration = {
 
 export const SEARCH_CHAT_MESSAGES_TOOL: LLMFunctionDeclaration = {
     name: 'searchChatMessages',
-    description: 'Regex search across in-game chat messages — the chat-side analogue of grep. Returns hits with messageId, role, the scope that matched, and a snippet. Each message is capped at 3 hits (the 3rd carries moreInSameMessage:N) — multiple matches inside the same turn no longer dominate results. PREFER this over readChatMessage when you have a specific phrase, name, or token to find. For TIMING / SEQUENCE / pacing questions, listChatMessages with summaries is usually a cheaper first step. scope is REQUIRED and controls which field is searched — see the scope parameter docs for when to pick "content" / "thought" / "summary" / "all". For event-lookup questions ("when did X / who did Y") prefer "summary"; "content" is for verbatim phrase / quote / name lookups only. Save-intent turns are skipped by default. Tool errors if no chat history is available.',
+    description: 'Regex search across in-game chat messages — the chat-side analogue of grep. Returns hits with messageId, role, the scope that matched, and a snippet. Each message is capped at 3 hits (the 3rd carries moreInSameMessage:N) — multiple matches inside the same turn no longer dominate results. PREFER this over readChatMessage when you have a specific phrase, name, or token to find. For TIMING / SEQUENCE / pacing questions, listChatMessages with summaries is usually a cheaper first step. scope is REQUIRED and controls which field is searched — see the scope parameter docs for when to pick "content" / "thought" / "summary" / "all". For event-lookup questions ("when did X / who did Y") prefer "summary"; "content" is for verbatim phrase / quote / name lookups only. Tool errors if no chat history is available.',
     parameters: {
         type: 'object',
         properties: {
@@ -39,7 +38,6 @@ export const SEARCH_CHAT_MESSAGES_TOOL: LLMFunctionDeclaration = {
             caseInsensitive: { type: 'boolean', description: 'Optional. Default false.' },
             limit: { type: 'number', description: 'Maximum hits to return across all messages (default 100, capped at 300).' },
             contextChars: { type: 'number', description: 'Optional. Default 80. Characters of context around each match in the returned snippet (capped at 400).' },
-            includeSaves: { type: 'boolean', description: 'Optional. Default false. Set true ONLY if the user is asking about KB-write history itself.' },
         },
         required: ['reason', 'pattern', 'scope'],
     },
