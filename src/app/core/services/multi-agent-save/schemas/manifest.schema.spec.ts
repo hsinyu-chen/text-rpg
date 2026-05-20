@@ -1,26 +1,59 @@
 import { describe, expect, it } from 'vitest';
-import { SAVE_MANIFEST_SCHEMA, validateManifest } from './manifest.schema';
+import {
+    SAVE_MANIFEST_SCHEMA_1CALL,
+    SAVE_MANIFEST_SCHEMA_MULTICALL,
+    validateManifest,
+} from './manifest.schema';
 
-describe('SAVE_MANIFEST_SCHEMA shape', () => {
-    it('declares no required fields at the top level (allows truncation salvage)', () => {
-        const schema = SAVE_MANIFEST_SCHEMA as { required?: string[] };
-        expect(schema.required).toBeUndefined();
+describe('SAVE_MANIFEST_SCHEMA — shared shape', () => {
+    const sharedArrayFields = [
+        'inventoryDeltas', 'assetsDeltas', 'plansDeltas',
+        'techEquipmentUpdates', 'magicSkillsUpdates', 'worldFeaturesUpdates',
+        'charactersToCreate', 'factionsToCreate',
+        'charactersToDelete', 'factionsToDelete',
+        'charactersToMove', 'factionsToMove',
+        'charactersToUpdate', 'factionsToUpdate',
+    ];
+
+    for (const [name, schema] of [
+        ['SAVE_MANIFEST_SCHEMA_1CALL', SAVE_MANIFEST_SCHEMA_1CALL],
+        ['SAVE_MANIFEST_SCHEMA_MULTICALL', SAVE_MANIFEST_SCHEMA_MULTICALL],
+    ] as const) {
+        describe(name, () => {
+            it('declares no required fields at the top level (allows truncation salvage)', () => {
+                const s = schema as { required?: string[] };
+                expect(s.required).toBeUndefined();
+            });
+
+            it('lists every optional manifest field as an array of objects', () => {
+                const s = schema as { properties: Record<string, { type: string }> };
+                for (const f of sharedArrayFields) {
+                    expect(s.properties[f], `${f} missing`).toBeDefined();
+                    expect(s.properties[f].type, `${f} wrong type`).toBe('array');
+                }
+            });
+        });
+    }
+});
+
+describe('SAVE_MANIFEST_SCHEMA_1CALL vs _MULTICALL — entity-update divergence', () => {
+    function entityUpdateItems(schema: typeof SAVE_MANIFEST_SCHEMA_1CALL) {
+        const props = schema.properties as {
+            charactersToUpdate: { items: { required?: string[]; additionalProperties?: boolean; properties?: Record<string, unknown> } };
+        };
+        return props.charactersToUpdate.items;
+    }
+
+    it('1-call requires `updates` on each charactersToUpdate entry', () => {
+        const items = entityUpdateItems(SAVE_MANIFEST_SCHEMA_1CALL);
+        expect(items.required).toContain('updates');
+        expect(items.properties?.['updates']).toBeDefined();
     });
 
-    it('lists every optional manifest field as an array of objects', () => {
-        const schema = SAVE_MANIFEST_SCHEMA as { properties: Record<string, { type: string }> };
-        const arrayFields = [
-            'inventoryDeltas', 'assetsDeltas', 'plansDeltas',
-            'techEquipmentUpdates', 'magicSkillsUpdates', 'worldFeaturesUpdates',
-            'charactersToCreate', 'factionsToCreate',
-            'charactersToDelete', 'factionsToDelete',
-            'charactersToMove', 'factionsToMove',
-            'charactersToUpdate', 'factionsToUpdate',
-        ];
-        for (const f of arrayFields) {
-            expect(schema.properties[f], `${f} missing`).toBeDefined();
-            expect(schema.properties[f].type, `${f} wrong type`).toBe('array');
-        }
+    it('multi-call forbids `updates` via additionalProperties:false + omitting it from properties', () => {
+        const items = entityUpdateItems(SAVE_MANIFEST_SCHEMA_MULTICALL);
+        expect(items.additionalProperties).toBe(false);
+        expect(items.properties?.['updates']).toBeUndefined();
     });
 });
 

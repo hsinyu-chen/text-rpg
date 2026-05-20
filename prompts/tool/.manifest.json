@@ -42,7 +42,13 @@
     },
     {
       "variantKey": "zh-tw/default",
-      "filePath": "public/assets/system_files/zh-tw/injection_save_manifest.md",
+      "filePath": "public/assets/system_files/zh-tw/injection_save_manifest_1call.md",
+      "passthrough": false,
+      "slots": []
+    },
+    {
+      "variantKey": "zh-tw/default",
+      "filePath": "public/assets/system_files/zh-tw/injection_save_manifest_multicall.md",
       "passthrough": false,
       "slots": []
     },
@@ -140,7 +146,13 @@
     },
     {
       "variantKey": "zh-tw/local",
-      "filePath": "public/assets/system_files/zh-tw/profiles/local/injection_save_manifest.md",
+      "filePath": "public/assets/system_files/zh-tw/profiles/local/injection_save_manifest_1call.md",
+      "passthrough": false,
+      "slots": []
+    },
+    {
+      "variantKey": "zh-tw/local",
+      "filePath": "public/assets/system_files/zh-tw/profiles/local/injection_save_manifest_multicall.md",
       "passthrough": false,
       "slots": []
     },
@@ -248,7 +260,13 @@
     },
     {
       "variantKey": "en/default",
-      "filePath": "public/assets/system_files/en/injection_save_manifest.md",
+      "filePath": "public/assets/system_files/en/injection_save_manifest_1call.md",
+      "passthrough": false,
+      "slots": []
+    },
+    {
+      "variantKey": "en/default",
+      "filePath": "public/assets/system_files/en/injection_save_manifest_multicall.md",
       "passthrough": false,
       "slots": []
     },
@@ -346,7 +364,13 @@
     },
     {
       "variantKey": "en/local",
-      "filePath": "public/assets/system_files/en/profiles/local/injection_save_manifest.md",
+      "filePath": "public/assets/system_files/en/profiles/local/injection_save_manifest_1call.md",
+      "passthrough": false,
+      "slots": []
+    },
+    {
+      "variantKey": "en/local",
+      "filePath": "public/assets/system_files/en/profiles/local/injection_save_manifest_multicall.md",
       "passthrough": false,
       "slots": []
     },

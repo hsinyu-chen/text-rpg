@@ -64,72 +64,127 @@ const entityMove = {
     },
 } as const;
 
-const entityUpdate = {
+/**
+ * Multi-call mode wire for `charactersToUpdate / factionsToUpdate`: only name
+ * + optional reasonHint allowed. `additionalProperties: false` (plus the
+ * absence of `updates` from the properties map) keeps the main LLM from
+ * sneaking diff payloads across the fog-of-war boundary — the per-entity
+ * sub-agent (Phase B) is the sole producer of those.
+ */
+const entityUpdateMulticall = {
     type: 'object',
     required: ['name'],
+    additionalProperties: false,
+    properties: {
+        name: { type: 'string' },
+        reasonHint: { type: 'string', description: 'Optional motivation hint — trace only' },
+    },
+} as const;
+
+/**
+ * 1-call mode wire: the main LLM emits a full `updates` payload directly.
+ * `updates` is required (an entry that flags an entity but omits updates
+ * would be a meaningless ping in this mode); each entry is a SectionUpdate
+ * mirroring techEquipmentUpdates et al.
+ */
+const entityUpdate1Call = {
+    type: 'object',
+    required: ['name', 'updates'],
     properties: {
         name: { type: 'string' },
         reasonHint: { type: 'string', description: 'Optional motivation hint — trace only' },
         updates: {
             type: 'array',
-            description: '1-call mode: SectionUpdate[] scoped to this entity. Each entry carries its own sectionPath (entity heading path) + target?/replacement, mirroring techEquipmentUpdates etc.',
+            minItems: 1,
+            description: 'SectionUpdate[] scoped to this entity. Each entry carries its own sectionPath (entity heading path) + target?/replacement, mirroring techEquipmentUpdates etc.',
             items: sectionItem,
         },
     },
 } as const;
 
 /**
- * JSON-Schema-subset shape passed to `provider.generateContentStream` as
- * `responseSchema`. Mirrors the {@link SaveManifest} TypeScript interface
- * field-for-field — when the interface changes, this constant must too;
- * `manifest.schema.spec.ts` guards by parsing schema-shaped fixtures and
- * comparing with hand-rolled TS objects.
+ * Shared mechanical / lifecycle fields — same shape across 1-call and
+ * multi-call modes. Only the entity-update slot diverges, so we splice it in
+ * at the per-mode export rather than duplicating ~14 sibling properties.
+ *
+ * Mirrors the {@link SaveManifest} TypeScript interface field-for-field —
+ * when the interface changes, this constant must too; `manifest.schema.spec.ts`
+ * guards by parsing schema-shaped fixtures and comparing with hand-rolled
+ * TS objects.
  *
  * Kept inline (no `$ref` indirection) — providers vary in how they resolve
  * `$ref`, and the manifest is small enough that inlining wins on clarity.
+ *
+ * completenessAudit is requested but not in `required` — a truncated response
+ * (max_tokens) typically drops the tail of the JSON, and we'd rather salvage
+ * the per-section deltas the model did emit than fail the whole manifest.
+ * The orchestrator's `finishReason` warning still tells the user the result
+ * is partial.
  */
-export const SAVE_MANIFEST_SCHEMA: Schema = {
-    type: 'object',
-    description: 'SaveAgent manifest — top-level routing output. The dispatcher reads each field and fires the matching sub-tool.',
-    // completenessAudit is requested but not in `required` — a truncated
-    // response (max_tokens) typically drops the tail of the JSON, and we'd
-    // rather salvage the per-section deltas the model did emit than fail
-    // the whole manifest. The orchestrator's `finishReason` warning still
-    // tells the user the result is partial.
-    properties: {
-        storyOutlineBlock: { type: 'string', description: 'Full story-outline block for this ACT. Empty string = no update.' },
-        inventoryDeltas: { type: 'array', items: deltaItem },
-        assetsDeltas: { type: 'array', items: deltaItem },
-        plansDeltas: { type: 'array', items: planItem },
-        techEquipmentUpdates: { type: 'array', items: sectionItem },
-        magicSkillsUpdates: { type: 'array', items: sectionItem },
-        worldFeaturesUpdates: { type: 'array', items: sectionItem },
-        charactersToCreate: { type: 'array', items: characterCreate },
-        factionsToCreate: { type: 'array', items: characterCreate },
-        charactersToDelete: { type: 'array', items: entityDelete },
-        factionsToDelete: { type: 'array', items: entityDelete },
-        charactersToMove: { type: 'array', items: entityMove },
-        factionsToMove: { type: 'array', items: entityMove },
-        charactersToUpdate: { type: 'array', items: entityUpdate },
-        factionsToUpdate: { type: 'array', items: entityUpdate },
-        completenessAudit: {
-            type: 'object',
-            required: ['processedLogIds', 'skippedLogIds'],
-            properties: {
-                processedLogIds: { type: 'array', items: { type: 'string' } },
-                skippedLogIds: {
-                    type: 'array',
-                    items: {
-                        type: 'object',
-                        required: ['logId', 'reason'],
-                        properties: {
-                            logId: { type: 'string' },
-                            reason: { type: 'string' },
-                        },
+const baseManifestProperties = {
+    storyOutlineBlock: { type: 'string', description: 'Full story-outline block for this ACT. Empty string = no update.' },
+    inventoryDeltas: { type: 'array', items: deltaItem },
+    assetsDeltas: { type: 'array', items: deltaItem },
+    plansDeltas: { type: 'array', items: planItem },
+    techEquipmentUpdates: { type: 'array', items: sectionItem },
+    magicSkillsUpdates: { type: 'array', items: sectionItem },
+    worldFeaturesUpdates: { type: 'array', items: sectionItem },
+    charactersToCreate: { type: 'array', items: characterCreate },
+    factionsToCreate: { type: 'array', items: characterCreate },
+    charactersToDelete: { type: 'array', items: entityDelete },
+    factionsToDelete: { type: 'array', items: entityDelete },
+    charactersToMove: { type: 'array', items: entityMove },
+    factionsToMove: { type: 'array', items: entityMove },
+    completenessAudit: {
+        type: 'object',
+        required: ['processedLogIds', 'skippedLogIds'],
+        properties: {
+            processedLogIds: { type: 'array', items: { type: 'string' } },
+            skippedLogIds: {
+                type: 'array',
+                items: {
+                    type: 'object',
+                    required: ['logId', 'reason'],
+                    properties: {
+                        logId: { type: 'string' },
+                        reason: { type: 'string' },
                     },
                 },
             },
         },
+    },
+} as const;
+
+/**
+ * 1-call mode schema: main LLM emits everything including per-entity
+ * `updates` payloads. The entity-update items make `updates` required so
+ * a model emitting `{ name: 'X' }` alone gets rejected — that shape would
+ * silently produce no save work in this mode.
+ */
+export const SAVE_MANIFEST_SCHEMA_1CALL: Schema = {
+    type: 'object',
+    description: 'SaveAgent manifest (1-call mode) — main LLM fills every section directly. Dispatcher emits XML mechanically.',
+    properties: {
+        ...baseManifestProperties,
+        charactersToUpdate: { type: 'array', items: entityUpdate1Call },
+        factionsToUpdate: { type: 'array', items: entityUpdate1Call },
+    },
+};
+
+/**
+ * Multi-call mode schema: main LLM only flags `name` + `reasonHint` for
+ * each entity; the per-entity sub-agent (Phase B) produces the diff under
+ * fog-of-war. `additionalProperties: false` on the entity-update items
+ * forbids the main LLM from sneaking an `updates` payload into the
+ * manifest.
+ */
+export const SAVE_MANIFEST_SCHEMA_MULTICALL: Schema = {
+    type: 'object',
+    description: 'SaveAgent manifest (multi-call mode) — main LLM routes only; per-entity sub-agent owns each entity diff.',
+    properties: {
+        ...baseManifestProperties,
+        charactersToUpdate: { type: 'array', items: entityUpdateMulticall },
+        factionsToUpdate: { type: 'array', items: entityUpdateMulticall },
     },
 };
 
