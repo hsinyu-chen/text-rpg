@@ -298,9 +298,7 @@ The AI-generated **Inventory**, **Quest Log**, **World/Tech Update**, and **Summ
 
 ### 3. Automatic World Update
 Save not only records progress — it also **updates world setting files**:
-*   **Trigger**:
-    1. Click the **Save** (floppy-disk icon) button next to the input box → confirm in the dialog → save runs.
-    2. Or click **"Auto Update"** (magic-wand icon) on a previous message's toolbar to re-run the same manifest → dispatcher pipeline against that turn.
+*   **Trigger**: Click the **Save** (floppy-disk icon) button next to the input box → confirm in the dialog → save runs. Save is not persisted as a chat message; the run itself surfaces the Auto-Update dialog directly.
 *   **Mechanism (multi-agent pipeline)**:
     1. **SaveAgent** (single LLM call) compiles the manifest JSON from this ACT's logs + summaries (since `--- ACT START ---`): inventory / assets / plans / story-outline / tech / magic / world / character (create / delete / move / per-entity field updates) / faction sections.
     2. **Dispatcher** (pure TS) walks each manifest section and mechanically emits `<save>` XML diffs, parsed into `FileUpdate[]` by FileUpdateParser.
