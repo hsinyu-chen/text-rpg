@@ -159,21 +159,53 @@ export interface CharacterCreate {
 }
 
 export interface EntityDelete {
-  name: string;
+  /**
+   * Breadcrumb path of the L2 entity heading to delete, e.g.
+   * `# 核心人物 > ## 李四`. Same shape as {@link SectionUpdate.sectionPath} —
+   * model-supplied full path, so same-name entities under different L1 groups
+   * resolve unambiguously without dispatcher-side guesswork.
+   */
+  sectionPath: string;
   reason: string;
 }
 
 export interface EntityMove {
-  name: string;
-  /** Target L1 group heading text. */
+  /**
+   * Breadcrumb path of the L2 entity at its current location, e.g.
+   * `# 核心人物 > ## 李四`. The handler reads this verbatim block and
+   * re-appends it under {@link toGroup}.
+   */
+  fromSectionPath: string;
+  /** Target L1 group heading text (bare, no leading `#`). */
   toGroup: string;
   reason: string;
 }
 
+/**
+ * Entity update wire. Two modes share the same TS type:
+ *
+ * - **1-call mode** — main LLM fills `updates` directly with
+ *   {@link SectionUpdate}[] (each already self-describes its `sectionPath`),
+ *   dispatcher routes to the `applyEntityPatches` mechanical handler.
+ * - **multi-call mode** — manifest only carries `name` + `reasonHint`; a
+ *   per-entity sub-agent (Phase B) derives the diff under fog-of-war.
+ *
+ * Mode-specific schemas (1-call: `updates` required; multi-call:
+ * `additionalProperties:false` to forbid it) gate model output at the wire,
+ * but the validator stays lenient — `updates` is always optional here so
+ * a single TS shape serves both paths.
+ */
 export interface EntityUpdate {
   name: string;
   /** Optional motivation hint — trace-only, does not influence sub-tool visibility filter. */
   reasonHint?: string;
+  /**
+   * 1-call mode: full {@link SectionUpdate}[] scoped to this entity's KB
+   * section. Each entry's `sectionPath` should start with the entity's L2
+   * heading path (`# 核心人物 > ## 李四`) — the dispatcher delegates to the
+   * same `applySectionUpdates` body used by `techEquipmentUpdates` &c.
+   */
+  updates?: SectionUpdate[];
 }
 
 export interface SkippedLog {

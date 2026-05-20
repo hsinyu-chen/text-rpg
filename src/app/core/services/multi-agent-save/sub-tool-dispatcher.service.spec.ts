@@ -107,7 +107,7 @@ describe('SubToolDispatcherService', () => {
         expect(notImpl).toHaveLength(0);
     });
 
-    it('records LLM sub-tool sections as not_yet_implemented when populated', () => {
+    it('records sub-agent (no-updates) entity entries as not_yet_implemented', () => {
         const manifest: SaveManifest = {
             ...emptyManifest,
             charactersToUpdate: [{ name: '李四', reasonHint: 'after war' }],
@@ -123,7 +123,53 @@ describe('SubToolDispatcherService', () => {
         expect(llmEntry?.statusReason).toBe('not_yet_implemented');
     });
 
-    it('does NOT emit an LLM-section entry when the section is empty', () => {
+    it('dispatches 1-call mode entity updates through applyEntityPatches', () => {
+        const manifest: SaveManifest = {
+            ...emptyManifest,
+            charactersToUpdate: [{
+                name: '李四',
+                updates: [
+                    { sectionPath: '# 核心人物 > ## 李四', replacement: '\n- 新增筆記' },
+                ],
+            }],
+        };
+        const result = svc.dispatcher.dispatch({
+            manifest,
+            coreFilenames: files(),
+            kbSectionHeadings: HEADINGS,
+            kbFiles: new Map([['3.人物狀態.md', '']]),
+        });
+        expect(result.xml).toContain('<save file="3.人物狀態.md"');
+        expect(result.xml).toContain('context="# 核心人物 > ## 李四"');
+        expect(result.xml).toContain('新增筆記');
+        const entry = svc.tracker.entries().find(e => e.toolName === 'charactersToUpdate');
+        expect(entry?.state).toBe('done');
+    });
+
+    it('emits BOTH a done entry (mechanical part) and a not_yet_implemented entry (sub-agent part) when the manifest mixes the two', () => {
+        const manifest: SaveManifest = {
+            ...emptyManifest,
+            charactersToUpdate: [
+                {
+                    name: '李四',
+                    updates: [{ sectionPath: '# 核心人物 > ## 李四', replacement: '\n- x' }],
+                },
+                { name: '王五', reasonHint: 'sub-agent later' },
+            ],
+        };
+        svc.dispatcher.dispatch({
+            manifest,
+            coreFilenames: files(),
+            kbSectionHeadings: HEADINGS,
+            kbFiles: new Map([['3.人物狀態.md', '']]),
+        });
+        const entries = svc.tracker.entries().filter(e => e.toolName === 'charactersToUpdate');
+        expect(entries).toHaveLength(2);
+        expect(entries.some(e => e.state === 'done')).toBe(true);
+        expect(entries.some(e => e.state === 'skipped' && e.statusReason === 'not_yet_implemented')).toBe(true);
+    });
+
+    it('does NOT emit an entity-update entry when the section is empty', () => {
         svc.dispatcher.dispatch({
             manifest: emptyManifest,
             coreFilenames: files(),

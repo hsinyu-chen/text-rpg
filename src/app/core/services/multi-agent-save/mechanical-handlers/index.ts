@@ -8,6 +8,25 @@ import { createEntities, deleteEntities, moveEntities } from './entity-lifecycle
 type CoreFilenames = AppLocale['coreFilenames'];
 
 /**
+ * Entity-update tools live outside {@link MechanicalToolName} because they
+ * have a dual nature: 1-call mode routes them through `applyEntityPatches`
+ * (mechanical), multi-call mode hands them to a per-entity sub-agent
+ * (Phase B). The dispatcher inspects each entry's `updates` field to pick the
+ * route; both routes need the same KB target-file mapping, captured here.
+ */
+export type EntityUpdateToolName = 'charactersToUpdate' | 'factionsToUpdate';
+
+/**
+ * Resolves the KB file an entity-update tool targets, from the active locale's
+ * `coreFilenames` map. Mirrors {@link targetFileFor} for the entity-update
+ * surface; kept separate because `EntityUpdateToolName` is intentionally not
+ * a member of `MechanicalToolName`.
+ */
+export function entityUpdateTargetFile(tool: EntityUpdateToolName, files: CoreFilenames): string {
+    return tool === 'charactersToUpdate' ? files.CHARACTER_STATUS : files.WORLD_FACTIONS;
+}
+
+/**
  * A mechanical handler's runtime contract:
  *
  * - `manifest` — the full SaveAgent manifest; the handler picks its own slice

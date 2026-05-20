@@ -2,10 +2,12 @@ import { Injectable, inject } from '@angular/core';
 import type { AppLocale } from '@app/core/constants/locales/locale.interface';
 import {
     MECHANICAL_TOOL_NAMES,
+    type EntityUpdate,
     type MechanicalToolName,
     type SaveManifest,
 } from './multi-agent-save.types';
-import { MECHANICAL_HANDLERS, targetFileFor } from './mechanical-handlers';
+import { MECHANICAL_HANDLERS, entityUpdateTargetFile, targetFileFor, type EntityUpdateToolName } from './mechanical-handlers';
+import { applyEntityPatches } from './mechanical-handlers/entity-patch-handlers';
 import { SaveProgressTracker } from './progress/save-progress-tracker.service';
 
 export interface DispatchInput {
@@ -34,10 +36,12 @@ export interface DispatchResult {
  * - if the slot is empty or not wired → emits a `skipped` progress entry with
  *   the reason code (`empty_section` / `not_yet_implemented`)
  *
- * LLM sub-tool fields (`charactersToUpdate` / `factionsToUpdate`) are NOT
- * touched here — those are dispatched by `UpdateCharacterChain` /
- * `UpdateFactionChain` in a later phase. For Phase 1 the dispatcher just
- * emits one skip entry per non-empty LLM section.
+ * Entity-update slots (`charactersToUpdate` / `factionsToUpdate`) are dual-
+ * natured and dispatched in their own block:
+ * - entries carrying `updates: SectionUpdate[]` → 1-call mode mechanical
+ *   handler {@link applyEntityPatches}
+ * - entries with only `name` + `reasonHint` → reserved for Phase B
+ *   per-entity sub-agent; currently emit `not_yet_implemented` skip
  *
  * The dispatcher does NOT throw on handler errors — it converts them to
  * `failed` progress entries and continues, so a single bad section doesn't
@@ -96,18 +100,63 @@ export class SubToolDispatcherService {
             }
         }
 
-        // LLM sub-tool sections: Phase 1 just records skip entries when the
-        // manifest actually requested any. Empty sections are skipped silently
-        // so the dialog isn't padded with N empty cards.
+        // Entity-update sections: route by whether each entry carries an
+        // `updates` SectionUpdate[] payload.
+        //  - 1-call mode: main LLM filled `updates` directly → mechanical
+        //    handler (applyEntityPatches) emits XML in this dispatch.
+        //  - multi-call mode: entry has only name + reasonHint → reserved
+        //    for the Phase B per-entity sub-agent; emit not_yet_implemented.
+        // Empty sections are skipped silently so the dialog isn't padded
+        // with N empty cards.
         for (const tool of ['charactersToUpdate', 'factionsToUpdate'] as const) {
             const list = input.manifest[tool];
-            if (list && list.length > 0) {
-                const entryId = this.progress.startEntry('sub-tool', { toolName: tool });
-                this.progress.skip(entryId, 'not_yet_implemented');
-            }
+            if (!list || list.length === 0) continue;
+            this.dispatchEntityUpdates(tool, list, input, xmlParts);
         }
 
         return { xml: xmlParts.join('\n') };
+    }
+
+    private dispatchEntityUpdates(
+        tool: EntityUpdateToolName,
+        entries: readonly EntityUpdate[],
+        input: DispatchInput,
+        xmlParts: string[],
+    ): void {
+        const mechanicalEntries = entries.filter(e => e.updates && e.updates.length > 0);
+        const subAgentEntries = entries.filter(e => !e.updates || e.updates.length === 0);
+
+        if (mechanicalEntries.length > 0) {
+            const entryId = this.progress.startEntry('sub-tool', { toolName: tool });
+            const targetFile = entityUpdateTargetFile(tool, input.coreFilenames);
+            const fileContent = input.kbFiles.get(targetFile) ?? '';
+            try {
+                const xml = applyEntityPatches(mechanicalEntries, {
+                    targetFile,
+                    fileContent,
+                    kbSectionHeadings: input.kbSectionHeadings,
+                });
+                if (!xml) {
+                    this.progress.skip(entryId, 'empty_section');
+                } else {
+                    xmlParts.push(xml);
+                    this.progress.appendOutput(entryId, xml);
+                    this.progress.finishEntry(entryId, 'done');
+                }
+            } catch (err: unknown) {
+                const msg = err instanceof Error ? err.message : String(err);
+                this.progress.finishEntry(entryId, 'failed', msg);
+            }
+        }
+
+        // Sub-agent entries get their own skip entry so the user sees that
+        // Phase B work was requested but not run yet — co-existence with a
+        // mechanical entry above means the manifest mixed both, which is a
+        // legitimate (if unusual) state under partial 1-call coverage.
+        if (subAgentEntries.length > 0) {
+            const entryId = this.progress.startEntry('sub-tool', { toolName: tool });
+            this.progress.skip(entryId, 'not_yet_implemented');
+        }
     }
 }
 

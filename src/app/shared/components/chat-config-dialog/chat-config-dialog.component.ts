@@ -23,7 +23,7 @@ import { ProfileManagementController } from './profile-management-controller';
 import { AppAgentHintDirective } from '@app/core/services/agent-hints/agent-hints.directive';
 
 interface InjectionType {
-    id: 'action' | 'continue' | 'fastforward' | 'system' | 'save' | 'postprocess' | 'system_main' | 'protocol_single' | 'protocol_resolver' | 'protocol_narrator';
+    id: 'action' | 'continue' | 'fastforward' | 'system' | 'postprocess' | 'system_main' | 'protocol_single' | 'protocol_resolver' | 'protocol_narrator';
     label: string;
     icon: string;
     category: 'main' | 'injection' | 'process';
@@ -89,7 +89,6 @@ export class ChatConfigDialogComponent {
             { id: 'system', label: this.i18n.translate(`intent.labels.${GAME_INTENTS.SYSTEM}`), icon: 'psychology', category: 'injection' },
             { id: 'action', label: this.i18n.translate(`intent.labels.${GAME_INTENTS.ACTION}`), icon: 'play_arrow', category: 'injection' },
             { id: 'continue', label: this.i18n.translate(`intent.labels.${GAME_INTENTS.CONTINUE}`), icon: 'arrow_forward', category: 'injection' },
-            { id: 'save', label: this.i18n.translate(`intent.labels.${GAME_INTENTS.SAVE}`), icon: 'save', category: 'injection' },
             { id: 'fastforward', label: this.i18n.translate(`intent.labels.${GAME_INTENTS.FAST_FORWARD}`), icon: 'fast_forward', category: 'injection' },
             { id: 'postprocess', label: this.i18n.translate('intent.labels.post_process'), icon: 'code', category: 'process' }
         ];
@@ -116,7 +115,6 @@ export class ChatConfigDialogComponent {
         files.set('continue', this.state.dynamicContinueInjection());
         files.set('fastforward', this.state.dynamicFastforwardInjection());
         files.set('system', this.state.dynamicSystemInjection());
-        files.set('save', this.state.dynamicSaveInjection());
         files.set('system_main', this.state.dynamicSystemMainInjection());
         files.set('protocol_single', this.state.dynamicProtocolSingleInjection());
         files.set('protocol_resolver', this.state.dynamicProtocolResolverInjection());

@@ -53,7 +53,6 @@ export interface BuildContext {
     dynamicContinue: string;
     dynamicFastforward: string;
     dynamicSystem: string;
-    dynamicSave: string;
     dynamicProtocolResolver: string;
     dynamicProtocolNarrator: string;
     dynamicProtocolSingle: string;
@@ -500,7 +499,6 @@ export class ContextBuilderService {
             case GAME_INTENTS.CONTINUE: return ctx.dynamicContinue;
             case GAME_INTENTS.FAST_FORWARD: return ctx.dynamicFastforward;
             case GAME_INTENTS.SYSTEM: return ctx.dynamicSystem;
-            case GAME_INTENTS.SAVE: return ctx.dynamicSave;
             default: return '';
         }
     }
@@ -610,7 +608,6 @@ export class ContextBuilderService {
             dynamicContinue: this.state.dynamicContinueInjection(),
             dynamicFastforward: this.state.dynamicFastforwardInjection(),
             dynamicSystem: this.state.dynamicSystemInjection(),
-            dynamicSave: this.state.dynamicSaveInjection(),
             dynamicProtocolResolver: this.state.dynamicProtocolResolverInjection(),
             dynamicProtocolNarrator: this.state.dynamicProtocolNarratorInjection(),
             dynamicProtocolSingle: this.state.dynamicProtocolSingleInjection(),
@@ -645,7 +642,6 @@ export class ContextBuilderService {
             [GAME_INTENTS.CONTINUE]: tags.CONTINUE,
             [GAME_INTENTS.FAST_FORWARD]: tags.FAST_FORWARD,
             [GAME_INTENTS.SYSTEM]: tags.SYSTEM,
-            [GAME_INTENTS.SAVE]: tags.SAVE,
         };
         let userInput = lastMsg.parts[0].text;
         const tag = intentTagMap[currentIntent] ?? '';

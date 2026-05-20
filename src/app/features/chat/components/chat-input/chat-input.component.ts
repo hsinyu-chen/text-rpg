@@ -17,6 +17,7 @@ import { PayloadDialogComponent } from '@app/shared/components/payload-dialog/pa
 import { ChatConfigDialogComponent } from '@app/shared/components/chat-config-dialog/chat-config-dialog.component';
 import { ChatReplaceDialogComponent } from '../chat-replace-dialog/chat-replace-dialog.component';
 import { ConfirmDialogComponent, ConfirmDialogData } from '@app/shared/components/confirm-dialog/confirm-dialog.component';
+import { DialogService } from '@app/core/services/dialog.service';
 import { TauriWindow } from '@app/core/models/types';
 import { LanguageService } from '@app/core/services/language.service';
 import { I18nService, TranslatePipe } from '@app/core/i18n';
@@ -63,6 +64,7 @@ export class ChatInputComponent {
     private config = inject(ConfigService);
     private appConfig = inject(AppConfigStore);
     private matDialog = inject(MatDialog);
+    private dialogService = inject(DialogService);
     private readonly doc = inject(DOCUMENT);
 
     activeProfileName = computed(() => {
@@ -118,7 +120,6 @@ export class ChatInputComponent {
         if (intent === GAME_INTENTS.ACTION) return 'play_arrow';
         if (intent === GAME_INTENTS.FAST_FORWARD) return 'fast_forward';
         if (intent === GAME_INTENTS.SYSTEM) return 'settings';
-        if (intent === GAME_INTENTS.SAVE) return 'save';
         if (intent === GAME_INTENTS.CONTINUE) return 'arrow_forward';
         return 'help';
     }
@@ -127,7 +128,6 @@ export class ChatInputComponent {
         if (intent === GAME_INTENTS.ACTION) return 'var(--intent-action)';
         if (intent === GAME_INTENTS.FAST_FORWARD) return 'var(--intent-fastforward)';
         if (intent === GAME_INTENTS.SYSTEM) return 'var(--intent-system)';
-        if (intent === GAME_INTENTS.SAVE) return 'var(--intent-save)';
         if (intent === GAME_INTENTS.CONTINUE) return 'var(--intent-continue)';
         return 'inherit';
     }
@@ -172,8 +172,9 @@ export class ChatInputComponent {
         const intent = this.selectedIntent();
         console.log('[ChatInput] sendMessage called with intent:', intent);
 
-        // Validation
-        if (!inputStr && (intent === GAME_INTENTS.ACTION || intent === GAME_INTENTS.SYSTEM || intent === GAME_INTENTS.SAVE)) return;
+        // Validation — SAVE intent never reaches this path now (handled by the
+        // save button's confirm dialog directly).
+        if (!inputStr && (intent === GAME_INTENTS.ACTION || intent === GAME_INTENTS.SYSTEM)) return;
 
         // Handle Rewind & Resend — await so the rewind's book save completes
         // before the new sendMessage's phase 1 pushes a user message.
@@ -195,7 +196,7 @@ export class ChatInputComponent {
         // Reset
         this.userInput.set('');
         this.userIdealOutcome.set('');
-        if (intent === GAME_INTENTS.CONTINUE || intent === GAME_INTENTS.SAVE) {
+        if (intent === GAME_INTENTS.CONTINUE) {
             this.selectedIntent.set(GAME_INTENTS.ACTION);
         }
 
@@ -211,10 +212,15 @@ export class ChatInputComponent {
         this.idealOutcomeExpanded.update(v => !v);
     }
 
-    saveProgress() {
-        this.userInput.set(this.i18n.translate('placeholder.save'));
-        this.selectedIntent.set(GAME_INTENTS.SAVE);
-        this.focusInput();
+    async saveProgress(): Promise<void> {
+        const confirmed = await this.dialogService.confirm(
+            this.i18n.translate('multiAgentSave.confirm.message'),
+            this.i18n.translate('multiAgentSave.confirm.title'),
+            this.i18n.translate('multiAgentSave.confirm.ok'),
+            this.i18n.translate('ui.CANCEL'),
+        );
+        if (!confirmed) return;
+        void this.engine.runSave();
     }
 
     cancelEdit() {
@@ -250,14 +256,12 @@ export class ChatInputComponent {
         let filename = 'act_export.md';
 
         for (let i = messages.length - 2; i >= 0; i--) {
-            const isSaveOrSystem = messages[i].role === 'user' && (
-                messages[i].content.includes(GAME_INTENTS.SAVE) ||
+            const isSystem = messages[i].role === 'user' && (
                 messages[i].content.includes(GAME_INTENTS.SYSTEM) ||
-                messages[i].intent === GAME_INTENTS.SAVE ||
                 messages[i].intent === GAME_INTENTS.SYSTEM
             );
 
-            if (isSaveOrSystem) {
+            if (isSystem) {
                 const nextMsg = messages[i + 1];
                 if (nextMsg && nextMsg.role === 'model') {
                     const match = nextMsg.content.match(/## Act\.(\d+)/i);

@@ -31,8 +31,12 @@
   - 省略 `target` → `replacement` 追加在該 section 結尾（**新增**）；提供 `target` → 替換該 section 內**完全一致**的原文片段（**替換**，包含縮排與符號）。
   - 同一 `sectionPath` 可拆多條（多個小幅替換）；dispatcher 會把同 path 的條目組進同一個 `<save>` block。
 - `charactersToCreate / factionsToCreate`：本回新出現、需要落檔的 entity。`draftedFields` 寫好所有初始欄位（身分 / 基本設定 / 最後已知位置 / 初始目前心態 等），鍵名照 `<!--@include:partials/save-character-status-rules.md-->` 規範。
-- `charactersToDelete / factionsToDelete`：標記死亡 / 退場。`reason` 寫清楚原因（劇情死亡 / 永久脫離劇情等）。
-- `charactersToMove / factionsToMove`：跨 L1 group 移動（如「核心人物 → 已故人物」）。`toGroup` 寫目標 L1 group 文字。
+- `charactersToDelete / factionsToDelete`：標記死亡 / 退場。每條 `{ sectionPath, reason }`：
+  - `sectionPath` 是該 entity L2 條目的完整 breadcrumb（`# 核心人物 > ## 王五`），用 ` > ` 分隔。同名 entity 跨多 L1 群組時，完整路徑能精確指定要刪哪一個。
+  - `reason` 寫清楚原因（劇情死亡 / 永久脫離劇情等）— 僅 trace 用，不會落檔。
+- `charactersToMove / factionsToMove`：跨 L1 group 移動（如「核心人物 → 已故人物」）。每條 `{ fromSectionPath, toGroup, reason }`：
+  - `fromSectionPath` = entity 目前位置的完整 breadcrumb（`# 核心人物 > ## 李四`）。
+  - `toGroup` = 目標 L1 group 文字（裸，不帶 `#`，如 `已故人物`）。
 
 ### LLM sub-tool 區段（只提示要動誰，sub-tool 自己跑 visibility + 推演 + diff）
 

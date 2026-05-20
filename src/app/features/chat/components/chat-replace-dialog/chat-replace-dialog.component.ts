@@ -121,8 +121,7 @@ export class ChatReplaceDialogComponent {
             { value: GAME_INTENTS.ACTION, label: this.i18n.translate(`intent.labels.${GAME_INTENTS.ACTION}`) },
             { value: GAME_INTENTS.CONTINUE, label: this.i18n.translate(`intent.labels.${GAME_INTENTS.CONTINUE}`) },
             { value: GAME_INTENTS.FAST_FORWARD, label: this.i18n.translate(`intent.labels.${GAME_INTENTS.FAST_FORWARD}`) },
-            { value: GAME_INTENTS.SYSTEM, label: this.i18n.translate(`intent.labels.${GAME_INTENTS.SYSTEM}`) },
-            { value: GAME_INTENTS.SAVE, label: this.i18n.translate(`intent.labels.${GAME_INTENTS.SAVE}`) }
+            { value: GAME_INTENTS.SYSTEM, label: this.i18n.translate(`intent.labels.${GAME_INTENTS.SYSTEM}`) }
         ];
     });
 

@@ -79,7 +79,7 @@ export class SettingsDialogComponent {
   idleOnBlur = signal(false);
   enableAdultDeclaration = signal(true);
   engineMode = signal<'single' | 'two-call'>('single');
-  saveMode = signal<SaveMode>('legacy');
+  saveMode = signal<SaveMode>('1-call');
   saveSubToolProfileId = signal<string>('');
   outputLanguage = signal('default');
   customOutputLanguage = signal('');

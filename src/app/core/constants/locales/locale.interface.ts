@@ -113,13 +113,5 @@ export interface AppLocale {
         INTRO_TEXT: string;
         /** Written into `m.analysis` for system-init messages; equality-compared on load. */
         LOCAL_INIT_ANALYSIS: string;
-        /** Sent back to the LLM at the head of the regenerate-save prompt. */
-        REGENERATE_SAVE_PROMPT: string;
-        /** Labels embedded in the regenerate-save prompt body. */
-        REGEN_SUCCESS_TITLE: string;
-        REGEN_FAILED_TITLE: string;
-        REGEN_SUCCESS_LABEL: string;
-        REGEN_FILE_LABEL: string;
-        REGEN_ERROR_LABEL: string;
     };
 }

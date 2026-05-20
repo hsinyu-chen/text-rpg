@@ -15,11 +15,9 @@ import { AppConfigStore } from '@app/core/services/app-config-store';
 import { CORE_MAT } from '@app/shared/material/material-groups';
 import { CacheManagerService } from '@app/core/services/cache-manager.service';
 import { ConfirmDialogComponent, ConfirmDialogData } from '../confirm-dialog/confirm-dialog.component';
-import { GAME_INTENTS } from '@app/core/constants/game-intents';
 import { getLocale } from '@app/core/constants/locales';
 import { I18nService, TranslatePipe } from '@app/core/i18n';
 import { GroupedUpdate, HunkApplyController } from './hunk-apply-controller';
-import { buildRegenerateSavePrompt } from './regenerate-save.util';
 
 @Component({
   selector: 'app-auto-update-dialog',
@@ -80,16 +78,6 @@ export class AutoUpdateDialogComponent {
   }
 
   onCancel(): void {
-    this.dialogRef.close();
-  }
-
-  /**
-   * Generate a prompt to ask LLM to regenerate save with failed items.
-   * Closes the dialog and sends the message.
-   */
-  onRegenerateSave(): void {
-    const message = buildRegenerateSavePrompt(this.hunks.groupedUpdates(), this.locale());
-    void this.engine.sendMessage(message, { intent: GAME_INTENTS.SAVE });
     this.dialogRef.close();
   }
 

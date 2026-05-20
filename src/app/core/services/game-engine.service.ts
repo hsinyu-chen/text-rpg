@@ -24,7 +24,6 @@ import { DEFAULT_PROFILE_ID } from '../constants/prompt-profiles';
 
 import { SceneBootService } from './scene-boot.service';
 import { TurnCommitService, TurnContext, RunTurnOptions } from './turn-commit.service';
-import { SaveSettingsStore } from './multi-agent-save/save-settings.store';
 import { MultiAgentSaveService } from './multi-agent-save/multi-agent-save.service';
 import { SaveProgressTracker } from './multi-agent-save/progress/save-progress-tracker.service';
 
@@ -70,7 +69,6 @@ export class GameEngineService {
     private sceneBoot = inject(SceneBootService);
     private commitService = inject(TurnCommitService);
     private i18n = inject(I18nService);
-    private saveSettings = inject(SaveSettingsStore);
     private multiAgentSave = inject(MultiAgentSaveService);
     private saveProgress = inject(SaveProgressTracker);
 
@@ -109,34 +107,6 @@ export class GameEngineService {
         console.log('[GameEngine] sendMessage received with intent:', options?.intent);
         if (!this.validateRunTurnArgs(userText, options)) return;
 
-        // Multi-agent save: independent dispatch path. Bypasses the entire
-        // 8-phase chat pipeline — no user message in chat history, no model
-        // message, no story-protocol composition. The orchestrator owns its
-        // own progress dialog + AutoUpdateDialog open + error surfacing,
-        // but route the call through handleTurnError too so a defensive
-        // throw (e.g. signal setup error, DI failure) still surfaces via
-        // the same snackbar / status='error' path as the chat pipeline.
-        if (options?.intent === GAME_INTENTS.SAVE && this.saveSettings.saveMode() === 'multi-agent') {
-            // Legacy-fork profiles can be missing the manifest prompt or
-            // carry stale schema text; do the same autoswitch the chat
-            // pipeline runs before composing a turn. The notification
-            // surfaces via the same snackbar path as the legacy chat flow.
-            const switchedFromLegacy = await this.autoSwitchIfLegacyProfile();
-            if (switchedFromLegacy) {
-                this.snackBar.open(
-                    this.i18n.translate('ui.LEGACY_PROFILE_AUTOSWITCH'),
-                    this.i18n.translate('ui.CLOSE'),
-                    { duration: 8000, panelClass: ['snackbar-warning'] },
-                );
-            }
-            try {
-                await this.multiAgentSave.run(userText);
-            } catch (e: unknown) {
-                await this.handleTurnError(e);
-            }
-            return;
-        }
-
         const turn = await this.startTurn(userText, options);
         if (!(await this.prepareCacheOrAbort(turn))) return;
 
@@ -171,6 +141,34 @@ export class GameEngineService {
                     });
                 });
             }
+        } catch (e: unknown) {
+            await this.handleTurnError(e);
+        }
+    }
+
+    /**
+     * Runs the multi-agent save pipeline. Bypasses the chat turn pipeline —
+     * no user/model message lands in chat history. The orchestrator owns its
+     * own progress dialog and AutoUpdateDialog; failures surface through
+     * handleTurnError to share the snackbar / status='error' path with the
+     * chat pipeline.
+     */
+    async runSave(userText = ''): Promise<void> {
+        if (this.state.status() === 'generating') return;
+        if (this.saveProgress.isRunning()) return;
+
+        // Legacy-fork profiles can be missing the manifest prompt or carry
+        // stale schema text; mirror the chat pipeline's autoswitch.
+        const switchedFromLegacy = await this.autoSwitchIfLegacyProfile();
+        if (switchedFromLegacy) {
+            this.snackBar.open(
+                this.i18n.translate('ui.LEGACY_PROFILE_AUTOSWITCH'),
+                this.i18n.translate('ui.CLOSE'),
+                { duration: 8000, panelClass: ['snackbar-warning'] },
+            );
+        }
+        try {
+            await this.multiAgentSave.run(userText);
         } catch (e: unknown) {
             await this.handleTurnError(e);
         }
@@ -240,8 +238,7 @@ export class GameEngineService {
             userText,
             options,
             currentIntent: options?.intent || GAME_INTENTS.ACTION,
-            // <存檔> intent forces full context regardless of UI setting.
-            forceFullContext: options?.intent === GAME_INTENTS.SAVE,
+            forceFullContext: false,
             switchedFromLegacy,
             userMsgId,
             modelMsgId
@@ -300,8 +297,8 @@ export class GameEngineService {
             );
         }
 
-        // Two-call only applies to story intents — SYSTEM/SAVE bypass the
-        // resolver/narrator split (they have no atomic-action semantics).
+        // Two-call only applies to story intents — SYSTEM bypasses the
+        // resolver/narrator split (it has no atomic-action semantics).
         const useTwoCall = buildCtx.engineMode === 'two-call' && (STORY_INTENTS as string[]).includes(turn.currentIntent);
         let history: LLMContent[];
         let engine: TurnEngine;

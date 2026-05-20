@@ -28,8 +28,7 @@
 
         </div>
         <div class="msg-meta">
-            @if (msg.intent) { <span class="intent-tag" [class.system]="msg.intent === Intents.SYSTEM"
-                [class.save]="msg.intent === Intents.SAVE">{{ getIntentLabel(msg.intent) }}</span> }
+            @if (msg.intent) { <span class="intent-tag" [class.system]="msg.intent === Intents.SYSTEM">{{ getIntentLabel(msg.intent) }}</span> }
             @if (msg.userIdealOutcome) {
             <span class="ideal-outcome-chip" [matTooltip]="msg.userIdealOutcome">
                 {{ idealOutcomeChipPrefix() }}{{ msg.userIdealOutcome }}
@@ -52,13 +51,6 @@
                  links onto the right button. Keep them stable — changing
                  one breaks any historical agent output linking to it. -->
             <div class="msg-toolbar">
-                @if (msg.intent === Intents.SAVE || msg.content.includes('<save')) { <button mat-icon-button
-                    class="mini-btn update-btn" (click)="state.openAutoUpdateDialog()" [disabled]="isBusy()"
-                    data-msg-action="auto-update"
-                    [matTooltip]="'ui.AUTO_UPDATE_FILES' | translate">
-                    <mat-icon>auto_fix_high</mat-icon>
-                    </button>
-                    }
                     <button mat-icon-button class="mini-btn" (click)="state.copyPairJSON()" [disabled]="isBusy()"
                         data-msg-action="copy-json"
                         [matTooltip]="'ui.COPY_JSON_PAIR' | translate">
@@ -233,8 +225,7 @@
                     }
 
                     <div class="msg-meta">
-                        @if (msg.intent) { <span class="intent-tag" [class.system]="msg.intent === Intents.SYSTEM"
-                            [class.save]="msg.intent === Intents.SAVE">{{ getIntentLabel(msg.intent) }}</span> }
+                        @if (msg.intent) { <span class="intent-tag" [class.system]="msg.intent === Intents.SYSTEM">{{ getIntentLabel(msg.intent) }}</span> }
                         @if (msg.correction) { <span class="correction-tag" [matTooltip]="msg.correction">{{ 'ui.CORRECTION_TAG' | translate }}</span> }
                         {{ 'ui.MODEL_RESPONSE_LABEL' | translate }} @if (msg.isRefOnly) { <span>{{ 'ui.REF_ONLY_LABEL' | translate }}</span> }
                         @if (msg.usage) {
