@@ -67,8 +67,8 @@ The app ships a service worker and manifest, so it can be installed as a PWA —
 1. **First Run (Act I)**
    *   **Start**: Go to **Session** tab → Click **New Game**. The recommended path is the **Generate** tab — describe the kind of world and protagonist you want and let an AI agent fill in all 9 world files (see *AI World Generator* below). The **Pre-build** tab only ships a thin demo scenario for a quick first look; use it for trying the engine, not for serious play.
    *   **Play**: Engage in roleplay and plot deduction with the AI.
-   *   **Finish Act**: When a narrative arc concludes, use the `<Save>` command.
-   *   **Update World**: Click the **Auto Update** button (Magic Wand icon) to apply world changes to your files.
+   *   **Finish Act**: When a narrative arc concludes, hit the **Save** button (disk icon) next to the input → confirm in the dialog → SaveAgent runs.
+   *   **Update World**: The **Auto-Update** dialog that pops up after save lists every proposed KB update line-by-line; review and apply.
 
 2. **Backup (Crucial)**
    *   **Cloud Sync**: Go to **Session** (Book List) -> click **"Sync All"** to two-way sync all Books and Collections with the active sync provider. Choose the provider under **Settings → Sync Provider**:
@@ -81,7 +81,7 @@ The app ships a service worker and manifest, so it can be installed as a PWA —
 3. **Next Session (Act II+)**
    *   **Create Next Act**: When an Act concludes, clicking **"Create Next"** in the sidebar will automatically generate a new Adventure Book (e.g., "Act 2") inheriting all memory and stats. The new book lands in the same Collection as the source.
    *   **Continue**: Open **Session** (Book List) -> Select the latest Book to resume play.
-   *   **Loop**: Play -> `<Save>` -> **Auto Update** -> **Create Next**.
+   *   **Loop**: Play -> **Save** button -> review in **Auto-Update** -> **Create Next**.
 
 ---
 
@@ -108,10 +108,10 @@ The app ships a service worker and manifest, so it can be installed as a PWA —
 > Used for OOC dialogue or questioning the plot. The AI will directly correct the story or provide a logical explanation.
 
 ### Save : Analysis and state synchronization
-**Format**: `Save Scope or Correction Request`  
-*Example*: `Save current story progress`  
+**Action**: Click the **Save** button (disk icon) next to the input — a confirm dialog opens; on accept, save runs immediately. No text input required.
 > [!NOTE]
-> The AI summarizes the chapter and outputs XML file updates to ensure the world state is correctly recorded.
+> Save runs through the multi-agent pipeline: SaveAgent compiles the manifest JSON from this ACT's logs + summaries (since `--- ACT START ---`), then the dispatcher mechanically generates KB updates from the manifest. The turn engine is bypassed entirely. The **Auto-Update** dialog opens afterwards for line-by-line review.
+> Default mode is **1-call** (main LLM writes the entire manifest including per-entity field updates in one pass). **multi-call** (per-entity sub-agent with fog-of-war projection) is experimental — toggle under **Settings → Save Mode**.
 
 ### Continue : Fluid progression
 **Action**: Just click send or type `Continue`  
@@ -140,7 +140,7 @@ A second engine path that splits each story turn into two LLM calls:
 2. **Truncation** — the program walks `steps` and slices off everything after the first `breaks_ideal=true` step, so unexecuted dialogue / actions cannot leak into prose.
 3. **Narrator call** — receives only the truncated analysis (with all NPC dialogue lines pre-bound) + the resolver's `ideal_outcome` / `ideal_strength`, writes the actual `story` field plus `*_log` updates. Because every NPC reaction includes a verbatim `dialogue` field, narrator quotes them directly instead of paraphrasing into action verbs ("responded warmly").
 
-The toggle is a chip labelled **`1 Call`** / **`2 Call`** in the status row directly above the input bar; click to switch. The setting is per-device (stored in localStorage) and applies only to story intents (`action` / `continue` / `fast_forward`); `system` and `save` always run single-call. Default is `1 Call`.
+The toggle is a chip labelled **`1 Call`** / **`2 Call`** in the status row directly above the input bar; click to switch. The setting is per-device (stored in localStorage) and applies only to story intents (`action` / `continue` / `fast_forward`); `system` runs single-call; save runs through its own multi-agent pipeline (see *Save* above) independent of this toggle. Default is `1 Call`.
 
 **When 2-Call helps**
 *   Multi-step actions where the narrator (in single-call) tends to push through and "complete" something the protagonist couldn't actually finish — e.g. a handshake the NPC refuses, a spell that lacks mana.
@@ -182,7 +182,7 @@ Books, collections, and settings live in IndexedDB on each device; cloud backend
 | **State Tracking** | Uses Gemini's JSON Mode to output structured data, automatically parsing and updating frontend state (Signals). |
 | **World Log** | New `world_log` tracking field for recording world events, faction moves, and tech/magic progression, enabling automated world-building evolution. |
 | **Currency** | Built-in real-time exchange rate conversion (TWD, USD, JPY, KRW...) with customizable display currency to precisely monitor token costs. |
-| **Prompt Injection** | Supports dynamic injection of System Instructions, allowing runtime modification of underlying logic for `<Action>`, `<System>`, and `<Save>` modes. |
+| **Prompt Injection** | Supports dynamic injection of System Instructions, allowing runtime modification of underlying logic for `<Action>` and `<System>` modes. (Save runs through the multi-agent manifest pipeline and has its own per-mode prompts under **Settings → Save Mode**.) |
 | **Token Cost Tracking** | Built-in token calculator and exchange rate conversion module to monitor Input/Output/Cache consumption and estimate costs in real-time. |
 | **UI/UX** | Built with Angular 21 (Zoneless/Signals) and Angular Material 3, providing a modern responsive interface. |
 
@@ -297,13 +297,14 @@ The AI-generated **Inventory**, **Quest Log**, **World/Tech Update**, and **Summ
 *   These changes are immediately written to memory, influencing the AI's judgment in the next turn.
 
 ### 3. Automatic World Update
-When you use the `<存檔>` (Save) command, the AI not only saves progress but also attempts to **update world settings**:
-*   **Trigger**: 
-    1. Select `<Save>` from the dropdown list on the left of the input box.
-    2. Or click the **Save** (Floppy Disk Icon) button above the input box.
-    3. After the message is sent and a response is generated, click the **"Auto Update"** (Magic Wand Icon) button on the message toolbar if there are plot changes.
-*   **Mechanism**: The model analyses plot changes in the current chapter and outputs differential updates (Diff) in XML format.
-*   **Review Interface**: Clicking the button pops up an **"Auto-Update"** window showing suggested file changes (e.g., to `2.PlotOutline.md` or `6.World.md`). You can review and apply them item by item, ensuring the world setting evolves automatically with the story.
+Save not only records progress — it also **updates world setting files**:
+*   **Trigger**:
+    1. Click the **Save** (floppy-disk icon) button next to the input box → confirm in the dialog → save runs.
+    2. Or click **"Auto Update"** (magic-wand icon) on a previous message's toolbar to re-run the same manifest → dispatcher pipeline against that turn.
+*   **Mechanism (multi-agent pipeline)**:
+    1. **SaveAgent** (single LLM call) compiles the manifest JSON from this ACT's logs + summaries (since `--- ACT START ---`): inventory / assets / plans / story-outline / tech / magic / world / character (create / delete / move / per-entity field updates) / faction sections.
+    2. **Dispatcher** (pure TS) walks each manifest section and mechanically emits `<save>` XML diffs, parsed into `FileUpdate[]` by FileUpdateParser.
+*   **Review Interface**: The **"Auto-Update"** dialog pops up afterwards with line-by-line diff previews per file (e.g., `2.PlotOutline.md` / `6.World.md` / `3.Characters.md`); apply or skip each entry.
 
 ### 4. Knowledge Base File Editing (KB File Editing)
 In addition to dialogue and logs, you can directly edit the game's underlying knowledge base (Markdown files):
