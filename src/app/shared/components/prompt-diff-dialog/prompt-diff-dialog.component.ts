@@ -7,7 +7,7 @@ import { TranslatePipe } from '@app/core/i18n';
 import { FormsModule } from '@angular/forms';
 
 export interface PromptDiffDialogData {
-    type: 'action' | 'continue' | 'fastforward' | 'system' | 'save' | 'postprocess';
+    type: 'action' | 'continue' | 'fastforward' | 'system' | 'postprocess';
     localContent: string;
     remoteContent: string;
     label: string;

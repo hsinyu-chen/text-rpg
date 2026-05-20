@@ -138,7 +138,6 @@ describe('two-call orchestrator integration', () => {
             dynamicContinue: '',
             dynamicFastforward: '',
             dynamicSystem: '',
-            dynamicSave: '',
             dynamicProtocolResolver: 'RESOLVER PROTOCOL {{USER_INPUT}}',
             dynamicProtocolNarrator: 'NARRATOR PROTOCOL',
             dynamicProtocolSingle: '',

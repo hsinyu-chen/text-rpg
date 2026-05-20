@@ -53,7 +53,6 @@ export interface BuildContext {
     dynamicContinue: string;
     dynamicFastforward: string;
     dynamicSystem: string;
-    dynamicSave: string;
     dynamicProtocolResolver: string;
     dynamicProtocolNarrator: string;
     dynamicProtocolSingle: string;
@@ -612,7 +611,6 @@ export class ContextBuilderService {
             dynamicContinue: this.state.dynamicContinueInjection(),
             dynamicFastforward: this.state.dynamicFastforwardInjection(),
             dynamicSystem: this.state.dynamicSystemInjection(),
-            dynamicSave: this.state.dynamicSaveInjection(),
             dynamicProtocolResolver: this.state.dynamicProtocolResolverInjection(),
             dynamicProtocolNarrator: this.state.dynamicProtocolNarratorInjection(),
             dynamicProtocolSingle: this.state.dynamicProtocolSingleInjection(),

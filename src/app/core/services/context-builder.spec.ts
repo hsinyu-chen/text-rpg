@@ -43,7 +43,6 @@ function emptyCtx(overrides: Partial<BuildContext> = {}): BuildContext {
         dynamicContinue: '',
         dynamicFastforward: '',
         dynamicSystem: '',
-        dynamicSave: '',
         dynamicProtocolResolver: '',
         dynamicProtocolNarrator: '',
         dynamicProtocolSingle: '',
@@ -234,7 +233,9 @@ describe('ContextBuilderService', () => {
         });
 
         it('returns empty string for SAVE intent (handled by MultiAgentSaveService, not the turn engine)', () => {
-            expect(builder.intentInjection(emptyCtx({ dynamicSave: 'SAVE' }), 'save')).toBe('');
+            // The dynamicSave context field was retired; SAVE never had any
+            // way to inject into the turn-engine path again.
+            expect(builder.intentInjection(emptyCtx(), 'save')).toBe('');
         });
 
         it('returns empty string for unknown intent', () => {

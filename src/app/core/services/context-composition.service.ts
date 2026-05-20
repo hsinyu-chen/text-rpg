@@ -351,7 +351,6 @@ export class ContextCompositionService implements OnDestroy {
             dynamicContinue: this.state.dynamicContinueInjection(),
             dynamicFastforward: this.state.dynamicFastforwardInjection(),
             dynamicSystem: this.state.dynamicSystemInjection(),
-            dynamicSave: this.state.dynamicSaveInjection(),
             dynamicProtocolResolver: this.state.dynamicProtocolResolverInjection(),
             dynamicProtocolNarrator: this.state.dynamicProtocolNarratorInjection(),
             dynamicProtocolSingle: this.state.dynamicProtocolSingleInjection(),
