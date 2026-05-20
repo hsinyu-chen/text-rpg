@@ -14,26 +14,41 @@ function setup(seed: Record<string, string> = {}): { store: SaveSettingsStore; k
 }
 
 describe('SaveSettingsStore', () => {
-    it('defaults to legacy when KV is empty', () => {
-        expect(setup().store.saveMode()).toBe('legacy');
+    it("defaults to '1-call' when KV is empty", () => {
+        expect(setup().store.saveMode()).toBe('1-call');
     });
 
-    it('loads persisted saveMode', () => {
-        expect(setup({ mas_save_mode: 'multi-agent' }).store.saveMode()).toBe('multi-agent');
-        expect(setup({ mas_save_mode: 'legacy' }).store.saveMode()).toBe('legacy');
+    it('loads persisted saveMode (current shape)', () => {
+        expect(setup({ mas_save_mode: '1-call' }).store.saveMode()).toBe('1-call');
+        expect(setup({ mas_save_mode: 'multi-call' }).store.saveMode()).toBe('multi-call');
     });
 
-    it('falls back to legacy on garbage values', () => {
-        expect(setup({ mas_save_mode: 'something-else' }).store.saveMode()).toBe('legacy');
+    it("migrates legacy 'legacy' KV value to '1-call'", () => {
+        const { store, kv } = setup({ mas_save_mode: 'legacy' });
+        expect(store.saveMode()).toBe('1-call');
+        // Migration also writes the canonical value back so warm reads skip
+        // the branch — guards a slow-drift cohort that never re-saved
+        // settings after the rename.
+        expect(kv.get('mas_save_mode')).toBe('1-call');
+    });
+
+    it("migrates legacy 'multi-agent' KV value to '1-call'", () => {
+        const { store, kv } = setup({ mas_save_mode: 'multi-agent' });
+        expect(store.saveMode()).toBe('1-call');
+        expect(kv.get('mas_save_mode')).toBe('1-call');
+    });
+
+    it("falls back to '1-call' on garbage values", () => {
+        expect(setup({ mas_save_mode: 'something-else' }).store.saveMode()).toBe('1-call');
     });
 
     it('persists setSaveMode through KV', () => {
         const { store, kv } = setup();
-        store.setSaveMode('multi-agent');
-        expect(store.saveMode()).toBe('multi-agent');
-        expect(kv.get('mas_save_mode')).toBe('multi-agent');
-        store.setSaveMode('legacy');
-        expect(kv.get('mas_save_mode')).toBe('legacy');
+        store.setSaveMode('multi-call');
+        expect(store.saveMode()).toBe('multi-call');
+        expect(kv.get('mas_save_mode')).toBe('multi-call');
+        store.setSaveMode('1-call');
+        expect(kv.get('mas_save_mode')).toBe('1-call');
     });
 
     it('defaults subToolProfileId to "" (same-as-main) when KV is empty', () => {

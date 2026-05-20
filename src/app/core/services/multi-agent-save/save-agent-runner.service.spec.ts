@@ -3,6 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { SaveAgentRunnerService } from './save-agent-runner.service';
 import { SaveProgressTracker } from './progress/save-progress-tracker.service';
 import { ContentParserService } from '../content-parser.service';
+import { SAVE_MANIFEST_SCHEMA_1CALL } from './schemas/manifest.schema';
 import { MockLLMProvider } from '@app/core/testing/mock-llm-provider';
 import type { LLMProviderConfig } from '@hcs/llm-core';
 
@@ -26,6 +27,7 @@ function defaultInput(provider: MockLLMProvider) {
         systemInstruction: 'sys',
         history: [{ role: 'user' as const, parts: [{ text: 'go' }] }],
         signal: new AbortController().signal,
+        responseSchema: SAVE_MANIFEST_SCHEMA_1CALL,
     };
 }
 

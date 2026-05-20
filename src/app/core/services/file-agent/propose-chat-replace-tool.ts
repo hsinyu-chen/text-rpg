@@ -20,7 +20,7 @@ export const PROPOSE_CHAT_REPLACE_TOOL: LLMFunctionDeclaration = {
             caseSensitive: { type: 'boolean', description: 'Optional. Default false (case-insensitive).' },
             wholeWord: { type: 'boolean', description: 'Optional. Default false. Only meaningful with regex=false — wraps the search in word boundaries.' },
             regex: { type: 'boolean', description: 'Optional. Default false. Set true to treat `search` as a JavaScript regex.' },
-            intentFilter: { type: 'string', enum: ['all', 'action', 'continue', 'fast_forward', 'system', 'save'], description: 'Optional. Default "all". Restrict to messages with this intent.' },
+            intentFilter: { type: 'string', enum: ['all', 'action', 'continue', 'fast_forward', 'system'], description: 'Optional. Default "all". Restrict to messages with this intent.' },
             roleFilter: { type: 'string', enum: ['all', 'user', 'model'], description: 'Optional. Default "all". Restrict to user or model messages.' },
             fieldFilter: { type: 'string', enum: ['all', 'story', 'summary', 'logs'], description: 'Optional. Default "all". Which field of each message to scan: story=narrative content, summary=engine summary, logs=structured inventory/quest/world logs.' },
         },

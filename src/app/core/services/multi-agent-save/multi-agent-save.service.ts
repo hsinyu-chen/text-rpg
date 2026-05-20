@@ -12,13 +12,34 @@ import { SaveProgressDialogComponent } from '@app/features/multi-agent-save/save
 import { SaveAgentRunnerService } from './save-agent-runner.service';
 import { SubToolDispatcherService } from './sub-tool-dispatcher.service';
 import { SaveProgressTracker } from './progress/save-progress-tracker.service';
+import { SaveSettingsStore, type SaveMode } from './save-settings.store';
+import {
+    SAVE_MANIFEST_SCHEMA_1CALL,
+    SAVE_MANIFEST_SCHEMA_MULTICALL,
+} from './schemas/manifest.schema';
+import type { Schema } from '@app/core/models/types';
 import { getLocale, getLangFolder } from '@app/core/constants/locales';
 import { DEFAULT_PROFILE_ID, getProfileBasePath } from '@app/core/constants/prompt-profiles';
 import { FULLSCREEN_DIALOG_CONFIG } from '@app/shared/material/dialog-presets';
 import { I18nService } from '@app/core/i18n';
 import { MatSnackBar } from '@angular/material/snack-bar';
 
-const MANIFEST_PROMPT_FILENAME = 'injection_save_manifest.md';
+/**
+ * Per-mode manifest prompt + structured-output schema pairing. Kept as a
+ * single source of truth so the orchestrator can't desync (e.g. 1-call
+ * prompt with multi-call schema would have the LLM emit `updates` and then
+ * fail validation).
+ */
+const MODE_BINDINGS: Record<SaveMode, { promptFile: string; schema: Schema }> = {
+    '1-call': {
+        promptFile: 'injection_save_manifest_1call.md',
+        schema: SAVE_MANIFEST_SCHEMA_1CALL,
+    },
+    'multi-call': {
+        promptFile: 'injection_save_manifest_multicall.md',
+        schema: SAVE_MANIFEST_SCHEMA_MULTICALL,
+    },
+};
 
 /**
  * Top-level orchestrator for the multi-agent save path.
@@ -53,6 +74,7 @@ export class MultiAgentSaveService {
     private saveAgent = inject(SaveAgentRunnerService);
     private dispatcher = inject(SubToolDispatcherService);
     private progress = inject(SaveProgressTracker);
+    private settings = inject(SaveSettingsStore);
     private dialog = inject(MatDialog);
     private i18n = inject(I18nService);
     private snackBar = inject(MatSnackBar);
@@ -121,7 +143,11 @@ export class MultiAgentSaveService {
             const profileId = this.state.activePromptProfile() || DEFAULT_PROFILE_ID;
 
             // 2. Load manifest prompt + compose user message.
-            const manifestPrompt = await this.loadManifestPrompt(lang, profileId);
+            //    Mode-specific binding pairs the prompt with the matching
+            //    structured-output schema so the LLM-side constraint and
+            //    the prose-side rules can't desync.
+            const binding = MODE_BINDINGS[this.settings.saveMode()];
+            const manifestPrompt = await this.loadManifestPrompt(lang, profileId, binding.promptFile);
             const history = this.appendUserMessage(baseHistory, manifestPrompt, userInput);
 
             const omitKB = this.contextBuilder.shouldOmitKbFromSystemInstruction(buildCtx);
@@ -135,6 +161,7 @@ export class MultiAgentSaveService {
                 cachedContentName: buildCtx.kbCacheName || undefined,
                 history,
                 signal: abortController.signal,
+                responseSchema: binding.schema,
             });
             const { manifest, finishReason } = saveAgentResult;
 
@@ -206,17 +233,17 @@ export class MultiAgentSaveService {
     }
 
     /**
-     * Loads `injection_save_manifest.md` with the same profile-fallback chain
+     * Loads a manifest prompt with the same profile-fallback chain
      * `InjectionService` uses: try the active profile first, fall back to the
      * default (built-in cloud) profile. The cloud profile's `getProfileBasePath`
      * resolves to `assets/system_files/${lang}` (cloud has `subDir: null`),
      * so the language-root path is implicitly covered by the default-profile
      * fallback — no separate third candidate.
      */
-    private async loadManifestPrompt(lang: string, profileId: string): Promise<string> {
+    private async loadManifestPrompt(lang: string, profileId: string, filename: string): Promise<string> {
         const langFolder = getLangFolder(lang);
-        const activePath = `${getProfileBasePath(langFolder, profileId)}/${MANIFEST_PROMPT_FILENAME}`;
-        const defaultPath = `${getProfileBasePath(langFolder, DEFAULT_PROFILE_ID)}/${MANIFEST_PROMPT_FILENAME}`;
+        const activePath = `${getProfileBasePath(langFolder, profileId)}/${filename}`;
+        const defaultPath = `${getProfileBasePath(langFolder, DEFAULT_PROFILE_ID)}/${filename}`;
         // Push the default-profile fallback only when its resolved path
         // differs — user profiles without a `subDir` resolve to the same
         // language-root path as the cloud default, so the second fetch
@@ -230,7 +257,7 @@ export class MultiAgentSaveService {
                 if (response.ok) return await response.text();
             } catch { /* try next */ }
         }
-        throw new Error(`Failed to load ${MANIFEST_PROMPT_FILENAME} (tried ${candidates.length} paths)`);
+        throw new Error(`Failed to load ${filename} (tried ${candidates.length} paths)`);
     }
 
     /**

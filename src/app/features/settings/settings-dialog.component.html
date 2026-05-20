@@ -205,20 +205,20 @@
                 <mat-form-field appearance="outline" class="full-width">
                     <mat-label>{{ 'settings.saveMode.label' | translate }}</mat-label>
                     <mat-select [(ngModel)]="saveMode">
-                        <mat-option value="legacy">{{ 'settings.saveMode.legacy' | translate }}</mat-option>
-                        <mat-option value="multi-agent">{{ 'settings.saveMode.multiAgent' | translate }}</mat-option>
+                        <mat-option value="1-call">{{ 'settings.saveMode.oneCall' | translate }}</mat-option>
+                        <mat-option value="multi-call">{{ 'settings.saveMode.multiCall' | translate }}</mat-option>
                     </mat-select>
                 </mat-form-field>
             </div>
             <p class="hint-text mode-hint">
-                @if (saveMode() === 'multi-agent') {
-                    {{ 'settings.saveMode.multiAgentHint' | translate }}
+                @if (saveMode() === 'multi-call') {
+                    {{ 'settings.saveMode.multiCallHint' | translate }}
                 } @else {
-                    {{ 'settings.saveMode.legacyHint' | translate }}
+                    {{ 'settings.saveMode.oneCallHint' | translate }}
                 }
             </p>
 
-            @if (saveMode() === 'multi-agent') {
+            @if (saveMode() === 'multi-call') {
                 <div class="form-row">
                     <mat-form-field appearance="outline" class="full-width">
                         <mat-label>{{ 'settings.saveMode.subToolProfileLabel' | translate }}</mat-label>

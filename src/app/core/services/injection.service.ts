@@ -10,10 +10,10 @@ import { ActiveProfileStore } from './active-profile-store';
 import { AppConfigStore } from './app-config-store';
 import { KVStore } from './kv/kv-store';
 
-export type PromptType = 'action' | 'continue' | 'fastforward' | 'system' | 'save' | 'postprocess' | 'system_main' | 'protocol_single' | 'protocol_resolver' | 'protocol_narrator' | 'correction';
+export type PromptType = 'action' | 'continue' | 'fastforward' | 'system' | 'postprocess' | 'system_main' | 'protocol_single' | 'protocol_resolver' | 'protocol_narrator' | 'correction';
 
 export const ALL_PROMPT_TYPES: readonly PromptType[] = [
-    'action', 'continue', 'fastforward', 'system', 'save', 'system_main', 'postprocess', 'protocol_single', 'protocol_resolver', 'protocol_narrator', 'correction'
+    'action', 'continue', 'fastforward', 'system', 'system_main', 'postprocess', 'protocol_single', 'protocol_resolver', 'protocol_narrator', 'correction'
 ] as const;
 
 // Optional types soft-load: missing asset returns '' instead of throwing,
@@ -239,15 +239,14 @@ export class InjectionService {
         const loadPath = (filename: string) => this.loadBuiltInAsset(langFolder, filename, currentProfile);
         const loadOptional = (filename: string) => this.loadOptionalProfileAsset(langFolder, filename, currentProfile);
 
-        let actionDef, continueDef, fastforwardDef, systemDef, saveDef, systemMainDef, postprocessDef, protocolSingleDef, protocolResolverDef, protocolNarratorDef;
+        let actionDef, continueDef, fastforwardDef, systemDef, systemMainDef, postprocessDef, protocolSingleDef, protocolResolverDef, protocolNarratorDef;
         try {
-            [actionDef, continueDef, fastforwardDef, systemDef, saveDef, systemMainDef, postprocessDef, protocolSingleDef, protocolResolverDef, protocolNarratorDef] =
+            [actionDef, continueDef, fastforwardDef, systemDef, systemMainDef, postprocessDef, protocolSingleDef, protocolResolverDef, protocolNarratorDef] =
                 await Promise.all([
                     loadPath(INJECTION_FILE_PATHS.action),
                     loadPath(INJECTION_FILE_PATHS.continue),
                     loadPath(INJECTION_FILE_PATHS.fastforward),
                     loadPath(INJECTION_FILE_PATHS.system),
-                    loadPath(INJECTION_FILE_PATHS.save),
                     loadPath(INJECTION_FILE_PATHS.system_main),
                     loadPath(INJECTION_FILE_PATHS.postprocess),
                     loadOptional(INJECTION_FILE_PATHS.protocol_single),
@@ -267,7 +266,6 @@ export class InjectionService {
             { id: 'continue', content: continueDef, legacyKey: 'dynamic_continue_injection', isPost: false },
             { id: 'fastforward', content: fastforwardDef, legacyKey: 'dynamic_fastforward_injection', isPost: false },
             { id: 'system', content: systemDef, legacyKey: 'dynamic_system_injection', isPost: false },
-            { id: 'save', content: saveDef, legacyKey: 'dynamic_save_injection', isPost: false },
             { id: 'system_main', content: systemMainDef, legacyKey: '', isPost: false },
             { id: 'postprocess', content: postprocessDef, legacyKey: 'post_process_script', isPost: true },
             { id: 'protocol_single', content: protocolSingleDef, legacyKey: '', isPost: false },
@@ -355,7 +353,6 @@ export class InjectionService {
             case 'continue': this.state.dynamicContinueInjection.set(content); break;
             case 'fastforward': this.state.dynamicFastforwardInjection.set(content); break;
             case 'system': this.state.dynamicSystemInjection.set(content); break;
-            case 'save': this.state.dynamicSaveInjection.set(content); break;
             case 'system_main': this.state.dynamicSystemMainInjection.set(content); break;
             case 'postprocess': this.state.postProcessScript.set(content); break;
             case 'protocol_single': this.state.dynamicProtocolSingleInjection.set(content); break;
@@ -491,7 +488,6 @@ export class InjectionService {
             case 'continue': return this.state.dynamicContinueInjection();
             case 'fastforward': return this.state.dynamicFastforwardInjection();
             case 'system': return this.state.dynamicSystemInjection();
-            case 'save': return this.state.dynamicSaveInjection();
             case 'system_main': return this.state.dynamicSystemMainInjection();
             case 'postprocess': return this.state.postProcessScript();
             case 'protocol_single': return this.state.dynamicProtocolSingleInjection();

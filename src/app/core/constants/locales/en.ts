@@ -8,8 +8,8 @@ export const EN_US_LOCALE: AppLocale = {
     responseSchema: {
         rootDescription: "Thinking Process: You MUST complete the 'analysis' field FIRST before generating the 'response' content. ALL OUTPUT MUST BE IN ENGLISH.",
         responseDescription: "[Response Phase] Contains the actual story content and logs after analysis. ALL FIELDS MUST BE IN ENGLISH.",
-        analysis: `[Analysis Phase] REQUIRED. Must analyze Atomic Actions, Success/Failure Checks, and Random Events before generating the story. OUTPUT IN ENGLISH ONLY. Empty "" only if intent is ${GAME_INTENTS.SYSTEM} or ${GAME_INTENTS.SAVE}.`,
-        summary: `[Summary] REQUIRED. Update key plot points for THIS turn only IN ENGLISH. Empty "" only if intent is ${GAME_INTENTS.SYSTEM} or ${GAME_INTENTS.SAVE}. CHECK HISTORY to avoid duplicates.`,
+        analysis: `[Analysis Phase] REQUIRED. Must analyze Atomic Actions, Success/Failure Checks, and Random Events before generating the story. OUTPUT IN ENGLISH ONLY. Empty "" only if intent is ${GAME_INTENTS.SYSTEM}.`,
+        summary: `[Summary] REQUIRED. Update key plot points for THIS turn only IN ENGLISH. Empty "" only if intent is ${GAME_INTENTS.SYSTEM}. CHECK HISTORY to avoid duplicates.`,
         character: "Encounters or state changes. Format: '[Tag] [Name/Desc] ([Details])'. Tags: New Character, Status Change, Location Update. CHECK HISTORY. Return [] if no changes.",
         inventory: "Item changes. Format: '[Tag]: [Name] / [Qty]'. Scene consumables (used in-place) NOT logged. ONLY log items in inventory file or history. Return [] if no changes.",
         quest: "Quest/Plan updates. Format: '[Tag]: [Quest Title] ([Details])'. ONLY record when quest is formally accepted, substantive progress made, or protagonist actively changes plan. CHECK HISTORY. Return [] if no changes.",
@@ -94,12 +94,6 @@ Do not infer — pass this value directly into the schema's \`ideal_outcome\` fi
     },
     engineStrings: {
         INTRO_TEXT: 'Story begins, constructing the final scene',
-        LOCAL_INIT_ANALYSIS: 'System Local Initialization: Extracted last scene from Story Outline.',
-        REGENERATE_SAVE_PROMPT: 'The following updates failed to match. You MUST locate the exact text and ensure the content inside <target> is IDENTICAL to the file (including punctuation and indentation). Otherwise, the update will fail. Do not repeat successful ones.',
-        REGEN_SUCCESS_TITLE: '**The following items matched SUCCESSFULLY. Do NOT re-generate these blocks:**',
-        REGEN_FAILED_TITLE: '**Please ONLY re-generate XML for the following FAILED items:**',
-        REGEN_SUCCESS_LABEL: '[MATCHED]',
-        REGEN_FILE_LABEL: '[File]',
-        REGEN_ERROR_LABEL: '[Invalid Match] (Target text not found. Select the correct text in the left pane to fix):'
+        LOCAL_INIT_ANALYSIS: 'System Local Initialization: Extracted last scene from Story Outline.'
     }
 };
