@@ -24,7 +24,6 @@ import { DEFAULT_PROFILE_ID } from '../constants/prompt-profiles';
 
 import { SceneBootService } from './scene-boot.service';
 import { TurnCommitService, TurnContext, RunTurnOptions } from './turn-commit.service';
-import { SaveSettingsStore } from './multi-agent-save/save-settings.store';
 import { MultiAgentSaveService } from './multi-agent-save/multi-agent-save.service';
 import { SaveProgressTracker } from './multi-agent-save/progress/save-progress-tracker.service';
 
@@ -70,7 +69,6 @@ export class GameEngineService {
     private sceneBoot = inject(SceneBootService);
     private commitService = inject(TurnCommitService);
     private i18n = inject(I18nService);
-    private saveSettings = inject(SaveSettingsStore);
     private multiAgentSave = inject(MultiAgentSaveService);
     private saveProgress = inject(SaveProgressTracker);
 
@@ -109,14 +107,15 @@ export class GameEngineService {
         console.log('[GameEngine] sendMessage received with intent:', options?.intent);
         if (!this.validateRunTurnArgs(userText, options)) return;
 
-        // Multi-agent save: independent dispatch path. Bypasses the entire
-        // 8-phase chat pipeline — no user message in chat history, no model
-        // message, no story-protocol composition. The orchestrator owns its
-        // own progress dialog + AutoUpdateDialog open + error surfacing,
-        // but route the call through handleTurnError too so a defensive
-        // throw (e.g. signal setup error, DI failure) still surfaces via
-        // the same snackbar / status='error' path as the chat pipeline.
-        if (options?.intent === GAME_INTENTS.SAVE && this.saveSettings.saveMode() === 'multi-agent') {
+        // Save intent: every save goes through MultiAgentSaveService now.
+        // Bypasses the entire 8-phase chat pipeline — no user message in
+        // chat history, no model message, no story-protocol composition.
+        // The orchestrator owns its own progress dialog + AutoUpdateDialog
+        // open + error surfacing, but route the call through handleTurnError
+        // too so a defensive throw (e.g. signal setup error, DI failure)
+        // still surfaces via the same snackbar / status='error' path as the
+        // chat pipeline.
+        if (options?.intent === GAME_INTENTS.SAVE) {
             // Legacy-fork profiles can be missing the manifest prompt or
             // carry stale schema text; do the same autoswitch the chat
             // pipeline runs before composing a turn. The notification

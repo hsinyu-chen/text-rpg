@@ -12,14 +12,34 @@ import { SaveProgressDialogComponent } from '@app/features/multi-agent-save/save
 import { SaveAgentRunnerService } from './save-agent-runner.service';
 import { SubToolDispatcherService } from './sub-tool-dispatcher.service';
 import { SaveProgressTracker } from './progress/save-progress-tracker.service';
-import { SAVE_MANIFEST_SCHEMA_1CALL } from './schemas/manifest.schema';
+import { SaveSettingsStore, type SaveMode } from './save-settings.store';
+import {
+    SAVE_MANIFEST_SCHEMA_1CALL,
+    SAVE_MANIFEST_SCHEMA_MULTICALL,
+} from './schemas/manifest.schema';
+import type { Schema } from '@app/core/models/types';
 import { getLocale, getLangFolder } from '@app/core/constants/locales';
 import { DEFAULT_PROFILE_ID, getProfileBasePath } from '@app/core/constants/prompt-profiles';
 import { FULLSCREEN_DIALOG_CONFIG } from '@app/shared/material/dialog-presets';
 import { I18nService } from '@app/core/i18n';
 import { MatSnackBar } from '@angular/material/snack-bar';
 
-const MANIFEST_PROMPT_FILENAME_1CALL = 'injection_save_manifest_1call.md';
+/**
+ * Per-mode manifest prompt + structured-output schema pairing. Kept as a
+ * single source of truth so the orchestrator can't desync (e.g. 1-call
+ * prompt with multi-call schema would have the LLM emit `updates` and then
+ * fail validation).
+ */
+const MODE_BINDINGS: Record<SaveMode, { promptFile: string; schema: Schema }> = {
+    '1-call': {
+        promptFile: 'injection_save_manifest_1call.md',
+        schema: SAVE_MANIFEST_SCHEMA_1CALL,
+    },
+    'multi-call': {
+        promptFile: 'injection_save_manifest_multicall.md',
+        schema: SAVE_MANIFEST_SCHEMA_MULTICALL,
+    },
+};
 
 /**
  * Top-level orchestrator for the multi-agent save path.
@@ -54,6 +74,7 @@ export class MultiAgentSaveService {
     private saveAgent = inject(SaveAgentRunnerService);
     private dispatcher = inject(SubToolDispatcherService);
     private progress = inject(SaveProgressTracker);
+    private settings = inject(SaveSettingsStore);
     private dialog = inject(MatDialog);
     private i18n = inject(I18nService);
     private snackBar = inject(MatSnackBar);
@@ -122,11 +143,11 @@ export class MultiAgentSaveService {
             const profileId = this.state.activePromptProfile() || DEFAULT_PROFILE_ID;
 
             // 2. Load manifest prompt + compose user message.
-            //    Phase A commit 4 hard-codes 1-call mode (the only Phase 1
-            //    implementation that produces save work). Commit 5 will read
-            //    the user-selected mode from SaveSettingsStore and pick
-            //    between the 1-call and multi-call (Phase B) prompt/schema.
-            const manifestPrompt = await this.loadManifestPrompt(lang, profileId, MANIFEST_PROMPT_FILENAME_1CALL);
+            //    Mode-specific binding pairs the prompt with the matching
+            //    structured-output schema so the LLM-side constraint and
+            //    the prose-side rules can't desync.
+            const binding = MODE_BINDINGS[this.settings.saveMode()];
+            const manifestPrompt = await this.loadManifestPrompt(lang, profileId, binding.promptFile);
             const history = this.appendUserMessage(baseHistory, manifestPrompt, userInput);
 
             const omitKB = this.contextBuilder.shouldOmitKbFromSystemInstruction(buildCtx);
@@ -140,7 +161,7 @@ export class MultiAgentSaveService {
                 cachedContentName: buildCtx.kbCacheName || undefined,
                 history,
                 signal: abortController.signal,
-                responseSchema: SAVE_MANIFEST_SCHEMA_1CALL,
+                responseSchema: binding.schema,
             });
             const { manifest, finishReason } = saveAgentResult;
 
