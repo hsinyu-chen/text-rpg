@@ -50,9 +50,17 @@ your job is "decide + supply the necessary facts".
   using the key names defined in
   `<!--@include:partials/save-character-status-rules.md-->`.
 - `charactersToDelete / factionsToDelete`: mark death / permanent exit.
-  Give a specific `reason`.
+  Each entry `{ sectionPath, reason }`:
+  - `sectionPath` is the full breadcrumb of the entity's L2 heading
+    (`# Core Characters > ## Wang Wu`), ` > `-separated. Same-name entities
+    across multiple L1 groups disambiguate via the full path.
+  - `reason` is specific (e.g. story death, permanent exit) — trace only,
+    never emitted into the file.
 - `charactersToMove / factionsToMove`: move between L1 groups (e.g.
-  "Core Characters → Deceased"). `toGroup` is the target L1 group text.
+  "Core Characters → Deceased"). Each entry `{ fromSectionPath, toGroup, reason }`:
+  - `fromSectionPath` = full breadcrumb at the entity's current location
+    (`# Core Characters > ## Li Si`).
+  - `toGroup` = target L1 group heading text (bare, no leading `#`, e.g. `Deceased`).
 
 ### LLM sub-tool sections (you only flag who; the sub-tool itself runs visibility + projection + diff)
 

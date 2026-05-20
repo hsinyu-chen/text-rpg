@@ -47,19 +47,19 @@ const characterCreate = {
 
 const entityDelete = {
     type: 'object',
-    required: ['name', 'reason'],
+    required: ['sectionPath', 'reason'],
     properties: {
-        name: { type: 'string' },
+        sectionPath: { type: 'string', description: "Full breadcrumb of the L2 entity heading, e.g. '# 核心人物 > ## 李四'" },
         reason: { type: 'string' },
     },
 } as const;
 
 const entityMove = {
     type: 'object',
-    required: ['name', 'toGroup', 'reason'],
+    required: ['fromSectionPath', 'toGroup', 'reason'],
     properties: {
-        name: { type: 'string' },
-        toGroup: { type: 'string', description: 'Target L1 group heading' },
+        fromSectionPath: { type: 'string', description: "Current location of the L2 entity, e.g. '# 核心人物 > ## 李四'" },
+        toGroup: { type: 'string', description: 'Target L1 group heading text (bare, no leading #)' },
         reason: { type: 'string' },
     },
 } as const;
@@ -70,6 +70,11 @@ const entityUpdate = {
     properties: {
         name: { type: 'string' },
         reasonHint: { type: 'string', description: 'Optional motivation hint — trace only' },
+        updates: {
+            type: 'array',
+            description: '1-call mode: SectionUpdate[] scoped to this entity. Each entry carries its own sectionPath (entity heading path) + target?/replacement, mirroring techEquipmentUpdates etc.',
+            items: sectionItem,
+        },
     },
 } as const;
 
@@ -282,7 +287,7 @@ function validateDeleteArray(v: unknown, fieldName: string): string | null {
     for (let i = 0; i < v.length; i++) {
         const e = v[i];
         if (!isObject(e)) return `${fieldName}[${i}] is not an object`;
-        if (typeof e['name'] !== 'string') return `${fieldName}[${i}].name missing`;
+        if (typeof e['sectionPath'] !== 'string') return `${fieldName}[${i}].sectionPath missing`;
         if (typeof e['reason'] !== 'string') return `${fieldName}[${i}].reason missing`;
     }
     return null;
@@ -294,7 +299,7 @@ function validateMoveArray(v: unknown, fieldName: string): string | null {
     for (let i = 0; i < v.length; i++) {
         const e = v[i];
         if (!isObject(e)) return `${fieldName}[${i}] is not an object`;
-        if (typeof e['name'] !== 'string') return `${fieldName}[${i}].name missing`;
+        if (typeof e['fromSectionPath'] !== 'string') return `${fieldName}[${i}].fromSectionPath missing`;
         if (typeof e['toGroup'] !== 'string') return `${fieldName}[${i}].toGroup missing`;
         if (typeof e['reason'] !== 'string') return `${fieldName}[${i}].reason missing`;
     }
@@ -310,6 +315,11 @@ function validateUpdateArray(v: unknown, fieldName: string): string | null {
         if (typeof e['name'] !== 'string') return `${fieldName}[${i}].name missing`;
         const hint = e['reasonHint'];
         if (hint !== undefined && typeof hint !== 'string') return `${fieldName}[${i}].reasonHint must be string`;
+        const updates = e['updates'];
+        if (updates !== undefined) {
+            const err = validateSectionArray(updates, `${fieldName}[${i}].updates`);
+            if (err) return err;
+        }
     }
     return null;
 }

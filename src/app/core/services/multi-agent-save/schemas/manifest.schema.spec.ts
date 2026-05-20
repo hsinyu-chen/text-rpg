@@ -105,7 +105,48 @@ describe('validateManifest', () => {
     it('rejects move missing toGroup', () => {
         const r = validateManifest({
             completenessAudit: minimalAudit,
-            charactersToMove: [{ name: 'x', reason: 'died' }],
+            charactersToMove: [{ fromSectionPath: '# 核心人物 > ## x', reason: 'died' }],
+        });
+        expect(r.ok).toBe(false);
+    });
+
+    it('rejects delete missing sectionPath', () => {
+        const r = validateManifest({
+            completenessAudit: minimalAudit,
+            charactersToDelete: [{ reason: 'died' }],
+        });
+        expect(r.ok).toBe(false);
+    });
+
+    it('rejects move missing fromSectionPath', () => {
+        const r = validateManifest({
+            completenessAudit: minimalAudit,
+            charactersToMove: [{ toGroup: '已故人物', reason: 'died' }],
+        });
+        expect(r.ok).toBe(false);
+    });
+
+    it('accepts charactersToUpdate with 1-call updates payload', () => {
+        const r = validateManifest({
+            completenessAudit: minimalAudit,
+            charactersToUpdate: [{
+                name: '李四',
+                updates: [
+                    { sectionPath: '# 核心人物 > ## 李四', target: '舊狀態', replacement: '新狀態' },
+                    { sectionPath: '# 核心人物 > ## 李四', replacement: '\n- 新增筆記' },
+                ],
+            }],
+        });
+        expect(r.ok).toBe(true);
+    });
+
+    it('rejects charactersToUpdate.updates with malformed entry', () => {
+        const r = validateManifest({
+            completenessAudit: minimalAudit,
+            charactersToUpdate: [{
+                name: '李四',
+                updates: [{ sectionPath: '# X > ## Y' }],  // missing `replacement`
+            }],
         });
         expect(r.ok).toBe(false);
     });
@@ -121,11 +162,14 @@ describe('validateManifest', () => {
             worldFeaturesUpdates: [],
             charactersToCreate: [],
             factionsToCreate: [],
-            charactersToDelete: [],
+            charactersToDelete: [{ sectionPath: '# 核心人物 > ## 王五', reason: 'died' }],
             factionsToDelete: [],
-            charactersToMove: [],
+            charactersToMove: [{ fromSectionPath: '# 核心人物 > ## 李四', toGroup: '已故人物', reason: 'died' }],
             factionsToMove: [],
-            charactersToUpdate: [{ name: '李四' }],
+            charactersToUpdate: [{
+                name: '李四',
+                updates: [{ sectionPath: '# 核心人物 > ## 李四', target: 'old', replacement: 'new' }],
+            }],
             factionsToUpdate: [{ name: '某派', reasonHint: 'after war' }],
             completenessAudit: { processedLogIds: ['a'], skippedLogIds: [{ logId: 'b', reason: 'irrelevant' }] },
         });

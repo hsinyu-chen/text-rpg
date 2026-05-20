@@ -97,7 +97,7 @@ describe('deleteEntities', () => {
 
     it('emits a delete op containing the full L2 block when entity is found', () => {
         const xml = deleteEntities([
-            { name: '王五', reason: '已故' },
+            { sectionPath: '# 核心人物 > ## 王五', reason: '已故' },
         ], ctxFor(FILE_WITH_BODY));
         expect(xml).toContain('<target>');
         expect(xml).toContain('## 王五');
@@ -107,36 +107,49 @@ describe('deleteEntities', () => {
         expect(xml).not.toContain('某甲');
     });
 
-    it('drops the entry silently when entity not found', () => {
+    it('drops the entry silently when sectionPath does not resolve', () => {
         const xml = deleteEntities([
-            { name: '不存在的人', reason: 'x' },
+            { sectionPath: '# 核心人物 > ## 不存在的人', reason: 'x' },
         ], ctxFor(FILE_WITH_BODY));
         expect(xml).toBe('');
     });
 
+    it('disambiguates same-name entities across L1 groups by the full breadcrumb', () => {
+        // Same `## 王五` heading would exist under both `# 核心人物` and
+        // `# 次要人物` if the file had it; the breadcrumb resolves to exactly
+        // one match instead of silently bailing on ambiguity.
+        const FILE_WITH_DUPES = `# 核心人物
+
+## 王五
+
+- **身分**: 法師
+
+# 次要人物
+
+## 王五
+
+- **身分**: 商人
+`;
+        const xml = deleteEntities([
+            { sectionPath: '# 次要人物 > ## 王五', reason: '退場' },
+        ], ctxFor(FILE_WITH_DUPES));
+        expect(xml).toContain('- **身分**: 商人');
+        expect(xml).not.toContain('- **身分**: 法師');
+    });
+
     it('groups multiple deletes into one root-context <save> block', () => {
         const xml = deleteEntities([
-            { name: '李四', reason: 'a' },
-            { name: '王五', reason: 'b' },
+            { sectionPath: '# 核心人物 > ## 李四', reason: 'a' },
+            { sectionPath: '# 核心人物 > ## 王五', reason: 'b' },
         ], ctxFor(FILE_WITH_BODY));
         expect(xml.match(/<save\b/g)).toHaveLength(1);
         expect(xml.match(/<update>/g)).toHaveLength(2);
         expect(xml).toContain(`<save file="${FILE}" context="">`);
     });
 
-    it('strips a leading `## ` prefix the model put on the entity `name` (defensive lookup)', () => {
-        // Without stripHeadingPrefix, `name: "## 王五"` would resolve as
-        // `findMarkdownSections(content, "## ## 王五")` and silently miss.
-        const xml = deleteEntities([
-            { name: '## 王五', reason: '已故' },
-        ], { targetFile: FILE, fileContent: FILE_WITH_BODY, kbSectionHeadings: { STORY_OUTLINE_CHRONICLE: "" } });
-        expect(xml).toContain('## 王五');
-        expect(xml).toContain('<target>');
-    });
-
     it('does NOT include the `reason` field in the emitted XML (trace-only)', () => {
         const xml = deleteEntities([
-            { name: '王五', reason: '在第三章被反派擊殺' },
+            { sectionPath: '# 核心人物 > ## 王五', reason: '在第三章被反派擊殺' },
         ], ctxFor(FILE_WITH_BODY));
         expect(xml).not.toContain('在第三章');
         expect(xml).not.toContain('reason');
@@ -160,7 +173,7 @@ describe('moveEntities', () => {
 
     it('emits a delete from the source + append under the target group', () => {
         const xml = moveEntities([
-            { name: '李四', toGroup: '已故人物', reason: '劇情死亡' },
+            { fromSectionPath: '# 核心人物 > ## 李四', toGroup: '已故人物', reason: '劇情死亡' },
         ], ctxFor(FILE_WITH_BODY));
         // Two save blocks: one root-context delete + one target-group append.
         expect(xml.match(/<save\b/g)).toHaveLength(2);
@@ -171,9 +184,9 @@ describe('moveEntities', () => {
         expect(blockCount).toBe(2);
     });
 
-    it('drops the move when entity is not found in the file', () => {
+    it('drops the move when fromSectionPath does not resolve', () => {
         const xml = moveEntities([
-            { name: '不存在', toGroup: '已故人物', reason: 'x' },
+            { fromSectionPath: '# 核心人物 > ## 不存在', toGroup: '已故人物', reason: 'x' },
         ], ctxFor(FILE_WITH_BODY));
         expect(xml).toBe('');
     });
@@ -193,8 +206,8 @@ describe('moveEntities', () => {
 
 `;
         const xml = moveEntities([
-            { name: '李四', toGroup: '已故人物', reason: 'a' },
-            { name: '王五', toGroup: '已故人物', reason: 'b' },
+            { fromSectionPath: '# 核心人物 > ## 李四', toGroup: '已故人物', reason: 'a' },
+            { fromSectionPath: '# 核心人物 > ## 王五', toGroup: '已故人物', reason: 'b' },
         ], ctxFor(fileContent));
         // 1 delete <save> (both targets) + 1 append <save> (both replacements).
         expect(xml.match(/<save\b/g)).toHaveLength(2);
@@ -216,7 +229,7 @@ describe('moveEntities', () => {
 
 `;
         const xml = moveEntities([
-            { name: '李四', toGroup: '已故人物', reason: 'a' },
+            { fromSectionPath: '# 核心人物 > ## 李四', toGroup: '已故人物', reason: 'a' },
         ], ctxFor(fileContent));
         expect(xml).toContain('<replacement>\n## 李四');
     });
