@@ -276,7 +276,6 @@ export const en: TranslationDict = {
         action: '([Mood]Action)Dialogue or Thoughts',
         fast_forward: 'Fast forward to specific time or event',
         system: 'System command or setting adjustment',
-        save: 'Save current story progress',
         continue: 'Continue the story',
         fallback: 'Enter your action...',
     },
@@ -971,7 +970,7 @@ export const en: TranslationDict = {
             'prompt-profile': { name: 'Prompt profile', description: 'Switch the prompt profile used for the current chat (cloud / local / custom)' },
             'engine-mode-toggle': { name: 'Engine mode', description: 'Toggle engine mode between single-call and multi-call (narrator+resolver); affects all subsequent turns' },
             'ideal-outcome-toggle': { name: 'Ideal outcome', description: 'Toggle the "ideal outcome" guard input; if the LLM\'s response would violate the stated outcome, the turn is interrupted immediately, giving you a chance to push back or redirect the story (stating the outcome also nudges the story toward that direction as a side effect)' },
-            save: { name: 'Save intent', description: 'Pre-fill a save-intent message into the input and flip the intent; on send the LLM handles the in-game save narratively (NOT a disk write)' },
+            save: { name: 'Save button', description: 'Opens a confirm dialog; on confirm, SaveAgent analyses this turn and proposes KB updates directly (no text input required)' },
             'chat-config': {
                 self: { name: 'Chat config', description: 'Open the chat config dialog (prompt profile editing, version sync, etc.)' },
                 'save-current': { name: 'Save current profile', description: 'Save edits to the currently selected prompt profile' },
@@ -1122,6 +1121,11 @@ export const en: TranslationDict = {
             finishWarning: 'SaveAgent finished abnormally ({{reason}}) — the manifest may be truncated; the result could be incomplete.',
             notConfigured: 'Setup is not complete; multi-agent save cannot run.',
             noFiles: 'No Book knowledge base loaded; multi-agent save cannot run.',
+        },
+        confirm: {
+            title: 'Run Save',
+            message: 'SaveAgent will analyse this turn\'s logs + summaries and propose KB updates. Run now?',
+            ok: 'Save',
         },
         progress: {
             title: 'Multi-Agent Save — In Progress',

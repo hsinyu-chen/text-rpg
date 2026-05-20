@@ -640,12 +640,13 @@ export class ContextBuilderService {
         }
 
         const tags = getIntentTags(lang);
+        // SAVE intent is excluded — it never reaches the turn-engine
+        // augmentation path (game-engine early-returns to MultiAgentSaveService).
         const intentTagMap: Record<string, string> = {
             [GAME_INTENTS.ACTION]: tags.ACTION,
             [GAME_INTENTS.CONTINUE]: tags.CONTINUE,
             [GAME_INTENTS.FAST_FORWARD]: tags.FAST_FORWARD,
             [GAME_INTENTS.SYSTEM]: tags.SYSTEM,
-            [GAME_INTENTS.SAVE]: tags.SAVE,
         };
         let userInput = lastMsg.parts[0].text;
         const tag = intentTagMap[currentIntent] ?? '';

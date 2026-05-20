@@ -17,6 +17,7 @@ import { PayloadDialogComponent } from '@app/shared/components/payload-dialog/pa
 import { ChatConfigDialogComponent } from '@app/shared/components/chat-config-dialog/chat-config-dialog.component';
 import { ChatReplaceDialogComponent } from '../chat-replace-dialog/chat-replace-dialog.component';
 import { ConfirmDialogComponent, ConfirmDialogData } from '@app/shared/components/confirm-dialog/confirm-dialog.component';
+import { DialogService } from '@app/core/services/dialog.service';
 import { TauriWindow } from '@app/core/models/types';
 import { LanguageService } from '@app/core/services/language.service';
 import { I18nService, TranslatePipe } from '@app/core/i18n';
@@ -63,6 +64,7 @@ export class ChatInputComponent {
     private config = inject(ConfigService);
     private appConfig = inject(AppConfigStore);
     private matDialog = inject(MatDialog);
+    private dialogService = inject(DialogService);
     private readonly doc = inject(DOCUMENT);
 
     activeProfileName = computed(() => {
@@ -96,7 +98,11 @@ export class ChatInputComponent {
     toggleAgentSidebar = output<void>();
 
     // Local State
-    intents = Object.values(GAME_INTENTS);
+    // SAVE intent is driven exclusively by the save button (see `saveProgress`)
+    // — it opens a confirm dialog and fires engine.sendMessage('', { intent: SAVE })
+    // directly. Listing it in the intent dropdown would offer a no-op text-input
+    // route since multi-agent save ignores user text content beyond a range hint.
+    intents = Object.values(GAME_INTENTS).filter(i => i !== GAME_INTENTS.SAVE);
     private originalIntentBeforeEdit: string | null = null;
 
     getIntentLabel(intent: string): string {
@@ -172,8 +178,9 @@ export class ChatInputComponent {
         const intent = this.selectedIntent();
         console.log('[ChatInput] sendMessage called with intent:', intent);
 
-        // Validation
-        if (!inputStr && (intent === GAME_INTENTS.ACTION || intent === GAME_INTENTS.SYSTEM || intent === GAME_INTENTS.SAVE)) return;
+        // Validation — SAVE intent never reaches this path now (handled by the
+        // save button's confirm dialog directly).
+        if (!inputStr && (intent === GAME_INTENTS.ACTION || intent === GAME_INTENTS.SYSTEM)) return;
 
         // Handle Rewind & Resend — await so the rewind's book save completes
         // before the new sendMessage's phase 1 pushes a user message.
@@ -195,7 +202,7 @@ export class ChatInputComponent {
         // Reset
         this.userInput.set('');
         this.userIdealOutcome.set('');
-        if (intent === GAME_INTENTS.CONTINUE || intent === GAME_INTENTS.SAVE) {
+        if (intent === GAME_INTENTS.CONTINUE) {
             this.selectedIntent.set(GAME_INTENTS.ACTION);
         }
 
@@ -211,10 +218,20 @@ export class ChatInputComponent {
         this.idealOutcomeExpanded.update(v => !v);
     }
 
-    saveProgress() {
-        this.userInput.set(this.i18n.translate('placeholder.save'));
-        this.selectedIntent.set(GAME_INTENTS.SAVE);
-        this.focusInput();
+    async saveProgress(): Promise<void> {
+        const confirmed = await this.dialogService.confirm(
+            this.i18n.translate('multiAgentSave.confirm.message'),
+            this.i18n.translate('multiAgentSave.confirm.title'),
+            this.i18n.translate('multiAgentSave.confirm.ok'),
+            this.i18n.translate('ui.CANCEL'),
+        );
+        if (!confirmed) return;
+        // Empty userText — multi-agent save reads the manifest prompt's
+        // {{USER_INPUT}} slot as a "scope hint" (e.g. "only inventory"), which
+        // we deliberately leave unspecified for the default save button flow.
+        // The user can still type a range hint by routing through a custom UI
+        // later; for now the button = save-everything contract.
+        void this.engine.sendMessage('', { intent: GAME_INTENTS.SAVE });
     }
 
     cancelEdit() {

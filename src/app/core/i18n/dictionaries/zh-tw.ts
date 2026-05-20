@@ -276,7 +276,6 @@ export const zhTW: TranslationDict = {
         action: '([心境]動作)台詞或內心獨白',
         fast_forward: '快轉至特定時間點或事件',
         system: '系統指令或設定調整',
-        save: '本輪劇情存檔',
         continue: '繼續故事',
         fallback: '輸入你的行動...',
     },
@@ -971,7 +970,7 @@ export const zhTW: TranslationDict = {
             'prompt-profile': { name: 'Prompt profile', description: '切換目前對話使用的 prompt profile(cloud / local / 自訂)' },
             'engine-mode-toggle': { name: '引擎模式', description: '切換 engine mode 為單階段(single)或多階段(narrator+resolver);影響後續所有回合' },
             'ideal-outcome-toggle': { name: '理想結果', description: '開關「理想結果」守門條件輸入框;若 LLM 回應違反你寫下的理想結果,該回合會立即中斷,讓你有機會反擊/回應劇情發展(順帶引導故事朝該方向走是次要效果)' },
-            save: { name: '存檔意圖', description: '預填一則 save intent 訊息到輸入框並切換 intent;按 send 後 LLM 在敘事裡處理遊戲內存檔(非寫盤)' },
+            save: { name: '存檔按鈕', description: '按下會跳確認 dialog;確認後 SaveAgent 直接分析本回合並產生 KB 更新建議(無需在輸入框打字)' },
             'chat-config': {
                 self: { name: '對話設定', description: '開啟對話設定 dialog(prompt profile 編輯、版本同步等)' },
                 'save-current': { name: '儲存當前 profile', description: '儲存目前 prompt profile 的編輯到該 profile 條目' },
@@ -1122,6 +1121,11 @@ export const zhTW: TranslationDict = {
             finishWarning: 'SaveAgent 異常結束（{{reason}}）— manifest 可能被截斷,結果可能不完整。',
             notConfigured: '尚未完成設定，無法執行多代理存檔。',
             noFiles: '尚未載入 Book 知識庫，無法執行多代理存檔。',
+        },
+        confirm: {
+            title: '執行存檔',
+            message: 'SaveAgent 會分析本回合的 logs 與摘要，產生 KB 更新建議。確認後立刻執行？',
+            ok: '存檔',
         },
         progress: {
             title: '多代理存檔 — 進行中',

@@ -13,7 +13,6 @@ import { FileUpdateService } from '@app/core/services/file-update.service';
 import { ChatMessage } from '@app/core/models/types';
 import { AutoUpdateDialogComponent } from '@app/shared/components/auto-update-dialog/auto-update-dialog.component';
 import { FULLSCREEN_DIALOG_CONFIG } from '@app/shared/material/dialog-presets';
-import { GAME_INTENTS } from '@app/core/constants/game-intents';
 import { I18nService } from '@app/core/i18n';
 
 @Injectable()
@@ -182,13 +181,6 @@ export class MessageStateService {
         }
     }
 
-
-    /**
-     * Triggers the save flow - sends a save intent message like the save button in chat-input
-     */
-    triggerSaveFlow() {
-        void this.engine.sendMessage(this.i18n.translate('placeholder.save'), { intent: GAME_INTENTS.SAVE });
-    }
 
     copyPairJSON() {
         const all = this.gameState.messages();
