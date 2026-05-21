@@ -58,7 +58,10 @@ const MODE_BINDINGS: Record<SaveMode, { promptFile: string; schema: Schema }> = 
  *      "Starting SaveAgent…" instead of a blank screen)
  *   3. SaveAgentRunner → manifest JSON
  *   4. SubToolDispatcher → FileUpdate[] + per-tool progress entries
- *   5. AutoUpdateDialog opens with the updates (existing flow handles apply)
+ *   5. `progress.setWorkComplete(true)` so the progress dialog can swap
+ *      Cancel out for Close (`isRunning` stays true for the chat lock)
+ *   6. close progress dialog (or await user close under `pauseBeforeAutoUpdate`)
+ *      and open AutoUpdateDialog with the updates (existing flow handles apply)
  *
  * Failure path: any thrown error is surfaced as a snackbar and the progress
  * dialog stays open showing the failed entry. The user can close + retry.

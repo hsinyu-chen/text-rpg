@@ -33,11 +33,14 @@ describe('applyInventoryDeltas', () => {
         expect(updates[0].replacementContent).toBe('- 麻繩');
     });
 
-    it('prepends a newline before append when the file already has content', () => {
+    it('strips the handler-emitted leading newline (splice-insert adds its own line break)', () => {
+        // Handlers write `\n- item` to declare a new-line separator marker;
+        // opsToFileUpdates strips it so applyUpdateToFile's splice-into-lines
+        // doesn't double-up into an extra blank line in the final file.
         const updates = applyInventoryDeltas([
             { op: 'add', item: '麻繩' },
         ], ctx('- 鐵劍'));
-        expect(updates[0].replacementContent).toBe('\n- 麻繩');
+        expect(updates[0].replacementContent).toBe('- 麻繩');
     });
 
     it('emits a delete hunk for op:remove when the item line is found', () => {
@@ -84,7 +87,7 @@ describe('applyInventoryDeltas', () => {
         // Append rather than emit a stale target.
         expect(updates).toHaveLength(1);
         expect(updates[0].targetContent).toBeUndefined();
-        expect(updates[0].replacementContent).toBe('\n- 新發現的卷軸 — 殘破不堪');
+        expect(updates[0].replacementContent).toBe('- 新發現的卷軸 — 殘破不堪');
     });
 
     it('stacks multiple ops into separate hunks sharing the same file + context', () => {
@@ -175,7 +178,7 @@ describe('applyInventoryDeltas', () => {
         ], ctx(fileContent));
         expect(updates).toHaveLength(1);
         expect(updates[0].targetContent).toBeUndefined();
-        expect(updates[0].replacementContent).toBe('\n- 短刀 — 從遺跡取得');
+        expect(updates[0].replacementContent).toBe('- 短刀 — 從遺跡取得');
     });
 
     it('matches indented list items (preserves leading whitespace in target)', () => {

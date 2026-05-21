@@ -46,7 +46,9 @@ describe('applyEntityPatches', () => {
         expect(updates[1]).toEqual({
             filePath: FILE,
             context: '# 核心人物 > ## 王五',
-            replacementContent: '\n- 新增筆記',
+            // Leading `\n` stripped by opsToFileUpdates' append path —
+            // splice-insert in the apply step adds its own line break.
+            replacementContent: '- 新增筆記',
         });
     });
 

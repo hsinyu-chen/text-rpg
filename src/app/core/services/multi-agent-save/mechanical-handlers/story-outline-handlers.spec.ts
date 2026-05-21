@@ -21,7 +21,9 @@ describe('writeStoryOutlineBlock', () => {
             {
                 filePath: FILE,
                 context: '# 劇情綱要',
-                replacementContent: '\n## Act.2 - 戰役\n\n- **戰況**：勝利',
+                // Handler emits `\n## …` as a separator marker; opsToFileUpdates
+                // strips the leading newline so splice-insert doesn't double up.
+                replacementContent: '## Act.2 - 戰役\n\n- **戰況**：勝利',
             },
         ]);
     });
@@ -45,11 +47,11 @@ describe('writeStoryOutlineBlock', () => {
         expect(updates).toEqual([]);
     });
 
-    it('trims the input but leaves the wrap-newline intact', () => {
+    it('trims the input and strips the handler-side wrap newline', () => {
         const updates = writeStoryOutlineBlock(
             '   \n\n## Act.3\nbody\n\n   ',
             CTX,
         );
-        expect(updates[0].replacementContent).toBe('\n## Act.3\nbody');
+        expect(updates[0].replacementContent).toBe('## Act.3\nbody');
     });
 });

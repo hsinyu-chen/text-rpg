@@ -32,11 +32,11 @@ describe('applyPlansDeltas', () => {
         expect(updates[0].replacementContent).toContain('* **狀態**: 規劃中');
     });
 
-    it('prepends a leading newline when the file is non-empty', () => {
+    it('emits the rendered block without the handler-emitted leading newline (stripped centrally)', () => {
         const updates = applyPlansDeltas([
             { op: 'add', title: '新計畫', body: '* x' },
         ], { ...EMPTY_CTX, fileContent: FILE_WITH_PLAN });
-        expect(updates[0].replacementContent?.startsWith('\n## ')).toBe(true);
+        expect(updates[0].replacementContent?.startsWith('## ')).toBe(true);
     });
 
     it('emits heading-only hunk when body is omitted', () => {

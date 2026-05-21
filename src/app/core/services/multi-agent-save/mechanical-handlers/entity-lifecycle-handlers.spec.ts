@@ -216,7 +216,7 @@ describe('moveEntities', () => {
         expect(appends).toHaveLength(2);
     });
 
-    it('prepends a newline on each move replacement so multi-move targets get a blank-line separator', () => {
+    it('emits the moved block as the append replacement (handler-side leading newline stripped centrally)', () => {
         const fileContent = `# 核心人物
 
 ## 李四
@@ -230,6 +230,6 @@ describe('moveEntities', () => {
             { fromSectionPath: '# 核心人物 > ## 李四', toGroup: '已故人物', reason: 'a' },
         ], ctxFor(fileContent));
         const append = updates.find(u => u.context === '# 已故人物');
-        expect(append?.replacementContent?.startsWith('\n## 李四')).toBe(true);
+        expect(append?.replacementContent?.startsWith('## 李四')).toBe(true);
     });
 });

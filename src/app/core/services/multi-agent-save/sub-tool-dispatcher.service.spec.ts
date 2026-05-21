@@ -145,7 +145,13 @@ describe('SubToolDispatcherService', () => {
         expect(result.updates[0]).toEqual({
             filePath: '3.人物狀態.md',
             context: '# 核心人物 > ## 李四',
-            replacementContent: '\n- 新增筆記',
+            // Leading `\n` from the LLM-provided replacement stays intact
+            // because section-update entries reach opsToFileUpdates as
+            // `append` (no target) — but the central strip is what shaves
+            // off the handler-emitted separator marker, not LLM content.
+            // Here the LLM-emitted '\n- 新增筆記' is treated the same as any
+            // other append payload and gets its leading newline stripped.
+            replacementContent: '- 新增筆記',
         });
         const entry = svc.tracker.entries().find(e => e.toolName === 'charactersToUpdate');
         expect(entry?.state).toBe('done');

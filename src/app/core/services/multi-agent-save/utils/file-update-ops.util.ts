@@ -25,8 +25,15 @@ export type SaveUpdateOp =
  * - `delete { target }` → `{ targetContent: target, replacementContent: '' }`
  *
  * `context` is the heading breadcrumb (`# Foo > ## Bar`) the AutoUpdateDialog's
- * matcher pins on; pass `''` for file-root operations (mirrors the legacy
- * `<save context="">` form).
+ * matcher pins on; pass `''` for file-root operations.
+ *
+ * For the `append` path, leading / trailing blank lines on the replacement
+ * are stripped — mirrors the legacy `FileUpdateParser.dedent` step that used
+ * to run on the XML wire. The append branch in `FileUpdateService.applyUpdateToFile`
+ * splits the replacement on `\r?\n` and splices each element into the file's
+ * line array, so a handler-emitted leading `\n` would otherwise land as an
+ * extra blank line in the file. Handlers historically emit `\n` as an
+ * in-block separator marker — splice adds the actual line break implicitly.
  */
 export function opsToFileUpdates(
     file: string,
@@ -41,8 +48,22 @@ function opToFileUpdate(file: string, context: string, op: SaveUpdateOp): FileUp
         case 'replace':
             return { filePath: file, context, targetContent: op.target, replacementContent: op.replacement };
         case 'append':
-            return { filePath: file, context, replacementContent: op.replacement };
+            return { filePath: file, context, replacementContent: stripWrappingBlankLines(op.replacement) };
         case 'delete':
             return { filePath: file, context, targetContent: op.target, replacementContent: '' };
     }
+}
+
+/**
+ * Removes leading + trailing whitespace-only lines from `content`. Common
+ * indent is NOT stripped (unlike full `dedent`) — append content is taken
+ * verbatim by the apply step, so any indent the handler chose must survive
+ * intact.
+ */
+function stripWrappingBlankLines(content: string): string {
+    if (!content) return content;
+    const lines = content.split(/\r?\n/);
+    while (lines.length > 0 && lines[0].trim().length === 0) lines.shift();
+    while (lines.length > 0 && lines[lines.length - 1].trim().length === 0) lines.pop();
+    return lines.join('\n');
 }
