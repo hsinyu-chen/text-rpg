@@ -38,6 +38,7 @@ const KEYS = {
     saveMode: 'mas_save_mode',
     subToolProfileId: 'mas_sub_tool_profile_id',
     pauseBeforeAutoUpdate: 'mas_pause_before_auto_update',
+    hunkFixupProfileId: 'mas_hunk_fixup_profile_id',
 } as const;
 
 /**
@@ -75,6 +76,18 @@ export class SaveSettingsStore {
     private _pauseBeforeAutoUpdate = signal<boolean>(false);
     readonly pauseBeforeAutoUpdate = this._pauseBeforeAutoUpdate.asReadonly();
 
+    /**
+     * LLM profile id used by the auto-update dialog's "LLM repair" button to
+     * fix hunks whose `targetContent` doesn't appear verbatim in the source
+     * file (e.g. the main LLM dropped a bold wrapper). Empty string falls back
+     * to the active main chat profile. Kept separate from `subToolProfileId`
+     * because the two tasks have different characteristics — fog-of-war
+     * projection wants a capable model, byte-level hunk repair wants a fast/
+     * cheap one — and conflating them would force users to compromise.
+     */
+    private _hunkFixupProfileId = signal<string>('');
+    readonly hunkFixupProfileId = this._hunkFixupProfileId.asReadonly();
+
     constructor() {
         const raw = this.kv.get(KEYS.saveMode);
         const migrated = migrateSaveMode(raw);
@@ -93,6 +106,9 @@ export class SaveSettingsStore {
         if (this.kv.get(KEYS.pauseBeforeAutoUpdate) === 'true') {
             this._pauseBeforeAutoUpdate.set(true);
         }
+
+        const hunkFixupId = this.kv.get(KEYS.hunkFixupProfileId);
+        if (hunkFixupId !== null) this._hunkFixupProfileId.set(hunkFixupId);
     }
 
     setSaveMode(mode: SaveMode): void {
@@ -111,5 +127,10 @@ export class SaveSettingsStore {
         // small and matches the constructor's "absent ≡ off" read.
         if (pause) this.kv.set(KEYS.pauseBeforeAutoUpdate, 'true');
         else this.kv.remove(KEYS.pauseBeforeAutoUpdate);
+    }
+
+    setHunkFixupProfileId(id: string): void {
+        this._hunkFixupProfileId.set(id);
+        this.kv.set(KEYS.hunkFixupProfileId, id);
     }
 }

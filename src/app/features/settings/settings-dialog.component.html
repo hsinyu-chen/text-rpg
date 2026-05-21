@@ -243,6 +243,19 @@
             </div>
             <p class="hint-text mode-hint">{{ 'settings.saveMode.pauseBeforeAutoUpdateHint' | translate }}</p>
 
+            <div class="form-row">
+                <mat-form-field appearance="outline" class="full-width">
+                    <mat-label>{{ 'settings.hunkFixupProfileLabel' | translate }}</mat-label>
+                    <mat-select [(ngModel)]="hunkFixupProfileId">
+                        <mat-option [value]="''">{{ 'settings.saveMode.subToolProfileSameAsMain' | translate }}</mat-option>
+                        @for (p of profiles(); track p.id) {
+                            <mat-option [value]="p.id">{{ p.name }} ({{ p.provider }})</mat-option>
+                        }
+                    </mat-select>
+                </mat-form-field>
+            </div>
+            <p class="hint-text mode-hint">{{ 'settings.hunkFixupProfileHint' | translate }}</p>
+
             <div class="button-row">
                 <button mat-stroked-button (click)="openProviderDebug()">
                     <mat-icon>bug_report</mat-icon>

@@ -231,6 +231,41 @@ mat-tab-nav-panel {
     }
 }
 
+.auto-fix-btn {
+    width: 24px !important;
+    height: 24px !important;
+    line-height: 24px !important;
+    padding: 0 !important;
+    color: #d97706;
+    opacity: 0.8;
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+
+    // mat-icon-button's default button-content slot doesn't centre a
+    // <mat-spinner> the same way it does a single mat-icon, so we force
+    // flex centring on the host AND zero the icon's intrinsic margin /
+    // line-height. Symptom this guards: spinner appears glued to the
+    // top-left of the 24×24 box.
+    mat-icon {
+        font-size: 16px !important;
+        width: 16px !important;
+        height: 16px !important;
+        margin: 0;
+        line-height: 16px;
+    }
+
+    mat-spinner {
+        width: 16px !important;
+        height: 16px !important;
+    }
+
+    &:hover:not([disabled]) {
+        opacity: 1;
+        background: rgba(217, 119, 6, 0.1);
+    }
+}
+
 /* Calibration Panel */
 .calibration-panel {
     margin-top: 12px;

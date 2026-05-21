@@ -67,6 +67,20 @@
                                     [matTooltip]="(update.status.failReason === 'context_mismatch' ? 'dialog.contextMismatch' : 'dialog.targetNotFound') | translate">warning</mat-icon>
                                 }
 
+                                <!-- LLM Auto-Fix Action — visible only on target_not_found until attempts saturate -->
+                                @if (hunks.canAutoFix(update)) {
+                                <button mat-icon-button class="auto-fix-btn"
+                                    [matTooltip]="'dialog.autoFixTooltip' | translate"
+                                    [disabled]="update.autoFixInProgress()"
+                                    (click)="hunks.requestAutoFix(update, group); $event.stopPropagation()">
+                                    @if (update.autoFixInProgress()) {
+                                        <mat-spinner diameter="18"></mat-spinner>
+                                    } @else {
+                                        <mat-icon>auto_fix_high</mat-icon>
+                                    }
+                                </button>
+                                }
+
                                 <!-- Calibration Action -->
                                 <button mat-icon-button class="calibrate-btn"
                                     [class.active]="hunks.calibratingUpdateId() === update.id"
