@@ -101,10 +101,33 @@ export interface FactionEntry {
 // SaveAgent Manifest
 // ============================================================================
 
+/**
+ * Evidence-grounded manifest — every op carries an optional list of
+ * `ChatMessage.id`s the main LLM (or B agent) cites as evidence for emitting
+ * the op. C-flag detector reads these directly to anchor the corresponding
+ * `ConsistencyIssue.related.sourceMessageIds`; ConsistencyAgent uses them to
+ * pull original text via `readChatMessage(id)` instead of grepping blind.
+ *
+ * Semantics on the wire:
+ * - **omitted** = LLM judged this op was an inference (no direct quote) — the
+ *   downstream agent must reason from context; not necessarily a quality issue.
+ * - **`[]`** (explicit empty array) = LLM explicitly says "no message anchors
+ *   this op"; same effect as omitted but signals deliberate choice.
+ * - **non-empty** = these messages directly grounded the op.
+ *
+ * Optional in v1 — validator does not enforce presence so existing fixtures /
+ * older SaveAgent prompts keep validating. Prompts ask for the field; observe
+ * model adherence empirically before tightening.
+ */
+export interface OpEvidence {
+    /** `ChatMessage.id` values from the current ACT that grounded this op. */
+    sourceMessageIds?: string[];
+}
+
 /** Add/remove/update — one verb across inventory / assets / plans. */
 export type DeltaOp = 'add' | 'remove' | 'update';
 
-export interface InventoryDelta {
+export interface InventoryDelta extends OpEvidence {
   op: DeltaOp;
   /** Item name (original wording). `remove` may use the bare name. */
   item: string;
@@ -117,7 +140,7 @@ export interface InventoryDelta {
   details?: string;
 }
 
-export interface PlanDelta {
+export interface PlanDelta extends OpEvidence {
   op: DeltaOp;
   title: string;
   /** Full entry body. Strongly encouraged for `add` / `update`; ignored on `remove`. */
@@ -136,14 +159,14 @@ export interface PlanDelta {
  * No top-level deletion of the whole sectionPath — that's a lifecycle
  * operation outside this shape.
  */
-export interface SectionUpdate {
+export interface SectionUpdate extends OpEvidence {
   sectionPath: string;
   /** Exact existing substring to replace / delete. Omit for append-at-end semantics. */
   target?: string;
   replacement: string;
 }
 
-export interface CharacterCreate {
+export interface CharacterCreate extends OpEvidence {
   name: string;
   /** L1 group heading text verbatim. */
   group: string;
@@ -155,7 +178,7 @@ export interface CharacterCreate {
   draftedFields: Record<string, string>;
 }
 
-export interface EntityDelete {
+export interface EntityDelete extends OpEvidence {
   /**
    * Breadcrumb path of the L2 entity heading to delete, e.g.
    * `# 核心人物 > ## 李四`. Same shape as {@link SectionUpdate.sectionPath} —
@@ -166,7 +189,7 @@ export interface EntityDelete {
   reason: string;
 }
 
-export interface EntityMove {
+export interface EntityMove extends OpEvidence {
   /**
    * Breadcrumb path of the L2 entity at its current location, e.g.
    * `# 核心人物 > ## 李四`. The handler reads this verbatim block and
@@ -192,7 +215,7 @@ export interface EntityMove {
  * but the validator stays lenient — `updates` is always optional here so
  * a single TS shape serves both paths.
  */
-export interface EntityUpdate {
+export interface EntityUpdate extends OpEvidence {
   name: string;
   /** Optional motivation hint — trace-only, does not influence sub-tool visibility filter. */
   reasonHint?: string;
