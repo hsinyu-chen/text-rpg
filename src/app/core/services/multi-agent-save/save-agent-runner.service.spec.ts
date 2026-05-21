@@ -59,7 +59,7 @@ describe('SaveAgentRunnerService', () => {
 
         const result = await runner.run(defaultInput(provider));
 
-        expect(result.manifest.completenessAudit.processedLogIds).toEqual([]);
+        expect(result.manifest.completenessAudit?.processedLogIds).toEqual([]);
         expect(result.rawJson).toBe(minimalManifest);
     });
 

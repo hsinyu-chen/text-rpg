@@ -4,6 +4,7 @@ import { ReadOnlyAgent } from './read-only-agent';
 import { TurnSetup } from './base-tool-call-agent';
 import type { Awaitable } from './agent-runner.types';
 import type { FileAgentContext, ParsedAction, ToolExecutionResult } from '../file-agent/file-agent.types';
+import type { Awaitable } from './agent-runner.types';
 
 /**
  * Spec target: ReadOnlyAgent's public contract — read tool dispatch routes

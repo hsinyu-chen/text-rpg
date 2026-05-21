@@ -53,3 +53,54 @@ export function lookupSectionBlock(
     const { startLine, endLine } = matches[0];
     return lines.slice(startLine, endLine + 1).join('\n');
 }
+
+/**
+ * Builds the ATX path for a plan L2 block from a model-supplied plan title.
+ *
+ * The KB template wraps plan headings as `## 「{title}」計畫` (zh-tw); models
+ * occasionally include the brackets and/or `計畫` suffix in the `title` field
+ * itself, which would round-trip into `## 「「foo」計畫」計畫` and silently
+ * break heading-path lookups. The triple-replace strips whichever boundary
+ * the model shipped so we re-wrap exactly once.
+ *
+ * zh-tw-specific today — the en blank-world template doesn't ship a Plans
+ * file. When en plans land, this wrap moves into `AppLocale.kbSectionHeadings`
+ * alongside the chronicle heading and gets a locale parameter here.
+ */
+export function derivePlanAtxPath(title: string): string {
+    const bareTitle = title.replace(/^「/, '').replace(/」計畫$/, '').replace(/」$/, '');
+    return `## 「${bareTitle}」計畫`;
+}
+
+/**
+ * Last-wins dedup: returns the items whose `keyFn(item)` is unique among the
+ * input, keeping the *last* occurrence of each key. Dropped earlier-occurrence
+ * items are passed to `onDropped` so the caller can emit per-domain fix logs.
+ *
+ * Shared by all c-fix slices (inventory / plans / lifecycle) — each had a
+ * hand-rolled `lastIndex` Map loop before. The pattern exists because every
+ * downstream mechanical handler anchors ops to the file's *original* state;
+ * two surviving ops on the same key both anchor to the same line/block and
+ * the second hunk fails on apply, losing data. Last-wins per key prevents
+ * the anchor-conflict failure mode.
+ *
+ * O(N) — single pass to build `lastIndex`, single pass to emit `out`.
+ */
+export function dedupeLastWins<T>(
+    items: readonly T[],
+    keyFn: (item: T) => string,
+    onDropped: (item: T) => void,
+): T[] {
+    if (items.length <= 1) return items.slice();
+    const lastIndex = new Map<string, number>();
+    items.forEach((item, i) => lastIndex.set(keyFn(item), i));
+    const out: T[] = [];
+    items.forEach((item, i) => {
+        if (lastIndex.get(keyFn(item)) !== i) {
+            onDropped(item);
+            return;
+        }
+        out.push(item);
+    });
+    return out;
+}
