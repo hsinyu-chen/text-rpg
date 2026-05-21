@@ -18,6 +18,7 @@ import { ConfirmDialogComponent, ConfirmDialogData } from '../confirm-dialog/con
 import { getLocale } from '@app/core/constants/locales';
 import { I18nService, TranslatePipe } from '@app/core/i18n';
 import { GroupedUpdate, HunkApplyController } from './hunk-apply-controller';
+import { HunkAutoFixService } from './hunk-auto-fix.service';
 
 @Component({
   selector: 'app-auto-update-dialog',
@@ -36,7 +37,7 @@ import { GroupedUpdate, HunkApplyController } from './hunk-apply-controller';
   ],
   templateUrl: './auto-update-dialog.component.html',
   styleUrl: './auto-update-dialog.component.scss',
-  providers: [HunkApplyController]
+  providers: [HunkApplyController, HunkAutoFixService]
 })
 export class AutoUpdateDialogComponent {
   public dialogRef = inject<MatDialogRef<AutoUpdateDialogComponent>>(MatDialogRef);

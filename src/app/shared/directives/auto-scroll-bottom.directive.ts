@@ -6,11 +6,6 @@ import { DestroyRef, Directive, ElementRef, effect, inject, input } from '@angul
  * bottom — but only if the user was already pinned there when the chunk
  * arrived, so manual scroll-up to review earlier content isn't yanked away.
  *
- * Used inside the SaveProgressDialog per-entry cards for the CoT `<pre>`
- * and structured-output `<pre>`. Both stream chunk-by-chunk from
- * SaveAgentRunner, and a long CoT would otherwise freeze the user's view at
- * the first line.
- *
  * **Why a scroll-event-driven flag instead of reading scrollHeight in the
  * effect:** Angular signal effects fire *after* the DOM mutation that
  * appended the new chunk, so `scrollHeight` at effect time already includes
