@@ -199,7 +199,7 @@ export class MultiAgentSaveService {
                 coreFilenames: locale.coreFilenames,
             });
             if (cFixResult.fixes.length === 0) {
-                this.progress.skip(cFixEntryId, 'empty_section');
+                this.progress.skip(cFixEntryId, 'no_fixes_needed');
             } else {
                 this.progress.appendOutput(cFixEntryId, describeAutoFixes(cFixResult.fixes));
                 this.progress.finishEntry(cFixEntryId, 'done');

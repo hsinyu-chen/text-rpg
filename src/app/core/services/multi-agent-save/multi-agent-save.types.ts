@@ -329,7 +329,9 @@ export type SaveSkipReason =
     | 'not_yet_implemented'
     | 'user_aborted'
     | 'empty_section'
-    | 'validation_failed';
+    | 'validation_failed'
+    /** C-fix runner ran, nothing to fix — manifest was already clean. */
+    | 'no_fixes_needed';
 
 /**
  * Mechanical sub-tool identifiers — one per manifest section the dispatcher

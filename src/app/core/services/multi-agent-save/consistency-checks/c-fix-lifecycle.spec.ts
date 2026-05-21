@@ -114,6 +114,22 @@ describe('cFixLifecycle', () => {
             expect(result.manifest.charactersToMove).toEqual([]);
             expect(result.fixes.some(f => f.kind === 'shortcircuit-move-by-delete')).toBe(true);
         });
+
+        it('short-circuits move under alias mismatch (bare delete path, aliased move path)', () => {
+            // Mirror of the update regression: delete uses bare name, move
+            // uses aliased KB form. Both must resolve to the same canonical
+            // heading for the short-circuit to fire.
+            const result = run({
+                charactersToDelete: [{ sectionPath: '# 已故人物 > ## 趙六', reason: '...' }],
+                charactersToMove: [{
+                    fromSectionPath: '# 已故人物 > ## 趙六 (Zhao Liu)',
+                    toGroup: '雜項',
+                    reason: '...',
+                }],
+            });
+            expect(result.manifest.charactersToMove).toEqual([]);
+            expect(result.fixes.some(f => f.kind === 'shortcircuit-move-by-delete')).toBe(true);
+        });
     });
 
     describe('update reconciliation', () => {
@@ -134,6 +150,22 @@ describe('cFixLifecycle', () => {
                 charactersToUpdate: [{
                     name: '李四',
                     updates: [{ sectionPath: '# 核心人物 > ## 李四', replacement: '...' }],
+                }],
+            });
+            expect(result.manifest.charactersToUpdate).toEqual([]);
+            expect(result.fixes.some(f => f.kind === 'shortcircuit-update-by-delete')).toBe(true);
+        });
+
+        it('short-circuits update under alias mismatch (aliased KB heading, bare name on update side)', () => {
+            // Regression: delete's sectionPath carries the aliased KB form,
+            // update's `name` carries the bare form. A naive Set.has() on
+            // the raw strings misses the short-circuit, letting the update
+            // try to patch a soon-to-be-deleted entity.
+            const result = run({
+                charactersToDelete: [{ sectionPath: '# 已故人物 > ## 趙六 (Zhao Liu)', reason: '...' }],
+                charactersToUpdate: [{
+                    name: '趙六',
+                    updates: [{ sectionPath: '# 已故人物 > ## 趙六', replacement: '...' }],
                 }],
             });
             expect(result.manifest.charactersToUpdate).toEqual([]);

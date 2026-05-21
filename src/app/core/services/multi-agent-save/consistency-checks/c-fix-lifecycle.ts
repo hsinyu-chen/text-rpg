@@ -104,9 +104,11 @@ function cleanupSlice(input: CleanupInput): CleanupResult {
     );
 
     // Step 1: filter deletes — drop those whose target entity doesn't exist
-    // in the KB. Collect surviving deletes' entity names so we can short-
-    // circuit downstream Move / Update for the same entity (delete wins).
-    const deletedNames = new Set<string>();
+    // in the KB. Collect surviving deletes' CANONICAL (KB-known) names so
+    // short-circuit checks in steps 2/3 compare apples to apples even when
+    // the LLM mixes bare names with aliased headings (`李四` vs `李四 (Li
+    // Si)`).
+    const deletedCanonical = new Set<string>();
     const deletes: EntityDelete[] = [];
     for (const d of input.deletes) {
         const name = entityNameFromSectionPath(d.sectionPath);
@@ -118,7 +120,8 @@ function cleanupSlice(input: CleanupInput): CleanupResult {
             });
             continue;
         }
-        if (!entityExists(entityNames, name)) {
+        const canonical = resolveEntityName(entityNames, name);
+        if (!canonical) {
             fixes.push({
                 domain: 'lifecycle',
                 kind: 'dropped-missing-delete',
@@ -126,7 +129,7 @@ function cleanupSlice(input: CleanupInput): CleanupResult {
             });
             continue;
         }
-        deletedNames.add(name);
+        deletedCanonical.add(canonical);
         deletes.push(d);
     }
 
@@ -143,15 +146,8 @@ function cleanupSlice(input: CleanupInput): CleanupResult {
             });
             continue;
         }
-        if (deletedNames.has(name)) {
-            fixes.push({
-                domain: 'lifecycle',
-                kind: 'shortcircuit-move-by-delete',
-                reason: `${input.kind}sToMove — "${name}" dropped (delete wins)`,
-            });
-            continue;
-        }
-        if (!entityExists(entityNames, name)) {
+        const canonical = resolveEntityName(entityNames, name);
+        if (!canonical) {
             fixes.push({
                 domain: 'lifecycle',
                 kind: 'dropped-missing-move',
@@ -159,11 +155,19 @@ function cleanupSlice(input: CleanupInput): CleanupResult {
             });
             continue;
         }
+        if (deletedCanonical.has(canonical)) {
+            fixes.push({
+                domain: 'lifecycle',
+                kind: 'shortcircuit-move-by-delete',
+                reason: `${input.kind}sToMove — "${name}" dropped (delete wins)`,
+            });
+            continue;
+        }
         moves.push(m);
     }
 
     // Step 3: filter updates — drop typo'd entities, drop entities also in
-    // deletedNames, filter SectionUpdate items by scope.
+    // deletedCanonical, filter SectionUpdate items by scope.
     const updates: EntityUpdate[] = [];
     for (const u of input.updates) {
         if (!u.name) {
@@ -174,19 +178,20 @@ function cleanupSlice(input: CleanupInput): CleanupResult {
             });
             continue;
         }
-        if (deletedNames.has(u.name)) {
-            fixes.push({
-                domain: 'lifecycle',
-                kind: 'shortcircuit-update-by-delete',
-                reason: `${input.kind}sToUpdate — "${u.name}" dropped (delete wins)`,
-            });
-            continue;
-        }
-        if (!entityExists(entityNames, u.name)) {
+        const canonical = resolveEntityName(entityNames, u.name);
+        if (!canonical) {
             fixes.push({
                 domain: 'lifecycle',
                 kind: 'dropped-update-name-typo',
                 reason: `${input.kind}sToUpdate — "${u.name}" not found in KB`,
+            });
+            continue;
+        }
+        if (deletedCanonical.has(canonical)) {
+            fixes.push({
+                domain: 'lifecycle',
+                kind: 'shortcircuit-update-by-delete',
+                reason: `${input.kind}sToUpdate — "${u.name}" dropped (delete wins)`,
             });
             continue;
         }
@@ -241,24 +246,37 @@ function entityNameFromSectionPath(sectionPath: string): string {
 }
 
 /**
- * True when the KB has an L2 heading whose text equals or starts with
- * `${name}` followed by a non-word boundary. The boundary-aware match is what
- * lets `"李四"` match the KB heading `"李四 (Li Si)"` without false-matching
- * `"李四五"`. Pure substring would do the latter; equality would miss the
- * former.
+ * Boundary-aware alias match: returns true when `known` is either equal to
+ * `candidate` or `candidate` followed by a heading-alias boundary char (` `,
+ * `(`, `（`). Lets `"李四"` (bare manifest name) match the KB heading `"李四
+ * (Li Si)"` without false-matching `"李四五"` (different entity).
+ *
+ * Single-source-of-truth helper for both `resolveEntityName` (KB lookup) and
+ * `sectionPathScopedToEntity` (path-segment match).
  */
-function entityExists(entityNames: ReadonlySet<string>, name: string): boolean {
-    if (entityNames.has(name)) return true;
-    // Alias-tolerant: KB heading might be `"${name} (Latin)"` or `"${name}（latin）"`.
+function isAliasOrExact(known: string, candidate: string): boolean {
+    if (known === candidate) return true;
+    if (!known.startsWith(candidate)) return false;
+    const next = known.charAt(candidate.length);
+    return next === ' ' || next === '(' || next === '（';
+}
+
+/**
+ * Returns the canonical KB-known L2 heading text that matches `name` (exact
+ * or alias-tolerant), or `null` when no match exists.
+ *
+ * The canonical-string return is what lets the caller compare delete /
+ * move / update sets safely under aliasing: storing the canonical name in
+ * `deletedCanonical` means a later `deletedCanonical.has(canonical)` check
+ * on a different alias-form input still hits — they both resolve to the
+ * same KB heading.
+ */
+function resolveEntityName(entityNames: ReadonlySet<string>, name: string): string | null {
+    if (entityNames.has(name)) return name;
     for (const known of entityNames) {
-        if (known === name) return true;
-        if (known.startsWith(name)) {
-            const next = known.charAt(name.length);
-            // Boundary chars common in aliased headings.
-            if (next === ' ' || next === '(' || next === '（') return true;
-        }
+        if (isAliasOrExact(known, name)) return known;
     }
-    return false;
+    return null;
 }
 
 /**
@@ -267,7 +285,7 @@ function entityExists(entityNames: ReadonlySet<string>, name: string): boolean {
  * entity's L2 path (`# 核心人物 > ## 李四 ...`), so the check catches the
  * common LLM mistake of patching another entity's block.
  *
- * Boundary-aware like {@link entityExists} so `"李四"` matches `"## 李四 (Li
+ * Boundary-aware via {@link isAliasOrExact} so `"李四"` matches `"## 李四 (Li
  * Si)"` segments. Tolerates deeper L3+ paths under the entity.
  */
 function sectionPathScopedToEntity(sectionPath: string, entityName: string): boolean {
@@ -277,12 +295,7 @@ function sectionPathScopedToEntity(sectionPath: string, entityName: string): boo
         const seg = segRaw.trim();
         const m = seg.match(/^##\s+(.+)$/);
         if (!m) continue;
-        const segName = m[1].trim();
-        if (segName === entityName) return true;
-        if (segName.startsWith(entityName)) {
-            const next = segName.charAt(entityName.length);
-            if (next === ' ' || next === '(' || next === '（') return true;
-        }
+        if (isAliasOrExact(m[1].trim(), entityName)) return true;
     }
     return false;
 }
