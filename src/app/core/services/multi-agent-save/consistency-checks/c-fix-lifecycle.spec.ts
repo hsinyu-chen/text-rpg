@@ -390,6 +390,26 @@ describe('cFixLifecycle', () => {
             expect(result.fixes.some(f => f.kind === 'merged-duplicate-update-entry')).toBe(true);
         });
 
+        it('unions sourceMessageIds across merged entries (both contribute evidence)', () => {
+            const result = run({
+                charactersToUpdate: [
+                    {
+                        name: '李四',
+                        sourceMessageIds: ['m1', 'm2'],
+                        updates: [{ sectionPath: '# 核心人物 > ## 李四 > ### 心態', replacement: 'A' }],
+                    },
+                    {
+                        name: '李四',
+                        sourceMessageIds: ['m2', 'm3'],
+                        updates: [{ sectionPath: '# 核心人物 > ## 李四 > ### 背景', replacement: 'B' }],
+                    },
+                ],
+            });
+            expect(result.manifest.charactersToUpdate).toHaveLength(1);
+            expect(result.manifest.charactersToUpdate?.[0].sourceMessageIds)
+                .toEqual(['m1', 'm2', 'm3']);
+        });
+
         it('does NOT merge different canonical names', () => {
             const result = run({
                 charactersToUpdate: [

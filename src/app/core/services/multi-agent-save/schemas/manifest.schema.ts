@@ -1,6 +1,20 @@
 import type { Schema } from '@app/core/models/types';
 import type { SaveManifest } from '../multi-agent-save.types';
 
+/**
+ * Evidence-grounded ops: every per-op schema spreads this in as an optional
+ * property. Wire semantics are documented on `OpEvidence` in the types file —
+ * omit = inference, `[]` = explicit no evidence, non-empty = anchors. C-flag
+ * detector reads these to fill `ConsistencyIssue.related.sourceMessageIds`
+ * so per-domain ConsistencyAgents can `readChatMessage(id)` directly instead
+ * of greping chat history. Optional in v1; validator does not enforce.
+ */
+const sourceMessageIdsProp = {
+    type: 'array',
+    items: { type: 'string' },
+    description: 'ChatMessage.id values from the current ACT that grounded this op. Omit when the op is an inference without direct message evidence; emit [] to explicitly mark "no anchors".',
+} as const;
+
 const deltaItem = {
     type: 'object',
     required: ['op', 'item'],
@@ -8,6 +22,7 @@ const deltaItem = {
         op: { type: 'string', enum: ['add', 'remove', 'update'] },
         item: { type: 'string', description: 'Item name (original wording)' },
         details: { type: 'string', description: 'New-state description appended after the item name. Strongly encouraged for add/update; omit for remove. May be omitted entirely if the bare item name is the full entry.' },
+        sourceMessageIds: sourceMessageIdsProp,
     },
 } as const;
 
@@ -18,6 +33,7 @@ const planItem = {
         op: { type: 'string', enum: ['add', 'remove', 'update'] },
         title: { type: 'string' },
         body: { type: 'string', description: 'Full entry body. Strongly encouraged for add/update; ignored on remove.' },
+        sourceMessageIds: sourceMessageIdsProp,
     },
 } as const;
 
@@ -28,6 +44,7 @@ const sectionItem = {
         sectionPath: { type: 'string', description: "Breadcrumb like '# 已開發武器 > ## 短弓改'" },
         target: { type: 'string', description: 'Exact existing substring to replace. Omit to append the replacement at section end.' },
         replacement: { type: 'string', description: 'New content. When target is omitted this is appended at the end of the section.' },
+        sourceMessageIds: sourceMessageIdsProp,
     },
 } as const;
 
@@ -42,6 +59,7 @@ const characterCreate = {
             description: 'Initial entry field map per save-character-status-rules.md',
             additionalProperties: { type: 'string' },
         },
+        sourceMessageIds: sourceMessageIdsProp,
     },
 } as const;
 
@@ -51,6 +69,7 @@ const entityDelete = {
     properties: {
         sectionPath: { type: 'string', description: "Full breadcrumb of the L2 entity heading, e.g. '# 核心人物 > ## 李四'" },
         reason: { type: 'string' },
+        sourceMessageIds: sourceMessageIdsProp,
     },
 } as const;
 
@@ -61,6 +80,7 @@ const entityMove = {
         fromSectionPath: { type: 'string', description: "Current location of the L2 entity, e.g. '# 核心人物 > ## 李四'" },
         toGroup: { type: 'string', description: 'Target L1 group heading text (bare, no leading #)' },
         reason: { type: 'string' },
+        sourceMessageIds: sourceMessageIdsProp,
     },
 } as const;
 
@@ -78,6 +98,7 @@ const entityUpdateMulticall = {
     properties: {
         name: { type: 'string' },
         reasonHint: { type: 'string', description: 'Optional motivation hint — trace only' },
+        sourceMessageIds: sourceMessageIdsProp,
     },
 } as const;
 
@@ -93,6 +114,7 @@ const entityUpdate1Call = {
     properties: {
         name: { type: 'string' },
         reasonHint: { type: 'string', description: 'Optional motivation hint — trace only' },
+        sourceMessageIds: sourceMessageIdsProp,
         updates: {
             type: 'array',
             minItems: 1,

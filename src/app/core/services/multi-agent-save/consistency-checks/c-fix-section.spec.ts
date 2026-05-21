@@ -118,4 +118,48 @@ describe('cFixSectionUpdates', () => {
         expect(result.fixes[0]).toMatchObject({ kind: 'dropped-empty-sectionPath' });
         expect(result.fixes[0].reason).toContain(LABEL);
     });
+
+    describe('sourceMessageIds preservation through merge', () => {
+        it('unions ids when two pure-append updates merge', () => {
+            const result = cFixSectionUpdates(
+                [
+                    { sectionPath: '## X', replacement: 'a', sourceMessageIds: ['m1', 'm2'] },
+                    { sectionPath: '## X', replacement: 'b', sourceMessageIds: ['m2', 'm3'] },
+                ],
+                LABEL,
+            );
+            expect(result.updates).toEqual([
+                {
+                    sectionPath: '## X',
+                    replacement: 'ab',
+                    sourceMessageIds: ['m1', 'm2', 'm3'],
+                },
+            ]);
+        });
+
+        it('preserves single side ids when only one update carries them', () => {
+            const result = cFixSectionUpdates(
+                [
+                    { sectionPath: '## X', replacement: 'a', sourceMessageIds: ['m1'] },
+                    { sectionPath: '## X', replacement: 'b' },
+                ],
+                LABEL,
+            );
+            expect(result.updates[0].sourceMessageIds).toEqual(['m1']);
+        });
+
+        it('omits the field on merged output when neither input carried ids', () => {
+            const result = cFixSectionUpdates(
+                [
+                    { sectionPath: '## X', replacement: 'a' },
+                    { sectionPath: '## X', replacement: 'b' },
+                ],
+                LABEL,
+            );
+            // Strict-omitted: avoids materializing `sourceMessageIds: []` /
+            // `: undefined` on the output object so downstream presence
+            // checks still see "no anchors emitted".
+            expect('sourceMessageIds' in result.updates[0]).toBe(false);
+        });
+    });
 });

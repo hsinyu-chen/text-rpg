@@ -48,6 +48,19 @@
 > [!IMPORTANT] 戰爭迷霧自律
 > `charactersToUpdate / factionsToUpdate` 內**只給 name + reasonHint**，**不**告訴 sub-tool 該 entity 看到什麼。每個 entity 的視角過濾由其專屬 sub-tool 內部完成。
 
+### 證據附註 — 每個 op 的 `sourceMessageIds`（選填）
+
+所有 mechanical op 形狀（inventory / plans / section / character / faction lifecycle）+ `charactersToUpdate / factionsToUpdate` 條目都可以多帶一個 `sourceMessageIds: string[]`，列出本 ACT 內**直接**支持此 op 的 `messageId`（log id）清單，格式同 `completenessAudit.processedLogIds`。下游一致性檢查層（C-flag detector + ConsistencyAgent）會用這份 anchor 反查原文，省去後續重新掃描。
+
+- **列出 messageId**：該 op 的事實在這幾則 model message 內有明確描述
+- **`[]` 空陣列**：你刻意判斷此 op 是「整體脈絡推論」、沒有單一 message 直接支持
+- **省略**：等同空陣列，預設為推論
+
+只引用本 ACT（`--- ACT START ---` 之後）的 messageId；一條 op 1-3 條 anchor 即可，不必窮舉。
+
+> [!NOTE] 戰爭迷霧不衝突
+> `charactersToUpdate / factionsToUpdate` 條目的 `sourceMessageIds` 只是給 trace + 一致性層用，sub-tool 內部仍透過 visibility-filtered `chatMessages` snapshot 過濾 — 主 LLM 列出的 anchor 不會擴大 sub-tool 視角。
+
 ### 稽核 — `completenessAudit`
 
 強烈建議填寫。列出本 ACT 所有 model 訊息的 `messageId`（log id）：
