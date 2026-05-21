@@ -249,11 +249,46 @@ export interface SaveManifest {
 }
 
 // ============================================================================
+// Consistency layer — C-fix (mechanical auto-fix) + C-flag (detector) outputs.
+// See TextRPG_Plans/doing/multi-agent-save-per-domain-checks.md.
+// ============================================================================
+
+/**
+ * One mechanical auto-fix applied by C-fix runner to the manifest before
+ * dispatch. Pure trace surface — the dispatcher doesn't read it; the progress
+ * dialog renders it in the "auto-fix" track so the user can see why the
+ * applied diff differs from what the LLM emitted.
+ *
+ * `domain` mirrors the c-fix module that produced the entry. `kind` is a
+ * stable identifier per fix type within the domain — keep these grep-able for
+ * future telemetry. `reason` is a human-readable one-liner with locale-free
+ * specifics (entity name, item name, sectionPath) so the dialog can render it
+ * without further lookup.
+ */
+export type CFixDomain = 'inventory' | 'plans' | 'section' | 'lifecycle';
+
+export interface AutoFixLog {
+    domain: CFixDomain;
+    kind: string;
+    reason: string;
+}
+
+/**
+ * Output of one c-fix module (or the runner). `manifest` is the possibly-
+ * modified manifest; `fixes` is the trace list. An empty `fixes` array means
+ * the module saw nothing to do — caller can treat it as a no-op.
+ */
+export interface CFixResult {
+    manifest: SaveManifest;
+    fixes: AutoFixLog[];
+}
+
+// ============================================================================
 // Progress events — emitted by every layer (SaveAgent / dispatcher / sub-tool)
 // for the SaveProgressDialog to render per-entry cards.
 // ============================================================================
 
-export type SavePhase = 'manifest' | 'dispatch' | 'sub-tool' | 'finalize';
+export type SavePhase = 'manifest' | 'dispatch' | 'sub-tool' | 'finalize' | 'c-fix';
 export type SaveEntryState = 'running' | 'retry' | 'done' | 'skipped' | 'failed';
 
 /**
@@ -294,7 +329,9 @@ export type SaveSkipReason =
     | 'not_yet_implemented'
     | 'user_aborted'
     | 'empty_section'
-    | 'validation_failed';
+    | 'validation_failed'
+    /** C-fix runner ran, nothing to fix — manifest was already clean. */
+    | 'no_fixes_needed';
 
 /**
  * Mechanical sub-tool identifiers — one per manifest section the dispatcher

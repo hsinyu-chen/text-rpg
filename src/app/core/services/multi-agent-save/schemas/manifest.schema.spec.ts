@@ -38,9 +38,11 @@ describe('SAVE_MANIFEST_SCHEMA — shared shape', () => {
 
 describe('SAVE_MANIFEST_SCHEMA_1CALL vs _MULTICALL — entity-update divergence', () => {
     function entityUpdateItems(schema: typeof SAVE_MANIFEST_SCHEMA_1CALL) {
-        const props = schema.properties as {
-            charactersToUpdate: { items: { required?: string[]; additionalProperties?: boolean; properties?: Record<string, unknown> } };
-        };
+        const props = (schema as unknown as {
+            properties: {
+                charactersToUpdate: { items: { required?: string[]; additionalProperties?: boolean; properties?: Record<string, unknown> } };
+            };
+        }).properties;
         return props.charactersToUpdate.items;
     }
 

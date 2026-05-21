@@ -1,7 +1,7 @@
 import type { FileUpdate } from '../../file-update.types';
 import type { InventoryDelta, PlanDelta } from '../multi-agent-save.types';
 import { opsToFileUpdates, type SaveUpdateOp } from '../utils/file-update-ops.util';
-import { lookupSectionBlock } from '../utils/handler-helpers.util';
+import { derivePlanAtxPath, lookupSectionBlock } from '../utils/handler-helpers.util';
 
 /**
  * Context passed to every mechanical handler — the dispatcher's job to
@@ -125,7 +125,7 @@ function formatItemLine(delta: InventoryDelta): string {
  * Takes a pre-split line array rather than the raw file content so a
  * delta-loop can split once and reuse — see {@link applyInventoryDeltas}.
  */
-function findItemLine(lines: readonly string[], itemName: string): string | null {
+export function findItemLine(lines: readonly string[], itemName: string): string | null {
     if (!itemName) return null;
     for (const line of lines) {
         const trimmed = line.trimStart();
@@ -198,27 +198,25 @@ export function applyPlansDeltas(deltas: readonly PlanDelta[], ctx: MechanicalHa
     const ops: SaveUpdateOp[] = [];
     for (const delta of deltas) {
         if (!delta.title) continue;
-        // Defensive against models that include the brackets / `計畫` suffix in
-        // `title` themselves — strip whichever boundary they shipped so we
-        // re-wrap exactly once. The locale-template move is documented in the
-        // function JSDoc as a deferred refactor; this guard mitigates the
-        // sharp edge today.
-        const bareTitle = delta.title.replace(/^「/, '').replace(/」計畫$/, '').replace(/」$/, '');
-        const heading = `「${bareTitle}」計畫`;
+        const atxPath = derivePlanAtxPath(delta.title);
+        // `derivePlanAtxPath` returns `## 「title」計畫` — strip the leading
+        // `## ` for `renderPlanBlock` which re-adds it. Avoids two parallel
+        // helpers (one with `## `, one without).
+        const heading = atxPath.replace(/^##\s*/, '');
         switch (delta.op) {
             case 'add': {
                 ops.push({ kind: 'append', replacement: appendPrefix + renderPlanBlock(heading, delta.body) });
                 break;
             }
             case 'remove': {
-                const block = lookupPlanBlock(ctx.fileContent, lines, heading);
+                const block = lookupSectionBlock(ctx.fileContent, lines, atxPath);
                 if (block) {
                     ops.push({ kind: 'delete', target: block });
                 }
                 break;
             }
             case 'update': {
-                const block = lookupPlanBlock(ctx.fileContent, lines, heading);
+                const block = lookupSectionBlock(ctx.fileContent, lines, atxPath);
                 if (block) {
                     ops.push({ kind: 'replace', target: block, replacement: renderPlanBlock(heading, delta.body) });
                 } else {
@@ -234,8 +232,4 @@ export function applyPlansDeltas(deltas: readonly PlanDelta[], ctx: MechanicalHa
 function renderPlanBlock(heading: string, body: string | undefined): string {
     const trimmedBody = (body ?? '').trim();
     return trimmedBody ? `## ${heading}\n\n${trimmedBody}` : `## ${heading}`;
-}
-
-function lookupPlanBlock(content: string, lines: readonly string[], heading: string): string | null {
-    return lookupSectionBlock(content, lines, `## ${heading}`);
 }
