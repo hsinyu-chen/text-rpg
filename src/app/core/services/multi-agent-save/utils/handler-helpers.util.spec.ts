@@ -37,8 +37,8 @@ describe('unionSourceMessageIds', () => {
 
 describe('dedupeLastWins', () => {
     it('returns a copy when 0 or 1 items (no work to do)', () => {
-        expect(dedupeLastWins([], x => String(x), () => {})).toEqual([]);
-        expect(dedupeLastWins([1], x => String(x), () => {})).toEqual([1]);
+        expect(dedupeLastWins([], x => String(x), () => { /* no-op */ })).toEqual([]);
+        expect(dedupeLastWins([1], x => String(x), () => { /* no-op */ })).toEqual([1]);
     });
 
     it('keeps the last occurrence of each key, drops earlier ones', () => {
@@ -57,7 +57,7 @@ describe('dedupeLastWins', () => {
     });
 
     it('passes through unique keys untouched', () => {
-        const out = dedupeLastWins([{ k: 'a' }, { k: 'b' }], x => x.k, () => {});
+        const out = dedupeLastWins([{ k: 'a' }, { k: 'b' }], x => x.k, () => { /* no-op */ });
         expect(out).toEqual([{ k: 'a' }, { k: 'b' }]);
     });
 });

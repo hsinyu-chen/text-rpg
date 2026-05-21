@@ -104,9 +104,9 @@ export interface FactionEntry {
 /**
  * Evidence-grounded manifest — every op carries an optional list of
  * `ChatMessage.id`s the main LLM (or B agent) cites as evidence for emitting
- * the op. C-flag detector reads these directly to anchor the corresponding
- * `ConsistencyIssue.related.sourceMessageIds`; ConsistencyAgent uses them to
- * pull original text via `readChatMessage(id)` instead of grepping blind.
+ * the op. The downstream ConsistencyAgent (sub-plan Sub-3+) uses these as
+ * its primary investigation anchors: it pulls original text via
+ * `readChatMessage(id)` instead of re-grepping the chat blind.
  *
  * Semantics on the wire:
  * - **omitted** = LLM judged this op was an inference (no direct quote) — the
