@@ -8,7 +8,7 @@ import type {
     SectionUpdate,
 } from '../multi-agent-save.types';
 import { extractL2EntriesByGroup } from '../utils/extract-l2-entries.util';
-import { dedupeLastWins } from '../utils/handler-helpers.util';
+import { dedupeLastWins, unionSourceMessageIds } from '../utils/handler-helpers.util';
 
 export interface LifecycleCFixResult {
     manifest: SaveManifest;
@@ -309,10 +309,12 @@ function mergeUpdatesByCanonicalName(
         }
         const prev = merged[prevIdx];
         const combined = [...(prev.updates ?? []), ...(u.updates ?? [])];
+        const mergedIds = unionSourceMessageIds(prev.sourceMessageIds, u.sourceMessageIds);
         merged[prevIdx] = {
             ...prev,
             ...(u.reasonHint !== undefined ? { reasonHint: u.reasonHint } : {}),
             ...(combined.length > 0 ? { updates: combined } : {}),
+            ...(mergedIds !== undefined ? { sourceMessageIds: mergedIds } : {}),
         };
         fixes.push({
             domain: 'lifecycle',

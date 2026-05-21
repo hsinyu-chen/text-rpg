@@ -1,4 +1,5 @@
 import type { AutoFixLog, SectionUpdate } from '../multi-agent-save.types';
+import { unionSourceMessageIds } from '../utils/handler-helpers.util';
 
 export interface SectionCFixResult {
     updates: SectionUpdate[];
@@ -78,12 +79,16 @@ export function cFixSectionUpdates(
             firstAppendAt.set(u.sectionPath, i);
             return;
         }
-        // Merge into the first occurrence; mark current as dropped.
+        // Merge into the first occurrence; mark current as dropped. Union
+        // sourceMessageIds — both ops contribute content to the merged
+        // replacement so both anchor evidence stays attached.
         const first = working[prevIdx];
         if (!first) return; // shouldn't happen, but be defensive
+        const mergedIds = unionSourceMessageIds(first.sourceMessageIds, u.sourceMessageIds);
         working[prevIdx] = {
             ...first,
             replacement: first.replacement + u.replacement,
+            ...(mergedIds !== undefined ? { sourceMessageIds: mergedIds } : {}),
         };
         working[i] = null;
         fixes.push({

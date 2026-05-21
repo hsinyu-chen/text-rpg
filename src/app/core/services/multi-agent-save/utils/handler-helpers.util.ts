@@ -73,6 +73,32 @@ export function derivePlanAtxPath(title: string): string {
 }
 
 /**
+ * Union two optional sourceMessageIds arrays, deduped, order-preserving
+ * (`a` first, then `b` items not in `a`). Used when c-fix merges two ops
+ * into one and both contributed to the final state (pure-append merge,
+ * same-canonical-name EntityUpdate merge):
+ *
+ * - both undefined / empty → undefined (no field set on output)
+ * - either side has content → union
+ *
+ * Intentionally returns `undefined` rather than `[]` when nothing to merge,
+ * so callers' spread doesn't materialize the field on the output object.
+ * (Matches the convention used by `OpEvidence.sourceMessageIds` — omission
+ * means "inferred / no anchors", which is the default.)
+ */
+export function unionSourceMessageIds(
+    a: readonly string[] | undefined,
+    b: readonly string[] | undefined,
+): string[] | undefined {
+    if ((!a || a.length === 0) && (!b || b.length === 0)) return undefined;
+    const seen = new Set<string>();
+    const out: string[] = [];
+    if (a) for (const id of a) if (!seen.has(id)) { seen.add(id); out.push(id); }
+    if (b) for (const id of b) if (!seen.has(id)) { seen.add(id); out.push(id); }
+    return out;
+}
+
+/**
  * Last-wins dedup: returns the items whose `keyFn(item)` is unique among the
  * input, keeping the *last* occurrence of each key. Dropped earlier-occurrence
  * items are passed to `onDropped` so the caller can emit per-domain fix logs.

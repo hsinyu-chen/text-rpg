@@ -76,6 +76,19 @@ your job is "decide + supply the necessary facts".
 > `charactersToUpdate / factionsToUpdate` carry **only `name` + `reasonHint`**.
 > Each entity's perspective filtering is done inside its own sub-tool.
 
+### Evidence note — per-op `sourceMessageIds` (optional)
+
+Every mechanical op shape (inventory / plans / section / character / faction lifecycle) and each `charactersToUpdate / factionsToUpdate` entry accepts an optional `sourceMessageIds: string[]` field listing the `messageId`s (log ids, same format as `completenessAudit.processedLogIds`) from this ACT that **directly** ground the op. The downstream consistency layer (C-flag detector + ConsistencyAgent) uses these anchors to look up the original text.
+
+- **List messageIds**: the op's facts are explicitly stated in those model messages
+- **`[]` empty array**: you deliberately judged this op is "synthesis from context", no single message directly supports it
+- **Omitted**: same as empty array, defaults to inferred
+
+Only cite messageIds from this ACT (after `--- ACT START ---`); 1-3 anchors per op is enough, no need to be exhaustive.
+
+> [!NOTE] No fog-of-war conflict
+> `sourceMessageIds` on `charactersToUpdate / factionsToUpdate` entries is trace + consistency-layer use only. The sub-tool still filters via its own visibility-filtered `chatMessages` snapshot — the main-LLM-supplied anchors do not widen sub-tool perspective.
+
 ### Audit — `completenessAudit`
 
 Strongly recommended. List every model message id (log id) in this ACT:
