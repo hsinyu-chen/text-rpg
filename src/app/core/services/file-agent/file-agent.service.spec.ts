@@ -225,6 +225,34 @@ describe('FileAgentService — profile persistence', () => {
     expect(calls).toBe(1);
   });
 
+  it('force option bypasses the alreadyProbed cache (panel-open reprobe path)', async () => {
+    let calls = 0;
+    const probe = (): Promise<boolean> => {
+      calls++;
+      return Promise.resolve(true);
+    };
+
+    const profile = { id: 'p-1', provider: 'test-provider', settings: {} };
+    const { svc } = setup({
+      mainChatActive: 'p-1',
+      profiles: [profile],
+      probeNativeToolSupport: probe
+    });
+
+    await svc.capability.kickToolSupportProbe('p-1');
+    expect(calls).toBe(1);
+
+    // Without force: cached verdict short-circuits the second call.
+    await svc.capability.kickToolSupportProbe('p-1');
+    expect(calls).toBe(1);
+
+    // With force: the cached-success skip is bypassed so the probe re-fires.
+    // Models llama.cpp's external-model-swap case where the prior verdict is
+    // stale and the panel-open trigger needs a fresh read.
+    await svc.capability.kickToolSupportProbe('p-1', { force: true });
+    expect(calls).toBe(2);
+  });
+
   it('resolver sees a probe verdict the store recorded (probe sharing end-to-end)', () => {
     // Reproduce the live bug: two surfaces of the file-agent must converge
     // on the same "Auto: Native (probed)" reason once any one of them has

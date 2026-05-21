@@ -106,6 +106,17 @@ export class FileAgentService extends ReadOnlyAgent<ParsedAction, FileAgentConte
   lastFilesReplaced = signal<{ filename: string; content: string }[]>([]);
 
   /**
+   * Drain the one-shot delivery channel. file-viewer's diff-view effect
+   * calls this after consuming a batch — the signal is a notification of
+   * "the most recent agent run just replaced these files", not durable
+   * state, and leaving it set bleeds the unsaved indicator into the next
+   * dialog instance for files the user has already saved.
+   */
+  clearLastFilesReplaced(): void {
+    if (this.lastFilesReplaced().length) this.lastFilesReplaced.set([]);
+  }
+
+  /**
    * Tool-call capability resolution (native vs JSON, parallel calls) and
    * the per-profile `toolCallMode` user setting. Held as a public field so
    * templates can bind directly via `agentService.capability.X`.
@@ -173,6 +184,24 @@ export class FileAgentService extends ReadOnlyAgent<ParsedAction, FileAgentConte
       lastSynced = id;
       this.capability.syncToolCallModeForProfile(id);
       void this.capability.kickToolSupportProbe(id);
+    });
+
+    // Reprobe whenever the agent panel transitions from closed to open.
+    // The profile-switch effect above only fires on profile change, so a
+    // user opening the panel against the same profile (after llama.cpp
+    // reloaded a different GGUF behind the scenes) would otherwise run
+    // with the prior model's cached verdict. Force-mode bypasses the
+    // cached-success skip; per-profile inflight dedupe still prevents
+    // duplicate probes if the profile-switch effect fired simultaneously.
+    let lastIsOpen = this.panelState.isOpen();
+    effect(() => {
+      const isOpen = this.panelState.isOpen();
+      const wasOpen = lastIsOpen;
+      lastIsOpen = isOpen;
+      if (!isOpen || wasOpen) return;
+      const id = this.selectedProfileId();
+      if (!id) return;
+      void this.capability.kickToolSupportProbe(id, { force: true });
     });
   }
 

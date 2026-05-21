@@ -536,6 +536,10 @@ export class FileViewerDialogComponent implements OnDestroy {
   ngOnDestroy(): void {
     // Also clear here just in case it was closed via backdrop or escape key
     this.unsavedFiles.set(new Set());
+    // Drain the file-agent's one-shot delivery channel — leaving it set
+    // would re-light the unsaved indicator on the next dialog mount for
+    // files the user has already saved.
+    this.fileAgentService.clearLastFilesReplaced();
     if (this.highlightTimeoutId !== null) clearTimeout(this.highlightTimeoutId);
     this.unregisterEditChannel?.();
     this.unregisterEditChannel = null;
