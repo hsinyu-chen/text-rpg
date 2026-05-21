@@ -309,6 +309,85 @@ describe('cFixLifecycle', () => {
         });
     });
 
+    describe('merge duplicate update entries (same canonical name)', () => {
+        it('concatenates .updates from two entries with the same canonical name', () => {
+            // Regression: previously two EntityUpdate entries for the same
+            // entity both survived, and overlapping sectionPaths would emit
+            // two replace hunks anchored to the same KB block — second hunk
+            // fails on apply, losing the update.
+            const result = run({
+                charactersToUpdate: [
+                    {
+                        name: '李四',
+                        updates: [
+                            { sectionPath: '# 核心人物 > ## 李四 > ### 心態', replacement: 'A' },
+                        ],
+                    },
+                    {
+                        name: '李四',
+                        updates: [
+                            { sectionPath: '# 核心人物 > ## 李四 > ### 背景', replacement: 'B' },
+                        ],
+                    },
+                ],
+            });
+            expect(result.manifest.charactersToUpdate).toEqual([
+                {
+                    name: '李四',
+                    updates: [
+                        { sectionPath: '# 核心人物 > ## 李四 > ### 心態', replacement: 'A' },
+                        { sectionPath: '# 核心人物 > ## 李四 > ### 背景', replacement: 'B' },
+                    ],
+                },
+            ]);
+            expect(result.fixes.some(f => f.kind === 'merged-duplicate-update-entry')).toBe(true);
+        });
+
+        it('merges alias-different names that resolve to the same canonical', () => {
+            // KB has `## 趙六 (Zhao Liu)`. The LLM emits two entries naming the
+            // same entity via prefix-alias ("趙六"). Both should canonicalize
+            // to "趙六 (Zhao Liu)" and merge into one. Use sectionPaths that
+            // also use the prefix-alias so the in-scope check passes.
+            const result = run({
+                charactersToUpdate: [
+                    {
+                        name: '趙六',
+                        updates: [
+                            { sectionPath: '# 已故人物 > ## 趙六 > ### 心態', replacement: 'A' },
+                        ],
+                    },
+                    {
+                        name: '趙六',
+                        updates: [
+                            { sectionPath: '# 已故人物 > ## 趙六 > ### 背景', replacement: 'B' },
+                        ],
+                    },
+                ],
+            });
+            expect(result.manifest.charactersToUpdate).toHaveLength(1);
+            expect(result.manifest.charactersToUpdate?.[0].name).toBe('趙六 (Zhao Liu)');
+            expect(result.manifest.charactersToUpdate?.[0].updates).toHaveLength(2);
+            expect(result.fixes.some(f => f.kind === 'merged-duplicate-update-entry')).toBe(true);
+        });
+
+        it('does NOT merge different canonical names', () => {
+            const result = run({
+                charactersToUpdate: [
+                    {
+                        name: '李四',
+                        updates: [{ sectionPath: '# 核心人物 > ## 李四 > ### 心態', replacement: 'A' }],
+                    },
+                    {
+                        name: '王五',
+                        updates: [{ sectionPath: '# 核心人物 > ## 王五 > ### 心態', replacement: 'B' }],
+                    },
+                ],
+            });
+            expect(result.manifest.charactersToUpdate).toHaveLength(2);
+            expect(result.fixes.some(f => f.kind === 'merged-duplicate-update-entry')).toBe(false);
+        });
+    });
+
     describe('factions parallel', () => {
         it('drops faction delete not in KB', () => {
             const result = run({

@@ -46,8 +46,8 @@ export function cFixRunner(input: CFixRunnerInput): CFixResult {
     m = applyInventorySlice(m, 'assetsDeltas', files.get(fn.ASSETS) ?? '', fixes);
 
     // 2. Plans.
-    {
-        const r = cFixPlans(m.plansDeltas ?? [], files.get(fn.PLANS) ?? '');
+    if (m.plansDeltas !== undefined) {
+        const r = cFixPlans(m.plansDeltas, files.get(fn.PLANS) ?? '');
         m = { ...m, plansDeltas: r.deltas };
         fixes.push(...r.fixes);
     }
@@ -83,7 +83,8 @@ function applyInventorySlice(
     fileContent: string,
     fixes: AutoFixLog[],
 ): SaveManifest {
-    const r = cFixInventory(m[field] ?? [], fileContent, field);
+    if (m[field] === undefined) return m;
+    const r = cFixInventory(m[field], fileContent, field);
     fixes.push(...r.fixes);
     return { ...m, [field]: r.deltas };
 }
@@ -97,7 +98,8 @@ function applySectionSlice(
     field: 'techEquipmentUpdates' | 'magicSkillsUpdates' | 'worldFeaturesUpdates',
     fixes: AutoFixLog[],
 ): SaveManifest {
-    const r = cFixSectionUpdates(m[field] ?? [], field);
+    if (m[field] === undefined) return m;
+    const r = cFixSectionUpdates(m[field], field);
     fixes.push(...r.fixes);
     return { ...m, [field]: r.updates };
 }

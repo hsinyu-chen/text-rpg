@@ -168,6 +168,20 @@ describe('cFixRunner', () => {
         expect(second.manifest.inventoryDeltas).toEqual(first.manifest.inventoryDeltas);
     });
 
+    it('preserves undefined-ness of optional slots (no presence inflation)', () => {
+        // Manifest with NO inventory/plans/section slots set. Runner must not
+        // materialize them as `[]` on the way out — future presence-checks
+        // (completeness audits, `'plansDeltas' in manifest`) should still see
+        // the original absence.
+        const result = run({});
+        expect('inventoryDeltas' in result.manifest).toBe(false);
+        expect('assetsDeltas' in result.manifest).toBe(false);
+        expect('plansDeltas' in result.manifest).toBe(false);
+        expect('techEquipmentUpdates' in result.manifest).toBe(false);
+        expect('magicSkillsUpdates' in result.manifest).toBe(false);
+        expect('worldFeaturesUpdates' in result.manifest).toBe(false);
+    });
+
     it('handles missing KB files gracefully (empty string fallback)', () => {
         // Some books may not have plans / assets KB files. Runner should
         // treat absent file as empty content, not crash.

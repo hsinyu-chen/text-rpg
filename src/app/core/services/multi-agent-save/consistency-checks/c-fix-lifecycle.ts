@@ -263,7 +263,58 @@ function cleanupSlice(input: CleanupInput): CleanupResult {
         });
     }
 
-    return { deletes, moves, updates, fixes };
+    // Step 4: merge EntityUpdate entries that landed on the same canonical
+    // name. Same anchor-conflict failure mode as delete/move: two entries
+    // for "李四" with overlapping sectionPaths would emit two replace hunks
+    // anchored to the same KB block, second fails on apply. Concatenate
+    // their .updates lists so the downstream `applyEntityUpdatesDedup`
+    // (within one entry) catches the same-sectionPath case in one place.
+    const mergedUpdates = mergeUpdatesByCanonicalName(updates, fixes, input.kind);
+
+    return { deletes, moves, updates: mergedUpdates, fixes };
+}
+
+/**
+ * Group `updates` by `.name` (already canonical) and concatenate each group's
+ * `.updates` payloads into the first occurrence. Same-sectionPath collisions
+ * inside the merged list are caught later by `cFixSectionUpdates` (called
+ * per entry by `c-fix-runner`). Emits one `merged-duplicate-update-entry`
+ * fix log per merge so the trace explains why the entry-count shrank.
+ *
+ * Bare entries (no `.updates`) merge cleanly: their undefined `.updates`
+ * contributes nothing to the concatenation. The non-bare entry's metadata
+ * wins for `reasonHint` when both carry one (last-occurrence preference,
+ * matching the dedupe-last-wins convention used elsewhere in this module).
+ */
+function mergeUpdatesByCanonicalName(
+    updates: EntityUpdate[],
+    fixes: AutoFixLog[],
+    kind: string,
+): EntityUpdate[] {
+    if (updates.length <= 1) return updates;
+    const indexByName = new Map<string, number>();
+    const merged: EntityUpdate[] = [];
+    for (const u of updates) {
+        const prevIdx = indexByName.get(u.name);
+        if (prevIdx === undefined) {
+            indexByName.set(u.name, merged.length);
+            merged.push(u);
+            continue;
+        }
+        const prev = merged[prevIdx];
+        const combined = [...(prev.updates ?? []), ...(u.updates ?? [])];
+        merged[prevIdx] = {
+            ...prev,
+            ...(u.reasonHint !== undefined ? { reasonHint: u.reasonHint } : {}),
+            ...(combined.length > 0 ? { updates: combined } : {}),
+        };
+        fixes.push({
+            domain: 'lifecycle',
+            kind: 'merged-duplicate-update-entry',
+            reason: `${kind}sToUpdate — "${u.name}": merged duplicate entry's updates into earlier entry (handler would otherwise anchor-conflict on overlapping sectionPaths)`,
+        });
+    }
+    return merged;
 }
 
 /**
