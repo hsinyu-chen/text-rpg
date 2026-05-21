@@ -13,14 +13,18 @@ export interface SectionCFixResult {
  *
  * Sub-1 scope (per plan checklist):
  * - **Same-sectionPath pure-append merge**: when the LLM emits two or more
- *   updates with the same `sectionPath` and no `target` (= append at section
- *   end), merge them into a single update whose replacement is the
- *   concatenation. Avoids the "same entry split into two visually-separated
- *   appends" failure mode the plan describes.
- *   Order-preserving — the merged update lands at the first occurrence's
- *   position; later occurrences are dropped.
+ *   updates with the same `sectionPath` and `target === undefined` (= append
+ *   at section end), merge them into a single update whose replacement is
+ *   the concatenation. Order-preserving — the merged update lands at the
+ *   first occurrence's position; later occurrences are dropped.
  * - **Empty sectionPath drop**: empty path is a no-op at the handler (matcher
  *   anchors nothing); surface in trace.
+ * - **Empty target drop**: `target === ''` matches every position and the
+ *   downstream handler refuses such entries — surface here so the trace
+ *   names the input rather than letting it disappear silently. Critically,
+ *   such an entry is NOT a pure-append candidate; merging it with a sibling
+ *   `target===undefined` would produce a combined entry that still carries
+ *   `target: ''` and gets dropped wholesale, eating the sibling's content.
  *
  * Out of scope (would be C-flag → A territory):
  * - Two updates with the same `sectionPath` where both carry `target` — the
@@ -55,8 +59,19 @@ export function cFixSectionUpdates(
             working[i] = null;
             return;
         }
-        const isPureAppend = u.target === undefined || u.target === '';
-        if (!isPureAppend) return;
+        // Degenerate `target === ''` — handler refuses, we drop with trace.
+        // Strict `=== ''` (not `!u.target`) so missing `target` (undefined)
+        // still routes to the pure-append branch below.
+        if (u.target === '') {
+            fixes.push({
+                domain: 'section',
+                kind: 'dropped-empty-target',
+                reason: `${fieldLabel} — ${u.sectionPath}: empty target matches every position; handler refuses`,
+            });
+            working[i] = null;
+            return;
+        }
+        if (u.target !== undefined) return; // Targeted update — pass through.
 
         const prevIdx = firstAppendAt.get(u.sectionPath);
         if (prevIdx === undefined) {
@@ -74,7 +89,7 @@ export function cFixSectionUpdates(
         fixes.push({
             domain: 'section',
             kind: 'merged-dup-appends',
-            reason: `${fieldLabel} — ${u.sectionPath}: merged two appends into one`,
+            reason: `${fieldLabel} — ${u.sectionPath}: merged into earlier append at same sectionPath`,
         });
     });
 

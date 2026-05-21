@@ -1,5 +1,12 @@
 import type { AppLocale } from '@app/core/constants/locales/locale.interface';
-import type { AutoFixLog, CFixResult, SaveManifest } from '../multi-agent-save.types';
+import type {
+    AutoFixLog,
+    CFixResult,
+    EntityUpdate,
+    InventoryDelta,
+    SaveManifest,
+    SectionUpdate,
+} from '../multi-agent-save.types';
 import { cFixInventory } from './c-fix-inventory';
 import { cFixLifecycle } from './c-fix-lifecycle';
 import { cFixPlans } from './c-fix-plans';
@@ -34,17 +41,9 @@ export function cFixRunner(input: CFixRunnerInput): CFixResult {
     const files = input.kbFiles;
     const fn = input.coreFilenames;
 
-    // 1. Inventory + Assets (same shape, different files).
-    {
-        const r = cFixInventory(m.inventoryDeltas ?? [], files.get(fn.INVENTORY) ?? '');
-        m = { ...m, inventoryDeltas: r.deltas };
-        fixes.push(...r.fixes);
-    }
-    {
-        const r = cFixInventory(m.assetsDeltas ?? [], files.get(fn.ASSETS) ?? '');
-        m = { ...m, assetsDeltas: r.deltas };
-        fixes.push(...r.fixes);
-    }
+    // 1. Inventory + Assets — same shape, different files.
+    m = applyDeltaSlice(m, 'inventoryDeltas', files.get(fn.INVENTORY) ?? '', cFixInventory, fixes);
+    m = applyDeltaSlice(m, 'assetsDeltas', files.get(fn.ASSETS) ?? '', cFixInventory, fixes);
 
     // 2. Plans.
     {
@@ -54,24 +53,12 @@ export function cFixRunner(input: CFixRunnerInput): CFixResult {
     }
 
     // 3. Standalone SectionUpdate[] slots.
-    {
-        const r = cFixSectionUpdates(m.techEquipmentUpdates ?? [], 'techEquipmentUpdates');
-        m = { ...m, techEquipmentUpdates: r.updates };
-        fixes.push(...r.fixes);
-    }
-    {
-        const r = cFixSectionUpdates(m.magicSkillsUpdates ?? [], 'magicSkillsUpdates');
-        m = { ...m, magicSkillsUpdates: r.updates };
-        fixes.push(...r.fixes);
-    }
-    {
-        const r = cFixSectionUpdates(m.worldFeaturesUpdates ?? [], 'worldFeaturesUpdates');
-        m = { ...m, worldFeaturesUpdates: r.updates };
-        fixes.push(...r.fixes);
-    }
+    m = applySectionSlice(m, 'techEquipmentUpdates', fixes);
+    m = applySectionSlice(m, 'magicSkillsUpdates', fixes);
+    m = applySectionSlice(m, 'worldFeaturesUpdates', fixes);
 
     // 4. Lifecycle — filters char/faction Delete/Move/Update slots, including
-    // out-of-scope entity SectionUpdate drops.
+    // out-of-scope entity SectionUpdate drops + canonical-name rewrites.
     {
         const r = cFixLifecycle(m, files, fn);
         m = r.manifest;
@@ -79,24 +66,62 @@ export function cFixRunner(input: CFixRunnerInput): CFixResult {
     }
 
     // 5. Pure-append dedupe inside surviving EntityUpdate.updates.
-    if (m.charactersToUpdate && m.charactersToUpdate.length > 0) {
-        const next = m.charactersToUpdate.map(entry => {
-            if (!entry.updates || entry.updates.length === 0) return entry;
-            const r = cFixSectionUpdates(entry.updates, `charactersToUpdate["${entry.name}"]`);
-            fixes.push(...r.fixes);
-            return { ...entry, updates: r.updates };
-        });
-        m = { ...m, charactersToUpdate: next };
-    }
-    if (m.factionsToUpdate && m.factionsToUpdate.length > 0) {
-        const next = m.factionsToUpdate.map(entry => {
-            if (!entry.updates || entry.updates.length === 0) return entry;
-            const r = cFixSectionUpdates(entry.updates, `factionsToUpdate["${entry.name}"]`);
-            fixes.push(...r.fixes);
-            return { ...entry, updates: r.updates };
-        });
-        m = { ...m, factionsToUpdate: next };
-    }
+    m = applyEntityUpdatesDedup(m, 'charactersToUpdate', fixes);
+    m = applyEntityUpdatesDedup(m, 'factionsToUpdate', fixes);
 
     return { manifest: m, fixes };
+}
+
+/**
+ * Apply an inventory-shaped c-fix to one manifest slot keyed by `field`.
+ * Internalizes the get-fix-set + accumulate-fixes pattern so the runner
+ * stays a flat sequence of one-liners instead of six near-identical IIFEs.
+ */
+function applyDeltaSlice(
+    m: SaveManifest,
+    field: 'inventoryDeltas' | 'assetsDeltas',
+    fileContent: string,
+    fix: (deltas: readonly InventoryDelta[], fileContent: string) =>
+        { deltas: InventoryDelta[]; fixes: AutoFixLog[] },
+    fixes: AutoFixLog[],
+): SaveManifest {
+    const r = fix(m[field] ?? [], fileContent);
+    fixes.push(...r.fixes);
+    return { ...m, [field]: r.deltas };
+}
+
+/**
+ * Apply the section-update c-fix to one of the standalone `SectionUpdate[]`
+ * slots (`techEquipmentUpdates`, `magicSkillsUpdates`, `worldFeaturesUpdates`).
+ */
+function applySectionSlice(
+    m: SaveManifest,
+    field: 'techEquipmentUpdates' | 'magicSkillsUpdates' | 'worldFeaturesUpdates',
+    fixes: AutoFixLog[],
+): SaveManifest {
+    const r = cFixSectionUpdates(m[field] ?? [], field);
+    fixes.push(...r.fixes);
+    return { ...m, [field]: r.updates };
+}
+
+/**
+ * Run pure-append dedupe inside each surviving `EntityUpdate.updates` for the
+ * named slot. Bare entries (sub-agent reservation, no `updates` payload) pass
+ * through. Field label in fix reasons quotes the entity name so the trace
+ * pins each dedupe to a specific entity.
+ */
+function applyEntityUpdatesDedup(
+    m: SaveManifest,
+    field: 'charactersToUpdate' | 'factionsToUpdate',
+    fixes: AutoFixLog[],
+): SaveManifest {
+    const list = m[field];
+    if (!list || list.length === 0) return m;
+    const next: EntityUpdate[] = list.map(entry => {
+        if (!entry.updates || entry.updates.length === 0) return entry;
+        const r = cFixSectionUpdates(entry.updates, `${field}["${entry.name}"]`);
+        fixes.push(...r.fixes);
+        return { ...entry, updates: r.updates as SectionUpdate[] };
+    });
+    return { ...m, [field]: next };
 }

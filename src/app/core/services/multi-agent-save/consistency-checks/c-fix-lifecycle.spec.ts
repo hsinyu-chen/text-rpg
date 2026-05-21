@@ -73,11 +73,37 @@ describe('cFixLifecycle', () => {
             expect(result.manifest.charactersToDelete).toHaveLength(1);
         });
 
-        it('tolerates aliased KB headings (李四 (Latin) matched by 李四)', () => {
+        it('rewrites sectionPath to canonical when manifest used the bare form against an aliased KB heading', () => {
+            // KB has `## 趙六 (Zhao Liu)`; manifest delete carries bare `## 趙六`.
+            // C-fix must rewrite the sectionPath to the aliased form so the
+            // downstream handler's strict-equality lookup hits — survival
+            // alone isn't enough, the path itself has to change.
             const result = run({
-                charactersToDelete: [{ sectionPath: '## 趙六', reason: '...' }],
+                charactersToDelete: [{ sectionPath: '# 已故人物 > ## 趙六', reason: '...' }],
             });
-            expect(result.manifest.charactersToDelete).toHaveLength(1);
+            expect(result.manifest.charactersToDelete).toEqual([
+                { sectionPath: '# 已故人物 > ## 趙六 (Zhao Liu)', reason: '...' },
+            ]);
+            expect(result.fixes.some(f => f.kind === 'canonicalized-op-path')).toBe(true);
+        });
+
+        it('rewrites sectionPath to canonical in the reverse direction (over-qualified manifest, bare KB)', () => {
+            // KB has bare `## 李四`; manifest delete carries `## 李四 (Li Si)`.
+            // Symmetric resolution + rewrite must shorten the path to match KB.
+            const result = run({
+                charactersToDelete: [{ sectionPath: '# 核心人物 > ## 李四 (Li Si)', reason: '...' }],
+            });
+            expect(result.manifest.charactersToDelete).toEqual([
+                { sectionPath: '# 核心人物 > ## 李四', reason: '...' },
+            ]);
+            expect(result.fixes.some(f => f.kind === 'canonicalized-op-path')).toBe(true);
+        });
+
+        it('does NOT emit a canonicalization fix when path already matches canonical', () => {
+            const result = run({
+                charactersToDelete: [{ sectionPath: '# 核心人物 > ## 李四', reason: '...' }],
+            });
+            expect(result.fixes.filter(f => f.kind === 'canonicalized-op-path')).toEqual([]);
         });
 
         it('drops delete with malformed sectionPath', () => {
@@ -208,6 +234,29 @@ describe('cFixLifecycle', () => {
             expect(result.manifest.charactersToUpdate).toEqual([
                 { name: '李四', reasonHint: 'after war' },
             ]);
+        });
+
+        it('canonicalizes EntityUpdate.name and each updates[].sectionPath under aliasing', () => {
+            // Manifest emits bare `李四`; KB has bare `## 李四` too — no rewrite.
+            // But for `趙六` (KB has aliased `趙六 (Zhao Liu)`), bare manifest
+            // input gets rewritten in both .name and nested sectionPath.
+            const result = run({
+                charactersToUpdate: [{
+                    name: '趙六',
+                    updates: [
+                        { sectionPath: '# 已故人物 > ## 趙六', target: 'a', replacement: 'b' },
+                        { sectionPath: '# 已故人物 > ## 趙六 > ### 心態', replacement: '\n- 平靜' },
+                    ],
+                }],
+            });
+            expect(result.manifest.charactersToUpdate).toEqual([{
+                name: '趙六 (Zhao Liu)',
+                updates: [
+                    { sectionPath: '# 已故人物 > ## 趙六 (Zhao Liu)', target: 'a', replacement: 'b' },
+                    { sectionPath: '# 已故人物 > ## 趙六 (Zhao Liu) > ### 心態', replacement: '\n- 平靜' },
+                ],
+            }]);
+            expect(result.fixes.some(f => f.kind === 'canonicalized-update-name')).toBe(true);
         });
 
         it('accepts L3+ deeper sectionPath under entity', () => {

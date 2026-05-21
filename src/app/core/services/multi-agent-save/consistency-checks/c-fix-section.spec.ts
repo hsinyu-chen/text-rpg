@@ -81,7 +81,12 @@ describe('cFixSectionUpdates', () => {
         expect(result.fixes).toHaveLength(1);
     });
 
-    it('treats target === "" as pure append (delete-via-empty-replacement is its own thing)', () => {
+    it('drops target === "" as degenerate (handler refuses; merging would eat the sibling)', () => {
+        // Regression: prior implementation treated target==='' as
+        // pure-append and merged it with the sibling, but the resulting
+        // entry still carried target:'' and got dropped wholesale by the
+        // handler — losing BOTH replacements. The fix drops the empty-
+        // target entry up front; the sibling pure-append survives.
         const result = cFixSectionUpdates(
             [
                 { sectionPath: '## A', target: '', replacement: 'x' },
@@ -89,10 +94,19 @@ describe('cFixSectionUpdates', () => {
             ],
             LABEL,
         );
-        // Both are pure-append → merge.
         expect(result.updates).toEqual([
-            { sectionPath: '## A', target: '', replacement: 'xy' },
+            { sectionPath: '## A', replacement: 'y' },
         ]);
+        expect(result.fixes.some(f => f.kind === 'dropped-empty-target')).toBe(true);
+    });
+
+    it('drops lone target === "" with no sibling', () => {
+        const result = cFixSectionUpdates(
+            [{ sectionPath: '## A', target: '', replacement: 'x' }],
+            LABEL,
+        );
+        expect(result.updates).toEqual([]);
+        expect(result.fixes[0]).toMatchObject({ kind: 'dropped-empty-target' });
     });
 
     it('drops update with empty sectionPath', () => {

@@ -5,6 +5,7 @@ import type {
     EntityMove,
     EntityUpdate,
     SaveManifest,
+    SectionUpdate,
 } from '../multi-agent-save.types';
 import { extractL2EntriesByGroup } from '../utils/extract-l2-entries.util';
 
@@ -21,21 +22,21 @@ export interface LifecycleCFixResult {
  * Sub-1 scope:
  *
  * 1. **Delete misses KB** — `EntityDelete.sectionPath` resolves to an entity
- *    not present in the target file → drop the op (handler-side no-op anyway,
- *    surfaced here for trace visibility).
+ *    not present in the target file → drop the op.
  * 2. **Move misses KB** — same for `EntityMove.fromSectionPath`.
- * 3. **Update misses KB (name typo)** — `EntityUpdate.name` not present →
- *    drop the entry.
- * 4. **Delete short-circuits Update** — same entity in both → drop Update;
- *    delete wins. Sub-agent / patch on something about to be deleted is
- *    wasted work.
- * 5. **Delete short-circuits Move** — same entity in both → drop Move; delete
- *    wins. Move-then-delete is degenerate.
+ * 3. **Update misses KB (name typo)** — `EntityUpdate.name` not present → drop.
+ * 4. **Delete short-circuits Update** — same entity in both → drop Update.
+ * 5. **Delete short-circuits Move** — same entity in both → drop Move.
  * 6. **Update's SectionUpdate out of scope** — `updates[].sectionPath` doesn't
  *    include `## ${entity.name}` as a segment → drop that SectionUpdate.
- *    Catches the "main LLM patched the wrong entity's block" failure mode.
+ * 7. **Canonicalize aliased entity names** — when the LLM emits a bare name
+ *    (`李四`) but the KB heading is aliased (`李四 (Li Si)`) or vice versa,
+ *    rewrite the manifest entry's sectionPath / name / nested
+ *    updates[].sectionPath to the KB-canonical form so the downstream
+ *    mechanical handler (which uses strict-equality lookups) actually finds
+ *    the section.
  *
- * Deferred to later iteration (need cross-domain visibility / body parsing):
+ * Deferred to later iteration:
  * - L1 group not in KB for `Create` / `Move.toGroup` — auto-emit the L1
  *   heading. Today the handler silently no-ops; C-flag should surface.
  * - Connected plans / inventory cleanup when entity deleted — needs body-text
@@ -97,6 +98,26 @@ interface CleanupResult {
     fixes: AutoFixLog[];
 }
 
+interface PathOpLabels {
+    /** Manifest field name for trace, e.g. `charactersToDelete`. */
+    label: string;
+    /** Field on the op that holds the path, e.g. `sectionPath` or `fromSectionPath`. */
+    pathField: string;
+    /** AutoFix kind emitted when the path can't be parsed. */
+    malformedKind: string;
+    /** AutoFix kind emitted when the parsed name doesn't resolve to a KB heading. */
+    missingKind: string;
+}
+
+interface ResolvedOpPath {
+    /** KB-canonical L2 name; safe to compare across alias variants. */
+    canonical: string;
+    /** sectionPath with the L2 segment rewritten to `## ${canonical}` if changed. */
+    rewrittenPath: string;
+    /** True when `rewrittenPath !== originalPath`. */
+    didRewrite: boolean;
+}
+
 function cleanupSlice(input: CleanupInput): CleanupResult {
     const fixes: AutoFixLog[] = [];
     const entityNames = new Set(
@@ -107,67 +128,50 @@ function cleanupSlice(input: CleanupInput): CleanupResult {
     // in the KB. Collect surviving deletes' CANONICAL (KB-known) names so
     // short-circuit checks in steps 2/3 compare apples to apples even when
     // the LLM mixes bare names with aliased headings (`李四` vs `李四 (Li
-    // Si)`).
+    // Si)`). Also rewrite each surviving op's sectionPath to the canonical
+    // form so the downstream handler's strict-equality lookup hits.
     const deletedCanonical = new Set<string>();
     const deletes: EntityDelete[] = [];
     for (const d of input.deletes) {
-        const name = entityNameFromSectionPath(d.sectionPath);
-        if (!name) {
-            fixes.push({
-                domain: 'lifecycle',
-                kind: 'dropped-malformed-delete-path',
-                reason: `${input.kind}sToDelete — unparseable sectionPath: "${d.sectionPath}"`,
-            });
-            continue;
-        }
-        const canonical = resolveEntityName(entityNames, name);
-        if (!canonical) {
-            fixes.push({
-                domain: 'lifecycle',
-                kind: 'dropped-missing-delete',
-                reason: `${input.kind}sToDelete — "${name}" not found in KB`,
-            });
-            continue;
-        }
-        deletedCanonical.add(canonical);
-        deletes.push(d);
+        const resolved = resolveOpPath(d.sectionPath, entityNames, {
+            label: `${input.kind}sToDelete`,
+            pathField: 'sectionPath',
+            malformedKind: 'dropped-malformed-delete-path',
+            missingKind: 'dropped-missing-delete',
+        }, fixes);
+        if (!resolved) continue;
+        deletedCanonical.add(resolved.canonical);
+        deletes.push(applyPathRewrite(d, 'sectionPath', resolved, fixes,
+            `${input.kind}sToDelete`));
     }
 
     // Step 2: filter moves — drop those whose source entity doesn't resolve,
     // OR whose entity is already being deleted (delete wins).
     const moves: EntityMove[] = [];
     for (const m of input.moves) {
-        const name = entityNameFromSectionPath(m.fromSectionPath);
-        if (!name) {
-            fixes.push({
-                domain: 'lifecycle',
-                kind: 'dropped-malformed-move-path',
-                reason: `${input.kind}sToMove — unparseable fromSectionPath: "${m.fromSectionPath}"`,
-            });
-            continue;
-        }
-        const canonical = resolveEntityName(entityNames, name);
-        if (!canonical) {
-            fixes.push({
-                domain: 'lifecycle',
-                kind: 'dropped-missing-move',
-                reason: `${input.kind}sToMove — "${name}" not found in KB`,
-            });
-            continue;
-        }
-        if (deletedCanonical.has(canonical)) {
+        const resolved = resolveOpPath(m.fromSectionPath, entityNames, {
+            label: `${input.kind}sToMove`,
+            pathField: 'fromSectionPath',
+            malformedKind: 'dropped-malformed-move-path',
+            missingKind: 'dropped-missing-move',
+        }, fixes);
+        if (!resolved) continue;
+        if (deletedCanonical.has(resolved.canonical)) {
             fixes.push({
                 domain: 'lifecycle',
                 kind: 'shortcircuit-move-by-delete',
-                reason: `${input.kind}sToMove — "${name}" dropped (delete wins)`,
+                reason: `${input.kind}sToMove — "${resolved.canonical}" dropped (delete wins)`,
             });
             continue;
         }
-        moves.push(m);
+        moves.push(applyPathRewrite(m, 'fromSectionPath', resolved, fixes,
+            `${input.kind}sToMove`));
     }
 
     // Step 3: filter updates — drop typo'd entities, drop entities also in
-    // deletedCanonical, filter SectionUpdate items by scope.
+    // deletedCanonical, filter SectionUpdate items by scope. Rewrite name +
+    // nested updates[].sectionPath to canonical when the LLM used a different
+    // alias form.
     const updates: EntityUpdate[] = [];
     for (const u of input.updates) {
         if (!u.name) {
@@ -196,33 +200,119 @@ function cleanupSlice(input: CleanupInput): CleanupResult {
             continue;
         }
 
+        const nameRewritten = canonical !== u.name;
+        if (nameRewritten) {
+            fixes.push({
+                domain: 'lifecycle',
+                kind: 'canonicalized-update-name',
+                reason: `${input.kind}sToUpdate — "${u.name}" rewritten to KB-canonical "${canonical}"`,
+            });
+        }
+
         if (!u.updates || u.updates.length === 0) {
-            // Bare entry — reserved for multi-call sub-agent. Pass through.
-            updates.push(u);
+            // Bare entry — reserved for multi-call sub-agent. Pass through
+            // with canonical name so downstream consumers see the resolved form.
+            updates.push(nameRewritten ? { ...u, name: canonical } : u);
             continue;
         }
 
-        const scopedUpdates = u.updates.filter(su => {
-            if (!sectionPathScopedToEntity(su.sectionPath, u.name)) {
+        const scopedUpdates: SectionUpdate[] = [];
+        for (const su of u.updates) {
+            if (!sectionPathScopedToEntity(su.sectionPath, canonical)) {
                 fixes.push({
                     domain: 'lifecycle',
                     kind: 'dropped-section-out-of-scope',
-                    reason: `${input.kind}sToUpdate — "${u.name}": SectionUpdate sectionPath "${su.sectionPath}" not scoped to entity`,
+                    reason: `${input.kind}sToUpdate — "${canonical}": SectionUpdate sectionPath "${su.sectionPath}" not scoped to entity`,
                 });
-                return false;
+                continue;
             }
-            return true;
-        });
+            // Rewrite the L2 segment to canonical for handler strict-lookup.
+            const newPath = rewriteSectionPathL2ToEntity(su.sectionPath, canonical);
+            scopedUpdates.push(newPath === su.sectionPath ? su : { ...su, sectionPath: newPath });
+        }
 
         if (scopedUpdates.length === 0) {
             // Every SectionUpdate was out-of-scope; nothing useful remains.
-            // The drop reasons above already explain why; no separate fix.
             continue;
         }
-        updates.push({ ...u, updates: scopedUpdates });
+        updates.push({
+            ...u,
+            ...(nameRewritten ? { name: canonical } : {}),
+            updates: scopedUpdates,
+        });
     }
 
     return { deletes, moves, updates, fixes };
+}
+
+/**
+ * Parse + KB-resolve the entity at the head of an op's sectionPath. Returns
+ * `null` (logging a fix) when the path is malformed or names an entity not in
+ * the KB; otherwise returns the canonical name and the (possibly rewritten)
+ * sectionPath. Shared by delete + move loops to avoid duplicating the
+ * parse / resolve / fix-log triplet.
+ */
+function resolveOpPath(
+    sectionPath: string,
+    entityNames: ReadonlySet<string>,
+    labels: PathOpLabels,
+    fixes: AutoFixLog[],
+): ResolvedOpPath | null {
+    const rawName = entityNameFromSectionPath(sectionPath);
+    if (!rawName) {
+        fixes.push({
+            domain: 'lifecycle',
+            kind: labels.malformedKind,
+            reason: `${labels.label} — unparseable ${labels.pathField}: "${sectionPath}"`,
+        });
+        return null;
+    }
+    const canonical = resolveEntityName(entityNames, rawName);
+    if (!canonical) {
+        fixes.push({
+            domain: 'lifecycle',
+            kind: labels.missingKind,
+            reason: `${labels.label} — "${rawName}" not found in KB`,
+        });
+        return null;
+    }
+    const rewrittenPath = canonical === rawName
+        ? sectionPath
+        : rewriteSectionPathL2(sectionPath, canonical);
+    return {
+        canonical,
+        rewrittenPath,
+        didRewrite: rewrittenPath !== sectionPath,
+    };
+}
+
+/**
+ * Returns either the original op (no rewrite needed) or a shallow clone with
+ * the named path field replaced by the canonical-rewritten path. Emits one
+ * `canonicalized-op-path` fix log per rewrite so the trace explains why the
+ * applied manifest differs from the LLM's.
+ *
+ * Generic over (op type T, field name F) so a single helper serves both
+ * call sites — `EntityDelete + 'sectionPath'` and `EntityMove +
+ * 'fromSectionPath'` — without forcing a union return type. The
+ * `Record<F, string>` constraint says "T must carry the named string field"
+ * and is satisfied by both EntityDelete (has sectionPath) and EntityMove
+ * (has fromSectionPath) at their respective call sites.
+ */
+function applyPathRewrite<F extends string, T extends Record<F, string>>(
+    op: T,
+    pathField: F,
+    resolved: ResolvedOpPath,
+    fixes: AutoFixLog[],
+    label: string,
+): T {
+    if (!resolved.didRewrite) return op;
+    fixes.push({
+        domain: 'lifecycle',
+        kind: 'canonicalized-op-path',
+        reason: `${label} — "${op[pathField]}" rewritten to canonical "${resolved.rewrittenPath}"`,
+    });
+    return { ...op, [pathField]: resolved.rewrittenPath };
 }
 
 /**
@@ -234,8 +324,6 @@ function cleanupSlice(input: CleanupInput): CleanupResult {
  */
 function entityNameFromSectionPath(sectionPath: string): string {
     if (!sectionPath) return '';
-    // Find the LAST `## X` segment. The breadcrumb separator is ` > ` but
-    // models drift; split on the actual ATX marker is more robust.
     const segments = sectionPath.split(/\s*>\s*/);
     for (let i = segments.length - 1; i >= 0; i--) {
         const seg = segments[i].trim();
@@ -246,18 +334,64 @@ function entityNameFromSectionPath(sectionPath: string): string {
 }
 
 /**
- * Boundary-aware alias match: returns true when `known` is either equal to
- * `candidate` or `candidate` followed by a heading-alias boundary char (` `,
- * `(`, `（`). Lets `"李四"` (bare manifest name) match the KB heading `"李四
- * (Li Si)"` without false-matching `"李四五"` (different entity).
- *
- * Single-source-of-truth helper for both `resolveEntityName` (KB lookup) and
- * `sectionPathScopedToEntity` (path-segment match).
+ * Rewrite the last `## X` segment of `sectionPath` to `## ${canonical}`,
+ * leaving L1+ ancestors and any deeper L3+ trailing segments untouched.
+ * Used to swap a model-emitted bare name for the KB-known aliased form (or
+ * vice versa) so downstream strict-equality lookups succeed.
  */
-function isAliasOrExact(known: string, candidate: string): boolean {
-    if (known === candidate) return true;
-    if (!known.startsWith(candidate)) return false;
-    const next = known.charAt(candidate.length);
+function rewriteSectionPathL2(sectionPath: string, canonical: string): string {
+    const segments = sectionPath.split(/\s*>\s*/);
+    for (let i = segments.length - 1; i >= 0; i--) {
+        if (/^##\s+/.test(segments[i].trim())) {
+            segments[i] = `## ${canonical}`;
+            return segments.join(' > ');
+        }
+    }
+    return sectionPath;
+}
+
+/**
+ * Like {@link rewriteSectionPathL2} but locates the L2 segment that matches
+ * the given canonical entity (alias-tolerant) anywhere in the breadcrumb,
+ * not necessarily the last one. Used for nested `EntityUpdate.updates[]`
+ * paths where a deeper L3+ segment may follow the entity heading
+ * (`# 核心人物 > ## 李四 > ### 心態`). Returns the original path unchanged
+ * when the entity segment already matches canonical.
+ */
+function rewriteSectionPathL2ToEntity(sectionPath: string, canonical: string): string {
+    const segments = sectionPath.split(/\s*>\s*/);
+    let changed = false;
+    for (let i = 0; i < segments.length; i++) {
+        const seg = segments[i].trim();
+        const m = seg.match(/^##\s+(.+)$/);
+        if (!m) continue;
+        const segName = m[1].trim();
+        if (segName === canonical) return sectionPath;
+        if (isAliasOrExact(segName, canonical)) {
+            segments[i] = `## ${canonical}`;
+            changed = true;
+            break;
+        }
+    }
+    return changed ? segments.join(' > ') : sectionPath;
+}
+
+/**
+ * Boundary-aware alias match: returns true when `a` and `b` are equal, OR
+ * one is a prefix of the other followed by a heading-alias boundary char
+ * (` `, `(`, `（`). Lets `"李四"` and `"李四 (Li Si)"` match in both
+ * directions without false-matching `"李四五"`.
+ *
+ * Symmetric so both `resolveEntityName` (KB heading may have or lack the
+ * alias) and `sectionPathScopedToEntity` (manifest sectionPath segment may
+ * have or lack the alias) get the same answer regardless of which side
+ * carries the longer form.
+ */
+function isAliasOrExact(a: string, b: string): boolean {
+    if (a === b) return true;
+    const [shorter, longer] = a.length < b.length ? [a, b] : [b, a];
+    if (!longer.startsWith(shorter)) return false;
+    const next = longer.charAt(shorter.length);
     return next === ' ' || next === '(' || next === '（';
 }
 
