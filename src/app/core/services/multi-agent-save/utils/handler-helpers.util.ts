@@ -71,3 +71,36 @@ export function derivePlanAtxPath(title: string): string {
     const bareTitle = title.replace(/^「/, '').replace(/」計畫$/, '').replace(/」$/, '');
     return `## 「${bareTitle}」計畫`;
 }
+
+/**
+ * Last-wins dedup: returns the items whose `keyFn(item)` is unique among the
+ * input, keeping the *last* occurrence of each key. Dropped earlier-occurrence
+ * items are passed to `onDropped` so the caller can emit per-domain fix logs.
+ *
+ * Shared by all c-fix slices (inventory / plans / lifecycle) — each had a
+ * hand-rolled `lastIndex` Map loop before. The pattern exists because every
+ * downstream mechanical handler anchors ops to the file's *original* state;
+ * two surviving ops on the same key both anchor to the same line/block and
+ * the second hunk fails on apply, losing data. Last-wins per key prevents
+ * the anchor-conflict failure mode.
+ *
+ * O(N) — single pass to build `lastIndex`, single pass to emit `out`.
+ */
+export function dedupeLastWins<T>(
+    items: readonly T[],
+    keyFn: (item: T) => string,
+    onDropped: (item: T) => void,
+): T[] {
+    if (items.length <= 1) return items.slice();
+    const lastIndex = new Map<string, number>();
+    items.forEach((item, i) => lastIndex.set(keyFn(item), i));
+    const out: T[] = [];
+    items.forEach((item, i) => {
+        if (lastIndex.get(keyFn(item)) !== i) {
+            onDropped(item);
+            return;
+        }
+        out.push(item);
+    });
+    return out;
+}

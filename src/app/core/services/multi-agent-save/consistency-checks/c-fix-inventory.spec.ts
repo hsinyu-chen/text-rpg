@@ -29,7 +29,7 @@ describe('cFixInventory', () => {
         expect(result.fixes[0].reason).toContain('assetsDeltas');
     });
 
-    describe('pass 1 — KB reconciliation', () => {
+    describe('KB reconciliation', () => {
         it('drops remove for item not in KB', () => {
             const result = cFixInventory(
                 [{ op: 'remove', item: '不存在' }],
@@ -58,7 +58,7 @@ describe('cFixInventory', () => {
             });
         });
 
-        it('converts add to update when item already in KB', () => {
+        it('converts add with details to update when item already in KB', () => {
             const result = cFixInventory(
                 [{ op: 'add', item: '玄鐵令', details: '神兵閣信物' }],
                 '- 玄鐵令 — 舊描述',
@@ -73,6 +73,33 @@ describe('cFixInventory', () => {
             });
         });
 
+        it('drops bare add (no details) against existing item to avoid clobbering description', () => {
+            // Regression: convert-to-update with undefined details renders bare
+            // `- X`, replacing the existing line and destroying the prior
+            // description. Treat null-intent "ensure exists" against existing
+            // row as a drop.
+            const result = cFixInventory(
+                [{ op: 'add', item: '玄鐵令' }],
+                '- 玄鐵令 — 舊描述',
+                LABEL,
+            );
+            expect(result.deltas).toEqual([]);
+            expect(result.fixes[0]).toMatchObject({
+                domain: 'inventory',
+                kind: 'dropped-redundant-add',
+            });
+        });
+
+        it('keeps bare add (no details) when item is genuinely new', () => {
+            const result = cFixInventory(
+                [{ op: 'add', item: '新刀' }],
+                '- 別的東西',
+                LABEL,
+            );
+            expect(result.deltas).toEqual([{ op: 'add', item: '新刀' }]);
+            expect(result.fixes).toEqual([]);
+        });
+
         it('drops delta with empty item name', () => {
             const result = cFixInventory([{ op: 'add', item: '' }], '', LABEL);
             expect(result.deltas).toEqual([]);
@@ -80,7 +107,7 @@ describe('cFixInventory', () => {
         });
     });
 
-    describe('pass 2 — same-item dedupe (regardless of op)', () => {
+    describe('same-item dedupe (dedup-first, keep last regardless of op)', () => {
         it('drops earlier dup adds, keeps the last (LLM repeated 玄鐵令 × 3)', () => {
             const result = cFixInventory(
                 [
@@ -112,14 +139,14 @@ describe('cFixInventory', () => {
                 LABEL,
             );
             expect(result.deltas).toEqual([
-                // last op (add) wins dedupe; pass 1 converts add→update since
+                // last op (add) wins dedupe; KB recon converts add→update since
                 // 短刀 is in KB → single replace hunk, no anchor conflict.
                 { op: 'update', item: '短刀', details: '新撿到的' },
             ]);
             expect(result.fixes.some(f => f.kind === 'dropped-stale-dup-item')).toBe(true);
         });
 
-        it('collapses [add X, remove X] cancellation to single remove', () => {
+        it('collapses [add X, remove X] cancellation to single remove (item in KB)', () => {
             const result = cFixInventory(
                 [
                     { op: 'add', item: 'X', details: 'A' },
@@ -128,8 +155,26 @@ describe('cFixInventory', () => {
                 '- X — 既有',
                 LABEL,
             );
-            // remove wins (last); item in KB so remove survives pass 1.
             expect(result.deltas).toEqual([{ op: 'remove', item: 'X' }]);
+        });
+
+        it('collapses [add X, remove X] cancellation to empty when item NOT in KB (no phantom add)', () => {
+            // Regression: with KB-first ordering, `remove X` was dropped
+            // (nothing to remove) and `add X` slipped through as a phantom
+            // addition. Dedup-first collapses to `remove X` first, then KB
+            // recon drops it for missing — net result: nothing, matching the
+            // LLM's net intent ("I added it then removed it").
+            const result = cFixInventory(
+                [
+                    { op: 'add', item: 'X', details: 'A' },
+                    { op: 'remove', item: 'X' },
+                ],
+                '',
+                LABEL,
+            );
+            expect(result.deltas).toEqual([]);
+            expect(result.fixes.some(f => f.kind === 'dropped-stale-dup-item')).toBe(true);
+            expect(result.fixes.some(f => f.kind === 'dropped-missing-remove')).toBe(true);
         });
 
         it('keeps last update when LLM updates the same item twice', () => {
@@ -161,9 +206,9 @@ describe('cFixInventory', () => {
     });
 
     describe('combined cases', () => {
-        it('handles update of missing item then dup add (pass 1 + pass 2 interplay)', () => {
-            // Pass 1: update X (not in KB) → add X (A); add X (B) stays.
-            // Pass 2: two adds for X, keep last (B).
+        it('handles update of missing item then dup add (dedupe + KB recon interplay)', () => {
+            // Dedupe: two ops on X, keep last (add X (B)).
+            // KB recon: empty file, X is new → stays add.
             const result = cFixInventory(
                 [
                     { op: 'update', item: 'X', details: 'A' },

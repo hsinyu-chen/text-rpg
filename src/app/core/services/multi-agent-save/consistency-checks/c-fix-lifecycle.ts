@@ -8,6 +8,7 @@ import type {
     SectionUpdate,
 } from '../multi-agent-save.types';
 import { extractL2EntriesByGroup } from '../utils/extract-l2-entries.util';
+import { dedupeLastWins } from '../utils/handler-helpers.util';
 
 export interface LifecycleCFixResult {
     manifest: SaveManifest;
@@ -290,22 +291,17 @@ function dedupeOpsByCanonical<TOp, TResolved extends { canonical: string }>(
         const r = resolve(op);
         if (r) resolved.push({ op, resolved: r });
     }
-    const lastIndex = new Map<string, number>();
-    resolved.forEach((r, i) => lastIndex.set(r.resolved.canonical, i));
-    const entries: TOp[] = [];
-    const canonicalSet = new Set<string>();
-    resolved.forEach((r, i) => {
-        if (lastIndex.get(r.resolved.canonical) !== i) {
-            fixes.push({
-                domain: 'lifecycle',
-                kind: labels.dupKind,
-                reason: `${labels.opLabel} — "${r.resolved.canonical}": dropped (later op on same entity supersedes; handler would otherwise anchor-conflict)`,
-            });
-            return;
-        }
-        entries.push(rewrite(r.op, r.resolved));
-        canonicalSet.add(r.resolved.canonical);
-    });
+    const surviving = dedupeLastWins(
+        resolved,
+        r => r.resolved.canonical,
+        r => fixes.push({
+            domain: 'lifecycle',
+            kind: labels.dupKind,
+            reason: `${labels.opLabel} — "${r.resolved.canonical}": dropped (later op on same entity supersedes; handler would otherwise anchor-conflict)`,
+        }),
+    );
+    const entries = surviving.map(r => rewrite(r.op, r.resolved));
+    const canonicalSet = new Set(surviving.map(r => r.resolved.canonical));
     return { entries, canonicalSet };
 }
 
