@@ -274,6 +274,11 @@ export class FileViewerDialogComponent implements OnDestroy {
         this.unsavedFiles.update(s => new Set(s).add(replaced.filename));
       }
       this.isDiffView.set(true);
+      // Drain after consume — the signal is "the most recent agent run's
+      // batch", not durable state, so leaving it set would re-light the
+      // unsaved indicator on the next dialog mount for files the user has
+      // already saved.
+      this.fileAgentService.clearLastFilesReplaced();
     });
 
     // Effect to sync content when active file changes

@@ -140,13 +140,20 @@ export class AgentCapabilityResolver {
      * on `probeResults` / `parallelProbeResults` and feed into auto-mode
      * resolution. Errors are swallowed — falling back to the static
      * default is the safe behavior.
+     *
+     * `options.force` bypasses the cached-success and recent-failure skip
+     * conditions but still honors the inflight dedupe — used by the
+     * panel-open trigger to reprobe llama.cpp after an external model
+     * swap, where the cached verdict from a prior GGUF is stale.
      */
-    async kickToolSupportProbe(profileId: string): Promise<void> {
+    async kickToolSupportProbe(profileId: string, options?: { force?: boolean }): Promise<void> {
         const profile = this.deps.agentProfiles().find(p => p.id === profileId);
         if (!profile) return;
 
         const provider = this.deps.llmProviderRegistry.getProvider(profile.provider);
         if (!provider) return;
+
+        const force = options?.force === true;
 
         // Skip when a verdict is already cached (sibling instance recorded
         // a SUCCESS — those are permanent), when a sibling probe is
@@ -157,9 +164,9 @@ export class AgentCapabilityResolver {
         // permanent JSON-mode verdict until F5. `Date.now()` is read at
         // each check site (not hoisted), because the native await can
         // span the TTL window before the parallel branch evaluates.
-        const alreadyProbed = profileId in this.deps.probeResults();
+        const alreadyProbed = !force && (profileId in this.deps.probeResults());
         const lastFailure = this.deps.probeFailureTimestamps()[profileId];
-        const recentlyFailed = typeof lastFailure === 'number' && (Date.now() - lastFailure) < PROBE_FAILURE_TTL_MS;
+        const recentlyFailed = !force && typeof lastFailure === 'number' && (Date.now() - lastFailure) < PROBE_FAILURE_TTL_MS;
         if (readExplicitNativeFlag(profile.settings) === undefined && provider.probeNativeToolSupport && !alreadyProbed && !recentlyFailed && !this.deps.probeInflight.has(profileId)) {
             this.deps.probeInflight.add(profileId);
             try {
@@ -174,9 +181,9 @@ export class AgentCapabilityResolver {
         }
 
         const parallelExplicit = profile.settings.additionalSettings?.['supportsParallelToolCalls'];
-        const alreadyProbedParallel = profileId in this.deps.parallelProbeResults();
+        const alreadyProbedParallel = !force && (profileId in this.deps.parallelProbeResults());
         const lastParallelFailure = this.deps.parallelProbeFailureTimestamps()[profileId];
-        const parallelRecentlyFailed = typeof lastParallelFailure === 'number' && (Date.now() - lastParallelFailure) < PROBE_FAILURE_TTL_MS;
+        const parallelRecentlyFailed = !force && typeof lastParallelFailure === 'number' && (Date.now() - lastParallelFailure) < PROBE_FAILURE_TTL_MS;
         if (typeof parallelExplicit !== 'boolean' && provider.probeParallelToolSupport && !alreadyProbedParallel && !parallelRecentlyFailed && !this.deps.parallelProbeInflight.has(profileId)) {
             this.deps.parallelProbeInflight.add(profileId);
             try {
