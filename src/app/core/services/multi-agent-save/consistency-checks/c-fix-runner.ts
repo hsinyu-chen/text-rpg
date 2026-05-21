@@ -3,9 +3,7 @@ import type {
     AutoFixLog,
     CFixResult,
     EntityUpdate,
-    InventoryDelta,
     SaveManifest,
-    SectionUpdate,
 } from '../multi-agent-save.types';
 import { cFixInventory } from './c-fix-inventory';
 import { cFixLifecycle } from './c-fix-lifecycle';
@@ -41,9 +39,11 @@ export function cFixRunner(input: CFixRunnerInput): CFixResult {
     const files = input.kbFiles;
     const fn = input.coreFilenames;
 
-    // 1. Inventory + Assets — same shape, different files.
-    m = applyDeltaSlice(m, 'inventoryDeltas', files.get(fn.INVENTORY) ?? '', cFixInventory, fixes);
-    m = applyDeltaSlice(m, 'assetsDeltas', files.get(fn.ASSETS) ?? '', cFixInventory, fixes);
+    // 1. Inventory + Assets — same shape, different files. fieldLabel doubles
+    //    as the trace prefix so c-fix logs name the actual manifest slot
+    //    rather than always saying "inventory".
+    m = applyInventorySlice(m, 'inventoryDeltas', files.get(fn.INVENTORY) ?? '', fixes);
+    m = applyInventorySlice(m, 'assetsDeltas', files.get(fn.ASSETS) ?? '', fixes);
 
     // 2. Plans.
     {
@@ -73,19 +73,17 @@ export function cFixRunner(input: CFixRunnerInput): CFixResult {
 }
 
 /**
- * Apply an inventory-shaped c-fix to one manifest slot keyed by `field`.
- * Internalizes the get-fix-set + accumulate-fixes pattern so the runner
- * stays a flat sequence of one-liners instead of six near-identical IIFEs.
+ * Apply `cFixInventory` to one inventory-shaped manifest slot. The slot's
+ * field name doubles as the trace label so fix reasons read e.g.
+ * `assetsDeltas — remove "X": item not in slot`.
  */
-function applyDeltaSlice(
+function applyInventorySlice(
     m: SaveManifest,
     field: 'inventoryDeltas' | 'assetsDeltas',
     fileContent: string,
-    fix: (deltas: readonly InventoryDelta[], fileContent: string) =>
-        { deltas: InventoryDelta[]; fixes: AutoFixLog[] },
     fixes: AutoFixLog[],
 ): SaveManifest {
-    const r = fix(m[field] ?? [], fileContent);
+    const r = cFixInventory(m[field] ?? [], fileContent, field);
     fixes.push(...r.fixes);
     return { ...m, [field]: r.deltas };
 }
@@ -121,7 +119,7 @@ function applyEntityUpdatesDedup(
         if (!entry.updates || entry.updates.length === 0) return entry;
         const r = cFixSectionUpdates(entry.updates, `${field}["${entry.name}"]`);
         fixes.push(...r.fixes);
-        return { ...entry, updates: r.updates as SectionUpdate[] };
+        return { ...entry, updates: r.updates };
     });
     return { ...m, [field]: next };
 }

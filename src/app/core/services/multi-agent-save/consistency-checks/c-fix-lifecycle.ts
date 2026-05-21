@@ -130,43 +130,63 @@ function cleanupSlice(input: CleanupInput): CleanupResult {
     // the LLM mixes bare names with aliased headings (`李四` vs `李四 (Li
     // Si)`). Also rewrite each surviving op's sectionPath to the canonical
     // form so the downstream handler's strict-equality lookup hits.
-    const deletedCanonical = new Set<string>();
-    const deletes: EntityDelete[] = [];
-    for (const d of input.deletes) {
-        const resolved = resolveOpPath(d.sectionPath, entityNames, {
+    //
+    // Dedupe by canonical, keep last — two deletes for the same entity would
+    // both anchor to the same KB block; downstream handler emits two delete
+    // hunks targeting the same lines, the second fails on apply.
+    const deletedCanonical = dedupeOpsByCanonical(
+        input.deletes,
+        d => resolveOpPath(d.sectionPath, entityNames, {
             label: `${input.kind}sToDelete`,
             pathField: 'sectionPath',
             malformedKind: 'dropped-malformed-delete-path',
             missingKind: 'dropped-missing-delete',
-        }, fixes);
-        if (!resolved) continue;
-        deletedCanonical.add(resolved.canonical);
-        deletes.push(applyPathRewrite(d, 'sectionPath', resolved, fixes,
-            `${input.kind}sToDelete`));
-    }
+        }, fixes),
+        (d, resolved) => applyPathRewrite(d, 'sectionPath', resolved, fixes,
+            `${input.kind}sToDelete`),
+        fixes,
+        {
+            opLabel: `${input.kind}sToDelete`,
+            dupKind: 'dropped-stale-dup-delete',
+        },
+    );
+    const deletes = deletedCanonical.entries;
+    const deletedNames = deletedCanonical.canonicalSet;
 
     // Step 2: filter moves — drop those whose source entity doesn't resolve,
-    // OR whose entity is already being deleted (delete wins).
-    const moves: EntityMove[] = [];
-    for (const m of input.moves) {
-        const resolved = resolveOpPath(m.fromSectionPath, entityNames, {
-            label: `${input.kind}sToMove`,
-            pathField: 'fromSectionPath',
-            malformedKind: 'dropped-malformed-move-path',
-            missingKind: 'dropped-missing-move',
-        }, fixes);
-        if (!resolved) continue;
-        if (deletedCanonical.has(resolved.canonical)) {
-            fixes.push({
-                domain: 'lifecycle',
-                kind: 'shortcircuit-move-by-delete',
-                reason: `${input.kind}sToMove — "${resolved.canonical}" dropped (delete wins)`,
-            });
-            continue;
-        }
-        moves.push(applyPathRewrite(m, 'fromSectionPath', resolved, fixes,
-            `${input.kind}sToMove`));
-    }
+    // OR whose entity is already being deleted (delete wins). Also dedupe
+    // surviving moves by canonical — two moves for the same entity to
+    // different toGroups would otherwise duplicate the block across both
+    // groups (delete anchors collide, but each append still fires).
+    const moveResolution = dedupeOpsByCanonical(
+        input.moves,
+        m => {
+            const r = resolveOpPath(m.fromSectionPath, entityNames, {
+                label: `${input.kind}sToMove`,
+                pathField: 'fromSectionPath',
+                malformedKind: 'dropped-malformed-move-path',
+                missingKind: 'dropped-missing-move',
+            }, fixes);
+            if (!r) return null;
+            if (deletedNames.has(r.canonical)) {
+                fixes.push({
+                    domain: 'lifecycle',
+                    kind: 'shortcircuit-move-by-delete',
+                    reason: `${input.kind}sToMove — "${r.canonical}" dropped (delete wins)`,
+                });
+                return null;
+            }
+            return r;
+        },
+        (m, resolved) => applyPathRewrite(m, 'fromSectionPath', resolved, fixes,
+            `${input.kind}sToMove`),
+        fixes,
+        {
+            opLabel: `${input.kind}sToMove`,
+            dupKind: 'dropped-stale-dup-move',
+        },
+    );
+    const moves = moveResolution.entries;
 
     // Step 3: filter updates — drop typo'd entities, drop entities also in
     // deletedCanonical, filter SectionUpdate items by scope. Rewrite name +
@@ -191,7 +211,7 @@ function cleanupSlice(input: CleanupInput): CleanupResult {
             });
             continue;
         }
-        if (deletedCanonical.has(canonical)) {
+        if (deletedNames.has(canonical)) {
             fixes.push({
                 domain: 'lifecycle',
                 kind: 'shortcircuit-update-by-delete',
@@ -243,6 +263,50 @@ function cleanupSlice(input: CleanupInput): CleanupResult {
     }
 
     return { deletes, moves, updates, fixes };
+}
+
+/**
+ * Resolve every op via `resolve` (which logs malformed / missing / short-
+ * circuit fixes as it goes), then dedupe surviving ops by canonical name
+ * keeping the last occurrence. Earlier dups get a `dupKind` fix log so the
+ * trace explains why the manifest dropped them.
+ *
+ * Shared by delete + move loops — the anchor-conflict failure mode
+ * (downstream handler emits two hunks targeting the same KB block, second
+ * fails on apply) applies identically to both, so the dedup strategy
+ * (last-wins) is identical too. `resolve` carries the op-specific path
+ * extraction + short-circuit logic; `rewrite` produces the canonical-
+ * rewritten op shape returned to the caller.
+ */
+function dedupeOpsByCanonical<TOp, TResolved extends { canonical: string }>(
+    ops: readonly TOp[],
+    resolve: (op: TOp) => TResolved | null,
+    rewrite: (op: TOp, resolved: TResolved) => TOp,
+    fixes: AutoFixLog[],
+    labels: { opLabel: string; dupKind: string },
+): { entries: TOp[]; canonicalSet: Set<string> } {
+    const resolved: { op: TOp; resolved: TResolved }[] = [];
+    for (const op of ops) {
+        const r = resolve(op);
+        if (r) resolved.push({ op, resolved: r });
+    }
+    const lastIndex = new Map<string, number>();
+    resolved.forEach((r, i) => lastIndex.set(r.resolved.canonical, i));
+    const entries: TOp[] = [];
+    const canonicalSet = new Set<string>();
+    resolved.forEach((r, i) => {
+        if (lastIndex.get(r.resolved.canonical) !== i) {
+            fixes.push({
+                domain: 'lifecycle',
+                kind: labels.dupKind,
+                reason: `${labels.opLabel} — "${r.resolved.canonical}": dropped (later op on same entity supersedes; handler would otherwise anchor-conflict)`,
+            });
+            return;
+        }
+        entries.push(rewrite(r.op, r.resolved));
+        canonicalSet.add(r.resolved.canonical);
+    });
+    return { entries, canonicalSet };
 }
 
 /**

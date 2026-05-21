@@ -10,18 +10,27 @@ export interface PlansCFixResult {
  * Mechanical C-fix for `plansDeltas`.
  * See TextRPG_Plans/doing/multi-agent-save-per-domain-checks.md (Sub-1).
  *
- * Sub-1 scope (per plan checklist):
- * - `op: 'remove'` for plans whose title isn't in the plan KB → drop the op
- *   (nothing to remove; the underlying handler would silently no-op).
+ * Two passes — pass 1 reconciles each delta with the plan KB, pass 2 dedupes:
+ *
+ * **Pass 1 — per-delta against KB:**
  * - Empty `title` → drop (handler-side `continue` would silently skip; logging
  *   here surfaces the LLM-emitted-garbage case in the trace).
+ * - `op: 'remove'` whose title isn't a single L2 block in the plan KB → drop.
+ *   `lookupSectionBlock` returns `null` for both "not found" AND
+ *   "ambiguous (multiple matches)"; we can't distinguish here, so the
+ *   reason names both possibilities.
+ *
+ * **Pass 2 — same-title dedupe (keep last, regardless of op):**
+ * - Same anchor-conflict risk as inventory: the plan handler anchors each
+ *   `remove` / `update` op to the file's *original* L2 block text. Two ops
+ *   touching the same plan would emit hunks targeting the same block, the
+ *   second hunk fails on apply ("target not found"), and the plan is lost.
+ * - Dedupe by `title`, keep last. `[remove P, update P]` collapses to
+ *   `update P`; `[add P, remove P]` to `remove P`; etc.
  *
  * Deferred to later iteration (need cross-domain visibility / body parsing):
  * - orphan-owner: plan whose bound character is in `charactersToDelete` →
  *   connected remove. Needs body-text scan for owner reference.
- * - dup-on-add: same-title repeated `add` in one batch. Not in plan checklist
- *   today; symmetric with inventory's dedupe pass but kept out for scope
- *   discipline.
  *
  * Pure function; caller supplies the KB file snapshot.
  */
@@ -32,15 +41,16 @@ export function cFixPlans(
     if (deltas.length === 0) return { deltas: [], fixes: [] };
 
     const lines = fileContent.split('\n');
-    const out: PlanDelta[] = [];
     const fixes: AutoFixLog[] = [];
 
+    // Pass 1: per-delta reconciliation against KB.
+    const intermediate: PlanDelta[] = [];
     for (const delta of deltas) {
         if (!delta.title) {
             fixes.push({
                 domain: 'plans',
                 kind: 'dropped-empty-title',
-                reason: `${delta.op} with empty title`,
+                reason: `plansDeltas — ${delta.op} with empty title`,
             });
             continue;
         }
@@ -50,13 +60,31 @@ export function cFixPlans(
                 fixes.push({
                     domain: 'plans',
                     kind: 'dropped-missing-remove',
-                    reason: `remove "${delta.title}" — plan not found in KB`,
+                    reason: `plansDeltas — remove "${delta.title}": plan not found or ambiguous in KB`,
                 });
                 continue;
             }
         }
-        out.push(delta);
+        intermediate.push(delta);
     }
+
+    // Pass 2: same-title dedupe, keep last regardless of op. Avoids the
+    // anchor-conflict failure mode where two ops on the same plan emit
+    // hunks targeting the same original block.
+    const lastIndex = new Map<string, number>();
+    intermediate.forEach((delta, i) => lastIndex.set(delta.title, i));
+    const out: PlanDelta[] = [];
+    intermediate.forEach((delta, i) => {
+        if (lastIndex.get(delta.title) !== i) {
+            fixes.push({
+                domain: 'plans',
+                kind: 'dropped-stale-dup-title',
+                reason: `plansDeltas — ${delta.op} "${delta.title}": dropped (later op on same plan supersedes; handler would otherwise anchor-conflict)`,
+            });
+            return;
+        }
+        out.push(delta);
+    });
 
     return { deltas: out, fixes };
 }

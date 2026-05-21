@@ -106,6 +106,23 @@ describe('cFixLifecycle', () => {
             expect(result.fixes.filter(f => f.kind === 'canonicalized-op-path')).toEqual([]);
         });
 
+        it('dedupes multiple deletes for the same canonical entity (keep last)', () => {
+            // Two deletes for the same entity → handler would emit two delete
+            // hunks targeting the same KB block; second fails on apply. Kept
+            // entry is the LAST one (with its original sectionPath; the
+            // rewriter only changes the L2 segment if alias mismatch).
+            const result = run({
+                charactersToDelete: [
+                    { sectionPath: '# 核心人物 > ## 李四', reason: 'first' },
+                    { sectionPath: '## 李四', reason: 'second' },
+                ],
+            });
+            expect(result.manifest.charactersToDelete).toEqual([
+                { sectionPath: '## 李四', reason: 'second' },
+            ]);
+            expect(result.fixes.some(f => f.kind === 'dropped-stale-dup-delete')).toBe(true);
+        });
+
         it('drops delete with malformed sectionPath', () => {
             const result = run({
                 charactersToDelete: [{ sectionPath: 'no atx marker here', reason: '...' }],
@@ -139,6 +156,23 @@ describe('cFixLifecycle', () => {
             });
             expect(result.manifest.charactersToMove).toEqual([]);
             expect(result.fixes.some(f => f.kind === 'shortcircuit-move-by-delete')).toBe(true);
+        });
+
+        it('dedupes multiple moves of the same canonical entity (keep last toGroup)', () => {
+            // Two moves for the same entity to different toGroups would
+            // delete the source block once (second delete fails) BUT each
+            // append still fires — entity ends up in BOTH target groups.
+            // Last-wins dedup keeps only the latest intent.
+            const result = run({
+                charactersToMove: [
+                    { fromSectionPath: '# 核心人物 > ## 李四', toGroup: '已故人物', reason: 'died' },
+                    { fromSectionPath: '# 核心人物 > ## 李四', toGroup: '失蹤人物', reason: 'oops, just missing' },
+                ],
+            });
+            expect(result.manifest.charactersToMove).toEqual([
+                { fromSectionPath: '# 核心人物 > ## 李四', toGroup: '失蹤人物', reason: 'oops, just missing' },
+            ]);
+            expect(result.fixes.some(f => f.kind === 'dropped-stale-dup-move')).toBe(true);
         });
 
         it('short-circuits move under alias mismatch (bare delete path, aliased move path)', () => {

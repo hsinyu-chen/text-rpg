@@ -73,16 +73,54 @@ describe('cFixPlans', () => {
         expect(result.fixes[0]).toMatchObject({ kind: 'dropped-empty-title' });
     });
 
-    it('does NOT validate adds against KB (multiple adds with same title pass through)', () => {
-        // Sub-1 scope: only remove is reconciled. dup-add merging is deferred.
+    it('uses "not found or ambiguous" reason for missing-remove (lookupSectionBlock conflates both)', () => {
         const result = cFixPlans(
-            [
-                { op: 'add', title: '奪回神兵', body: 'duplicate of existing' },
-                { op: 'add', title: '奪回神兵', body: 'another duplicate' },
-            ],
+            [{ op: 'remove', title: '不存在的計畫' }],
             PLAN_KB,
         );
-        expect(result.deltas).toHaveLength(2);
-        expect(result.fixes).toEqual([]);
+        expect(result.fixes[0].reason).toContain('not found or ambiguous');
+    });
+
+    describe('pass 2 — same-title dedupe (regardless of op)', () => {
+        it('collapses dup adds, keeps the last', () => {
+            const result = cFixPlans(
+                [
+                    { op: 'add', title: '新計畫', body: 'A' },
+                    { op: 'add', title: '新計畫', body: 'B' },
+                ],
+                PLAN_KB,
+            );
+            expect(result.deltas).toEqual([{ op: 'add', title: '新計畫', body: 'B' }]);
+            expect(result.fixes.some(f => f.kind === 'dropped-stale-dup-title')).toBe(true);
+        });
+
+        it('collapses [remove P, update P] for existing plan to single update (avoids handler anchor-conflict)', () => {
+            // Regression: previously both ops survived; handler emitted
+            // delete + replace targeting the same L2 block, second hunk
+            // failed on apply, plan was lost.
+            const result = cFixPlans(
+                [
+                    { op: 'remove', title: '奪回神兵' },
+                    { op: 'update', title: '奪回神兵', body: '新版本' },
+                ],
+                PLAN_KB,
+            );
+            expect(result.deltas).toEqual([
+                { op: 'update', title: '奪回神兵', body: '新版本' },
+            ]);
+            expect(result.fixes.some(f => f.kind === 'dropped-stale-dup-title')).toBe(true);
+        });
+
+        it('does NOT dedupe different titles', () => {
+            const result = cFixPlans(
+                [
+                    { op: 'add', title: 'A', body: 'a' },
+                    { op: 'add', title: 'B', body: 'b' },
+                ],
+                PLAN_KB,
+            );
+            expect(result.deltas).toHaveLength(2);
+            expect(result.fixes).toEqual([]);
+        });
     });
 });

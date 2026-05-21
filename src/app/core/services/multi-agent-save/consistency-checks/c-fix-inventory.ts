@@ -7,7 +7,9 @@ export interface InventoryCFixResult {
 }
 
 /**
- * Mechanical C-fix for `inventoryDeltas` / `assetsDeltas` (same shape).
+ * Mechanical C-fix for `inventoryDeltas` / `assetsDeltas` (same shape,
+ * different files). The runner threads `fieldLabel` so trace logs name
+ * the actual manifest slot instead of always saying "inventory".
  * See TextRPG_Plans/doing/multi-agent-save-per-domain-checks.md (Sub-1).
  *
  * Two passes — pass 1 reconciles each delta against the KB file state, pass 2
@@ -21,18 +23,26 @@ export interface InventoryCFixResult {
  * 3. `op: 'add'` for items already in KB → convert to `update` so the
  *    existing line is replaced rather than a duplicate appended
  *
- * **Pass 2 — same op + same item dedupe (keep last):**
- * - When the LLM repeats `add 玄鐵令` three times in one batch (an observed
- *   real failure mode), the first two are dropped and only the last survives.
- * - Different-op duplicates (e.g. `remove X` + `add X`) are NOT collapsed —
- *   the handler processes deltas in order and the combined effect is a valid
- *   replace-cycle.
+ * **Pass 2 — same-item dedupe (keep last, regardless of op):**
+ * - The downstream handler anchors every op to the file's *original* state.
+ *   If two ops touching the same item both survive, they emit hunks
+ *   targeting the same line; FileUpdateService applies them sequentially
+ *   and the second one fails ("target not found") — losing the item.
+ * - Therefore: dedupe strictly by `item`, keep the *last* op. A
+ *   `[remove X, add X]` sequence collapses to `add X`, which pass 1 then
+ *   converts to `update X` if X was already in KB — clean in-place
+ *   replacement. A `[add X, remove X]` cancellation collapses to
+ *   `remove X` (dropped by pass 1 if X isn't in KB; otherwise emits a
+ *   single delete). All cases produce ≤ 1 hunk per item, sidestepping
+ *   the handler's anchor-conflict failure mode.
  *
- * Pure function; caller (`c-fix-runner`) supplies the KB file snapshot.
+ * Pure function; caller (`c-fix-runner`) supplies the KB file snapshot + the
+ * manifest field name as `fieldLabel`.
  */
 export function cFixInventory(
     deltas: readonly InventoryDelta[],
     fileContent: string,
+    fieldLabel: string,
 ): InventoryCFixResult {
     if (deltas.length === 0) return { deltas: [], fixes: [] };
 
@@ -49,7 +59,7 @@ export function cFixInventory(
             fixes.push({
                 domain: 'inventory',
                 kind: 'dropped-empty-item',
-                reason: `${delta.op} with empty item name`,
+                reason: `${fieldLabel} — ${delta.op} with empty item name`,
             });
             continue;
         }
@@ -58,7 +68,7 @@ export function cFixInventory(
             fixes.push({
                 domain: 'inventory',
                 kind: 'dropped-missing-remove',
-                reason: `remove "${delta.item}" — item not in inventory`,
+                reason: `${fieldLabel} — remove "${delta.item}": item not in slot`,
             });
             continue;
         }
@@ -66,7 +76,7 @@ export function cFixInventory(
             fixes.push({
                 domain: 'inventory',
                 kind: 'update-fallback-to-add',
-                reason: `update "${delta.item}" — item not in inventory, converted to add`,
+                reason: `${fieldLabel} — update "${delta.item}": item not in slot, converted to add`,
             });
             intermediate.push({ ...delta, op: 'add' });
             continue;
@@ -75,7 +85,7 @@ export function cFixInventory(
             fixes.push({
                 domain: 'inventory',
                 kind: 'add-merged-to-update',
-                reason: `add "${delta.item}" — item already in inventory, converted to update`,
+                reason: `${fieldLabel} — add "${delta.item}": item already in slot, converted to update`,
             });
             intermediate.push({ ...delta, op: 'update' });
             continue;
@@ -83,22 +93,19 @@ export function cFixInventory(
         intermediate.push(delta);
     }
 
-    // Pass 2: same-op same-item dedupe, keep last.
+    // Pass 2: same-item dedupe, keep last regardless of op.
     //
-    // Pre-compute last-index per (op, item) key so the second loop can drop
-    // earlier occurrences in a single pass — O(N) instead of O(N²) splicing.
+    // Pre-compute last-index per item so the second loop can drop earlier
+    // occurrences in a single pass — O(N) instead of O(N²) splicing.
     const lastIndex = new Map<string, number>();
-    intermediate.forEach((delta, i) => {
-        lastIndex.set(`${delta.op}::${delta.item}`, i);
-    });
+    intermediate.forEach((delta, i) => lastIndex.set(delta.item, i));
     const out: InventoryDelta[] = [];
     intermediate.forEach((delta, i) => {
-        const key = `${delta.op}::${delta.item}`;
-        if (lastIndex.get(key) !== i) {
+        if (lastIndex.get(delta.item) !== i) {
             fixes.push({
                 domain: 'inventory',
-                kind: 'dropped-stale-same-op-dup',
-                reason: `${delta.op} "${delta.item}" — dropped (later ${delta.op} for same item in batch supersedes)`,
+                kind: 'dropped-stale-dup-item',
+                reason: `${fieldLabel} — ${delta.op} "${delta.item}": dropped (later op on same item supersedes; handler would otherwise anchor-conflict)`,
             });
             return;
         }
