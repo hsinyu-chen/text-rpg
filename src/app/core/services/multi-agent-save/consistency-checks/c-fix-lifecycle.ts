@@ -188,11 +188,12 @@ function cleanupSlice(input: CleanupInput): CleanupResult {
         },
     );
     const moves = moveResolution.entries;
+    const movedNames = moveResolution.canonicalSet;
 
-    // Step 3: filter updates — drop typo'd entities, drop entities also in
-    // deletedCanonical, filter SectionUpdate items by scope. Rewrite name +
-    // nested updates[].sectionPath to canonical when the LLM used a different
-    // alias form.
+    // Step 3: filter updates — drop typo'd entities, short-circuit entities
+    // also being deleted or moved, filter SectionUpdate items by scope.
+    // Rewrite name + nested updates[].sectionPath to canonical when the LLM
+    // used a different alias form.
     const updates: EntityUpdate[] = [];
     for (const u of input.updates) {
         if (!u.name) {
@@ -212,11 +213,16 @@ function cleanupSlice(input: CleanupInput): CleanupResult {
             });
             continue;
         }
-        if (deletedNames.has(canonical)) {
+        if (deletedNames.has(canonical) || movedNames.has(canonical)) {
+            // Move + update on the same entity would emit two hunks anchored
+            // to the same KB block (move's strict-lookup target ≡ update's
+            // replace target on the entity heading line); second hunk fails
+            // on apply, losing the update. Same shape as delete-vs-update.
+            const winner = deletedNames.has(canonical) ? 'delete' : 'move';
             fixes.push({
                 domain: 'lifecycle',
-                kind: 'shortcircuit-update-by-delete',
-                reason: `${input.kind}sToUpdate — "${u.name}" dropped (delete wins)`,
+                kind: `shortcircuit-update-by-${winner}`,
+                reason: `${input.kind}sToUpdate — "${u.name}" dropped (${winner} wins)`,
             });
             continue;
         }

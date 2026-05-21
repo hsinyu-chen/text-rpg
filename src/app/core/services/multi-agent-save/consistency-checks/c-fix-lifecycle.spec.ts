@@ -216,6 +216,26 @@ describe('cFixLifecycle', () => {
             expect(result.fixes.some(f => f.kind === 'shortcircuit-update-by-delete')).toBe(true);
         });
 
+        it('short-circuits update when same entity is being moved', () => {
+            // Same shape as delete-vs-update: move's strict-lookup target on
+            // the L2 heading and update's replace target on the same heading
+            // both anchor to the same KB block; second hunk would fail on
+            // apply, losing the update.
+            const result = run({
+                charactersToMove: [{
+                    fromSectionPath: '# 核心人物 > ## 李四',
+                    toGroup: '已故人物',
+                    reason: '...',
+                }],
+                charactersToUpdate: [{
+                    name: '李四',
+                    updates: [{ sectionPath: '# 核心人物 > ## 李四', replacement: '...' }],
+                }],
+            });
+            expect(result.manifest.charactersToUpdate).toEqual([]);
+            expect(result.fixes.some(f => f.kind === 'shortcircuit-update-by-move')).toBe(true);
+        });
+
         it('short-circuits update under alias mismatch (aliased KB heading, bare name on update side)', () => {
             // Regression: delete's sectionPath carries the aliased KB form,
             // update's `name` carries the bare form. A naive Set.has() on
