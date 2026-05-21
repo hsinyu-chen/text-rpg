@@ -97,4 +97,23 @@ describe('SaveSettingsStore', () => {
         // Absent ≡ off; matches the constructor's read semantics.
         expect(kv.get('mas_pause_before_auto_update')).toBeNull();
     });
+
+    it('defaults hunkFixupProfileId to "" (fallback to main chat) when KV is empty', () => {
+        expect(setup().store.hunkFixupProfileId()).toBe('');
+    });
+
+    it('loads + persists hunkFixupProfileId through KV', () => {
+        expect(setup({ mas_hunk_fixup_profile_id: 'cloud-haiku' }).store.hunkFixupProfileId()).toBe('cloud-haiku');
+
+        const { store, kv } = setup();
+        store.setHunkFixupProfileId('local-small');
+        expect(store.hunkFixupProfileId()).toBe('local-small');
+        expect(kv.get('mas_hunk_fixup_profile_id')).toBe('local-small');
+
+        // Empty string is a legal value (= "fallback to main"), distinct from
+        // KV-absent. Same semantics as subToolProfileId.
+        store.setHunkFixupProfileId('');
+        expect(store.hunkFixupProfileId()).toBe('');
+        expect(kv.get('mas_hunk_fixup_profile_id')).toBe('');
+    });
 });

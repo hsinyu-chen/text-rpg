@@ -1,0 +1,37 @@
+<h2 mat-dialog-title>
+    <mat-icon>auto_fix_high</mat-icon>
+    {{ 'dialog.autoFixPreviewTitle' | translate }}
+</h2>
+<mat-dialog-content class="hunk-fix-preview-content">
+    <p class="hint">{{ 'dialog.autoFixPreviewHint' | translate }}</p>
+
+    <section class="diff-block">
+        <h3>{{ 'dialog.targetLabel' | translate }}</h3>
+        <div class="diff-row">
+            <span class="diff-label old">{{ 'dialog.autoFixOldLabel' | translate }}</span>
+            <pre class="diff-text old">{{ data.oldTarget || ('dialog.autoFixEmptyPlaceholder' | translate) }}</pre>
+        </div>
+        <div class="diff-row">
+            <span class="diff-label new">{{ 'dialog.autoFixNewLabel' | translate }}</span>
+            <pre class="diff-text new">{{ data.newTarget || ('dialog.autoFixEmptyPlaceholder' | translate) }}</pre>
+        </div>
+    </section>
+
+    <section class="diff-block">
+        <h3>{{ 'dialog.replacementLabel' | translate }}</h3>
+        <div class="diff-row">
+            <span class="diff-label old">{{ 'dialog.autoFixOldLabel' | translate }}</span>
+            <pre class="diff-text old">{{ data.oldReplacement || ('dialog.autoFixEmptyPlaceholder' | translate) }}</pre>
+        </div>
+        <div class="diff-row">
+            <span class="diff-label new">{{ 'dialog.autoFixNewLabel' | translate }}</span>
+            <pre class="diff-text new">{{ data.newReplacement || ('dialog.autoFixEmptyPlaceholder' | translate) }}</pre>
+        </div>
+    </section>
+</mat-dialog-content>
+<mat-dialog-actions align="end">
+    <button mat-button (click)="cancel()">{{ 'dialog.cancel' | translate }}</button>
+    <button mat-flat-button color="primary" (click)="confirm()">
+        {{ 'dialog.autoFixPreviewBtnApply' | translate }}
+    </button>
+</mat-dialog-actions>
