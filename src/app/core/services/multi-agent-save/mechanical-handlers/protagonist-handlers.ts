@@ -1,5 +1,6 @@
+import type { FileUpdate } from '../../file-update.types';
 import type { InventoryDelta, PlanDelta } from '../multi-agent-save.types';
-import { saveBlock, type SaveUpdateOp } from '../utils/serialize-save-block.util';
+import { opsToFileUpdates, type SaveUpdateOp } from '../utils/file-update-ops.util';
 import { lookupSectionBlock } from '../utils/handler-helpers.util';
 
 /**
@@ -34,13 +35,13 @@ export interface MechanicalHandlerContext {
 
 /**
  * Translates `inventoryDeltas` (or the structurally-identical `assetsDeltas`)
- * into a single `<save>` XML block containing one `<update>` per delta.
+ * into one {@link FileUpdate} per delta, all pinned to file root.
  *
  * Strategy:
  * - **`add`**: append `- {item}` (or `- {item} — {details}` when `details`
- *   is provided) to the file. `context=""` so FileUpdateParser appends at
- *   file root — the inventory file has no nested headings worth aiming at
- *   for Phase 1.
+ *   is provided) to the file. `context=""` so the matcher appends at file
+ *   root — the inventory file has no nested headings worth aiming at for
+ *   Phase 1.
  * - **`remove`**: scan the file for a list-item line whose body starts with
  *   the item name (anchored match — see {@link findItemLine}). If found,
  *   emit a `delete` op with that exact line. If not found, the delta is
@@ -51,12 +52,12 @@ export interface MechanicalHandlerContext {
  *   line as a new item, since the LLM clearly thinks this item should
  *   exist post-ACT.
  *
- * Returns `''` when every delta was dropped, so the dispatcher can decide
- * whether to mark the entry as `done` (some XML emitted) or `skipped`
+ * Returns `[]` when every delta was dropped, so the dispatcher can decide
+ * whether to mark the entry as `done` (some hunks emitted) or `skipped`
  * (`empty_section`).
  */
-export function applyInventoryDeltas(deltas: readonly InventoryDelta[], ctx: MechanicalHandlerContext): string {
-    if (deltas.length === 0) return '';
+export function applyInventoryDeltas(deltas: readonly InventoryDelta[], ctx: MechanicalHandlerContext): FileUpdate[] {
+    if (deltas.length === 0) return [];
 
     // Split once up-front so a manifest with N deltas does one pass over the
     // file instead of N. Inventory files in real KBs sit around ~50-200 lines;
@@ -76,12 +77,6 @@ export function applyInventoryDeltas(deltas: readonly InventoryDelta[], ctx: Mec
             case 'remove': {
                 const existing = findItemLine(lines, delta.item);
                 if (existing) {
-                    // FileUpdateParser.dedent strips the leading/trailing
-                    // blank lines off <target>, so we can't actually send
-                    // "line + newline" as the apply-time target. Consecutive
-                    // removes may therefore leave one blank line per deletion;
-                    // AutoUpdateDialog surfaces the resulting diff for user
-                    // approval, so a stray blank isn't catastrophic.
                     ops.push({ kind: 'delete', target: existing });
                 }
                 break;
@@ -90,21 +85,7 @@ export function applyInventoryDeltas(deltas: readonly InventoryDelta[], ctx: Mec
                 const existing = findItemLine(lines, delta.item);
                 if (existing) {
                     // Mirror the target's leading indent on the replacement
-                    // as an explicit contract — what the handler emits
-                    // matches what the file column expects.
-                    //
-                    // Strictly speaking this is belt-and-suspenders today:
-                    // FileUpdateParser.dedent() strips the leading
-                    // whitespace from <replacement> at parse time, and
-                    // file-update.service's aware-vs-lazy heuristic
-                    // re-indents the bare replacement to file column for
-                    // single-line ops. So apply-time the user sees the
-                    // right thing even without this prefix. The explicit
-                    // emission still wins on:
-                    //   - readability of the resulting <save> XML
-                    //   - robustness if the apply heuristic ever changes
-                    //   - multi-line replacements (a future op shape)
-                    //     where dedent would NOT strip per-line indent.
+                    // so it lands in the file at the same column.
                     const indent = existing.match(/^\s*/)?.[0] ?? '';
                     ops.push({ kind: 'replace', target: existing, replacement: indent + formatItemLine(delta) });
                 } else {
@@ -118,7 +99,7 @@ export function applyInventoryDeltas(deltas: readonly InventoryDelta[], ctx: Mec
         }
     }
 
-    return saveBlock(ctx.targetFile, '', ops);
+    return opsToFileUpdates(ctx.targetFile, '', ops);
 }
 
 function formatItemLine(delta: InventoryDelta): string {
@@ -187,9 +168,9 @@ function findItemLine(lines: readonly string[], itemName: string): string | null
 const ITEM_BOUNDARY_RE = /[\s\-—:：(（［【「,，;；。!！?？\]】}｝)）]/;
 
 /**
- * Translates `plansDeltas` into `<save>` XML for the Plans KB file. Plans live
- * as `## 「{title}」計畫` L2 blocks (per the template in `8.計畫.md`); the
- * handler owns the heading wrapping so SaveAgent's `title` is just the plan
+ * Translates `plansDeltas` into `FileUpdate[]` rows for the Plans KB file.
+ * Plans live as `## 「{title}」計畫` L2 blocks (per the template in `8.計畫.md`);
+ * the handler owns the heading wrapping so SaveAgent's `title` is just the plan
  * name, no brackets / suffix.
  *
  * Strategy mirrors {@link applyInventoryDeltas} but at the section level:
@@ -209,8 +190,8 @@ const ITEM_BOUNDARY_RE = /[\s\-—:：(（［【「,，;；。!！?？\]】}｝)
  * not ship a Plans file yet). When en plans land, this wrap will move into
  * AppLocale alongside `kbSectionHeadings`.
  */
-export function applyPlansDeltas(deltas: readonly PlanDelta[], ctx: MechanicalHandlerContext): string {
-    if (deltas.length === 0) return '';
+export function applyPlansDeltas(deltas: readonly PlanDelta[], ctx: MechanicalHandlerContext): FileUpdate[] {
+    if (deltas.length === 0) return [];
 
     const lines = ctx.fileContent.split('\n');
     const appendPrefix = ctx.fileContent.length > 0 ? '\n' : '';
@@ -247,7 +228,7 @@ export function applyPlansDeltas(deltas: readonly PlanDelta[], ctx: MechanicalHa
             }
         }
     }
-    return saveBlock(ctx.targetFile, '', ops);
+    return opsToFileUpdates(ctx.targetFile, '', ops);
 }
 
 function renderPlanBlock(heading: string, body: string | undefined): string {

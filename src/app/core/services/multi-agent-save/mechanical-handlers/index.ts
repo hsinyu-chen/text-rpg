@@ -1,4 +1,5 @@
 import type { AppLocale } from '@app/core/constants/locales/locale.interface';
+import type { FileUpdate } from '../../file-update.types';
 import type { MechanicalToolName, SaveManifest } from '../multi-agent-save.types';
 import { applyInventoryDeltas, applyPlansDeltas, type MechanicalHandlerContext } from './protagonist-handlers';
 import { writeStoryOutlineBlock } from './story-outline-handlers';
@@ -36,11 +37,11 @@ export function entityUpdateTargetFile(tool: EntityUpdateToolName, files: CoreFi
  * - `ctx` — the dispatcher-assembled context (target file name + file contents
  *   for line-lookups + locale heading map).
  *
- * Returns the `<save>...</save>` XML fragment, or `''` when the relevant
- * manifest slice was empty / no ops survived (dispatcher then marks the
- * entry `skipped: empty_section`).
+ * Returns the per-section `FileUpdate[]` hunks ready for the AutoUpdateDialog,
+ * or `[]` when the relevant manifest slice was empty / no ops survived
+ * (dispatcher then marks the entry `skipped: empty_section`).
  */
-export type MechanicalHandler = (manifest: SaveManifest, ctx: MechanicalHandlerContext) => string;
+export type MechanicalHandler = (manifest: SaveManifest, ctx: MechanicalHandlerContext) => FileUpdate[];
 
 /**
  * Resolves the KB file each mechanical tool targets, from the active

@@ -1,3 +1,4 @@
+import type { FileUpdate } from '../../file-update.types';
 import type { EntityUpdate } from '../multi-agent-save.types';
 import { applySectionUpdates } from './section-update-handlers';
 import type { MechanicalHandlerContext } from './protagonist-handlers';
@@ -16,13 +17,13 @@ import type { MechanicalHandlerContext } from './protagonist-handlers';
  *
  * Entries with no `updates` (or empty arrays) are dropped at flatten time —
  * those represent "main LLM only flagged this entity for the multi-call
- * sub-agent to handle", which the dispatcher routes separately. Returns `''`
+ * sub-agent to handle", which the dispatcher routes separately. Returns `[]`
  * when nothing survives, same convention as the other handlers.
  */
 export function applyEntityPatches(
     entries: readonly EntityUpdate[],
     ctx: MechanicalHandlerContext,
-): string {
+): FileUpdate[] {
     const flatUpdates = entries.flatMap(e => e.updates ?? []);
     return applySectionUpdates(flatUpdates, ctx);
 }

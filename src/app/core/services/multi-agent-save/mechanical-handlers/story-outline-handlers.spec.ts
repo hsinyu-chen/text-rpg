@@ -6,46 +6,50 @@ const HEADINGS = { STORY_OUTLINE_CHRONICLE: '劇情綱要' };
 const CTX = { targetFile: FILE, fileContent: '', kbSectionHeadings: HEADINGS };
 
 describe('writeStoryOutlineBlock', () => {
-    it('returns empty for undefined / empty / whitespace-only input', () => {
-        expect(writeStoryOutlineBlock(undefined, CTX)).toBe('');
-        expect(writeStoryOutlineBlock('', CTX)).toBe('');
-        expect(writeStoryOutlineBlock('   \n  \n', CTX)).toBe('');
+    it('returns empty array for undefined / empty / whitespace-only input', () => {
+        expect(writeStoryOutlineBlock(undefined, CTX)).toEqual([]);
+        expect(writeStoryOutlineBlock('', CTX)).toEqual([]);
+        expect(writeStoryOutlineBlock('   \n  \n', CTX)).toEqual([]);
     });
 
-    it('emits an append <save> pinned to the chronicle L1 heading', () => {
-        const xml = writeStoryOutlineBlock(
+    it('emits an append hunk pinned to the chronicle L1 heading', () => {
+        const updates = writeStoryOutlineBlock(
             '## Act.2 - 戰役\n\n- **戰況**：勝利',
             CTX,
         );
-        expect(xml).toContain(`<save file="${FILE}" context="# 劇情綱要">`);
-        expect(xml).toContain('<replacement>\n## Act.2 - 戰役\n\n- **戰況**：勝利</replacement>');
-        expect(xml).not.toContain('<target>');
+        expect(updates).toEqual([
+            {
+                filePath: FILE,
+                context: '# 劇情綱要',
+                replacementContent: '\n## Act.2 - 戰役\n\n- **戰況**：勝利',
+            },
+        ]);
     });
 
     it('uses the locale-specific chronicle heading (en case)', () => {
-        const xml = writeStoryOutlineBlock(
+        const updates = writeStoryOutlineBlock(
             '## Act.2 - The Battle',
             { ...CTX, kbSectionHeadings: { STORY_OUTLINE_CHRONICLE: 'Story Outline' } },
         );
-        expect(xml).toContain('context="# Story Outline"');
+        expect(updates[0].context).toBe('# Story Outline');
     });
 
-    it('returns empty if the locale has no chronicle heading configured', () => {
+    it('returns empty array if the locale has no chronicle heading configured', () => {
         // Defensive: an empty locale value would otherwise pin context to a
-        // dangling `# ` and the FileUpdateParser would emit an unanchored
-        // append. Treat as no-op instead.
-        const xml = writeStoryOutlineBlock(
+        // dangling `# ` and the matcher would emit an unanchored append.
+        // Treat as no-op instead.
+        const updates = writeStoryOutlineBlock(
             '## Act.2',
             { ...CTX, kbSectionHeadings: { STORY_OUTLINE_CHRONICLE: '' } },
         );
-        expect(xml).toBe('');
+        expect(updates).toEqual([]);
     });
 
-    it('trims the input but leaves the wrap-newlines intact', () => {
-        const xml = writeStoryOutlineBlock(
+    it('trims the input but leaves the wrap-newline intact', () => {
+        const updates = writeStoryOutlineBlock(
             '   \n\n## Act.3\nbody\n\n   ',
             CTX,
         );
-        expect(xml).toContain('<replacement>\n## Act.3\nbody</replacement>');
+        expect(updates[0].replacementContent).toBe('\n## Act.3\nbody');
     });
 });

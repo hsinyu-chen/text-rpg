@@ -61,20 +61,21 @@ describe('MECHANICAL_HANDLERS registry', () => {
         }
     });
 
-    it('inventoryDeltas handler returns the empty string for an empty manifest section', () => {
+    it('inventoryDeltas handler returns an empty array for an empty manifest section', () => {
         const h = MECHANICAL_HANDLERS.inventoryDeltas!;
-        const xml = h(emptyManifest, ctxFor('9.物品欄.md'));
-        expect(xml).toBe('');
+        const updates = h(emptyManifest, ctxFor('9.物品欄.md'));
+        expect(updates).toEqual([]);
     });
 
-    it('inventoryDeltas handler emits XML for non-empty deltas', () => {
+    it('inventoryDeltas handler emits hunks for non-empty deltas', () => {
         const h = MECHANICAL_HANDLERS.inventoryDeltas!;
-        const xml = h({
+        const updates = h({
             ...emptyManifest,
             inventoryDeltas: [{ op: 'add', item: '長劍' }],
         }, ctxFor('9.物品欄.md'));
-        expect(xml).toContain('<save file="9.物品欄.md"');
-        expect(xml).toContain('長劍');
+        expect(updates).toHaveLength(1);
+        expect(updates[0].filePath).toBe('9.物品欄.md');
+        expect(updates[0].replacementContent).toContain('長劍');
     });
 
     it('assetsDeltas and inventoryDeltas share the same handler body (same type, same mechanics)', () => {
@@ -82,14 +83,14 @@ describe('MECHANICAL_HANDLERS registry', () => {
         // future re-implementation that diverges these will be caught here.
         const inv = MECHANICAL_HANDLERS.inventoryDeltas!;
         const ast = MECHANICAL_HANDLERS.assetsDeltas!;
-        const xmlInv = inv({
+        const fromInv = inv({
             ...emptyManifest,
             inventoryDeltas: [{ op: 'add', item: 'X' }],
         }, ctxFor('inv.md'));
-        const xmlAst = ast({
+        const fromAst = ast({
             ...emptyManifest,
             assetsDeltas: [{ op: 'add', item: 'X' }],
         }, ctxFor('inv.md'));
-        expect(xmlInv).toBe(xmlAst);
+        expect(fromInv).toEqual(fromAst);
     });
 });
