@@ -3,6 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { ReadOnlyAgent } from './read-only-agent';
 import { TurnSetup } from './base-tool-call-agent';
 import type { FileAgentContext, ParsedAction, ToolExecutionResult } from '../file-agent/file-agent.types';
+import type { Awaitable } from './agent-runner.types';
 
 /**
  * Spec target: ReadOnlyAgent's public contract — read tool dispatch routes
@@ -25,7 +26,7 @@ class TestReadOnlyAgent extends ReadOnlyAgent<ParsedAction> {
     }
 
     /** Public proxy for the protected dispatchTool. */
-    publicDispatchTool(action: ParsedAction, context: FileAgentContext): Promise<ToolExecutionResult> | ToolExecutionResult {
+    publicDispatchTool(action: ParsedAction, context: FileAgentContext): Awaitable<ToolExecutionResult> {
         return this.dispatchTool(action, context);
     }
 
