@@ -334,6 +334,7 @@ export const en: TranslationDict = {
         autoFixOldLabel: 'Old',
         autoFixNewLabel: 'New',
         autoFixPreviewBtnApply: 'Apply Repair',
+        autoFixEmptyPlaceholder: '(empty)',
         autoFixProgressTitle: 'LLM Repairing Hunk…',
         autoFixProgressWaiting: 'Waiting for the LLM to respond…',
         autoFixProgressThought: 'Reasoning',

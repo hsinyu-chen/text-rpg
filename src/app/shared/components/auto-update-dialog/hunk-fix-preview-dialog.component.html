@@ -9,11 +9,11 @@
         <h3>{{ 'dialog.targetLabel' | translate }}</h3>
         <div class="diff-row">
             <span class="diff-label old">{{ 'dialog.autoFixOldLabel' | translate }}</span>
-            <pre class="diff-text old">{{ data.oldTarget || '(empty)' }}</pre>
+            <pre class="diff-text old">{{ data.oldTarget || ('dialog.autoFixEmptyPlaceholder' | translate) }}</pre>
         </div>
         <div class="diff-row">
             <span class="diff-label new">{{ 'dialog.autoFixNewLabel' | translate }}</span>
-            <pre class="diff-text new">{{ data.newTarget || '(empty)' }}</pre>
+            <pre class="diff-text new">{{ data.newTarget || ('dialog.autoFixEmptyPlaceholder' | translate) }}</pre>
         </div>
     </section>
 
@@ -21,11 +21,11 @@
         <h3>{{ 'dialog.replacementLabel' | translate }}</h3>
         <div class="diff-row">
             <span class="diff-label old">{{ 'dialog.autoFixOldLabel' | translate }}</span>
-            <pre class="diff-text old">{{ data.oldReplacement || '(empty)' }}</pre>
+            <pre class="diff-text old">{{ data.oldReplacement || ('dialog.autoFixEmptyPlaceholder' | translate) }}</pre>
         </div>
         <div class="diff-row">
             <span class="diff-label new">{{ 'dialog.autoFixNewLabel' | translate }}</span>
-            <pre class="diff-text new">{{ data.newReplacement || '(empty)' }}</pre>
+            <pre class="diff-text new">{{ data.newReplacement || ('dialog.autoFixEmptyPlaceholder' | translate) }}</pre>
         </div>
     </section>
 </mat-dialog-content>

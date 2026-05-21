@@ -299,13 +299,15 @@ export class HunkApplyController {
       update.replacementContent = result.replacement;
       await this.revalidateUpdate(update, group);
 
-      // Read the latest copy out of the group (revalidate produced a fresh
-      // object via spread — the old `update` reference still holds the
-      // previous status). Without this re-read the success/fail snackbar
-      // would describe the pre-revalidate state.
+      // `runValidation` replaces the array entry with a fresh object whose
+      // `status` reflects the post-revalidate result — the `update` arg still
+      // points at the pre-revalidate snapshot. So read `status` off `latest`.
+      // The signal handles (autoFixAttempts / autoFixInProgress) are spread
+      // by reference, so both objects share the same WritableSignal instance
+      // and we can keep mutating through `update` — no need to re-bind.
       const latest = group.updates.find(u => u.id === update.id);
       if (latest?.status?.matched) {
-        latest.autoFixAttempts.set(0);
+        update.autoFixAttempts.set(0);
         this.snackBar.open(this.t('autoFixSuccess'), this.i18n.translate('ui.CLOSE'), { duration: 2000 });
       } else {
         const next = update.autoFixAttempts() + 1;
@@ -419,8 +421,8 @@ export class HunkApplyController {
             id: updateItem.id || `upd_${counter++}`,
             selected: isSignal ? (updateItem.selected as WritableSignal<boolean>) : signal(true),
             status: updateItem.status || { exists: false, matched: false, validating: true },
-            autoFixAttempts: updateItem.autoFixAttempts ?? signal(0),
-            autoFixInProgress: updateItem.autoFixInProgress ?? signal(false),
+            autoFixAttempts: signal(0),
+            autoFixInProgress: signal(false),
           };
         });
 

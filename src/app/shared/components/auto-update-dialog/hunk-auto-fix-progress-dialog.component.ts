@@ -5,7 +5,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { TranslatePipe } from '@app/core/i18n';
 import type { LLMUsageMetadata } from '@hcs/llm-core';
-import { AutoScrollBottomDirective } from '@app/features/multi-agent-save/auto-scroll-bottom.directive';
+import { AutoScrollBottomDirective } from '@app/shared/directives/auto-scroll-bottom.directive';
 
 export interface HunkAutoFixProgressData {
     fileName: string;

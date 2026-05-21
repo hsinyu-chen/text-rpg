@@ -334,6 +334,7 @@ export const zhTW: TranslationDict = {
         autoFixOldLabel: '原',
         autoFixNewLabel: '新',
         autoFixPreviewBtnApply: '套用修復',
+        autoFixEmptyPlaceholder: '（空）',
         autoFixProgressTitle: 'LLM 修復中…',
         autoFixProgressWaiting: '等待 LLM 回應…',
         autoFixProgressThought: '推理過程',
