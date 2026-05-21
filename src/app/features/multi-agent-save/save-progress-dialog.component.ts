@@ -58,10 +58,17 @@ export class SaveProgressDialogComponent {
 
     readonly entries = this.tracker.entries;
     readonly isRunning = this.tracker.isRunning;
+    readonly workComplete = this.tracker.workComplete;
 
     readonly totalUsage = computed(() => this.tracker.totalUsage());
 
-    readonly canCancel = computed(() => this.isRunning());
+    /**
+     * Cancel button visible only while the save work is actively running.
+     * Once `workComplete` flips true, the Close button takes over — the
+     * orchestrator may still be holding `isRunning` (paused review,
+     * AutoUpdate handoff), but there's nothing left to abort.
+     */
+    readonly canCancel = computed(() => this.isRunning() && !this.workComplete());
 
     cancel(): void {
         this.data.abortController.abort();

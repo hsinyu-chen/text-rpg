@@ -48,9 +48,8 @@ export type SceneEventLogField = typeof SCENE_EVENT_LOG_FIELDS[number];
 
 /**
  * One NPC entry extracted from `3.人物狀態.md`. `headingPath` is the
- * breadcrumb (`# 核心人物 > ## 露娜`) — Stage B-3 emits this as the
- * `<save context="…">` attribute so the existing FileUpdateParser can locate
- * the entry on apply.
+ * breadcrumb (`# 核心人物 > ## 露娜`) — emitted as the `FileUpdate.context`
+ * field so the matcher can locate the entry on apply.
  *
  * Line bounds are 0-based and inclusive on both ends, matching
  * {@link import('@app/core/services/file-agent/markdown-section.util').SectionBounds}.
@@ -126,15 +125,13 @@ export interface PlanDelta {
 }
 
 /**
- * Section-scoped update keyed by a breadcrumb path like `# X > ## Y`. Mirrors
- * the legacy `<save context="…"><update><target>…</target><replacement>…`
- * shape 1:1:
+ * Section-scoped update keyed by a breadcrumb path like `# X > ## Y`. Each
+ * entry maps 1:1 to one `FileUpdate` hunk emitted by the mechanical handler:
  * - `target` omitted → append `replacement` at section end
  * - `target` present, `replacement` non-empty → replace that exact substring
- * - `target` present, `replacement` empty → delete that exact substring (the
- *   FileUpdateParser reads `<replacement></replacement>` as a delete; this is
- *   a small in-section snippet removal, NOT a section-or-entity teardown —
- *   for those use the `*ToDelete` lifecycle slots)
+ * - `target` present, `replacement` empty → delete that exact substring (small
+ *   in-section snippet removal, NOT a section-or-entity teardown — for those
+ *   use the `*ToDelete` lifecycle slots)
  *
  * No top-level deletion of the whole sectionPath — that's a lifecycle
  * operation outside this shape.

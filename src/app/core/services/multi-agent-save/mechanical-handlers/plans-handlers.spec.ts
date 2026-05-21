@@ -16,79 +16,79 @@ const FILE_WITH_PLAN = `# 計畫
 `;
 
 describe('applyPlansDeltas', () => {
-    it('returns empty for empty input', () => {
-        expect(applyPlansDeltas([], EMPTY_CTX)).toBe('');
+    it('returns empty array for empty input', () => {
+        expect(applyPlansDeltas([], EMPTY_CTX)).toEqual([]);
     });
 
-    it('emits an append op for op:add (wraps title with 「」計畫 heading)', () => {
-        const xml = applyPlansDeltas([
+    it('emits an append hunk for op:add (wraps title with 「」計畫 heading)', () => {
+        const updates = applyPlansDeltas([
             { op: 'add', title: '潛入魔王城', body: '* **狀態**: 規劃中' },
         ], EMPTY_CTX);
-        expect(xml).toContain(`<save file="${FILE}" context="">`);
-        expect(xml).toContain('## 「潛入魔王城」計畫');
-        expect(xml).toContain('* **狀態**: 規劃中');
-        expect(xml).not.toContain('<target>');
+        expect(updates).toHaveLength(1);
+        expect(updates[0].filePath).toBe(FILE);
+        expect(updates[0].context).toBe('');
+        expect(updates[0].targetContent).toBeUndefined();
+        expect(updates[0].replacementContent).toContain('## 「潛入魔王城」計畫');
+        expect(updates[0].replacementContent).toContain('* **狀態**: 規劃中');
     });
 
-    it('prepends a leading newline when the file is non-empty', () => {
-        const xml = applyPlansDeltas([
+    it('emits the rendered block without the handler-emitted leading newline (stripped centrally)', () => {
+        const updates = applyPlansDeltas([
             { op: 'add', title: '新計畫', body: '* x' },
         ], { ...EMPTY_CTX, fileContent: FILE_WITH_PLAN });
-        expect(xml).toMatch(/<replacement>\n## /);
+        expect(updates[0].replacementContent?.startsWith('## ')).toBe(true);
     });
 
-    it('emits heading-only block when body is omitted', () => {
-        const xml = applyPlansDeltas([
+    it('emits heading-only hunk when body is omitted', () => {
+        const updates = applyPlansDeltas([
             { op: 'add', title: '佔位' },
         ], EMPTY_CTX);
-        expect(xml).toContain('<replacement>## 「佔位」計畫</replacement>');
+        expect(updates[0].replacementContent).toBe('## 「佔位」計畫');
     });
 
-    it('emits a delete op for op:remove when the plan block is found', () => {
-        const xml = applyPlansDeltas([
+    it('emits a delete hunk for op:remove when the plan block is found', () => {
+        const updates = applyPlansDeltas([
             { op: 'remove', title: '找回失蹤的妹妹' },
         ], { ...EMPTY_CTX, fileContent: FILE_WITH_PLAN });
-        expect(xml).toContain('<target>');
-        expect(xml).toContain('## 「找回失蹤的妹妹」計畫');
-        expect(xml).toContain('Act 1');
-        expect(xml).toContain('<replacement></replacement>');
+        expect(updates).toHaveLength(1);
+        expect(updates[0].targetContent).toContain('## 「找回失蹤的妹妹」計畫');
+        expect(updates[0].targetContent).toContain('Act 1');
+        expect(updates[0].replacementContent).toBe('');
     });
 
     it('silently drops op:remove when the plan is not in the file', () => {
-        const xml = applyPlansDeltas([
+        const updates = applyPlansDeltas([
             { op: 'remove', title: '不存在的計畫' },
         ], { ...EMPTY_CTX, fileContent: FILE_WITH_PLAN });
-        expect(xml).toBe('');
+        expect(updates).toEqual([]);
     });
 
-    it('emits a replace op for op:update when the plan block is found', () => {
-        const xml = applyPlansDeltas([
+    it('emits a replace hunk for op:update when the plan block is found', () => {
+        const updates = applyPlansDeltas([
             { op: 'update', title: '找回失蹤的妹妹', body: '* **狀態**: 已完成' },
         ], { ...EMPTY_CTX, fileContent: FILE_WITH_PLAN });
-        expect(xml).toContain('<target>');
-        expect(xml).toContain('## 「找回失蹤的妹妹」計畫');
-        // The new body must appear inside the replacement (with the rewrapped heading).
-        const replacementBlock = xml.match(/<replacement>([\s\S]*?)<\/replacement>/);
-        expect(replacementBlock).not.toBeNull();
-        expect(replacementBlock![1]).toContain('## 「找回失蹤的妹妹」計畫');
-        expect(replacementBlock![1]).toContain('* **狀態**: 已完成');
-        expect(replacementBlock![1]).not.toContain('進行中');
+        expect(updates).toHaveLength(1);
+        expect(updates[0].targetContent).toContain('## 「找回失蹤的妹妹」計畫');
+        expect(updates[0].replacementContent).toContain('## 「找回失蹤的妹妹」計畫');
+        expect(updates[0].replacementContent).toContain('* **狀態**: 已完成');
+        expect(updates[0].replacementContent).not.toContain('進行中');
     });
 
     it('falls back to append for op:update when the plan is not in the file', () => {
-        const xml = applyPlansDeltas([
+        const updates = applyPlansDeltas([
             { op: 'update', title: '新計畫', body: '* x' },
         ], { ...EMPTY_CTX, fileContent: FILE_WITH_PLAN });
         // Should be an append, not a stale-target replace.
-        expect(xml).not.toContain('<target>');
-        expect(xml).toContain('## 「新計畫」計畫');
+        expect(updates).toHaveLength(1);
+        expect(updates[0].targetContent).toBeUndefined();
+        expect(updates[0].replacementContent).toContain('## 「新計畫」計畫');
     });
 
     it('drops entries with no title rather than emitting a broken heading', () => {
-        const xml = applyPlansDeltas([
+        const updates = applyPlansDeltas([
             { op: 'add', title: '', body: 'x' },
         ], EMPTY_CTX);
-        expect(xml).toBe('');
+        expect(updates).toEqual([]);
     });
 
     it('strips redundant `「…」計畫` wrapping the model added to `title` (defensive)', () => {
@@ -103,7 +103,7 @@ describe('applyPlansDeltas', () => {
         const bracketsOnly = applyPlansDeltas([
             { op: 'add', title: '「潛入魔王城」', body: 'x' },
         ], EMPTY_CTX);
-        expect(wrapped).toBe(bare);
-        expect(bracketsOnly).toBe(bare);
+        expect(wrapped).toEqual(bare);
+        expect(bracketsOnly).toEqual(bare);
     });
 });

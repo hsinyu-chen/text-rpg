@@ -300,7 +300,7 @@ AI 產生的 **Inventory (物品欄)**、**Quest Log (任務)**、**World (世�
 *   **觸發方式**: 點擊輸入框旁的 **Save**（磁碟片圖示）按鈕 → 確認 dialog → 存檔直接執行。存檔不會在聊天紀錄留下訊息,直接彈出 Auto-Update 視窗。
 *   **運作機制 (multi-agent pipeline)**:
     1. **SaveAgent**（單次 LLM call）整理本 ACT 自 `--- ACT START ---` 起的 logs 與摘要，輸出 manifest JSON：包含 inventory / assets / plans / 劇情綱要 / 技術 / 魔法 / 世界設定 / 人物（新增 / 死亡退場 / 跨群組移動 / 內部欄位更新）/ 勢力等各個區段該怎麼動。
-    2. **Dispatcher**（純 TS）依 manifest 內每個區段機械式組出 `<save>` XML 差分,送進 FileUpdateParser → `FileUpdate[]`。
+    2. **Dispatcher**（純 TS）依 manifest 內每個區段機械式組出 `FileUpdate[]` hunks 直送 dialog。
 *   **審核介面**: 跑完跳 **"Auto-Update"** 視窗，逐檔逐條 diff 預覽（如 `2.劇情綱要.md` / `6.勢力與世界.md` / `3.人物狀態.md`），可選擇套用或忽略。
 
 ### 4. 知識庫檔案編輯 (KB File Editing)

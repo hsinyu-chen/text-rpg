@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import type { AppLocale } from '@app/core/constants/locales/locale.interface';
+import type { FileUpdate } from '../file-update.types';
 import {
     MECHANICAL_TOOL_NAMES,
     type EntityUpdate,
@@ -15,9 +16,9 @@ export interface DispatchInput {
     /** Active locale's coreFilenames map — handler `targetFile` resolution. */
     coreFilenames: AppLocale['coreFilenames'];
     /**
-     * Active locale's KB section heading map. Handlers that pin
-     * `<save context="…">` to a locale-specific heading (e.g. story-outline)
-     * read from this.
+     * Active locale's KB section heading map. Handlers that pin a hunk's
+     * context to a locale-specific heading (e.g. story-outline) read from
+     * this.
      */
     kbSectionHeadings: AppLocale['kbSectionHeadings'];
     /** Snapshot of loaded KB files at save time — handlers use this for line-lookups. */
@@ -25,8 +26,8 @@ export interface DispatchInput {
 }
 
 export interface DispatchResult {
-    /** Concatenated `<save>` XML blocks ready for FileUpdateParser. */
-    xml: string;
+    /** Concatenated hunks ready for AutoUpdateDialog. */
+    updates: FileUpdate[];
 }
 
 /**
@@ -52,7 +53,7 @@ export class SubToolDispatcherService {
     private progress = inject(SaveProgressTracker);
 
     dispatch(input: DispatchInput): DispatchResult {
-        const xmlParts: string[] = [];
+        const updates: FileUpdate[] = [];
 
         for (const tool of MECHANICAL_TOOL_NAMES) {
             const entryId = this.progress.startEntry('sub-tool', { toolName: tool });
@@ -79,20 +80,20 @@ export class SubToolDispatcherService {
 
             const fileContent = input.kbFiles.get(targetFile) ?? '';
             try {
-                const xml = handler(input.manifest, {
+                const handlerUpdates = handler(input.manifest, {
                     targetFile,
                     fileContent,
                     kbSectionHeadings: input.kbSectionHeadings,
                 });
-                if (!xml) {
+                if (handlerUpdates.length === 0) {
                     // Handler ran but every op was dropped (e.g. all
                     // `remove`s missed the line lookup). Same UX as an empty
                     // section.
                     this.progress.skip(entryId, 'empty_section');
                     continue;
                 }
-                xmlParts.push(xml);
-                this.progress.appendOutput(entryId, xml);
+                updates.push(...handlerUpdates);
+                this.progress.appendOutput(entryId, describeUpdates(handlerUpdates));
                 this.progress.finishEntry(entryId, 'done');
             } catch (err: unknown) {
                 const msg = err instanceof Error ? err.message : String(err);
@@ -103,7 +104,7 @@ export class SubToolDispatcherService {
         // Entity-update sections: route by whether each entry carries an
         // `updates` SectionUpdate[] payload.
         //  - 1-call mode: main LLM filled `updates` directly → mechanical
-        //    handler (applyEntityPatches) emits XML in this dispatch.
+        //    handler (applyEntityPatches) emits hunks in this dispatch.
         //  - multi-call mode: entry has only name + reasonHint → reserved
         //    for the Phase B per-entity sub-agent; emit not_yet_implemented.
         // Empty sections are skipped silently so the dialog isn't padded
@@ -111,17 +112,17 @@ export class SubToolDispatcherService {
         for (const tool of ['charactersToUpdate', 'factionsToUpdate'] as const) {
             const list = input.manifest[tool];
             if (!list || list.length === 0) continue;
-            this.dispatchEntityUpdates(tool, list, input, xmlParts);
+            this.dispatchEntityUpdates(tool, list, input, updates);
         }
 
-        return { xml: xmlParts.join('\n') };
+        return { updates };
     }
 
     private dispatchEntityUpdates(
         tool: EntityUpdateToolName,
         entries: readonly EntityUpdate[],
         input: DispatchInput,
-        xmlParts: string[],
+        sink: FileUpdate[],
     ): void {
         const mechanicalEntries = entries.filter(e => e.updates && e.updates.length > 0);
         const subAgentEntries = entries.filter(e => !e.updates || e.updates.length === 0);
@@ -131,16 +132,16 @@ export class SubToolDispatcherService {
             const targetFile = entityUpdateTargetFile(tool, input.coreFilenames);
             const fileContent = input.kbFiles.get(targetFile) ?? '';
             try {
-                const xml = applyEntityPatches(mechanicalEntries, {
+                const handlerUpdates = applyEntityPatches(mechanicalEntries, {
                     targetFile,
                     fileContent,
                     kbSectionHeadings: input.kbSectionHeadings,
                 });
-                if (!xml) {
+                if (handlerUpdates.length === 0) {
                     this.progress.skip(entryId, 'empty_section');
                 } else {
-                    xmlParts.push(xml);
-                    this.progress.appendOutput(entryId, xml);
+                    sink.push(...handlerUpdates);
+                    this.progress.appendOutput(entryId, describeUpdates(handlerUpdates));
                     this.progress.finishEntry(entryId, 'done');
                 }
             } catch (err: unknown) {
@@ -171,4 +172,23 @@ function hasContent(manifest: SaveManifest, tool: MechanicalToolName): boolean {
     }
     const value = manifest[tool];
     return Array.isArray(value) && value.length > 0;
+}
+
+/**
+ * Pretty-print a handler's hunks into the trace `output` field — the dialog
+ * renders this in a `<pre>` so multi-line JSON is fine. Skips matcher-only
+ * fields (beforeLines / afterLines / matchIndex etc.) that AutoUpdateDialog
+ * sets later; only the handler-authored shape is interesting in the trace.
+ */
+function describeUpdates(updates: readonly FileUpdate[]): string {
+    return JSON.stringify(
+        updates.map(u => ({
+            filePath: u.filePath,
+            context: u.context,
+            targetContent: u.targetContent,
+            replacementContent: u.replacementContent,
+        })),
+        null,
+        2,
+    );
 }

@@ -523,6 +523,8 @@ export const zhTW: TranslationDict = {
             subToolProfileLabel: '子代理 LLM 設定檔',
             subToolProfileSameAsMain: '與主對話相同（預設）',
             subToolProfileHint: 'multi-call 模式的 per-entity 子代理會用這個設定檔。建議選小模型 / 本地模型省成本。',
+            pauseBeforeAutoUpdate: '進 Auto-Update 前暫停看 trace',
+            pauseBeforeAutoUpdateHint: '僅供 debug。開啟後存檔結束不會自動關進度視窗,需手動關閉才會跳 Auto-Update。可以在套用前檢視每個 section 的 manifest / dispatcher 輸出。',
         },
     },
     app: {

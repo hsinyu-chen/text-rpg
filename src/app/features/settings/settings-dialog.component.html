@@ -233,6 +233,16 @@
                 <p class="hint-text mode-hint">{{ 'settings.saveMode.subToolProfileHint' | translate }}</p>
             }
 
+            <div class="toggle-row">
+                <mat-slide-toggle
+                    [ngModel]="savePauseBeforeAutoUpdate()"
+                    (ngModelChange)="savePauseBeforeAutoUpdate.set($event)"
+                    color="primary">
+                    {{ 'settings.saveMode.pauseBeforeAutoUpdate' | translate }}
+                </mat-slide-toggle>
+            </div>
+            <p class="hint-text mode-hint">{{ 'settings.saveMode.pauseBeforeAutoUpdateHint' | translate }}</p>
+
             <div class="button-row">
                 <button mat-stroked-button (click)="openProviderDebug()">
                     <mat-icon>bug_report</mat-icon>

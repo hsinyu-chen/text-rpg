@@ -5,7 +5,6 @@ import { MatDialog } from '@angular/material/dialog';
 import { ContextBuilderService } from '../context-builder.service';
 import { LLMProviderRegistryService } from '../llm-provider-registry.service';
 import { GameStateService } from '../game-state.service';
-import { FileUpdateParser } from '../file-update-parser';
 import type { FileUpdate } from '../file-update.service';
 import { AutoUpdateDialogComponent } from '@app/shared/components/auto-update-dialog/auto-update-dialog.component';
 import { SaveProgressDialogComponent } from '@app/features/multi-agent-save/save-progress-dialog.component';
@@ -58,9 +57,11 @@ const MODE_BINDINGS: Record<SaveMode, { promptFile: string; schema: Schema }> = 
  *   2. open SaveProgressDialog (mounted before first await so the user sees
  *      "Starting SaveAgent…" instead of a blank screen)
  *   3. SaveAgentRunner → manifest JSON
- *   4. SubToolDispatcher → concatenated `<save>` XML + per-tool progress entries
- *   5. FileUpdateParser → FileUpdate[]
- *   6. AutoUpdateDialog opens with the updates (existing flow handles apply)
+ *   4. SubToolDispatcher → FileUpdate[] + per-tool progress entries
+ *   5. `progress.setWorkComplete(true)` so the progress dialog can swap
+ *      Cancel out for Close (`isRunning` stays true for the chat lock)
+ *   6. close progress dialog (or await user close under `pauseBeforeAutoUpdate`)
+ *      and open AutoUpdateDialog with the updates (existing flow handles apply)
  *
  * Failure path: any thrown error is surfaced as a snackbar and the progress
  * dialog stays open showing the failed entry. The user can close + retry.
@@ -188,25 +189,39 @@ export class MultiAgentSaveService {
                 kbFiles: this.state.loadedFiles(),
             });
 
-            // 5. Parse → FileUpdate[]. Empty xml ≡ no work for any handler;
-            //    the progress dialog already shows every section's outcome
-            //    (empty_section / not_yet_implemented), so we just let it
-            //    stay open with its Close button — no extra snackbar needed.
-            if (!dispatchResult.xml) return;
+            // 5. Mark the save work done so the progress dialog can show its
+            //    Close button. `isRunning` stays true throughout — it gates
+            //    the chat mask + sendMessage re-entrancy guard, which must
+            //    remain locked while the user reviews / applies updates.
+            //    `workComplete` is the dialog-only signal that swaps Cancel
+            //    out for Close.
+            this.progress.setWorkComplete(true);
 
-            const updates = FileUpdateParser.parse(dispatchResult.xml);
-
-            // 6. Hand off to AutoUpdateDialog. It applies internally via
-            //    engine.updateSingleFile + saveCurrentSessionToBook (which
-            //    bumps lastActiveAt itself) and closes with a boolean —
-            //    there's no FileUpdate[] returned via afterClosed, so we
-            //    don't post-process here. Close the progress dialog first
-            //    so the user isn't looking at two stacked modals. AWAIT
-            //    the close so the chat surface stays save-locked + the
-            //    sendMessage re-entrancy guard stays armed while the user
-            //    reviews / applies updates.
-            dialogRef.close();
-            await this.openAutoUpdateDialog(updates);
+            // 6. Hand off to AutoUpdateDialog. Empty updates ≡ no work for
+            //    any handler; the progress dialog already shows every
+            //    section's outcome (empty_section / not_yet_implemented),
+            //    so we just let it close with no extra snackbar needed.
+            //
+            //    The dialog applies internally via engine.updateSingleFile +
+            //    saveCurrentSessionToBook (which bumps lastActiveAt itself)
+            //    and closes with a boolean — there's no FileUpdate[]
+            //    returned via afterClosed, so we don't post-process here.
+            //
+            //    Production flow: auto-close the progress dialog before
+            //    opening auto-update so the user isn't staring at two
+            //    stacked modals. Diagnostic flow (`pauseBeforeAutoUpdate`):
+            //    wait for the user to close the progress dialog manually so
+            //    the per-section trace stays inspectable. Either way the
+            //    `await` keeps the chat surface save-locked + the sendMessage
+            //    re-entrancy guard armed while the user works through the
+            //    review.
+            if (this.settings.pauseBeforeAutoUpdate()) {
+                await firstValueFrom(dialogRef.afterClosed());
+            } else {
+                dialogRef.close();
+            }
+            if (dispatchResult.updates.length === 0) return;
+            await this.openAutoUpdateDialog(dispatchResult.updates);
         } catch (err: unknown) {
             // User-initiated cancellation (Cancel button → AbortController.abort()).
             // Stream error names vary by provider — match the common ones rather
