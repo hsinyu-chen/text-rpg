@@ -11,6 +11,8 @@ import { SaveProgressDialogComponent } from '@app/features/multi-agent-save/save
 import { SaveAgentRunnerService } from './save-agent-runner.service';
 import { SubToolDispatcherService } from './sub-tool-dispatcher.service';
 import { SaveProgressTracker } from './progress/save-progress-tracker.service';
+import { cFixRunner } from './consistency-checks/c-fix-runner';
+import type { AutoFixLog } from './multi-agent-save.types';
 import { SaveSettingsStore, type SaveMode } from './save-settings.store';
 import {
     SAVE_MANIFEST_SCHEMA_1CALL,
@@ -182,11 +184,32 @@ export class MultiAgentSaveService {
             // 4. Dispatcher — fans out to mechanical handlers. Phase 1 A2 wires
             //    every mechanical tool; LLM sub-tools land in a later slice.
             const locale = getLocale(lang);
-            const dispatchResult = this.dispatcher.dispatch({
+            const kbFiles = this.state.loadedFiles();
+
+            //  4a. C-fix pre-pass (Sub-1 of per-domain-checks sub-plan):
+            //      mechanical normalization of the manifest before dispatch.
+            //      Auto-fixes are logged to a single progress entry so the
+            //      user can see why the applied diff differs from the LLM
+            //      emit. Pure TS, zero-LLM-cost; the dispatcher consumes the
+            //      fixed manifest.
+            const cFixEntryId = this.progress.startEntry('c-fix', { toolName: 'c-fix-runner' });
+            const cFixResult = cFixRunner({
                 manifest,
+                kbFiles,
+                coreFilenames: locale.coreFilenames,
+            });
+            if (cFixResult.fixes.length === 0) {
+                this.progress.skip(cFixEntryId, 'empty_section');
+            } else {
+                this.progress.appendOutput(cFixEntryId, describeAutoFixes(cFixResult.fixes));
+                this.progress.finishEntry(cFixEntryId, 'done');
+            }
+
+            const dispatchResult = this.dispatcher.dispatch({
+                manifest: cFixResult.manifest,
                 coreFilenames: locale.coreFilenames,
                 kbSectionHeadings: locale.kbSectionHeadings,
-                kbFiles: this.state.loadedFiles(),
+                kbFiles,
             });
 
             // 5. Mark the save work done so the progress dialog can show its
@@ -324,4 +347,13 @@ function isCleanFinish(finishReason: string): boolean {
     const normalized = finishReason.toLowerCase();
     // 'null' covers providers that stringify a literal null finishReason.
     return normalized === 'stop' || normalized === 'null' || normalized === '';
+}
+
+/**
+ * Renders the c-fix runner's auto-fix log as the progress entry's `output`.
+ * One line per fix, grep-friendly `[domain/kind] reason` form so the trace is
+ * scannable in the dialog's monospace code block.
+ */
+function describeAutoFixes(fixes: readonly AutoFixLog[]): string {
+    return fixes.map(f => `[${f.domain}/${f.kind}] ${f.reason}`).join('\n');
 }
