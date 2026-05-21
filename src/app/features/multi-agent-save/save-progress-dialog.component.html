@@ -75,7 +75,13 @@
             {{ 'multiAgentSave.progress.cancel' | translate }}
         </button>
     }
-    @if (!isRunning()) {
+    @if (!canCancel()) {
+        <!--
+          Close is the inverse of Cancel:
+          - work done (workComplete=true) → user advances past pause toggle / error trace
+          - run aborted / failed (isRunning=false) → user dismisses the post-mortem dialog
+          Covers both pause-mode review and the error / abort paths after finally.
+        -->
         <button mat-button (click)="close()">{{ 'multiAgentSave.progress.close' | translate }}</button>
     }
 </mat-dialog-actions>

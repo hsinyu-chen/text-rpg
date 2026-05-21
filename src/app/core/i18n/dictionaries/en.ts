@@ -523,6 +523,8 @@ export const en: TranslationDict = {
             subToolProfileLabel: 'Sub-agent LLM profile',
             subToolProfileSameAsMain: 'Same as main chat (default)',
             subToolProfileHint: 'The per-entity sub-agent (multi-call mode) uses this profile. A smaller / local model can save costs.',
+            pauseBeforeAutoUpdate: 'Pause for trace review before auto-update',
+            pauseBeforeAutoUpdateHint: 'Diagnostic only. When on, the save progress dialog stays open after the run finishes; close it manually to advance to Auto-Update. Lets you inspect every section\'s manifest / dispatcher output before applying.',
         },
     },
     app: {
