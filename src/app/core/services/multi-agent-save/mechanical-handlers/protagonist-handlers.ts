@@ -125,7 +125,7 @@ function formatItemLine(delta: InventoryDelta): string {
  * Takes a pre-split line array rather than the raw file content so a
  * delta-loop can split once and reuse — see {@link applyInventoryDeltas}.
  */
-export function findItemLine(lines: readonly string[], itemName: string): string | null {
+function findItemLine(lines: readonly string[], itemName: string): string | null {
     if (!itemName) return null;
     for (const line of lines) {
         const trimmed = line.trimStart();
