@@ -70,4 +70,31 @@ describe('SaveSettingsStore', () => {
         expect(store.subToolProfileId()).toBe('');
         expect(kv.get('mas_sub_tool_profile_id')).toBe('');
     });
+
+    it('defaults pauseBeforeAutoUpdate to false when KV is empty', () => {
+        expect(setup().store.pauseBeforeAutoUpdate()).toBe(false);
+    });
+
+    it('loads pauseBeforeAutoUpdate from KV when persisted as "true"', () => {
+        expect(setup({ mas_pause_before_auto_update: 'true' }).store.pauseBeforeAutoUpdate()).toBe(true);
+    });
+
+    it('treats any non-"true" value as off (defensive read)', () => {
+        // The setter only ever writes 'true' or removes the key; anything else
+        // is stale garbage from a hand-edited KV and should default off.
+        expect(setup({ mas_pause_before_auto_update: 'yes' }).store.pauseBeforeAutoUpdate()).toBe(false);
+        expect(setup({ mas_pause_before_auto_update: '' }).store.pauseBeforeAutoUpdate()).toBe(false);
+    });
+
+    it('persists setPauseBeforeAutoUpdate(true) and removes the key on (false)', () => {
+        const { store, kv } = setup();
+        store.setPauseBeforeAutoUpdate(true);
+        expect(store.pauseBeforeAutoUpdate()).toBe(true);
+        expect(kv.get('mas_pause_before_auto_update')).toBe('true');
+
+        store.setPauseBeforeAutoUpdate(false);
+        expect(store.pauseBeforeAutoUpdate()).toBe(false);
+        // Absent ≡ off; matches the constructor's read semantics.
+        expect(kv.get('mas_pause_before_auto_update')).toBeNull();
+    });
 });

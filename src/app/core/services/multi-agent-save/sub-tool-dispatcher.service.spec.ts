@@ -48,7 +48,7 @@ describe('SubToolDispatcherService', () => {
             kbSectionHeadings: HEADINGS,
             kbFiles: new Map(),
         });
-        expect(result.xml).toBe('');
+        expect(result.updates).toEqual([]);
         const entries = svc.tracker.entries();
         expect(entries.every(e => e.state === 'skipped' && e.statusReason === 'empty_section')).toBe(true);
         // 13 mechanical tools in MECHANICAL_TOOL_NAMES — every one gets one entry.
@@ -66,8 +66,9 @@ describe('SubToolDispatcherService', () => {
             kbSectionHeadings: HEADINGS,
             kbFiles: new Map([['9.物品欄.md', '']]),
         });
-        expect(result.xml).toContain('<save file="9.物品欄.md"');
-        expect(result.xml).toContain('長劍');
+        expect(result.updates).toHaveLength(1);
+        expect(result.updates[0].filePath).toBe('9.物品欄.md');
+        expect(result.updates[0].replacementContent).toContain('長劍');
 
         const invEntry = svc.tracker.entries().find(e => e.toolName === 'inventoryDeltas');
         expect(invEntry?.state).toBe('done');
@@ -76,7 +77,7 @@ describe('SubToolDispatcherService', () => {
 
     it('routes assetsDeltas + charactersToCreate through their now-wired handlers', () => {
         // A2 wired every mechanical tool. The previous "not_yet_implemented"
-        // skip on assets / character-create has been replaced with real XML
+        // skip on assets / character-create has been replaced with real hunk
         // output via the dispatch path.
         const manifest: SaveManifest = {
             ...emptyManifest,
@@ -89,10 +90,11 @@ describe('SubToolDispatcherService', () => {
             kbSectionHeadings: HEADINGS,
             kbFiles: new Map(),
         });
-        expect(result.xml).toContain('<save file="4.資產.md"');
-        expect(result.xml).toContain('金幣 100');
-        expect(result.xml).toContain('<save file="3.人物狀態.md"');
-        expect(result.xml).toContain('## X');
+        const filePaths = result.updates.map(u => u.filePath);
+        expect(filePaths).toContain('4.資產.md');
+        expect(filePaths).toContain('3.人物狀態.md');
+        expect(result.updates.find(u => u.filePath === '4.資產.md')?.replacementContent).toContain('金幣 100');
+        expect(result.updates.find(u => u.filePath === '3.人物狀態.md')?.replacementContent).toContain('## X');
 
         const entries = svc.tracker.entries();
         expect(entries.find(e => e.toolName === 'assetsDeltas')?.state).toBe('done');
@@ -139,9 +141,18 @@ describe('SubToolDispatcherService', () => {
             kbSectionHeadings: HEADINGS,
             kbFiles: new Map([['3.人物狀態.md', '']]),
         });
-        expect(result.xml).toContain('<save file="3.人物狀態.md"');
-        expect(result.xml).toContain('context="# 核心人物 > ## 李四"');
-        expect(result.xml).toContain('新增筆記');
+        expect(result.updates).toHaveLength(1);
+        expect(result.updates[0]).toEqual({
+            filePath: '3.人物狀態.md',
+            context: '# 核心人物 > ## 李四',
+            // Leading `\n` from the LLM-provided replacement stays intact
+            // because section-update entries reach opsToFileUpdates as
+            // `append` (no target) — but the central strip is what shaves
+            // off the handler-emitted separator marker, not LLM content.
+            // Here the LLM-emitted '\n- 新增筆記' is treated the same as any
+            // other append payload and gets its leading newline stripped.
+            replacementContent: '- 新增筆記',
+        });
         const entry = svc.tracker.entries().find(e => e.toolName === 'charactersToUpdate');
         expect(entry?.state).toBe('done');
     });
@@ -181,9 +192,9 @@ describe('SubToolDispatcherService', () => {
         expect(llmEntries).toHaveLength(0);
     });
 
-    it('produces empty_section skip when the handler returns "" (all ops dropped)', () => {
+    it('produces empty_section skip when the handler returns [] (all ops dropped)', () => {
         // The inventory handler drops remove ops whose target line is not in
-        // the file. With an empty file, this manifest yields zero ops.
+        // the file. With an empty file, this manifest yields zero hunks.
         const manifest: SaveManifest = {
             ...emptyManifest,
             inventoryDeltas: [{ op: 'remove', item: '不存在的物品' }],

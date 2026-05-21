@@ -81,6 +81,7 @@ export class SettingsDialogComponent {
   engineMode = signal<'single' | 'two-call'>('single');
   saveMode = signal<SaveMode>('1-call');
   saveSubToolProfileId = signal<string>('');
+  savePauseBeforeAutoUpdate = signal(false);
   outputLanguage = signal('default');
   customOutputLanguage = signal('');
   languages: { value: string; label: string }[] = getLanguagesList();
@@ -157,6 +158,7 @@ export class SettingsDialogComponent {
     this.engineMode.set(this.appConfig.engineMode());
     this.saveMode.set(this.saveSettings.saveMode());
     this.saveSubToolProfileId.set(this.saveSettings.subToolProfileId());
+    this.savePauseBeforeAutoUpdate.set(this.saveSettings.pauseBeforeAutoUpdate());
 
     const lang = this.appConfig.outputLanguage();
     const isPresetLang = this.languages.some(l => l.value === lang);
@@ -210,6 +212,7 @@ export class SettingsDialogComponent {
 
     this.saveSettings.setSaveMode(this.saveMode());
     this.saveSettings.setSubToolProfileId(this.saveSubToolProfileId());
+    this.saveSettings.setPauseBeforeAutoUpdate(this.savePauseBeforeAutoUpdate());
 
     this.bridge.setUrl(this.debugBridgeUrl().trim());
     this.bridge.setEnabled(this.debugBridgeEnabled());

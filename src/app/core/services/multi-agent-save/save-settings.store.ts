@@ -37,6 +37,7 @@ function migrateSaveMode(v: unknown): SaveMode | null {
 const KEYS = {
     saveMode: 'mas_save_mode',
     subToolProfileId: 'mas_sub_tool_profile_id',
+    pauseBeforeAutoUpdate: 'mas_pause_before_auto_update',
 } as const;
 
 /**
@@ -63,6 +64,17 @@ export class SaveSettingsStore {
     private _subToolProfileId = signal<string>('');
     readonly subToolProfileId = this._subToolProfileId.asReadonly();
 
+    /**
+     * Diagnostic toggle. When `true`, `MultiAgentSaveService` keeps the
+     * progress dialog open after the save run finishes and waits for the
+     * user to close it manually before opening AutoUpdateDialog — so the
+     * per-section trace stays inspectable for debugging the manifest /
+     * dispatcher behaviour. Default `false` keeps the production flow
+     * (auto-close → auto-update jump) intact.
+     */
+    private _pauseBeforeAutoUpdate = signal<boolean>(false);
+    readonly pauseBeforeAutoUpdate = this._pauseBeforeAutoUpdate.asReadonly();
+
     constructor() {
         const raw = this.kv.get(KEYS.saveMode);
         const migrated = migrateSaveMode(raw);
@@ -75,6 +87,12 @@ export class SaveSettingsStore {
 
         const profileId = this.kv.get(KEYS.subToolProfileId);
         if (profileId !== null) this._subToolProfileId.set(profileId);
+
+        // Any persisted non-empty value flips the diagnostic toggle on.
+        // KVStore only stores strings, so we round-trip via 'true' / null.
+        if (this.kv.get(KEYS.pauseBeforeAutoUpdate) === 'true') {
+            this._pauseBeforeAutoUpdate.set(true);
+        }
     }
 
     setSaveMode(mode: SaveMode): void {
@@ -85,5 +103,13 @@ export class SaveSettingsStore {
     setSubToolProfileId(id: string): void {
         this._subToolProfileId.set(id);
         this.kv.set(KEYS.subToolProfileId, id);
+    }
+
+    setPauseBeforeAutoUpdate(pause: boolean): void {
+        this._pauseBeforeAutoUpdate.set(pause);
+        // Persist 'true' only; clearing the key on `false` keeps KVStore
+        // small and matches the constructor's "absent ≡ off" read.
+        if (pause) this.kv.set(KEYS.pauseBeforeAutoUpdate, 'true');
+        else this.kv.remove(KEYS.pauseBeforeAutoUpdate);
     }
 }

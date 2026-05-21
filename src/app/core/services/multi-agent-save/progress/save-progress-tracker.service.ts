@@ -30,18 +30,34 @@ export class SaveProgressTracker {
     readonly isRunning = this._isRunning.asReadonly();
 
     /**
-     * Clears the entry ledger. Lifecycle state (`isRunning`) is NOT touched
-     * here — the orchestrator's `finally` block is the canonical site for
-     * `setRunning(false)`, and `reset()` is called at run start (where the
-     * orchestrator is about to call `setRunning(true)`). Touching it here
-     * would emit a spurious false-then-true signal flip.
+     * Set when the save work (SaveAgent + dispatcher) has finished but the
+     * orchestrator is still doing UX afterwork (paused trace review, or
+     * AutoUpdateDialog handoff). Decoupled from {@link isRunning} so the
+     * progress dialog can show its Close button while the orchestrator keeps
+     * the chat surface save-locked.
+     */
+    private _workComplete = signal(false);
+    readonly workComplete = this._workComplete.asReadonly();
+
+    /**
+     * Clears the entry ledger and resets the per-run `workComplete` flag.
+     * Lifecycle state (`isRunning`) is NOT touched here — the orchestrator's
+     * `finally` block is the canonical site for `setRunning(false)`, and
+     * `reset()` is called at run start (where the orchestrator is about to
+     * call `setRunning(true)`). Touching it here would emit a spurious
+     * false-then-true signal flip.
      */
     reset(): void {
         this._entries.set([]);
+        this._workComplete.set(false);
     }
 
     setRunning(running: boolean): void {
         this._isRunning.set(running);
+    }
+
+    setWorkComplete(complete: boolean): void {
+        this._workComplete.set(complete);
     }
 
     startEntry(phase: SavePhase, opts?: { toolName?: string; entityName?: string }): string {
