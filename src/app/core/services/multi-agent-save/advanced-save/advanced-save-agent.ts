@@ -1,11 +1,12 @@
 import { InjectionToken } from '@angular/core';
+import type { ChatMessage } from '@app/core/models/types';
 import type { SaveHunk } from '../multi-agent-save.types';
 
 /**
- * Input handed to one {@link AdvancedSaveAgent} on the chain. Stage 2 carries
- * only the hunk list + abort signal; richer context (KB file snapshots,
- * chat messages, evidence anchors) lands with the first real agent in Stage 3a,
- * designed against that agent's actual needs.
+ * Input handed to one {@link AdvancedSaveAgent} on the chain. The hunk list +
+ * abort signal are the per-agent varying part; `files` / `chatMessages` /
+ * `lang` are the shared turn context an LLM-driven agent needs for its
+ * read tools and prompt loading.
  */
 export interface AdvancedSaveAgentInput {
     /**
@@ -15,6 +16,12 @@ export interface AdvancedSaveAgentInput {
     hunks: SaveHunk[];
     /** Abort signal threaded from the save run's `AbortController`. */
     signal: AbortSignal;
+    /** KB file snapshot — backs an LLM-driven agent's kb-read tools. */
+    files: Map<string, string>;
+    /** Current session chat — backs an LLM-driven agent's chat-read tools. */
+    chatMessages: ChatMessage[];
+    /** Output language — locale filename resolution + agent prompt loading. */
+    lang: string;
 }
 
 /**

@@ -298,7 +298,7 @@ The AI-generated **Inventory**, **Quest Log**, **World/Tech Update**, and **Summ
 ### 3. Automatic World Update
 Save not only records progress — it also **updates world setting files**:
 *   **Trigger**: Click the **Save** (floppy-disk icon) button next to the input box → confirm in the dialog → save runs. Save is not persisted as a chat message; the run itself surfaces the Auto-Update dialog directly.
-*   **Mechanism**: **SaveAgent** (a single LLM call) reviews this ACT's logs + summaries (since `--- ACT START ---`) and compiles a **hunk manifest** — a flat list of verbatim KB edits (add / replace / delete), each anchored to a target file + heading. The manifest goes straight to the Auto-Update dialog.
+*   **Mechanism**: **SaveAgent** (a single LLM call) reviews this ACT's logs + summaries (since `--- ACT START ---`) and compiles a **hunk manifest** — a flat list of verbatim KB edits (add / replace / delete), each anchored to a target file + heading. If any advanced-save agent is enabled in Settings, the manifest passes through the advanced-save stage (extra opt-in LLM passes that drop, revise, or supplement hunks) before reaching the Auto-Update dialog; otherwise it goes straight there.
 *   **Review Interface**: The **"Auto-Update"** dialog pops up afterwards with line-by-line diff previews per file (e.g., `2.PlotOutline.md` / `6.World.md` / `3.Characters.md`); apply or skip each entry.
 
 ### 4. Knowledge Base File Editing (KB File Editing)

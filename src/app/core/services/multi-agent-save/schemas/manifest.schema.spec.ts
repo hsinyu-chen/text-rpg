@@ -94,7 +94,17 @@ describe('validateManifest', () => {
             { file: 'b.md', context: '' }, // truncated tail — missing replacement
         ]);
         expect(r.ok).toBe(true);
-        if (r.ok) expect(r.hunks).toEqual([{ file: 'a.md', context: '', replacement: 'x' }]);
+        if (r.ok) expect(r.hunks).toEqual([{ id: 'H1', file: 'a.md', context: '', replacement: 'x' }]);
+    });
+
+    it('stamps sequential H-ids on the validated hunks', () => {
+        const r = validateManifest([
+            { file: 'a.md', context: '', replacement: 'x' },
+            { file: 'b.md', context: '', replacement: 'y' },
+            { file: 'c.md', context: '', replacement: 'z' },
+        ]);
+        expect(r.ok).toBe(true);
+        if (r.ok) expect(r.hunks.map(h => h.id)).toEqual(['H1', 'H2', 'H3']);
     });
 
     it('hard-fails when hunk[0] is malformed even in a multi-hunk array', () => {

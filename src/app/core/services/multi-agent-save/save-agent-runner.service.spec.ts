@@ -56,7 +56,7 @@ describe('SaveAgentRunnerService', () => {
 
         const result = await runner.run(defaultInput(provider));
 
-        expect(result.hunks).toEqual([{ file: 'f.md', context: '', replacement: '- 長劍' }]);
+        expect(result.hunks).toEqual([{ id: 'H1', file: 'f.md', context: '', replacement: '- 長劍' }]);
         expect(result.rawJson).toBe(sampleManifest);
     });
 

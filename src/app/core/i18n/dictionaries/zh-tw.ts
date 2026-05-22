@@ -528,7 +528,7 @@ export const zhTW: TranslationDict = {
         snapshotUploadingProgress: '上傳設定中…',
         snapshotDownloadingProgress: '下載設定中…',
         multiAgentSaveSection: '存檔設定',
-        multiAgentSaveSectionHint: '存檔會由 SaveAgent 分析本回合的 logs，產出一份 hunk manifest，再直接交給 Auto-Update 對話框套用。可用除錯按鈕檢視資料 provider 從目前 Book 抽出的內容。',
+        multiAgentSaveSectionHint: '存檔會由 SaveAgent 分析本回合的 logs，產出一份 hunk manifest；若下方任何進階存檔 agent 已啟用，manifest 會先經過進階階段再交給 Auto-Update 對話框套用，否則直接交給 Auto-Update。可用除錯按鈕檢視資料 provider 從目前 Book 抽出的內容。',
         providerDebugButton: 'Provider 除錯…',
         profilePickerSameAsMain: '與主對話相同（預設）',
         savePauseBeforeAutoUpdate: '進 Auto-Update 前暫停看 trace',
@@ -538,6 +538,13 @@ export const zhTW: TranslationDict = {
         advancedSaveSection: '進階存檔處理',
         advancedSaveSectionHint: '存檔產出的 hunk manifest 在交給 Auto-Update 前,會依序經過下列已啟用的處理 agent。每個 agent 各需額外的 LLM 呼叫,預設全部關閉;依需求自行開啟。',
         saveAgentProfileLabel: 'LLM 設定檔',
+    },
+    advancedSaveAgents: {
+        inventoryConsistency: {
+            name: '物品一致性檢查',
+            desc: '逐條核對物品欄 hunk 與劇情 —— 移除不符的、修正錯誤數量 —— 並在科技裝備檔補完或深化物品詳細設定。每次存檔多一次 LLM 呼叫。',
+            aiHint: '核對 manifest 中物品欄檔的 hunk 與本 ACT 事件(移除劇情不支持的變動、修正錯誤數量),並維護重要物品在科技裝備檔的詳細設定。',
+        },
     },
     app: {
         setupRequired: '需要先設定',

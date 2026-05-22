@@ -528,7 +528,7 @@ export const en: TranslationDict = {
         snapshotUploadingProgress: 'Uploading settings...',
         snapshotDownloadingProgress: 'Downloading settings...',
         multiAgentSaveSection: 'Save Settings',
-        multiAgentSaveSectionHint: 'Saving runs SaveAgent over this turn\'s logs to produce a hunk manifest, then hands it straight to the Auto-Update dialog. Use the debug button to inspect what the data providers extract from the current Book.',
+        multiAgentSaveSectionHint: 'Saving runs SaveAgent over this turn\'s logs to produce a hunk manifest; if any advanced-save agent below is enabled, the manifest passes through the advanced stage first, otherwise it goes straight to the Auto-Update dialog. Use the debug button to inspect what the data providers extract from the current Book.',
         providerDebugButton: 'Provider Debug…',
         profilePickerSameAsMain: 'Same as main chat (default)',
         savePauseBeforeAutoUpdate: 'Pause for trace review before auto-update',
@@ -538,6 +538,13 @@ export const en: TranslationDict = {
         advancedSaveSection: 'Advanced save processing',
         advancedSaveSectionHint: 'Before the save manifest reaches Auto-Update, it passes through each enabled processing agent below, in order. Each agent costs extra LLM calls, so all are off by default — opt in as needed.',
         saveAgentProfileLabel: 'LLM profile',
+    },
+    advancedSaveAgents: {
+        inventoryConsistency: {
+            name: 'Inventory consistency',
+            desc: 'Cross-checks each inventory hunk against the story — drops unsupported ones, corrects wrong quantities — and supplements or deepens item detail-settings in the tech-equipment file. One extra LLM call per save.',
+            aiHint: "Verifies the manifest's inventory-file hunks against this ACT's events (drops unsupported changes, corrects wrong quantities) and keeps significant items' detail-settings in the tech-equipment file current.",
+        },
     },
     app: {
         setupRequired: 'Setup Required',
