@@ -103,7 +103,7 @@ Every adventure book has 9 chapter \`.md\` files that together form the KB. **Th
 
 ### ACT concept
 
-An ACT runs from the previous \`--- ACT START ---\` marker, accumulating \`*_log\` entries the whole way; the player triggers Save (chat-input toolbar button) when an ACT closes, and a multi-agent save pass turns those logs into KB updates surfaced via the Auto-Update dialog. \`${cf.STORY_OUTLINE}\` gains one new \`## Act.[N]\` block per save. Save is not a chat-message intent — it leaves no entry in chat history.${advancedSaveBlock}
+An ACT runs from the previous \`--- ACT START ---\` marker, accumulating \`*_log\` entries the whole way; the player triggers Save (chat-input toolbar button) when an ACT closes, and a multi-agent save pass turns those logs into KB updates surfaced via the Auto-Update dialog. \`${cf.STORY_OUTLINE}\` gains one new \`## Act.[N]\` block per save. The save run leaves no entry in chat history.${advancedSaveBlock}
 
 ### Intent kinds
 
