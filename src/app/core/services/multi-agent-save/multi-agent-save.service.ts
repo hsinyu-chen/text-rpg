@@ -1,4 +1,5 @@
 import { Injectable, inject } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import type { LLMContent } from '@hcs/llm-core';
 import { MatDialog } from '@angular/material/dialog';
@@ -62,6 +63,7 @@ export class MultiAgentSaveService {
     private dialog = inject(MatDialog);
     private i18n = inject(I18nService);
     private snackBar = inject(MatSnackBar);
+    private http = inject(HttpClient);
 
     /**
      * Runs one save end-to-end. `userInput` is the raw text the user typed
@@ -241,8 +243,7 @@ export class MultiAgentSaveService {
 
         for (const path of candidates) {
             try {
-                const response = await fetch(path, { cache: 'no-store' });
-                if (response.ok) return await response.text();
+                return await firstValueFrom(this.http.get(path, { responseType: 'text' }));
             } catch { /* try next */ }
         }
         throw new Error(`Failed to load ${MANIFEST_PROMPT_FILE} (tried ${candidates.length} paths)`);
