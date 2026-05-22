@@ -41,7 +41,8 @@ export interface AdvancedSaveAgent {
  * it verbatim. Stage 2 ships zero bindings, so the registry resolves an empty
  * list and the advanced-save stage is an identity pass.
  *
- * The type parameter is the *collected* array (Angular multi-provider idiom):
- * each Stage 3+ binding contributes one agent via `multi: true`.
+ * The type parameter is the *collected* array, matching Angular's own
+ * `HTTP_INTERCEPTORS` idiom for `multi: true` tokens: each Stage 3+ binding
+ * contributes one agent, and `inject()` resolves the full array.
  */
 export const ADVANCED_SAVE_AGENT = new InjectionToken<readonly AdvancedSaveAgent[]>('ADVANCED_SAVE_AGENT');
