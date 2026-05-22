@@ -34,7 +34,11 @@ The three operations are determined by which fields are present:
 - **Replace**: `target` is the verbatim original, `replacement` is the new content.
 - **Delete**: `target` is the verbatim original, `replacement` is an empty string `""`.
 
-> **Match the file's format verbatim**: `target` / `replacement` are finished text. Every KB file has a format-definition section at the top, and its existing entries demonstrate the format — when writing `replacement`, **follow that file's existing format**, do not impose a format of your own. `target` must match the source file exactly, or the apply step will fail to anchor it.
+> **Match the file's format verbatim**: `target` / `replacement` are finished text. When writing `replacement`:
+> - If the KB file has a **format-definition section** at the top (user-authored format rules), you **must** render strictly to that definition — do not impose a format of your own.
+> - Without an explicit format definition, follow the format demonstrated by the file's existing entries.
+>
+> `target` must match the source file exactly, or the apply step will fail to anchor it.
 
 For the Story Outline (chronicle) file, write the ACT's progress as a new time-node hunk covering the key turning points, conflict outcomes, and notable lines, following the file's existing chronicle style.
 
