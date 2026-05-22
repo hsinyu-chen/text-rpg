@@ -115,6 +115,14 @@ export interface FactionEntry {
  * `matchIndex`). A trivial mapper bridges the two.
  */
 export interface SaveHunk {
+  /**
+   * Stable per-run hunk id (`H1` / `H2` …), assigned by the framework — NOT
+   * authored by the LLM. Stamped when the manifest is validated; advanced-save
+   * agents reference hunks by this id (drop / revise) and the chain keeps it
+   * stable so a later agent can address an earlier agent's output. Short on
+   * purpose: an LLM copies a printed id reliably but miscounts array indices.
+   */
+  id: string;
   /** Target KB filename — the model gives the locale-resolved actual name. */
   file: string;
   /** Heading breadcrumb (`# X > ## Y`) for the matcher; empty string = file root. */
@@ -137,7 +145,7 @@ export interface SaveHunk {
 // to render per-entry cards.
 // ============================================================================
 
-export type SavePhase = 'manifest';
+export type SavePhase = 'manifest' | 'advanced-agent';
 export type SaveEntryState = 'running' | 'retry' | 'done' | 'skipped' | 'failed';
 
 /**

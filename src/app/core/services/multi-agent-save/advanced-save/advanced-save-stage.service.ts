@@ -2,6 +2,11 @@ import { Injectable, inject } from '@angular/core';
 import type { SaveHunk } from '../multi-agent-save.types';
 import { SaveSettingsStore } from '../save-settings.store';
 import { AdvancedSaveAgentRegistry } from './advanced-save-agent-registry';
+import type { AdvancedSaveAgentInput } from './advanced-save-agent';
+
+/** Shared turn context for a chain run — every field of
+ *  {@link AdvancedSaveAgentInput} except `hunks` (which varies per agent). */
+export type AdvancedSaveStageContext = Omit<AdvancedSaveAgentInput, 'hunks'>;
 
 /**
  * The advanced-save stage — a fixed post-processing step between the SaveAgent
@@ -21,14 +26,14 @@ export class AdvancedSaveStageService {
     private registry = inject(AdvancedSaveAgentRegistry);
     private settings = inject(SaveSettingsStore);
 
-    async process(hunks: SaveHunk[], signal: AbortSignal): Promise<SaveHunk[]> {
+    async process(hunks: SaveHunk[], context: AdvancedSaveStageContext): Promise<SaveHunk[]> {
         const enabled = this.settings.enabledSaveAgents();
         let current = hunks;
         for (const agent of this.registry.all()) {
             if (!enabled.has(agent.id)) continue;
             // A cancel landing between agents shouldn't spend a fresh LLM call.
-            signal.throwIfAborted();
-            current = await agent.process({ hunks: current, signal });
+            context.signal.throwIfAborted();
+            current = await agent.process({ hunks: current, ...context });
         }
         return current;
     }

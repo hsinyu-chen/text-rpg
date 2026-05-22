@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TestBed } from '@angular/core/testing';
-import { AdvancedSaveStageService } from './advanced-save-stage.service';
+import { AdvancedSaveStageService, type AdvancedSaveStageContext } from './advanced-save-stage.service';
 import { ADVANCED_SAVE_AGENT, type AdvancedSaveAgent, type AdvancedSaveAgentInput } from './advanced-save-agent';
 import { KVStore } from '../../kv/kv-store';
 import { InMemoryKVStore } from '../../../testing/in-memory-kv-store';
@@ -23,8 +23,13 @@ function fakeAgent(
     };
 }
 
-function hunk(file: string): SaveHunk {
-    return { file, context: '', replacement: 'x' };
+function hunk(file: string, id = 'H0'): SaveHunk {
+    return { id, file, context: '', replacement: 'x' };
+}
+
+/** Shared turn context — every field of the agent input except `hunks`. */
+function ctx(signal: AbortSignal): AdvancedSaveStageContext {
+    return { signal, files: new Map(), chatMessages: [], lang: 'default' };
 }
 
 /** Seeds `enabledSaveAgents` into KV as the store's constructor expects. */
@@ -52,14 +57,14 @@ describe('AdvancedSaveStageService', () => {
     it('is an identity pass when no agent is registered', async () => {
         const stage = setup([], []);
         const hunks = [hunk('a.md')];
-        expect(await stage.process(hunks, signal)).toBe(hunks);
+        expect(await stage.process(hunks, ctx(signal))).toBe(hunks);
     });
 
     it('is an identity pass when agents exist but none are enabled', async () => {
         const a = fakeAgent('a');
         const stage = setup([a], []);
         const hunks = [hunk('a.md')];
-        expect(await stage.process(hunks, signal)).toBe(hunks);
+        expect(await stage.process(hunks, ctx(signal))).toBe(hunks);
         expect(a.calls).toHaveLength(0);
     });
 
@@ -67,9 +72,18 @@ describe('AdvancedSaveStageService', () => {
         const a = fakeAgent('a');
         const b = fakeAgent('b');
         const stage = setup([a, b], ['b']);
-        await stage.process([hunk('x.md')], signal);
+        await stage.process([hunk('x.md')], ctx(signal));
         expect(a.calls).toHaveLength(0);
         expect(b.calls).toHaveLength(1);
+    });
+
+    it('threads the shared turn context into every agent call', async () => {
+        const a = fakeAgent('a');
+        const stage = setup([a], ['a']);
+        const files = new Map([['9.物品欄.md', '- 長劍']]);
+        await stage.process([hunk('x.md')], { signal, files, chatMessages: [], lang: 'zh-tw' });
+        expect(a.calls[0].files).toBe(files);
+        expect(a.calls[0].lang).toBe('zh-tw');
     });
 
     it('chains enabled agents in registration order, threading each output forward', async () => {
@@ -83,7 +97,7 @@ describe('AdvancedSaveStageService', () => {
             return [...hunks, hunk('from-b.md')];
         });
         const stage = setup([a, b], ['a', 'b']);
-        const result = await stage.process([hunk('seed.md')], signal);
+        const result = await stage.process([hunk('seed.md')], ctx(signal));
 
         expect(order).toEqual(['a', 'b']);
         // b sees a's appended hunk on its input.
@@ -97,7 +111,7 @@ describe('AdvancedSaveStageService', () => {
         const b = fakeAgent('b', h => { order.push('b'); return h; });
         const c = fakeAgent('c', h => { order.push('c'); return h; });
         const stage = setup([a, b, c], ['a', 'c']);
-        await stage.process([hunk('x.md')], signal);
+        await stage.process([hunk('x.md')], ctx(signal));
         expect(order).toEqual(['a', 'c']);
     });
 
@@ -107,7 +121,7 @@ describe('AdvancedSaveStageService', () => {
         const a = fakeAgent('a', hunks => { controller.abort(); return hunks; });
         const b = fakeAgent('b');
         const stage = setup([a, b], ['a', 'b']);
-        await expect(stage.process([hunk('x.md')], controller.signal)).rejects.toThrow();
+        await expect(stage.process([hunk('x.md')], ctx(controller.signal))).rejects.toThrow();
         expect(a.calls).toHaveLength(1);
         expect(b.calls).toHaveLength(0);
     });

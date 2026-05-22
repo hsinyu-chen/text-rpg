@@ -160,7 +160,12 @@ export class MultiAgentSaveService {
 
             // 4. Advanced save stage — chain every enabled AdvancedSaveAgent
             //    over the hunk list. Zero enabled agents → identity pass.
-            const processedHunks = await this.advancedStage.process(hunks, abortController.signal);
+            const processedHunks = await this.advancedStage.process(hunks, {
+                signal: abortController.signal,
+                files: this.state.loadedFiles(),
+                chatMessages: this.state.messages(),
+                lang,
+            });
 
             // 5. Map each hunk → FileUpdate. The model already wrote verbatim
             //    markdown into target/replacement, so this is a field copy.
