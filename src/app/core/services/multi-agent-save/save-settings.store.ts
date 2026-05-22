@@ -5,6 +5,7 @@ const KEYS = {
     pauseBeforeAutoUpdate: 'mas_pause_before_auto_update',
     hunkFixupProfileId: 'mas_hunk_fixup_profile_id',
     enabledSaveAgents: 'mas_enabled_save_agents',
+    saveAgentProfileIds: 'mas_save_agent_profile_ids',
 } as const;
 
 /**
@@ -45,6 +46,15 @@ export class SaveSettingsStore {
     private _enabledSaveAgents = signal<ReadonlySet<string>>(new Set());
     readonly enabledSaveAgents = this._enabledSaveAgents.asReadonly();
 
+    /**
+     * Per-agent LLM profile override for advanced-save agents, keyed by agent
+     * id. A missing entry (or empty string) means the agent runs on the main
+     * chat profile. Persisted as a JSON object; the key is absent when no
+     * agent has an override.
+     */
+    private _saveAgentProfileIds = signal<Readonly<Record<string, string>>>({});
+    readonly saveAgentProfileIds = this._saveAgentProfileIds.asReadonly();
+
     constructor() {
         // Any persisted non-empty value flips the diagnostic toggle on.
         // KVStore only stores strings, so we round-trip via 'true' / null.
@@ -61,6 +71,18 @@ export class SaveSettingsStore {
                 const parsed: unknown = JSON.parse(rawAgents);
                 if (Array.isArray(parsed)) {
                     this._enabledSaveAgents.set(new Set(parsed.filter((x): x is string => typeof x === 'string')));
+                }
+            } catch { /* corrupt value — fall back to the empty default */ }
+        }
+
+        const rawProfiles = this.kv.get(KEYS.saveAgentProfileIds);
+        if (rawProfiles) {
+            try {
+                const parsed: unknown = JSON.parse(rawProfiles);
+                if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                    const kept = Object.entries(parsed as Record<string, unknown>)
+                        .filter((e): e is [string, string] => typeof e[1] === 'string' && e[1] !== '');
+                    this._saveAgentProfileIds.set(Object.fromEntries(kept));
                 }
             } catch { /* corrupt value — fall back to the empty default */ }
         }
@@ -85,5 +107,14 @@ export class SaveSettingsStore {
         // small and matches the constructor's "absent ≡ no agents" read.
         if (ids.size > 0) this.kv.set(KEYS.enabledSaveAgents, JSON.stringify([...ids]));
         else this.kv.remove(KEYS.enabledSaveAgents);
+    }
+
+    setSaveAgentProfileIds(ids: Readonly<Record<string, string>>): void {
+        // '' ≡ "same as main" ≡ absent — drop empties so the stored object
+        // stays minimal and matches the constructor's "absent ≡ main" read.
+        const pruned = Object.fromEntries(Object.entries(ids).filter(([, v]) => v !== ''));
+        this._saveAgentProfileIds.set(pruned);
+        if (Object.keys(pruned).length > 0) this.kv.set(KEYS.saveAgentProfileIds, JSON.stringify(pruned));
+        else this.kv.remove(KEYS.saveAgentProfileIds);
     }
 }
