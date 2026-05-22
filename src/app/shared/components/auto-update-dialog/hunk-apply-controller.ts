@@ -18,7 +18,17 @@ import { AppConfigStore } from '@app/core/services/app-config-store';
 import { GAME_INTENTS } from '@app/core/constants/game-intents';
 import { getCoreFilenames } from '@app/core/constants/engine-protocol';
 import { ConfirmDialogComponent, ConfirmDialogData } from '../confirm-dialog/confirm-dialog.component';
+import { HunkAutoFixService } from './hunk-auto-fix.service';
+import { HunkAutoFixProgressDialogComponent, HunkAutoFixProgressData } from './hunk-auto-fix-progress-dialog.component';
+import { HunkFixPreviewDialogComponent, HunkFixPreviewData } from './hunk-fix-preview-dialog.component';
 import { I18nService } from '@app/core/i18n';
+
+/**
+ * How many consecutive LLM repair attempts on a single hunk we allow before
+ * hiding the button. Three felt like a reasonable "this isn't going to work,
+ * stop burning tokens" threshold — adjust based on telemetry once we have it.
+ */
+const MAX_AUTO_FIX_ATTEMPTS = 3;
 
 export interface ValidationStatus {
   exists: boolean;
@@ -35,6 +45,14 @@ export type MonacoUpdateItem = FileUpdate & {
   id: string;
   selected: WritableSignal<boolean>;
   status?: ValidationStatus;
+  /**
+   * Per-hunk LLM repair attempt counter. Bumped on every `requestAutoFix`
+   * that still fails to match afterwards (successful matches reset to 0).
+   * Reaching {@link MAX_AUTO_FIX_ATTEMPTS} disables the button.
+   */
+  autoFixAttempts: WritableSignal<number>;
+  /** True while a fix LLM call is in flight; UI shows the button spinner. */
+  autoFixInProgress: WritableSignal<boolean>;
 };
 
 export interface GroupedUpdate {
@@ -57,8 +75,8 @@ export interface HunkApplyHost {
  * state, the recomputed-on-every-edit `combinedContent`, drag-reorder, and
  * the calibration state machine (selection-anchored target+context inference).
  *
- * Does NOT own: editor instance, file writes, dialog ref, regenerate-save
- * prompt assembly. Provided in the dialog's `providers` array (per-instance).
+ * Does NOT own: editor instance, file writes, dialog ref. Provided in the
+ * dialog's `providers` array (per-instance).
  */
 @Injectable()
 export class HunkApplyController {
@@ -69,6 +87,9 @@ export class HunkApplyController {
   private snackBar = inject(MatSnackBar);
   private dialog = inject(MatDialog);
   private i18n = inject(I18nService);
+  private autoFix = inject(HunkAutoFixService);
+
+  readonly maxAutoFixAttempts = MAX_AUTO_FIX_ATTEMPTS;
 
   private t(key: string, params?: Record<string, string | number>): string {
     return this.i18n.translate(`dialog.${key}`, params);
@@ -140,10 +161,6 @@ export class HunkApplyController {
     return group.updates.some((u) => u.status && u.status.exists && !u.status.matched);
   }
 
-  hasAnyMismatch(): boolean {
-    return this.groupedUpdates().some((g) => this.hasMismatch(g));
-  }
-
   hasSelectedUpdates(): boolean {
     return this.groupedUpdates().some((g) => g.updates.some((u) => u.selected()));
   }
@@ -203,6 +220,107 @@ export class HunkApplyController {
     this.cancelCalibration();
     await this.revalidateUpdate(update, group);
     this.snackBar.open(this.t('calibrationSuccess'), this.i18n.translate('ui.CLOSE'), { duration: 2000 });
+  }
+
+  /**
+   * Whether the LLM repair button should render for `update`. Only offered
+   * on `target_not_found` failures (`context_mismatch` is rarer and harder
+   * to LLM-recover from) and only until the attempt counter saturates.
+   */
+  canAutoFix(update: MonacoUpdateItem): boolean {
+    return update.status?.exists === true
+      && update.status?.matched === false
+      && update.status?.failReason === 'target_not_found'
+      && update.autoFixAttempts() < MAX_AUTO_FIX_ATTEMPTS;
+  }
+
+  /**
+   * Ask {@link HunkAutoFixService} for a corrected target/replacement, show
+   * the preview dialog, and on confirm splice the result back into the hunk
+   * + revalidate. Empty-string repair output means the LLM thinks the file
+   * already reflects the intended state — we surface that as a snackbar
+   * rather than wiping the hunk on the user's behalf.
+   */
+  async requestAutoFix(update: MonacoUpdateItem, group: GroupedUpdate): Promise<void> {
+    if (!this.canAutoFix(update)) return;
+    if (update.autoFixInProgress()) return;
+
+    update.autoFixInProgress.set(true);
+    const abortController = new AbortController();
+    const progressRef = this.dialog.open(HunkAutoFixProgressDialogComponent, {
+      data: { fileName: group.fileName, abortController } satisfies HunkAutoFixProgressData,
+      disableClose: true,
+      width: '640px',
+      maxWidth: '95vw',
+    });
+    const progressInstance = progressRef.componentInstance;
+    try {
+      const result = await this.autoFix.fix({
+        fileName: group.fileName,
+        sourceContent: group.originalContent(),
+        intendedTarget: update.targetContent ?? '',
+        intendedReplacement: update.replacementContent ?? '',
+        context: update.context,
+        signal: abortController.signal,
+        onThoughtChunk: (text) => progressInstance.appendThought(text),
+        onOutputChunk: (text) => progressInstance.appendOutput(text),
+        onUsage: (usage) => progressInstance.setUsage(usage),
+      });
+      // Close the progress dialog before any follow-up dialog (preview /
+      // confirm) opens, otherwise the user sees two modals stacked. Service
+      // returns null on abort too, so this path covers cancel + success + fail.
+      progressRef.close();
+
+      if (abortController.signal.aborted) return;
+
+      if (!result) {
+        update.autoFixAttempts.update(n => n + 1);
+        this.snackBar.open(this.t('autoFixFailed'), this.i18n.translate('ui.CLOSE'), { duration: 3000 });
+        return;
+      }
+
+      if (!result.target && !result.replacement) {
+        this.snackBar.open(this.t('autoFixIdempotent'), this.i18n.translate('ui.CLOSE'), { duration: 3000 });
+        return;
+      }
+
+      const previewData: HunkFixPreviewData = {
+        oldTarget: update.targetContent ?? '',
+        newTarget: result.target,
+        oldReplacement: update.replacementContent ?? '',
+        newReplacement: result.replacement,
+      };
+      const confirmed = await firstValueFrom(
+        this.dialog.open(HunkFixPreviewDialogComponent, { data: previewData }).afterClosed(),
+      );
+      if (!confirmed) return;
+
+      update.targetContent = result.target;
+      update.replacementContent = result.replacement;
+      await this.revalidateUpdate(update, group);
+
+      // `runValidation` replaces the array entry with a fresh object whose
+      // `status` reflects the post-revalidate result — the `update` arg still
+      // points at the pre-revalidate snapshot. So read `status` off `latest`.
+      // The signal handles (autoFixAttempts / autoFixInProgress) are spread
+      // by reference, so both objects share the same WritableSignal instance
+      // and we can keep mutating through `update` — no need to re-bind.
+      const latest = group.updates.find(u => u.id === update.id);
+      if (latest?.status?.matched) {
+        update.autoFixAttempts.set(0);
+        this.snackBar.open(this.t('autoFixSuccess'), this.i18n.translate('ui.CLOSE'), { duration: 2000 });
+      } else {
+        const next = update.autoFixAttempts() + 1;
+        update.autoFixAttempts.set(next);
+        const key = next >= MAX_AUTO_FIX_ATTEMPTS ? 'autoFixLimitReached' : 'autoFixStillFailed';
+        this.snackBar.open(this.t(key, { attempts: next, max: MAX_AUTO_FIX_ATTEMPTS }), this.i18n.translate('ui.CLOSE'), { duration: 4000 });
+      }
+    } finally {
+      update.autoFixInProgress.set(false);
+      // Defensive close in case an unexpected throw left the dialog hanging
+      // (the success path closes earlier; this is a no-op if already closed).
+      progressRef.close();
+    }
   }
 
   onHunkContentChange(update: MonacoUpdateItem, type: 'target' | 'replacement', event: Event): void {
@@ -279,6 +397,8 @@ export class HunkApplyController {
         id: `upd_${counter++}`,
         selected: signal(true),
         status: { exists: false, matched: false, validating: true },
+        autoFixAttempts: signal(0),
+        autoFixInProgress: signal(false),
       });
     }
 
@@ -301,6 +421,8 @@ export class HunkApplyController {
             id: updateItem.id || `upd_${counter++}`,
             selected: isSignal ? (updateItem.selected as WritableSignal<boolean>) : signal(true),
             status: updateItem.status || { exists: false, matched: false, validating: true },
+            autoFixAttempts: signal(0),
+            autoFixInProgress: signal(false),
           };
         });
 

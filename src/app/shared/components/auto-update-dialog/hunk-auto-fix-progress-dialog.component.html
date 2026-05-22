@@ -1,0 +1,40 @@
+<h2 mat-dialog-title>
+    <mat-icon>auto_fix_high</mat-icon>
+    {{ 'dialog.autoFixProgressTitle' | translate }}
+</h2>
+<mat-dialog-content class="hunk-fix-progress-content">
+    <div class="header-row">
+        <mat-spinner diameter="20"></mat-spinner>
+        <span class="file-label">{{ data.fileName }}</span>
+    </div>
+
+    @if (hasThought()) {
+        <section class="block">
+            <h3>{{ 'dialog.autoFixProgressThought' | translate }}</h3>
+            <pre class="stream-text thought" [appAutoScrollBottom]="thought()">{{ thought() }}</pre>
+        </section>
+    }
+
+    @if (hasOutput()) {
+        <section class="block">
+            <h3>{{ 'dialog.autoFixProgressOutput' | translate }}</h3>
+            <pre class="stream-text output" [appAutoScrollBottom]="output()">{{ output() }}</pre>
+        </section>
+    } @else if (!hasThought()) {
+        <p class="waiting">{{ 'dialog.autoFixProgressWaiting' | translate }}</p>
+    }
+
+    @if (usage(); as u) {
+        <div class="usage-line">
+            <span>prompt: {{ u.prompt }}</span>
+            <span>cand: {{ u.candidates }}</span>
+            <span>cached: {{ u.cached }}</span>
+        </div>
+    }
+</mat-dialog-content>
+<mat-dialog-actions align="end">
+    <button mat-stroked-button color="warn" (click)="cancel()">
+        <mat-icon>cancel</mat-icon>
+        {{ 'dialog.cancel' | translate }}
+    </button>
+</mat-dialog-actions>

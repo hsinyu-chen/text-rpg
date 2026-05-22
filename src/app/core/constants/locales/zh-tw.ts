@@ -8,8 +8,8 @@ export const ZH_TW_LOCALE: AppLocale = {
     responseSchema: {
         rootDescription: "思考流程：你必須先完成 'analysis' 欄位，再生成 'response' 內容。所有輸出必須使用繁體中文。",
         responseDescription: "[回應階段] 分析後的實際故事內容與紀錄。所有欄位必須使用繁體中文。",
-        analysis: `[分析階段] 必填。必須在生成故事前分析原子行動、成功/失敗檢定與隨機事件。必須使用繁體中文輸出。僅在意圖為 ${GAME_INTENTS.SYSTEM} 或 ${GAME_INTENTS.SAVE} 時可為空字串 ""。`,
-        summary: `[摘要] 必填。僅更新本回合的關鍵劇情點，必須使用繁體中文。僅在意圖為 ${GAME_INTENTS.SYSTEM} 或 ${GAME_INTENTS.SAVE} 時可為空字串 ""。檢查歷史紀錄以避免重複。`,
+        analysis: `[分析階段] 必填。必須在生成故事前分析原子行動、成功/失敗檢定與隨機事件。必須使用繁體中文輸出。僅在意圖為 ${GAME_INTENTS.SYSTEM} 時可為空字串 ""。`,
+        summary: `[摘要] 必填。僅更新本回合的關鍵劇情點，必須使用繁體中文。僅在意圖為 ${GAME_INTENTS.SYSTEM} 時可為空字串 ""。檢查歷史紀錄以避免重複。`,
         character: "描述人物變化。格式：'[標籤] [姓名/描述] ([內容])'。標籤：新角色/狀態變化/位置更新。檢查歷史紀錄。若無變化則返回 []。",
         inventory: "描述物品變化。格式：'[標籤]: [名稱] / [數量]'。場景內直接消耗的物資不記錄。只記錄存在於物品欄或歷史紀錄中的物品變動。若無變化則返回 []。",
         quest: "描述任務進度。格式：'[標籤]: [任務標題]（[具體進展描述]）'。僅在任務正式接受、進度實質變更、或主角主動改變計畫時記錄。檢查歷史紀錄。若無變化則返回 []。",
@@ -34,6 +34,9 @@ export const ZH_TW_LOCALE: AppLocale = {
         MAGIC: '7.魔法與技能.md',
         PLANS: '8.計畫.md',
         INVENTORY: '9.物品欄.md'
+    },
+    kbSectionHeadings: {
+        STORY_OUTLINE_CHRONICLE: '劇情綱要',
     },
     promptHoles: {
         LANGUAGE_RULE: "必須使用繁體中文進行創作，嚴禁使用中國用語。"
@@ -91,12 +94,6 @@ history 訊息或 stateUpdates summary 出現 \`correction:\` 條目時，**必�
     },
     engineStrings: {
         INTRO_TEXT: '劇情開始，建構最後的場景',
-        LOCAL_INIT_ANALYSIS: '系統本地初始化：已從劇情綱要讀取最後場景。',
-        REGENERATE_SAVE_PROMPT: '以下存檔比對失敗。請務必找出正確的文字位置，並確保 <target> 內的文字與原始檔案「完全一致」（包含標點符號與縮排），否則將無法套用。請勿重複輸出已成功的部分。',
-        REGEN_SUCCESS_TITLE: '**以下項目的 XML 更新「已成功」比對，請【絕對不要】再次輸出這些區塊：**',
-        REGEN_FAILED_TITLE: '**請【僅針對】以下失敗項目重新產生 XML 更新：**',
-        REGEN_SUCCESS_LABEL: '[已成功]',
-        REGEN_FILE_LABEL: '[檔案]',
-        REGEN_ERROR_LABEL: '[錯誤錨點] (檔案中找不到此段落，請重新定位文字並確保字元完全一致，包含標點與空格)：'
+        LOCAL_INIT_ANALYSIS: '系統本地初始化：已從劇情綱要讀取最後場景。'
     }
 };

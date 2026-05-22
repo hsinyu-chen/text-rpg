@@ -67,8 +67,8 @@ TextRPG 是一個**本地優先 (Local-First)**、**自帶金鑰 (Bring Your Own
 1. **首次遊玩 (Act I)**
    *   **開始**: 前往 **Session** 分頁 → 點擊 **New Game**。**建議走 Generate 分頁** —— 用一段描述告訴 AI 您想要的世界與主角，讓 Agent 自動填寫全部 9 個世界檔案（詳見下方〈AI 世界生成器〉）。**Pre-build** 分頁目前僅內建一個非常陽春的 demo 劇本，用來快速試玩引擎可以，認真遊玩請走 Generate。
    *   **遊玩**: 與 AI 進行角色扮演與劇情推演。
-   *   **章節結束**: 一個劇情段落收尾時，使用 `<存檔>` 指令。
-   *   **更新世界**: 點擊 **Auto Update** 按鈕（魔杖圖示）把劇情變動寫回檔案。
+   *   **章節結束**: 一個劇情段落收尾時，按輸入欄旁的 **Save** 按鈕（磁碟片圖示）→ 確認 dialog → 跑 SaveAgent。
+   *   **更新世界**: 存檔完成後跳的 **Auto-Update** 視窗會逐條列出 KB 更新建議，逐項審核後套用。
 
 2. **備份（重要）**
    *   **雲端同步**: 在 **Session** (冒險之書列表) 點擊 **"Sync All"**，將所有 Book 與 Collection 與目前選定的 Sync Provider 雙向同步。在 **Settings → Sync Provider** 切換 Provider:
@@ -81,7 +81,7 @@ TextRPG 是一個**本地優先 (Local-First)**、**自帶金鑰 (Bring Your Own
 3. **下一章節 (Act II+)**
    *   **建立下一章**: 一個 Act 結束時，點擊側邊欄的 **"Create Next"** 按鈕，系統會自動建立一本新的冒險之書（例如 "Act 2"），繼承所有記憶與數值。新書會落在與來源書相同的 Collection 內。
    *   **繼續遊玩**: 開啟 **Session** (冒險之書列表) -> 選擇最新的冒險之書繼續。
-   *   **循環**: 遊玩 -> `<存檔>` -> **Auto Update** -> **Create Next**。
+   *   **循環**: 遊玩 -> **Save** 按鈕 -> **Auto-Update** 視窗審核 -> **Create Next**。
 
 ---
 
@@ -108,10 +108,9 @@ TextRPG 是一個**本地優先 (Local-First)**、**自帶金鑰 (Bring Your Own
 > 用於 OOC 對話或對劇情提出質疑。AI 會直接修正劇情或提供邏輯解釋。
 
 ### 存檔 (Save) : 分析並同步狀態
-**格式**: `存檔範圍或修正要求`  
-*範例*: `本輪劇情存檔`  
+**操作**: 點輸入欄旁邊的 **Save** 按鈕（磁碟片圖示）；按下後跳確認 dialog，確認即直接執行（不需要在輸入欄打任何字）。
 > [!NOTE]
-> AI 會總結本章節並輸出 XML 格式的檔案更新，確保世界狀態被正確記錄。
+> 存檔走 multi-agent 路徑：由 SaveAgent 把本 ACT 自 `--- ACT START ---` 起的 logs 與摘要整理成一份 hunk manifest（一串逐字的 KB 編輯），再交給 Auto-Update 視窗讓你逐條審核（不再經過主敘事 turn engine）。
 
 ### 繼續 (Continue) : 自然推進
 **動作**: 直接點擊發送或輸入 `繼續`  
@@ -140,7 +139,7 @@ TextRPG 是一個**本地優先 (Local-First)**、**自帶金鑰 (Bring Your Own
 2. **截斷 (Truncation)** — 程式掃過 `steps`，從第一個 `breaks_ideal=true` 步驟之後全部砍掉，這樣未執行的對白／動作就無法滲漏到敘事裡。
 3. **Narrator call** — 只收到截斷後的 analysis（所有 NPC 對白皆已綁好）與 resolver 的 `ideal_outcome` / `ideal_strength`，由它寫出真正的 `story` 與 `*_log` 更新。因為每個 NPC 反應都附 verbatim `dialogue` 欄位，narrator 會直接引用台詞原文，不再用「用 XX 口吻回應」這類動作轉述代替。
 
-切換 chip 標示為 **`1 Call`** / **`2 Call`**，位於輸入欄正上方的狀態列；點一下即切換。設定是裝置本地的（存在 localStorage），且**僅作用於 story intent**（`action` / `continue` / `fast_forward`）；`system` 與 `save` 永遠走單次呼叫。預設 `1 Call`。
+切換 chip 標示為 **`1 Call`** / **`2 Call`**，位於輸入欄正上方的狀態列；點一下即切換。設定是裝置本地的（存在 localStorage），且**僅作用於 story intent**（`action` / `continue` / `fast_forward`）；`system` 走單次呼叫；存檔走獨立的 multi-agent 路徑（見〈存檔 (Save)〉），不受此 toggle 影響。預設 `1 Call`。
 
 **什麼時候用 2-Call 比較有幫助**
 *   多步驟動作場合，single-call 的 narrator 常常會「順勢演完」一個主角其實做不到的事 — 例如握手被 NPC 婉拒、施法但魔力不足。
@@ -182,7 +181,7 @@ Books、Collections、Settings 都存在每台裝置的 IndexedDB 中；雲端 b
 | **狀態追蹤** | 利用 Gemini 的 JSON Mode 輸出結構化資料，自動解析並更新前端狀態 (Signals)。 |
 | **World Log** | 新增 `world_log` 追蹤欄位，專門記錄世界事件、勢力動向與科技魔法發展，實現自動化的世界觀演進。 |
 | **Currency** | 內建即時匯率轉換 (TWD, USD, JPY, KRW...)，可自訂顯示幣別，精確掌控 Token 消耗成本。 |
-| **Prompt Injection** | 支援動態注入 System Instructions，允許在 Runtime 修改 `<Action>`, `<System>`, `<Save>` 三種模式的底層邏輯。 |
+| **Prompt Injection** | 支援動態注入 System Instructions，允許在 Runtime 修改 `<Action>` 與 `<System>` 模式的底層邏輯。(存檔走 multi-agent 存檔管線,使用專屬 prompt。) |
 | **Token Cost Tracking** | 內建 Token 計算器與匯率轉換模組，即時監控 Input/Output/Cache 消耗並預估費用。 |
 | **UI/UX** | 基於 Angular 21 (Zoneless/Signals) 與 Angular Material 3，提供現代化的響應式介面。 |
 ---
@@ -296,13 +295,10 @@ AI 產生的 **Inventory (物品欄)**、**Quest Log (任務)**、**World (世�
 *   這些修改會即時寫入記憶體，影響 AI 下一回合的判斷。
 
 ### 3. 自動世界更新 (Automatic World Update)
-當您使用 `<存檔>` 指令時，AI 不僅會儲存進度，還會嘗試**更新世界設定檔**：
-*   **觸發方式**: 
-    1. 在輸入框左側的選單選擇 `<存檔>`。
-    2. 或直接點擊輸入框上方的 **Save** (磁碟片圖示) 按鈕。
-    3. 發送訊息後，若有劇情變動，點擊訊息上方工具列的 **"Auto Update"** (魔術棒圖示) 按鈕。
-*   **運作機制**: 模型會分析本章節的劇情變動，並輸出 XML 格式的差分更新 (Diff)。
-*   **審核介面**: 點擊後系統會彈出 **"Auto-Update"** 視窗，顯示 AI 建議修改的檔案（如 `2.劇情綱要.md` 或 `6.勢力與世界.md`）。您可以逐條審核並套用，確保世界觀隨著劇情自動演進。
+存檔不只記錄進度，還會**更新世界設定檔**：
+*   **觸發方式**: 點擊輸入框旁的 **Save**（磁碟片圖示）按鈕 → 確認 dialog → 存檔直接執行。存檔不會在聊天紀錄留下訊息,直接彈出 Auto-Update 視窗。
+*   **運作機制**: **SaveAgent**（單次 LLM call）檢視本 ACT 自 `--- ACT START ---` 起的 logs 與摘要，整理出一份 **hunk manifest** —— 一串逐字的 KB 編輯（新增 / 取代 / 刪除），每條都錨定到目標檔案 + 標題。manifest 直接送進 Auto-Update 視窗。
+*   **審核介面**: 跑完跳 **"Auto-Update"** 視窗，逐檔逐條 diff 預覽（如 `2.劇情綱要.md` / `6.勢力與世界.md` / `3.人物狀態.md`），可選擇套用或忽略。
 
 ### 4. 知識庫檔案編輯 (KB File Editing)
 除了對話與日誌外,您也可以直接編輯遊戲的底層知識庫(Markdown 檔案):

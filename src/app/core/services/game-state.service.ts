@@ -86,7 +86,6 @@ export class GameStateService {
     dynamicContinueInjection = signal<string>('');
     dynamicFastforwardInjection = signal<string>('');
     dynamicSystemInjection = signal<string>('');
-    dynamicSaveInjection = signal<string>('');
     dynamicSystemMainInjection = signal<string>('');
     dynamicProtocolSingleInjection = signal<string>('');
     dynamicProtocolResolverInjection = signal<string>('');

@@ -67,6 +67,20 @@
                                     [matTooltip]="(update.status.failReason === 'context_mismatch' ? 'dialog.contextMismatch' : 'dialog.targetNotFound') | translate">warning</mat-icon>
                                 }
 
+                                <!-- LLM Auto-Fix Action — visible only on target_not_found until attempts saturate -->
+                                @if (hunks.canAutoFix(update)) {
+                                <button mat-icon-button class="auto-fix-btn"
+                                    [matTooltip]="'dialog.autoFixTooltip' | translate"
+                                    [disabled]="update.autoFixInProgress()"
+                                    (click)="hunks.requestAutoFix(update, group); $event.stopPropagation()">
+                                    @if (update.autoFixInProgress()) {
+                                        <mat-spinner diameter="18"></mat-spinner>
+                                    } @else {
+                                        <mat-icon>auto_fix_high</mat-icon>
+                                    }
+                                </button>
+                                }
+
                                 <!-- Calibration Action -->
                                 <button mat-icon-button class="calibrate-btn"
                                     [class.active]="hunks.calibratingUpdateId() === update.id"
@@ -169,12 +183,6 @@
 </mat-dialog-content>
 
 <mat-dialog-actions align="end">
-    @if (hunks.hasAnyMismatch()) {
-    <button mat-stroked-button color="warn" (click)="onRegenerateSave()">
-        <mat-icon>refresh</mat-icon>
-        {{ 'ui.REGENERATE_SAVE_BTN' | translate }}
-    </button>
-    }
     <button mat-button (click)="onCancel()">{{ 'dialog.cancel' | translate }}</button>
     @if (hunks.activeGroup(); as group) {
     <button mat-stroked-button color="accent" (click)="onApplyFile(group)" [disabled]="!hunks.hasSelectedInGroup(group)">

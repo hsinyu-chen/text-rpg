@@ -22,6 +22,7 @@ import { AgentMessageJumperService } from '@app/core/services/agent-hints/agent-
 import { spotlightElement, SPOTLIGHT_HOLD_MS } from '@app/core/services/agent-hints/spotlight.util';
 import { AgentPanelPortalService } from '@app/shared/components/agent-console/agent-panel-portal.service';
 import { AgentPanelStateService } from '@app/core/services/file-agent/agent-panel-state.service';
+import { SaveProgressTracker } from '@app/core/services/multi-agent-save/progress/save-progress-tracker.service';
 
 @Component({
     selector: 'app-chat',
@@ -60,6 +61,8 @@ export class ChatComponent {
     protected panelState = inject(AgentPanelStateService);
     private viewContainerRef = inject(ViewContainerRef);
     private agentPanelPortal = inject(AgentPanelPortalService);
+    /** Surfaces "save in progress" to the template for a visual mask + pointer-events lock. */
+    protected isSaveInProgress = inject(SaveProgressTracker).isRunning;
 
     private scrollContainer = viewChild<ElementRef>('scrollContainer');
     private contentWrapper = viewChild<ElementRef<HTMLElement>>('contentWrapper');

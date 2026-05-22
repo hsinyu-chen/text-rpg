@@ -25,6 +25,21 @@ export interface AppLocale {
         PLANS: string;
         INVENTORY: string;
     };
+    /**
+     * Locale-specific KB section headings the multi-agent save dispatcher
+     * pins context to. These are the heading TEXTS (no `#` prefix); the
+     * dispatcher wraps them into the appropriate breadcrumb form.
+     */
+    kbSectionHeadings: {
+        /**
+         * L1 heading in `STORY_OUTLINE` under which ACT chronicle blocks are
+         * appended. zh-tw: `劇情綱要`; en: `Story Outline`. The Story Outline
+         * file ALSO has a `劇情引導` / `Story Guide` heading that must NOT
+         * receive ACT entries — pinning the context to this exact heading
+         * keeps the matcher from appending to the wrong one.
+         */
+        STORY_OUTLINE_CHRONICLE: string;
+    };
     promptHoles: {
         LANGUAGE_RULE: string;
     };
@@ -98,13 +113,5 @@ export interface AppLocale {
         INTRO_TEXT: string;
         /** Written into `m.analysis` for system-init messages; equality-compared on load. */
         LOCAL_INIT_ANALYSIS: string;
-        /** Sent back to the LLM at the head of the regenerate-save prompt. */
-        REGENERATE_SAVE_PROMPT: string;
-        /** Labels embedded in the regenerate-save prompt body. */
-        REGEN_SUCCESS_TITLE: string;
-        REGEN_FAILED_TITLE: string;
-        REGEN_SUCCESS_LABEL: string;
-        REGEN_FILE_LABEL: string;
-        REGEN_ERROR_LABEL: string;
     };
 }

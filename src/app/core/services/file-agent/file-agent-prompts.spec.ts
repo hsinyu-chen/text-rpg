@@ -3,6 +3,7 @@ import { buildSystemInstruction } from './file-agent-prompts';
 import { EN_US_LOCALE } from '@app/core/constants/locales/en';
 import { ZH_TW_LOCALE } from '@app/core/constants/locales/zh-tw';
 import type { AppLocale } from '@app/core/constants/locales/locale.interface';
+import type { AdvancedSaveAgent } from '@app/core/services/multi-agent-save/advanced-save/advanced-save-agent';
 
 const FAKE_I18N: Record<string, string> = {
   'ui.EDIT_RESEND_TOOLTIP': 'Edit & Resend',
@@ -12,15 +13,23 @@ const FAKE_I18N: Record<string, string> = {
   'ui.FORK_FROM_HERE_TOOLTIP': 'Fork from here',
   'ui.DELETE_ALL_FOLLOWING': 'Delete This and All Following',
   'ui.DELETE_MESSAGE': 'Delete Message',
-  'ui.AUTO_UPDATE_FILES': 'Auto Update Files',
   'sidebar.controls.startNewGame': 'Start New Game',
   'sidebar.controls.createNext': 'Create Next',
   'sidebar.controls.createScene': 'Create Scene',
   'sidebar.newGame.tabPrebuildLabel': 'Pre-build',
-  'sidebar.newGame.tabGenerateLabel': 'Generate'
+  'sidebar.newGame.tabGenerateLabel': 'Generate',
+  'mas.charDeepener.name': 'Character Deepener',
+  'mas.charDeepener.aiHint': 'advances off-screen characters and may add character hunks the SaveAgent skipped',
+  'mas.styleHarmonizer.name': 'Style Harmonizer',
+  'mas.styleHarmonizer.aiHint': 'rewrites every hunk to a uniform prose style',
 };
 
 const i18n = (key: string): string => FAKE_I18N[key] ?? `[[${key}]]`;
+
+/** Minimal AdvancedSaveAgent — buildSystemInstruction only reads id + i18nKey. */
+function fakeAgent(id: string, i18nKey: string): AdvancedSaveAgent {
+  return { id, i18nKey, process: async input => input.hunks };
+}
 
 function build(opts: {
   mode?: 'native' | 'json';
@@ -29,6 +38,7 @@ function build(opts: {
   uiLanguage?: string;
   narrativeLanguage?: string;
   locale?: AppLocale;
+  advancedSaveAgents?: readonly AdvancedSaveAgent[];
 } = {}): string {
   return buildSystemInstruction(
     '- 1.md\n- 2.md',
@@ -39,7 +49,8 @@ function build(opts: {
       narrativeLanguage: opts.narrativeLanguage,
     },
     opts.locale ?? EN_US_LOCALE,
-    i18n
+    i18n,
+    opts.advancedSaveAgents ?? []
   );
 }
 
@@ -79,14 +90,12 @@ describe('buildSystemInstruction', () => {
   describe('locale interpolation — intentTags', () => {
     it('lists English intent tags when locale is en-US', () => {
       const out = build({ locale: EN_US_LOCALE });
-      expect(out).toContain(EN_US_LOCALE.intentTags.SAVE);
       expect(out).toContain(EN_US_LOCALE.intentTags.ACTION);
       expect(out).toContain(EN_US_LOCALE.intentTags.SYSTEM);
     });
 
     it('lists zh-tw intent tags when locale is zh-tw', () => {
       const out = build({ locale: ZH_TW_LOCALE });
-      expect(out).toContain(ZH_TW_LOCALE.intentTags.SAVE);
       expect(out).toContain(ZH_TW_LOCALE.intentTags.ACTION);
     });
   });
@@ -106,6 +115,35 @@ describe('buildSystemInstruction', () => {
       expect(out).toContain('Create Scene');
       expect(out).toContain('Pre-build');
       expect(out).toContain('Generate');
+    });
+  });
+
+  describe('advanced-save agents block', () => {
+    it('omits the advanced-save section when no agent is registered', () => {
+      const out = build();
+      expect(out).not.toContain('### Advanced save processing');
+    });
+
+    it('lists each registered agent with its name + aiHint', () => {
+      const out = build({
+        advancedSaveAgents: [
+          fakeAgent('charDeepener', 'mas.charDeepener'),
+          fakeAgent('styleHarmonizer', 'mas.styleHarmonizer'),
+        ],
+      });
+      expect(out).toContain('### Advanced save processing');
+      expect(out).toContain('**Character Deepener** — advances off-screen characters');
+      expect(out).toContain('**Style Harmonizer** — rewrites every hunk');
+    });
+
+    it('renders agents in registration order', () => {
+      const out = build({
+        advancedSaveAgents: [
+          fakeAgent('styleHarmonizer', 'mas.styleHarmonizer'),
+          fakeAgent('charDeepener', 'mas.charDeepener'),
+        ],
+      });
+      expect(out.indexOf('Style Harmonizer')).toBeLessThan(out.indexOf('Character Deepener'));
     });
   });
 
@@ -336,12 +374,11 @@ describe('buildSystemInstruction', () => {
       expect(out).toMatch(/Other surfaces.*chat.*propose/);
     });
 
-    it('routes KB-behind-chat questions to Auto Update first, direct edit last', () => {
+    it('routes KB-behind-chat questions to re-running Save first, direct edit last', () => {
       const out = build();
       expect(out).toContain('When the user asks about a KB-sync gap');
       expect(out).toMatch(/Trigger.*user.*raised/i);
-      expect(out).toContain('Auto Update Files');
-      expect(out).toMatch(/Re-run Auto Update/i);
+      expect(out).toMatch(/Suggest re-running Save/i);
       expect(out).toMatch(/last resort/i);
     });
 

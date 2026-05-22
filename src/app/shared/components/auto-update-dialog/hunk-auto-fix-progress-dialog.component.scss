@@ -1,0 +1,72 @@
+.hunk-fix-progress-content {
+    min-width: 520px;
+    max-width: 760px;
+    max-height: 70vh;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.header-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+
+    .file-label {
+        font-family: 'Fira Code', 'Courier New', monospace;
+        font-size: 0.85rem;
+        color: var(--mat-app-text-color, rgba(0, 0, 0, 0.75));
+    }
+}
+
+.waiting {
+    margin: 0;
+    color: var(--mat-app-text-color, rgba(0, 0, 0, 0.6));
+    font-size: 0.875rem;
+    font-style: italic;
+}
+
+.block {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+
+    h3 {
+        margin: 0;
+        font-size: 0.9rem;
+        font-weight: 600;
+    }
+}
+
+.stream-text {
+    margin: 0;
+    padding: 8px 10px;
+    border-radius: 4px;
+    font-family: 'Fira Code', 'Courier New', monospace;
+    font-size: 0.78rem;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 220px;
+    overflow: auto;
+
+    &.thought {
+        background: rgba(99, 102, 241, 0.06);
+        border-left: 3px solid rgba(99, 102, 241, 0.5);
+        color: #818cf8;
+    }
+
+    &.output {
+        background: rgba(217, 119, 6, 0.06);
+        border-left: 3px solid rgba(217, 119, 6, 0.5);
+    }
+}
+
+.usage-line {
+    display: flex;
+    gap: 14px;
+    font-size: 0.75rem;
+    color: var(--mat-app-text-color, rgba(0, 0, 0, 0.6));
+    border-top: 1px solid var(--border-color, rgba(0, 0, 0, 0.1));
+    padding-top: 8px;
+}

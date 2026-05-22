@@ -58,6 +58,14 @@
     margin: 0 0 12px 0;
 }
 
+// Inline hint that follows a mat-form-field. Sits above the next form-row /
+// button-row with a tighter top gap than the section-level .hint-text, since
+// mat-form-field already reserves bottom padding for hint text.
+.mode-hint {
+    margin-top: -8px;
+    margin-bottom: 16px;
+}
+
 .button-row {
     display: flex;
     gap: 12px;

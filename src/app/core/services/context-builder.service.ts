@@ -12,6 +12,7 @@ import { GAME_INTENTS, STORY_INTENTS } from '../constants/game-intents';
 import { IdealStrength, StructuredAnalysis } from '../constants/engine-protocol-structured';
 import { applyIntentTag, buildResolverUserMessage, buildNarratorUserMessage } from './turn-engines/build-context-utils';
 import { stripSystemMainMarker } from './profile-compat';
+import { extractSceneHeader } from '@app/core/utils/scene-header.util';
 
 // Engine prompt directives (HISTORICAL_CORRECTION_RULE, IDEAL_OUTCOME_CONSTRAINT)
 // live in the locale files under `enginePromptDirectives`. Engine behaviour,
@@ -52,7 +53,6 @@ export interface BuildContext {
     dynamicContinue: string;
     dynamicFastforward: string;
     dynamicSystem: string;
-    dynamicSave: string;
     dynamicProtocolResolver: string;
     dynamicProtocolNarrator: string;
     dynamicProtocolSingle: string;
@@ -232,21 +232,7 @@ export class ContextBuilderService {
                     const stateUpdates: string[] = this.getDetailFields(m);
 
                     if (stateUpdates.length > 0) {
-                        const headerMatch = m.content.match(/\[\s*[^\]]*\d+[^\]]*\]/);
-                        const baseHeader = headerMatch ? headerMatch[0] : '';
-
-                        // Extract time markers
-                        const tMatches = [...m.content.matchAll(/\[T\s*([^\]]+)\]/g)];
-                        let timeHeader = '';
-                        if (tMatches.length > 1) {
-                            const start = tMatches[0][1].trim();
-                            const end = tMatches[tMatches.length - 1][1].trim();
-                            timeHeader = `[T ${start}~T ${end}]`;
-                        } else if (tMatches.length === 1) {
-                            timeHeader = tMatches[0][0];
-                        }
-
-                        const finalHeader = [baseHeader, timeHeader].filter(h => !!h).join(' ');
+                        const finalHeader = extractSceneHeader(m.content);
                         currentBlockText += (finalHeader ? `${finalHeader} ` : '') + `---\n${stateUpdates.join('\n')}\n---\n`;
                         modelCountInCurrentBlock++;
 
@@ -513,7 +499,6 @@ export class ContextBuilderService {
             case GAME_INTENTS.CONTINUE: return ctx.dynamicContinue;
             case GAME_INTENTS.FAST_FORWARD: return ctx.dynamicFastforward;
             case GAME_INTENTS.SYSTEM: return ctx.dynamicSystem;
-            case GAME_INTENTS.SAVE: return ctx.dynamicSave;
             default: return '';
         }
     }
@@ -623,7 +608,6 @@ export class ContextBuilderService {
             dynamicContinue: this.state.dynamicContinueInjection(),
             dynamicFastforward: this.state.dynamicFastforwardInjection(),
             dynamicSystem: this.state.dynamicSystemInjection(),
-            dynamicSave: this.state.dynamicSaveInjection(),
             dynamicProtocolResolver: this.state.dynamicProtocolResolverInjection(),
             dynamicProtocolNarrator: this.state.dynamicProtocolNarratorInjection(),
             dynamicProtocolSingle: this.state.dynamicProtocolSingleInjection(),
@@ -658,7 +642,6 @@ export class ContextBuilderService {
             [GAME_INTENTS.CONTINUE]: tags.CONTINUE,
             [GAME_INTENTS.FAST_FORWARD]: tags.FAST_FORWARD,
             [GAME_INTENTS.SYSTEM]: tags.SYSTEM,
-            [GAME_INTENTS.SAVE]: tags.SAVE,
         };
         let userInput = lastMsg.parts[0].text;
         const tag = intentTagMap[currentIntent] ?? '';

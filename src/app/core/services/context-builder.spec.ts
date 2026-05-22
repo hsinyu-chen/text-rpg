@@ -43,7 +43,6 @@ function emptyCtx(overrides: Partial<BuildContext> = {}): BuildContext {
         dynamicContinue: '',
         dynamicFastforward: '',
         dynamicSystem: '',
-        dynamicSave: '',
         dynamicProtocolResolver: '',
         dynamicProtocolNarrator: '',
         dynamicProtocolSingle: '',
@@ -226,13 +225,11 @@ describe('ContextBuilderService', () => {
                 dynamicContinue: 'C',
                 dynamicFastforward: 'F',
                 dynamicSystem: 'SYS',
-                dynamicSave: 'SAVE'
             });
             expect(builder.intentInjection(ctx, 'action')).toBe('A');
             expect(builder.intentInjection(ctx, 'continue')).toBe('C');
             expect(builder.intentInjection(ctx, 'fast_forward')).toBe('F');
             expect(builder.intentInjection(ctx, 'system')).toBe('SYS');
-            expect(builder.intentInjection(ctx, 'save')).toBe('SAVE');
         });
 
         it('returns empty string for unknown intent', () => {

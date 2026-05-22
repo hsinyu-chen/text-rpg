@@ -59,12 +59,11 @@ function listChatMessages(args: ListChatMessagesArgs, context: ChatReadContext):
 
     const limit = clampInt(args.limit, 1, 100, 30);
     const includeHidden = !!args.includeHidden;
-    const includeSaves = !!args.includeSaves;
 
     // Resolve the pagination cursor against unfiltered chat first — otherwise a
-    // `before` id that exists but was filtered out (hidden / save-intent) under
-    // this call's flags would 404, even though the LLM legitimately got that id
-    // from a previous call with different flags. Apply filters AFTER the cut.
+    // `before` id that exists but was filtered out (hidden) under this call's
+    // flags would 404, even though the LLM legitimately got that id from a
+    // previous call with different flags. Apply filters AFTER the cut.
     let pool: ChatMessage[] = chat;
     if (args.before) {
         const cutIdx = chat.findIndex(m => m.id === args.before);
@@ -74,7 +73,6 @@ function listChatMessages(args: ListChatMessagesArgs, context: ChatReadContext):
         pool = chat.slice(0, cutIdx);
     }
     if (!includeHidden) pool = pool.filter(m => !m.isHidden);
-    if (!includeSaves) pool = pool.filter(m => m.intent !== 'save');
 
     // Slice the last `limit` chronological messages, then reverse so the
     // result is newest-first — matches the tool docstring ("newest first")
@@ -84,7 +82,6 @@ function listChatMessages(args: ListChatMessagesArgs, context: ChatReadContext):
     const slice = pool.slice(Math.max(0, pool.length - limit)).reverse();
     const filteredCounts = {
         hidden: includeHidden ? 0 : chat.filter(m => m.isHidden).length,
-        save: includeSaves ? 0 : chat.filter(m => m.intent === 'save').length,
     };
     const messages = slice.map(m => {
         const hasLogs = !!(m.character_log?.length || m.world_log?.length || m.inventory_log?.length || m.quest_log?.length);
@@ -130,7 +127,6 @@ function searchChatMessages(args: SearchChatMessagesArgs, context: ChatReadConte
     const scope = args.scope ?? 'content';
     const limit = clampInt(args.limit, 1, 300, 100);
     const contextChars = clampInt(args.contextChars, 0, 400, 80);
-    const includeSaves = !!args.includeSaves;
     const PER_MESSAGE_CAP = 3;
 
     const fieldsForScope: ('content' | 'thought' | 'summary')[] =
@@ -139,16 +135,14 @@ function searchChatMessages(args: SearchChatMessagesArgs, context: ChatReadConte
     interface Hit { messageId: string; url: string; role: string; scope: string; snippet: string; matchIndex: number; moreInSameMessage?: number }
     const hits: Hit[] = [];
     let truncated = false;
-    let suppressedSaves = 0;
 
     // Iterate newest-first so limit-hit truncation keeps the most recent
     // matches — aligns with listChatMessages's newest-first convention and
-    // matches the chat sidebar's "scroll up = older" mental model. Hidden +
-    // save-intent filters still apply per message regardless of direction.
+    // matches the chat sidebar's "scroll up = older" mental model. Hidden
+    // filter still applies per message regardless of direction.
     outer: for (let i = chat.length - 1; i >= 0; i--) {
         const m = chat[i];
         if (m.isHidden) continue;
-        if (!includeSaves && m.intent === 'save') { suppressedSaves++; continue; }
         // Build snippets only up to PER_MESSAGE_CAP; keep counting beyond it so
         // moreInSameMessage reflects the true overflow without paying the
         // string-slice cost for every regex hit on long bodies / broad patterns.
@@ -188,14 +182,12 @@ function searchChatMessages(args: SearchChatMessagesArgs, context: ChatReadConte
 
     const notes: string[] = [];
     if (truncated) notes.push(`Stopped at limit=${limit}; at least one further match was not returned. Raise limit or narrow the pattern.`);
-    if (suppressedSaves > 0) notes.push(`${suppressedSaves} save-intent turn(s) skipped (administrative file-update turns). Pass includeSaves:true to include them.`);
 
     return {
         response: {
             hits,
             count: hits.length,
             truncated,
-            suppressedSaves: suppressedSaves > 0 ? suppressedSaves : undefined,
             note: notes.length ? notes.join(' ') : undefined,
         },
     };

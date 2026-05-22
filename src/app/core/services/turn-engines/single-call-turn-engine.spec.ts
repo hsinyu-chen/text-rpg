@@ -81,7 +81,6 @@ describe('SingleCallTurnEngine.runTurn', () => {
         dynamicContinue: '',
         dynamicFastforward: '',
         dynamicSystem: '',
-        dynamicSave: '',
         dynamicProtocolResolver: '',
         dynamicProtocolNarrator: '',
         dynamicProtocolSingle: '',

@@ -103,8 +103,6 @@ export interface ListChatMessagesArgs extends BaseToolArgs {
     limit?: number;
     before?: string;
     includeHidden?: boolean;
-    /** Default false. Save turns (intent === 'save') are engine-administrative file-update turns full of XML tags — usually noise for narrative questions. Set true only when the user is asking about KB-write history itself. */
-    includeSaves?: boolean;
 }
 
 export interface SearchChatMessagesArgs extends BaseToolArgs {
@@ -113,8 +111,6 @@ export interface SearchChatMessagesArgs extends BaseToolArgs {
     caseInsensitive?: boolean;
     limit?: number;
     contextChars?: number;
-    /** Default false. See ListChatMessagesArgs.includeSaves. */
-    includeSaves?: boolean;
 }
 
 export interface ReadChatMessageArgs extends BaseToolArgs {

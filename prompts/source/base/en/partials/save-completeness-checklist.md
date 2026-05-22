@@ -8,4 +8,4 @@ Before outputting, verify you have processed:
 - [ ] Story Outline updated with current ACT events
 - [ ] **Newly generated people/things/location details from `Look`/`Observe` actions** → persisted to the corresponding files
 
-**If ANY log entry lacks a corresponding `<save>` update, your output is INCOMPLETE and INVALID.**
+**If ANY log entry lacks a corresponding hunk, your output is INCOMPLETE and INVALID.**

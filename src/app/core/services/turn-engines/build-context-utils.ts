@@ -5,15 +5,13 @@ export interface IntentTagSet {
     CONTINUE: string;
     FAST_FORWARD: string;
     SYSTEM: string;
-    SAVE: string;
 }
 
 const TAG_BY_INTENT: Record<string, keyof IntentTagSet> = {
     action: 'ACTION',
     continue: 'CONTINUE',
     fast_forward: 'FAST_FORWARD',
-    system: 'SYSTEM',
-    save: 'SAVE'
+    system: 'SYSTEM'
 };
 
 export function applyIntentTag(userInput: string, intent: string, tags: IntentTagSet): string {
