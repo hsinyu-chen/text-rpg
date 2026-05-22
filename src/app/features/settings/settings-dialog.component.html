@@ -232,6 +232,24 @@
             </div>
         </div>
 
+        @if (advancedSaveAgents.length > 0) {
+            <div class="advanced-section">
+                <h3>{{ 'settings.advancedSaveSection' | translate }}</h3>
+                <p class="hint-text">{{ 'settings.advancedSaveSectionHint' | translate }}</p>
+                @for (agent of advancedSaveAgents; track agent.id) {
+                    <div class="toggle-row">
+                        <mat-slide-toggle
+                            [ngModel]="isSaveAgentEnabled(agent.id)"
+                            (ngModelChange)="setSaveAgentEnabled(agent.id, $event)"
+                            color="primary">
+                            {{ (agent.i18nKey + '.label') | translate }}
+                        </mat-slide-toggle>
+                    </div>
+                    <p class="hint-text mode-hint">{{ (agent.i18nKey + '.desc') | translate }}</p>
+                }
+            </div>
+        }
+
         <div class="advanced-section">
             <h3>{{ 'settings.debugBridge' | translate }}</h3>
             <p class="hint-text">
