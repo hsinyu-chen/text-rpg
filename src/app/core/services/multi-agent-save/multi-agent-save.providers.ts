@@ -3,6 +3,8 @@ import { CHARACTER_PROVIDER, FACTION_PROVIDER, SCENE_EVENT_PROVIDER } from './mu
 import { MarkdownCharacterProvider } from './providers/markdown-character.provider';
 import { MarkdownFactionProvider } from './providers/markdown-faction.provider';
 import { LogBasedSceneEventProvider } from './providers/log-based-scene-event.provider';
+import { ADVANCED_SAVE_AGENT } from './advanced-save/advanced-save-agent';
+import { InventoryConsistencyAgent } from './advanced-save/inventory-consistency-agent';
 
 /**
  * Phase 1 default bindings for multi-agent save data providers.
@@ -10,9 +12,15 @@ import { LogBasedSceneEventProvider } from './providers/log-based-scene-event.pr
  * Spread into `app.config.ts` providers. To swap an implementation (e.g.
  * Phase 4 LLM-based character extraction), replace the relevant `useExisting`
  * here — orchestrator and Debug UI inject by token only.
+ *
+ * The `ADVANCED_SAVE_AGENT` multi-provider bindings are the advanced-save
+ * chain roster — declaration order is chain execution order. Each binding
+ * contributes one opt-in post-processing agent (off by default; the user
+ * enables it in settings).
  */
 export const MULTI_AGENT_SAVE_PROVIDERS: Provider[] = [
   { provide: CHARACTER_PROVIDER, useExisting: MarkdownCharacterProvider },
   { provide: FACTION_PROVIDER, useExisting: MarkdownFactionProvider },
   { provide: SCENE_EVENT_PROVIDER, useExisting: LogBasedSceneEventProvider },
+  { provide: ADVANCED_SAVE_AGENT, useExisting: InventoryConsistencyAgent, multi: true },
 ];
