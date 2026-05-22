@@ -1,4 +1,5 @@
 import type { AppLocale } from '@app/core/constants/locales/locale.interface';
+import type { AdvancedSaveAgent } from '@app/core/services/multi-agent-save/advanced-save/advanced-save-agent';
 
 export interface BuildSystemInstructionLangs {
   /** Resolved UI locale id — the language the agent's user-visible text should be in. */
@@ -20,7 +21,8 @@ export function buildSystemInstruction(
   allowParallel: boolean,
   langs: BuildSystemInstructionLangs,
   locale: AppLocale,
-  i18n: I18nTranslate
+  i18n: I18nTranslate,
+  advancedSaveAgents: readonly AdvancedSaveAgent[] = []
 ): string {
   const cf = locale.coreFilenames;
   const intents = locale.intentTags;
@@ -81,6 +83,7 @@ Every adventure book has 9 chapter \`.md\` files that together form the KB. **Th
 - **New world rules / settings / worldview discovered through play (WRITE intent)** → \`${cf.WORLD_FACTIONS}\`. \`${cf.BASIC_SETTINGS}\` is the post-init foundation — Auto-Update never writes it, and manual writes are rare.
 - **Looking up an existing world rule / cost / price / calendar / race / language / magic mechanic (READ intent)** → \`${cf.BASIC_SETTINGS}\` is the canonical home; the WRITE routing above does NOT apply to reads.`;
 
+  const advancedSaveBlock = buildAdvancedSaveBlock(advancedSaveAgents, i18n);
   const gameMechanicsBlock = `## GAME MECHANICS — CONTEXT YOU NEED TO ANSWER WELL
 
 ### Game session flow (you do NOT participate)
@@ -100,7 +103,7 @@ Every adventure book has 9 chapter \`.md\` files that together form the KB. **Th
 
 ### ACT concept
 
-An ACT runs from the previous \`--- ACT START ---\` marker, accumulating \`*_log\` entries the whole way; the player triggers Save (chat-input toolbar button) when an ACT closes, and a multi-agent save pass turns those logs into KB updates surfaced via the Auto-Update dialog. \`${cf.STORY_OUTLINE}\` gains one new \`## Act.[N]\` block per save. Save is not a chat-message intent — it leaves no entry in chat history.
+An ACT runs from the previous \`--- ACT START ---\` marker, accumulating \`*_log\` entries the whole way; the player triggers Save (chat-input toolbar button) when an ACT closes, and a multi-agent save pass turns those logs into KB updates surfaced via the Auto-Update dialog. \`${cf.STORY_OUTLINE}\` gains one new \`## Act.[N]\` block per save. The save run leaves no entry in chat history.${advancedSaveBlock}
 
 ### Intent kinds
 
@@ -574,4 +577,29 @@ Until the tool ships, point users to the in-app docs if they need depth beyond t
     commonRecipes,
     referenceTopicsBlock
   ].join('\n\n');
+}
+
+/**
+ * Renders the advanced-save agent roster for the file-agent prompt. Empty
+ * string when no agent is registered — the advanced-save stage is then an
+ * identity pass with nothing worth telling the assistant about. Each agent's
+ * `aiHint` i18n leaf is authored alongside the agent itself, so this block
+ * grows automatically as Stage 3+ agents land.
+ */
+function buildAdvancedSaveBlock(
+  agents: readonly AdvancedSaveAgent[],
+  i18n: I18nTranslate
+): string {
+  if (agents.length === 0) return '';
+  const roster = agents
+    .map(a => `- **${i18n(`${a.i18nKey}.name`)}** — ${i18n(`${a.i18nKey}.aiHint`)}`)
+    .join('\n');
+  return `
+
+### Advanced save processing
+
+The save pass has two phases: the SaveAgent turns this ACT's logs into the hunk manifest, then an **advanced-save stage** runs optional post-processing agents over those hunks before the Auto-Update dialog opens. Each agent is opt-in per-agent in Settings, so any subset may be active for a given save — a hunk in the dialog can originate from an advanced-save agent rather than the SaveAgent.
+
+Advanced-save agents that exist (whether a given one ran depends on the user's Settings):
+${roster}`;
 }

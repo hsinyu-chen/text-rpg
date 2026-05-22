@@ -181,7 +181,7 @@ Books、Collections、Settings 都存在每台裝置的 IndexedDB 中；雲端 b
 | **狀態追蹤** | 利用 Gemini 的 JSON Mode 輸出結構化資料，自動解析並更新前端狀態 (Signals)。 |
 | **World Log** | 新增 `world_log` 追蹤欄位，專門記錄世界事件、勢力動向與科技魔法發展，實現自動化的世界觀演進。 |
 | **Currency** | 內建即時匯率轉換 (TWD, USD, JPY, KRW...)，可自訂顯示幣別，精確掌控 Token 消耗成本。 |
-| **Prompt Injection** | 支援動態注入 System Instructions，允許在 Runtime 修改 `<Action>` 與 `<System>` 模式的底層邏輯。(存檔走 multi-agent manifest 管線,有專屬 per-mode prompt,在 **Settings → 存檔模式** 切換。) |
+| **Prompt Injection** | 支援動態注入 System Instructions，允許在 Runtime 修改 `<Action>` 與 `<System>` 模式的底層邏輯。(存檔走 multi-agent 存檔管線,使用專屬 prompt。) |
 | **Token Cost Tracking** | 內建 Token 計算器與匯率轉換模組，即時監控 Input/Output/Cache 消耗並預估費用。 |
 | **UI/UX** | 基於 Angular 21 (Zoneless/Signals) 與 Angular Material 3，提供現代化的響應式介面。 |
 ---
@@ -297,9 +297,7 @@ AI 產生的 **Inventory (物品欄)**、**Quest Log (任務)**、**World (世�
 ### 3. 自動世界更新 (Automatic World Update)
 存檔不只記錄進度，還會**更新世界設定檔**：
 *   **觸發方式**: 點擊輸入框旁的 **Save**（磁碟片圖示）按鈕 → 確認 dialog → 存檔直接執行。存檔不會在聊天紀錄留下訊息,直接彈出 Auto-Update 視窗。
-*   **運作機制 (multi-agent pipeline)**:
-    1. **SaveAgent**（單次 LLM call）整理本 ACT 自 `--- ACT START ---` 起的 logs 與摘要，輸出 manifest JSON：包含 inventory / assets / plans / 劇情綱要 / 技術 / 魔法 / 世界設定 / 人物（新增 / 死亡退場 / 跨群組移動 / 內部欄位更新）/ 勢力等各個區段該怎麼動。
-    2. **Dispatcher**（純 TS）依 manifest 內每個區段機械式組出 `FileUpdate[]` hunks 直送 dialog。
+*   **運作機制**: **SaveAgent**（單次 LLM call）檢視本 ACT 自 `--- ACT START ---` 起的 logs 與摘要，整理出一份 **hunk manifest** —— 一串逐字的 KB 編輯（新增 / 取代 / 刪除），每條都錨定到目標檔案 + 標題。manifest 直接送進 Auto-Update 視窗。
 *   **審核介面**: 跑完跳 **"Auto-Update"** 視窗，逐檔逐條 diff 預覽（如 `2.劇情綱要.md` / `6.勢力與世界.md` / `3.人物狀態.md`），可選擇套用或忽略。
 
 ### 4. 知識庫檔案編輯 (KB File Editing)
