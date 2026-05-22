@@ -21,6 +21,7 @@ import { UI_LOCALES, type InterfaceLanguageSetting, TranslatePipe } from '@app/c
 import { LLMProfilesDialogComponent } from './llm-profiles-dialog.component';
 import { ProviderDebugDialogComponent } from '@app/features/multi-agent-save/provider-debug-dialog.component';
 import { SaveSettingsStore } from '@app/core/services/multi-agent-save/save-settings.store';
+import { AdvancedSaveAgentRegistry } from '@app/core/services/multi-agent-save/advanced-save/advanced-save-agent-registry';
 import { BridgeService } from '@app/core/services/dev/bridge.service';
 import { AppAgentHintDirective } from '@app/core/services/agent-hints/agent-hints.directive';
 
@@ -81,6 +82,14 @@ export class SettingsDialogComponent {
   engineMode = signal<'single' | 'two-call'>('single');
   savePauseBeforeAutoUpdate = signal(false);
   hunkFixupProfileId = signal<string>('');
+
+  /**
+   * Advanced-save agents available for per-agent opt-in. Empty in Stage 2
+   * (no agent registered) → the "Advanced save processing" section is hidden.
+   */
+  readonly advancedSaveAgents = inject(AdvancedSaveAgentRegistry).all();
+  /** Local edit copy of the opted-in agent ids; persisted on Save. */
+  enabledSaveAgents = signal<ReadonlySet<string>>(new Set());
   outputLanguage = signal('default');
   customOutputLanguage = signal('');
   languages: { value: string; label: string }[] = getLanguagesList();
@@ -157,6 +166,7 @@ export class SettingsDialogComponent {
     this.engineMode.set(this.appConfig.engineMode());
     this.savePauseBeforeAutoUpdate.set(this.saveSettings.pauseBeforeAutoUpdate());
     this.hunkFixupProfileId.set(this.saveSettings.hunkFixupProfileId());
+    this.enabledSaveAgents.set(new Set(this.saveSettings.enabledSaveAgents()));
 
     const lang = this.appConfig.outputLanguage();
     const isPresetLang = this.languages.some(l => l.value === lang);
@@ -168,6 +178,19 @@ export class SettingsDialogComponent {
     }
 
     this.interfaceLanguage.set(this.appConfig.interfaceLanguage());
+  }
+
+  isSaveAgentEnabled(id: string): boolean {
+    return this.enabledSaveAgents().has(id);
+  }
+
+  setSaveAgentEnabled(id: string, enabled: boolean): void {
+    this.enabledSaveAgents.update(set => {
+      const next = new Set(set);
+      if (enabled) next.add(id);
+      else next.delete(id);
+      return next;
+    });
   }
 
   openProfilesManager(): void {
@@ -210,6 +233,7 @@ export class SettingsDialogComponent {
 
     this.saveSettings.setPauseBeforeAutoUpdate(this.savePauseBeforeAutoUpdate());
     this.saveSettings.setHunkFixupProfileId(this.hunkFixupProfileId());
+    this.saveSettings.setEnabledSaveAgents(this.enabledSaveAgents());
 
     this.bridge.setUrl(this.debugBridgeUrl().trim());
     this.bridge.setEnabled(this.debugBridgeEnabled());

@@ -535,6 +535,8 @@ export const en: TranslationDict = {
         savePauseBeforeAutoUpdateHint: 'Diagnostic only. When on, the save progress dialog stays open after the run finishes; close it manually to advance to Auto-Update. Lets you inspect the manifest before applying.',
         hunkFixupProfileLabel: 'Hunk auto-fix LLM profile',
         hunkFixupProfileHint: 'Profile used by the "LLM repair" button in the Auto-Update dialog when a hunk\'s target text does not match the source verbatim. A small / fast model is fine — the task is byte-level fix-up, not creative writing.',
+        advancedSaveSection: 'Advanced save processing',
+        advancedSaveSectionHint: 'Before the save manifest reaches Auto-Update, it passes through each enabled processing agent below, in order. Each agent costs extra LLM calls, so all are off by default — opt in as needed.',
     },
     app: {
         setupRequired: 'Setup Required',

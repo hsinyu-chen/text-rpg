@@ -60,4 +60,35 @@ describe('SaveSettingsStore', () => {
         expect(store.hunkFixupProfileId()).toBe('');
         expect(kv.get('mas_hunk_fixup_profile_id')).toBe('');
     });
+
+    it('defaults enabledSaveAgents to an empty set when KV is empty', () => {
+        expect(setup().store.enabledSaveAgents().size).toBe(0);
+    });
+
+    it('loads enabledSaveAgents from a persisted JSON array', () => {
+        const set = setup({ mas_enabled_save_agents: '["character","faction"]' }).store.enabledSaveAgents();
+        expect([...set].sort()).toEqual(['character', 'faction']);
+    });
+
+    it('falls back to an empty set on a corrupt or non-array persisted value', () => {
+        expect(setup({ mas_enabled_save_agents: 'not json' }).store.enabledSaveAgents().size).toBe(0);
+        expect(setup({ mas_enabled_save_agents: '{"a":1}' }).store.enabledSaveAgents().size).toBe(0);
+    });
+
+    it('drops non-string elements from a persisted array (defensive read)', () => {
+        const set = setup({ mas_enabled_save_agents: '["character",7,null]' }).store.enabledSaveAgents();
+        expect([...set]).toEqual(['character']);
+    });
+
+    it('persists a non-empty set as JSON and removes the key when emptied', () => {
+        const { store, kv } = setup();
+        store.setEnabledSaveAgents(new Set(['character']));
+        expect([...store.enabledSaveAgents()]).toEqual(['character']);
+        expect(kv.get('mas_enabled_save_agents')).toBe('["character"]');
+
+        // Empty ≡ no agents; absent key matches the constructor's read.
+        store.setEnabledSaveAgents(new Set());
+        expect(store.enabledSaveAgents().size).toBe(0);
+        expect(kv.get('mas_enabled_save_agents')).toBeNull();
+    });
 });

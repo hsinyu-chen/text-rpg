@@ -11,6 +11,7 @@ import { SaveProgressDialogComponent } from '@app/features/multi-agent-save/save
 import { SaveAgentRunnerService } from './save-agent-runner.service';
 import { SaveProgressTracker } from './progress/save-progress-tracker.service';
 import { SaveSettingsStore } from './save-settings.store';
+import { AdvancedSaveStageService } from './advanced-save/advanced-save-stage.service';
 import type { SaveHunk } from './multi-agent-save.types';
 import { getLangFolder } from '@app/core/constants/locales';
 import { DEFAULT_PROFILE_ID, getProfileBasePath } from '@app/core/constants/prompt-profiles';
@@ -38,10 +39,12 @@ const MANIFEST_PROMPT_FILE = 'injection_save_manifest.md';
  *   2. open SaveProgressDialog (mounted before first await so the user sees
  *      "Starting SaveAgent…" instead of a blank screen)
  *   3. SaveAgentRunner → `SaveHunk[]` manifest
- *   4. map each hunk → FileUpdate
- *   5. `progress.setWorkComplete(true)` so the progress dialog can swap
+ *   4. advanced save stage — chain every enabled AdvancedSaveAgent over the
+ *      hunk list (identity when no agent is enabled)
+ *   5. map each hunk → FileUpdate
+ *   6. `progress.setWorkComplete(true)` so the progress dialog can swap
  *      Cancel out for Close (`isRunning` stays true for the chat lock)
- *   6. close progress dialog (or await user close under `pauseBeforeAutoUpdate`)
+ *   7. close progress dialog (or await user close under `pauseBeforeAutoUpdate`)
  *      and open AutoUpdateDialog with the updates (existing flow handles apply)
  *
  * Failure path: any thrown error is surfaced as a snackbar and the progress
@@ -53,6 +56,7 @@ export class MultiAgentSaveService {
     private providerRegistry = inject(LLMProviderRegistryService);
     private state = inject(GameStateService);
     private saveAgent = inject(SaveAgentRunnerService);
+    private advancedStage = inject(AdvancedSaveStageService);
     private progress = inject(SaveProgressTracker);
     private settings = inject(SaveSettingsStore);
     private dialog = inject(MatDialog);
@@ -152,11 +156,15 @@ export class MultiAgentSaveService {
                 );
             }
 
-            // 4. Map each hunk → FileUpdate. The model already wrote verbatim
-            //    markdown into target/replacement, so this is a field copy.
-            const updates = hunks.map(hunkToFileUpdate);
+            // 4. Advanced save stage — chain every enabled AdvancedSaveAgent
+            //    over the hunk list. Zero enabled agents → identity pass.
+            const processedHunks = await this.advancedStage.process(hunks, abortController.signal);
 
-            // 5. Mark the save work done so the progress dialog can show its
+            // 5. Map each hunk → FileUpdate. The model already wrote verbatim
+            //    markdown into target/replacement, so this is a field copy.
+            const updates = processedHunks.map(hunkToFileUpdate);
+
+            // 6. Mark the save work done so the progress dialog can show its
             //    Close button. `isRunning` stays true throughout — it gates
             //    the chat mask + sendMessage re-entrancy guard, which must
             //    remain locked while the user reviews / applies updates.
@@ -164,7 +172,7 @@ export class MultiAgentSaveService {
             //    out for Close.
             this.progress.setWorkComplete(true);
 
-            // 6. Hand off to AutoUpdateDialog. Empty updates ≡ the SaveAgent
+            // 7. Hand off to AutoUpdateDialog. Empty updates ≡ the SaveAgent
             //    found nothing to write; just let the dialog close.
             //
             //    The dialog applies internally via engine.updateSingleFile +

@@ -4,6 +4,7 @@ import { KVStore } from '../kv/kv-store';
 const KEYS = {
     pauseBeforeAutoUpdate: 'mas_pause_before_auto_update',
     hunkFixupProfileId: 'mas_hunk_fixup_profile_id',
+    enabledSaveAgents: 'mas_enabled_save_agents',
 } as const;
 
 /**
@@ -34,6 +35,16 @@ export class SaveSettingsStore {
     private _hunkFixupProfileId = signal<string>('');
     readonly hunkFixupProfileId = this._hunkFixupProfileId.asReadonly();
 
+    /**
+     * Ids of {@link import('./advanced-save/advanced-save-agent').AdvancedSaveAgent}
+     * the user has opted into. Each advanced-save agent costs an extra LLM call
+     * per save, so every agent is off by default — the baseline hunk save (an
+     * empty set ≡ identity advanced stage) is the safe default. Persisted as a
+     * JSON string array; the key is absent when the set is empty.
+     */
+    private _enabledSaveAgents = signal<ReadonlySet<string>>(new Set());
+    readonly enabledSaveAgents = this._enabledSaveAgents.asReadonly();
+
     constructor() {
         // Any persisted non-empty value flips the diagnostic toggle on.
         // KVStore only stores strings, so we round-trip via 'true' / null.
@@ -43,6 +54,16 @@ export class SaveSettingsStore {
 
         const hunkFixupId = this.kv.get(KEYS.hunkFixupProfileId);
         if (hunkFixupId !== null) this._hunkFixupProfileId.set(hunkFixupId);
+
+        const rawAgents = this.kv.get(KEYS.enabledSaveAgents);
+        if (rawAgents) {
+            try {
+                const parsed: unknown = JSON.parse(rawAgents);
+                if (Array.isArray(parsed)) {
+                    this._enabledSaveAgents.set(new Set(parsed.filter((x): x is string => typeof x === 'string')));
+                }
+            } catch { /* corrupt value — fall back to the empty default */ }
+        }
     }
 
     setPauseBeforeAutoUpdate(pause: boolean): void {
@@ -56,5 +77,13 @@ export class SaveSettingsStore {
     setHunkFixupProfileId(id: string): void {
         this._hunkFixupProfileId.set(id);
         this.kv.set(KEYS.hunkFixupProfileId, id);
+    }
+
+    setEnabledSaveAgents(ids: ReadonlySet<string>): void {
+        this._enabledSaveAgents.set(new Set(ids));
+        // Persist a non-empty set only; clearing the key on empty keeps KVStore
+        // small and matches the constructor's "absent ≡ no agents" read.
+        if (ids.size > 0) this.kv.set(KEYS.enabledSaveAgents, JSON.stringify([...ids]));
+        else this.kv.remove(KEYS.enabledSaveAgents);
     }
 }
