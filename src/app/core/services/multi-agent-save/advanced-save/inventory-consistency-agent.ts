@@ -181,7 +181,14 @@ export class InventoryConsistencyAgent extends ReadOnlyAgent<InventoryAgentActio
         }
         const { hunks, warnings } = applyInventoryReview(input.hunks, commit, reviewFiles);
         if (warnings.length) console.warn('[InventoryConsistencyAgent] skipped inputs:', warnings.join('; '));
-        this.progress.setEntryOutput(entryId, renderAgentTrace(this.agentLogs()));
+        let trace = renderAgentTrace(this.agentLogs());
+        if (warnings.length) {
+            // Surface framework backstop skips in the trace card so a
+            // developer inspecting the save can see why a requested edit
+            // never landed — console is too easy to miss.
+            trace += '\n\n[Framework Warnings]\n' + warnings.map(w => '- ' + w).join('\n');
+        }
+        this.progress.setEntryOutput(entryId, trace);
         this.progress.finishEntry(entryId, 'done', commit.summary || 'inventory review committed');
         return hunks;
     }
