@@ -110,8 +110,7 @@ TextRPG 是一個**本地優先 (Local-First)**、**自帶金鑰 (Bring Your Own
 ### 存檔 (Save) : 分析並同步狀態
 **操作**: 點輸入欄旁邊的 **Save** 按鈕（磁碟片圖示）；按下後跳確認 dialog，確認即直接執行（不需要在輸入欄打任何字）。
 > [!NOTE]
-> 存檔走 multi-agent 路徑：先由 SaveAgent 把本 ACT 自 `--- ACT START ---` 起的 logs 與摘要整理成 manifest JSON，dispatcher 再依 manifest 機械式組出 KB 更新（不再經過主敘事 turn engine）。完成後 Auto-Update 視窗會跳出讓你逐條審核。
-> 預設模式為 **1-call**（主 LLM 一次寫好整份 manifest，包含 entity 內部欄位更新）；**multi-call** 模式（per-entity 子代理戰爭迷霧推演）為實驗中，可在 **Settings → 存檔模式** 切換。
+> 存檔走 multi-agent 路徑：由 SaveAgent 把本 ACT 自 `--- ACT START ---` 起的 logs 與摘要整理成一份 hunk manifest（一串逐字的 KB 編輯），再交給 Auto-Update 視窗讓你逐條審核（不再經過主敘事 turn engine）。
 
 ### 繼續 (Continue) : 自然推進
 **動作**: 直接點擊發送或輸入 `繼續`  

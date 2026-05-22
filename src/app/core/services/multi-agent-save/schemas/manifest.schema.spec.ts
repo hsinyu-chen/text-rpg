@@ -87,4 +87,22 @@ describe('validateManifest', () => {
         expect(r.ok).toBe(false);
         if (!r.ok) expect(r.error).toMatch(/hunk\[0\]/);
     });
+
+    it('salvages the valid prefix when a tail hunk is malformed (truncation)', () => {
+        const r = validateManifest([
+            { file: 'a.md', context: '', replacement: 'x' },
+            { file: 'b.md', context: '' }, // truncated tail — missing replacement
+        ]);
+        expect(r.ok).toBe(true);
+        if (r.ok) expect(r.hunks).toEqual([{ file: 'a.md', context: '', replacement: 'x' }]);
+    });
+
+    it('hard-fails when hunk[0] is malformed even in a multi-hunk array', () => {
+        const r = validateManifest([
+            { file: 'a.md', context: '' }, // missing replacement
+            { file: 'b.md', context: '', replacement: 'x' },
+        ]);
+        expect(r.ok).toBe(false);
+        if (!r.ok) expect(r.error).toMatch(/hunk\[0\]/);
+    });
 });

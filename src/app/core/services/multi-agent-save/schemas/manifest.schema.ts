@@ -60,27 +60,39 @@ export type ManifestValidationResult =
 /**
  * Validates a parsed JSON value as a `SaveHunk[]` manifest. Structural shape
  * only — required fields and types; does not inspect markdown content.
+ *
+ * Salvages the valid prefix on a malformed tail: a `MAX_TOKENS` truncation
+ * corrupts only the last hunk, and hunks are independent, so dropping the
+ * truncated tail keeps a near-complete manifest usable (the orchestrator's
+ * `finishReason` warning still flags the result as partial). A malformed
+ * `hunk[0]` means the output is broken outright, not truncated — hard-fail.
  */
 export function validateManifest(value: unknown): ManifestValidationResult {
     if (!Array.isArray(value)) return { ok: false, error: 'manifest is not an array' };
 
+    const hunks: SaveHunk[] = [];
     for (let i = 0; i < value.length; i++) {
-        const h = value[i];
-        if (!isObject(h)) return { ok: false, error: `hunk[${i}] is not an object` };
-        if (typeof h['file'] !== 'string') return { ok: false, error: `hunk[${i}].file missing` };
-        if (typeof h['context'] !== 'string') return { ok: false, error: `hunk[${i}].context missing` };
-        if (typeof h['replacement'] !== 'string') return { ok: false, error: `hunk[${i}].replacement missing` };
-        const target = h['target'];
-        if (target !== undefined && typeof target !== 'string') {
-            return { ok: false, error: `hunk[${i}].target must be string` };
+        const err = validateHunk(value[i], i);
+        if (err) {
+            if (i === 0) return { ok: false, error: err };
+            break;
         }
-        const ids = h['sourceMessageIds'];
-        if (ids !== undefined && !isStringArray(ids)) {
-            return { ok: false, error: `hunk[${i}].sourceMessageIds must be string[]` };
-        }
+        hunks.push(value[i] as SaveHunk);
     }
+    return { ok: true, hunks };
+}
 
-    return { ok: true, hunks: value as SaveHunk[] };
+/** Structural check for one hunk; returns an error string or `null` if valid. */
+function validateHunk(h: unknown, i: number): string | null {
+    if (!isObject(h)) return `hunk[${i}] is not an object`;
+    if (typeof h['file'] !== 'string') return `hunk[${i}].file missing`;
+    if (typeof h['context'] !== 'string') return `hunk[${i}].context missing`;
+    if (typeof h['replacement'] !== 'string') return `hunk[${i}].replacement missing`;
+    const target = h['target'];
+    if (target !== undefined && typeof target !== 'string') return `hunk[${i}].target must be string`;
+    const ids = h['sourceMessageIds'];
+    if (ids !== undefined && !isStringArray(ids)) return `hunk[${i}].sourceMessageIds must be string[]`;
+    return null;
 }
 
 function isObject(v: unknown): v is Record<string, unknown> {

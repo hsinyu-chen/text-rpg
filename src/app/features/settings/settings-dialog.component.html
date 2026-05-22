@@ -206,16 +206,16 @@
                     [ngModel]="savePauseBeforeAutoUpdate()"
                     (ngModelChange)="savePauseBeforeAutoUpdate.set($event)"
                     color="primary">
-                    {{ 'settings.saveMode.pauseBeforeAutoUpdate' | translate }}
+                    {{ 'settings.savePauseBeforeAutoUpdate' | translate }}
                 </mat-slide-toggle>
             </div>
-            <p class="hint-text mode-hint">{{ 'settings.saveMode.pauseBeforeAutoUpdateHint' | translate }}</p>
+            <p class="hint-text mode-hint">{{ 'settings.savePauseBeforeAutoUpdateHint' | translate }}</p>
 
             <div class="form-row">
                 <mat-form-field appearance="outline" class="full-width">
                     <mat-label>{{ 'settings.hunkFixupProfileLabel' | translate }}</mat-label>
                     <mat-select [(ngModel)]="hunkFixupProfileId">
-                        <mat-option [value]="''">{{ 'settings.saveMode.subToolProfileSameAsMain' | translate }}</mat-option>
+                        <mat-option [value]="''">{{ 'settings.profilePickerSameAsMain' | translate }}</mat-option>
                         @for (p of profiles(); track p.id) {
                             <mat-option [value]="p.id">{{ p.name }} ({{ p.provider }})</mat-option>
                         }

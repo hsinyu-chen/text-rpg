@@ -140,10 +140,10 @@ export class MultiAgentSaveService {
             const { hunks, finishReason } = saveAgentResult;
 
             // SaveAgent finishing on anything other than `stop` typically means
-            // truncation (max_tokens) — bestEffortJsonParser will still close
-            // brackets to salvage a structurally-valid manifest, but it's
-            // *incomplete*. Warn rather than letting the user think a partial
-            // save was the whole story.
+            // truncation (max_tokens). bestEffortJsonParser closes the brackets
+            // and validateManifest salvages the valid hunk prefix (dropping the
+            // truncated tail hunk), so `hunks` is usable but *incomplete*. Warn
+            // rather than letting the user think a partial save was the whole story.
             if (finishReason && !isCleanFinish(finishReason)) {
                 this.snackBar.open(
                     this.i18n.translate('multiAgentSave.run.finishWarning', { reason: finishReason }),
