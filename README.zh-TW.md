@@ -297,7 +297,7 @@ AI 產生的 **Inventory (物品欄)**、**Quest Log (任務)**、**World (世�
 ### 3. 自動世界更新 (Automatic World Update)
 存檔不只記錄進度，還會**更新世界設定檔**：
 *   **觸發方式**: 點擊輸入框旁的 **Save**（磁碟片圖示）按鈕 → 確認 dialog → 存檔直接執行。存檔不會在聊天紀錄留下訊息,直接彈出 Auto-Update 視窗。
-*   **運作機制**: **SaveAgent**（單次 LLM call）檢視本 ACT 自 `--- ACT START ---` 起的 logs 與摘要，整理出一份 **hunk manifest** —— 一串逐字的 KB 編輯（新增 / 取代 / 刪除），每條都錨定到目標檔案 + 標題。manifest 直接送進 Auto-Update 視窗。
+*   **運作機制**: **SaveAgent**（單次 LLM call）檢視本 ACT 自 `--- ACT START ---` 起的 logs 與摘要，整理出一份 **hunk manifest** —— 一串逐字的 KB 編輯（新增 / 取代 / 刪除），每條都錨定到目標檔案 + 標題。Settings 啟用任何進階存檔 agent 時,manifest 會先經過進階存檔階段(額外的 opt-in LLM 處理:drop / revise / 補完 hunk)再交給 Auto-Update;否則直接送進 Auto-Update 視窗。
 *   **審核介面**: 跑完跳 **"Auto-Update"** 視窗，逐檔逐條 diff 預覽（如 `2.劇情綱要.md` / `6.勢力與世界.md` / `3.人物狀態.md`），可選擇套用或忽略。
 
 ### 4. 知識庫檔案編輯 (KB File Editing)
