@@ -23,6 +23,7 @@ import { getLocale } from '@app/core/constants/locales';
 import { AgentHintRegistry } from '@app/core/services/agent-hints/agent-hints.registry';
 import { AgentPanelStateService } from './agent-panel-state.service';
 import { SaveProgressTracker } from '../multi-agent-save/progress/save-progress-tracker.service';
+import { AdvancedSaveAgentRegistry } from '../multi-agent-save/advanced-save/advanced-save-agent-registry';
 import { BookRepository } from '@app/core/services/storage/book.repository';
 import { CollectionService } from '@app/core/services/collection.service';
 import { SessionService } from '@app/core/services/session.service';
@@ -99,6 +100,9 @@ export class FileAgentService extends ReadOnlyAgent<ParsedAction, FileAgentConte
   // flight the file-agent must stay quiet. The dialog masks chat input but
   // the agent console is its own surface, so it gets its own check.
   private saveProgress = inject(SaveProgressTracker);
+  // Advanced-save agent roster — fed into the system prompt so the file-agent
+  // can describe the save flow's post-processing stage. Static per session.
+  private advancedSaveAgents = inject(AdvancedSaveAgentRegistry);
   /** True when a multi-agent save is in progress — used for `[disabled]` on agent triggers. */
   isBlockedBySave = this.saveProgress.isRunning;
   private completionValidator: WorldCompletionValidator | null = null;
@@ -488,7 +492,8 @@ export class FileAgentService extends ReadOnlyAgent<ParsedAction, FileAgentConte
         narrativeLanguage: context.narrativeLanguage,
       },
       locale,
-      (key: string) => this.i18n.translate(key)
+      (key: string) => this.i18n.translate(key),
+      this.advancedSaveAgents.all()
     );
 
     const genConfig = this.buildGenConfig(mode, cap.isLocalProvider);

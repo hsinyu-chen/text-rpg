@@ -29,7 +29,11 @@ export interface AdvancedSaveAgentInput {
 export interface AdvancedSaveAgent {
     /** Stable id — a member value of `enabledSaveAgents`, the settings toggle key. */
     readonly id: string;
-    /** i18n key base — the settings UI reads `${i18nKey}.label` / `${i18nKey}.desc`. */
+    /**
+     * i18n key base — an object node with `name` / `desc` / `aiHint` leaves.
+     * Settings UI reads `.name` + `.desc`; the file-agent prompt reads
+     * `.aiHint` to auto-describe this agent to the in-app KB assistant.
+     */
     readonly i18nKey: string;
     /** Takes the full hunk list, returns the full processed list. */
     process(input: AdvancedSaveAgentInput): Promise<SaveHunk[]>;

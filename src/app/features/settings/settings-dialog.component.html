@@ -242,7 +242,7 @@
                             [ngModel]="isSaveAgentEnabled(agent.id)"
                             (ngModelChange)="setSaveAgentEnabled(agent.id, $event)"
                             color="primary">
-                            {{ (agent.i18nKey + '.label') | translate }}
+                            {{ (agent.i18nKey + '.name') | translate }}
                         </mat-slide-toggle>
                     </div>
                     <p class="hint-text mode-hint">{{ (agent.i18nKey + '.desc') | translate }}</p>
