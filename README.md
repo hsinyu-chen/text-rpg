@@ -110,8 +110,7 @@ The app ships a service worker and manifest, so it can be installed as a PWA —
 ### Save : Analysis and state synchronization
 **Action**: Click the **Save** button (disk icon) next to the input — a confirm dialog opens; on accept, save runs immediately. No text input required.
 > [!NOTE]
-> Save runs through the multi-agent pipeline: SaveAgent compiles the manifest JSON from this ACT's logs + summaries (since `--- ACT START ---`), then the dispatcher mechanically generates KB updates from the manifest. The turn engine is bypassed entirely. The **Auto-Update** dialog opens afterwards for line-by-line review.
-> Default mode is **1-call** (main LLM writes the entire manifest including per-entity field updates in one pass). **multi-call** (per-entity sub-agent with fog-of-war projection) is experimental — toggle under **Settings → Save Mode**.
+> Save runs through the multi-agent pipeline: SaveAgent compiles a hunk manifest — a flat list of verbatim KB edits — from this ACT's logs + summaries (since `--- ACT START ---`), then hands it to the **Auto-Update** dialog for line-by-line review. The turn engine is bypassed entirely.
 
 ### Continue : Fluid progression
 **Action**: Just click send or type `Continue`  
