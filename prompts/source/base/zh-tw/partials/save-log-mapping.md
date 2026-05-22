@@ -1,8 +1,8 @@
 ## LOG 整合原則與狀態計算
 
-- **【狀態同步原則】**：目前提供的文件皆為 ACT 開始前的舊資訊。你必須合併 **`--- ACT START ---` 標記之後**的 `character_log`, `inventory_log`, `quest_log`, `world_log` 累計變動，計算出 **「現在的正確狀態」** 後，再將其寫入下方的檔案更新指令（XML）中。
+- **【狀態同步原則】**：目前提供的文件皆為 ACT 開始前的舊資訊。你必須合併 **`--- ACT START ---` 標記之後**的 `character_log`, `inventory_log`, `quest_log`, `world_log` 累計變動，計算出 **「現在的正確狀態」** 後，再據此產出下方的 hunk。
 
-本次 ACT (自 `--- ACT START ---` 起) 有 LOG 內容，**必須**自動生成對應的 `<save>` 更新：
+本次 ACT (自 `--- ACT START ---` 起) 有 LOG 內容，**必須**自動生成對應的 hunk：
 
 ### `inventory_log` → 目標檔案
 - 主角的金錢變動 → `{{FILE_ASSETS}}`

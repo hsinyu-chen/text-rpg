@@ -201,38 +201,6 @@
             <h3>{{ 'settings.multiAgentSaveSection' | translate }}</h3>
             <p class="hint-text">{{ 'settings.multiAgentSaveSectionHint' | translate }}</p>
 
-            <div class="form-row">
-                <mat-form-field appearance="outline" class="full-width">
-                    <mat-label>{{ 'settings.saveMode.label' | translate }}</mat-label>
-                    <mat-select [(ngModel)]="saveMode">
-                        <mat-option value="1-call">{{ 'settings.saveMode.oneCall' | translate }}</mat-option>
-                        <mat-option value="multi-call">{{ 'settings.saveMode.multiCall' | translate }}</mat-option>
-                    </mat-select>
-                </mat-form-field>
-            </div>
-            <p class="hint-text mode-hint">
-                @if (saveMode() === 'multi-call') {
-                    {{ 'settings.saveMode.multiCallHint' | translate }}
-                } @else {
-                    {{ 'settings.saveMode.oneCallHint' | translate }}
-                }
-            </p>
-
-            @if (saveMode() === 'multi-call') {
-                <div class="form-row">
-                    <mat-form-field appearance="outline" class="full-width">
-                        <mat-label>{{ 'settings.saveMode.subToolProfileLabel' | translate }}</mat-label>
-                        <mat-select [(ngModel)]="saveSubToolProfileId">
-                            <mat-option [value]="''">{{ 'settings.saveMode.subToolProfileSameAsMain' | translate }}</mat-option>
-                            @for (p of profiles(); track p.id) {
-                                <mat-option [value]="p.id">{{ p.name }} ({{ p.provider }})</mat-option>
-                            }
-                        </mat-select>
-                    </mat-form-field>
-                </div>
-                <p class="hint-text mode-hint">{{ 'settings.saveMode.subToolProfileHint' | translate }}</p>
-            }
-
             <div class="toggle-row">
                 <mat-slide-toggle
                     [ngModel]="savePauseBeforeAutoUpdate()"

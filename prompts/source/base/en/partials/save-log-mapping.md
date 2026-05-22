@@ -1,8 +1,8 @@
 ## LOG Integration Rules & State Calculation
 
-- **[State Synchronization Rule]**: The provided files are records from before this ACT started. You MUST merge the accumulated changes **after the `--- ACT START ---` marker** (from `character_log`, `inventory_log`, `quest_log`, and `world_log`) to calculate the **"Accurate Current State"** before writing it into the file update commands (XML) below.
+- **[State Synchronization Rule]**: The provided files are records from before this ACT started. You MUST merge the accumulated changes **after the `--- ACT START ---` marker** (from `character_log`, `inventory_log`, `quest_log`, and `world_log`) to calculate the **"Accurate Current State"** before writing it into the hunks below.
 
-If the current ACT (starting from `--- ACT START ---`) has LOG content, you **MUST** automatically generate corresponding `<save>` updates:
+If the current ACT (starting from `--- ACT START ---`) has LOG content, you **MUST** automatically generate corresponding hunks:
 
 ### `inventory_log` → Target Files
 - Protagonist's money change → `{{FILE_ASSETS}}`

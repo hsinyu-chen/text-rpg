@@ -1,213 +1,51 @@
 import type { Schema } from '@app/core/models/types';
-import type { SaveManifest } from '../multi-agent-save.types';
+import type { SaveHunk } from '../multi-agent-save.types';
 
 /**
- * Evidence-grounded ops: every per-op schema spreads this in as an optional
- * property. Wire semantics are documented on `OpEvidence` in the types file —
- * omit = inference, `[]` = explicit no evidence, non-empty = anchors. C-flag
- * detector reads these to fill `ConsistencyIssue.related.sourceMessageIds`
- * so per-domain ConsistencyAgents can `readChatMessage(id)` directly instead
- * of greping chat history. Optional in v1; validator does not enforce.
- */
-const sourceMessageIdsProp = {
-    type: 'array',
-    items: { type: 'string' },
-    description: 'ChatMessage.id values from the current ACT that grounded this op. Omit when the op is an inference without direct message evidence; emit [] to explicitly mark "no anchors".',
-} as const;
-
-const deltaItem = {
-    type: 'object',
-    required: ['op', 'item'],
-    properties: {
-        op: { type: 'string', enum: ['add', 'remove', 'update'] },
-        item: { type: 'string', description: 'Item name (original wording)' },
-        details: { type: 'string', description: 'New-state description appended after the item name. Strongly encouraged for add/update; omit for remove. May be omitted entirely if the bare item name is the full entry.' },
-        sourceMessageIds: sourceMessageIdsProp,
-    },
-} as const;
-
-const planItem = {
-    type: 'object',
-    required: ['op', 'title'],
-    properties: {
-        op: { type: 'string', enum: ['add', 'remove', 'update'] },
-        title: { type: 'string' },
-        body: { type: 'string', description: 'Full entry body. Strongly encouraged for add/update; ignored on remove.' },
-        sourceMessageIds: sourceMessageIdsProp,
-    },
-} as const;
-
-const sectionItem = {
-    type: 'object',
-    required: ['sectionPath', 'replacement'],
-    properties: {
-        sectionPath: { type: 'string', description: "Breadcrumb like '# 已開發武器 > ## 短弓改'" },
-        target: { type: 'string', description: 'Exact existing substring to replace. Omit to append the replacement at section end.' },
-        replacement: { type: 'string', description: 'New content. When target is omitted this is appended at the end of the section.' },
-        sourceMessageIds: sourceMessageIdsProp,
-    },
-} as const;
-
-const characterCreate = {
-    type: 'object',
-    required: ['name', 'group', 'draftedFields'],
-    properties: {
-        name: { type: 'string' },
-        group: { type: 'string', description: 'L1 group heading text verbatim' },
-        draftedFields: {
-            type: 'object',
-            description: 'Initial entry field map per save-character-status-rules.md',
-            additionalProperties: { type: 'string' },
-        },
-        sourceMessageIds: sourceMessageIdsProp,
-    },
-} as const;
-
-const entityDelete = {
-    type: 'object',
-    required: ['sectionPath', 'reason'],
-    properties: {
-        sectionPath: { type: 'string', description: "Full breadcrumb of the L2 entity heading, e.g. '# 核心人物 > ## 李四'" },
-        reason: { type: 'string' },
-        sourceMessageIds: sourceMessageIdsProp,
-    },
-} as const;
-
-const entityMove = {
-    type: 'object',
-    required: ['fromSectionPath', 'toGroup', 'reason'],
-    properties: {
-        fromSectionPath: { type: 'string', description: "Current location of the L2 entity, e.g. '# 核心人物 > ## 李四'" },
-        toGroup: { type: 'string', description: 'Target L1 group heading text (bare, no leading #)' },
-        reason: { type: 'string' },
-        sourceMessageIds: sourceMessageIdsProp,
-    },
-} as const;
-
-/**
- * Multi-call mode wire for `charactersToUpdate / factionsToUpdate`: only name
- * + optional reasonHint allowed. `additionalProperties: false` (plus the
- * absence of `updates` from the properties map) keeps the main LLM from
- * sneaking diff payloads across the fog-of-war boundary — the per-entity
- * sub-agent (Phase B) is the sole producer of those.
- */
-const entityUpdateMulticall = {
-    type: 'object',
-    required: ['name'],
-    additionalProperties: false,
-    properties: {
-        name: { type: 'string' },
-        reasonHint: { type: 'string', description: 'Optional motivation hint — trace only' },
-        sourceMessageIds: sourceMessageIdsProp,
-    },
-} as const;
-
-/**
- * 1-call mode wire: the main LLM emits a full `updates` payload directly.
- * `updates` is required (an entry that flags an entity but omits updates
- * would be a meaningless ping in this mode); each entry is a SectionUpdate
- * mirroring techEquipmentUpdates et al.
- */
-const entityUpdate1Call = {
-    type: 'object',
-    required: ['name', 'updates'],
-    properties: {
-        name: { type: 'string' },
-        reasonHint: { type: 'string', description: 'Optional motivation hint — trace only' },
-        sourceMessageIds: sourceMessageIdsProp,
-        updates: {
-            type: 'array',
-            minItems: 1,
-            description: 'SectionUpdate[] scoped to this entity. Each entry carries its own sectionPath (entity heading path) + target?/replacement, mirroring techEquipmentUpdates etc.',
-            items: sectionItem,
-        },
-    },
-} as const;
-
-/**
- * Shared mechanical / lifecycle fields — same shape across 1-call and
- * multi-call modes. Only the entity-update slot diverges, so we splice it in
- * at the per-mode export rather than duplicating ~14 sibling properties.
- *
- * Mirrors the {@link SaveManifest} TypeScript interface field-for-field —
- * when the interface changes, this constant must too; `manifest.schema.spec.ts`
- * guards by parsing schema-shaped fixtures and comparing with hand-rolled
- * TS objects.
+ * Structured-output schema for the SaveAgent manifest: a flat array of
+ * {@link SaveHunk}. The model writes `target` / `replacement` as finished
+ * markdown — no TypeScript layer renders structured fields — so this schema
+ * stays small and format-agnostic.
  *
  * Kept inline (no `$ref` indirection) — providers vary in how they resolve
- * `$ref`, and the manifest is small enough that inlining wins on clarity.
- *
- * completenessAudit is requested but not in `required` — a truncated response
- * (max_tokens) typically drops the tail of the JSON, and we'd rather salvage
- * the per-section deltas the model did emit than fail the whole manifest.
- * The orchestrator's `finishReason` warning still tells the user the result
- * is partial.
+ * `$ref`, and the hunk shape is small enough that inlining wins on clarity.
  */
-const baseManifestProperties = {
-    storyOutlineBlock: { type: 'string', description: 'Full story-outline block for this ACT. Empty string = no update.' },
-    inventoryDeltas: { type: 'array', items: deltaItem },
-    assetsDeltas: { type: 'array', items: deltaItem },
-    plansDeltas: { type: 'array', items: planItem },
-    techEquipmentUpdates: { type: 'array', items: sectionItem },
-    magicSkillsUpdates: { type: 'array', items: sectionItem },
-    worldFeaturesUpdates: { type: 'array', items: sectionItem },
-    charactersToCreate: { type: 'array', items: characterCreate },
-    factionsToCreate: { type: 'array', items: characterCreate },
-    charactersToDelete: { type: 'array', items: entityDelete },
-    factionsToDelete: { type: 'array', items: entityDelete },
-    charactersToMove: { type: 'array', items: entityMove },
-    factionsToMove: { type: 'array', items: entityMove },
-    completenessAudit: {
-        type: 'object',
-        required: ['processedLogIds', 'skippedLogIds'],
-        properties: {
-            processedLogIds: { type: 'array', items: { type: 'string' } },
-            skippedLogIds: {
-                type: 'array',
-                items: {
-                    type: 'object',
-                    required: ['logId', 'reason'],
-                    properties: {
-                        logId: { type: 'string' },
-                        reason: { type: 'string' },
-                    },
-                },
-            },
+const hunkItem = {
+    type: 'object',
+    required: ['file', 'context', 'replacement'],
+    properties: {
+        file: {
+            type: 'string',
+            description: 'Target KB filename (the locale-resolved actual name as it appears in the provided files).',
+        },
+        context: {
+            type: 'string',
+            description: "Heading breadcrumb locating the edit, e.g. '# 核心人物 > ## 李四'. Empty string targets the file root.",
+        },
+        target: {
+            type: 'string',
+            description: 'Exact existing text to replace or delete, copied verbatim from the file. Omit to append the replacement at the end of the context section.',
+        },
+        replacement: {
+            type: 'string',
+            description: 'New content as finished markdown. Empty string together with a target means "delete the target".',
+        },
+        sourceMessageIds: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'ChatMessage.id values from the current ACT that grounded this hunk. Omit when the hunk is an inference without direct message evidence; emit [] to explicitly mark "no anchors".',
         },
     },
 } as const;
 
 /**
- * 1-call mode schema: main LLM emits everything including per-entity
- * `updates` payloads. The entity-update items make `updates` required so
- * a model emitting `{ name: 'X' }` alone gets rejected — that shape would
- * silently produce no save work in this mode.
+ * SaveAgent manifest schema — the model emits a JSON array of hunks directly,
+ * no wrapping object.
  */
-export const SAVE_MANIFEST_SCHEMA_1CALL: Schema = {
-    type: 'object',
-    description: 'SaveAgent manifest (1-call mode) — main LLM fills every section directly. Dispatcher emits XML mechanically.',
-    properties: {
-        ...baseManifestProperties,
-        charactersToUpdate: { type: 'array', items: entityUpdate1Call },
-        factionsToUpdate: { type: 'array', items: entityUpdate1Call },
-    },
-};
-
-/**
- * Multi-call mode schema: main LLM only flags `name` + `reasonHint` for
- * each entity; the per-entity sub-agent (Phase B) produces the diff under
- * fog-of-war. `additionalProperties: false` on the entity-update items
- * forbids the main LLM from sneaking an `updates` payload into the
- * manifest.
- */
-export const SAVE_MANIFEST_SCHEMA_MULTICALL: Schema = {
-    type: 'object',
-    description: 'SaveAgent manifest (multi-call mode) — main LLM routes only; per-entity sub-agent owns each entity diff.',
-    properties: {
-        ...baseManifestProperties,
-        charactersToUpdate: { type: 'array', items: entityUpdateMulticall },
-        factionsToUpdate: { type: 'array', items: entityUpdateMulticall },
-    },
+export const SAVE_MANIFEST_SCHEMA: Schema = {
+    type: 'array',
+    description: 'SaveAgent manifest — a flat list of verbatim KB edits (hunks).',
+    items: hunkItem,
 };
 
 /**
@@ -216,78 +54,34 @@ export const SAVE_MANIFEST_SCHEMA_MULTICALL: Schema = {
  * malformed JSON under load — every parsed manifest goes through this.
  */
 export type ManifestValidationResult =
-    | { ok: true; manifest: SaveManifest }
+    | { ok: true; hunks: SaveHunk[] }
     | { ok: false; error: string };
 
 /**
- * Validates a parsed JSON value as a `SaveManifest`. Checks structural shape
- * (required fields, enum values, type discriminants) but does NOT enforce
- * cross-field invariants like `completenessAudit.processedLogIds ⊆ actual
- * ACT log ids` — that's audit territory, separate concern.
+ * Validates a parsed JSON value as a `SaveHunk[]` manifest. Structural shape
+ * only — required fields and types; does not inspect markdown content.
  */
 export function validateManifest(value: unknown): ManifestValidationResult {
-    if (!isObject(value)) return { ok: false, error: 'manifest is not an object' };
+    if (!Array.isArray(value)) return { ok: false, error: 'manifest is not an array' };
 
-    // completenessAudit is optional in the validator — see schema comment.
-    // When present, validate its inner shape; missing is acceptable for
-    // truncated responses.
-    const audit = value['completenessAudit'];
-    if (audit !== undefined) {
-        if (!isObject(audit)) return { ok: false, error: 'completenessAudit is not an object' };
-        if (!isStringArray(audit['processedLogIds'])) {
-            return { ok: false, error: 'completenessAudit.processedLogIds is not a string[]' };
+    for (let i = 0; i < value.length; i++) {
+        const h = value[i];
+        if (!isObject(h)) return { ok: false, error: `hunk[${i}] is not an object` };
+        if (typeof h['file'] !== 'string') return { ok: false, error: `hunk[${i}].file missing` };
+        if (typeof h['context'] !== 'string') return { ok: false, error: `hunk[${i}].context missing` };
+        if (typeof h['replacement'] !== 'string') return { ok: false, error: `hunk[${i}].replacement missing` };
+        const target = h['target'];
+        if (target !== undefined && typeof target !== 'string') {
+            return { ok: false, error: `hunk[${i}].target must be string` };
         }
-        const skipped = audit['skippedLogIds'];
-        if (!Array.isArray(skipped)) {
-            return { ok: false, error: 'completenessAudit.skippedLogIds is not an array' };
-        }
-        for (let i = 0; i < skipped.length; i++) {
-            const s = skipped[i];
-            if (!isObject(s) || typeof s['logId'] !== 'string' || typeof s['reason'] !== 'string') {
-                return { ok: false, error: `completenessAudit.skippedLogIds[${i}] missing logId/reason` };
-            }
+        const ids = h['sourceMessageIds'];
+        if (ids !== undefined && !isStringArray(ids)) {
+            return { ok: false, error: `hunk[${i}].sourceMessageIds must be string[]` };
         }
     }
 
-    for (const key of ['inventoryDeltas', 'assetsDeltas'] as const) {
-        const err = validateDeltaArray(value[key], key);
-        if (err) return { ok: false, error: err };
-    }
-    {
-        const err = validatePlanArray(value['plansDeltas']);
-        if (err) return { ok: false, error: err };
-    }
-    for (const key of ['techEquipmentUpdates', 'magicSkillsUpdates', 'worldFeaturesUpdates'] as const) {
-        const err = validateSectionArray(value[key], key);
-        if (err) return { ok: false, error: err };
-    }
-    for (const key of ['charactersToCreate', 'factionsToCreate'] as const) {
-        const err = validateCreateArray(value[key], key);
-        if (err) return { ok: false, error: err };
-    }
-    for (const key of ['charactersToDelete', 'factionsToDelete'] as const) {
-        const err = validateDeleteArray(value[key], key);
-        if (err) return { ok: false, error: err };
-    }
-    for (const key of ['charactersToMove', 'factionsToMove'] as const) {
-        const err = validateMoveArray(value[key], key);
-        if (err) return { ok: false, error: err };
-    }
-    for (const key of ['charactersToUpdate', 'factionsToUpdate'] as const) {
-        const err = validateUpdateArray(value[key], key);
-        if (err) return { ok: false, error: err };
-    }
-    const storyBlock = value['storyOutlineBlock'];
-    if (storyBlock !== undefined && typeof storyBlock !== 'string') {
-        return { ok: false, error: 'storyOutlineBlock is not a string' };
-    }
-
-    return { ok: true, manifest: value as unknown as SaveManifest };
+    return { ok: true, hunks: value as SaveHunk[] };
 }
-
-// ============================================================================
-// Validation helpers — kept private; expose nothing beyond validateManifest.
-// ============================================================================
 
 function isObject(v: unknown): v is Record<string, unknown> {
     return typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -295,108 +89,4 @@ function isObject(v: unknown): v is Record<string, unknown> {
 
 function isStringArray(v: unknown): v is string[] {
     return Array.isArray(v) && v.every(x => typeof x === 'string');
-}
-
-const DELTA_OPS = new Set(['add', 'remove', 'update']);
-
-function validateDeltaArray(v: unknown, fieldName: string): string | null {
-    if (v === undefined) return null;
-    if (!Array.isArray(v)) return `${fieldName} is not an array`;
-    for (let i = 0; i < v.length; i++) {
-        const e = v[i];
-        if (!isObject(e)) return `${fieldName}[${i}] is not an object`;
-        if (typeof e['op'] !== 'string' || !DELTA_OPS.has(e['op'])) return `${fieldName}[${i}].op invalid`;
-        if (typeof e['item'] !== 'string') return `${fieldName}[${i}].item missing`;
-        const details = e['details'];
-        if (details !== undefined && typeof details !== 'string') return `${fieldName}[${i}].details must be string`;
-    }
-    return null;
-}
-
-function validatePlanArray(v: unknown): string | null {
-    if (v === undefined) return null;
-    if (!Array.isArray(v)) return 'plansDeltas is not an array';
-    for (let i = 0; i < v.length; i++) {
-        const e = v[i];
-        if (!isObject(e)) return `plansDeltas[${i}] is not an object`;
-        if (typeof e['op'] !== 'string' || !DELTA_OPS.has(e['op'])) return `plansDeltas[${i}].op invalid`;
-        if (typeof e['title'] !== 'string') return `plansDeltas[${i}].title missing`;
-        const body = e['body'];
-        if (body !== undefined && typeof body !== 'string') return `plansDeltas[${i}].body must be string`;
-    }
-    return null;
-}
-
-function validateSectionArray(v: unknown, fieldName: string): string | null {
-    if (v === undefined) return null;
-    if (!Array.isArray(v)) return `${fieldName} is not an array`;
-    for (let i = 0; i < v.length; i++) {
-        const e = v[i];
-        if (!isObject(e)) return `${fieldName}[${i}] is not an object`;
-        if (typeof e['sectionPath'] !== 'string') return `${fieldName}[${i}].sectionPath missing`;
-        if (typeof e['replacement'] !== 'string') return `${fieldName}[${i}].replacement missing`;
-        const target = e['target'];
-        if (target !== undefined && typeof target !== 'string') return `${fieldName}[${i}].target must be string`;
-    }
-    return null;
-}
-
-function validateCreateArray(v: unknown, fieldName: string): string | null {
-    if (v === undefined) return null;
-    if (!Array.isArray(v)) return `${fieldName} is not an array`;
-    for (let i = 0; i < v.length; i++) {
-        const e = v[i];
-        if (!isObject(e)) return `${fieldName}[${i}] is not an object`;
-        if (typeof e['name'] !== 'string') return `${fieldName}[${i}].name missing`;
-        if (typeof e['group'] !== 'string') return `${fieldName}[${i}].group missing`;
-        const drafted = e['draftedFields'];
-        if (!isObject(drafted)) return `${fieldName}[${i}].draftedFields missing`;
-        for (const [k, vv] of Object.entries(drafted)) {
-            if (typeof vv !== 'string') return `${fieldName}[${i}].draftedFields[${k}] must be string`;
-        }
-    }
-    return null;
-}
-
-function validateDeleteArray(v: unknown, fieldName: string): string | null {
-    if (v === undefined) return null;
-    if (!Array.isArray(v)) return `${fieldName} is not an array`;
-    for (let i = 0; i < v.length; i++) {
-        const e = v[i];
-        if (!isObject(e)) return `${fieldName}[${i}] is not an object`;
-        if (typeof e['sectionPath'] !== 'string') return `${fieldName}[${i}].sectionPath missing`;
-        if (typeof e['reason'] !== 'string') return `${fieldName}[${i}].reason missing`;
-    }
-    return null;
-}
-
-function validateMoveArray(v: unknown, fieldName: string): string | null {
-    if (v === undefined) return null;
-    if (!Array.isArray(v)) return `${fieldName} is not an array`;
-    for (let i = 0; i < v.length; i++) {
-        const e = v[i];
-        if (!isObject(e)) return `${fieldName}[${i}] is not an object`;
-        if (typeof e['fromSectionPath'] !== 'string') return `${fieldName}[${i}].fromSectionPath missing`;
-        if (typeof e['toGroup'] !== 'string') return `${fieldName}[${i}].toGroup missing`;
-        if (typeof e['reason'] !== 'string') return `${fieldName}[${i}].reason missing`;
-    }
-    return null;
-}
-
-function validateUpdateArray(v: unknown, fieldName: string): string | null {
-    if (v === undefined) return null;
-    if (!Array.isArray(v)) return `${fieldName} is not an array`;
-    for (let i = 0; i < v.length; i++) {
-        const e = v[i];
-        if (!isObject(e)) return `${fieldName}[${i}] is not an object`;
-        if (typeof e['name'] !== 'string') return `${fieldName}[${i}].name missing`;
-        const hint = e['reasonHint'];
-        if (hint !== undefined && typeof hint !== 'string') return `${fieldName}[${i}].reasonHint must be string`;
-        const updates = e['updates'];
-        if (updates !== undefined) {
-            const err = validateSectionArray(updates, `${fieldName}[${i}].updates`);
-            if (err) return err;
-        }
-    }
-    return null;
 }
