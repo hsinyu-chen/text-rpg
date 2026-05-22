@@ -84,6 +84,15 @@ export class SaveProgressTracker {
         this.patch(entryId, e => ({ ...e, output: e.output + chunk }));
     }
 
+    /**
+     * Replaces an entry's `output` wholesale. Advanced-save agents run their
+     * own multi-turn loop and mirror the rendered trace into one card, so they
+     * re-set the whole text rather than append per chunk.
+     */
+    setEntryOutput(entryId: string, output: string): void {
+        this.patch(entryId, e => ({ ...e, output }));
+    }
+
     setPpProgress(entryId: string, ratio: number): void {
         this.patch(entryId, e => ({ ...e, ppProgress: ratio }));
     }
