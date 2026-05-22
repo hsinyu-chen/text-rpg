@@ -120,9 +120,15 @@ export class InventoryConsistencyAgent extends ReadOnlyAgent<InventoryAgentActio
         this.capturedCommit = null;
 
         // Bridge the save run's abort signal into the base loop's controller.
-        this.abortController = new AbortController();
-        if (input.signal.aborted) this.abortController.abort();
-        else input.signal.addEventListener('abort', () => this.abortController?.abort(), { once: true });
+        // Capture the controller in a local so the listener closes over THIS
+        // run's instance — the singleton field `this.abortController` gets
+        // reassigned by the next run, and a late-firing abort listener that
+        // reads `this.abortController` would otherwise abort the wrong run.
+        const agentController = new AbortController();
+        this.abortController = agentController;
+        const abortHandler = (): void => agentController.abort();
+        if (input.signal.aborted) agentController.abort();
+        else input.signal.addEventListener('abort', abortHandler, { once: true });
 
         try {
             this.systemPrompt = await this.loadPrompt(input.lang);
@@ -148,6 +154,7 @@ export class InventoryConsistencyAgent extends ReadOnlyAgent<InventoryAgentActio
             this.activeEntryId.set(null);
             return [...input.hunks];
         } finally {
+            input.signal.removeEventListener('abort', abortHandler);
             this.isAgentRunning.set(false);
         }
 
