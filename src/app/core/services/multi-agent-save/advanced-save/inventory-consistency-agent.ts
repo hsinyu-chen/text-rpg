@@ -1,4 +1,4 @@
-import { Injectable, inject } from '@angular/core';
+import { Injectable, effect, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import type { LLMFunctionDeclaration, LLMProvider, LLMProviderConfig } from '@hcs/llm-core';
@@ -80,6 +80,21 @@ export class InventoryConsistencyAgent extends ReadOnlyAgent<InventoryAgentActio
     private resolvedProvider: { provider: LLMProvider; config: LLMProviderConfig } | null = null;
 
     private toolsCache: LLMFunctionDeclaration[] | null = null;
+
+    constructor() {
+        super();
+        // Mirror the base loop's per-chunk `promptProgress` signal into the
+        // active progress entry so the save dialog's PP bar reflects the
+        // agent's prefill / prompt-processing progress (same UX as the
+        // SaveAgentRunner). `activeEntryId` is a plain field, not a signal —
+        // the effect re-runs on promptProgress changes only, and reads
+        // whatever entry id is current.
+        effect(() => {
+            const pp = this.promptProgress();
+            const id = this.activeEntryId;
+            if (id && pp !== undefined) this.progress.setPpProgress(id, pp);
+        });
+    }
 
     async process(input: AdvancedSaveAgentInput): Promise<SaveHunk[]> {
         const locale = getLocale(input.lang);
