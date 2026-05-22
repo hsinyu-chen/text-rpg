@@ -201,7 +201,14 @@ export class SettingsDialogComponent {
   }
 
   setSaveAgentProfile(id: string, profileId: string): void {
-    this.saveAgentProfileIds.update(map => ({ ...map, [id]: profileId }));
+    this.saveAgentProfileIds.update(map => {
+      const next = { ...map };
+      // '' ≡ "same as main" — drop the key so local state stays pruned
+      // like the backing store.
+      if (profileId) next[id] = profileId;
+      else delete next[id];
+      return next;
+    });
   }
 
   openProfilesManager(): void {
