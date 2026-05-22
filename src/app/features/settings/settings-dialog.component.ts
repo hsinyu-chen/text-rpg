@@ -20,7 +20,7 @@ import { getLanguagesList } from '@app/core/constants/locales';
 import { UI_LOCALES, type InterfaceLanguageSetting, TranslatePipe } from '@app/core/i18n';
 import { LLMProfilesDialogComponent } from './llm-profiles-dialog.component';
 import { ProviderDebugDialogComponent } from '@app/features/multi-agent-save/provider-debug-dialog.component';
-import { SaveSettingsStore, SaveMode } from '@app/core/services/multi-agent-save/save-settings.store';
+import { SaveSettingsStore } from '@app/core/services/multi-agent-save/save-settings.store';
 import { BridgeService } from '@app/core/services/dev/bridge.service';
 import { AppAgentHintDirective } from '@app/core/services/agent-hints/agent-hints.directive';
 
@@ -79,8 +79,6 @@ export class SettingsDialogComponent {
   idleOnBlur = signal(false);
   enableAdultDeclaration = signal(true);
   engineMode = signal<'single' | 'two-call'>('single');
-  saveMode = signal<SaveMode>('1-call');
-  saveSubToolProfileId = signal<string>('');
   savePauseBeforeAutoUpdate = signal(false);
   hunkFixupProfileId = signal<string>('');
   outputLanguage = signal('default');
@@ -157,8 +155,6 @@ export class SettingsDialogComponent {
     this.idleOnBlur.set(this.appConfig.idleOnBlur());
     this.enableAdultDeclaration.set(this.appConfig.enableAdultDeclaration());
     this.engineMode.set(this.appConfig.engineMode());
-    this.saveMode.set(this.saveSettings.saveMode());
-    this.saveSubToolProfileId.set(this.saveSettings.subToolProfileId());
     this.savePauseBeforeAutoUpdate.set(this.saveSettings.pauseBeforeAutoUpdate());
     this.hunkFixupProfileId.set(this.saveSettings.hunkFixupProfileId());
 
@@ -212,8 +208,6 @@ export class SettingsDialogComponent {
 
     await this.engine.saveConfig(commonConfig);
 
-    this.saveSettings.setSaveMode(this.saveMode());
-    this.saveSettings.setSubToolProfileId(this.saveSubToolProfileId());
     this.saveSettings.setPauseBeforeAutoUpdate(this.savePauseBeforeAutoUpdate());
     this.saveSettings.setHunkFixupProfileId(this.hunkFixupProfileId());
 

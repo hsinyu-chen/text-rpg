@@ -9,38 +9,17 @@ import type { FileUpdate } from '../file-update.service';
 import { AutoUpdateDialogComponent } from '@app/shared/components/auto-update-dialog/auto-update-dialog.component';
 import { SaveProgressDialogComponent } from '@app/features/multi-agent-save/save-progress-dialog.component';
 import { SaveAgentRunnerService } from './save-agent-runner.service';
-import { SubToolDispatcherService } from './sub-tool-dispatcher.service';
 import { SaveProgressTracker } from './progress/save-progress-tracker.service';
-import { cFixRunner } from './consistency-checks/c-fix-runner';
-import type { AutoFixLog } from './multi-agent-save.types';
-import { SaveSettingsStore, type SaveMode } from './save-settings.store';
-import {
-    SAVE_MANIFEST_SCHEMA_1CALL,
-    SAVE_MANIFEST_SCHEMA_MULTICALL,
-} from './schemas/manifest.schema';
-import type { Schema } from '@app/core/models/types';
-import { getLocale, getLangFolder } from '@app/core/constants/locales';
+import { SaveSettingsStore } from './save-settings.store';
+import type { SaveHunk } from './multi-agent-save.types';
+import { getLangFolder } from '@app/core/constants/locales';
 import { DEFAULT_PROFILE_ID, getProfileBasePath } from '@app/core/constants/prompt-profiles';
 import { FULLSCREEN_DIALOG_CONFIG } from '@app/shared/material/dialog-presets';
 import { I18nService } from '@app/core/i18n';
 import { MatSnackBar } from '@angular/material/snack-bar';
 
-/**
- * Per-mode manifest prompt + structured-output schema pairing. Kept as a
- * single source of truth so the orchestrator can't desync (e.g. 1-call
- * prompt with multi-call schema would have the LLM emit `updates` and then
- * fail validation).
- */
-const MODE_BINDINGS: Record<SaveMode, { promptFile: string; schema: Schema }> = {
-    '1-call': {
-        promptFile: 'injection_save_manifest_1call.md',
-        schema: SAVE_MANIFEST_SCHEMA_1CALL,
-    },
-    'multi-call': {
-        promptFile: 'injection_save_manifest_multicall.md',
-        schema: SAVE_MANIFEST_SCHEMA_MULTICALL,
-    },
-};
+/** Single manifest prompt — the SaveAgent emits a `SaveHunk[]` JSON array. */
+const MANIFEST_PROMPT_FILE = 'injection_save_manifest.md';
 
 /**
  * Top-level orchestrator for the multi-agent save path.
@@ -58,8 +37,8 @@ const MODE_BINDINGS: Record<SaveMode, { promptFile: string; schema: Schema }> = 
  *   1. snapshot ContextBuilder + locale's prompt profile
  *   2. open SaveProgressDialog (mounted before first await so the user sees
  *      "Starting SaveAgent…" instead of a blank screen)
- *   3. SaveAgentRunner → manifest JSON
- *   4. SubToolDispatcher → FileUpdate[] + per-tool progress entries
+ *   3. SaveAgentRunner → `SaveHunk[]` manifest
+ *   4. map each hunk → FileUpdate
  *   5. `progress.setWorkComplete(true)` so the progress dialog can swap
  *      Cancel out for Close (`isRunning` stays true for the chat lock)
  *   6. close progress dialog (or await user close under `pauseBeforeAutoUpdate`)
@@ -67,7 +46,6 @@ const MODE_BINDINGS: Record<SaveMode, { promptFile: string; schema: Schema }> = 
  *
  * Failure path: any thrown error is surfaced as a snackbar and the progress
  * dialog stays open showing the failed entry. The user can close + retry.
- * No fallback to legacy in Phase 1.
  */
 @Injectable({ providedIn: 'root' })
 export class MultiAgentSaveService {
@@ -75,7 +53,6 @@ export class MultiAgentSaveService {
     private providerRegistry = inject(LLMProviderRegistryService);
     private state = inject(GameStateService);
     private saveAgent = inject(SaveAgentRunnerService);
-    private dispatcher = inject(SubToolDispatcherService);
     private progress = inject(SaveProgressTracker);
     private settings = inject(SaveSettingsStore);
     private dialog = inject(MatDialog);
@@ -95,11 +72,10 @@ export class MultiAgentSaveService {
         // concurrent runs sharing the same SaveProgressTracker.
         // Precondition guards (parallel to GameEngineService.startSession's
         // sanity checks): multi-agent save bypasses prepareCacheOrAbort so it
-        // must self-validate. Empty KB → SaveAgent would still produce a
-        // manifest and the dispatcher would silently do nothing. Run BEFORE
-        // any state mutation (reset / setRunning) so an early-aborted run
-        // doesn't clear a tracker entry the user is still inspecting from a
-        // prior run.
+        // must self-validate. Empty KB → SaveAgent has no files to target.
+        // Run BEFORE any state mutation (reset / setRunning) so an
+        // early-aborted run doesn't clear a tracker entry the user is still
+        // inspecting from a prior run.
         if (!this.state.isConfigured()) {
             this.snackBar.open(
                 this.i18n.translate('multiAgentSave.run.notConfigured'),
@@ -146,17 +122,13 @@ export class MultiAgentSaveService {
             const profileId = this.state.activePromptProfile() || DEFAULT_PROFILE_ID;
 
             // 2. Load manifest prompt + compose user message.
-            //    Mode-specific binding pairs the prompt with the matching
-            //    structured-output schema so the LLM-side constraint and
-            //    the prose-side rules can't desync.
-            const binding = MODE_BINDINGS[this.settings.saveMode()];
-            const manifestPrompt = await this.loadManifestPrompt(lang, profileId, binding.promptFile);
+            const manifestPrompt = await this.loadManifestPrompt(lang, profileId);
             const history = this.appendUserMessage(baseHistory, manifestPrompt, userInput);
 
             const omitKB = this.contextBuilder.shouldOmitKbFromSystemInstruction(buildCtx);
             const systemInstruction = this.contextBuilder.getEffectiveSystemInstruction(buildCtx, !omitKB);
 
-            // 3. SaveAgent — emits the manifest JSON.
+            // 3. SaveAgent — emits the `SaveHunk[]` manifest.
             const saveAgentResult = await this.saveAgent.run({
                 provider,
                 providerConfig: this.providerRegistry.getActiveConfig(),
@@ -164,15 +136,14 @@ export class MultiAgentSaveService {
                 cachedContentName: buildCtx.kbCacheName || undefined,
                 history,
                 signal: abortController.signal,
-                responseSchema: binding.schema,
             });
-            const { manifest, finishReason } = saveAgentResult;
+            const { hunks, finishReason } = saveAgentResult;
 
             // SaveAgent finishing on anything other than `stop` typically means
-            // truncation (max_tokens) — bestEffortJsonParser will still close
-            // brackets to salvage a structurally-valid manifest, but it's
-            // *incomplete*. Warn rather than letting the user think a partial
-            // save was the whole story.
+            // truncation (max_tokens). bestEffortJsonParser closes the brackets
+            // and validateManifest salvages the valid hunk prefix (dropping the
+            // truncated tail hunk), so `hunks` is usable but *incomplete*. Warn
+            // rather than letting the user think a partial save was the whole story.
             if (finishReason && !isCleanFinish(finishReason)) {
                 this.snackBar.open(
                     this.i18n.translate('multiAgentSave.run.finishWarning', { reason: finishReason }),
@@ -181,36 +152,9 @@ export class MultiAgentSaveService {
                 );
             }
 
-            // 4. Dispatcher — fans out to mechanical handlers. Phase 1 A2 wires
-            //    every mechanical tool; LLM sub-tools land in a later slice.
-            const locale = getLocale(lang);
-            const kbFiles = this.state.loadedFiles();
-
-            //  4a. C-fix pre-pass (Sub-1 of per-domain-checks sub-plan):
-            //      mechanical normalization of the manifest before dispatch.
-            //      Auto-fixes are logged to a single progress entry so the
-            //      user can see why the applied diff differs from the LLM
-            //      emit. Pure TS, zero-LLM-cost; the dispatcher consumes the
-            //      fixed manifest.
-            const cFixEntryId = this.progress.startEntry('c-fix', { toolName: 'c-fix-runner' });
-            const cFixResult = cFixRunner({
-                manifest,
-                kbFiles,
-                coreFilenames: locale.coreFilenames,
-            });
-            if (cFixResult.fixes.length === 0) {
-                this.progress.skip(cFixEntryId, 'no_fixes_needed');
-            } else {
-                this.progress.appendOutput(cFixEntryId, describeAutoFixes(cFixResult.fixes));
-                this.progress.finishEntry(cFixEntryId, 'done');
-            }
-
-            const dispatchResult = this.dispatcher.dispatch({
-                manifest: cFixResult.manifest,
-                coreFilenames: locale.coreFilenames,
-                kbSectionHeadings: locale.kbSectionHeadings,
-                kbFiles,
-            });
+            // 4. Map each hunk → FileUpdate. The model already wrote verbatim
+            //    markdown into target/replacement, so this is a field copy.
+            const updates = hunks.map(hunkToFileUpdate);
 
             // 5. Mark the save work done so the progress dialog can show its
             //    Close button. `isRunning` stays true throughout — it gates
@@ -220,10 +164,8 @@ export class MultiAgentSaveService {
             //    out for Close.
             this.progress.setWorkComplete(true);
 
-            // 6. Hand off to AutoUpdateDialog. Empty updates ≡ no work for
-            //    any handler; the progress dialog already shows every
-            //    section's outcome (empty_section / not_yet_implemented),
-            //    so we just let it close with no extra snackbar needed.
+            // 6. Hand off to AutoUpdateDialog. Empty updates ≡ the SaveAgent
+            //    found nothing to write; just let the dialog close.
             //
             //    The dialog applies internally via engine.updateSingleFile +
             //    saveCurrentSessionToBook (which bumps lastActiveAt itself)
@@ -234,7 +176,7 @@ export class MultiAgentSaveService {
             //    opening auto-update so the user isn't staring at two
             //    stacked modals. Diagnostic flow (`pauseBeforeAutoUpdate`):
             //    wait for the user to close the progress dialog manually so
-            //    the per-section trace stays inspectable. Either way the
+            //    the manifest trace stays inspectable. Either way the
             //    `await` keeps the chat surface save-locked + the sendMessage
             //    re-entrancy guard armed while the user works through the
             //    review.
@@ -243,8 +185,8 @@ export class MultiAgentSaveService {
             } else {
                 dialogRef.close();
             }
-            if (dispatchResult.updates.length === 0) return;
-            await this.openAutoUpdateDialog(dispatchResult.updates);
+            if (updates.length === 0) return;
+            await this.openAutoUpdateDialog(updates);
         } catch (err: unknown) {
             // User-initiated cancellation (Cancel button → AbortController.abort()).
             // Stream error names vary by provider — match the common ones rather
@@ -278,10 +220,10 @@ export class MultiAgentSaveService {
      * so the language-root path is implicitly covered by the default-profile
      * fallback — no separate third candidate.
      */
-    private async loadManifestPrompt(lang: string, profileId: string, filename: string): Promise<string> {
+    private async loadManifestPrompt(lang: string, profileId: string): Promise<string> {
         const langFolder = getLangFolder(lang);
-        const activePath = `${getProfileBasePath(langFolder, profileId)}/${filename}`;
-        const defaultPath = `${getProfileBasePath(langFolder, DEFAULT_PROFILE_ID)}/${filename}`;
+        const activePath = `${getProfileBasePath(langFolder, profileId)}/${MANIFEST_PROMPT_FILE}`;
+        const defaultPath = `${getProfileBasePath(langFolder, DEFAULT_PROFILE_ID)}/${MANIFEST_PROMPT_FILE}`;
         // Push the default-profile fallback only when its resolved path
         // differs — user profiles without a `subDir` resolve to the same
         // language-root path as the cloud default, so the second fetch
@@ -295,7 +237,7 @@ export class MultiAgentSaveService {
                 if (response.ok) return await response.text();
             } catch { /* try next */ }
         }
-        throw new Error(`Failed to load ${filename} (tried ${candidates.length} paths)`);
+        throw new Error(`Failed to load ${MANIFEST_PROMPT_FILE} (tried ${candidates.length} paths)`);
     }
 
     /**
@@ -329,6 +271,21 @@ export class MultiAgentSaveService {
 }
 
 /**
+ * Maps a SaveAgent-authored hunk to a `FileUpdate` for AutoUpdateDialog. A
+ * plain field copy — the model already wrote verbatim markdown into
+ * `target` / `replacement`; the matcher metadata (`beforeLines`, `matchIndex`)
+ * is filled in later by the dialog.
+ */
+function hunkToFileUpdate(hunk: SaveHunk): FileUpdate {
+    return {
+        filePath: hunk.file,
+        context: hunk.context,
+        targetContent: hunk.target,
+        replacementContent: hunk.replacement,
+    };
+}
+
+/**
  * Standard DOMException name for `AbortController.abort()`-propagated errors.
  * Keep the check tight — matching the message string would swallow real
  * provider errors that happen to contain "aborted" (e.g. "request aborted
@@ -347,13 +304,4 @@ function isCleanFinish(finishReason: string): boolean {
     const normalized = finishReason.toLowerCase();
     // 'null' covers providers that stringify a literal null finishReason.
     return normalized === 'stop' || normalized === 'null' || normalized === '';
-}
-
-/**
- * Renders the c-fix runner's auto-fix log as the progress entry's `output`.
- * One line per fix, grep-friendly `[domain/kind] reason` form so the trace is
- * scannable in the dialog's monospace code block.
- */
-function describeAutoFixes(fixes: readonly AutoFixLog[]): string {
-    return fixes.map(f => `[${f.domain}/${f.kind}] ${f.reason}`).join('\n');
 }

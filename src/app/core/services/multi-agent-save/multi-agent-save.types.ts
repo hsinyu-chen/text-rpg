@@ -3,14 +3,12 @@
  * providers, and the Debug UI all consume from here so a single type rename
  * propagates without import churn.
  *
- * Plan: TextRPG_Plans/doing/multi-agent-save-simulation.md
+ * Plan: TextRPG_Plans/doing/multi-agent-save-hunk-redesign.md
  */
 
 /**
  * One condensed unit of "something happened in the ACT" extracted from a
- * single `role: 'model'` chat message. Stage B-1 (Visibility Tagger) sees a
- * list of these and emits per-entity visibility verdicts referencing them by
- * {@link SceneEvent.eventId}.
+ * single `role: 'model'` chat message.
  *
  * `eventId` is the 8-char prefix of `messageId` — stable within a save run,
  * compact enough for LLM JSON output to reference without ballooning tokens.
@@ -35,8 +33,8 @@ export interface SceneEvent {
 /**
  * Names of the array-of-strings log fields carried on `SceneEvent` and
  * the source `ChatMessage`. `as const` so consumers (Debug UI template,
- * Stage B-1 prompt builders) can iterate with full type safety instead of
- * casting through `$any(event)[field]`.
+ * prompt builders) can iterate with full type safety instead of casting
+ * through `$any(event)[field]`.
  */
 export const SCENE_EVENT_LOG_FIELDS = [
   'character_log',
@@ -78,9 +76,7 @@ export interface CharacterEntry {
  * Structurally identical to {@link CharacterEntry} today — kept as a
  * separate interface so type-safety per concept survives if either side's
  * shape diverges (e.g. factions gain a `powerLevel`, characters gain
- * `coreValues`). Stage B treats both as simulation targets, so consumers
- * that bind to the union {@link CharacterEntry} | {@link FactionEntry}
- * will continue to compile.
+ * `coreValues`).
  */
 export interface FactionEntry {
   name: string;
@@ -88,8 +84,7 @@ export interface FactionEntry {
   /**
    * L1 ancestor heading text verbatim (e.g. `主要勢力`, `核心世界觀`,
    * `關鍵物品`). Like {@link CharacterEntry.group}, no whitelist —
-   * downstream decides what to do with each group (LLM stages skip
-   * `關鍵物品`-style entries as non-actors).
+   * downstream decides what to do with each group.
    */
   group: string;
   startLine: number;
@@ -98,220 +93,51 @@ export interface FactionEntry {
 }
 
 // ============================================================================
-// SaveAgent Manifest
+// SaveAgent manifest — a flat list of hunks
 // ============================================================================
 
 /**
- * Evidence-grounded manifest — every op carries an optional list of
- * `ChatMessage.id`s the main LLM (or B agent) cites as evidence for emitting
- * the op. The downstream ConsistencyAgent (sub-plan Sub-3+) uses these as
- * its primary investigation anchors: it pulls original text via
- * `readChatMessage(id)` instead of re-grepping the chat blind.
+ * One verbatim edit the SaveAgent (or, later, an advanced-save agent) wants
+ * applied to a KB file. The manifest is just `SaveHunk[]` — no envelope.
  *
- * Semantics on the wire:
- * - **omitted** = LLM judged this op was an inference (no direct quote) — the
- *   downstream agent must reason from context; not necessarily a quality issue.
- * - **`[]`** (explicit empty array) = LLM explicitly says "no message anchors
- *   this op"; same effect as omitted but signals deliberate choice.
- * - **non-empty** = these messages directly grounded the op.
+ * The model writes `target` / `replacement` as finished markdown, looking at
+ * the file's own format. No TypeScript layer renders structured fields into
+ * markdown, so user-customised KB formats round-trip intact.
  *
- * Optional in v1 — validator does not enforce presence so existing fixtures /
- * older SaveAgent prompts keep validating. Prompts ask for the field; observe
- * model adherence empirically before tightening.
+ * Op semantics, decided by which fields are present:
+ * - `target` omitted → append `replacement` at the end of the `context` section.
+ * - `target` present, `replacement` non-empty → replace that exact substring.
+ * - `target` present, `replacement` empty → delete that exact substring.
+ *
+ * `SaveHunk` is a distinct type from {@link import('../file-update.types').FileUpdate}:
+ * they belong to different stages (manifest authoring vs. AutoUpdateDialog
+ * apply, where `FileUpdate` carries matcher metadata like `beforeLines` /
+ * `matchIndex`). A trivial mapper bridges the two.
  */
-export interface OpEvidence {
-    /** `ChatMessage.id` values from the current ACT that grounded this op. */
-    sourceMessageIds?: string[];
-}
-
-/** Add/remove/update — one verb across inventory / assets / plans. */
-export type DeltaOp = 'add' | 'remove' | 'update';
-
-export interface InventoryDelta extends OpEvidence {
-  op: DeltaOp;
-  /** Item name (original wording). `remove` may use the bare name. */
-  item: string;
-  /**
-   * New-state description appended after the item name on `add` / `update`.
-   * When omitted the handler falls back to a bare `- item` line, which is a
-   * valid (if terse) inventory entry. Strongly encouraged for `add` /
-   * `update` so the entry is self-documenting; ignored on `remove`.
-   */
-  details?: string;
-}
-
-export interface PlanDelta extends OpEvidence {
-  op: DeltaOp;
-  title: string;
-  /** Full entry body. Strongly encouraged for `add` / `update`; ignored on `remove`. */
-  body?: string;
-}
-
-/**
- * Section-scoped update keyed by a breadcrumb path like `# X > ## Y`. Each
- * entry maps 1:1 to one `FileUpdate` hunk emitted by the mechanical handler:
- * - `target` omitted → append `replacement` at section end
- * - `target` present, `replacement` non-empty → replace that exact substring
- * - `target` present, `replacement` empty → delete that exact substring (small
- *   in-section snippet removal, NOT a section-or-entity teardown — for those
- *   use the `*ToDelete` lifecycle slots)
- *
- * No top-level deletion of the whole sectionPath — that's a lifecycle
- * operation outside this shape.
- */
-export interface SectionUpdate extends OpEvidence {
-  sectionPath: string;
-  /** Exact existing substring to replace / delete. Omit for append-at-end semantics. */
+export interface SaveHunk {
+  /** Target KB filename — the model gives the locale-resolved actual name. */
+  file: string;
+  /** Heading breadcrumb (`# X > ## Y`) for the matcher; empty string = file root. */
+  context: string;
+  /** Exact existing text to replace / delete. Omit to append at the context section end. */
   target?: string;
+  /** New content. Appended when `target` is omitted; empty + `target` set = delete. */
   replacement: string;
-}
-
-export interface CharacterCreate extends OpEvidence {
-  name: string;
-  /** L1 group heading text verbatim. */
-  group: string;
   /**
-   * Initial entry fields (身分 / 基本設定 / 最後已知位置 / 初始目前心態 …)
-   * keyed by the canonical field name. SaveAgent fills these — Phase 1 does
-   * no LLM polish layer on top.
+   * `ChatMessage.id` values from the current ACT that grounded this hunk.
+   * Omit when the hunk is an inference without direct message evidence;
+   * emit `[]` to explicitly mark "no anchors". Optional in v1 — the
+   * validator does not enforce presence.
    */
-  draftedFields: Record<string, string>;
-}
-
-export interface EntityDelete extends OpEvidence {
-  /**
-   * Breadcrumb path of the L2 entity heading to delete, e.g.
-   * `# 核心人物 > ## 李四`. Same shape as {@link SectionUpdate.sectionPath} —
-   * model-supplied full path, so same-name entities under different L1 groups
-   * resolve unambiguously without dispatcher-side guesswork.
-   */
-  sectionPath: string;
-  reason: string;
-}
-
-export interface EntityMove extends OpEvidence {
-  /**
-   * Breadcrumb path of the L2 entity at its current location, e.g.
-   * `# 核心人物 > ## 李四`. The handler reads this verbatim block and
-   * re-appends it under {@link toGroup}.
-   */
-  fromSectionPath: string;
-  /** Target L1 group heading text (bare, no leading `#`). */
-  toGroup: string;
-  reason: string;
-}
-
-/**
- * Entity update wire. Two modes share the same TS type:
- *
- * - **1-call mode** — main LLM fills `updates` directly with
- *   {@link SectionUpdate}[] (each already self-describes its `sectionPath`),
- *   dispatcher routes to the `applyEntityPatches` mechanical handler.
- * - **multi-call mode** — manifest only carries `name` + `reasonHint`; a
- *   per-entity sub-agent (Phase B) derives the diff under fog-of-war.
- *
- * Mode-specific schemas (1-call: `updates` required; multi-call:
- * `additionalProperties:false` to forbid it) gate model output at the wire,
- * but the validator stays lenient — `updates` is always optional here so
- * a single TS shape serves both paths.
- */
-export interface EntityUpdate extends OpEvidence {
-  name: string;
-  /** Optional motivation hint — trace-only, does not influence sub-tool visibility filter. */
-  reasonHint?: string;
-  /**
-   * 1-call mode: full {@link SectionUpdate}[] scoped to this entity's KB
-   * section. Each entry's `sectionPath` should start with the entity's L2
-   * heading path (`# 核心人物 > ## 李四`) — the dispatcher delegates to the
-   * same `applySectionUpdates` body used by `techEquipmentUpdates` &c.
-   */
-  updates?: SectionUpdate[];
-}
-
-export interface SkippedLog {
-  logId: string;
-  reason: string;
-}
-
-export interface CompletenessAudit {
-  processedLogIds: string[];
-  skippedLogIds: SkippedLog[];
-}
-
-/**
- * SaveAgent's top-level routing output. The dispatcher walks each field and
- * fires the matching sub-tool (mechanical handler or LLM chain).
- *
- * **Phase 1 status**: only `inventoryDeltas` has a wired handler. Other
- * fields parse + validate but the dispatcher marks them `not_yet_implemented`
- * in the progress trace.
- */
-export interface SaveManifest {
-  storyOutlineBlock?: string;
-  inventoryDeltas?: InventoryDelta[];
-  assetsDeltas?: InventoryDelta[];
-  plansDeltas?: PlanDelta[];
-  techEquipmentUpdates?: SectionUpdate[];
-  magicSkillsUpdates?: SectionUpdate[];
-  worldFeaturesUpdates?: SectionUpdate[];
-  charactersToCreate?: CharacterCreate[];
-  factionsToCreate?: CharacterCreate[];
-  charactersToDelete?: EntityDelete[];
-  factionsToDelete?: EntityDelete[];
-  charactersToMove?: EntityMove[];
-  factionsToMove?: EntityMove[];
-  charactersToUpdate?: EntityUpdate[];
-  factionsToUpdate?: EntityUpdate[];
-  /**
-   * Optional in the validator path so truncated responses (max_tokens) can
-   * still apply their partial section deltas — see manifest.schema.ts.
-   * SaveAgent is asked to always emit this for completeness tracking, but
-   * the dispatcher does not depend on it.
-   */
-  completenessAudit?: CompletenessAudit;
+  sourceMessageIds?: string[];
 }
 
 // ============================================================================
-// Consistency layer — C-fix (mechanical auto-fix) + C-flag (detector) outputs.
-// See TextRPG_Plans/doing/multi-agent-save-per-domain-checks.md.
+// Progress events — emitted by the SaveAgent runner for SaveProgressDialog
+// to render per-entry cards.
 // ============================================================================
 
-/**
- * One mechanical auto-fix applied by C-fix runner to the manifest before
- * dispatch. Pure trace surface — the dispatcher doesn't read it; the progress
- * dialog renders it in the "auto-fix" track so the user can see why the
- * applied diff differs from what the LLM emitted.
- *
- * `domain` mirrors the c-fix module that produced the entry. `kind` is a
- * stable identifier per fix type within the domain — keep these grep-able for
- * future telemetry. `reason` is a human-readable one-liner with locale-free
- * specifics (entity name, item name, sectionPath) so the dialog can render it
- * without further lookup.
- */
-export type CFixDomain = 'inventory' | 'plans' | 'section' | 'lifecycle';
-
-export interface AutoFixLog {
-    domain: CFixDomain;
-    kind: string;
-    reason: string;
-}
-
-/**
- * Output of one c-fix module (or the runner). `manifest` is the possibly-
- * modified manifest; `fixes` is the trace list. An empty `fixes` array means
- * the module saw nothing to do — caller can treat it as a no-op.
- */
-export interface CFixResult {
-    manifest: SaveManifest;
-    fixes: AutoFixLog[];
-}
-
-// ============================================================================
-// Progress events — emitted by every layer (SaveAgent / dispatcher / sub-tool)
-// for the SaveProgressDialog to render per-entry cards.
-// ============================================================================
-
-export type SavePhase = 'manifest' | 'dispatch' | 'sub-tool' | 'finalize' | 'c-fix';
+export type SavePhase = 'manifest';
 export type SaveEntryState = 'running' | 'retry' | 'done' | 'skipped' | 'failed';
 
 /**
@@ -327,13 +153,13 @@ export interface SaveProgressEntry {
     entryId: string;
     phase: SavePhase;
     state: SaveEntryState;
-    /** Manifest field / mechanical tool name (e.g. `inventoryDeltas`). */
+    /** Stage label (e.g. `SaveAgent`). */
     toolName?: string;
-    /** For LLM sub-tools: which entity is being updated. */
+    /** For per-entity work: which entity is being updated. */
     entityName?: string;
     /** Streamed CoT — accumulated, shown in a collapsible details panel. */
     thought: string;
-    /** Streamed structured output — JSON / XML, shown in a code block. */
+    /** Streamed structured output — JSON, shown in a code block. */
     output: string;
     /** Prefill / prompt-processing progress (0-1 ratio reported by the provider). */
     ppProgress?: number;
@@ -348,34 +174,4 @@ export interface SaveProgressEntry {
 }
 
 /** Reason codes for `state: 'skipped'`. */
-export type SaveSkipReason =
-    | 'not_yet_implemented'
-    | 'user_aborted'
-    | 'empty_section'
-    | 'validation_failed'
-    /** C-fix runner ran, nothing to fix — manifest was already clean. */
-    | 'no_fixes_needed';
-
-/**
- * Mechanical sub-tool identifiers — one per manifest section the dispatcher
- * walks. Used as the `toolName` field on progress events. Whether each name
- * is *implemented* is separately gated by registry membership in
- * `mechanical-handlers/index.ts`; unimplemented entries emit a
- * `not_yet_implemented` skip.
- */
-export const MECHANICAL_TOOL_NAMES = [
-  'storyOutlineBlock',
-  'inventoryDeltas',
-  'assetsDeltas',
-  'plansDeltas',
-  'techEquipmentUpdates',
-  'magicSkillsUpdates',
-  'worldFeaturesUpdates',
-  'charactersToCreate',
-  'factionsToCreate',
-  'charactersToDelete',
-  'factionsToDelete',
-  'charactersToMove',
-  'factionsToMove',
-] as const;
-export type MechanicalToolName = typeof MECHANICAL_TOOL_NAMES[number];
+export type SaveSkipReason = 'user_aborted';

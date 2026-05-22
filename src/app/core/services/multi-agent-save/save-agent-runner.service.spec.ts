@@ -3,7 +3,6 @@ import { TestBed } from '@angular/core/testing';
 import { SaveAgentRunnerService } from './save-agent-runner.service';
 import { SaveProgressTracker } from './progress/save-progress-tracker.service';
 import { ContentParserService } from '../content-parser.service';
-import { SAVE_MANIFEST_SCHEMA_1CALL } from './schemas/manifest.schema';
 import { MockLLMProvider } from '@app/core/testing/mock-llm-provider';
 import type { LLMProviderConfig } from '@hcs/llm-core';
 
@@ -17,8 +16,8 @@ function setup() {
     };
 }
 
-const minimalAudit = '"completenessAudit":{"processedLogIds":[],"skippedLogIds":[]}';
-const minimalManifest = `{${minimalAudit}}`;
+const emptyManifest = '[]';
+const sampleManifest = '[{"file":"f.md","context":"","replacement":"- 長劍"}]';
 
 function defaultInput(provider: MockLLMProvider) {
     return {
@@ -27,7 +26,6 @@ function defaultInput(provider: MockLLMProvider) {
         systemInstruction: 'sys',
         history: [{ role: 'user' as const, parts: [{ text: 'go' }] }],
         signal: new AbortController().signal,
-        responseSchema: SAVE_MANIFEST_SCHEMA_1CALL,
     };
 }
 
@@ -39,34 +37,43 @@ describe('SaveAgentRunnerService', () => {
         setup().tracker.reset();
     });
 
-    it('passes the manifest schema to the provider with JSON mime type', async () => {
+    it('passes the hunk-array schema to the provider with JSON mime type', async () => {
         const { runner } = setup();
         const provider = new MockLLMProvider();
-        provider.enqueueJsonStream(minimalManifest);
+        provider.enqueueJsonStream(emptyManifest);
 
         await runner.run(defaultInput(provider));
 
         const call = provider.calls[0];
         expect(call.genConfig.responseMimeType).toBe('application/json');
-        expect(call.genConfig.responseSchema).toBeDefined();
-        expect((call.genConfig.responseSchema as { properties: Record<string, unknown> }).properties).toHaveProperty('inventoryDeltas');
+        expect((call.genConfig.responseSchema as { type: string }).type).toBe('array');
     });
 
-    it('parses a streamed-in-chunks manifest', async () => {
+    it('parses a streamed-in-chunks manifest into hunks', async () => {
         const { runner } = setup();
         const provider = new MockLLMProvider();
-        provider.enqueueJsonStream(minimalManifest, { chunkCount: 4 });
+        provider.enqueueJsonStream(sampleManifest, { chunkCount: 4 });
 
         const result = await runner.run(defaultInput(provider));
 
-        expect(result.manifest.completenessAudit?.processedLogIds).toEqual([]);
-        expect(result.rawJson).toBe(minimalManifest);
+        expect(result.hunks).toEqual([{ file: 'f.md', context: '', replacement: '- 長劍' }]);
+        expect(result.rawJson).toBe(sampleManifest);
+    });
+
+    it('accepts an empty hunk array', async () => {
+        const { runner } = setup();
+        const provider = new MockLLMProvider();
+        provider.enqueueJsonStream(emptyManifest);
+
+        const result = await runner.run(defaultInput(provider));
+
+        expect(result.hunks).toEqual([]);
     });
 
     it('records SaveAgent progress entry as done when manifest is valid', async () => {
         const { runner, tracker } = setup();
         const provider = new MockLLMProvider();
-        provider.enqueueJsonStream(minimalManifest);
+        provider.enqueueJsonStream(sampleManifest);
 
         await runner.run(defaultInput(provider));
 
@@ -75,7 +82,7 @@ describe('SaveAgentRunnerService', () => {
         expect(entries[0].phase).toBe('manifest');
         expect(entries[0].toolName).toBe('SaveAgent');
         expect(entries[0].state).toBe('done');
-        expect(entries[0].output).toBe(minimalManifest);
+        expect(entries[0].output).toBe(sampleManifest);
     });
 
     it('accumulates thought chunks separately from output', async () => {
@@ -84,7 +91,7 @@ describe('SaveAgentRunnerService', () => {
         provider.enqueueScript([
             { text: 'reasoning A', thought: true },
             { text: 'reasoning B', thought: true },
-            { text: minimalManifest },
+            { text: sampleManifest },
             { usageMetadata: { prompt: 100, candidates: 50, cached: 80 } },
         ]);
 
@@ -93,7 +100,7 @@ describe('SaveAgentRunnerService', () => {
         expect(result.thought).toBe('reasoning Areasoning B');
         const entry = tracker.entries()[0];
         expect(entry.thought).toBe('reasoning Areasoning B');
-        expect(entry.output).toBe(minimalManifest);
+        expect(entry.output).toBe(sampleManifest);
     });
 
     it('captures usage and prompt-processing progress', async () => {
@@ -101,7 +108,7 @@ describe('SaveAgentRunnerService', () => {
         const provider = new MockLLMProvider();
         provider.enqueueScript([
             { usageMetadata: { prompt: 0, candidates: 0, cached: 0, promptProgress: 0.5 } },
-            { text: minimalManifest },
+            { text: sampleManifest },
             { usageMetadata: { prompt: 1000, candidates: 100, cached: 800 } },
         ]);
 
@@ -117,8 +124,8 @@ describe('SaveAgentRunnerService', () => {
     it('marks the entry failed and throws when manifest fails validation', async () => {
         const { runner, tracker } = setup();
         const provider = new MockLLMProvider();
-        // Non-object → fails the top-level isObject check (which still rejects).
-        provider.enqueueJsonStream('[]');
+        // An object rather than an array → fails the top-level array check.
+        provider.enqueueJsonStream('{}');
 
         await expect(runner.run(defaultInput(provider))).rejects.toThrow(/manifest invalid/);
         const entry = tracker.entries()[0];
@@ -132,7 +139,7 @@ describe('SaveAgentRunnerService', () => {
         const failingProvider = {
             providerName: 'fail',
             async *generateContentStream() {
-                yield { text: '{' };
+                yield { text: '[' };
                 throw new Error('connection reset');
             },
         };

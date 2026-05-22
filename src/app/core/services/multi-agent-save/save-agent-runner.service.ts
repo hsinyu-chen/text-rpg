@@ -1,10 +1,9 @@
 import { Injectable, inject } from '@angular/core';
 import type { LLMContent, LLMProvider, LLMProviderConfig, LLMUsageMetadata } from '@hcs/llm-core';
-import type { Schema } from '@app/core/models/types';
 import { ContentParserService } from '../content-parser.service';
 import { mergeUsage } from '../llm-usage-merge';
-import { validateManifest } from './schemas/manifest.schema';
-import type { SaveManifest } from './multi-agent-save.types';
+import { SAVE_MANIFEST_SCHEMA, validateManifest } from './schemas/manifest.schema';
+import type { SaveHunk } from './multi-agent-save.types';
 import { SaveProgressTracker } from './progress/save-progress-tracker.service';
 
 export interface SaveAgentInput {
@@ -14,18 +13,10 @@ export interface SaveAgentInput {
     cachedContentName?: string;
     history: LLMContent[];
     signal: AbortSignal;
-    /**
-     * Response schema for structured output — mode-specific. 1-call mode passes
-     * `SAVE_MANIFEST_SCHEMA_1CALL` (entityUpdate.updates required); multi-call
-     * mode passes `SAVE_MANIFEST_SCHEMA_MULTICALL` (entityUpdate forbids
-     * updates via `additionalProperties: false`). The runner stays
-     * mode-agnostic — orchestrator picks the schema based on settings.
-     */
-    responseSchema: Schema;
 }
 
 export interface SaveAgentResult {
-    manifest: SaveManifest;
+    hunks: SaveHunk[];
     rawJson: string;
     thought: string;
     usage: LLMUsageMetadata;
@@ -34,15 +25,15 @@ export interface SaveAgentResult {
 
 /**
  * Streams one structured-output LLM call asking the model to emit a
- * {@link SaveManifest} JSON. Mirrors `TwoCallOrchestratorService.runResolver`
+ * `SaveHunk[]` manifest JSON. Mirrors `TwoCallOrchestratorService.runResolver`
  * structurally — same provider API, same chunk loop, same usage merge — but
- * the streamed text accumulates into a single JSON object instead of being
+ * the streamed text accumulates into a single JSON array instead of being
  * rendered into a chat message.
  *
  * Progress is reported through {@link SaveProgressTracker} so the dialog sees
- * the same per-entry card as every dispatcher stage. The runner doesn't push
- * a model message to chat history — multi-agent save's contract is that the
- * save run leaves no trace in the conversation.
+ * a per-entry card. The runner doesn't push a model message to chat history —
+ * multi-agent save's contract is that the save run leaves no trace in the
+ * conversation.
  */
 @Injectable({ providedIn: 'root' })
 export class SaveAgentRunnerService {
@@ -65,7 +56,7 @@ export class SaveAgentRunnerService {
                 input.systemInstruction,
                 {
                     cachedContentName: input.cachedContentName,
-                    responseSchema: input.responseSchema,
+                    responseSchema: SAVE_MANIFEST_SCHEMA,
                     responseMimeType: 'application/json',
                     intent: 'save',
                     signal: input.signal,
@@ -138,7 +129,7 @@ export class SaveAgentRunnerService {
 
         this.progress.finishEntry(entryId, 'done');
         return {
-            manifest: validation.manifest,
+            hunks: validation.hunks,
             rawJson: accumulator,
             thought: thoughtAccumulator,
             usage,

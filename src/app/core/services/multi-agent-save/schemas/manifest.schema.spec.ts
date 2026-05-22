@@ -1,213 +1,108 @@
 import { describe, expect, it } from 'vitest';
-import {
-    SAVE_MANIFEST_SCHEMA_1CALL,
-    SAVE_MANIFEST_SCHEMA_MULTICALL,
-    validateManifest,
-} from './manifest.schema';
+import { SAVE_MANIFEST_SCHEMA, validateManifest } from './manifest.schema';
 
-describe('SAVE_MANIFEST_SCHEMA — shared shape', () => {
-    const sharedArrayFields = [
-        'inventoryDeltas', 'assetsDeltas', 'plansDeltas',
-        'techEquipmentUpdates', 'magicSkillsUpdates', 'worldFeaturesUpdates',
-        'charactersToCreate', 'factionsToCreate',
-        'charactersToDelete', 'factionsToDelete',
-        'charactersToMove', 'factionsToMove',
-        'charactersToUpdate', 'factionsToUpdate',
-    ];
-
-    for (const [name, schema] of [
-        ['SAVE_MANIFEST_SCHEMA_1CALL', SAVE_MANIFEST_SCHEMA_1CALL],
-        ['SAVE_MANIFEST_SCHEMA_MULTICALL', SAVE_MANIFEST_SCHEMA_MULTICALL],
-    ] as const) {
-        describe(name, () => {
-            it('declares no required fields at the top level (allows truncation salvage)', () => {
-                const s = schema as { required?: string[] };
-                expect(s.required).toBeUndefined();
-            });
-
-            it('lists every optional manifest field as an array of objects', () => {
-                const s = schema as { properties: Record<string, { type: string }> };
-                for (const f of sharedArrayFields) {
-                    expect(s.properties[f], `${f} missing`).toBeDefined();
-                    expect(s.properties[f].type, `${f} wrong type`).toBe('array');
-                }
-            });
-        });
-    }
-});
-
-describe('SAVE_MANIFEST_SCHEMA_1CALL vs _MULTICALL — entity-update divergence', () => {
-    function entityUpdateItems(schema: typeof SAVE_MANIFEST_SCHEMA_1CALL) {
-        const props = (schema as unknown as {
-            properties: {
-                charactersToUpdate: { items: { required?: string[]; additionalProperties?: boolean; properties?: Record<string, unknown> } };
-            };
-        }).properties;
-        return props.charactersToUpdate.items;
-    }
-
-    it('1-call requires `updates` on each charactersToUpdate entry', () => {
-        const items = entityUpdateItems(SAVE_MANIFEST_SCHEMA_1CALL);
-        expect(items.required).toContain('updates');
-        expect(items.properties?.['updates']).toBeDefined();
+describe('SAVE_MANIFEST_SCHEMA', () => {
+    it('is a top-level array of hunk objects', () => {
+        const s = SAVE_MANIFEST_SCHEMA as { type: string; items: { type: string; required: string[] } };
+        expect(s.type).toBe('array');
+        expect(s.items.type).toBe('object');
     });
 
-    it('multi-call forbids `updates` via additionalProperties:false + omitting it from properties', () => {
-        const items = entityUpdateItems(SAVE_MANIFEST_SCHEMA_MULTICALL);
-        expect(items.additionalProperties).toBe(false);
-        expect(items.properties?.['updates']).toBeUndefined();
+    it('requires file / context / replacement on each hunk; target stays optional', () => {
+        const items = (SAVE_MANIFEST_SCHEMA as unknown as {
+            items: { required: string[]; properties: Record<string, unknown> };
+        }).items;
+        expect(items.required).toEqual(['file', 'context', 'replacement']);
+        expect(items.properties['target']).toBeDefined();
+        expect(items.properties['sourceMessageIds']).toBeDefined();
     });
 });
 
 describe('validateManifest', () => {
-    const minimalAudit = { processedLogIds: [], skippedLogIds: [] };
-
-    it('accepts the empty-but-audit-only manifest', () => {
-        const r = validateManifest({ completenessAudit: minimalAudit });
-        expect(r.ok).toBe(true);
+    it('accepts an empty hunk array', () => {
+        expect(validateManifest([]).ok).toBe(true);
     });
 
-    it('accepts manifests missing completenessAudit (truncation salvage)', () => {
-        // The schema is loose on completenessAudit because a max_tokens
-        // truncation often drops the tail — better to apply partial section
-        // deltas than reject the whole save. Orchestrator still warns via
-        // finishReason in that case.
-        expect(validateManifest({}).ok).toBe(true);
-    });
-
-    it('rejects when value is not an object', () => {
+    it('rejects when value is not an array', () => {
         expect(validateManifest(null).ok).toBe(false);
-        expect(validateManifest([]).ok).toBe(false);
+        expect(validateManifest({}).ok).toBe(false);
         expect(validateManifest('foo').ok).toBe(false);
     });
 
-    it('rejects when skippedLogIds entries lack logId/reason', () => {
-        const r = validateManifest({
-            completenessAudit: { processedLogIds: [], skippedLogIds: [{ logId: 'x' }] },
-        });
-        expect(r.ok).toBe(false);
+    it('accepts an append hunk (no target)', () => {
+        const r = validateManifest([
+            { file: '4.物品.md', context: '', replacement: '- 長劍' },
+        ]);
+        expect(r.ok).toBe(true);
+        if (r.ok) expect(r.hunks).toHaveLength(1);
     });
 
-    it('accepts inventoryDeltas with valid op + item', () => {
-        const r = validateManifest({
-            completenessAudit: minimalAudit,
-            inventoryDeltas: [
-                { op: 'add', item: '長劍', details: '一柄精鋼長劍' },
-                { op: 'remove', item: '舊木劍' },
-                { op: 'update', item: '長劍', details: '刃口出現缺口' },
-            ],
-        });
+    it('accepts replace / delete hunks', () => {
+        const r = validateManifest([
+            { file: '3.人物狀態.md', context: '# 核心人物 > ## 李四', target: '舊狀態', replacement: '新狀態' },
+            { file: '3.人物狀態.md', context: '# 核心人物 > ## 王五', target: '## 王五\n- 已死', replacement: '' },
+        ]);
         expect(r.ok).toBe(true);
     });
 
-    it('rejects inventoryDeltas with unknown op', () => {
-        const r = validateManifest({
-            completenessAudit: minimalAudit,
-            inventoryDeltas: [{ op: 'replace', item: 'x' }],
-        });
-        expect(r.ok).toBe(false);
-        if (!r.ok) expect(r.error).toMatch(/inventoryDeltas\[0\]\.op/);
-    });
-
-    it('rejects inventoryDeltas with non-string item', () => {
-        const r = validateManifest({
-            completenessAudit: minimalAudit,
-            inventoryDeltas: [{ op: 'add', item: 42 }],
-        });
-        expect(r.ok).toBe(false);
-    });
-
-    it('accepts character/faction create with full draftedFields', () => {
-        const r = validateManifest({
-            completenessAudit: minimalAudit,
-            charactersToCreate: [{
-                name: '張三',
-                group: '次要人物',
-                draftedFields: { 身分: '商人', 基本設定: '...' },
-            }],
-        });
+    it('accepts a hunk carrying sourceMessageIds', () => {
+        const r = validateManifest([
+            { file: 'f.md', context: '', replacement: 'x', sourceMessageIds: ['m1', 'm2'] },
+        ]);
         expect(r.ok).toBe(true);
     });
 
-    it('rejects character create with non-string draftedFields value', () => {
-        const r = validateManifest({
-            completenessAudit: minimalAudit,
-            charactersToCreate: [{ name: 'x', group: 'y', draftedFields: { f: 1 } }],
-        });
+    it('rejects a hunk missing file', () => {
+        const r = validateManifest([{ context: '', replacement: 'x' }]);
         expect(r.ok).toBe(false);
+        if (!r.ok) expect(r.error).toMatch(/hunk\[0\]\.file/);
     });
 
-    it('rejects move missing toGroup', () => {
-        const r = validateManifest({
-            completenessAudit: minimalAudit,
-            charactersToMove: [{ fromSectionPath: '# 核心人物 > ## x', reason: 'died' }],
-        });
+    it('rejects a hunk missing context', () => {
+        const r = validateManifest([{ file: 'f.md', replacement: 'x' }]);
         expect(r.ok).toBe(false);
+        if (!r.ok) expect(r.error).toMatch(/hunk\[0\]\.context/);
     });
 
-    it('rejects delete missing sectionPath', () => {
-        const r = validateManifest({
-            completenessAudit: minimalAudit,
-            charactersToDelete: [{ reason: 'died' }],
-        });
+    it('rejects a hunk missing replacement', () => {
+        const r = validateManifest([{ file: 'f.md', context: '' }]);
         expect(r.ok).toBe(false);
+        if (!r.ok) expect(r.error).toMatch(/hunk\[0\]\.replacement/);
     });
 
-    it('rejects move missing fromSectionPath', () => {
-        const r = validateManifest({
-            completenessAudit: minimalAudit,
-            charactersToMove: [{ toGroup: '已故人物', reason: 'died' }],
-        });
+    it('rejects a non-string target', () => {
+        const r = validateManifest([{ file: 'f.md', context: '', replacement: 'x', target: 42 }]);
         expect(r.ok).toBe(false);
+        if (!r.ok) expect(r.error).toMatch(/hunk\[0\]\.target/);
     });
 
-    it('accepts charactersToUpdate with 1-call updates payload', () => {
-        const r = validateManifest({
-            completenessAudit: minimalAudit,
-            charactersToUpdate: [{
-                name: '李四',
-                updates: [
-                    { sectionPath: '# 核心人物 > ## 李四', target: '舊狀態', replacement: '新狀態' },
-                    { sectionPath: '# 核心人物 > ## 李四', replacement: '\n- 新增筆記' },
-                ],
-            }],
-        });
+    it('rejects a non-string-array sourceMessageIds', () => {
+        const r = validateManifest([{ file: 'f.md', context: '', replacement: 'x', sourceMessageIds: [1] }]);
+        expect(r.ok).toBe(false);
+        if (!r.ok) expect(r.error).toMatch(/hunk\[0\]\.sourceMessageIds/);
+    });
+
+    it('rejects a non-object hunk', () => {
+        const r = validateManifest(['not a hunk']);
+        expect(r.ok).toBe(false);
+        if (!r.ok) expect(r.error).toMatch(/hunk\[0\]/);
+    });
+
+    it('salvages the valid prefix when a tail hunk is malformed (truncation)', () => {
+        const r = validateManifest([
+            { file: 'a.md', context: '', replacement: 'x' },
+            { file: 'b.md', context: '' }, // truncated tail — missing replacement
+        ]);
         expect(r.ok).toBe(true);
+        if (r.ok) expect(r.hunks).toEqual([{ file: 'a.md', context: '', replacement: 'x' }]);
     });
 
-    it('rejects charactersToUpdate.updates with malformed entry', () => {
-        const r = validateManifest({
-            completenessAudit: minimalAudit,
-            charactersToUpdate: [{
-                name: '李四',
-                updates: [{ sectionPath: '# X > ## Y' }],  // missing `replacement`
-            }],
-        });
+    it('hard-fails when hunk[0] is malformed even in a multi-hunk array', () => {
+        const r = validateManifest([
+            { file: 'a.md', context: '' }, // missing replacement
+            { file: 'b.md', context: '', replacement: 'x' },
+        ]);
         expect(r.ok).toBe(false);
-    });
-
-    it('accepts a fully-populated manifest', () => {
-        const r = validateManifest({
-            storyOutlineBlock: '## Act.1 ...',
-            inventoryDeltas: [{ op: 'add', item: 'x', details: 'y' }],
-            assetsDeltas: [],
-            plansDeltas: [{ op: 'add', title: 'p', body: 'b' }],
-            techEquipmentUpdates: [{ sectionPath: '# X > ## Y', target: 'old', replacement: 'new' }],
-            magicSkillsUpdates: [],
-            worldFeaturesUpdates: [],
-            charactersToCreate: [],
-            factionsToCreate: [],
-            charactersToDelete: [{ sectionPath: '# 核心人物 > ## 王五', reason: 'died' }],
-            factionsToDelete: [],
-            charactersToMove: [{ fromSectionPath: '# 核心人物 > ## 李四', toGroup: '已故人物', reason: 'died' }],
-            factionsToMove: [],
-            charactersToUpdate: [{
-                name: '李四',
-                updates: [{ sectionPath: '# 核心人物 > ## 李四', target: 'old', replacement: 'new' }],
-            }],
-            factionsToUpdate: [{ name: '某派', reasonHint: 'after war' }],
-            completenessAudit: { processedLogIds: ['a'], skippedLogIds: [{ logId: 'b', reason: 'irrelevant' }] },
-        });
-        expect(r.ok).toBe(true);
+        if (!r.ok) expect(r.error).toMatch(/hunk\[0\]/);
     });
 });
