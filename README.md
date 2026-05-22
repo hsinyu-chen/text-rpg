@@ -181,7 +181,7 @@ Books, collections, and settings live in IndexedDB on each device; cloud backend
 | **State Tracking** | Uses Gemini's JSON Mode to output structured data, automatically parsing and updating frontend state (Signals). |
 | **World Log** | New `world_log` tracking field for recording world events, faction moves, and tech/magic progression, enabling automated world-building evolution. |
 | **Currency** | Built-in real-time exchange rate conversion (TWD, USD, JPY, KRW...) with customizable display currency to precisely monitor token costs. |
-| **Prompt Injection** | Supports dynamic injection of System Instructions, allowing runtime modification of underlying logic for `<Action>` and `<System>` modes. (Save runs through the multi-agent manifest pipeline and has its own per-mode prompts under **Settings → Save Mode**.) |
+| **Prompt Injection** | Supports dynamic injection of System Instructions, allowing runtime modification of underlying logic for `<Action>` and `<System>` modes. (Save runs through the multi-agent save pipeline and uses its own prompt.) |
 | **Token Cost Tracking** | Built-in token calculator and exchange rate conversion module to monitor Input/Output/Cache consumption and estimate costs in real-time. |
 | **UI/UX** | Built with Angular 21 (Zoneless/Signals) and Angular Material 3, providing a modern responsive interface. |
 
@@ -298,9 +298,7 @@ The AI-generated **Inventory**, **Quest Log**, **World/Tech Update**, and **Summ
 ### 3. Automatic World Update
 Save not only records progress — it also **updates world setting files**:
 *   **Trigger**: Click the **Save** (floppy-disk icon) button next to the input box → confirm in the dialog → save runs. Save is not persisted as a chat message; the run itself surfaces the Auto-Update dialog directly.
-*   **Mechanism (multi-agent pipeline)**:
-    1. **SaveAgent** (single LLM call) compiles the manifest JSON from this ACT's logs + summaries (since `--- ACT START ---`): inventory / assets / plans / story-outline / tech / magic / world / character (create / delete / move / per-entity field updates) / faction sections.
-    2. **Dispatcher** (pure TS) walks each manifest section and mechanically emits `FileUpdate[]` hunks directly.
+*   **Mechanism**: **SaveAgent** (a single LLM call) reviews this ACT's logs + summaries (since `--- ACT START ---`) and compiles a **hunk manifest** — a flat list of verbatim KB edits (add / replace / delete), each anchored to a target file + heading. The manifest goes straight to the Auto-Update dialog.
 *   **Review Interface**: The **"Auto-Update"** dialog pops up afterwards with line-by-line diff previews per file (e.g., `2.PlotOutline.md` / `6.World.md` / `3.Characters.md`); apply or skip each entry.
 
 ### 4. Knowledge Base File Editing (KB File Editing)
