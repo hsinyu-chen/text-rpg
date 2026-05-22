@@ -537,6 +537,7 @@ export const en: TranslationDict = {
         hunkFixupProfileHint: 'Profile used by the "LLM repair" button in the Auto-Update dialog when a hunk\'s target text does not match the source verbatim. A small / fast model is fine — the task is byte-level fix-up, not creative writing.',
         advancedSaveSection: 'Advanced save processing',
         advancedSaveSectionHint: 'Before the save manifest reaches Auto-Update, it passes through each enabled processing agent below, in order. Each agent costs extra LLM calls, so all are off by default — opt in as needed.',
+        saveAgentProfileLabel: 'LLM profile',
     },
     app: {
         setupRequired: 'Setup Required',

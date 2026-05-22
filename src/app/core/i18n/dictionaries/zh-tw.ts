@@ -537,6 +537,7 @@ export const zhTW: TranslationDict = {
         hunkFixupProfileHint: 'Auto-Update dialog 內「LLM 修復」按鈕會用這個設定檔。當 hunk 的 target 與源檔不符時觸發。任務是 byte-level 微調,小模型 / 本地模型即可。',
         advancedSaveSection: '進階存檔處理',
         advancedSaveSectionHint: '存檔產出的 hunk manifest 在交給 Auto-Update 前,會依序經過下列已啟用的處理 agent。每個 agent 各需額外的 LLM 呼叫,預設全部關閉;依需求自行開啟。',
+        saveAgentProfileLabel: 'LLM 設定檔',
     },
     app: {
         setupRequired: '需要先設定',

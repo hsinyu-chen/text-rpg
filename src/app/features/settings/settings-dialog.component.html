@@ -246,6 +246,18 @@
                         </mat-slide-toggle>
                     </div>
                     <p class="hint-text mode-hint">{{ (agent.i18nKey + '.desc') | translate }}</p>
+                    @if (isSaveAgentEnabled(agent.id)) {
+                        <mat-form-field appearance="outline" class="full-width">
+                            <mat-label>{{ 'settings.saveAgentProfileLabel' | translate }}</mat-label>
+                            <mat-select [ngModel]="getSaveAgentProfile(agent.id)"
+                                        (ngModelChange)="setSaveAgentProfile(agent.id, $event)">
+                                <mat-option [value]="''">{{ 'settings.profilePickerSameAsMain' | translate }}</mat-option>
+                                @for (p of profiles(); track p.id) {
+                                    <mat-option [value]="p.id">{{ p.name }} ({{ p.provider }})</mat-option>
+                                }
+                            </mat-select>
+                        </mat-form-field>
+                    }
                 }
             </div>
         }

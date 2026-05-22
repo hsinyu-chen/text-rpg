@@ -91,4 +91,41 @@ describe('SaveSettingsStore', () => {
         expect(store.enabledSaveAgents().size).toBe(0);
         expect(kv.get('mas_enabled_save_agents')).toBeNull();
     });
+
+    it('defaults saveAgentProfileIds to an empty object when KV is empty', () => {
+        expect(setup().store.saveAgentProfileIds()).toEqual({});
+    });
+
+    it('loads saveAgentProfileIds from a persisted JSON object', () => {
+        const map = setup({
+            mas_save_agent_profile_ids: '{"character":"cloud-haiku","faction":"local-small"}',
+        }).store.saveAgentProfileIds();
+        expect(map).toEqual({ character: 'cloud-haiku', faction: 'local-small' });
+    });
+
+    it('falls back to an empty object on a corrupt, array, or null persisted value', () => {
+        expect(setup({ mas_save_agent_profile_ids: 'not json' }).store.saveAgentProfileIds()).toEqual({});
+        expect(setup({ mas_save_agent_profile_ids: '["a","b"]' }).store.saveAgentProfileIds()).toEqual({});
+        expect(setup({ mas_save_agent_profile_ids: 'null' }).store.saveAgentProfileIds()).toEqual({});
+    });
+
+    it('drops non-string and empty-string values on read (defensive — "" ≡ main)', () => {
+        const map = setup({
+            mas_save_agent_profile_ids: '{"character":"cloud","faction":"","bogus":7}',
+        }).store.saveAgentProfileIds();
+        expect(map).toEqual({ character: 'cloud' });
+    });
+
+    it('persists a non-empty map, prunes "" entries, and removes the key when emptied', () => {
+        const { store, kv } = setup();
+        store.setSaveAgentProfileIds({ character: 'cloud-haiku', faction: '' });
+        // '' is pruned — it means "same as main", identical to an absent entry.
+        expect(store.saveAgentProfileIds()).toEqual({ character: 'cloud-haiku' });
+        expect(kv.get('mas_save_agent_profile_ids')).toBe('{"character":"cloud-haiku"}');
+
+        // All-empty ≡ no overrides; absent key matches the constructor's read.
+        store.setSaveAgentProfileIds({ character: '' });
+        expect(store.saveAgentProfileIds()).toEqual({});
+        expect(kv.get('mas_save_agent_profile_ids')).toBeNull();
+    });
 });

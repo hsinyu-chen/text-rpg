@@ -90,6 +90,8 @@ export class SettingsDialogComponent {
   readonly advancedSaveAgents = inject(AdvancedSaveAgentRegistry).all();
   /** Local edit copy of the opted-in agent ids; persisted on Save. */
   enabledSaveAgents = signal<ReadonlySet<string>>(new Set());
+  /** Local edit copy of per-agent profile overrides; persisted on Save. */
+  saveAgentProfileIds = signal<Record<string, string>>({});
   outputLanguage = signal('default');
   customOutputLanguage = signal('');
   languages: { value: string; label: string }[] = getLanguagesList();
@@ -167,6 +169,7 @@ export class SettingsDialogComponent {
     this.savePauseBeforeAutoUpdate.set(this.saveSettings.pauseBeforeAutoUpdate());
     this.hunkFixupProfileId.set(this.saveSettings.hunkFixupProfileId());
     this.enabledSaveAgents.set(new Set(this.saveSettings.enabledSaveAgents()));
+    this.saveAgentProfileIds.set({ ...this.saveSettings.saveAgentProfileIds() });
 
     const lang = this.appConfig.outputLanguage();
     const isPresetLang = this.languages.some(l => l.value === lang);
@@ -191,6 +194,14 @@ export class SettingsDialogComponent {
       else next.delete(id);
       return next;
     });
+  }
+
+  getSaveAgentProfile(id: string): string {
+    return this.saveAgentProfileIds()[id] ?? '';
+  }
+
+  setSaveAgentProfile(id: string, profileId: string): void {
+    this.saveAgentProfileIds.update(map => ({ ...map, [id]: profileId }));
   }
 
   openProfilesManager(): void {
@@ -234,6 +245,7 @@ export class SettingsDialogComponent {
     this.saveSettings.setPauseBeforeAutoUpdate(this.savePauseBeforeAutoUpdate());
     this.saveSettings.setHunkFixupProfileId(this.hunkFixupProfileId());
     this.saveSettings.setEnabledSaveAgents(this.enabledSaveAgents());
+    this.saveSettings.setSaveAgentProfileIds(this.saveAgentProfileIds());
 
     this.bridge.setUrl(this.debugBridgeUrl().trim());
     this.bridge.setEnabled(this.debugBridgeEnabled());
