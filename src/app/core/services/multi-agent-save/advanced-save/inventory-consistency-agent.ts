@@ -111,6 +111,11 @@ export class InventoryConsistencyAgent extends ReadOnlyAgent<InventoryAgentActio
         const inventoryFile = reviewFiles.inventoryFile;
 
         const entryId = this.progress.startEntry('advanced-agent', { toolName: AGENT_LABEL });
+        // Reset PP before swapping the entry id — the base loop only clears
+        // it once it starts a turn, but the mirror effect fires the instant
+        // `activeEntryId` swaps and would otherwise stamp the previous
+        // run's final value (e.g. 1) onto the new entry's PP bar.
+        this.promptProgress.set(undefined);
         this.activeEntryId.set(entryId);
         this.capturedCommit = null;
 
@@ -131,7 +136,6 @@ export class InventoryConsistencyAgent extends ReadOnlyAgent<InventoryAgentActio
             this.isAgentRunning.set(true);
             await this.processAgentTurn({ files: input.files, chatMessages: input.chatMessages });
         } catch (err: unknown) {
-            this.isAgentRunning.set(false);
             if (input.signal.aborted) {
                 this.progress.skip(entryId, 'user_aborted');
                 this.activeEntryId.set(null);
