@@ -26,6 +26,8 @@ export class AdvancedSaveStageService {
         let current = hunks;
         for (const agent of this.registry.all()) {
             if (!enabled.has(agent.id)) continue;
+            // A cancel landing between agents shouldn't spend a fresh LLM call.
+            signal.throwIfAborted();
             current = await agent.process({ hunks: current, signal });
         }
         return current;

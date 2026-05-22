@@ -100,4 +100,15 @@ describe('AdvancedSaveStageService', () => {
         await stage.process([hunk('x.md')], signal);
         expect(order).toEqual(['a', 'c']);
     });
+
+    it('aborts the chain when the signal trips between agents', async () => {
+        const controller = new AbortController();
+        // `a` cancels the run as it finishes; the next agent must not start.
+        const a = fakeAgent('a', hunks => { controller.abort(); return hunks; });
+        const b = fakeAgent('b');
+        const stage = setup([a, b], ['a', 'b']);
+        await expect(stage.process([hunk('x.md')], controller.signal)).rejects.toThrow();
+        expect(a.calls).toHaveLength(1);
+        expect(b.calls).toHaveLength(0);
+    });
 });
