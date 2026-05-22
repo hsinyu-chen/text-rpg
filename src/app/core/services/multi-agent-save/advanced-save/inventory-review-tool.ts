@@ -1,6 +1,6 @@
 import type { LLMFunctionDeclaration } from '@hcs/llm-core';
 import type { SaveHunk } from '../multi-agent-save.types';
-import { withHunkIds, type NewHunk } from '../utils/hunk-id.util';
+import { withHunkIds, maxHunkIdNumber, type NewHunk } from '../utils/hunk-id.util';
 
 /**
  * The terminal commit tool + delta application for {@link
@@ -177,9 +177,19 @@ export function applyInventoryReview(
 
     const kept = hunks
         .filter(h => !dropped.has(h.id))
-        .map(h => revised.get(h.id) ?? h);
-    // Offset by the original count so appended ids never collide with H1..Hn.
-    const stampedNew = withHunkIds(accepted, hunks.length);
+        .map(h => {
+            const r = revised.get(h.id);
+            // Merge over the original so an LLM that only re-emits the
+            // corrected field (commonly just `replacement`) doesn't drop
+            // the hunk's `target` / `sourceMessageIds` — without those,
+            // an inline replace silently degrades into a section append.
+            return r ? { ...h, ...r } : h;
+        });
+    // Offset past the manifest's highest H-number, NOT `kept.length` /
+    // `hunks.length` — an earlier stage (or this one's own drops) leaves
+    // gaps where length < max, and a length-offset would re-issue an id
+    // that still exists.
+    const stampedNew = withHunkIds(accepted, maxHunkIdNumber(hunks));
     return { hunks: [...kept, ...stampedNew], warnings };
 }
 

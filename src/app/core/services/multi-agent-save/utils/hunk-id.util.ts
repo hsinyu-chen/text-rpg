@@ -18,3 +18,21 @@ export type NewHunk = Omit<SaveHunk, 'id'>;
 export function withHunkIds(hunks: readonly NewHunk[], offset = 0): SaveHunk[] {
     return hunks.map((h, i) => ({ ...h, id: `H${offset + i + 1}` }));
 }
+
+/**
+ * Highest `H<n>` number present in a manifest, or 0 if none. Use this — not
+ * `hunks.length` — as the offset when appending new hunks: an earlier stage
+ * may have dropped hunks, leaving gaps where `length < max(n)`, so naive
+ * length-offset would re-issue an existing id.
+ */
+export function maxHunkIdNumber(hunks: readonly SaveHunk[]): number {
+    let max = 0;
+    for (const h of hunks) {
+        const m = /^H(\d+)$/.exec(h.id);
+        if (m) {
+            const n = Number(m[1]);
+            if (n > max) max = n;
+        }
+    }
+    return max;
+}

@@ -1,4 +1,4 @@
-import { Injectable, effect, inject } from '@angular/core';
+import { Injectable, effect, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import type { LLMFunctionDeclaration, LLMProvider, LLMProviderConfig } from '@hcs/llm-core';
@@ -71,8 +71,12 @@ export class InventoryConsistencyAgent extends ReadOnlyAgent<InventoryAgentActio
     private systemPrompt = '';
     /** Set by the terminal handler; consumed by `process` after the loop. */
     private capturedCommit: CommitInventoryReviewArgs | null = null;
-    /** Progress entry id while a run is in flight — gates trace mirroring. */
-    private activeEntryId: string | null = null;
+    /** Progress entry id while a run is in flight — gates trace mirroring.
+     *  Must be a signal so the constructor's PP-mirror effect re-runs when
+     *  the entry changes (otherwise a back-to-back run whose first chunk's
+     *  `promptProgress` value matches the previous run's last value would
+     *  not re-fire the effect, and the new entry's PP bar would stay empty). */
+    private activeEntryId = signal<string | null>(null);
     /** Tool-call mode resolved per run (one pre-loop probe). */
     private toolCallMode: 'native' | 'json' = 'json';
     /** Provider + settings resolved per run; reused across turns so a single
@@ -86,12 +90,11 @@ export class InventoryConsistencyAgent extends ReadOnlyAgent<InventoryAgentActio
         // Mirror the base loop's per-chunk `promptProgress` signal into the
         // active progress entry so the save dialog's PP bar reflects the
         // agent's prefill / prompt-processing progress (same UX as the
-        // SaveAgentRunner). `activeEntryId` is a plain field, not a signal —
-        // the effect re-runs on promptProgress changes only, and reads
-        // whatever entry id is current.
+        // SaveAgentRunner). Both reads are signals so the effect re-fires on
+        // either an entry-id swap or a new pp value.
         effect(() => {
             const pp = this.promptProgress();
-            const id = this.activeEntryId;
+            const id = this.activeEntryId();
             if (id && pp !== undefined) this.progress.setPpProgress(id, pp);
         });
     }
@@ -108,7 +111,7 @@ export class InventoryConsistencyAgent extends ReadOnlyAgent<InventoryAgentActio
         const inventoryFile = reviewFiles.inventoryFile;
 
         const entryId = this.progress.startEntry('advanced-agent', { toolName: AGENT_LABEL });
-        this.activeEntryId = entryId;
+        this.activeEntryId.set(entryId);
         this.capturedCommit = null;
 
         // Bridge the save run's abort signal into the base loop's controller.
@@ -131,20 +134,20 @@ export class InventoryConsistencyAgent extends ReadOnlyAgent<InventoryAgentActio
             this.isAgentRunning.set(false);
             if (input.signal.aborted) {
                 this.progress.skip(entryId, 'user_aborted');
-                this.activeEntryId = null;
+                this.activeEntryId.set(null);
                 throw err;
             }
             // A failed advanced-save agent must not sink the save — degrade to
             // identity so the user still gets the baseline manifest.
             console.error('[InventoryConsistencyAgent] run failed:', err);
             this.progress.finishEntry(entryId, 'failed', err instanceof Error ? err.message : String(err));
-            this.activeEntryId = null;
+            this.activeEntryId.set(null);
             return [...input.hunks];
         } finally {
             this.isAgentRunning.set(false);
         }
 
-        this.activeEntryId = null;
+        this.activeEntryId.set(null);
 
         // An abort can land without throwing — the stream consumer swallows
         // AbortError. Surface it so the orchestrator stops the save run.
@@ -258,9 +261,8 @@ export class InventoryConsistencyAgent extends ReadOnlyAgent<InventoryAgentActio
 
     /** Mirror the agent's running trace into its single progress card. */
     private mirrorTrace(): void {
-        if (this.activeEntryId) {
-            this.progress.setEntryOutput(this.activeEntryId, renderAgentTrace(this.agentLogs()));
-        }
+        const id = this.activeEntryId();
+        if (id) this.progress.setEntryOutput(id, renderAgentTrace(this.agentLogs()));
     }
 
     /**

@@ -172,6 +172,22 @@ describe('applyInventoryReview', () => {
         expect(warnings).toEqual([]);
     });
 
+    it('revise merges over the original so omitted target / sourceMessageIds are kept', () => {
+        // The LLM commonly re-emits only the field it's fixing (e.g.
+        // `replacement`). The original hunk's `target` must survive — without
+        // it an inline replace silently degrades into a section append.
+        const input = [hunk('H1', INV, {
+            target: '- 舊劍',
+            replacement: 'wrong',
+            sourceMessageIds: ['m1'],
+        })];
+        const fix = { id: 'H1', file: INV, context: '', replacement: 'fixed' };
+        const { hunks } = applyInventoryReview(input, { ...empty(), reviseHunks: [fix] }, FILES);
+        expect(hunks[0].replacement).toBe('fixed');
+        expect(hunks[0].target).toBe('- 舊劍');
+        expect(hunks[0].sourceMessageIds).toEqual(['m1']);
+    });
+
     it('allows revising an assets hunk (Job 1 corrections)', () => {
         const input = [hunk('H1', ASSETS, { replacement: '-100G' })];
         const fix = { id: 'H1', file: ASSETS, context: '', replacement: '-50G' };
@@ -254,6 +270,16 @@ describe('applyInventoryReview', () => {
         const { hunks, warnings } = applyInventoryReview(input, { ...empty(), newHunks: fresh }, FILES);
         expect(hunks).toHaveLength(1);
         expect(warnings).toHaveLength(3);
+    });
+
+    it('stamps new-hunk ids past the manifest max, not its length (gap-safe)', () => {
+        // Simulates a prior advanced-save stage having dropped H2, so the
+        // manifest reaching this agent is [H1, H3]. length=2 would re-issue
+        // H3 (collision); the fix offsets past the max H-number instead.
+        const input = [hunk('H1', INV), hunk('H3', INV)];
+        const fresh = [newHunk(TECH, { context: '', replacement: '- 新' })];
+        const { hunks } = applyInventoryReview(input, { ...empty(), newHunks: fresh }, FILES);
+        expect(hunks.map(h => h.id)).toEqual(['H1', 'H3', 'H4']);
     });
 
     it('combines drop + revise + new in one delta', () => {
