@@ -49,7 +49,7 @@
 
 每個 hunk 都可以多帶一個 `sourceMessageIds: string[]`，列出本 ACT 內**直接**支持此 hunk 的 `messageId` 清單。下游的一致性檢查層會用這份 anchor 反查原文。
 
-對話歷史中每則 message 的第一行都帶一個 `[id: <messageId>]` 標籤。你為 hunk 標註的 id 必須**逐字複製自這些標籤**,不要改寫、不要 hash、不要捏造;框架在驗證時會把對應不到本次對話的 id 丟掉。
+對話歷史中每則 message（包含壓縮摘要塊內的每筆條目）都會帶一個 `[id: <messageId>]` 標籤。你為 hunk 標註的 id 必須**逐字複製自這些標籤**，不要改寫、不要 hash、不要捏造；框架在驗證時會把對應不到本次對話的 id 丟掉。
 
 - **列出 messageId**：該 hunk 的事實在這幾則 model message 內有明確描述。
 - **`[]` 空陣列**：你刻意判斷此 hunk 是「整體脈絡推論」、沒有單一 message 直接支持。

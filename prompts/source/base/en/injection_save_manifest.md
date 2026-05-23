@@ -50,7 +50,7 @@ Field rules for updating character entries:
 
 Every hunk may carry a `sourceMessageIds: string[]` listing the `messageId` values from this ACT that **directly** support it. The downstream consistency-checking layer uses these anchors to look up the original text.
 
-Each message in the rendered chat history is prefixed with an `[id: <messageId>]` tag on its first line. The id you cite for a hunk must be **copied verbatim from one of these tags** — do not paraphrase, hash, or invent ids; an id the framework cannot match against the conversation is dropped on validation.
+Each message in the rendered chat history (including every condensed entry inside a smart-context summary block) carries an `[id: <messageId>]` tag. The id you cite for a hunk must be **copied verbatim from one of these tags** — do not paraphrase, hash, or invent ids; an id the framework cannot match against the conversation is dropped on validation.
 
 - **List messageIds**: the hunk's facts are explicitly described in those model messages.
 - **`[]` empty array**: you deliberately judge the hunk to be a contextual inference with no single message backing it.
