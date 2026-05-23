@@ -175,34 +175,26 @@ export class MultiAgentSaveService {
             //    (advance-to-AutoUpdate) pair. `isRunning` stays true through
             //    the review — it gates the chat mask + sendMessage re-entrancy
             //    guard while the user picks an action.
-            this.progress.setWorkComplete(true, updates.length > 0);
+            const hasUpdates = updates.length > 0;
+            this.progress.setWorkComplete(true, hasUpdates);
 
             // 7. Wait for the user to pick Close or Continue. The dialog
             //    closes itself with `true` for Continue (advance to
-            //    AutoUpdate) and `false` for Close / abort / backdrop. When
-            //    there are no updates to apply we fast-path the auto-close
-            //    even under pauseBeforeAutoUpdate — Continue would have
-            //    nothing to do, so leaving the dialog open just blocks the
-            //    chat for no reason.
+            //    AutoUpdate) and `false` for Close / abort / backdrop.
+            //    Empty updates ≡ nothing for AutoUpdate to do; the
+            //    `proceed` gate below short-circuits before we ever open
+            //    the next dialog.
             //
             //    AutoUpdateDialog applies internally via engine.updateSingleFile
             //    + saveCurrentSessionToBook (which bumps lastActiveAt itself)
             //    and closes with a boolean — there's no FileUpdate[]
             //    returned via afterClosed, so we don't post-process here.
-            if (updates.length === 0) {
-                if (this.settings.pauseBeforeAutoUpdate()) {
-                    await firstValueFrom(dialogRef.afterClosed());
-                } else {
-                    dialogRef.close();
-                }
-                return;
-            }
-
             if (this.settings.pauseBeforeAutoUpdate()) {
                 const proceed = await firstValueFrom(dialogRef.afterClosed());
-                if (!proceed) return;
+                if (!proceed || !hasUpdates) return;
             } else {
                 dialogRef.close();
+                if (!hasUpdates) return;
             }
             await this.openAutoUpdateDialog(updates);
         } catch (err: unknown) {
