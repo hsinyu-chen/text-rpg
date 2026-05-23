@@ -1,5 +1,5 @@
 <h2 mat-dialog-title>{{ 'multiAgentSave.progress.title' | translate }}</h2>
-<mat-dialog-content class="save-progress-content" [appAutoScrollBottom]="entries()">
+<mat-dialog-content class="save-progress-content" [appAutoScrollBottom]="entries()" [observeResize]="true">
     @if (entries().length === 0) {
         <p class="empty-state">{{ 'multiAgentSave.progress.waitingForStart' | translate }}</p>
     } @else {
