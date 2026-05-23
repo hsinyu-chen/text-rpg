@@ -529,6 +529,12 @@ export class ChatComponent {
         // One-way until explicitly cleared by the timeout below or by
         // onScrollToBottomClick().
         this.jumpInProgress.set(true);
+        // Also disengage the directive's follow state. The jump's smooth
+        // scrollTo may target a message BELOW current position (scrollTop
+        // INCREASES), in which case the directive's delta-up detection
+        // wouldn't fire and wasAtBottom stays stale-true — next chunk after
+        // jumpInProgress clears would yank the user back to bottom.
+        this.scroller()?.disengage();
         // Two rapid jumps must not let the earlier timer fire mid-second-hold.
         if (this.jumpTimeoutId !== null) clearTimeout(this.jumpTimeoutId);
         this.jumpTimeoutId = setTimeout(() => {

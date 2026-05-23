@@ -151,7 +151,23 @@ export class AutoScrollBottomDirective {
         // scrollend fires when a smooth animation finishes naturally.
         // Chrome 114+, Firefox 121+, Safari 18.2+. Older browsers fall back
         // to the SMOOTH_FALLBACK_MS timeout in `doScroll`.
-        const onScrollEnd = () => this.clearSmoothInFlight();
+        const onScrollEnd = () => {
+            const wasOurSmooth = this.smoothInFlight;
+            this.clearSmoothInFlight();
+            // If our imperative smooth just completed (not a user-driven
+            // smooth — those clear smoothInFlight via onUserDrive before
+            // scrollend), commit auto-follow re-engagement and top up with
+            // a stabilization pass. cv:auto reveals / lazy images / font
+            // swap during the animation can leave the final scrollTop short
+            // of the (now grown) scrollHeight; scheduleScrollCorrection
+            // closes that gap. Without this top-up the user's "scroll to
+            // bottom" click lands them above the actual bottom whenever
+            // layout shifts mid-animation.
+            if (wasOurSmooth && this.stabilizeOnScroll()) {
+                this.wasAtBottom = true;
+                this.scheduleScrollCorrection(host, /* force= */ true);
+            }
+        };
         host.addEventListener('scroll', onScroll, { passive: true });
         host.addEventListener('scrollend', onScrollEnd, { passive: true });
         this.destroyRef.onDestroy(() => {
@@ -243,6 +259,16 @@ export class AutoScrollBottomDirective {
         return this.wasAtBottom;
     }
 
+    /** Imperatively detach auto-follow. For hosts performing a programmatic
+     *  scroll that the directive can't infer as "user wants out of follow"
+     *  — e.g. chat's deep-link jump to a message BELOW current position
+     *  (scrollTop increases, delta-up doesn't fire, so wasAtBottom stays
+     *  stale-true). Call this BEFORE the imperative scroll so the next
+     *  content tick after the jump doesn't yank the user back to bottom. */
+    disengage(): void {
+        this.wasAtBottom = false;
+    }
+
     private scheduleAutoScroll(): void {
         // Cancel any pending RAF before the paused-gate so a pause that
         // arrives between scheduling and firing drops the queued trigger
@@ -260,6 +286,14 @@ export class AutoScrollBottomDirective {
     }
 
     private performAutoScroll(): void {
+        // Re-emit atBottom on every tick — dist may have changed via content
+        // growth (scrollHeight grew while scrollTop held) without any scroll
+        // event firing. Done regardless of paused / wasAtBottom so button
+        // visibility on the host stays accurate even when we skip the pin.
+        const host = this.el.nativeElement;
+        const dist = host.scrollHeight - host.scrollTop - host.clientHeight;
+        this.emitAtBottom(dist <= this.threshold());
+
         if (this.paused() || !this.wasAtBottom) return;
         // Suppress auto-follow while a smooth imperative scroll is animating.
         // Otherwise the content tick lands an instant `scrollTop = ...` which
@@ -267,7 +301,6 @@ export class AutoScrollBottomDirective {
         // scroll completes naturally; subsequent content arrivals after
         // scrollend resume auto-follow at the new bottom.
         if (this.smoothInFlight) return;
-        const host = this.el.nativeElement;
         if (host.scrollHeight <= host.clientHeight) return;
         // No distance gate — wasAtBottom is the sole follow predicate.
         // A 5000 px chunk in one frame must still pin, and only a user-driven
