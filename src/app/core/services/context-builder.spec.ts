@@ -150,6 +150,45 @@ describe('ContextBuilderService', () => {
             expect(summarized[0].parts[0].text).toContain('u0');
         });
 
+        it('injects `[id: ...]` tags into compressed-summary entries too', () => {
+            // Build enough model messages past the recent window to fill one
+            // SUMMARY_BLOCK_SIZE (10) — those condensed entries should each
+            // carry their own `[id: ...]` so SaveAgent can still cite them.
+            const msgs: ChatMessage[] = [];
+            for (let i = 0; i < 12; i++) {
+                msgs.push(userMsg(`u${i}`));
+                msgs.push(modelMsg(`m${i}`, {
+                    id: `msg_${i}`,
+                    intent: 'action',
+                    summary: `summary-${i}`,
+                }));
+            }
+            const ctx = emptyCtx({
+                messages: msgs,
+                contextMode: 'smart',
+                smartContextTurns: 2,
+            });
+            const history = builder.getLLMHistory(ctx);
+            const blockText = history[0].parts[0].text ?? '';
+            expect(blockText).toContain('[id: msg_0]');
+            expect(blockText).toContain('[id: msg_9]');
+        });
+
+        it('injects `[id: ...]` tags into each recent message', () => {
+            // The first message also carries the ACT header (engine concern),
+            // so assert containment rather than position — what matters is
+            // that the agent (and the live payload preview) sees the tag.
+            const ctx = emptyCtx({
+                messages: [
+                    userMsg('要把長劍給張三', { id: 'msg_user_1' }),
+                    modelMsg('好的，已交付。', { id: 'msg_model_1' }),
+                ],
+            });
+            const history = builder.getLLMHistory(ctx);
+            expect(history[0].parts[0].text).toContain('[id: msg_user_1]\n要把長劍給張三');
+            expect(history[1].parts[0].text).toContain('[id: msg_model_1]\n好的，已交付。');
+        });
+
         it('honours custom filter predicate', () => {
             const ctx = emptyCtx({
                 messages: [

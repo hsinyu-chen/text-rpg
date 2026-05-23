@@ -121,21 +121,21 @@ describe('applyInventoryReview', () => {
 
     it('returns the manifest unchanged on an empty delta', () => {
         const input = [hunk('H1', INV), hunk('H2', INV), hunk('H3', OTHER)];
-        const { hunks, warnings } = applyInventoryReview(input, empty(), FILES);
+        const { hunks, warnings } = applyInventoryReview(input, empty(), FILES, new Set());
         expect(hunks.map(h => h.id)).toEqual(['H1', 'H2', 'H3']);
         expect(warnings).toEqual([]);
     });
 
     it('drops an inventory hunk by id', () => {
         const input = [hunk('H1', INV), hunk('H2', INV)];
-        const { hunks } = applyInventoryReview(input, { ...empty(), dropHunkIds: ['H1'] }, FILES);
+        const { hunks } = applyInventoryReview(input, { ...empty(), dropHunkIds: ['H1'] }, FILES, new Set());
         expect(hunks.map(h => h.id)).toEqual(['H2']);
     });
 
     it('drops an assets hunk by id (Job 1 also covers ASSETS)', () => {
         const input = [hunk('H1', ASSETS), hunk('H2', INV)];
         const { hunks, warnings } = applyInventoryReview(
-            input, { ...empty(), dropHunkIds: ['H1'] }, FILES,
+            input, { ...empty(), dropHunkIds: ['H1'] }, FILES, new Set(),
         );
         expect(hunks.map(h => h.id)).toEqual(['H2']);
         expect(warnings).toEqual([]);
@@ -145,7 +145,7 @@ describe('applyInventoryReview', () => {
         const input = [hunk('H1', TECH, { replacement: 'untouched' })];
         // drop scope is INV + ASSETS only — revise/new allow TECH, drop does not.
         const { hunks, warnings } = applyInventoryReview(
-            input, { ...empty(), dropHunkIds: ['H1'] }, FILES,
+            input, { ...empty(), dropHunkIds: ['H1'] }, FILES, new Set(),
         );
         expect(hunks).toHaveLength(1);
         expect(warnings.join(' ')).toMatch(/outside this agent's drop scope/);
@@ -154,7 +154,7 @@ describe('applyInventoryReview', () => {
     it('warns when drop references an unknown id', () => {
         const input = [hunk('H1', INV)];
         const { hunks, warnings } = applyInventoryReview(
-            input, { ...empty(), dropHunkIds: ['H9'] }, FILES,
+            input, { ...empty(), dropHunkIds: ['H9'] }, FILES, new Set(),
         );
         expect(hunks).toHaveLength(1);
         expect(warnings.join(' ')).toMatch(/unknown hunk id/);
@@ -164,7 +164,7 @@ describe('applyInventoryReview', () => {
         const input = [hunk('H1', INV), hunk('H2', INV, { replacement: 'original' }), hunk('H3', INV)];
         const fix = { id: 'H2', file: INV, context: 'x', replacement: 'corrected' };
         const { hunks, warnings } = applyInventoryReview(
-            input, { ...empty(), reviseHunks: [fix] }, FILES,
+            input, { ...empty(), reviseHunks: [fix] }, FILES, new Set(['m1']),
         );
         expect(hunks.map(h => h.id)).toEqual(['H1', 'H2', 'H3']);
         expect(hunks[1].replacement).toBe('corrected');
@@ -182,7 +182,7 @@ describe('applyInventoryReview', () => {
             sourceMessageIds: ['m1'],
         })];
         const fix = { id: 'H1', file: INV, context: '', replacement: 'fixed' };
-        const { hunks } = applyInventoryReview(input, { ...empty(), reviseHunks: [fix] }, FILES);
+        const { hunks } = applyInventoryReview(input, { ...empty(), reviseHunks: [fix] }, FILES, new Set(['m1']));
         expect(hunks[0].replacement).toBe('fixed');
         expect(hunks[0].target).toBe('- 舊劍');
         expect(hunks[0].sourceMessageIds).toEqual(['m1']);
@@ -192,7 +192,7 @@ describe('applyInventoryReview', () => {
         const input = [hunk('H1', ASSETS, { replacement: '-100G' })];
         const fix = { id: 'H1', file: ASSETS, context: '', replacement: '-50G' };
         const { hunks, warnings } = applyInventoryReview(
-            input, { ...empty(), reviseHunks: [fix] }, FILES,
+            input, { ...empty(), reviseHunks: [fix] }, FILES, new Set(['m1']),
         );
         expect(hunks[0].replacement).toBe('-50G');
         expect(warnings).toEqual([]);
@@ -202,7 +202,7 @@ describe('applyInventoryReview', () => {
         const input = [hunk('H1', TECH, { replacement: 'main LLM original' })];
         const fix = { id: 'H1', file: TECH, context: '', replacement: 'agent improved' };
         const { hunks, warnings } = applyInventoryReview(
-            input, { ...empty(), reviseHunks: [fix] }, FILES,
+            input, { ...empty(), reviseHunks: [fix] }, FILES, new Set(['m1']),
         );
         expect(hunks[0].replacement).toBe('agent improved');
         expect(warnings).toEqual([]);
@@ -212,7 +212,7 @@ describe('applyInventoryReview', () => {
         const input = [hunk('H1', WORLD, { replacement: 'main LLM key-item entry' })];
         const fix = { id: 'H1', file: WORLD, context: '', replacement: 'agent deepened lore' };
         const { hunks, warnings } = applyInventoryReview(
-            input, { ...empty(), reviseHunks: [fix] }, FILES,
+            input, { ...empty(), reviseHunks: [fix] }, FILES, new Set(['m1']),
         );
         expect(hunks[0].replacement).toBe('agent deepened lore');
         expect(warnings).toEqual([]);
@@ -222,7 +222,7 @@ describe('applyInventoryReview', () => {
         const input = [hunk('H1', OTHER, { replacement: 'untouched' })];
         const fix = { id: 'H1', file: OTHER, context: '', replacement: 'rewritten' };
         const { hunks, warnings } = applyInventoryReview(
-            input, { ...empty(), reviseHunks: [fix] }, FILES,
+            input, { ...empty(), reviseHunks: [fix] }, FILES, new Set(['m1']),
         );
         expect(hunks[0].replacement).toBe('untouched');
         expect(warnings.join(' ')).toMatch(/outside this agent's revise scope/);
@@ -232,7 +232,7 @@ describe('applyInventoryReview', () => {
         const input = [hunk('H1', INV, { replacement: 'orig' })];
         const fix = { id: 'H1', file: TECH, context: '', replacement: 'moved' };
         const { hunks, warnings } = applyInventoryReview(
-            input, { ...empty(), reviseHunks: [fix] }, FILES,
+            input, { ...empty(), reviseHunks: [fix] }, FILES, new Set(['m1']),
         );
         expect(hunks[0].file).toBe(INV);
         expect(hunks[0].replacement).toBe('orig');
@@ -245,7 +245,7 @@ describe('applyInventoryReview', () => {
             newHunk(TECH, { context: '## 玄鐵令', replacement: '- 神兵閣信物' }),
             newHunk(TECH, { context: '## 火槍', replacement: '- 新研發武器' }),
         ];
-        const { hunks } = applyInventoryReview(input, { ...empty(), newHunks: fresh }, FILES);
+        const { hunks } = applyInventoryReview(input, { ...empty(), newHunks: fresh }, FILES, new Set());
         expect(hunks).toHaveLength(4);
         // Original ids kept, new ids continue past input length (H3, H4).
         expect(hunks.map(h => h.id)).toEqual(['H1', 'H2', 'H3', 'H4']);
@@ -256,7 +256,7 @@ describe('applyInventoryReview', () => {
         const input = [hunk('H1', INV)];
         const fresh = [newHunk(WORLD, { context: '## 古劍·遺物', replacement: '- 守墓人遺物' })];
         const { hunks, warnings } = applyInventoryReview(
-            input, { ...empty(), newHunks: fresh }, FILES,
+            input, { ...empty(), newHunks: fresh }, FILES, new Set(),
         );
         expect(hunks).toHaveLength(2);
         expect(hunks[1].file).toBe(WORLD);
@@ -267,7 +267,7 @@ describe('applyInventoryReview', () => {
         const input = [hunk('H1', INV)];
         // Inventory and assets are NOT in the `new` scope (they only allow drop/revise).
         const fresh = [newHunk(INV), newHunk(ASSETS), newHunk(OTHER)];
-        const { hunks, warnings } = applyInventoryReview(input, { ...empty(), newHunks: fresh }, FILES);
+        const { hunks, warnings } = applyInventoryReview(input, { ...empty(), newHunks: fresh }, FILES, new Set());
         expect(hunks).toHaveLength(1);
         expect(warnings).toHaveLength(3);
     });
@@ -278,7 +278,7 @@ describe('applyInventoryReview', () => {
         // H3 (collision); the fix offsets past the max H-number instead.
         const input = [hunk('H1', INV), hunk('H3', INV)];
         const fresh = [newHunk(TECH, { context: '', replacement: '- 新' })];
-        const { hunks } = applyInventoryReview(input, { ...empty(), newHunks: fresh }, FILES);
+        const { hunks } = applyInventoryReview(input, { ...empty(), newHunks: fresh }, FILES, new Set());
         expect(hunks.map(h => h.id)).toEqual(['H1', 'H3', 'H4']);
     });
 
@@ -290,9 +290,36 @@ describe('applyInventoryReview', () => {
             newHunks: [newHunk(TECH, { context: '## 新物品', replacement: '- 設定' })],
             summary: 's',
         };
-        const { hunks } = applyInventoryReview(input, args, FILES);
+        const { hunks } = applyInventoryReview(input, args, FILES, new Set());
         expect(hunks.map(h => h.id)).toEqual(['H2', 'H3', 'H4']);
         expect(hunks.find(h => h.id === 'H2')?.replacement).toBe('good');
         expect(hunks.find(h => h.id === 'H4')?.file).toBe(TECH);
+    });
+
+    it('drops fabricated sourceMessageIds from revised hunks and warns', () => {
+        const input = [hunk('H1', INV, { replacement: 'orig' })];
+        const fix = {
+            id: 'H1', file: INV, context: '', replacement: 'fixed',
+            sourceMessageIds: ['real', 'ghost'],
+        };
+        const { hunks, warnings } = applyInventoryReview(
+            input, { ...empty(), reviseHunks: [fix] }, FILES, new Set(['real']),
+        );
+        expect(hunks[0].sourceMessageIds).toEqual(['real']);
+        expect(warnings.some(w => w.includes('"ghost"'))).toBe(true);
+    });
+
+    it('drops fabricated sourceMessageIds from new hunks and warns', () => {
+        const input = [hunk('H1', INV)];
+        const fresh = [newHunk(TECH, {
+            context: '## x', replacement: 'y',
+            sourceMessageIds: ['ghost1', 'ghost2'],
+        })];
+        const { hunks, warnings } = applyInventoryReview(
+            input, { ...empty(), newHunks: fresh }, FILES, new Set(),
+        );
+        expect(hunks).toHaveLength(2);
+        expect(hunks[1].sourceMessageIds).toEqual([]);
+        expect(warnings.some(w => /unknown sourceMessageId/.test(w))).toBe(true);
     });
 });

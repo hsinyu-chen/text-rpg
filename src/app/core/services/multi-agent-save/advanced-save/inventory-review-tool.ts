@@ -1,6 +1,7 @@
 import type { LLMFunctionDeclaration } from '@hcs/llm-core';
 import type { SaveHunk } from '../multi-agent-save.types';
 import { withHunkIds, maxHunkIdNumber, type NewHunk } from '../utils/hunk-id.util';
+import { pruneInvalidSourceMessageIds } from '../utils/source-message-ids.util';
 
 /**
  * The terminal commit tool + delta application for {@link
@@ -123,6 +124,7 @@ export function applyInventoryReview(
     hunks: readonly SaveHunk[],
     args: CommitInventoryReviewArgs,
     files: InventoryReviewFiles,
+    validMessageIds: ReadonlySet<string>,
 ): InventoryReviewResult {
     const { inventoryFile, assetsFile, techEquipmentFile, worldFactionsFile } = files;
     const warnings: string[] = [];
@@ -190,7 +192,15 @@ export function applyInventoryReview(
     // gaps where length < max, and a length-offset would re-issue an id
     // that still exists.
     const stampedNew = withHunkIds(accepted, maxHunkIdNumber(hunks));
-    return { hunks: [...kept, ...stampedNew], warnings };
+
+    // Prune fabricated ids from any LLM-authored `sourceMessageIds` (revised
+    // hunks the agent re-emitted + new hunks it added) before they leak
+    // downstream. Pure-passthrough hunks already had SaveAgentRunner's prune
+    // applied, so re-checking them is a no-op that produces no extra warnings.
+    const finalRaw = [...kept, ...stampedNew];
+    const pruned = pruneInvalidSourceMessageIds(finalRaw, validMessageIds);
+    warnings.push(...pruned.warnings);
+    return { hunks: pruned.hunks, warnings };
 }
 
 /**

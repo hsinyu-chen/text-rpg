@@ -124,6 +124,7 @@ export class MultiAgentSaveService {
             if (!provider) throw new Error('No active LLM provider');
 
             const baseHistory = this.contextBuilder.getLLMHistory(buildCtx, /* forceFullContext */ true);
+            const validMessageIds = new Set(buildCtx.messages.map(m => m.id));
             const lang = buildCtx.outputLanguage || 'default';
             const profileId = this.state.activePromptProfile() || DEFAULT_PROFILE_ID;
 
@@ -142,6 +143,7 @@ export class MultiAgentSaveService {
                 cachedContentName: buildCtx.kbCacheName || undefined,
                 history,
                 signal: abortController.signal,
+                validMessageIds,
             });
             const { hunks, finishReason } = saveAgentResult;
 

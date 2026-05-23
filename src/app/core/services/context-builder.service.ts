@@ -233,7 +233,8 @@ export class ContextBuilderService {
 
                     if (stateUpdates.length > 0) {
                         const finalHeader = extractSceneHeader(m.content);
-                        currentBlockText += (finalHeader ? `${finalHeader} ` : '') + `---\n${stateUpdates.join('\n')}\n---\n`;
+                        const idLine = m.id ? `[id: ${m.id}]\n` : '';
+                        currentBlockText += (finalHeader ? `${finalHeader} ` : '') + `---\n${idLine}${stateUpdates.join('\n')}\n---\n`;
                         modelCountInCurrentBlock++;
 
                         // If block is full, push as a stable message
@@ -279,6 +280,18 @@ export class ContextBuilderService {
             }
             if (parts.length === 0 && m.content) {
                 parts.push({ text: this.stripSavePoints(m.content) });
+            }
+
+            if (m.id) {
+                // Prepend on the first non-thought text part so SaveAgent has
+                // a stable anchor to copy into each hunk's `sourceMessageIds`,
+                // and the live payload preview surfaces the tag too. Skipped
+                // for tool-only messages (no text part) — they have no
+                // quotable content the agent could ground a hunk on.
+                const firstTextPart = parts.find(p => p.text !== undefined && !(p as ExtendedPart).thought);
+                if (firstTextPart && firstTextPart.text !== undefined) {
+                    firstTextPart.text = `[id: ${m.id}]\n${firstTextPart.text}`;
+                }
             }
 
             if (m.role === 'model') {
