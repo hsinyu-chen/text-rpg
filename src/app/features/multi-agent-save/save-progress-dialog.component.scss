@@ -115,6 +115,8 @@ mat-dialog-actions {
         user-select: none;
     }
 
+    // No max-height/overflow here — outer .save-progress-content owns the
+    // only scroll viewport, same single-scroll rule the .entry-trace uses.
     .cot-text {
         font-family: 'Fira Code', 'Consolas', monospace;
         font-size: 0.8rem;
@@ -123,8 +125,6 @@ mat-dialog-actions {
         background: rgba(0, 0, 0, 0.04);
         padding: 0.5rem 0.75rem;
         border-radius: 4px;
-        max-height: 40vh;
-        overflow: auto;
         margin: 0.4rem 0 0;
     }
 }
@@ -137,8 +137,6 @@ mat-dialog-actions {
     background: rgba(0, 0, 0, 0.04);
     padding: 0.5rem 0.75rem;
     border-radius: 4px;
-    max-height: 40vh;
-    overflow: auto;
     margin: 0.4rem 0;
 }
 
