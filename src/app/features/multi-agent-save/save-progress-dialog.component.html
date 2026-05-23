@@ -1,5 +1,5 @@
 <h2 mat-dialog-title>{{ 'multiAgentSave.progress.title' | translate }}</h2>
-<mat-dialog-content class="save-progress-content">
+<mat-dialog-content class="save-progress-content" [appAutoScrollBottom]="entries()" [observeResize]="true">
     @if (entries().length === 0) {
         <p class="empty-state">{{ 'multiAgentSave.progress.waitingForStart' | translate }}</p>
     } @else {
@@ -44,7 +44,7 @@
                     @if (entry.thought) {
                         <details class="cot-details" [open]="entry.state === 'running'">
                             <summary>{{ 'multiAgentSave.progress.cotLabel' | translate }}</summary>
-                            <pre class="cot-text" [appAutoScrollBottom]="entry.thought">{{ entry.thought }}</pre>
+                            <pre class="cot-text">{{ entry.thought }}</pre>
                         </details>
                     }
 
@@ -64,7 +64,7 @@
                             (foldToggle)="onTraceFoldToggle(entry, $event)"
                             class="entry-trace" />
                     } @else if (entry.output) {
-                        <pre class="output-text" [appAutoScrollBottom]="entry.output">{{ entry.output }}</pre>
+                        <pre class="output-text">{{ entry.output }}</pre>
                     }
 
                     @if (entry.warnings?.length) {
