@@ -23,7 +23,7 @@ files need what changes, and express each change as one hunk.
 Each hunk is one verbatim edit to a KB file, with these fields:
 
 - `file`: target KB filename, exactly as it appears in the file list provided to you.
-- `context`: heading breadcrumb that locates the edit, separated by ` > ` (e.g. `# Core Characters > ## John`). Use an empty string `""` to target the file root.
+- `context`: heading breadcrumb crumbs as a JSON `string[]`, outermost → innermost (e.g. `["Section", "Subsection"]`). **Each element is the heading's raw text only — no `#` prefix, no `>` separator.** Each crumb must point at an actual **ATX heading** (`#`–`######`) in the file — **do not** use list-item / bullet / table-row / paragraph text as a crumb. Use an empty array `[]` to target the file root. Match the file's heading text **verbatim** including any parenthetical suffix — e.g. if the file has `## Subsection (updated each act)`, write `["Section", "Subsection (updated each act)"]`, not `["Section", "Subsection"]`.
 - `target` (optional): the **verbatim existing text** to replace or delete, copied character-for-character from the file (including indentation and punctuation). Omit it to append at the end of the `context` section.
 - `replacement`: the new content, written as **finished markdown**.
 - `sourceMessageIds` (optional): see the section below.

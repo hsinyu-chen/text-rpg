@@ -1,5 +1,6 @@
 import { Component, effect, inject, signal, viewChild, computed } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
+import { Clipboard } from '@angular/cdk/clipboard';
 import { MatDialogModule, MAT_DIALOG_DATA, MatDialogRef, MatDialog } from '@angular/material/dialog';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatTabsModule } from '@angular/material/tabs';
@@ -17,7 +18,7 @@ import { CacheManagerService } from '@app/core/services/cache-manager.service';
 import { ConfirmDialogComponent, ConfirmDialogData } from '../confirm-dialog/confirm-dialog.component';
 import { getLocale } from '@app/core/constants/locales';
 import { I18nService, TranslatePipe } from '@app/core/i18n';
-import { GroupedUpdate, HunkApplyController } from './hunk-apply-controller';
+import { GroupedUpdate, HunkApplyController, MonacoUpdateItem } from './hunk-apply-controller';
 import { HunkAutoFixService } from './hunk-auto-fix.service';
 
 @Component({
@@ -47,6 +48,7 @@ export class AutoUpdateDialogComponent {
   private snackBar = inject(MatSnackBar);
   private dialog = inject(MatDialog);
   private cacheManager = inject(CacheManagerService);
+  private clipboard = inject(Clipboard);
   private i18n = inject(I18nService);
   hunks = inject(HunkApplyController);
 
@@ -76,6 +78,28 @@ export class AutoUpdateDialogComponent {
 
   toggleSidebar(): void {
     this.isSidebarOpen.update((v) => !v);
+  }
+
+  /**
+   * Copy the raw hunk payload (file / context / target / replacement) as JSON
+   * to the clipboard. UI-only fields (signals, validation status, autoFix
+   * counters, line / preview slices) are stripped — what gets copied matches
+   * the on-the-wire hunk shape so it can be pasted back into a manifest /
+   * issue / debug log.
+   */
+  copyHunkRaw(update: MonacoUpdateItem): void {
+    const payload = {
+      file: update.filePath,
+      context: update.context ?? [],
+      ...(update.targetContent !== undefined ? { target: update.targetContent } : {}),
+      replacement: update.replacementContent ?? '',
+    };
+    const ok = this.clipboard.copy(JSON.stringify(payload, null, 2));
+    this.snackBar.open(
+      this.t(ok ? 'hunkRawCopied' : 'hunkRawCopyFailed'),
+      this.i18n.translate('ui.CLOSE'),
+      { duration: 2000 },
+    );
   }
 
   onCancel(): void {

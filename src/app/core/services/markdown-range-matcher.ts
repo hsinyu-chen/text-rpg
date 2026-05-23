@@ -5,39 +5,28 @@ import { computeFencedLineMask, parseAtxHeading } from '../utils/markdown.util';
  *
  * Distinct from `markdown-section.util.ts` (which file-agent uses): that one
  * is strict equality + ambiguous-refuse for tool-driven edits; this one is
- * loose `includes` + tolerates `# count mismatch` because the LLM's `target`
- * and `context` strings are approximate.
+ * loose `includes` matching because the LLM's `target` is approximate. The
+ * `context` breadcrumb is a `string[]` of raw heading texts (outermost →
+ * innermost) — no `#` prefix, no `>` separator, no level encoding.
  */
-
-interface ParsedCrumb {
-    text: string;
-    isStrictHeader: boolean;
-}
-
-function parseCrumb(crumb: string): ParsedCrumb {
-    const headerMatch = crumb.match(/^(#+)\s*(.*)/);
-    return headerMatch
-        ? { text: headerMatch[2], isStrictHeader: true }
-        : { text: crumb, isStrictHeader: false };
-}
 
 /**
- * Test a single line against a parsed crumb. Fence-aware on heading parse
- * only — when `fenced` is true, the line cannot register as a heading, but
- * loose body-text `includes` matching still runs. Callers that need to skip
- * fenced lines outright (e.g. `findInsertionPoint`) pre-filter before
- * calling.
+ * Test a single line against a crumb (raw heading text — no `#` prefix, no
+ * delimiters). Heading lines compare via the heading's body text;
+ * non-heading lines fall back to whole-line `includes` so the LLM can
+ * anchor on a list-item bullet when the file structures sections that way
+ * (e.g. `## 執行中 / - 「foo」計畫` — `foo` is a list-item, not a header).
+ * Fenced lines never match — fence content is never a real anchor, even
+ * via the loose body-text path (otherwise `## fake` inside a code fence
+ * would be matchable as `fake`).
  */
-function matchCrumb(line: string, fenced: boolean, crumb: ParsedCrumb): boolean {
-    const lineHeading = fenced ? null : parseAtxHeading(line);
-    const isLineHeader = !!lineHeading;
+function matchCrumb(line: string, fenced: boolean, crumb: string): boolean {
+    if (fenced) return false;
+    const lineHeading = parseAtxHeading(line);
     const lineText = lineHeading ? lineHeading.text : line.trim();
     const normalizedLine = normalizeForComparison(lineText);
-    const normalizedCrumb = normalizeForComparison(crumb.text);
-
-    if (!normalizedLine.includes(normalizedCrumb)) return false;
-    if (crumb.isStrictHeader && !isLineHeader) return false;
-    return true;
+    const normalizedCrumb = normalizeForComparison(crumb);
+    return normalizedLine.includes(normalizedCrumb);
 }
 
 /**
@@ -130,13 +119,12 @@ function expandRange(content: string, target: string, start: number, end: number
  * fails. Reverse traversal: deepest crumb is the closest header above the
  * match.
  */
-function verifyContext(lines: string[], fencedMask: boolean[], matchIndex: number, context: string): number {
-    const crumbs = context.split('>').map(c => c.trim()).reverse();
+function verifyContext(lines: string[], fencedMask: boolean[], matchIndex: number, context: string[]): number {
+    const crumbs = [...context].reverse();
     let currentIdx = matchIndex;
     let matchedCount = 0;
 
-    for (const rawCrumb of crumbs) {
-        const crumb = parseCrumb(rawCrumb);
+    for (const crumb of crumbs) {
         let found = false;
 
         for (let i = currentIdx - 1; i >= 0; i--) {
@@ -154,7 +142,7 @@ function verifyContext(lines: string[], fencedMask: boolean[], matchIndex: numbe
     return matchedCount;
 }
 
-export function findMatchRange(content: string, target: string, context?: string): { start: number; end: number } | null {
+export function findMatchRange(content: string, target: string, context?: string[]): { start: number; end: number } | null {
     const normalizedContent = normalizeForComparison(content);
     const normalizedTarget = normalizeForComparison(target);
 
@@ -163,7 +151,8 @@ export function findMatchRange(content: string, target: string, context?: string
     let searchStart = 0;
     const candidates: { start: number; end: number; score: number }[] = [];
 
-    const lines = context ? content.split(/\r?\n/) : null;
+    const hasContext = !!context && context.length > 0;
+    const lines = hasContext ? content.split(/\r?\n/) : null;
     const fencedMask = lines ? computeFencedLineMask(lines) : null;
     // Both per-iteration calls (start, lastChar) and the next iteration's
     // searchStart=normalizedIndex+1 advance forward, so the mapper's
@@ -197,9 +186,9 @@ export function findMatchRange(content: string, target: string, context?: string
             }
         }
 
-        if (context && lines && fencedMask) {
+        if (hasContext && lines && fencedMask) {
             const lineIndex = getLineIndexFromCharIndex(content, start);
-            const score = verifyContext(lines, fencedMask, lineIndex, context);
+            const score = verifyContext(lines, fencedMask, lineIndex, context!);
             if (score > 0) {
                 candidates.push({ ...expandRange(content, target, start, end), score });
             }
@@ -222,22 +211,19 @@ export function findMatchRange(content: string, target: string, context?: string
  * if `context` is given but no crumb matched anywhere — caller must NOT fall
  * back to EOF in that case (would silently insert at the wrong place).
  */
-export function findInsertionPoint(lines: string[], context?: string): number {
-    if (!context) return lines.length;
+export function findInsertionPoint(lines: string[], context?: string[]): number {
+    if (!context || context.length === 0) return lines.length;
 
     // Skip fenced lines entirely — a `## fake` inside ```...``` must not be
-    // matchable as the insertion anchor. Sibling walkers (verifyContext,
-    // findContextLine) only fence-gate heading detection but still allow
-    // loose body-text `includes` matching; this walker is stricter to
-    // protect insertion sites from injection via fenced content.
+    // matchable as the insertion anchor. matchCrumb itself rejects fenced
+    // headings via its `fenced` param, but pre-filtering keeps the boundary
+    // scan below from landing on a fence-faked anchor.
     const fencedMask = computeFencedLineMask(lines);
 
-    const crumbs = context.split('>').map(c => c.trim());
     let currentLine = 0;
     let anyFound = false;
 
-    for (const rawCrumb of crumbs) {
-        const crumb = parseCrumb(rawCrumb);
+    for (const crumb of context) {
         let found = -1;
 
         for (let i = currentLine; i < lines.length; i++) {
@@ -258,23 +244,18 @@ export function findInsertionPoint(lines: string[], context?: string): number {
 
     if (!anyFound) return -1;
 
-    // Find end of current section: next header of ≤ landed level.
-    // Uses lenient `^(#+)` count rather than `parseAtxHeading` so a crumb
-    // that landed on `####### foo` (rejected by strict ATX parse) still
-    // reports a level instead of degenerating to 0.
-    const headerLine = lines[currentLine - 1].trimStart();
-    const headerLevelMatch = headerLine.match(/^(#+)/);
+    // When the leaf crumb landed on a body line (list-item / paragraph), there
+    // is no section to compute a boundary for — insert immediately AFTER the
+    // anchor rather than scanning to EOF. When it landed on a header, find the
+    // next header of ≤ landed level.
+    const landed = parseAtxHeading(lines[currentLine - 1]);
+    if (!landed) return currentLine;
+    const currentLevel = landed.level;
 
-    // If the final landing line isn't a header at all (loose body-text
-    // match), insert immediately AFTER the anchor. Falling through to a
-    // boundary scan with currentLevel=0 would silently dump content at EOF.
-    if (!headerLevelMatch) return currentLine;
-
-    const currentLevel = headerLevelMatch[1].length;
     for (let i = currentLine; i < lines.length; i++) {
         if (fencedMask[i]) continue;
-        const nextHeaderMatch = lines[i].trimStart().match(/^(#+)/);
-        if (nextHeaderMatch && nextHeaderMatch[1].length <= currentLevel) {
+        const nextHeader = parseAtxHeading(lines[i]);
+        if (nextHeader && nextHeader.level <= currentLevel) {
             return i;
         }
     }
@@ -286,16 +267,14 @@ export function findInsertionPoint(lines: string[], context?: string): number {
  * Walk forward through crumbs and return the line index of the LAST one
  * found, for navigating to a section header even when content match fails.
  */
-export function findContextLine(content: string, context: string): number | null {
-    if (!context) return null;
+export function findContextLine(content: string, context: string[]): number | null {
+    if (!context || context.length === 0) return null;
     const lines = content.split(/\r?\n/);
     const fencedMask = computeFencedLineMask(lines);
-    const crumbs = context.split('>').map(c => c.trim());
     let currentLine = 0;
     let lastFoundLine: number | null = null;
 
-    for (const rawCrumb of crumbs) {
-        const crumb = parseCrumb(rawCrumb);
+    for (const crumb of context) {
         let found = -1;
 
         for (let i = currentLine; i < lines.length; i++) {
@@ -316,9 +295,9 @@ export function findContextLine(content: string, context: string): number | null
 
 /**
  * Walk backward from a line and assemble the heading breadcrumb chain
- * (e.g. `# Top > ## Sub`). Stops at the first H1 (full path captured).
+ * as raw heading-text crumbs (`["Top", "Sub"]`). Stops at the first H1.
  */
-export function inferContextFromLine(content: string, lineIndex: number): string {
+export function inferContextFromLine(content: string, lineIndex: number): string[] {
     const lines = content.split(/\r?\n/);
     const fencedMask = computeFencedLineMask(lines);
     const crumbs: string[] = [];
@@ -330,11 +309,11 @@ export function inferContextFromLine(content: string, lineIndex: number): string
         if (fencedMask[i]) continue;
         const heading = parseAtxHeading(lines[i]);
         if (heading && heading.level < currentLevel) {
-            crumbs.unshift(lines[i].trim());
+            crumbs.unshift(heading.text);
             currentLevel = heading.level;
             if (heading.level === 1) break;
         }
     }
 
-    return crumbs.join(' > ');
+    return crumbs;
 }

@@ -36,7 +36,7 @@ export interface ExtractL2EntriesOptions {
  *
  * Orphan L2s (no L1 ancestor) are dropped — that's a structural sanity
  * guard, not a domain filter; a heading with no parent has no breadcrumb
- * to attach to `<save context="…">`.
+ * to attach to the hunk `context` array.
  */
 export function extractL2EntriesByGroup(
   content: string,

@@ -22,7 +22,6 @@ const CHAT_MESSAGE_HINT_TO_ACTION: Record<string, readonly string[]> = {
   'delete-all-following': ['delete-following'],
   'delete-message': ['delete'],
   'toggle-ref-only': ['mark-ref-only', 'include-in-story'],
-  'auto-update-files': ['auto-update'],
   'copy-json-pair': ['copy-json'],
   'toggle-raw-render': ['toggle-raw'],
   'edit-text': ['edit-text'],
@@ -197,10 +196,9 @@ export class AgentLinkInterceptor {
       this.jumper.jumpTo(match.messageId, match.action);
       return;
     }
-    // No message currently has the button (e.g. `auto-update-files` but no
-    // save-block message exists). Flash the last message; chat.component's
-    // missing-button fallback also degrades to message flash, so behavior
-    // is consistent.
+    // No message currently has the button. Flash the last message;
+    // chat.component's missing-button fallback also degrades to message
+    // flash, so behavior is consistent.
     this.jumper.jumpTo(lastId, null);
   }
 

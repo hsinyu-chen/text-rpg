@@ -117,8 +117,8 @@ describe('AgentLinkInterceptor.dispatch', () => {
 
   it('parses app://message/<id>/<action> sub-action segment', () => {
     const { interceptor, jumper } = setup();
-    interceptor.dispatch('app://message/abc-123/auto-update');
-    expect(jumper.request()).toMatchObject({ id: 'abc-123', action: 'auto-update' });
+    interceptor.dispatch('app://message/abc-123/fork');
+    expect(jumper.request()).toMatchObject({ id: 'abc-123', action: 'fork' });
   });
 
   it('decodes percent-encoded action segments independently', () => {
@@ -175,31 +175,17 @@ describe('AgentLinkInterceptor.dispatch', () => {
       ctx.cleanup();
     });
 
-    it('maps chat-message/auto-update-files to the last message bearing auto-update', () => {
-      const ctx = setup({
-        messages: [{ id: 'a' }, { id: 'b' }, { id: 'c' }],
-        buttonHtml: `
-          <div id="message-a"><button data-msg-action="auto-update"></button></div>
-          <div id="message-b"></div>
-          <div id="message-c"><button data-msg-action="auto-update"></button></div>
-        `,
-      });
-      ctx.interceptor.dispatch('app://hint/chat-message/auto-update-files');
-      expect(ctx.jumper.request()).toMatchObject({ id: 'c', action: 'auto-update' });
-      ctx.cleanup();
-    });
-
     it('walks back past a message without the button when newer messages lack it', () => {
       const ctx = setup({
         messages: [{ id: 'a' }, { id: 'b' }, { id: 'c' }],
         buttonHtml: `
-          <div id="message-a"><button data-msg-action="auto-update"></button></div>
+          <div id="message-a"><button data-msg-action="fork"></button></div>
           <div id="message-b"></div>
           <div id="message-c"></div>
         `,
       });
-      ctx.interceptor.dispatch('app://hint/chat-message/auto-update-files');
-      expect(ctx.jumper.request()).toMatchObject({ id: 'a', action: 'auto-update' });
+      ctx.interceptor.dispatch('app://hint/chat-message/fork-from-here');
+      expect(ctx.jumper.request()).toMatchObject({ id: 'a', action: 'fork' });
       ctx.cleanup();
     });
 
@@ -228,14 +214,14 @@ describe('AgentLinkInterceptor.dispatch', () => {
         messages: [{ id: 'a' }, { id: 'b' }],
         buttonHtml: `<div id="message-a"></div><div id="message-b"></div>`,
       });
-      ctx.interceptor.dispatch('app://hint/chat-message/auto-update-files');
+      ctx.interceptor.dispatch('app://hint/chat-message/edit-resend');
       expect(ctx.jumper.request()).toMatchObject({ id: 'b', action: null });
       ctx.cleanup();
     });
 
     it('toasts when there are no messages at all', () => {
       const ctx = setup({ messages: [] });
-      ctx.interceptor.dispatch('app://hint/chat-message/auto-update-files');
+      ctx.interceptor.dispatch('app://hint/chat-message/edit-resend');
       expect(ctx.jumper.request()).toBeNull();
       expect(ctx.snackBar.open).toHaveBeenCalled();
       ctx.cleanup();

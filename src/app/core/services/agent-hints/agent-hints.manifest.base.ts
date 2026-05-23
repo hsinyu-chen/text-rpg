@@ -33,7 +33,6 @@ export const VIRTUAL_HINTS: AgentHintEntry[] = [
       { id: 'delete-all-following' },
       { id: 'delete-message' },
       { id: 'toggle-ref-only' },
-      { id: 'auto-update-files' },
       { id: 'copy-json-pair' },
       { id: 'toggle-raw-render' },
       { id: 'edit-text' },

@@ -550,7 +550,7 @@ export class HunkApplyController {
     if (range) {
       return combinedContentStr.substring(0, range.start).split(/\r?\n/).length;
     }
-    if (update.context) {
+    if (update.context && update.context.length > 0) {
       const contextLine = this.updateService.findContextLine(combinedContentStr, update.context);
       // findContextLine returns 0-indexed, Monaco expects 1-indexed
       if (contextLine !== null) return contextLine + 1;

@@ -334,7 +334,7 @@ Think of it as an **in-app wiki + editor**: ask anything about your world, mecha
 | Ask | What you'll get |
 | :--- | :--- |
 | *"Where in the KB does this enchanted sword go?"* | Routing answer grounded in §4 rules (`Inventory` primary; also `Tech Equipment` if it has detailed specs). |
-| *"My inventory still looks empty after save."* | Investigates the save message + actual KB, recommends re-running **Auto Update Files** from the save message's toolbar, asks if the dialog misbehaved, offers a direct fix only if needed. |
+| *"My inventory still looks empty after save."* | Investigates the actual KB, asks whether the user skipped any hunks in the **Auto-Update** dialog the last save opened, recommends re-running **Save** if so, offers a direct fix only if needed. |
 | *"Two turns ago the NPC didn't mention X — help."* | Presents all three valid paths: in-character continuation (suggested action-intent line), Edit text retcon (with concrete proposed insertion grounded in NPC profile + faction conventions), or Fork / Delete + replay. |
 | *"Compress every NPC in CHARACTER_STATUS to 3 lines"* | File Viewer agent batches `readSection` over all NPC headings, then `replaceSection` for all of them in one turn. |
 

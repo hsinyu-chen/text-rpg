@@ -33,7 +33,7 @@ export interface CommitInventoryReviewArgs {
 
 const hunkBodySchema = {
     file: { type: 'string', description: 'Target KB filename, copied verbatim from the hunk list / file list.' },
-    context: { type: 'string', description: "Heading breadcrumb, e.g. '# 武器 > ## 玄鐵令'. Empty string targets the file root." },
+    context: { type: 'array', items: { type: 'string' }, description: "Heading breadcrumb crumbs (outermost → innermost), e.g. ['Section', 'Subsection']. Each element is the heading's raw text only — no '#' prefix. Empty array targets the file root." },
     target: { type: 'string', description: 'Exact existing text to replace/delete, copied verbatim. Omit to append at the context section end.' },
     replacement: { type: 'string', description: 'New content as finished markdown. Empty + target set = delete.' },
     sourceMessageIds: { type: 'array', items: { type: 'string' }, description: 'Chat message ids that grounded this hunk.' },
@@ -237,10 +237,10 @@ function asStringArray(v: unknown): string[] {
 
 /** Validates the common hunk body; returns the typed fields or null. */
 function asHunkBody(v: Record<string, unknown>): NewHunk | null {
-    if (typeof v['file'] !== 'string' || typeof v['context'] !== 'string' || typeof v['replacement'] !== 'string') {
-        return null;
-    }
-    const body: NewHunk = { file: v['file'], context: v['context'], replacement: v['replacement'] };
+    if (typeof v['file'] !== 'string' || typeof v['replacement'] !== 'string') return null;
+    const ctx = v['context'];
+    if (!Array.isArray(ctx) || !ctx.every(x => typeof x === 'string')) return null;
+    const body: NewHunk = { file: v['file'], context: ctx as string[], replacement: v['replacement'] };
     if (typeof v['target'] === 'string') body.target = v['target'];
     if (Array.isArray(v['sourceMessageIds'])) {
         body.sourceMessageIds = v['sourceMessageIds'].filter((x): x is string => typeof x === 'string');

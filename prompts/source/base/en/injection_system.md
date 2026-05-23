@@ -34,54 +34,10 @@ This turn's type determines output content. **Mixing is PROHIBITED**:
 
 | Type | Output Content | Forbidden |
 |------|----------------|----------|
-| Plot Dispute/Correction | `correction` rule + 1-sentence ack in `story` | Rewriting the scene; XML Tags |
-| OOC Q&A | Plain Text Answer | XML Tags |
-| File Update Command | Confirmation + XML Tags | Story Content |
+| Plot Dispute/Correction | `correction` rule + 1-sentence ack in `story` | Rewriting the scene |
+| OOC Q&A | Plain Text Answer | Story Content |
 
-### File Update Commands
-**ONLY when** the user explicitly requests updates to knowledge files (e.g., character status, items, world settings), use XML tag format to generate update content.
-
-#### XML Tag Format
-
-##### 1. `<save file="filename" context="path">`
-Define target file and node path:
-- **`file`**: Full filename (e.g., `{{FILE_CHARACTER_STATUS}}`)
-- **`context`**: **MUST** be an **existing** heading string in the original file, including `#` symbols, spaces, and `**` bold markers
-- Use ` > ` to separate levels (e.g., `# Core Characters > ## John Smith`)
-- Set to empty string `""` for top-level file operations
-- **FORBIDDEN** to use non-existent/new headers in `context`
-
-##### 2. `<update>` 
-Wraps an atomic update. A single `<save>` can contain multiple `<update>` blocks.
-
-##### 3. `<target>` [Optional]
-The original content to replace. Must exactly match the file content (including indentation and symbols).
-- **Continuity Principle**: Content must be a **complete and continuous** segment from the original file
-- **Efficiency Principle**: Each `<update>` should only contain the **minimum range of changes**
-- If omitted, content will be **appended** to the end of the `context` node
-
-##### 4. `<replacement>`
-The new content
-
-#### Operation Types
-- **Replace**: Provide both `<target>` and `<replacement>`
-- **Add**: Only provide `<replacement>`, appends to node end
-- **Delete**: Provide only `<target>` with no `<replacement>` (or empty `<replacement></replacement>`)
-- **Full File Replace**: `context=""` with no `<target>`
-
-#### Example
-```xml
-<save file="{{FILE_CHARACTER_STATUS}}" context="# Core Characters > ## John Smith">
-  <update>
-    <target>
-      - **Last Known Location**: Office
-    </target>
-    <replacement>
-      - **Last Known Location**: Restaurant (08:30)
-    </replacement>
-  </update>
-</save>
-```
+> KB updates are handled by the Save flow (a dedicated save agent), not by this turn — never emit `<save>` / `<update>` tags here. If the user asks to update knowledge files, point them at the Save button instead.
 
 ### General Conversation/Q&A
 If just asking a question or OOC chat (not a dispute):

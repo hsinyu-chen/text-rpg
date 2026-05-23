@@ -127,8 +127,8 @@ export interface SaveHunk {
   id: string;
   /** Target KB filename — the model gives the locale-resolved actual name. */
   file: string;
-  /** Heading breadcrumb (`# X > ## Y`) for the matcher; empty string = file root. */
-  context: string;
+  /** Heading breadcrumb crumbs (e.g. `["X", "Y"]`, outermost → innermost) for the matcher; empty array = file root. */
+  context: string[];
   /** Exact existing text to replace / delete. Omit to append at the context section end. */
   target?: string;
   /** New content. Appended when `target` is omitted; empty + `target` set = delete. */

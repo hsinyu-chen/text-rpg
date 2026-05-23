@@ -20,8 +20,9 @@ const hunkItem = {
             description: 'Target KB filename (the locale-resolved actual name as it appears in the provided files).',
         },
         context: {
-            type: 'string',
-            description: "Heading breadcrumb locating the edit, e.g. '# 核心人物 > ## 李四'. Empty string targets the file root.",
+            type: 'array',
+            items: { type: 'string' },
+            description: "Heading breadcrumb crumbs (outermost → innermost) locating the edit, e.g. ['Section', 'Subsection']. Each element is the heading's raw text only — no '#' prefix, no separators. Empty array targets the file root.",
         },
         target: {
             type: 'string',
@@ -91,7 +92,7 @@ export function validateManifest(value: unknown): ManifestValidationResult {
 function validateHunk(h: unknown, i: number): string | null {
     if (!isObject(h)) return `hunk[${i}] is not an object`;
     if (typeof h['file'] !== 'string') return `hunk[${i}].file missing`;
-    if (typeof h['context'] !== 'string') return `hunk[${i}].context missing`;
+    if (!isStringArray(h['context'])) return `hunk[${i}].context must be string[]`;
     if (typeof h['replacement'] !== 'string') return `hunk[${i}].replacement missing`;
     const target = h['target'];
     if (target !== undefined && typeof target !== 'string') return `hunk[${i}].target must be string`;
