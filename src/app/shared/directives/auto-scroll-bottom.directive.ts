@@ -49,11 +49,14 @@ export class AutoScrollBottomDirective {
      *  smooth at 60 fps already. */
     readonly scrollMode = input<'instant' | 'smooth'>('instant');
 
-    /** When true, attach a `ResizeObserver` to the host's first child so
-     *  content growth (without a signal change) also triggers auto-follow.
-     *  Required for hosts where chunks land via child-component DOM writes
-     *  the parent's signal doesn't see (chat-message streaming, agent log
-     *  CoT expansion). Falls back to host when there's no element child. */
+    /** When true, attach `ResizeObserver` to the host AND every direct
+     *  element child (plus a `MutationObserver` watching `childList` to
+     *  pick up dynamically added siblings). Host observation catches
+     *  viewport / container resize (window shrink, parent layout shift);
+     *  child observation catches intrinsic content growth that doesn't
+     *  change the host's box (streaming chunks, panel expand). Works for
+     *  wrapped (single child), multi-child, and `*ngFor`-direct-child
+     *  layouts alike — no wrapper required. */
     readonly observeResize = input<boolean>(false);
 
     /** Re-pin to bottom for up to 30 RAF×2 ticks after each scroll, until
@@ -81,7 +84,17 @@ export class AutoScrollBottomDirective {
      *  Starts true so the first chunk auto-scrolls. */
     private wasAtBottom = true;
     private lastScrollTop = 0;
+    /** ID of the pending RAF queued by `scheduleAutoScroll` for the next
+     *  `performAutoScroll` tick. Tracked so an imperative `scrollToBottom`
+     *  cancels it (otherwise a queued auto-instant could race the
+     *  imperative smooth write). */
     private rafId: number | null = null;
+    /** ID of the latest pending RAF in the `scheduleScrollCorrection`
+     *  recursive loop. Separate from `rafId` because the two loops can
+     *  run concurrently (scheduleAutoScroll's debounce vs. correction's
+     *  RAF×2 per attempt). Cleared on destroy so the chain doesn't fire
+     *  callbacks on a torn-down component. */
+    private correctionRafId: number | null = null;
     private lastEmittedAtBottom: boolean | null = null;
     /** Set while an imperative smooth scroll-to-bottom is animating.
      *  Auto-follow is suppressed in this window so a content-driven
@@ -155,19 +168,46 @@ export class AutoScrollBottomDirective {
             this.scheduleAutoScroll();
         });
 
-        // ResizeObserver trigger (opt-in). Observes the first child so content
-        // growth inside a fixed-height scroll container fires (the container's
-        // own box doesn't change). Falls back to host when there's no child.
+        // ResizeObserver trigger (opt-in).
+        //   - observe(host): catches viewport / container box changes
+        //     (window resize, parent flex reflow). Host's clientHeight
+        //     changing matters because it shifts whether the user is "at
+        //     the bottom" even when content didn't grow.
+        //   - observe(each child): catches intrinsic content growth that
+        //     doesn't move the host's box (streaming chunks, panel expand).
+        //   - MutationObserver on childList: picks up dynamically added
+        //     direct children (*ngFor siblings, conditionally rendered
+        //     wrappers). Removed nodes auto-clean — RO ignores detached.
+        // RAF debouncing in scheduleAutoScroll collapses the often-
+        // simultaneous host + child firings into one performAutoScroll.
         effect((onCleanup) => {
             if (!this.observeResize()) return;
-            const target = host.firstElementChild ?? host;
             const ro = new ResizeObserver(() => this.scheduleAutoScroll());
-            ro.observe(target);
-            onCleanup(() => ro.disconnect());
+            ro.observe(host);
+            for (const child of Array.from(host.children)) {
+                ro.observe(child);
+            }
+            const mo = new MutationObserver(records => {
+                for (const r of records) {
+                    r.addedNodes.forEach(node => {
+                        if (node.nodeType === Node.ELEMENT_NODE) {
+                            ro.observe(node as Element);
+                        }
+                    });
+                }
+            });
+            // childList only — grandchildren growth is captured by their
+            // parent's RO, so subtree observation would just duplicate work.
+            mo.observe(host, { childList: true });
+            onCleanup(() => {
+                ro.disconnect();
+                mo.disconnect();
+            });
         });
 
         this.destroyRef.onDestroy(() => {
             if (this.rafId !== null) cancelAnimationFrame(this.rafId);
+            if (this.correctionRafId !== null) cancelAnimationFrame(this.correctionRafId);
             this.clearSmoothInFlight();
         });
     }
@@ -175,6 +215,13 @@ export class AutoScrollBottomDirective {
     /** Imperative scroll-to-bottom (button click etc.). Ignores `paused()` —
      *  explicit user intent beats any in-flight gate. */
     scrollToBottom(forceInstant = false): void {
+        // Cancel any pending auto-scroll RAF — its queued performAutoScroll
+        // would issue an instant `scrollTop=...` write that races (and could
+        // cancel) the smooth animation we're about to start.
+        if (this.rafId !== null) {
+            cancelAnimationFrame(this.rafId);
+            this.rafId = null;
+        }
         // Only reset wasAtBottom for instant scrolls. For smooth, leave it
         // false until the scroll event listener naturally flips it true at
         // dist<50 — otherwise `scheduleScrollCorrection`'s gate
@@ -277,8 +324,14 @@ export class AutoScrollBottomDirective {
         lastHeight = -1
     ): void {
         if (attempt >= STABILIZE_MAX_ATTEMPTS) return;
-        requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
+        // Track via correctionRafId so destroy can cancel a pending tick
+        // and the recursive chain doesn't keep firing callbacks on a
+        // torn-down component. Each link in the chain re-assigns to
+        // overwrite the previous (only one tick is ever pending at a time
+        // since the recursion happens INSIDE the inner callback).
+        this.correctionRafId = requestAnimationFrame(() => {
+            this.correctionRafId = requestAnimationFrame(() => {
+                this.correctionRafId = null;
                 if (this.paused() || !this.wasAtBottom) return;
                 const curr = el.scrollHeight;
                 const dist = curr - el.scrollTop - el.clientHeight;
