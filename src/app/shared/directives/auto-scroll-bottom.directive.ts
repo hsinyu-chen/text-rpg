@@ -115,17 +115,22 @@ export class AutoScrollBottomDirective {
         const onScroll = () => {
             const dist = host.scrollHeight - host.scrollTop - host.clientHeight;
             const scrollTop = host.scrollTop;
-            // Re-engage auto-follow when the user (or our programmatic
-            // scroll's tail) lands within the bottom-ack zone.
-            if (dist < BOTTOM_ACK_PX) {
-                this.wasAtBottom = true;
-            } else if (scrollTop < this.lastScrollTop - SCROLL_UP_DELTA_PX) {
+            // Delta-up check goes FIRST — when the user wheels up by less
+            // than BOTTOM_ACK_PX (~30 px), dist is still inside the ack zone,
+            // so the ack-branch would immediately undo onUserDrive's
+            // wasAtBottom=false and snap them back. Delta-up wins by virtue
+            // of running before the ack check.
+            if (scrollTop < this.lastScrollTop - SCROLL_UP_DELTA_PX) {
                 // scrollTop went up — only user input can do that since our
                 // programmatic writes always target scrollHeight. Catches
                 // mouse-drag of the scrollbar (which doesn't fire wheel /
                 // touch / key) and is a redundant safety net for those that do.
                 this.wasAtBottom = false;
                 this.clearSmoothInFlight();
+            } else if (dist < BOTTOM_ACK_PX) {
+                // Re-engage auto-follow when the user (or our programmatic
+                // scroll's tail) lands within the bottom-ack zone.
+                this.wasAtBottom = true;
             }
             this.lastScrollTop = scrollTop;
             this.emitAtBottom(dist <= this.threshold());
