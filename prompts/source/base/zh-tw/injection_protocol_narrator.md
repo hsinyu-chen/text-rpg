@@ -80,8 +80,9 @@
 - **`inventory_log[]`**：主角擁有物（獲得 / 消耗 / 移入 / 寄存 / 取回 / 穿戴 / 卸下 / 校正）；裝備須與 `character_log` 雙寫。
 - **`quest_log[]`** / **`world_log[]`**：依 single-call 語意。
 - **Story Trigger 觸發紀錄**：當本回合事件滿足 `{{FILE_STORY_OUTLINE}}` `## Story Triggers` 中宣告的某個 Condition 時，該 trigger 的每一條 **Knowledge Acquired** 必須在本回合寫入相應的 log，**依該項目性質決定**：`character_log` 用於主角的能力／感知／心智／狀態獲得；`inventory_log` 用於實體物品；`world_log` 用於世界／勢力／設定事實；`quest_log` 用於任務解鎖或劇情推進節點。以資料形式表述（如 `Capability Gained: 主角名 (<獲得內容> per <Trigger 名稱>)`）。此舉讓 save 流程現有的 `*_log → 檔案` 規則接管落盤。**禁止**在敘事散文中以系統訊息或遊戲機制公告形式呈現 trigger 達成。
-- **KB 補完授權與 log 通道**：當 analysis 階段揭露知識庫未明列的設定（`dialogue` 或 `motivation` 標註 `(由敘事段補完)`、或揭露內容包含未登錄的新具名 NPC／地名／勢力／物件／概念）時：
+- **KB 補完授權與 log 通道**：當 analysis 階段揭露知識庫未明列或不完整的設定（`dialogue` 或 `motivation` 標註 `(由敘事段補完)`、或揭露內容包含未登錄的新具名 NPC／地名／勢力／物件／概念）時：
   - 在 `story` 中依世界觀**合理生成**完整內容，須符合 `{{FILE_BASIC_SETTINGS}}` 與 `{{FILE_WORLD_FACTIONS}}` 的時代／文化背景，**禁止**現代物品、現代制度、現代隱喻。
+  - **placeholder 替換鐵則（針對 `(由敘事段補完)` 標記台詞）**：analysis 寫的對白常為含 placeholder 名詞(泛指性的人物／勢力／技藝／物件／地點／事件)的骨架。narrator 在 `story` 擴展對白時**必須**將每個 placeholder 替換為具體專名與具體內容。僅於表面加語氣詞、停頓、自然中斷而原樣保留 placeholder **不算履行**本條，是核心失敗模式。**此情境下** NPC 對白邊界 clause 的「不得新增揭露內容」**不適用**——`(由敘事段補完)` 標記本身即授權新增；新增內容仍須通過下方「未登錄前置檢查」並依分流寫入對應 log。
   - **「未登錄」前置檢查（強制）**：要將某個具名 NPC／地名／勢力／物件／概念寫入下方 log 之前，**必須逐字檢索 `{{FILE_BASIC_SETTINGS}}` / `{{FILE_WORLD_FACTIONS}}` / `{{FILE_CHARACTER_STATUS}}` / `{{FILE_PLANS}}` / `{{FILE_INVENTORY}}` / `{{FILE_ASSETS}}` / `{{FILE_TECH_EQUIPMENT}}` / `{{FILE_MAGIC_SKILLS}}` / `{{FILE_STORY_OUTLINE}}` 全集確認該名稱不存在**。已登錄者（即便本回合是其首次在故事中登場）**禁止**寫入 log；其本回合若發生實質變化，仍依既有 log 規則處理（例如狀態變化走 `character_log`，但不以「新角色」開頭）。
   - **依內容性質分流寫入對應 log**（性質符合且通過上方未登錄前置檢查時必寫）：
     - 未登錄的具名 NPC（掌門名、宗師名、組織頭目名等）⇒ `character_log`
