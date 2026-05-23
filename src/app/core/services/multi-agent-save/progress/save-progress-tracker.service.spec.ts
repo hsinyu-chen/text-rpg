@@ -78,6 +78,17 @@ describe('SaveProgressTracker', () => {
         expect(tracker.totalUsage()).toEqual({ prompt: 15, candidates: 3, cached: 11 });
     });
 
+    it('setWorkComplete optional hasUpdates flag drives the dialog Continue button', () => {
+        expect(tracker.workComplete()).toBe(false);
+        expect(tracker.hasUpdates()).toBe(false);
+        tracker.setWorkComplete(true, true);
+        expect(tracker.workComplete()).toBe(true);
+        expect(tracker.hasUpdates()).toBe(true);
+        tracker.reset();
+        expect(tracker.workComplete()).toBe(false);
+        expect(tracker.hasUpdates()).toBe(false);
+    });
+
     it('reset clears entries but leaves isRunning alone (orchestrator owns lifecycle)', () => {
         tracker.startEntry('manifest');
         tracker.setRunning(true);

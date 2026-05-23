@@ -1,15 +1,39 @@
+// Host opens via FULLSCREEN_DIALOG_CONFIG — outer container has no padding
+// (set globally by `.fullscreen-dialog .mat-mdc-dialog-container { padding: 0 }`).
+// Reclaim flex layout here + restore inner padding on title / content /
+// actions so the long entry list scrolls inside .save-progress-content
+// instead of pushing the actions off-screen.
 :host {
-    display: block;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
     min-width: 0;
+    min-height: 0;
+}
+
+h2[mat-dialog-title] {
+    padding: 16px 24px 0;
+    margin: 0;
 }
 
 .save-progress-content {
+    // MDC's .mat-mdc-dialog-content default carries `max-height: 65vh` —
+    // it caps the content even when the host is taller. Lift it so the
+    // surrounding flex column actually fills the fullscreen surface.
+    max-height: none;
+    flex: 1 1 auto;
     min-width: 0;
-    width: 760px;
-    max-width: 90vw;
-    max-height: 75vh;
+    min-height: 0;
     display: flex;
     flex-direction: column;
+    padding: 16px 24px;
+    overflow-y: auto;
+}
+
+mat-dialog-actions {
+    padding: 8px 24px 16px;
+    flex-wrap: wrap;
+    gap: 8px;
 }
 
 .empty-state {
@@ -91,6 +115,8 @@
         user-select: none;
     }
 
+    // No max-height/overflow here — outer .save-progress-content owns the
+    // only scroll viewport, same single-scroll rule the .entry-trace uses.
     .cot-text {
         font-family: 'Fira Code', 'Consolas', monospace;
         font-size: 0.8rem;
@@ -99,8 +125,6 @@
         background: rgba(0, 0, 0, 0.04);
         padding: 0.5rem 0.75rem;
         border-radius: 4px;
-        max-height: 220px;
-        overflow: auto;
         margin: 0.4rem 0 0;
     }
 }
@@ -113,30 +137,26 @@
     background: rgba(0, 0, 0, 0.04);
     padding: 0.5rem 0.75rem;
     border-radius: 4px;
-    max-height: 280px;
-    overflow: auto;
     margin: 0.4rem 0;
 }
 
-// Cap the rich agent trace at a similar height to .output-text so a chatty
-// advanced agent doesn't push the expansion-panel beyond the dialog viewport.
-// `display: flex` + min-height: 0 lets the surface's internal scroll viewport
-// take effect inside the bounded box.
+// Embed the rich trace inline: no internal scroll, no height cap — the
+// outer .save-progress-content owns the only scroll viewport so the user
+// doesn't fight two nested scrollbars per panel.
+//
+// `--agent-trace-surface-bg` is pinned to a solid dark color: the default
+// `rgba(0, 0, 0, 0.3)` alpha-blends with the mat-expansion-panel body
+// (light Material surface) and reads as grey. Matching `--bg-surface-dark`
+// gives the same solid-black feel the file-agent console has on the chat
+// panel.
 .entry-trace {
     display: flex;
     flex-direction: column;
-    max-height: 320px;
     margin: 0.4rem 0;
-    // Retheme the trace surface to match the Material dialog chrome. The
-    // surface's defaults (translucent black bg + white-tinted text/borders)
-    // read as an alien "embedded terminal" on the dialog's light surface;
-    // surface-container-high + outline-variant keep the embedded-block hint
-    // without forcing dark mode inside a light dialog, and the fg-rgb flip
-    // to `0, 0, 0` turns every opacity-tinted text and divider into the
-    // dark-on-light equivalent.
-    --agent-trace-surface-bg: var(--mat-sys-surface-container-high);
-    --agent-trace-surface-border: var(--mat-sys-outline-variant);
-    --agent-trace-surface-fg-rgb: 0, 0, 0;
+    --agent-trace-surface-bg: var(--bg-surface-dark);
+    // Tell the surface to drop its own scroll viewport — outer
+    // .save-progress-content owns the only scroll.
+    --agent-trace-surface-console-overflow: visible;
 }
 
 .entry-warnings {

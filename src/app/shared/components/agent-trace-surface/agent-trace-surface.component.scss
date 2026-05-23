@@ -53,7 +53,11 @@ $fg-emph:     rgba(var(--agent-trace-surface-fg-rgb), 0.9);  // headings
 
 .agent-console {
     flex: 1;
-    overflow-y: auto;
+    // Host can flip the inner scroll off when it owns the scroll viewport
+    // itself (e.g. the save-progress dialog embeds multiple traces inside
+    // its own scrolling content). Default `auto` keeps the chat-side
+    // behavior where the surface IS the scroll viewport.
+    overflow-y: var(--agent-trace-surface-console-overflow, auto);
     // Backdrop + border are host-overridable so the surface fits both the
     // dark chat panel (default — rgba(0,0,0,0.3) alpha-blends on the panel's
     // own dark backdrop) and a Material dialog (lighter chrome, where the
@@ -92,11 +96,16 @@ $fg-emph:     rgba(var(--agent-trace-surface-fg-rgb), 0.9);  // headings
             gap: 4px;
 
             .log-thought-container {
-                border: 1px solid $fg-divider;
                 // Nested-block backdrop stays at solid black-tint regardless
                 // of theme — it's a "deepen below the surface chrome" cue, so
                 // pure-black alpha works for both light and dark hosts (on
                 // light it reads as a soft gray box; on dark it deepens).
+                // Because the backdrop is dark in BOTH themes, pin the
+                // descendant foreground back to white so the host's
+                // light-host fg-rgb flip (e.g. save dialog → black fg) does
+                // not produce dark-text-on-dark inside the block.
+                --agent-trace-surface-fg-rgb: 255, 255, 255;
+                border: 1px solid $fg-divider;
                 background: rgba(0, 0, 0, 0.2);
                 overflow: hidden;
                 margin-top: 2px;

@@ -1154,6 +1154,7 @@ export const en: TranslationDict = {
             totalLabel: 'Total tokens',
             cancel: 'Cancel',
             close: 'Close',
+            continue: 'Continue',
             state: {
                 running: 'Running',
                 retry: 'Retry',

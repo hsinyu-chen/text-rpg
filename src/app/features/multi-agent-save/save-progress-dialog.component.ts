@@ -64,23 +64,36 @@ export class SaveProgressDialogComponent {
     readonly entries = this.tracker.entries;
     readonly isRunning = this.tracker.isRunning;
     readonly workComplete = this.tracker.workComplete;
+    readonly hasUpdates = this.tracker.hasUpdates;
 
     readonly totalUsage = computed(() => this.tracker.totalUsage());
 
     /**
      * Cancel button visible only while the save work is actively running.
-     * Once `workComplete` flips true, the Close button takes over — the
-     * orchestrator may still be holding `isRunning` (paused review,
+     * Once `workComplete` flips true, the Close / Continue pair takes over —
+     * the orchestrator may still be holding `isRunning` (paused review,
      * AutoUpdate handoff), but there's nothing left to abort.
      */
     readonly canCancel = computed(() => this.isRunning() && !this.workComplete());
+
+    /**
+     * Continue button visible only when work finished AND produced
+     * applyable updates. Clicking it closes the dialog with `true` so the
+     * orchestrator advances into AutoUpdateDialog; Close closes with the
+     * default `undefined` (falsy) so the orchestrator skips the handoff.
+     */
+    readonly canContinue = computed(() => this.workComplete() && this.hasUpdates());
 
     cancel(): void {
         this.data.abortController.abort();
     }
 
     close(): void {
-        this.dialogRef.close();
+        this.dialogRef.close(false);
+    }
+
+    continueToAutoUpdate(): void {
+        this.dialogRef.close(true);
     }
 
     /** PP progress as a percentage 0-100 for `<mat-progress-bar [value]>`. */

@@ -220,6 +220,19 @@ body.agent-panel-embedded {
     }
 }
 
+/* Save Progress Dialog — fill the fullscreen panel.
+   Same rationale as the file-viewer rule below: the component's own
+   :host styling can't propagate height through `.mat-mdc-dialog-container`
+   without an outer hook that sets `flex: 1; height: 100%` on the
+   component selector itself. */
+.fullscreen-dialog app-save-progress-dialog {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    height: 100%;
+    min-height: 0;
+}
+
 /* File Viewer Dialog - Monaco Editor Layout (global for production build) */
 .fullscreen-dialog app-file-viewer-dialog {
     display: flex;
