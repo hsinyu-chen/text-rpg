@@ -17,6 +17,8 @@
 
 <!--@include:partials/save-log-mapping.md-->
 
+<!--@include:partials/save-offscreen-entity-projection.md-->
+
 ## hunk 的寫法
 
 每個 hunk 是對某個 KB 檔的一處逐字編輯，欄位如下：

@@ -18,6 +18,8 @@ files need what changes, and express each change as one hunk.
 
 <!--@include:partials/save-log-mapping.md-->
 
+<!--@include:partials/save-offscreen-entity-projection.md-->
+
 ## How to write a hunk
 
 Each hunk is one verbatim edit to a KB file, with these fields:
