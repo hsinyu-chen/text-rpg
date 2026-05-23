@@ -12,16 +12,17 @@ import { computeFencedLineMask, parseAtxHeading } from '../utils/markdown.util';
 
 /**
  * Score a line's match against a crumb. Higher = more specific.
- * 3 = exact equality (normalized), 2 = prefix, 1 = substring. 0 = no
+ * Tier scores: 30 = exact equality (normalized), 20 = prefix, 10 =
+ * substring. Headings get a +1 bonus so an ATX heading wins over a
+ * paragraph at the same tier (the LLM is supposed to anchor on headings;
+ * body match is a fallback for list-item / paragraph cases). 0 = no
  * match, empty crumb, or fenced line.
  *
  * Tiered so callers can prefer an exact heading match over a paragraph
  * that happens to mention the heading name. The substring tier is
  * retained so `Section` still matches `# Section (note)` (the
  * parenthetical-suffix tolerance that motivates this matcher) — but
- * only when no exact / prefix match exists in scope. Heading lines
- * compare via the heading's body text; non-heading lines fall back to
- * whole-line scoring so list-item / paragraph anchors still work.
+ * only when no exact / prefix match exists in scope.
  */
 function matchCrumb(line: string, fenced: boolean, crumb: string): number {
     if (fenced) return 0;
@@ -30,11 +31,17 @@ function matchCrumb(line: string, fenced: boolean, crumb: string): number {
     const normalizedLine = normalizeForComparison(lineText);
     const normalizedCrumb = normalizeForComparison(crumb);
     if (!normalizedCrumb) return 0;
-    if (normalizedLine === normalizedCrumb) return 3;
-    if (normalizedLine.startsWith(normalizedCrumb)) return 2;
-    if (normalizedLine.includes(normalizedCrumb)) return 1;
-    return 0;
+
+    let score = 0;
+    if (normalizedLine === normalizedCrumb) score = 30;
+    else if (normalizedLine.startsWith(normalizedCrumb)) score = 20;
+    else if (normalizedLine.includes(normalizedCrumb)) score = 10;
+
+    if (score > 0 && lineHeading) score += 1;
+    return score;
 }
+
+const MAX_CRUMB_SCORE = 31;
 
 /**
  * Scan a slice of `lines` for the highest-scoring crumb match.
@@ -57,7 +64,7 @@ function pickBestCrumbMatch(
         if (score > bestScore) {
             bestScore = score;
             bestLine = i;
-            if (score === 3) break;
+            if (score === MAX_CRUMB_SCORE) break;
         }
     }
     return { line: bestLine, score: bestScore };

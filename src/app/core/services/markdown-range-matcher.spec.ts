@@ -223,6 +223,19 @@ describe('findInsertionPoint', () => {
     expect(findInsertionPoint(lines, ['', 'Real', ''])).toBe(2);
   });
 
+  it('heading wins over body text at the same exact-match tier (heading bonus)', () => {
+    const lines = [
+      '# Top',
+      'Plans',           // body, exact normalized match → 30
+      '## Plans',        // heading exact → 30 + 1 = 31, should win
+      'real body',
+      '# After',
+    ];
+    // Insertion is after the # Plans section; with heading bonus we land on
+    // line 2 not line 1, and the boundary scan stops at `# After` (line 4).
+    expect(findInsertionPoint(lines, ['Plans'])).toBe(4);
+  });
+
   it('boundary scan skips fenced fake-headings of equal level', () => {
     const lines = ['# Top', 'body', '```', '# fake-equal-level', '```', 'more body', '# After'];
     expect(findInsertionPoint(lines, ['Top'])).toBe(6);
