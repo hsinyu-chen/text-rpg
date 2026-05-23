@@ -6,7 +6,7 @@ function hunk(over: Partial<SaveHunk>): SaveHunk {
     return {
         id: 'H1',
         file: 'inventory.md',
-        context: '',
+        context: [],
         replacement: '',
         ...over,
     };

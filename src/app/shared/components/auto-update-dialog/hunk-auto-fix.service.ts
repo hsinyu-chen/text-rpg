@@ -11,7 +11,7 @@ export interface HunkAutoFixInput {
     sourceContent: string;
     intendedTarget: string;
     intendedReplacement: string;
-    context?: string;
+    context?: string[];
     signal?: AbortSignal;
     /**
      * Optional stream hooks so a progress dialog can render live CoT and
@@ -79,7 +79,7 @@ export class HunkAutoFixService {
             sourceContent: input.sourceContent,
             intendedTarget: input.intendedTarget,
             intendedReplacement: input.intendedReplacement,
-            context: input.context ?? '',
+            context: input.context ?? [],
         }, null, 2);
 
         const history: LLMContent[] = [{ role: 'user', parts: [{ text: userText }] }];

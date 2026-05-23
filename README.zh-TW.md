@@ -333,7 +333,7 @@ Agent 引導你到特定 UI 時,可以輸出**可點擊的 UI 麵包屑**(例如
 | 詢問 | 你會得到的回應 |
 | :--- | :--- |
 | 「主角撿到一把魔法劍要記哪?」 | 依 §4 routing 規則回答(主寫 `Inventory`,若有詳細規格 / lore 加 `Tech Equipment`)。 |
-| 「我 save 完 Inventory 還是空的。」 | 調查 save 訊息 + 實際 KB,先推薦重跑 save 訊息工具列的 **Auto Update Files**,反問 dialog 是否出問題,最後才提案直接改檔。 |
+| 「我 save 完 Inventory 還是空的。」 | 調查實際 KB,反問上次 **Auto-Update** dialog 是否有忽略掉相關 hunk;若是,推薦重跑 **Save**;最後才提案直接改檔。 |
 | 「兩回合前 NPC 沒提到 X,幫我處理。」 | 同時列三條方案:劇情推進(附建議 action-intent 台詞)、Edit text 補白(附以 NPC 個性 + 派系慣例 grounding 的具體插入內容)、Fork / Delete + 重玩。 |
 | 「把 CHARACTER_STATUS 每個 NPC 壓到三行。」 | File Viewer agent 一次 batch `readSection` 所有 NPC heading,再 batch `replaceSection` 全部送回。 |
 

@@ -24,7 +24,7 @@ function fakeAgent(
 }
 
 function hunk(file: string, id = 'H0'): SaveHunk {
-    return { id, file, context: '', replacement: 'x' };
+    return { id, file, context: [], replacement: 'x' };
 }
 
 /** Shared turn context — every field of the agent input except `hunks`. */

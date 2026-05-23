@@ -71,7 +71,7 @@ Then:
 ## Writing a hunk
 
 - `file`: the target filename, copied verbatim.
-- `context`: the heading-path breadcrumb that locates the edit, separated by ` > `; empty string targets the file root.
+- `context`: the heading-path breadcrumb as a JSON `string[]`, outermost → innermost (e.g. `["Section", "Subsection"]`). Each element is the heading's raw text only — no `#` prefix, no separators. Each crumb must point at an actual **ATX heading** (`#`–`######`) — **do not** use list-item / bullet / paragraph text. Empty array `[]` targets the file root. Match the file's heading text verbatim including any parenthetical suffix.
 - `target`: the exact existing text to replace or delete, character for character (indentation and markers included). Omit it to append at the end of the `context` section.
 - `replacement`: the new content as finished markdown.
 

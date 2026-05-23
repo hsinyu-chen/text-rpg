@@ -6,7 +6,6 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MarkdownModule } from 'ngx-markdown';
 import { TextFieldModule } from '@angular/cdk/text-field';
 import { ContentSanitizerPipe } from '@app/shared/pipes/content-sanitizer.pipe';
-import { WrapSaveXmlPipe } from '@app/shared/pipes/wrap-save-xml.pipe';
 import { ChatMessage } from '@app/core/models/types';
 import { CORE_MAT, PROGRESS_MAT } from '@app/shared/material/material-groups';
 import { MessageStateService } from './message-state.service';
@@ -34,7 +33,6 @@ import { KATEX_DELIMITERS, hasKatexDelimiters } from '@app/core/utils/latex.util
         MarkdownModule,
         TextFieldModule,
         ContentSanitizerPipe,
-        WrapSaveXmlPipe,
         TurnUpdateComponent,
         TranslatePipe
     ],

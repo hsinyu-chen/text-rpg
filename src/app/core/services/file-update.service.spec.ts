@@ -29,32 +29,29 @@ describe('FileUpdateService', () => {
 
     it('returns -1 when context is given but no crumb matches', () => {
       const lines = ['# Real', 'body'];
-      expect(service.findInsertionPoint(lines, '## Missing')).toBe(-1);
+      expect(service.findInsertionPoint(lines, ['Missing'])).toBe(-1);
     });
 
-    it('inserts at end of section when strict crumb matches header', () => {
+    it('inserts at end of section when crumb matches header', () => {
       const lines = ['# A', 'body', '# B'];
       // section A spans line 0–1; insertion point is line 2 (next ≤-level header)
-      expect(service.findInsertionPoint(lines, '# A')).toBe(2);
+      expect(service.findInsertionPoint(lines, ['A'])).toBe(2);
     });
 
     it('walks a multi-level crumb path before computing boundary', () => {
       const lines = ['# Top', '## Sub', 'body', '### Deep', 'd', '# Other'];
       // Top > Sub lands on line 1, boundary scan stops at # Other (level 1 ≤ 2)
-      expect(service.findInsertionPoint(lines, '# Top > ## Sub')).toBe(5);
+      expect(service.findInsertionPoint(lines, ['Top', 'Sub'])).toBe(5);
     });
 
     it('falls through to EOF when no terminating header follows', () => {
       const lines = ['# Top', 'a', 'b'];
-      expect(service.findInsertionPoint(lines, '# Top')).toBe(lines.length);
+      expect(service.findInsertionPoint(lines, ['Top'])).toBe(lines.length);
     });
 
-    it('inserts right after a loose body-text match instead of falling through to EOF', () => {
-      const lines = ['# Real', 'this contains needle', '# After'];
-      // 'needle' is loose (no #) and lands on body line 1. The landing line
-      // isn't a header so there's no section to find the end of — insert
-      // right after the anchor (line 2) instead of dumping at EOF.
-      expect(service.findInsertionPoint(lines, 'needle')).toBe(2);
+    it('falls back to body-text crumbs (e.g. list items) and inserts right after the anchor', () => {
+      const lines = ['# Real', '- 「foo」計畫', '# After'];
+      expect(service.findInsertionPoint(lines, ['foo'])).toBe(2);
     });
 
     // Fence-awareness: the fix this spec was added for.
@@ -62,7 +59,7 @@ describe('FileUpdateService', () => {
     // skip fenced code blocks; `findInsertionPoint` was missed and would
     // happily land an anchor inside ```...```.
     describe('fence-awareness', () => {
-      it('does NOT match a strict-header crumb whose only match is inside a fence', () => {
+      it('does NOT match a crumb whose only match is inside a fence', () => {
         const lines = [
           '# Real',
           'body',
@@ -71,19 +68,7 @@ describe('FileUpdateService', () => {
           '```',
           '# After',
         ];
-        expect(service.findInsertionPoint(lines, '## fake')).toBe(-1);
-      });
-
-      it('does NOT match a loose crumb whose only match is inside a fence', () => {
-        const lines = [
-          '# Real',
-          'body',
-          '```',
-          'fenced needle',
-          '```',
-          '# After',
-        ];
-        expect(service.findInsertionPoint(lines, 'needle')).toBe(-1);
+        expect(service.findInsertionPoint(lines, ['fake'])).toBe(-1);
       });
 
       it('boundary scan skips fenced fake-headings of equal level', () => {
@@ -99,7 +84,7 @@ describe('FileUpdateService', () => {
           'more body',
           '# After',
         ];
-        expect(service.findInsertionPoint(lines, '# Top')).toBe(6);
+        expect(service.findInsertionPoint(lines, ['Top'])).toBe(6);
       });
 
       it('still finds the real heading when both real and fenced fake exist', () => {
@@ -112,17 +97,16 @@ describe('FileUpdateService', () => {
           'body',
           '# After',
         ];
-        // strict `## fake` skips line 2 (fenced), lands on line 4
-        expect(service.findInsertionPoint(lines, '## fake')).toBe(6);
+        // `fake` skips line 2 (fenced), lands on line 4
+        expect(service.findInsertionPoint(lines, ['fake'])).toBe(6);
       });
     });
   });
 
   describe('inferContextFromLine', () => {
-    it('walks back through parent headings until a top-level header', () => {
+    it('walks back through parent headings as raw heading-text crumbs', () => {
       const content = ['# Top', '## Sub', '### Deep', 'body line'].join('\n');
-      // Starting from line 3 (body line), should infer the full chain.
-      expect(service.inferContextFromLine(content, 3)).toBe('# Top > ## Sub > ### Deep');
+      expect(service.inferContextFromLine(content, 3)).toEqual(['Top', 'Sub', 'Deep']);
     });
 
     it('skips fenced fake-headings while walking back', () => {
@@ -133,29 +117,29 @@ describe('FileUpdateService', () => {
         '```',
         'body line',
       ].join('\n');
-      expect(service.inferContextFromLine(content, 4)).toBe('# Real');
+      expect(service.inferContextFromLine(content, 4)).toEqual(['Real']);
     });
 
-    it('returns empty string when no heading exists above', () => {
+    it('returns empty array when no heading exists above', () => {
       const content = ['plain', 'text', 'no headings'].join('\n');
-      expect(service.inferContextFromLine(content, 2)).toBe('');
+      expect(service.inferContextFromLine(content, 2)).toEqual([]);
     });
   });
 
   describe('findContextLine', () => {
     it('returns the line index of the last crumb in the path', () => {
       const content = ['# Top', '## Sub', 'body'].join('\n');
-      expect(service.findContextLine(content, '# Top > ## Sub')).toBe(1);
+      expect(service.findContextLine(content, ['Top', 'Sub'])).toBe(1);
     });
 
     it('does not match a crumb that lives inside a fenced block', () => {
       const content = ['# Real', '```', '## fake', '```'].join('\n');
-      expect(service.findContextLine(content, '## fake')).toBeNull();
+      expect(service.findContextLine(content, ['fake'])).toBeNull();
     });
 
     it('returns null when no crumb matches anywhere', () => {
       const content = ['# Top', 'body'].join('\n');
-      expect(service.findContextLine(content, '## Missing')).toBeNull();
+      expect(service.findContextLine(content, ['Missing'])).toBeNull();
     });
   });
 });

@@ -106,16 +106,13 @@ describe('findMatchRange', () => {
   });
 
   it('returns null when context is given and verification fails', () => {
-    // verifyContext walks backward from the match looking for any header that
-    // matches the crumb — it doesn't require the match to live INSIDE that
-    // section. Use a crumb that genuinely doesn't appear above the match.
     const content = '# Top\nbody\n# Other\nstuff';
-    expect(findMatchRange(content, 'stuff', '# Nowhere')).toBeNull();
+    expect(findMatchRange(content, 'stuff', ['Nowhere'])).toBeNull();
   });
 
   it('picks the candidate with the highest context score', () => {
     const content = '# A\n## B\nneedle\n# X\nneedle';
-    const range = findMatchRange(content, 'needle', '# A > ## B');
+    const range = findMatchRange(content, 'needle', ['A', 'B']);
     expect(range).not.toBeNull();
     // Should land on the first `needle` (under A > B), not the one under X.
     expect(range!.start).toBe(content.indexOf('needle'));
@@ -127,6 +124,18 @@ describe('findMatchRange', () => {
     expect(range).not.toBeNull();
     expect(content.substring(range!.start, range!.end)).toBe('    target    ');
   });
+
+  it('context crumb matches file heading WITH parenthetical suffix (half-width)', () => {
+    const content = '# 異世界香料/植物(發現時更新)\nbody\n';
+    const range = findMatchRange(content, 'body', ['異世界香料/植物']);
+    expect(range).not.toBeNull();
+  });
+
+  it('context crumb matches file heading WITH parenthetical suffix (full-width)', () => {
+    const content = '# 異世界香料/植物（發現時更新）\nbody\n';
+    const range = findMatchRange(content, 'body', ['異世界香料/植物']);
+    expect(range).not.toBeNull();
+  });
 });
 
 describe('findInsertionPoint', () => {
@@ -134,88 +143,157 @@ describe('findInsertionPoint', () => {
     expect(findInsertionPoint(['# A', 'body'])).toBe(2);
   });
 
-  it('returns -1 when context is given but no crumb matches', () => {
-    expect(findInsertionPoint(['# Real', 'body'], '## Missing')).toBe(-1);
+  it('returns lines.length when context is empty array', () => {
+    expect(findInsertionPoint(['# A', 'body'], [])).toBe(2);
   });
 
-  it('inserts at end of section when strict crumb matches header', () => {
-    expect(findInsertionPoint(['# A', 'body', '# B'], '# A')).toBe(2);
+  it('returns -1 when context is given but no crumb matches', () => {
+    expect(findInsertionPoint(['# Real', 'body'], ['Missing'])).toBe(-1);
+  });
+
+  it('inserts at end of section when crumb matches header', () => {
+    expect(findInsertionPoint(['# A', 'body', '# B'], ['A'])).toBe(2);
   });
 
   it('walks a multi-level crumb path before computing boundary', () => {
     const lines = ['# Top', '## Sub', 'body', '### Deep', 'd', '# Other'];
-    expect(findInsertionPoint(lines, '# Top > ## Sub')).toBe(5);
+    expect(findInsertionPoint(lines, ['Top', 'Sub'])).toBe(5);
   });
 
   it('falls through to EOF when no terminating header follows', () => {
-    expect(findInsertionPoint(['# Top', 'a', 'b'], '# Top')).toBe(3);
+    expect(findInsertionPoint(['# Top', 'a', 'b'], ['Top'])).toBe(3);
   });
 
-  it('blocks strict-header crumb match inside a fence', () => {
+  it('blocks crumb match inside a fence', () => {
     const lines = ['# Real', 'body', '```', '## fake', '```', '# After'];
-    expect(findInsertionPoint(lines, '## fake')).toBe(-1);
+    expect(findInsertionPoint(lines, ['fake'])).toBe(-1);
   });
 
-  it('blocks loose crumb match inside a fence (stricter than sibling walkers)', () => {
-    const lines = ['# Real', 'body', '```', 'fenced needle', '```', '# After'];
-    expect(findInsertionPoint(lines, 'needle')).toBe(-1);
+  it('falls back to body-text crumbs (e.g. list items) and inserts right after the anchor', () => {
+    const lines = ['# Real', '- 「foo」計畫', '# After'];
+    // Anchor is a list-item, not a heading — insert right after (line 2), not at EOF.
+    expect(findInsertionPoint(lines, ['foo'])).toBe(2);
+  });
+
+  it('list-item crumb under a heading parent (real LLM hunk shape)', () => {
+    const lines = [
+      '# 計畫',
+      '## 執行中',
+      '- 「**解讀太初殘片**」計畫',
+      '  - **目標**: x',
+      '- 「**生存基盤**」計畫',
+      '  - **目標**: y',
+    ];
+    // Heading + list-item crumbs together — lands on the matching bullet line.
+    expect(findInsertionPoint(lines, ['執行中', '解讀太初殘片'])).toBe(3);
+  });
+
+  it('prefers an exact heading match over an earlier body-text mention (tiered scoring)', () => {
+    const lines = [
+      '# Top',
+      'this paragraph mentions Plans by name',
+      '## Plans',
+      'real body',
+      '# After',
+    ];
+    // Old "first match wins" lands on line 1; tiered scoring picks the exact `## Plans` at line 2.
+    expect(findInsertionPoint(lines, ['Plans'])).toBe(4);
+  });
+
+  it('prefers a prefix heading match over a substring body match', () => {
+    const lines = [
+      '# Top',
+      'sub appears once in this paragraph',
+      '## Sub (note)',
+      'real body',
+      '# After',
+    ];
+    // `Sub` is prefix of `Sub (note)` (score 2), substring of body (score 1). Prefix wins.
+    expect(findInsertionPoint(lines, ['Sub'])).toBe(4);
+  });
+
+  it('filters empty-string crumbs out (treats them as no-op, not catastrophic match)', () => {
+    const lines = ['# Real', 'body', '# After'];
+    // `[""]` would otherwise match every line via `includes("")` — filtered to `[]` = file root.
+    expect(findInsertionPoint(lines, [''])).toBe(lines.length);
+  });
+
+  it('filters empty crumbs from a mixed array, keeping the meaningful ones', () => {
+    const lines = ['# Real', 'body', '# After'];
+    expect(findInsertionPoint(lines, ['', 'Real', ''])).toBe(2);
+  });
+
+  it('heading wins over body text at the same exact-match tier (heading bonus)', () => {
+    const lines = [
+      '# Top',
+      'Plans',           // body, exact normalized match → 30
+      '## Plans',        // heading exact → 30 + 1 = 31, should win
+      'real body',
+      '# After',
+    ];
+    // Insertion is after the # Plans section; with heading bonus we land on
+    // line 2 not line 1, and the boundary scan stops at `# After` (line 4).
+    expect(findInsertionPoint(lines, ['Plans'])).toBe(4);
   });
 
   it('boundary scan skips fenced fake-headings of equal level', () => {
     const lines = ['# Top', 'body', '```', '# fake-equal-level', '```', 'more body', '# After'];
-    expect(findInsertionPoint(lines, '# Top')).toBe(6);
-  });
-
-  it('inserts right after a loose body-text match instead of falling through to EOF', () => {
-    const lines = ['# Real', 'this contains needle', '# After'];
-    // Latent bug fix: when the landing crumb is a loose body-text match
-    // (not a header), there's no section boundary to find — return the
-    // line right after the anchor rather than scanning past `# After`.
-    expect(findInsertionPoint(lines, 'needle')).toBe(2);
+    expect(findInsertionPoint(lines, ['Top'])).toBe(6);
   });
 
   it('skipped-layer tolerance: missing intermediate crumb does not abort', () => {
     const lines = ['# Top', '## Sub', 'body', '# After'];
-    // Middle crumb absent, walker keeps trying from the same currentLine.
-    expect(findInsertionPoint(lines, '# Top > ## Missing > ## Sub')).toBe(3);
+    expect(findInsertionPoint(lines, ['Top', 'Missing', 'Sub'])).toBe(3);
+  });
+
+  it('skipped-layer tolerance: array form can omit intermediate levels entirely', () => {
+    const lines = ['# Top', '## Sub', 'body', '### Deep', 'd', '# Other'];
+    // Array form: just write the headings you care about, in order. The
+    // matcher forward-scans and lands on Deep without needing Sub explicit.
+    expect(findInsertionPoint(lines, ['Top', 'Deep'])).toBe(5);
+  });
+
+  it('matches insertion under parenthetical-suffix heading without the suffix', () => {
+    const lines = ['# 異世界香料/植物(發現時更新)', 'old body'];
+    expect(findInsertionPoint(lines, ['異世界香料/植物'])).not.toBe(-1);
   });
 });
 
 describe('findContextLine', () => {
   it('returns null when context is empty', () => {
-    expect(findContextLine('# A', '')).toBeNull();
+    expect(findContextLine('# A', [])).toBeNull();
   });
 
   it('returns the line index of the last crumb', () => {
-    expect(findContextLine('# Top\n## Sub\nbody', '# Top > ## Sub')).toBe(1);
+    expect(findContextLine('# Top\n## Sub\nbody', ['Top', 'Sub'])).toBe(1);
   });
 
-  it('does not match a strict-header crumb inside a fence', () => {
-    expect(findContextLine('# Real\n```\n## fake\n```', '## fake')).toBeNull();
+  it('does not match a crumb inside a fence', () => {
+    expect(findContextLine('# Real\n```\n## fake\n```', ['fake'])).toBeNull();
   });
 
   it('returns null when no crumb matches', () => {
-    expect(findContextLine('# Top\nbody', '## Missing')).toBeNull();
+    expect(findContextLine('# Top\nbody', ['Missing'])).toBeNull();
   });
 });
 
 describe('inferContextFromLine', () => {
-  it('walks back through parent headings until a top-level header', () => {
+  it('walks back through parent headings as raw heading-text crumbs', () => {
     const content = ['# Top', '## Sub', '### Deep', 'body line'].join('\n');
-    expect(inferContextFromLine(content, 3)).toBe('# Top > ## Sub > ### Deep');
+    expect(inferContextFromLine(content, 3)).toEqual(['Top', 'Sub', 'Deep']);
   });
 
   it('skips fenced fake-headings while walking back', () => {
     const content = ['# Real', '```', '## fake', '```', 'body line'].join('\n');
-    expect(inferContextFromLine(content, 4)).toBe('# Real');
+    expect(inferContextFromLine(content, 4)).toEqual(['Real']);
   });
 
-  it('returns empty string when no heading exists above', () => {
-    expect(inferContextFromLine('plain\ntext', 1)).toBe('');
+  it('returns empty array when no heading exists above', () => {
+    expect(inferContextFromLine('plain\ntext', 1)).toEqual([]);
   });
 
   it('clamps lineIndex to last line when out of bounds', () => {
     const content = ['# Top', 'body'].join('\n');
-    expect(inferContextFromLine(content, 99)).toBe('# Top');
+    expect(inferContextFromLine(content, 99)).toEqual(['Top']);
   });
 });

@@ -92,9 +92,20 @@
                             </div>
                         </div>
 
-                        @if(update.context && hunks.calibratingUpdateId() !== update.id) {
-                        <div class="item-context" [matTooltip]="update.context">
-                            {{ update.context }}
+                        @if(hunks.calibratingUpdateId() !== update.id) {
+                        <div class="item-context-row">
+                            @if(update.context && update.context.length) {
+                                <div class="item-context" [matTooltip]="update.context.join(' > ')">
+                                    {{ update.context.join(' > ') }}
+                                </div>
+                            } @else {
+                                <div class="item-context item-context-empty">{{ 'dialog.hunkRootContext' | translate }}</div>
+                            }
+                            <button mat-icon-button class="copy-raw-btn"
+                                [matTooltip]="'dialog.copyRawHunk' | translate"
+                                (click)="copyHunkRaw(update); $event.stopPropagation()">
+                                <mat-icon>content_copy</mat-icon>
+                            </button>
                         </div>
                         }
 

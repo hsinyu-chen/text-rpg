@@ -2,7 +2,6 @@ import { Injectable, inject } from '@angular/core';
 import { FileSystemService } from './file-system.service';
 import { getCoreFilenames } from '../constants/engine-protocol';
 import { LOCALES } from '../constants/locales';
-import { FileUpdateParser } from './file-update-parser';
 import {
     findContextLine as matcherFindContextLine,
     findInsertionPoint as matcherFindInsertionPoint,
@@ -21,10 +20,6 @@ export type { FileUpdate } from './file-update.types';
 export class FileUpdateService {
     private fileSystem = inject(FileSystemService);
 
-    parseUpdates(content: string): FileUpdate[] {
-        return FileUpdateParser.parse(content);
-    }
-
     /**
      * Generates a FileUpdate hunk for appending last_scene content.
      */
@@ -36,7 +31,7 @@ export class FileUpdateService {
             .trim();
         return {
             filePath: names.STORY_OUTLINE,
-            context: '',
+            context: [],
             replacementContent: '# last_scene\n\n' + cleanedContent,
             label: 'Auto-generated last_scene'
         };
@@ -65,7 +60,7 @@ export class FileUpdateService {
         const oldLastScene = fileContent.substring(match.index).trim();
 
         const processedUpdates = updates.map(update => {
-            const isLastSceneHunk = update.context && /last[_-]?scene/i.test(update.context);
+            const isLastSceneHunk = update.context?.some(c => /last[_-]?scene/i.test(c));
 
             if (isLastSceneHunk) {
                 const processed = { ...update };
@@ -134,7 +129,7 @@ export class FileUpdateService {
             const insertionIndex = matcherFindInsertionPoint(lines, update.context);
 
             if (insertionIndex === -1) {
-                console.warn(`Context not found in ${update.filePath}: ${update.context}`);
+                console.warn(`Context not found in ${update.filePath}: ${update.context?.join(' > ') ?? ''}`);
                 return content;
             }
 
@@ -147,19 +142,19 @@ export class FileUpdateService {
         return content;
     }
 
-    findMatchRange(content: string, target: string, context?: string): { start: number; end: number } | null {
+    findMatchRange(content: string, target: string, context?: string[]): { start: number; end: number } | null {
         return matcherFindMatchRange(content, target, context);
     }
 
-    findInsertionPoint(lines: string[], context?: string): number {
+    findInsertionPoint(lines: string[], context?: string[]): number {
         return matcherFindInsertionPoint(lines, context);
     }
 
-    findContextLine(content: string, context: string): number | null {
+    findContextLine(content: string, context: string[]): number | null {
         return matcherFindContextLine(content, context);
     }
 
-    inferContextFromLine(content: string, lineIndex: number): string {
+    inferContextFromLine(content: string, lineIndex: number): string[] {
         return matcherInferContextFromLine(content, lineIndex);
     }
 
@@ -219,7 +214,7 @@ export class FileUpdateService {
                 }
 
                 let alreadyExists = false;
-                if (update.context) {
+                if (update.context && update.context.length > 0) {
                     if (normalizeForComparison(content).includes(normalizeForComparison(update.replacementContent))) {
                         alreadyExists = true;
                     }

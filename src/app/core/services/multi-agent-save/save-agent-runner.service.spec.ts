@@ -17,7 +17,7 @@ function setup() {
 }
 
 const emptyManifest = '[]';
-const sampleManifest = '[{"file":"f.md","context":"","replacement":"- 長劍"}]';
+const sampleManifest = '[{"file":"f.md","context":[],"replacement":"- 長劍"}]';
 
 function defaultInput(provider: MockLLMProvider, validMessageIds: ReadonlySet<string> = new Set()) {
     return {
@@ -57,7 +57,7 @@ describe('SaveAgentRunnerService', () => {
 
         const result = await runner.run(defaultInput(provider));
 
-        expect(result.hunks).toEqual([{ id: 'H1', file: 'f.md', context: '', replacement: '- 長劍' }]);
+        expect(result.hunks).toEqual([{ id: 'H1', file: 'f.md', context: [], replacement: '- 長劍' }]);
         expect(result.rawJson).toBe(sampleManifest);
     });
 
@@ -138,7 +138,7 @@ describe('SaveAgentRunnerService', () => {
         const { runner, tracker } = setup();
         const provider = new MockLLMProvider();
         provider.enqueueJsonStream(
-            '[{"file":"f.md","context":"","replacement":"x","sourceMessageIds":["real","ghost"]}]',
+            '[{"file":"f.md","context":[],"replacement":"x","sourceMessageIds":["real","ghost"]}]',
         );
 
         const result = await runner.run(defaultInput(provider, new Set(['real'])));
