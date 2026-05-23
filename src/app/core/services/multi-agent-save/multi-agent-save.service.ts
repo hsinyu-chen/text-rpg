@@ -189,19 +189,20 @@ export class MultiAgentSaveService {
             //    + saveCurrentSessionToBook (which bumps lastActiveAt itself)
             //    and closes with a boolean — there's no FileUpdate[]
             //    returned via afterClosed, so we don't post-process here.
+            // Await the close animation in BOTH branches before opening
+            // AutoUpdate — both dialogs use FULLSCREEN_DIALOG_CONFIG, so
+            // stacking two fullscreen overlays mid-transition causes
+            // focus-trap thrash + visible flicker. Pause-mode awaits via the
+            // user's click closing the dialog; non-pause closes
+            // programmatically and awaits the same `afterClosed` channel.
+            let proceed = true;
             if (this.settings.pauseBeforeAutoUpdate()) {
-                const proceed = await firstValueFrom(dialogRef.afterClosed());
-                if (!proceed || !hasUpdates) return;
+                proceed = await firstValueFrom(dialogRef.afterClosed());
             } else {
                 dialogRef.close();
-                // Await the close animation before opening AutoUpdate. Both
-                // dialogs use FULLSCREEN_DIALOG_CONFIG; stacking two fullscreen
-                // overlays mid-transition causes focus-trap thrash + visible
-                // flicker. Pause-mode is naturally awaited above; this keeps
-                // the non-pause branch symmetric.
                 await firstValueFrom(dialogRef.afterClosed());
-                if (!hasUpdates) return;
             }
+            if (!proceed || !hasUpdates) return;
             await this.openAutoUpdateDialog(updates);
         } catch (err: unknown) {
             // User-initiated cancellation (Cancel button → AbortController.abort()).

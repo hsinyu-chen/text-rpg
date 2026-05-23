@@ -154,10 +154,9 @@ mat-dialog-actions {
     flex-direction: column;
     margin: 0.4rem 0;
     --agent-trace-surface-bg: var(--bg-surface-dark);
-
-    ::ng-deep .agent-console {
-        overflow: visible;
-    }
+    // Tell the surface to drop its own scroll viewport — outer
+    // .save-progress-content owns the only scroll.
+    --agent-trace-surface-console-overflow: visible;
 }
 
 .entry-warnings {

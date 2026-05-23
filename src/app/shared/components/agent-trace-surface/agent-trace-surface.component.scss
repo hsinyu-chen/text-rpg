@@ -53,7 +53,11 @@ $fg-emph:     rgba(var(--agent-trace-surface-fg-rgb), 0.9);  // headings
 
 .agent-console {
     flex: 1;
-    overflow-y: auto;
+    // Host can flip the inner scroll off when it owns the scroll viewport
+    // itself (e.g. the save-progress dialog embeds multiple traces inside
+    // its own scrolling content). Default `auto` keeps the chat-side
+    // behavior where the surface IS the scroll viewport.
+    overflow-y: var(--agent-trace-surface-console-overflow, auto);
     // Backdrop + border are host-overridable so the surface fits both the
     // dark chat panel (default — rgba(0,0,0,0.3) alpha-blends on the panel's
     // own dark backdrop) and a Material dialog (lighter chrome, where the
