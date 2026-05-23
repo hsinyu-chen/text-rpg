@@ -194,6 +194,12 @@ export class MultiAgentSaveService {
                 if (!proceed || !hasUpdates) return;
             } else {
                 dialogRef.close();
+                // Await the close animation before opening AutoUpdate. Both
+                // dialogs use FULLSCREEN_DIALOG_CONFIG; stacking two fullscreen
+                // overlays mid-transition causes focus-trap thrash + visible
+                // flicker. Pause-mode is naturally awaited above; this keeps
+                // the non-pause branch symmetric.
+                await firstValueFrom(dialogRef.afterClosed());
                 if (!hasUpdates) return;
             }
             await this.openAutoUpdateDialog(updates);
