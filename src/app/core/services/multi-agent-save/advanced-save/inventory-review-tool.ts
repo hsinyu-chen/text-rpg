@@ -243,7 +243,7 @@ function asHunkBody(v: Record<string, unknown>): NewHunk | null {
     const body: NewHunk = { file: v['file'], context: ctx as string[], replacement: v['replacement'] };
     if (typeof v['target'] === 'string') body.target = v['target'];
     if (Array.isArray(v['sourceMessageIds'])) {
-        body.sourceMessageIds = v['sourceMessageIds'].filter((x): x is string => typeof x === 'string');
+        body.sourceMessageIds = asStringArray(v['sourceMessageIds']);
     }
     return body;
 }
