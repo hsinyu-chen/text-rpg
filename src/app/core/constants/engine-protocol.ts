@@ -71,5 +71,7 @@ export const INJECTION_FILE_PATHS = {
     protocol_single: 'injection_protocol_single.md',
     protocol_resolver: 'injection_protocol_resolver.md',
     protocol_narrator: 'injection_protocol_narrator.md',
-    correction: 'injection_correction.md'
+    correction: 'injection_correction.md',
+    save_manifest: 'injection_save_manifest.md',
+    save_inventory_consistency: 'injection_advanced_inventory_consistency.md'
 } as const;

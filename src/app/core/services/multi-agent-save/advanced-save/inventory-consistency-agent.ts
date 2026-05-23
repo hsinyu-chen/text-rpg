@@ -1,13 +1,12 @@
 import { Injectable, effect, inject, signal } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { firstValueFrom } from 'rxjs';
 import type { LLMFunctionDeclaration, LLMProvider, LLMProviderConfig } from '@hcs/llm-core';
 import type { ChatMessage } from '@app/core/models/types';
-import { getLocale, getLangFolder } from '@app/core/constants/locales';
-import { DEFAULT_PROFILE_ID, getProfileBasePath } from '@app/core/constants/prompt-profiles';
+import { getLocale } from '@app/core/constants/locales';
+import { DEFAULT_PROFILE_ID } from '@app/core/constants/prompt-profiles';
 import { LLMConfigService } from '../../llm-config.service';
 import { LLMProviderRegistryService } from '../../llm-provider-registry.service';
 import { InjectionService } from '../../injection.service';
+import { GameStateService } from '../../game-state.service';
 import { ReadOnlyAgent, type ReadOnlyAgentContext } from '../../agent-runner/read-only-agent';
 import type { TurnSetup, TurnContext } from '../../agent-runner/base-tool-call-agent';
 import type { Awaitable, ReadOnlyAction, ToolExecutionResult } from '../../agent-runner/agent-runner.types';
@@ -23,9 +22,6 @@ import {
     parseCommitArgs,
 } from './inventory-review-tool';
 import type { CommitInventoryReviewArgs } from './inventory-review-tool';
-
-/** Built-in system prompt for this agent — loaded from the language root. */
-const PROMPT_FILE = 'injection_advanced_inventory_consistency.md';
 
 /** Trace label shown on the agent's progress card. */
 const AGENT_LABEL = 'InventoryConsistencyAgent';
@@ -56,10 +52,10 @@ export class InventoryConsistencyAgent extends ReadOnlyAgent<InventoryAgentActio
     readonly id = INVENTORY_CONSISTENCY_AGENT_ID;
     readonly i18nKey = 'advancedSaveAgents.inventoryConsistency';
 
-    private http = inject(HttpClient);
     private llmConfig = inject(LLMConfigService);
     private providerRegistry = inject(LLMProviderRegistryService);
     private injection = inject(InjectionService);
+    private gameState = inject(GameStateService);
     private saveSettings = inject(SaveSettingsStore);
     private progress = inject(SaveProgressTracker);
 
@@ -146,7 +142,7 @@ export class InventoryConsistencyAgent extends ReadOnlyAgent<InventoryAgentActio
         else input.signal.addEventListener('abort', abortHandler, { once: true });
 
         try {
-            this.systemPrompt = await this.loadPrompt(input.lang);
+            this.systemPrompt = await this.loadPrompt();
             this.resolvedProvider = this.resolveProvider();
             this.toolCallMode = await this.probeToolCallMode(this.resolvedProvider);
             this.agentHistory.set([{
@@ -296,10 +292,9 @@ export class InventoryConsistencyAgent extends ReadOnlyAgent<InventoryAgentActio
         return this.providerRegistry.getActiveBundle();
     }
 
-    private async loadPrompt(lang: string): Promise<string> {
-        const path = `${getProfileBasePath(getLangFolder(lang), DEFAULT_PROFILE_ID)}/${PROMPT_FILE}`;
-        const raw = await firstValueFrom(this.http.get(path, { responseType: 'text' }));
-        return this.injection.applyPromptPlaceholders(raw, lang);
+    private async loadPrompt(): Promise<string> {
+        const profileId = this.gameState.activePromptProfile() || DEFAULT_PROFILE_ID;
+        return this.injection.getResolvedProfilePrompt('save_inventory_consistency', profileId);
     }
 
     private buildSeedMessage(input: AdvancedSaveAgentInput, inventoryFile: string): string {

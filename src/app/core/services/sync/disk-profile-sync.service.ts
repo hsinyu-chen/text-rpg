@@ -29,7 +29,9 @@ const TYPE_FILENAME: Record<PromptType, string> = {
     protocol_single: 'protocol_single.md',
     protocol_resolver: 'protocol_resolver.md',
     protocol_narrator: 'protocol_narrator.md',
-    correction: 'correction.md'
+    correction: 'correction.md',
+    save_manifest: 'save_manifest.md',
+    save_inventory_consistency: 'save_inventory_consistency.md'
 };
 
 /**

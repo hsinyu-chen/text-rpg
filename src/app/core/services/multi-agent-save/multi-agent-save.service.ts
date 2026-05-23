@@ -1,5 +1,4 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
 import { firstValueFrom } from 'rxjs';
 import type { LLMContent } from '@hcs/llm-core';
 import { MatDialog } from '@angular/material/dialog';
@@ -14,14 +13,11 @@ import { SaveProgressTracker } from './progress/save-progress-tracker.service';
 import { SaveSettingsStore } from './save-settings.store';
 import { AdvancedSaveStageService } from './advanced-save/advanced-save-stage.service';
 import type { SaveHunk } from './multi-agent-save.types';
-import { getLangFolder } from '@app/core/constants/locales';
-import { DEFAULT_PROFILE_ID, getProfileBasePath } from '@app/core/constants/prompt-profiles';
+import { DEFAULT_PROFILE_ID } from '@app/core/constants/prompt-profiles';
 import { FULLSCREEN_DIALOG_CONFIG } from '@app/shared/material/dialog-presets';
 import { I18nService } from '@app/core/i18n';
 import { MatSnackBar } from '@angular/material/snack-bar';
-
-/** Single manifest prompt — the SaveAgent emits a `SaveHunk[]` JSON array. */
-const MANIFEST_PROMPT_FILE = 'injection_save_manifest.md';
+import { InjectionService } from '../injection.service';
 
 /**
  * Top-level orchestrator for the multi-agent save path.
@@ -63,7 +59,7 @@ export class MultiAgentSaveService {
     private dialog = inject(MatDialog);
     private i18n = inject(I18nService);
     private snackBar = inject(MatSnackBar);
-    private http = inject(HttpClient);
+    private injection = inject(InjectionService);
 
     /**
      * Runs one save end-to-end. `userInput` is the raw text the user typed
@@ -126,7 +122,7 @@ export class MultiAgentSaveService {
             const profileId = this.state.activePromptProfile() || DEFAULT_PROFILE_ID;
 
             // 2. Load manifest prompt + compose user message.
-            const manifestPrompt = await this.loadManifestPrompt(lang, profileId);
+            const manifestPrompt = await this.injection.getResolvedProfilePrompt('save_manifest', profileId);
             const history = this.appendUserMessage(baseHistory, manifestPrompt, userInput);
 
             const omitKB = this.contextBuilder.shouldOmitKbFromSystemInstruction(buildCtx);
@@ -227,33 +223,6 @@ export class MultiAgentSaveService {
             // success and on any thrown / aborted exit.
             this.progress.setRunning(false);
         }
-    }
-
-    /**
-     * Loads a manifest prompt with the same profile-fallback chain
-     * `InjectionService` uses: try the active profile first, fall back to the
-     * default (built-in cloud) profile. The cloud profile's `getProfileBasePath`
-     * resolves to `assets/system_files/${lang}` (cloud has `subDir: null`),
-     * so the language-root path is implicitly covered by the default-profile
-     * fallback — no separate third candidate.
-     */
-    private async loadManifestPrompt(lang: string, profileId: string): Promise<string> {
-        const langFolder = getLangFolder(lang);
-        const activePath = `${getProfileBasePath(langFolder, profileId)}/${MANIFEST_PROMPT_FILE}`;
-        const defaultPath = `${getProfileBasePath(langFolder, DEFAULT_PROFILE_ID)}/${MANIFEST_PROMPT_FILE}`;
-        // Push the default-profile fallback only when its resolved path
-        // differs — user profiles without a `subDir` resolve to the same
-        // language-root path as the cloud default, so the second fetch
-        // would be pure duplication.
-        const candidates = [activePath];
-        if (defaultPath !== activePath) candidates.push(defaultPath);
-
-        for (const path of candidates) {
-            try {
-                return await firstValueFrom(this.http.get(path, { responseType: 'text' }));
-            } catch { /* try next */ }
-        }
-        throw new Error(`Failed to load ${MANIFEST_PROMPT_FILE} (tried ${candidates.length} paths)`);
     }
 
     /**
