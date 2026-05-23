@@ -10,7 +10,7 @@ import { LLMProviderRegistryService } from '../../llm-provider-registry.service'
 import { InjectionService } from '../../injection.service';
 import { ReadOnlyAgent, type ReadOnlyAgentContext } from '../../agent-runner/read-only-agent';
 import type { TurnSetup, TurnContext } from '../../agent-runner/base-tool-call-agent';
-import type { AgentLogEntry, Awaitable, ReadOnlyAction, ToolExecutionResult } from '../../agent-runner/agent-runner.types';
+import type { Awaitable, ReadOnlyAction, ToolExecutionResult } from '../../agent-runner/agent-runner.types';
 import type { SaveHunk } from '../multi-agent-save.types';
 import { SaveSettingsStore } from '../save-settings.store';
 import { SaveProgressTracker } from '../progress/save-progress-tracker.service';
@@ -97,6 +97,17 @@ export class InventoryConsistencyAgent extends ReadOnlyAgent<InventoryAgentActio
             const id = this.activeEntryId();
             if (id && pp !== undefined) this.progress.setPpProgress(id, pp);
         });
+        // Mirror the running log to the active progress entry on every change.
+        // The base runner mutates `agentLogs` per streaming chunk (thought,
+        // text, tool-call, tool-result), so the dialog's trace surface
+        // re-renders live instead of only at turn boundaries. Without this,
+        // PP reaches 100% and then the user stares at an empty card until the
+        // whole turn finishes and the next mirrorTrace hook fires.
+        effect(() => {
+            const id = this.activeEntryId();
+            const logs = this.agentLogs();
+            if (id) this.progress.setEntryLogs(id, logs);
+        });
     }
 
     async process(input: AdvancedSaveAgentInput): Promise<SaveHunk[]> {
@@ -180,15 +191,11 @@ export class InventoryConsistencyAgent extends ReadOnlyAgent<InventoryAgentActio
             return [...input.hunks];
         }
         const { hunks, warnings } = applyInventoryReview(input.hunks, commit, reviewFiles);
-        if (warnings.length) console.warn('[InventoryConsistencyAgent] skipped inputs:', warnings.join('; '));
-        let trace = renderAgentTrace(this.agentLogs());
         if (warnings.length) {
-            // Surface framework backstop skips in the trace card so a
-            // developer inspecting the save can see why a requested edit
-            // never landed — console is too easy to miss.
-            trace += '\n\n[Framework Warnings]\n' + warnings.map(w => '- ' + w).join('\n');
+            console.warn('[InventoryConsistencyAgent] skipped inputs:', warnings.join('; '));
+            this.progress.setEntryWarnings(entryId, warnings);
         }
-        this.progress.setEntryOutput(entryId, trace);
+        this.progress.setEntryLogs(entryId, this.agentLogs());
         this.progress.finishEntry(entryId, 'done', commit.summary || 'inventory review committed');
         return hunks;
     }
@@ -265,23 +272,7 @@ export class InventoryConsistencyAgent extends ReadOnlyAgent<InventoryAgentActio
         this.isAgentRunning.set(false);
     }
 
-    protected override appendModelTurnToHistory(mode: 'native' | 'json', ctx: TurnContext): void {
-        super.appendModelTurnToHistory(mode, ctx);
-        this.mirrorTrace();
-    }
-
-    protected override pushToolResultLog(response: Record<string, unknown>, toolName?: string): void {
-        super.pushToolResultLog(response, toolName);
-        this.mirrorTrace();
-    }
-
     // ===== Internals =====
-
-    /** Mirror the agent's running trace into its single progress card. */
-    private mirrorTrace(): void {
-        const id = this.activeEntryId();
-        if (id) this.progress.setEntryOutput(id, renderAgentTrace(this.agentLogs()));
-    }
 
     /**
      * Resolves the LLM provider for this agent. A per-agent profile override
@@ -370,19 +361,6 @@ function renderActLogDigest(messages: readonly ChatMessage[]): string {
         for (const e of world) lines.push(`  [world] ${e}`);
     }
     return lines.length ? lines.join('\n') : '(no inventory or world log entries in this ACT)';
-}
-
-/** Flattens the agent's structured log entries into one readable trace blob. */
-function renderAgentTrace(logs: readonly AgentLogEntry[]): string {
-    return logs
-        .map(l => {
-            const parts: string[] = [];
-            if (l.thought) parts.push(`[thought] ${l.thought}`);
-            if (l.text) parts.push(l.text);
-            return parts.join('\n');
-        })
-        .filter(Boolean)
-        .join('\n\n');
 }
 
 /** Standard `AbortController`-style error so `isAbortError` in the orchestrator matches. */

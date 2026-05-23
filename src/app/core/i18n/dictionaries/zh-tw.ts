@@ -1150,6 +1150,7 @@ export const zhTW: TranslationDict = {
             waitingForStart: '正在啟動 SaveAgent…',
             ppLabel: 'PP',
             cotLabel: '思考',
+            frameworkWarningsLabel: 'Framework 警告',
             totalLabel: '累計 token',
             cancel: '中斷',
             close: '關閉',

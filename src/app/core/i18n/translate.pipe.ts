@@ -1,7 +1,6 @@
 import { ChangeDetectorRef, Pipe, type PipeTransform, effect, inject } from '@angular/core';
 import { I18nService } from './i18n.service';
-
-type ParamsBag = Record<string, string | number> | undefined;
+import { ParamsBag } from './ParamsBag';
 
 /**
  * Shallow equality on the param record. Avoids the `JSON.stringify` cost in
@@ -46,7 +45,7 @@ export class TranslatePipe implements PipeTransform {
         });
     }
 
-    transform(key: string, params?: Record<string, string | number>): string {
+    transform(key: string, params?: ParamsBag): string {
         if (!key) return '';
         if (key !== this.lastKey || !paramsEqual(params, this.lastParams)) {
             this.lastKey = key;

@@ -1,4 +1,5 @@
 import { Injectable, signal } from '@angular/core';
+import type { AgentLogEntry } from '../../agent-runner/agent-runner.types';
 import type {
     SaveEntryState,
     SavePhase,
@@ -91,6 +92,25 @@ export class SaveProgressTracker {
      */
     setEntryOutput(entryId: string, output: string): void {
         this.patch(entryId, e => ({ ...e, output }));
+    }
+
+    /**
+     * Replace the structured agent log mirrored into the entry's card.
+     * Called by advanced-save agents on every loop tick so the dialog's
+     * `<app-agent-trace-surface>` re-renders with the latest entries.
+     */
+    setEntryLogs(entryId: string, logs: readonly AgentLogEntry[]): void {
+        this.patch(entryId, e => ({ ...e, logs }));
+    }
+
+    /**
+     * Stamp the framework-skipped-input notes onto an entry. Surfaced in the
+     * dialog as a "Framework Warnings" block below the trace so a developer
+     * inspecting the save can see why a requested edit never landed (`console`
+     * is too easy to miss).
+     */
+    setEntryWarnings(entryId: string, warnings: readonly string[]): void {
+        this.patch(entryId, e => ({ ...e, warnings }));
     }
 
     setPpProgress(entryId: string, ratio: number): void {

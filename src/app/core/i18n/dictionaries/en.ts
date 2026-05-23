@@ -1150,6 +1150,7 @@ export const en: TranslationDict = {
             waitingForStart: 'Starting SaveAgent…',
             ppLabel: 'PP',
             cotLabel: 'Chain of thought',
+            frameworkWarningsLabel: 'Framework warnings',
             totalLabel: 'Total tokens',
             cancel: 'Cancel',
             close: 'Close',

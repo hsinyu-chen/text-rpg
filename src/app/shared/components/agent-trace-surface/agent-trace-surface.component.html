@@ -1,0 +1,94 @@
+<div class="agent-console-wrap">
+    <div class="agent-console"
+        [appAutoScrollBottom]="logs()"
+        [threshold]="50"
+        scrollMode="smooth"
+        [observeResize]="true"
+        (atBottom)="showScrollButton.set(!$event)"
+        #scroller="autoScroll">
+        <div class="agent-console-content">
+            @for (log of logs(); track $index) {
+                <div class="console-log-entry" [ngClass]="'log-type-' + log.type + ' log-role-' + log.role">
+                    <span class="log-prefix">{{ log.role === 'user' ? '>' : (log.role === 'model' ? '<' : '*') }}</span>
+                    <div class="log-content-wrapper">
+                        @if (log.thought) {
+                            <div class="log-thought-container" [class.collapsed]="log.isThoughtCollapsed">
+                                <div class="log-thought-header" (click)="onFoldClick($index, 'isThoughtCollapsed')" tabindex="0" (keydown.enter)="onFoldClick($index, 'isThoughtCollapsed')" (keydown.space)="$event.preventDefault(); onFoldClick($index, 'isThoughtCollapsed')">
+                                    <mat-icon inline="true">{{ log.isThoughtCollapsed ? 'chevron_right' : 'expand_more' }}</mat-icon>
+                                    <span>{{ 'dialog.agentThinkingProcess' | translate }}</span>
+                                </div>
+                                @if (!log.isThoughtCollapsed) {
+                                    <div class="log-thought-text">{{ log.thought }}</div>
+                                }
+                            </div>
+                        }
+                        @if (log.text) {
+                            @if (log.isToolCall) {
+                                <div class="log-thought-container" [class.collapsed]="log.isToolCallCollapsed">
+                                    <div class="log-thought-header" (click)="onFoldClick($index, 'isToolCallCollapsed')" tabindex="0" (keydown.enter)="onFoldClick($index, 'isToolCallCollapsed')" (keydown.space)="$event.preventDefault(); onFoldClick($index, 'isToolCallCollapsed')">
+                                        <mat-icon inline="true">{{ log.isToolCallCollapsed ? 'chevron_right' : 'expand_more' }}</mat-icon>
+                                        <span>{{ log.toolName ? ('dialog.agentToolRequest' | translate: { name: log.toolName }) : ('dialog.agentToolExecutionRequest' | translate) }}</span>
+                                    </div>
+                                    @if (log.reason) {
+                                        <div class="log-tool-reason">{{ log.reason }}</div>
+                                    }
+                                    @if (!log.isToolCallCollapsed) {
+                                        <pre class="log-thought-text">{{ log.text }}</pre>
+                                    }
+                                </div>
+                            } @else if (log.isToolResult) {
+                                <div class="log-thought-container" [class.collapsed]="log.isToolResultCollapsed">
+                                    <div class="log-thought-header" (click)="onFoldClick($index, 'isToolResultCollapsed')" tabindex="0" (keydown.enter)="onFoldClick($index, 'isToolResultCollapsed')" (keydown.space)="$event.preventDefault(); onFoldClick($index, 'isToolResultCollapsed')">
+                                        <mat-icon inline="true">{{ log.isToolResultCollapsed ? 'chevron_right' : 'expand_more' }}</mat-icon>
+                                        <span>{{ log.toolName ? ('dialog.agentToolResult' | translate: { name: log.toolName }) : ('dialog.agentToolResultFallback' | translate) }}</span>
+                                    </div>
+                                    @if (!log.isToolResultCollapsed) {
+                                        <pre class="log-thought-text">{{ log.text }}</pre>
+                                    }
+                                </div>
+                            } @else {
+                                @if (log.role === 'model') {
+                                    <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -->
+                                    <div class="log-text prose-content markdown-body" style="font-family: inherit; font-size: inherit;" (click)="onAgentLogClick($event)">
+                                        <markdown [data]="breadcrumbifyLinks(log)"></markdown>
+                                    </div>
+                                } @else {
+                                    <span class="log-text">{{ log.text }}</span>
+                                }
+                            }
+                        }
+                    </div>
+                </div>
+            }
+            @if (indicator(); as ind) {
+                <div class="console-log-entry log-type-model running-indicator" [class.awaiting-user]="ind.awaitingApproval">
+                    @if (ind.awaitingApproval) {
+                        <mat-icon inline="true">touch_app</mat-icon>
+                        <span class="log-text">{{ 'dialog.agentAwaitingUserApproval' | translate }}</span>
+                    } @else {
+                        <mat-spinner diameter="16"></mat-spinner>
+                        @if (ind.promptProgress !== undefined && ind.promptProgress < 1) {
+                            <span class="log-text">{{ 'dialog.agentProcessingPromptPercent' | translate: { percent: ((ind.promptProgress * 100) | number:'1.0-0') ?? '' } }}</span>
+                        } @else {
+                            <span class="log-text">
+                                @if ((ind.tokenCount ?? 0) > 0) {
+                                    {{ 'dialog.agentThinkingTokens' | translate: { count: ind.tokenCount } }}
+                                } @else if ((ind.chunkCount ?? 0) > 0) {
+                                    {{ 'dialog.agentThinkingChunks' | translate: { count: ind.chunkCount } }}
+                                } @else {
+                                    {{ 'dialog.agentThinkingPlain' | translate }}
+                                }
+                            </span>
+                        }
+                    }
+                </div>
+            }
+        </div>
+    </div>
+    @if (showScrollToBottomButton() && showScrollButton()) {
+        <button mat-mini-fab color="accent" class="agent-console-scroll-bottom" (click)="onScrollToBottomClick()"
+            [matTooltip]="'dialog.agentScrollToBottom' | translate">
+            <mat-icon>arrow_downward</mat-icon>
+        </button>
+    }
+</div>
