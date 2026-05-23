@@ -23,7 +23,7 @@ import { ProfileManagementController } from './profile-management-controller';
 import { AppAgentHintDirective } from '@app/core/services/agent-hints/agent-hints.directive';
 
 interface InjectionType {
-    id: 'action' | 'continue' | 'fastforward' | 'system' | 'postprocess' | 'system_main' | 'protocol_single' | 'protocol_resolver' | 'protocol_narrator' | 'save_manifest' | 'save_inventory_consistency';
+    id: 'action' | 'continue' | 'fastforward' | 'system' | 'postprocess' | 'system_main' | 'protocol_single' | 'protocol_resolver' | 'protocol_narrator' | 'correction' | 'save_manifest' | 'save_inventory_consistency';
     label: string;
     icon: string;
     category: 'main' | 'injection' | 'process' | 'save';
@@ -90,6 +90,7 @@ export class ChatConfigDialogComponent {
             { id: 'action', label: this.i18n.translate(`intent.labels.${GAME_INTENTS.ACTION}`), icon: 'play_arrow', category: 'injection' },
             { id: 'continue', label: this.i18n.translate(`intent.labels.${GAME_INTENTS.CONTINUE}`), icon: 'arrow_forward', category: 'injection' },
             { id: 'fastforward', label: this.i18n.translate(`intent.labels.${GAME_INTENTS.FAST_FORWARD}`), icon: 'fast_forward', category: 'injection' },
+            { id: 'correction', label: this.i18n.translate('ui.CORRECTION_TITLE'), icon: 'rule', category: 'injection' },
             { id: 'postprocess', label: this.i18n.translate('intent.labels.post_process'), icon: 'code', category: 'process' },
             { id: 'save_manifest', label: this.i18n.translate('ui.SAVE_MANIFEST_TITLE'), icon: 'save', category: 'save' },
             { id: 'save_inventory_consistency', label: this.i18n.translate('ui.SAVE_INVENTORY_CONSISTENCY_TITLE'), icon: 'inventory_2', category: 'save' }
@@ -122,6 +123,7 @@ export class ChatConfigDialogComponent {
         files.set('protocol_single', this.state.dynamicProtocolSingleInjection());
         files.set('protocol_resolver', this.state.dynamicProtocolResolverInjection());
         files.set('protocol_narrator', this.state.dynamicProtocolNarratorInjection());
+        files.set('correction', this.state.dynamicCorrectionInjection());
         files.set('postprocess', this.state.postProcessScript());
         files.set('save_manifest', this.state.dynamicSaveManifestInjection());
         files.set('save_inventory_consistency', this.state.dynamicSaveInventoryConsistencyInjection());

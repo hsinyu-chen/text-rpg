@@ -239,9 +239,9 @@ export class InjectionService {
         const loadPath = (filename: string) => this.loadBuiltInAsset(langFolder, filename, currentProfile);
         const loadOptional = (filename: string) => this.loadOptionalProfileAsset(langFolder, filename, currentProfile);
 
-        let actionDef, continueDef, fastforwardDef, systemDef, systemMainDef, postprocessDef, protocolSingleDef, protocolResolverDef, protocolNarratorDef, saveManifestDef, saveInventoryConsistencyDef;
+        let actionDef, continueDef, fastforwardDef, systemDef, systemMainDef, postprocessDef, protocolSingleDef, protocolResolverDef, protocolNarratorDef, correctionDef, saveManifestDef, saveInventoryConsistencyDef;
         try {
-            [actionDef, continueDef, fastforwardDef, systemDef, systemMainDef, postprocessDef, protocolSingleDef, protocolResolverDef, protocolNarratorDef, saveManifestDef, saveInventoryConsistencyDef] =
+            [actionDef, continueDef, fastforwardDef, systemDef, systemMainDef, postprocessDef, protocolSingleDef, protocolResolverDef, protocolNarratorDef, correctionDef, saveManifestDef, saveInventoryConsistencyDef] =
                 await Promise.all([
                     loadPath(INJECTION_FILE_PATHS.action),
                     loadPath(INJECTION_FILE_PATHS.continue),
@@ -252,6 +252,7 @@ export class InjectionService {
                     loadOptional(INJECTION_FILE_PATHS.protocol_single),
                     loadOptional(INJECTION_FILE_PATHS.protocol_resolver),
                     loadOptional(INJECTION_FILE_PATHS.protocol_narrator),
+                    loadOptional(INJECTION_FILE_PATHS.correction),
                     loadPath(INJECTION_FILE_PATHS.save_manifest),
                     loadPath(INJECTION_FILE_PATHS.save_inventory_consistency)
                 ]);
@@ -273,6 +274,7 @@ export class InjectionService {
             { id: 'protocol_single', content: protocolSingleDef, legacyKey: '', isPost: false },
             { id: 'protocol_resolver', content: protocolResolverDef, legacyKey: '', isPost: false },
             { id: 'protocol_narrator', content: protocolNarratorDef, legacyKey: '', isPost: false },
+            { id: 'correction', content: correctionDef, legacyKey: '', isPost: false },
             { id: 'save_manifest', content: saveManifestDef, legacyKey: '', isPost: false },
             { id: 'save_inventory_consistency', content: saveInventoryConsistencyDef, legacyKey: '', isPost: false }
         ] as const;
