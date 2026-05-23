@@ -13,7 +13,11 @@
 
 > **[Protagonist-Owned Only]**: `{{FILE_ASSETS}}` and `{{FILE_INVENTORY}}` record ONLY items personally owned by the protagonist. Personal property of companions, love interests, employers, hosts, and other **NPCs goes to `{{FILE_CHARACTER_STATUS}}`** under that NPC's `### Known Significant Possessions` section. Even if the protagonist is temporarily sheltered, hosted, or kept as a kept-man, the host's belongings are NOT the protagonist's possessions.
 
-**{{FILE_BASIC_SETTINGS}}** is READ-ONLY. Record all world building in `{{FILE_WORLD_FACTIONS}}`.
+**{{FILE_BASIC_SETTINGS}}**: **Only "augmenting an existing entry" is allowed**; everything else goes to `{{FILE_WORLD_FACTIONS}}`.
+- **Allowed**: Appending same-kind details under an existing entry (e.g. adding a new dish example under an existing "Culture / Cuisine" entry). `target` MUST be a verbatim fragment that **already exists** in basic settings, and `replacement` MUST **keep `target` intact as its prefix** — new content may **only** be appended after it.
+- **Forbidden**: Creating new top-level sections / subheadings, rewriting or deleting existing text, reordering existing entries, splitting `target` and recomposing it.
+- **`context` MUST be a heading path that already exists in BASIC_SETTINGS**. If the path is not present in basic settings, do **NOT** force a new section in — route to `{{FILE_WORLD_FACTIONS}}` instead.
+- Newly discovered factions / locations / products / NPCs and other world-building expansion still go to `{{FILE_WORLD_FACTIONS}}`. BASIC_SETTINGS is only touched for **detail augmentation of existing entries**.
 
 > [!IMPORTANT]
 > **Item Archiving Absolute Rule**: Any physical item **held, discovered, or researched** by the protagonist (including **equipment, magic items, technical products, mechanical vehicles**) **MUST** be classified under `{{FILE_INVENTORY}}` or `{{FILE_TECH_EQUIPMENT}}`.
