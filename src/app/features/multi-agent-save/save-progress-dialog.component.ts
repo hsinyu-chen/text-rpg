@@ -91,9 +91,9 @@ export class SaveProgressDialogComponent {
     /**
      * Surface-emitted fold click for one of the entry's structured log
      * entries. The tracker owns its own snapshot of `logs` (set by the
-     * agent's mirrorTrace) — toggling here mutates only the dialog's
+     * agent's mirror effect) — toggling here mutates only the dialog's
      * view; we don't reach back into the agent's signal. While the agent
-     * is still streaming, a future mirrorTrace will overwrite the toggle.
+     * is still streaming, the next mirror tick will overwrite the toggle.
      * After the run finishes (no more mirrors), folds persist.
      */
     onTraceFoldToggle(entry: SaveProgressEntry, evt: { index: number; key: AgentLogFoldKey }): void {

@@ -86,15 +86,6 @@ export class SaveProgressTracker {
     }
 
     /**
-     * Replaces an entry's `output` wholesale. Advanced-save agents run their
-     * own multi-turn loop and mirror the rendered trace into one card, so they
-     * re-set the whole text rather than append per chunk.
-     */
-    setEntryOutput(entryId: string, output: string): void {
-        this.patch(entryId, e => ({ ...e, output }));
-    }
-
-    /**
      * Replace the structured agent log mirrored into the entry's card.
      * Called by advanced-save agents on every loop tick so the dialog's
      * `<app-agent-trace-surface>` re-renders with the latest entries.

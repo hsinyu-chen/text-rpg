@@ -100,9 +100,9 @@ export class InventoryConsistencyAgent extends ReadOnlyAgent<InventoryAgentActio
         // Mirror the running log to the active progress entry on every change.
         // The base runner mutates `agentLogs` per streaming chunk (thought,
         // text, tool-call, tool-result), so the dialog's trace surface
-        // re-renders live instead of only at turn boundaries. Without this,
-        // PP reaches 100% and then the user stares at an empty card until the
-        // whole turn finishes and the next mirrorTrace hook fires.
+        // re-renders live instead of only at turn boundaries — without it,
+        // PP reaches 100 % and the user stares at an empty card until the
+        // whole turn finishes.
         effect(() => {
             const id = this.activeEntryId();
             const logs = this.agentLogs();
@@ -122,11 +122,15 @@ export class InventoryConsistencyAgent extends ReadOnlyAgent<InventoryAgentActio
         const inventoryFile = reviewFiles.inventoryFile;
 
         const entryId = this.progress.startEntry('advanced-agent', { toolName: AGENT_LABEL });
-        // Reset PP before swapping the entry id — the base loop only clears
-        // it once it starts a turn, but the mirror effect fires the instant
-        // `activeEntryId` swaps and would otherwise stamp the previous
-        // run's final value (e.g. 1) onto the new entry's PP bar.
+        // Reset PP + agentLogs BEFORE swapping the entry id — both mirror
+        // effects fire the instant `activeEntryId` swaps. Without these
+        // pre-resets the previous run's final PP (e.g. 1) and trailing
+        // agentLogs from the prior turn would be stamped onto the new
+        // entry, painting them into the dialog's auto-expanded panel for
+        // the 0.5–2 s window between this line and the post-probe reset
+        // at the start of the try block.
         this.promptProgress.set(undefined);
+        this.agentLogs.set([]);
         this.activeEntryId.set(entryId);
         this.capturedCommit = null;
 
@@ -145,7 +149,6 @@ export class InventoryConsistencyAgent extends ReadOnlyAgent<InventoryAgentActio
             this.systemPrompt = await this.loadPrompt(input.lang);
             this.resolvedProvider = this.resolveProvider();
             this.toolCallMode = await this.probeToolCallMode(this.resolvedProvider);
-            this.agentLogs.set([]);
             this.agentHistory.set([{
                 role: 'user',
                 parts: [{ text: this.buildSeedMessage(input, inventoryFile) }],
