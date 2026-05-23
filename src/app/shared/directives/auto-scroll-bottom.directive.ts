@@ -89,12 +89,13 @@ export class AutoScrollBottomDirective {
      *  cancels it (otherwise a queued auto-instant could race the
      *  imperative smooth write). */
     private rafId: number | null = null;
-    /** ID of the latest pending RAF in the `scheduleScrollCorrection`
-     *  recursive loop. Separate from `rafId` because the two loops can
-     *  run concurrently (scheduleAutoScroll's debounce vs. correction's
-     *  RAF×2 per attempt). Cleared on destroy so the chain doesn't fire
-     *  callbacks on a torn-down component. */
-    private correctionRafId: number | null = null;
+    /** Pending RAF IDs from `scheduleScrollCorrection`. A Set rather than
+     *  a single field because two correction loops can overlap (e.g., an
+     *  auto-follow tick scheduled correction is still cycling when a
+     *  scrollend top-up starts a second one). Single-field tracking would
+     *  let the older loop's RAF callback null out the newer loop's stored
+     *  ID, leaving it un-cancellable on destroy. */
+    private correctionRafIds = new Set<number>();
     private lastEmittedAtBottom: boolean | null = null;
     /** Set while an imperative smooth scroll-to-bottom is animating.
      *  Auto-follow is suppressed in this window so a content-driven
@@ -179,6 +180,12 @@ export class AutoScrollBottomDirective {
         });
 
         // Signal-driven trigger (existing behavior — watched value changes ⇒ check).
+        // Intentionally does NOT read `paused()`. Re-triggering auto-follow
+        // when paused flips false would yank a user who is reading a deep-
+        // linked message back to the bottom. Hosts that pause are expected
+        // to also call `disengage()` (or the directive's own scroll handler
+        // updates wasAtBottom from delta-up during the pause's programmatic
+        // scroll), so post-unpause state is already correct.
         effect(() => {
             this.content();
             this.scheduleAutoScroll();
@@ -223,7 +230,8 @@ export class AutoScrollBottomDirective {
 
         this.destroyRef.onDestroy(() => {
             if (this.rafId !== null) cancelAnimationFrame(this.rafId);
-            if (this.correctionRafId !== null) cancelAnimationFrame(this.correctionRafId);
+            for (const id of this.correctionRafIds) cancelAnimationFrame(id);
+            this.correctionRafIds.clear();
             this.clearSmoothInFlight();
         });
     }
@@ -357,14 +365,17 @@ export class AutoScrollBottomDirective {
         lastHeight = -1
     ): void {
         if (attempt >= STABILIZE_MAX_ATTEMPTS) return;
-        // Track via correctionRafId so destroy can cancel a pending tick
-        // and the recursive chain doesn't keep firing callbacks on a
-        // torn-down component. Each link in the chain re-assigns to
-        // overwrite the previous (only one tick is ever pending at a time
-        // since the recursion happens INSIDE the inner callback).
-        this.correctionRafId = requestAnimationFrame(() => {
-            this.correctionRafId = requestAnimationFrame(() => {
-                this.correctionRafId = null;
+        // Track each pending RAF in the Set so destroy can cancel ALL of
+        // them. Concurrent loops (auto-follow tick correction + scrollend
+        // top-up overlapping during rapid streaming) used to stomp each
+        // other when tracked via a single field — the older loop's
+        // callback nulled the newer's ID, leaving it un-cancellable.
+        let outerId = 0;
+        let innerId = 0;
+        outerId = requestAnimationFrame(() => {
+            this.correctionRafIds.delete(outerId);
+            innerId = requestAnimationFrame(() => {
+                this.correctionRafIds.delete(innerId);
                 if (this.paused() || !this.wasAtBottom) return;
                 const curr = el.scrollHeight;
                 const dist = curr - el.scrollTop - el.clientHeight;
@@ -378,7 +389,9 @@ export class AutoScrollBottomDirective {
                 }
                 this.scheduleScrollCorrection(el, force, attempt + 1, curr);
             });
+            this.correctionRafIds.add(innerId);
         });
+        this.correctionRafIds.add(outerId);
     }
 
     private emitAtBottom(v: boolean): void {
