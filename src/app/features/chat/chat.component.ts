@@ -1,4 +1,4 @@
-import { Component, inject, ElementRef, effect, viewChild, signal, computed, afterNextRender, DestroyRef, ChangeDetectionStrategy, TemplateRef, ViewContainerRef } from '@angular/core';
+import { Component, inject, ElementRef, effect, viewChild, signal, computed, DestroyRef, ChangeDetectionStrategy, TemplateRef, ViewContainerRef } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -23,6 +23,7 @@ import { spotlightElement, SPOTLIGHT_HOLD_MS } from '@app/core/services/agent-hi
 import { AgentPanelPortalService } from '@app/shared/components/agent-console/agent-panel-portal.service';
 import { AgentPanelStateService } from '@app/core/services/file-agent/agent-panel-state.service';
 import { SaveProgressTracker } from '@app/core/services/multi-agent-save/progress/save-progress-tracker.service';
+import { AutoScrollBottomDirective } from '@app/shared/directives/auto-scroll-bottom.directive';
 
 @Component({
     selector: 'app-chat',
@@ -37,7 +38,8 @@ import { SaveProgressTracker } from '@app/core/services/multi-agent-save/progres
         ChatInputComponent,
         TurnUpdatePanelComponent,
         AgentConsoleComponent,
-        TranslatePipe
+        TranslatePipe,
+        AutoScrollBottomDirective
     ],
     templateUrl: './chat.component.html',
     styleUrl: './chat.component.scss',
@@ -68,6 +70,7 @@ export class ChatComponent {
     private contentWrapper = viewChild<ElementRef<HTMLElement>>('contentWrapper');
     private chatInput = viewChild<ChatInputComponent>('chatInput');
     private agentPanelTpl = viewChild<TemplateRef<unknown>>('agentPanelTpl');
+    private scroller = viewChild('scroller', { read: AutoScrollBottomDirective });
 
     userInput = signal('');
     selectedIntent = signal(GAME_INTENTS.ACTION);
@@ -93,22 +96,19 @@ export class ChatComponent {
 
     sidenavMode = computed(() => this.isMobile() ? 'over' : 'side');
 
-    private resizeObserver: ResizeObserver | null = null;
-    private userScrolledUp = false;
-    // While true, every bottom-pinning path (status-change effect,
-    // smartScroll, scheduleScrollCorrection, scrollToBottom callers) is
-    // suppressed. `userScrolledUp` alone wasn't enough because
-    // scrollToBottom() resets it to false — so a status-change effect's
-    // queued setTimeout, firing 50ms after agent-done, would undo the
-    // jump's userScrolledUp=true. The flag is set sync on jump start and
-    // cleared after the scroll + spotlight settle. jumpTimeoutId tracks
-    // the clear timer so rapid successive jumps reset the window rather
-    // than fighting each other (jump #1's timer firing during jump #2's
-    // hold would shrink the protection window).
-    private jumpInProgress = false;
+    // Wired into AutoScrollBottomDirective's [paused] — while true, every
+    // auto-follow path inside the directive (signal trigger, ResizeObserver,
+    // scrollCorrection) no-ops. Explicit scrollToBottom() bypasses it (user
+    // intent overrides the gate). Set sync on jump start, cleared after the
+    // scroll + spotlight settle. jumpTimeoutId tracks the clear timer so
+    // rapid successive jumps reset the window rather than fighting each
+    // other (jump #1's timer firing during jump #2's hold would shrink the
+    // protection window).
+    // Template binds via [paused]="jumpInProgress()" so needs to be at
+    // least protected. Mutators (set true on jump start, false on settle)
+    // stay inside this component — no external writer should flip it.
+    protected jumpInProgress = signal(false);
     private jumpTimeoutId: ReturnType<typeof setTimeout> | null = null;
-    private lastScrollTop = 0;
-    private scrollFrameId: number | null = null;
     private hasInitialScrolled = false;
     private prevLastCotOpen = false;
 
@@ -143,8 +143,9 @@ export class ChatComponent {
             this.onJumpToMessage(req.id, req.action);
         });
 
-        // Initial load: force scroll to bottom the first time messages appear,
-        // bypassing the smartScroll threshold that would otherwise treat scrollTop=0 as "user scrolled up".
+        // Initial load: force-scroll to bottom the first time messages appear,
+        // bypassing the directive's threshold gate (scrollTop=0 puts dist way
+        // above threshold, so directive auto-follow would skip).
         effect(() => {
             const count = this.state.messages().length;
             if (count > 0 && !this.hasInitialScrolled && this.scrollContainer()) {
@@ -153,27 +154,37 @@ export class ChatComponent {
                 // before we measure scrollHeight; scheduleScrollCorrection handles the rest.
                 requestAnimationFrame(() => {
                     requestAnimationFrame(() => {
-                        this.scrollToBottom(true);
+                        this.scroller()?.scrollToBottom(true);
                     });
                 });
             }
         });
 
-        // Init/Loading Jump Effect
-        effect(() => {
+        // Status-change safety net: an LLM completion may have drifted past
+        // the directive's threshold during the stream. On settle, force-snap
+        // back to bottom unless the user is reading earlier content.
+        effect((onCleanup) => {
             const status = this.state.status();
-            // When going to idle or generating (and not scrolled up), ensure we are at bottom.
-            if ((status === 'idle' || status === 'generating') && !this.userScrolledUp) {
-                // We use a small timeout to allow new elements to render before scrolling
-                setTimeout(() => {
-                    if (this.jumpInProgress) return;
-                    this.scrollToBottom(true);
+            const scroller = this.scroller();
+            if (!scroller) return;
+            if ((status === 'idle' || status === 'generating') && scroller.isFollowing()) {
+                // We use a small timeout to allow new elements to render before
+                // scrolling. Re-check isFollowing() inside the timer too — the
+                // user may have scrolled up in those 50 ms, and force-snapping
+                // them back would yank away content they're trying to read.
+                // onCleanup clears the orphan timer on effect re-run (rapid
+                // status flip) or component destroy.
+                const timerId = setTimeout(() => {
+                    if (this.jumpInProgress()) return;
+                    if (!scroller.isFollowing()) return;
+                    scroller.scrollToBottom(true);
                 }, 50);
+                onCleanup(() => clearTimeout(timerId));
             }
         });
 
         // CoT panel re-opens (e.g. two-call narrator phase) expand the last
-        // message's height enough to push distFromBottom past the smartScroll
+        // message's height enough to push distFromBottom past the directive's
         // threshold, breaking auto-follow. Re-pin to bottom once on the
         // false→true edge so streaming chunks resume following.
         // Wrap the value in a computed so the effect doesn't re-run on every
@@ -187,16 +198,13 @@ export class ChatComponent {
             const cot = lastCotOpen();
             const wasOpen = this.prevLastCotOpen;
             this.prevLastCotOpen = cot;
-            if (cot && !wasOpen && this.state.status() === 'generating' && !this.userScrolledUp) {
+            const scroller = this.scroller();
+            if (cot && !wasOpen && this.state.status() === 'generating' && scroller?.isFollowing()) {
                 requestAnimationFrame(() => {
-                    if (this.jumpInProgress) return;
-                    this.scrollToBottom(true);
+                    if (this.jumpInProgress()) return;
+                    scroller.scrollToBottom(true);
                 });
             }
-        });
-
-        afterNextRender(() => {
-            this.initScrollObservers();
         });
 
         // Drive the agent-panel portal off two signals:
@@ -236,144 +244,52 @@ export class ChatComponent {
         });
 
         this.destroyRef.onDestroy(() => {
-            this.resizeObserver?.disconnect();
-            if (this.scrollFrameId) {
-                cancelAnimationFrame(this.scrollFrameId);
-            }
+            // cancelActiveJump covers jumpTimeoutId, stabilizeAbort,
+            // spotlightTimerId, spotlightRetargetTimerId. The pin/flash/cv
+            // transient timers below are owned by per-id state setters
+            // (revealMessage / pinToolbar / flashMessage) and aren't covered
+            // by cancelActiveJump, so clear them separately.
+            this.cancelActiveJump();
+            if (this.pinTimerId !== null) clearTimeout(this.pinTimerId);
+            if (this.flashTimerId !== null) clearTimeout(this.flashTimerId);
+            if (this.cvTimerId !== null) clearTimeout(this.cvTimerId);
             this.agentPanelPortal.unmount();
         });
     }
 
-    private initScrollObservers() {
-        const scrollEl = this.scrollContainer()?.nativeElement;
-        const contentEl = this.contentWrapper()?.nativeElement;
-
-        if (!scrollEl || !contentEl) return;
-
-        scrollEl.addEventListener('scroll', () => {
-            this.checkScroll(scrollEl);
-        }, { passive: true });
-
-        this.resizeObserver = new ResizeObserver(() => {
-            this.smartScroll();
-        });
-        this.resizeObserver.observe(contentEl);
-    }
-
-    checkScroll(el: HTMLElement) {
-        // Run light check logic
-        const threshold = 300;
-        const currentScrollTop = el.scrollTop;
-        const distFromBottom = el.scrollHeight - currentScrollTop - el.clientHeight;
-
-        const show = distFromBottom > threshold;
-
-        // Detect user intent (scrolling up vs down)
-        if (distFromBottom < 50) {
-            this.userScrolledUp = false;
-        } else if (currentScrollTop < this.lastScrollTop - 5) {
-            this.userScrolledUp = true;
-        }
-
-        this.lastScrollTop = currentScrollTop;
-
-        // Update signal only if changed
-        if (this.showScrollButton() !== show) {
-            this.showScrollButton.set(show);
-        }
-    }
-
-    private smartScroll() {
-        // Debounce with RAF to avoid thrashing if multiple resize events fire
-        if (this.scrollFrameId) {
-            cancelAnimationFrame(this.scrollFrameId);
-        }
-
-        this.scrollFrameId = requestAnimationFrame(() => {
-            this.scrollFrameId = null;
-            this.performSmartScroll();
-        });
-    }
-
-    private performSmartScroll() {
-        if (this.jumpInProgress) return;
-        const scrollRef = this.scrollContainer();
-        if (!scrollRef) return;
-        const el = scrollRef.nativeElement;
-
-        // Logic: specific thresholds for when to auto-scroll
-        const isGenerating = this.state.status() === 'generating';
-
-        // If content is smaller than view, nothing to do
-        if (el.scrollHeight <= el.clientHeight) return;
-
-        // More generous threshold during generation
-        const threshold = isGenerating ? 800 : 400;
-        const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
-
-        const shouldFollow = dist < threshold && !this.userScrolledUp;
-
-        if (shouldFollow) {
-            // Instant scroll if very close or generating to keep up with stream
-            const forceInstant = isGenerating || dist < 100;
-            this.scrollToBottom(forceInstant);
-        }
-    }
-
     // User-initiated scroll-to-bottom (floating button). Cancels any
     // active deep-link jump guard — user explicitly asking for bottom
-    // beats a still-running jump's stay-pinned protection.
+    // beats a still-running jump's stay-pinned protection. Aborts the
+    // stabilizeScroll retarget loop too — otherwise its 100ms tick keeps
+    // re-aiming smoothly back to the jumped message and overrides the
+    // bottom-scroll the user just asked for.
     onScrollToBottomClick(): void {
-        this.jumpInProgress = false;
+        this.cancelActiveJump();
+        this.scroller()?.scrollToBottom(false);
+    }
+
+    private cancelActiveJump(): void {
+        this.jumpInProgress.set(false);
         if (this.jumpTimeoutId !== null) {
             clearTimeout(this.jumpTimeoutId);
             this.jumpTimeoutId = null;
         }
-        this.scrollToBottom(false);
+        this.stabilizeAbort?.abort();
+        this.stabilizeAbort = null;
+        if (this.spotlightTimerId !== null) {
+            clearTimeout(this.spotlightTimerId);
+            this.spotlightTimerId = null;
+        }
+        if (this.spotlightRetargetTimerId !== null) {
+            clearTimeout(this.spotlightRetargetTimerId);
+            this.spotlightRetargetTimerId = null;
+        }
     }
 
+    /** Template-bound (chat-input messageSent). Thin pass-through so the
+     *  template doesn't have to reach through the directive ref. */
     scrollToBottom(force = false): void {
-        if (this.jumpInProgress) return;
-        const scrollRef = this.scrollContainer();
-        if (!scrollRef) return;
-
-        const el = scrollRef.nativeElement;
-        try {
-            if (force) {
-                // Direct assignment relies on CSS scroll-behavior NOT being smooth (we removed it),
-                // otherwise this animates and gets misdetected as user scroll mid-flight.
-                el.scrollTop = el.scrollHeight;
-                this.userScrolledUp = false;
-            } else {
-                el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
-            }
-
-            // content-visibility elements get revealed during the scroll, growing scrollHeight.
-            // Keep re-pinning to the bottom until distance settles (or we hit the safety cap).
-            this.scheduleScrollCorrection(el, force);
-        } catch { /* ignore */ }
-    }
-
-    private scheduleScrollCorrection(el: HTMLElement, force: boolean, attempt = 0, lastHeight = -1): void {
-        if (attempt >= 30) return;
-        requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-                if (this.userScrolledUp || this.jumpInProgress) return;
-                const currHeight = el.scrollHeight;
-                const dist = currHeight - el.scrollTop - el.clientHeight;
-                if (dist <= 1) return;
-
-                // Layout has stabilised but we're still short — further retries won't help.
-                if (currHeight === lastHeight) return;
-
-                if (force) {
-                    el.scrollTop = currHeight;
-                } else {
-                    el.scrollTo({ top: currHeight, behavior: 'auto' });
-                }
-                this.scheduleScrollCorrection(el, force, attempt + 1, currHeight);
-            });
-        });
+        this.scroller()?.scrollToBottom(force);
     }
 
     onEditAndResend(msg: ChatMessage) {
@@ -430,9 +346,8 @@ export class ChatComponent {
     private static readonly JUMP_TOP_PADDING_PX = 16;
     // Override window for [class.cv-revealed] and the `jumpInProgress`
     // guard. Must outlast stabilization + spotlight hold so the message
-    // never re-collapses (cv:auto would re-skip) and competing scroll
-    // paths (smartScroll, ResizeObserver bottom-pin) stay suppressed
-    // until the jump UX is fully done.
+    // never re-collapses (cv:auto would re-skip) and the auto-scroll
+    // directive's follow paths stay paused until the jump UX is fully done.
     private static readonly CV_OVERRIDE_HOLD_MS = ChatComponent.SCROLL_STABILIZE_MAX_MS + SPOTLIGHT_HOLD_MS + 50;
     // Matches the `flash` keyframe duration in chat.component.scss.
     private static readonly FLASH_HOLD_MS = 2000;
@@ -606,17 +521,24 @@ export class ChatComponent {
     }
 
     onJumpToMessage(id: string, action: string | null = null) {
-        // Both guards must flip sync at click time, not inside the deferred
-        // measurement below. userScrolledUp halts smartScroll/correction
-        // rAF loops; jumpInProgress also stops bottom-pin paths that reset
-        // userScrolledUp=false mid-flight (status-change setTimeout, our
-        // cv override's ResizeObserver). One-way until explicitly cleared.
-        this.userScrolledUp = true;
-        this.jumpInProgress = true;
+        // Sync flip at click time, not inside the deferred measurement below.
+        // jumpInProgress feeds AutoScrollBottomDirective's [paused] so every
+        // auto-follow path inside the directive (RO trigger, signal trigger,
+        // scrollCorrection) is suppressed while the jump animation runs.
+        // status-change setTimeout and the CoT effect also check this flag.
+        // One-way until explicitly cleared by the timeout below or by
+        // onScrollToBottomClick().
+        this.jumpInProgress.set(true);
+        // Also disengage the directive's follow state. The jump's smooth
+        // scrollTo may target a message BELOW current position (scrollTop
+        // INCREASES), in which case the directive's delta-up detection
+        // wouldn't fire and wasAtBottom stays stale-true — next chunk after
+        // jumpInProgress clears would yank the user back to bottom.
+        this.scroller()?.disengage();
         // Two rapid jumps must not let the earlier timer fire mid-second-hold.
         if (this.jumpTimeoutId !== null) clearTimeout(this.jumpTimeoutId);
         this.jumpTimeoutId = setTimeout(() => {
-            this.jumpInProgress = false;
+            this.jumpInProgress.set(false);
             this.jumpTimeoutId = null;
         }, ChatComponent.CV_OVERRIDE_HOLD_MS);
         // Reveal + pin BEFORE scroll math: revealing lets the target

@@ -3,8 +3,8 @@ import {
   ChangeDetectionStrategy,
   inject,
   input,
+  signal,
   viewChild,
-  ElementRef,
   OnDestroy,
   afterNextRender,
   effect,
@@ -28,6 +28,7 @@ import { AppConfigStore } from '@app/core/services/app-config-store';
 import { AgentLinkInterceptor } from '@app/core/services/agent-hints/agent-link-interceptor.service';
 import { AgentHintRegistry } from '@app/core/services/agent-hints/agent-hints.registry';
 import { AgentPanelStateService } from '@app/core/services/file-agent/agent-panel-state.service';
+import { AutoScrollBottomDirective } from '@app/shared/directives/auto-scroll-bottom.directive';
 import { PipAwareOverlayContainer } from './pip-aware-overlay-container';
 import type { AgentLogEntry } from '@app/core/services/file-agent/file-agent.types';
 
@@ -43,7 +44,8 @@ import type { AgentLogEntry } from '@app/core/services/file-agent/file-agent.typ
     NgClass,
     DecimalPipe,
     MarkdownModule,
-    TranslatePipe
+    TranslatePipe,
+    AutoScrollBottomDirective
   ],
   templateUrl: './agent-console.component.html',
   styleUrl: './agent-console.component.scss',
@@ -119,54 +121,23 @@ export class AgentConsoleComponent implements OnDestroy {
     });
   }
 
-  // ViewChild refs for auto-scroll
-  private agentConsoleEl = viewChild<ElementRef<HTMLElement>>('agentConsole');
-  private agentConsoleContentEl = viewChild<ElementRef<HTMLElement>>('agentConsoleContent');
+  /** Template binds `(atBottom)` to this — drives the floating "scroll to
+   *  bottom" button's visibility (button shown when not at bottom). */
+  protected showScrollButton = signal(false);
 
-  // Auto-scroll state
-  private agentResizeObserver: ResizeObserver | null = null;
-  private agentScrollListener: (() => void) | null = null;
-  private agentScrollFrameId: number | null = null;
-  private userScrolledUpAgent = false;
-  private lastAgentScrollTop = 0;
+  /** Exported directive instance — template ref `#scroller="autoScroll"`.
+   *  Used by the button click handler to imperatively snap back. */
+  private scroller = viewChild('scroller', { read: AutoScrollBottomDirective });
+
   private initialPromptTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
+  /** Floating-button click — explicit user intent, overrides directive's
+   *  internal sticky state. */
+  protected onScrollToBottomClick(): void {
+    this.scroller()?.scrollToBottom(false);
+  }
+
   constructor() {
-    // Auto-scroll: observe content growth and follow the bottom unless the user
-    // has scrolled up. Re-runs whenever the console elements appear/disappear.
-    effect((onCleanup) => {
-      const scrollEl = this.agentConsoleEl()?.nativeElement;
-      const contentEl = this.agentConsoleContentEl()?.nativeElement;
-      if (!scrollEl || !contentEl) return;
-
-      this.userScrolledUpAgent = false;
-      this.lastAgentScrollTop = 0;
-
-      const onScroll = () => this.checkAgentScroll(scrollEl);
-      scrollEl.addEventListener('scroll', onScroll, { passive: true });
-      this.agentScrollListener = onScroll;
-
-      const ro = new ResizeObserver(() => this.smartScrollAgent());
-      ro.observe(contentEl);
-      this.agentResizeObserver = ro;
-
-      // Snap to bottom on first show.
-      requestAnimationFrame(() => {
-        scrollEl.scrollTop = scrollEl.scrollHeight;
-      });
-
-      onCleanup(() => {
-        scrollEl.removeEventListener('scroll', onScroll);
-        ro.disconnect();
-        if (this.agentResizeObserver === ro) this.agentResizeObserver = null;
-        if (this.agentScrollListener === onScroll) this.agentScrollListener = null;
-        if (this.agentScrollFrameId) {
-          cancelAnimationFrame(this.agentScrollFrameId);
-          this.agentScrollFrameId = null;
-        }
-      });
-    });
-
     afterNextRender(() => {
       const prompt = this.initialPrompt();
       if (prompt && this.agentService.agentHistory().length === 0 && !this.agentService.isAgentRunning()) {
@@ -202,7 +173,6 @@ export class AgentConsoleComponent implements OnDestroy {
       clearTimeout(this.initialPromptTimeoutId);
       this.initialPromptTimeoutId = null;
     }
-    this.teardownAgentConsoleScroll();
   }
 
   copyDebugLog(): void {
@@ -371,64 +341,4 @@ export class AgentConsoleComponent implements OnDestroy {
     }
   }
 
-  private setupAgentConsoleScroll(): void {
-    // Setup is handled reactively via the effect() in the constructor
-  }
-
-  private teardownAgentConsoleScroll(): void {
-    const scrollEl = this.agentConsoleEl()?.nativeElement;
-    if (scrollEl && this.agentScrollListener) {
-      scrollEl.removeEventListener('scroll', this.agentScrollListener);
-      this.agentScrollListener = null;
-    }
-    if (this.agentResizeObserver) {
-      this.agentResizeObserver.disconnect();
-      this.agentResizeObserver = null;
-    }
-    if (this.agentScrollFrameId) {
-      cancelAnimationFrame(this.agentScrollFrameId);
-      this.agentScrollFrameId = null;
-    }
-  }
-
-  private scheduleAgentScroll(): void {
-    this.smartScrollAgent();
-  }
-
-  private checkAgentScroll(el: HTMLElement): void {
-    const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    if (distFromBottom < 50) {
-      this.userScrolledUpAgent = false;
-    } else if (el.scrollTop < this.lastAgentScrollTop - 5) {
-      this.userScrolledUpAgent = true;
-    }
-    this.lastAgentScrollTop = el.scrollTop;
-  }
-
-  private smartScrollAgent(): void {
-    if (this.agentScrollFrameId) cancelAnimationFrame(this.agentScrollFrameId);
-    this.agentScrollFrameId = requestAnimationFrame(() => {
-      this.agentScrollFrameId = null;
-      const el = this.agentConsoleEl()?.nativeElement;
-      if (!el) return;
-      if (el.scrollHeight <= el.clientHeight) return;
-
-      const isRunning = this.agentService.isAgentRunning();
-      const threshold = isRunning ? 800 : 400;
-      const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
-      const shouldFollow = dist < threshold && !this.userScrolledUpAgent;
-      if (!shouldFollow) return;
-
-      const forceInstant = isRunning || dist < 100;
-      try {
-        el.scrollTo({
-          top: el.scrollHeight,
-          behavior: forceInstant ? 'auto' : 'smooth'
-        });
-      } catch {
-        el.scrollTop = el.scrollHeight;
-      }
-      if (forceInstant) this.userScrolledUpAgent = false;
-    });
-  }
 }

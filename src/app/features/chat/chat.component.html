@@ -9,7 +9,15 @@
         <div class="chat-container" [class.save-locked]="isSaveInProgress()">
 
             <!-- Thread -->
-            <div class="thread-area" #scrollContainer>
+            <div class="thread-area" #scrollContainer
+                [appAutoScrollBottom]="state.messages()"
+                [threshold]="300"
+                scrollMode="smooth"
+                [observeResize]="true"
+                [stabilizeOnScroll]="true"
+                [paused]="jumpInProgress()"
+                (atBottom)="showScrollButton.set(!$event)"
+                #scroller="autoScroll">
 
                 <div class="thread-content" #contentWrapper>
                     @let totalMessages = state.messages().length;

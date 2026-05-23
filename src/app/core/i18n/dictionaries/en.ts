@@ -390,6 +390,7 @@ export const en: TranslationDict = {
         agentToolCallModeHint: 'Tool call mode for this profile.',
         agentClearConversation: 'Clear Conversation',
         agentCopyDebugLog: 'Copy debug log (all tool calls + file contents)',
+        agentScrollToBottom: 'Scroll to bottom',
         agentThinkingProcess: 'Thinking Process',
         agentToolRequest: 'Tool Request: {{name}}',
         agentToolExecutionRequest: 'Tool Execution Request',

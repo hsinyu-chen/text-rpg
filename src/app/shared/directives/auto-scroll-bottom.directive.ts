@@ -1,66 +1,421 @@
-import { DestroyRef, Directive, ElementRef, effect, inject, input } from '@angular/core';
+import { DestroyRef, Directive, ElementRef, effect, inject, input, output } from '@angular/core';
 
 /**
- * Sticky-bottom auto-scroll for streaming text containers. Pass the text
- * signal as the input; whenever it changes, the directive scrolls to the
- * bottom — but only if the user was already pinned there when the chunk
- * arrived, so manual scroll-up to review earlier content isn't yanked away.
+ * Sticky-bottom auto-scroll for streaming content. The directive lives on the
+ * scroll container; whenever the watched input signal changes (or — when
+ * `observeResize` is on — when content inside the container grows), the
+ * directive re-pins to the bottom, gated by an "is the user driving?" flag.
  *
- * **Why a scroll-event-driven flag instead of reading scrollHeight in the
- * effect:** Angular signal effects fire *after* the DOM mutation that
- * appended the new chunk, so `scrollHeight` at effect time already includes
- * the chunk. `distance = scrollHeight - scrollTop - clientHeight` would
- * therefore equal the chunk's pixel height, which routinely exceeds the
- * sticky threshold for multi-line JSON / CoT streams — auto-scroll would
- * permanently detach after the first sizable chunk. Instead, we capture
- * "was at bottom" on every scroll event (which fires only on `scrollTop`
- * changes, not on content growth) and the effect just reads that flag.
+ * **Intent-based, not distance-based.** A single big chunk can push the user
+ * 5000 px above the bottom in one frame — any distance threshold would
+ * permanently detach. Detach is triggered by two complementary signals:
+ *   - **wheel / touchstart / keydown** events on the host: fire only when
+ *     the user is driving, latch detach synchronously with zero delay
+ *   - **scroll events where scrollTop *decreased*** (delta-up): catches
+ *     mouse-drag on the scrollbar, which produces no wheel/touch/key event
+ *     but emits scroll events with decreasing scrollTop. Our programmatic
+ *     writes always target scrollHeight (downward), so scrollTop never
+ *     decreases under our control — delta-up is unambiguously user intent.
+ *
+ * The user re-engages auto-follow by scrolling into the bottom-ack zone
+ * (50 px) — same scroll handler.
+ *
+ * `threshold` controls when the directive emits `atBottom` (for a host's
+ * "scroll to bottom" button visibility) — it does NOT gate auto-follow.
  */
 @Directive({
     selector: '[appAutoScrollBottom]',
     standalone: true,
+    exportAs: 'autoScroll',
 })
 export class AutoScrollBottomDirective {
     private el = inject<ElementRef<HTMLElement>>(ElementRef);
     private destroyRef = inject(DestroyRef);
 
-    /** Reactive value to watch — any change triggers the scroll check. */
-    readonly content = input<string>('', { alias: 'appAutoScrollBottom' });
+    /** Reactive value to watch — any change triggers a scroll check. */
+    readonly content = input<unknown>(null, { alias: 'appAutoScrollBottom' });
 
-    /**
-     * Latched-on-scroll: true when the user (or our last programmatic scroll)
-     * left the viewport pinned within {@link STICKY_THRESHOLD_PX} of the
-     * bottom. Starts true so the first chunk auto-scrolls.
-     */
+    /** Distance below which `atBottom` emits `true` (px). Does NOT gate
+     *  auto-follow — that's purely user-intent-driven. Controls the
+     *  "scroll to bottom" button's visibility hysteresis only. */
+    readonly threshold = input<number>(STICKY_THRESHOLD_PX);
+
+    /** Behavior for IMPERATIVE `scrollToBottom()` calls (e.g. host's "scroll
+     *  to bottom" button). `instant` = direct `scrollTop` write; `smooth` =
+     *  `scrollTo({behavior:'smooth'})`. **Automatic auto-follow always uses
+     *  instant** regardless of this setting — smooth retargeting can't keep
+     *  pace with rapid streaming chunks and causes visible drift behind the
+     *  content. The frequent small instant writes during streaming read as
+     *  smooth at 60 fps already. */
+    readonly scrollMode = input<'instant' | 'smooth'>('instant');
+
+    /** When true, attach `ResizeObserver` to the host AND every direct
+     *  element child (plus a `MutationObserver` watching `childList` to
+     *  pick up dynamically added siblings). Host observation catches
+     *  viewport / container resize (window shrink, parent layout shift);
+     *  child observation catches intrinsic content growth that doesn't
+     *  change the host's box (streaming chunks, panel expand). Works for
+     *  wrapped (single child), multi-child, and `*ngFor`-direct-child
+     *  layouts alike — no wrapper required. */
+    readonly observeResize = input<boolean>(false);
+
+    /** Re-pin to bottom for up to 30 RAF×2 ticks after each scroll, until
+     *  `dist ≤ 1` or `scrollHeight` stops growing. Catches layout shifts
+     *  that happen *after* the initial scroll resolves — `content-visibility:auto`
+     *  reveal, lazy image load, expansion-panel open, font swap, etc. Opt-in
+     *  because the safety cap is wasted work where post-scroll layout is stable. */
+    readonly stabilizeOnScroll = input<boolean>(false);
+
+    /** External gate: while true, all auto-follow paths no-op. Explicit
+     *  `scrollToBottom()` calls (e.g. a button click) still proceed —
+     *  user intent overrides the pause. */
+    readonly paused = input<boolean>(false);
+
+    /** Fires when the at-bottom state crosses the `threshold` boundary
+     *  (and once on first measurement). Host typically binds it to a
+     *  signal that drives a "scroll to bottom" button's visibility. */
+    readonly atBottom = output<boolean>();
+
+    /** User-intent flag: true while the user is following the bottom of
+     *  the stream. Flipped false by genuine user input (wheel / touch /
+     *  keyboard nav) OR a scroll event with scrollTop decreased by more
+     *  than {@link SCROLL_UP_DELTA_PX} (mouse-drag of the scrollbar).
+     *  Flipped true when the position returns to the 50 px bottom-ack zone.
+     *  Starts true so the first chunk auto-scrolls. */
     private wasAtBottom = true;
+    private lastScrollTop = 0;
+    /** ID of the pending RAF queued by `scheduleAutoScroll` for the next
+     *  `performAutoScroll` tick. Tracked so an imperative `scrollToBottom`
+     *  cancels it (otherwise a queued auto-instant could race the
+     *  imperative smooth write). */
+    private rafId: number | null = null;
+    /** Pending RAF IDs from `scheduleScrollCorrection`. A Set rather than
+     *  a single field because two correction loops can overlap (e.g., an
+     *  auto-follow tick scheduled correction is still cycling when a
+     *  scrollend top-up starts a second one). Single-field tracking would
+     *  let the older loop's RAF callback null out the newer loop's stored
+     *  ID, leaving it un-cancellable on destroy. */
+    private correctionRafIds = new Set<number>();
+    private lastEmittedAtBottom: boolean | null = null;
+    /** Set while an imperative smooth scroll-to-bottom is animating.
+     *  Auto-follow is suppressed in this window so a content-driven
+     *  re-pin doesn't instant-jump and cut the smooth tail short. */
+    private smoothInFlight = false;
+    private smoothFallbackTimerId: ReturnType<typeof setTimeout> | null = null;
 
     constructor() {
         const host = this.el.nativeElement;
+
+        // User-input handlers: real user events fire ONLY when the user is
+        // driving, never during our programmatic `scrollTo`. Synchronously
+        // latch wasAtBottom=false so the very next content tick (which often
+        // lands the same frame as the wheel event in fast LLM streams) sees
+        // the detach and skips re-pinning. Distance-delta detection in the
+        // scroll handler was too slow + jittery for this — scroll events lag
+        // wheel events by ~1 frame, and during that frame a fresh chunk +
+        // RAF re-pin can race the user's intent.
+        const onUserDrive = () => {
+            this.wasAtBottom = false;
+            // User took over — release the smooth-in-flight suppress so
+            // subsequent content arrivals can re-pin (when wasAtBottom returns
+            // to true via the ack zone) without waiting for the now-aborted
+            // browser smooth animation's never-firing scrollend.
+            this.clearSmoothInFlight();
+        };
+        host.addEventListener('wheel', onUserDrive, { passive: true });
+        host.addEventListener('touchstart', onUserDrive, { passive: true });
+        host.addEventListener('keydown', onUserDrive, { passive: true });
+
         const onScroll = () => {
-            this.wasAtBottom =
-                host.scrollHeight - host.scrollTop - host.clientHeight <= STICKY_THRESHOLD_PX;
+            const dist = host.scrollHeight - host.scrollTop - host.clientHeight;
+            const scrollTop = host.scrollTop;
+            // Delta-up check goes FIRST — when the user wheels up by less
+            // than BOTTOM_ACK_PX (~30 px), dist is still inside the ack zone,
+            // so the ack-branch would immediately undo onUserDrive's
+            // wasAtBottom=false and snap them back. Delta-up wins by virtue
+            // of running before the ack check.
+            if (scrollTop < this.lastScrollTop - SCROLL_UP_DELTA_PX) {
+                // scrollTop went up — only user input can do that since our
+                // programmatic writes always target scrollHeight. Catches
+                // mouse-drag of the scrollbar (which doesn't fire wheel /
+                // touch / key) and is a redundant safety net for those that do.
+                this.wasAtBottom = false;
+                this.clearSmoothInFlight();
+            } else if (dist < BOTTOM_ACK_PX) {
+                // Re-engage auto-follow when the user (or our programmatic
+                // scroll's tail) lands within the bottom-ack zone.
+                this.wasAtBottom = true;
+            }
+            this.lastScrollTop = scrollTop;
+            this.emitAtBottom(dist <= this.threshold());
+        };
+        // scrollend fires when a smooth animation finishes naturally.
+        // Chrome 114+, Firefox 121+, Safari 18.2+. Older browsers fall back
+        // to the SMOOTH_FALLBACK_MS timeout in `doScroll`.
+        const onScrollEnd = () => {
+            const wasOurSmooth = this.smoothInFlight;
+            this.clearSmoothInFlight();
+            // If our imperative smooth just completed (not a user-driven
+            // smooth — those clear smoothInFlight via onUserDrive before
+            // scrollend), commit auto-follow re-engagement and top up with
+            // a stabilization pass. cv:auto reveals / lazy images / font
+            // swap during the animation can leave the final scrollTop short
+            // of the (now grown) scrollHeight; scheduleScrollCorrection
+            // closes that gap. Without this top-up the user's "scroll to
+            // bottom" click lands them above the actual bottom whenever
+            // layout shifts mid-animation.
+            if (wasOurSmooth && this.stabilizeOnScroll()) {
+                this.wasAtBottom = true;
+                this.scheduleScrollCorrection(host, /* force= */ true);
+            }
         };
         host.addEventListener('scroll', onScroll, { passive: true });
-        this.destroyRef.onDestroy(() => host.removeEventListener('scroll', onScroll));
+        host.addEventListener('scrollend', onScrollEnd, { passive: true });
+        this.destroyRef.onDestroy(() => {
+            host.removeEventListener('wheel', onUserDrive);
+            host.removeEventListener('touchstart', onUserDrive);
+            host.removeEventListener('keydown', onUserDrive);
+            host.removeEventListener('scroll', onScroll);
+            host.removeEventListener('scrollend', onScrollEnd);
+        });
 
+        // Signal-driven trigger (existing behavior — watched value changes ⇒ check).
+        // Intentionally does NOT read `paused()`. Re-triggering auto-follow
+        // when paused flips false would yank a user who is reading a deep-
+        // linked message back to the bottom. Hosts that pause are expected
+        // to also call `disengage()` (or the directive's own scroll handler
+        // updates wasAtBottom from delta-up during the pause's programmatic
+        // scroll), so post-unpause state is already correct.
         effect(() => {
             this.content();
-            if (!this.wasAtBottom) return;
-            // queueMicrotask delays the scroll until the latest DOM mutation
-            // for THIS effect run has settled, so we read the post-update
-            // scrollHeight. The subsequent scroll event our assignment fires
-            // refreshes `wasAtBottom` to `true`.
-            queueMicrotask(() => {
-                host.scrollTop = host.scrollHeight;
+            this.scheduleAutoScroll();
+        });
+
+        // ResizeObserver trigger (opt-in).
+        //   - observe(host): catches viewport / container box changes
+        //     (window resize, parent flex reflow). Host's clientHeight
+        //     changing matters because it shifts whether the user is "at
+        //     the bottom" even when content didn't grow.
+        //   - observe(each child): catches intrinsic content growth that
+        //     doesn't move the host's box (streaming chunks, panel expand).
+        //   - MutationObserver on childList: picks up dynamically added
+        //     direct children (*ngFor siblings, conditionally rendered
+        //     wrappers). Removed nodes auto-clean — RO ignores detached.
+        // RAF debouncing in scheduleAutoScroll collapses the often-
+        // simultaneous host + child firings into one performAutoScroll.
+        effect((onCleanup) => {
+            if (!this.observeResize()) return;
+            const ro = new ResizeObserver(() => this.scheduleAutoScroll());
+            ro.observe(host);
+            for (const child of Array.from(host.children)) {
+                ro.observe(child);
+            }
+            const mo = new MutationObserver(records => {
+                for (const r of records) {
+                    r.addedNodes.forEach(node => {
+                        if (node.nodeType === Node.ELEMENT_NODE) {
+                            ro.observe(node as Element);
+                        }
+                    });
+                }
+            });
+            // childList only — grandchildren growth is captured by their
+            // parent's RO, so subtree observation would just duplicate work.
+            mo.observe(host, { childList: true });
+            onCleanup(() => {
+                ro.disconnect();
+                mo.disconnect();
             });
         });
+
+        this.destroyRef.onDestroy(() => {
+            if (this.rafId !== null) cancelAnimationFrame(this.rafId);
+            for (const id of this.correctionRafIds) cancelAnimationFrame(id);
+            this.correctionRafIds.clear();
+            this.clearSmoothInFlight();
+        });
+    }
+
+    /** Imperative scroll-to-bottom (button click etc.). Ignores `paused()` —
+     *  explicit user intent beats any in-flight gate. */
+    scrollToBottom(forceInstant = false): void {
+        // Cancel any pending auto-scroll RAF — its queued performAutoScroll
+        // would issue an instant `scrollTop=...` write that races (and could
+        // cancel) the smooth animation we're about to start.
+        if (this.rafId !== null) {
+            cancelAnimationFrame(this.rafId);
+            this.rafId = null;
+        }
+        // Only reset wasAtBottom for instant scrolls. For smooth, leave it
+        // false until the scroll event listener naturally flips it true at
+        // dist<50 — otherwise `scheduleScrollCorrection`'s gate
+        // `!wasAtBottom → return` is bypassed, its first RAF×2 re-pin uses
+        // `behavior:'auto'` (instant), and that cancels the in-flight smooth
+        // animation. The animation completes naturally and flips wasAtBottom
+        // for us within ~300ms.
+        if (forceInstant) {
+            this.wasAtBottom = true;
+        }
+        this.doScroll(forceInstant, /* fromImperative= */ true);
+    }
+
+    /** Snapshot of the sticky-follow flag — true when the user hasn't manually
+     *  scrolled up since the last bottom-ack. Hosts read this to gate "snap to
+     *  bottom on status change" safety nets so a reader reviewing earlier
+     *  content isn't yanked back. */
+    isFollowing(): boolean {
+        return this.wasAtBottom;
+    }
+
+    /** Imperatively detach auto-follow. For hosts performing a programmatic
+     *  scroll that the directive can't infer as "user wants out of follow"
+     *  — e.g. chat's deep-link jump to a message BELOW current position
+     *  (scrollTop increases, delta-up doesn't fire, so wasAtBottom stays
+     *  stale-true). Call this BEFORE the imperative scroll so the next
+     *  content tick after the jump doesn't yank the user back to bottom. */
+    disengage(): void {
+        this.wasAtBottom = false;
+    }
+
+    private scheduleAutoScroll(): void {
+        // Cancel any pending RAF before the paused-gate so a pause that
+        // arrives between scheduling and firing drops the queued trigger
+        // instead of letting performAutoScroll re-check at fire time.
+        // Symmetric with the cancel-then-schedule on the normal path below.
+        if (this.rafId !== null) {
+            cancelAnimationFrame(this.rafId);
+            this.rafId = null;
+        }
+        if (this.paused()) return;
+        this.rafId = requestAnimationFrame(() => {
+            this.rafId = null;
+            this.performAutoScroll();
+        });
+    }
+
+    private performAutoScroll(): void {
+        // Re-emit atBottom on every tick — dist may have changed via content
+        // growth (scrollHeight grew while scrollTop held) without any scroll
+        // event firing. Done regardless of paused / wasAtBottom so button
+        // visibility on the host stays accurate even when we skip the pin.
+        const host = this.el.nativeElement;
+        const dist = host.scrollHeight - host.scrollTop - host.clientHeight;
+        this.emitAtBottom(dist <= this.threshold());
+
+        if (this.paused() || !this.wasAtBottom) return;
+        // Suppress auto-follow while a smooth imperative scroll is animating.
+        // Otherwise the content tick lands an instant `scrollTop = ...` which
+        // cancels the smooth animation mid-way and cuts the tail. The smooth
+        // scroll completes naturally; subsequent content arrivals after
+        // scrollend resume auto-follow at the new bottom.
+        if (this.smoothInFlight) return;
+        if (host.scrollHeight <= host.clientHeight) return;
+        // No distance gate — wasAtBottom is the sole follow predicate.
+        // A 5000 px chunk in one frame must still pin, and only a user-driven
+        // wheel/touch/key event detaches.
+        // Always instant for auto-follow regardless of scrollMode — smooth
+        // retargeting can't keep pace with rapid streaming chunks and lags
+        // visibly behind the content. See `scrollMode` docs.
+        this.doScroll(/* forceInstant= */ true, /* fromImperative= */ false);
+    }
+
+    private doScroll(forceInstant: boolean, fromImperative: boolean): void {
+        const host = this.el.nativeElement;
+        const useInstant = forceInstant || this.scrollMode() === 'instant';
+        try {
+            if (useInstant) {
+                host.scrollTop = host.scrollHeight;
+            } else {
+                host.scrollTo({ top: host.scrollHeight, behavior: 'smooth' });
+                if (fromImperative) {
+                    // Track smooth-in-flight only for IMPERATIVE smooth (e.g.
+                    // button click) — auto-follow never asks for smooth, so
+                    // we'd never set this from the auto path anyway. Cleared
+                    // on scrollend, on user-drive (wheel/touch/key — browser
+                    // cancels the smooth then), or by the fallback timeout
+                    // for browsers without scrollend support.
+                    this.smoothInFlight = true;
+                    if (this.smoothFallbackTimerId !== null) {
+                        clearTimeout(this.smoothFallbackTimerId);
+                    }
+                    this.smoothFallbackTimerId = setTimeout(
+                        () => this.clearSmoothInFlight(),
+                        SMOOTH_FALLBACK_MS,
+                    );
+                }
+            }
+            if (this.stabilizeOnScroll()) {
+                this.scheduleScrollCorrection(host, useInstant);
+            }
+        } catch { /* ignore — scrollTo can throw in detached test envs */ }
+    }
+
+    private clearSmoothInFlight(): void {
+        this.smoothInFlight = false;
+        if (this.smoothFallbackTimerId !== null) {
+            clearTimeout(this.smoothFallbackTimerId);
+            this.smoothFallbackTimerId = null;
+        }
+    }
+
+    private scheduleScrollCorrection(
+        el: HTMLElement,
+        force: boolean,
+        attempt = 0,
+        lastHeight = -1
+    ): void {
+        if (attempt >= STABILIZE_MAX_ATTEMPTS) return;
+        // Track each pending RAF in the Set so destroy can cancel ALL of
+        // them. Concurrent loops (auto-follow tick correction + scrollend
+        // top-up overlapping during rapid streaming) used to stomp each
+        // other when tracked via a single field — the older loop's
+        // callback nulled the newer's ID, leaving it un-cancellable.
+        let outerId = 0;
+        let innerId = 0;
+        outerId = requestAnimationFrame(() => {
+            this.correctionRafIds.delete(outerId);
+            innerId = requestAnimationFrame(() => {
+                this.correctionRafIds.delete(innerId);
+                if (this.paused() || !this.wasAtBottom) return;
+                const curr = el.scrollHeight;
+                const dist = curr - el.scrollTop - el.clientHeight;
+                if (dist <= 1) return;
+                // Layout has stabilised but we're still short — further retries won't help.
+                if (curr === lastHeight) return;
+                if (force) {
+                    el.scrollTop = curr;
+                } else {
+                    el.scrollTo({ top: curr, behavior: 'auto' });
+                }
+                this.scheduleScrollCorrection(el, force, attempt + 1, curr);
+            });
+            this.correctionRafIds.add(innerId);
+        });
+        this.correctionRafIds.add(outerId);
+    }
+
+    private emitAtBottom(v: boolean): void {
+        if (v === this.lastEmittedAtBottom) return;
+        this.lastEmittedAtBottom = v;
+        this.atBottom.emit(v);
     }
 }
 
-/**
- * How close to the bottom the user must be (in px) for streaming-driven
- * auto-scroll to engage. 24px ≈ one line of text — generous enough to
- * survive jitter from anti-aliased line heights, tight enough that a user
- * who's actively reading mid-content isn't dragged back down.
- */
+/** Default sticky distance (px). One line of text ≈ 24 px — generous enough
+ *  to survive anti-aliased line-height jitter, tight enough that a reader
+ *  actively reviewing mid-content isn't dragged back down. */
 const STICKY_THRESHOLD_PX = 24;
+/** Returning within this distance re-engages auto-follow. */
+const BOTTOM_ACK_PX = 50;
+/** Minimum upward scrollTop delta (px) to count as user-initiated scroll-up.
+ *  Below this, treat as jitter (browser interpolation drift, sub-pixel
+ *  reflow). 5 px ≈ half a wheel notch — generous enough to suppress noise,
+ *  tight enough that a deliberate mouse-drag registers immediately. */
+const SCROLL_UP_DELTA_PX = 5;
+/** Fallback for browsers without `scrollend` event (pre-Chrome 114 / FF 121 /
+ *  Safari 18.2). Long enough to outlast a slow smooth scroll from the top
+ *  of a tall container; short enough that a missed scrollend doesn't
+ *  permanently freeze auto-follow. */
+const SMOOTH_FALLBACK_MS = 1200;
+/** Safety cap on `scheduleScrollCorrection` recursion. */
+const STABILIZE_MAX_ATTEMPTS = 30;

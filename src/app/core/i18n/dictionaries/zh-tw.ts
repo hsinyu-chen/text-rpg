@@ -390,6 +390,7 @@ export const zhTW: TranslationDict = {
         agentToolCallModeHint: '此設定的工具呼叫模式。',
         agentClearConversation: '清除對話',
         agentCopyDebugLog: '複製除錯記錄（包含所有工具呼叫與檔案內容）',
+        agentScrollToBottom: '捲到底部',
         agentThinkingProcess: '思考過程',
         agentToolRequest: '工具請求：{{name}}',
         agentToolExecutionRequest: '工具執行請求',
