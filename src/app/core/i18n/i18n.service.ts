@@ -7,6 +7,7 @@ import {
     type TranslationDict,
     type UiLocaleId,
 } from './ui-locales';
+import { ParamsBag } from './ParamsBag';
 
 /**
  * Single global regex matching all `{{ name }}` placeholders. Captured once
@@ -40,13 +41,13 @@ export class I18nService {
      * key itself on miss — surfaces typos visibly in the UI without throwing.
      * Params replace `{{name}}` placeholders in a single regex pass.
      */
-    translate(key: string, params?: Record<string, string | number>): string {
+    translate(key: string, params?: ParamsBag): string {
         const value = this.walk(this.currentDict(), key);
         if (typeof value !== 'string') return key;
         if (!params) return value;
 
         return value.replace(PLACEHOLDER_RE, (match, name: string) =>
-            name in params ? String(params[name]) : match);
+            name in params ? String(params[name] ?? '') : match);
     }
 
     private walk(dict: TranslationDict, key: string): string | TranslationDict | undefined {

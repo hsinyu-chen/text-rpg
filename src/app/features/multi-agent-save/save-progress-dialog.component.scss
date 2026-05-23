@@ -118,6 +118,53 @@
     margin: 0.4rem 0;
 }
 
+// Cap the rich agent trace at a similar height to .output-text so a chatty
+// advanced agent doesn't push the expansion-panel beyond the dialog viewport.
+// `display: flex` + min-height: 0 lets the surface's internal scroll viewport
+// take effect inside the bounded box.
+.entry-trace {
+    display: flex;
+    flex-direction: column;
+    max-height: 320px;
+    margin: 0.4rem 0;
+    // Retheme the trace surface to match the Material dialog chrome. The
+    // surface's defaults (translucent black bg + white-tinted text/borders)
+    // read as an alien "embedded terminal" on the dialog's light surface;
+    // surface-container-high + outline-variant keep the embedded-block hint
+    // without forcing dark mode inside a light dialog, and the fg-rgb flip
+    // to `0, 0, 0` turns every opacity-tinted text and divider into the
+    // dark-on-light equivalent.
+    --agent-trace-surface-bg: var(--mat-sys-surface-container-high);
+    --agent-trace-surface-border: var(--mat-sys-outline-variant);
+    --agent-trace-surface-fg-rgb: 0, 0, 0;
+}
+
+.entry-warnings {
+    margin: 0.5rem 0;
+    padding: 0.4rem 0.75rem;
+    border-left: 3px solid var(--mat-sys-error);
+    background: rgba(244, 67, 54, 0.06);
+    font-size: 0.8rem;
+
+    .entry-warnings-title {
+        font-weight: 600;
+        opacity: 0.85;
+        margin-bottom: 0.2rem;
+    }
+
+    ul {
+        margin: 0;
+        padding-left: 1.2rem;
+        font-family: 'Fira Code', 'Consolas', monospace;
+        font-size: 0.75rem;
+
+        li {
+            margin: 0.1rem 0;
+            word-break: break-word;
+        }
+    }
+}
+
 .usage-line {
     display: flex;
     gap: 1rem;

@@ -6,6 +6,8 @@
  * Plan: TextRPG_Plans/doing/multi-agent-save-hunk-redesign.md
  */
 
+import type { AgentLogEntry } from '../agent-runner/agent-runner.types';
+
 /**
  * One condensed unit of "something happened in the ACT" extracted from a
  * single `role: 'model'` chat message.
@@ -167,8 +169,24 @@ export interface SaveProgressEntry {
     entityName?: string;
     /** Streamed CoT — accumulated, shown in a collapsible details panel. */
     thought: string;
-    /** Streamed structured output — JSON, shown in a code block. */
+    /** Streamed structured output — JSON, shown in a code block when no `logs` are present. */
     output: string;
+    /**
+     * Structured agent trace, set by advanced-save agents mid-loop. When
+     * present the dialog renders `<app-agent-trace-surface>` (rich cards with
+     * thought / tool-call / tool-result folds + markdown) instead of the
+     * `<pre>` fallback that `output` drives. Both fields can coexist (mainly
+     * the SaveAgent has `output` and no `logs`; advanced agents have `logs`
+     * and an empty `output`) — the template prefers `logs` when non-empty.
+     */
+    logs?: readonly AgentLogEntry[];
+    /**
+     * Framework-side notes about inputs the agent's terminal commit asked for
+     * but the framework rejected (out-of-domain file, unknown id…). Rendered
+     * below the trace in a "Framework Warnings" block — visible-by-default so
+     * a save run's silent-skipped edits don't go unnoticed.
+     */
+    warnings?: readonly string[];
     /** Prefill / prompt-processing progress (0-1 ratio reported by the provider). */
     ppProgress?: number;
     /** Token usage totals reported by the provider. */

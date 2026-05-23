@@ -7,6 +7,10 @@ import { TranslatePipe } from '@app/core/i18n';
 import { SaveProgressTracker } from '@app/core/services/multi-agent-save/progress/save-progress-tracker.service';
 import type { SaveProgressEntry } from '@app/core/services/multi-agent-save/multi-agent-save.types';
 import { AutoScrollBottomDirective } from '@app/shared/directives/auto-scroll-bottom.directive';
+import {
+    AgentTraceSurfaceComponent,
+    type AgentLogFoldKey,
+} from '@app/shared/components/agent-trace-surface/agent-trace-surface.component';
 
 /**
  * Modal dialog rendered for the duration of one multi-agent save run.
@@ -41,6 +45,7 @@ export interface SaveProgressDialogData {
         MatChipsModule,
         TranslatePipe,
         AutoScrollBottomDirective,
+        AgentTraceSurfaceComponent,
     ],
     templateUrl: './save-progress-dialog.component.html',
     styleUrl: './save-progress-dialog.component.scss',
@@ -81,6 +86,24 @@ export class SaveProgressDialogComponent {
     /** PP progress as a percentage 0-100 for `<mat-progress-bar [value]>`. */
     ppPercent(entry: SaveProgressEntry): number {
         return Math.round((entry.ppProgress ?? 0) * 100);
+    }
+
+    /**
+     * Surface-emitted fold click for one of the entry's structured log
+     * entries. The tracker owns its own snapshot of `logs` (set by the
+     * agent's mirror effect) — toggling here mutates only the dialog's
+     * view; we don't reach back into the agent's signal. While the agent
+     * is still streaming, the next mirror tick will overwrite the toggle.
+     * After the run finishes (no more mirrors), folds persist.
+     */
+    onTraceFoldToggle(entry: SaveProgressEntry, evt: { index: number; key: AgentLogFoldKey }): void {
+        const logs = entry.logs;
+        if (!logs) return;
+        const target = logs[evt.index];
+        if (!target) return;
+        const next = logs.slice();
+        next[evt.index] = { ...target, [evt.key]: !target[evt.key] };
+        this.tracker.setEntryLogs(entry.entryId, next);
     }
 
     /** Material icon for each entry state — keeps the template free of icon-mapping logic. */

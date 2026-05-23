@@ -48,8 +48,34 @@
                         </details>
                     }
 
-                    @if (entry.output) {
+                    @if (entry.logs && entry.logs.length) {
+                        <!--
+                          Indicator passed as null: the panel's own pp-progress
+                          bar + the header's state badge already convey "running"
+                          + prefill progress, and dialog entries don't have
+                          proposer / token-count signals to surface. Keeping the
+                          surface's indicator off avoids duplicate "thinking..."
+                          chrome inside an already-busy expansion panel.
+                        -->
+                        <app-agent-trace-surface
+                            [logs]="entry.logs"
+                            [indicator]="null"
+                            [showScrollToBottomButton]="false"
+                            (foldToggle)="onTraceFoldToggle(entry, $event)"
+                            class="entry-trace" />
+                    } @else if (entry.output) {
                         <pre class="output-text" [appAutoScrollBottom]="entry.output">{{ entry.output }}</pre>
+                    }
+
+                    @if (entry.warnings?.length) {
+                        <div class="entry-warnings">
+                            <div class="entry-warnings-title">{{ 'multiAgentSave.progress.frameworkWarningsLabel' | translate }}</div>
+                            <ul>
+                                @for (w of entry.warnings; track $index) {
+                                    <li>{{ w }}</li>
+                                }
+                            </ul>
+                        </div>
                     }
 
                     @if (entry.usage) {
