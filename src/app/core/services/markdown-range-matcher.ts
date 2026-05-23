@@ -11,22 +11,56 @@ import { computeFencedLineMask, parseAtxHeading } from '../utils/markdown.util';
  */
 
 /**
- * Test a single line against a crumb (raw heading text — no `#` prefix, no
- * delimiters). Heading lines compare via the heading's body text;
- * non-heading lines fall back to whole-line `includes` so the LLM can
- * anchor on a list-item bullet when the file structures sections that way
- * (e.g. `## 執行中 / - 「foo」計畫` — `foo` is a list-item, not a header).
- * Fenced lines never match — fence content is never a real anchor, even
- * via the loose body-text path (otherwise `## fake` inside a code fence
- * would be matchable as `fake`).
+ * Score a line's match against a crumb. Higher = more specific.
+ * 3 = exact equality (normalized), 2 = prefix, 1 = substring. 0 = no
+ * match, empty crumb, or fenced line.
+ *
+ * Tiered so callers can prefer an exact heading match over a paragraph
+ * that happens to mention the heading name. The substring tier is
+ * retained so `Section` still matches `# Section (note)` (the
+ * parenthetical-suffix tolerance that motivates this matcher) — but
+ * only when no exact / prefix match exists in scope. Heading lines
+ * compare via the heading's body text; non-heading lines fall back to
+ * whole-line scoring so list-item / paragraph anchors still work.
  */
-function matchCrumb(line: string, fenced: boolean, crumb: string): boolean {
-    if (fenced) return false;
+function matchCrumb(line: string, fenced: boolean, crumb: string): number {
+    if (fenced) return 0;
     const lineHeading = parseAtxHeading(line);
     const lineText = lineHeading ? lineHeading.text : line.trim();
     const normalizedLine = normalizeForComparison(lineText);
     const normalizedCrumb = normalizeForComparison(crumb);
-    return normalizedLine.includes(normalizedCrumb);
+    if (!normalizedCrumb) return 0;
+    if (normalizedLine === normalizedCrumb) return 3;
+    if (normalizedLine.startsWith(normalizedCrumb)) return 2;
+    if (normalizedLine.includes(normalizedCrumb)) return 1;
+    return 0;
+}
+
+/**
+ * Scan a slice of `lines` for the highest-scoring crumb match.
+ * `step` direction-aware: 1 walks forward `[start, end)`, -1 walks
+ * backward `(end, start]`. Exact matches short-circuit further scanning.
+ * Returns `{ line: -1, score: 0 }` when nothing in scope matches.
+ */
+function pickBestCrumbMatch(
+    lines: string[],
+    fencedMask: boolean[],
+    crumb: string,
+    start: number,
+    end: number,
+    step: 1 | -1,
+): { line: number; score: number } {
+    let bestLine = -1;
+    let bestScore = 0;
+    for (let i = start; step > 0 ? i < end : i > end; i += step) {
+        const score = matchCrumb(lines[i], fencedMask[i], crumb);
+        if (score > bestScore) {
+            bestScore = score;
+            bestLine = i;
+            if (score === 3) break;
+        }
+    }
+    return { line: bestLine, score: bestScore };
 }
 
 /**
@@ -114,32 +148,26 @@ function expandRange(content: string, target: string, start: number, end: number
 
 /**
  * Verify that a context breadcrumb path can be walked backward from
- * `matchIndex`. Returns the number of crumbs successfully matched (used as a
- * tie-break score among multiple target candidates), or 0 if any crumb
- * fails. Reverse traversal: deepest crumb is the closest header above the
- * match.
+ * `matchIndex`. Returns the sum of crumb match scores (used as a tie-break
+ * among multiple target candidates) — higher = more specific match — or 0
+ * if any crumb fails. Reverse traversal: deepest crumb is the closest
+ * ancestor above the match. Within each crumb's backward window the
+ * highest-scoring line wins, so an exact heading match further back beats
+ * a substring mention that's closer (which would typically be body text).
  */
 function verifyContext(lines: string[], fencedMask: boolean[], matchIndex: number, context: string[]): number {
     const crumbs = [...context].reverse();
     let currentIdx = matchIndex;
-    let matchedCount = 0;
+    let totalScore = 0;
 
     for (const crumb of crumbs) {
-        let found = false;
-
-        for (let i = currentIdx - 1; i >= 0; i--) {
-            if (matchCrumb(lines[i], fencedMask[i], crumb)) {
-                found = true;
-                matchedCount++;
-                currentIdx = i;
-                break;
-            }
-        }
-
-        if (!found) return 0;
+        const { line, score } = pickBestCrumbMatch(lines, fencedMask, crumb, currentIdx - 1, -1, -1);
+        if (line === -1) return 0;
+        totalScore += score;
+        currentIdx = line;
     }
 
-    return matchedCount;
+    return totalScore;
 }
 
 export function findMatchRange(content: string, target: string, context?: string[]): { start: number; end: number } | null {
@@ -151,7 +179,8 @@ export function findMatchRange(content: string, target: string, context?: string
     let searchStart = 0;
     const candidates: { start: number; end: number; score: number }[] = [];
 
-    const hasContext = !!context && context.length > 0;
+    const crumbs = context?.filter(c => c) ?? [];
+    const hasContext = crumbs.length > 0;
     const lines = hasContext ? content.split(/\r?\n/) : null;
     const fencedMask = lines ? computeFencedLineMask(lines) : null;
     // Both per-iteration calls (start, lastChar) and the next iteration's
@@ -188,7 +217,7 @@ export function findMatchRange(content: string, target: string, context?: string
 
         if (hasContext && lines && fencedMask) {
             const lineIndex = getLineIndexFromCharIndex(content, start);
-            const score = verifyContext(lines, fencedMask, lineIndex, context!);
+            const score = verifyContext(lines, fencedMask, lineIndex, crumbs);
             if (score > 0) {
                 candidates.push({ ...expandRange(content, target, start, end), score });
             }
@@ -212,31 +241,19 @@ export function findMatchRange(content: string, target: string, context?: string
  * back to EOF in that case (would silently insert at the wrong place).
  */
 export function findInsertionPoint(lines: string[], context?: string[]): number {
-    if (!context || context.length === 0) return lines.length;
+    const crumbs = context?.filter(c => c) ?? [];
+    if (crumbs.length === 0) return lines.length;
 
-    // Skip fenced lines entirely — a `## fake` inside ```...``` must not be
-    // matchable as the insertion anchor. matchCrumb itself rejects fenced
-    // headings via its `fenced` param, but pre-filtering keeps the boundary
-    // scan below from landing on a fence-faked anchor.
     const fencedMask = computeFencedLineMask(lines);
 
     let currentLine = 0;
     let anyFound = false;
 
-    for (const crumb of context) {
-        let found = -1;
-
-        for (let i = currentLine; i < lines.length; i++) {
-            if (fencedMask[i]) continue;
-            if (matchCrumb(lines[i], false, crumb)) {
-                found = i;
-                anyFound = true;
-                break;
-            }
-        }
-
-        if (found !== -1) {
-            currentLine = found + 1;
+    for (const crumb of crumbs) {
+        const { line } = pickBestCrumbMatch(lines, fencedMask, crumb, currentLine, lines.length, 1);
+        if (line !== -1) {
+            currentLine = line + 1;
+            anyFound = true;
         }
         // Skipped-layer tolerance: if a crumb misses, keep scanning the next
         // crumb from the SAME currentLine (don't reset, don't fail).
@@ -268,25 +285,18 @@ export function findInsertionPoint(lines: string[], context?: string[]): number 
  * found, for navigating to a section header even when content match fails.
  */
 export function findContextLine(content: string, context: string[]): number | null {
-    if (!context || context.length === 0) return null;
+    const crumbs = context?.filter(c => c) ?? [];
+    if (crumbs.length === 0) return null;
     const lines = content.split(/\r?\n/);
     const fencedMask = computeFencedLineMask(lines);
     let currentLine = 0;
     let lastFoundLine: number | null = null;
 
-    for (const crumb of context) {
-        let found = -1;
-
-        for (let i = currentLine; i < lines.length; i++) {
-            if (matchCrumb(lines[i], fencedMask[i], crumb)) {
-                found = i;
-                break;
-            }
-        }
-
-        if (found !== -1) {
-            lastFoundLine = found;
-            currentLine = found + 1;
+    for (const crumb of crumbs) {
+        const { line } = pickBestCrumbMatch(lines, fencedMask, crumb, currentLine, lines.length, 1);
+        if (line !== -1) {
+            lastFoundLine = line;
+            currentLine = line + 1;
         }
     }
 

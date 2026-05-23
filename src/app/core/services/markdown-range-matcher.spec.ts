@@ -188,6 +188,41 @@ describe('findInsertionPoint', () => {
     expect(findInsertionPoint(lines, ['執行中', '解讀太初殘片'])).toBe(3);
   });
 
+  it('prefers an exact heading match over an earlier body-text mention (tiered scoring)', () => {
+    const lines = [
+      '# Top',
+      'this paragraph mentions Plans by name',
+      '## Plans',
+      'real body',
+      '# After',
+    ];
+    // Old "first match wins" lands on line 1; tiered scoring picks the exact `## Plans` at line 2.
+    expect(findInsertionPoint(lines, ['Plans'])).toBe(4);
+  });
+
+  it('prefers a prefix heading match over a substring body match', () => {
+    const lines = [
+      '# Top',
+      'sub appears once in this paragraph',
+      '## Sub (note)',
+      'real body',
+      '# After',
+    ];
+    // `Sub` is prefix of `Sub (note)` (score 2), substring of body (score 1). Prefix wins.
+    expect(findInsertionPoint(lines, ['Sub'])).toBe(4);
+  });
+
+  it('filters empty-string crumbs out (treats them as no-op, not catastrophic match)', () => {
+    const lines = ['# Real', 'body', '# After'];
+    // `[""]` would otherwise match every line via `includes("")` — filtered to `[]` = file root.
+    expect(findInsertionPoint(lines, [''])).toBe(lines.length);
+  });
+
+  it('filters empty crumbs from a mixed array, keeping the meaningful ones', () => {
+    const lines = ['# Real', 'body', '# After'];
+    expect(findInsertionPoint(lines, ['', 'Real', ''])).toBe(2);
+  });
+
   it('boundary scan skips fenced fake-headings of equal level', () => {
     const lines = ['# Top', 'body', '```', '# fake-equal-level', '```', 'more body', '# After'];
     expect(findInsertionPoint(lines, ['Top'])).toBe(6);
