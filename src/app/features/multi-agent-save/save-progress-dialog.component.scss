@@ -1,15 +1,35 @@
+// Host opens via FULLSCREEN_DIALOG_CONFIG — outer container has no padding
+// (set globally by `.fullscreen-dialog .mat-mdc-dialog-container { padding: 0 }`).
+// Reclaim flex layout here + restore inner padding on title / content /
+// actions so the long entry list scrolls inside .save-progress-content
+// instead of pushing the actions off-screen.
 :host {
-    display: block;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
     min-width: 0;
+    min-height: 0;
+}
+
+h2[mat-dialog-title] {
+    padding: 16px 24px 0;
+    margin: 0;
 }
 
 .save-progress-content {
+    flex: 1 1 auto;
     min-width: 0;
-    width: 760px;
-    max-width: 90vw;
-    max-height: 75vh;
+    min-height: 0;
     display: flex;
     flex-direction: column;
+    padding: 16px 24px;
+    overflow-y: auto;
+}
+
+mat-dialog-actions {
+    padding: 8px 24px 16px;
+    flex-wrap: wrap;
+    gap: 8px;
 }
 
 .empty-state {
@@ -99,7 +119,7 @@
         background: rgba(0, 0, 0, 0.04);
         padding: 0.5rem 0.75rem;
         border-radius: 4px;
-        max-height: 220px;
+        max-height: 40vh;
         overflow: auto;
         margin: 0.4rem 0 0;
     }
@@ -113,7 +133,7 @@
     background: rgba(0, 0, 0, 0.04);
     padding: 0.5rem 0.75rem;
     border-radius: 4px;
-    max-height: 280px;
+    max-height: 40vh;
     overflow: auto;
     margin: 0.4rem 0;
 }
@@ -125,7 +145,7 @@
 .entry-trace {
     display: flex;
     flex-direction: column;
-    max-height: 320px;
+    max-height: 50vh;
     margin: 0.4rem 0;
     // Retheme the trace surface to match the Material dialog chrome. The
     // surface's defaults (translucent black bg + white-tinted text/borders)

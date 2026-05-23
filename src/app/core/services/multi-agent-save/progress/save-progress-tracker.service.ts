@@ -41,6 +41,14 @@ export class SaveProgressTracker {
     readonly workComplete = this._workComplete.asReadonly();
 
     /**
+     * Whether the completed work produced at least one FileUpdate. Drives the
+     * dialog's Continue (→ AutoUpdate) button — hidden when there's nothing
+     * to apply. Only meaningful while {@link workComplete} is true.
+     */
+    private _hasUpdates = signal(false);
+    readonly hasUpdates = this._hasUpdates.asReadonly();
+
+    /**
      * Clears the entry ledger and resets the per-run `workComplete` flag.
      * Lifecycle state (`isRunning`) is NOT touched here — the orchestrator's
      * `finally` block is the canonical site for `setRunning(false)`, and
@@ -51,14 +59,16 @@ export class SaveProgressTracker {
     reset(): void {
         this._entries.set([]);
         this._workComplete.set(false);
+        this._hasUpdates.set(false);
     }
 
     setRunning(running: boolean): void {
         this._isRunning.set(running);
     }
 
-    setWorkComplete(complete: boolean): void {
+    setWorkComplete(complete: boolean, hasUpdates = false): void {
         this._workComplete.set(complete);
+        this._hasUpdates.set(hasUpdates);
     }
 
     startEntry(phase: SavePhase, opts?: { toolName?: string; entityName?: string }): string {

@@ -110,12 +110,9 @@ export class MultiAgentSaveService {
             // lock — `finally` still runs setRunning(false).
             const abortController = new AbortController();
             const dialogRef = this.dialog.open(SaveProgressDialogComponent, {
+                ...FULLSCREEN_DIALOG_CONFIG,
                 data: { abortController },
-                width: '780px',
-                maxWidth: '95vw',
-                maxHeight: '90vh',
                 disableClose: true,
-                panelClass: 'save-progress-dialog-panel',
             });
 
             // 1. Snapshot turn context (provider, cache, history, language).
@@ -173,36 +170,40 @@ export class MultiAgentSaveService {
             //    markdown into target/replacement, so this is a field copy.
             const updates = processedHunks.map(hunkToFileUpdate);
 
-            // 6. Mark the save work done so the progress dialog can show its
-            //    Close button. `isRunning` stays true throughout — it gates
-            //    the chat mask + sendMessage re-entrancy guard, which must
-            //    remain locked while the user reviews / applies updates.
-            //    `workComplete` is the dialog-only signal that swaps Cancel
-            //    out for Close.
-            this.progress.setWorkComplete(true);
+            // 6. Mark the save work done so the progress dialog can swap its
+            //    Cancel button for the Close (cancel-flow) / Continue
+            //    (advance-to-AutoUpdate) pair. `isRunning` stays true through
+            //    the review — it gates the chat mask + sendMessage re-entrancy
+            //    guard while the user picks an action.
+            this.progress.setWorkComplete(true, updates.length > 0);
 
-            // 7. Hand off to AutoUpdateDialog. Empty updates ≡ the SaveAgent
-            //    found nothing to write; just let the dialog close.
+            // 7. Wait for the user to pick Close or Continue. The dialog
+            //    closes itself with `true` for Continue (advance to
+            //    AutoUpdate) and `false` for Close / abort / backdrop. When
+            //    there are no updates to apply we fast-path the auto-close
+            //    even under pauseBeforeAutoUpdate — Continue would have
+            //    nothing to do, so leaving the dialog open just blocks the
+            //    chat for no reason.
             //
-            //    The dialog applies internally via engine.updateSingleFile +
-            //    saveCurrentSessionToBook (which bumps lastActiveAt itself)
+            //    AutoUpdateDialog applies internally via engine.updateSingleFile
+            //    + saveCurrentSessionToBook (which bumps lastActiveAt itself)
             //    and closes with a boolean — there's no FileUpdate[]
             //    returned via afterClosed, so we don't post-process here.
-            //
-            //    Production flow: auto-close the progress dialog before
-            //    opening auto-update so the user isn't staring at two
-            //    stacked modals. Diagnostic flow (`pauseBeforeAutoUpdate`):
-            //    wait for the user to close the progress dialog manually so
-            //    the manifest trace stays inspectable. Either way the
-            //    `await` keeps the chat surface save-locked + the sendMessage
-            //    re-entrancy guard armed while the user works through the
-            //    review.
+            if (updates.length === 0) {
+                if (this.settings.pauseBeforeAutoUpdate()) {
+                    await firstValueFrom(dialogRef.afterClosed());
+                } else {
+                    dialogRef.close();
+                }
+                return;
+            }
+
             if (this.settings.pauseBeforeAutoUpdate()) {
-                await firstValueFrom(dialogRef.afterClosed());
+                const proceed = await firstValueFrom(dialogRef.afterClosed());
+                if (!proceed) return;
             } else {
                 dialogRef.close();
             }
-            if (updates.length === 0) return;
             await this.openAutoUpdateDialog(updates);
         } catch (err: unknown) {
             // User-initiated cancellation (Cancel button → AbortController.abort()).

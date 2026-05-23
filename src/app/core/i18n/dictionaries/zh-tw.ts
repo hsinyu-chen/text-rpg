@@ -1154,6 +1154,7 @@ export const zhTW: TranslationDict = {
             totalLabel: '累計 token',
             cancel: '中斷',
             close: '關閉',
+            continue: '繼續',
             state: {
                 running: '進行中',
                 retry: '重試',

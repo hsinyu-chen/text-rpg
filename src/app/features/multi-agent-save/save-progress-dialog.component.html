@@ -100,14 +100,19 @@
             <mat-icon>cancel</mat-icon>
             {{ 'multiAgentSave.progress.cancel' | translate }}
         </button>
-    }
-    @if (!canCancel()) {
+    } @else {
         <!--
-          Close is the inverse of Cancel:
-          - work done (workComplete=true) → user advances past pause toggle / error trace
-          - run aborted / failed (isRunning=false) → user dismisses the post-mortem dialog
-          Covers both pause-mode review and the error / abort paths after finally.
+          Close = "stop here, do not advance" — covers both paths:
+          - work done with updates: user opted out of AutoUpdate handoff
+          - work done without updates / aborted / failed: the only sensible action
+          Service treats `afterClosed === false` as "skip AutoUpdate".
         -->
         <button mat-button (click)="close()">{{ 'multiAgentSave.progress.close' | translate }}</button>
+        @if (canContinue()) {
+            <button mat-flat-button color="primary" (click)="continueToAutoUpdate()">
+                <mat-icon>arrow_forward</mat-icon>
+                {{ 'multiAgentSave.progress.continue' | translate }}
+            </button>
+        }
     }
 </mat-dialog-actions>
