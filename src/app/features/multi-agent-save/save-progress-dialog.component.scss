@@ -17,7 +17,11 @@ h2[mat-dialog-title] {
 }
 
 .save-progress-content {
-    flex: 1;
+    // MDC's .mat-mdc-dialog-content default carries `max-height: 65vh` —
+    // it caps the content even when the host is taller. Lift it so the
+    // surrounding flex column actually fills the fullscreen surface.
+    max-height: none;
+    flex: 1 1 auto;
     min-width: 0;
     min-height: 0;
     display: flex;
