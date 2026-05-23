@@ -193,7 +193,8 @@ export class InventoryConsistencyAgent extends ReadOnlyAgent<InventoryAgentActio
             this.progress.finishEntry(entryId, 'done', 'no changes');
             return [...input.hunks];
         }
-        const { hunks, warnings } = applyInventoryReview(input.hunks, commit, reviewFiles);
+        const validMessageIds = new Set(input.chatMessages.map(m => m.id));
+        const { hunks, warnings } = applyInventoryReview(input.hunks, commit, reviewFiles, validMessageIds);
         if (warnings.length) {
             console.warn('[InventoryConsistencyAgent] skipped inputs:', warnings.join('; '));
             this.progress.setEntryWarnings(entryId, warnings);

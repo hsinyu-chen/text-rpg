@@ -40,7 +40,7 @@ The three operations are determined by which fields are present:
 >
 > `target` must match the source file exactly, or the apply step will fail to anchor it.
 
-For the Story Outline (chronicle) file, write the ACT's progress as a new time-node hunk covering the key turning points, conflict outcomes, and notable lines, following the file's existing chronicle style.
+For the Story Outline (chronicle) file, write the ACT's progress as a new time-node hunk covering the key turning points, conflict outcomes, and notable lines, following the file's existing chronicle style. Chronicle hunks summarise the whole ACT rather than any single message, so **omit `sourceMessageIds`** for them — listing every message in the ACT carries no signal for the downstream consistency layer.
 
 Field rules for updating character entries:
 
@@ -48,7 +48,9 @@ Field rules for updating character entries:
 
 ### Evidence annotation — each hunk's `sourceMessageIds` (optional)
 
-Every hunk may carry a `sourceMessageIds: string[]` listing the `messageId` (log id) values from this ACT that **directly** support it. The downstream consistency-checking layer uses these anchors to look up the original text.
+Every hunk may carry a `sourceMessageIds: string[]` listing the `messageId` values from this ACT that **directly** support it. The downstream consistency-checking layer uses these anchors to look up the original text.
+
+Each message in the rendered chat history is prefixed with an `[id: <messageId>]` tag on its first line. The id you cite for a hunk must be **copied verbatim from one of these tags** — do not paraphrase, hash, or invent ids; an id the framework cannot match against the conversation is dropped on validation.
 
 - **List messageIds**: the hunk's facts are explicitly described in those model messages.
 - **`[]` empty array**: you deliberately judge the hunk to be a contextual inference with no single message backing it.

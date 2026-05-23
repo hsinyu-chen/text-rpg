@@ -19,13 +19,14 @@ function setup() {
 const emptyManifest = '[]';
 const sampleManifest = '[{"file":"f.md","context":"","replacement":"- 長劍"}]';
 
-function defaultInput(provider: MockLLMProvider) {
+function defaultInput(provider: MockLLMProvider, validMessageIds: ReadonlySet<string> = new Set()) {
     return {
         provider,
         providerConfig: { apiKey: '', modelId: 'm', name: 'p' } as unknown as LLMProviderConfig,
         systemInstruction: 'sys',
         history: [{ role: 'user' as const, parts: [{ text: 'go' }] }],
         signal: new AbortController().signal,
+        validMessageIds,
     };
 }
 
@@ -131,6 +132,21 @@ describe('SaveAgentRunnerService', () => {
         const entry = tracker.entries()[0];
         expect(entry.state).toBe('failed');
         expect(entry.statusReason).toMatch(/manifest invalid/);
+    });
+
+    it('prunes fabricated sourceMessageIds and surfaces a warning on the entry', async () => {
+        const { runner, tracker } = setup();
+        const provider = new MockLLMProvider();
+        provider.enqueueJsonStream(
+            '[{"file":"f.md","context":"","replacement":"x","sourceMessageIds":["real","ghost"]}]',
+        );
+
+        const result = await runner.run(defaultInput(provider, new Set(['real'])));
+
+        expect(result.hunks[0].sourceMessageIds).toEqual(['real']);
+        const entry = tracker.entries()[0];
+        expect(entry.warnings ?? []).toHaveLength(1);
+        expect(entry.warnings?.[0]).toMatch(/"ghost"/);
     });
 
     it('marks the entry failed and rethrows when the stream errors mid-flight', async () => {

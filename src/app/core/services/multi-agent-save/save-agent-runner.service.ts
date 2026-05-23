@@ -5,6 +5,7 @@ import { mergeUsage } from '../llm-usage-merge';
 import { SAVE_MANIFEST_SCHEMA, validateManifest } from './schemas/manifest.schema';
 import type { SaveHunk } from './multi-agent-save.types';
 import { SaveProgressTracker } from './progress/save-progress-tracker.service';
+import { pruneInvalidSourceMessageIds } from './utils/source-message-ids.util';
 
 export interface SaveAgentInput {
     provider: LLMProvider;
@@ -13,6 +14,14 @@ export interface SaveAgentInput {
     cachedContentName?: string;
     history: LLMContent[];
     signal: AbortSignal;
+    /**
+     * `ChatMessage.id` values present in the rendered history. The runner
+     * post-validates the manifest's `sourceMessageIds` against this set and
+     * drops any id the SaveAgent fabricated — without this filter, downstream
+     * advanced-save agents would attempt evidence look-ups against hallucinated
+     * anchors.
+     */
+    validMessageIds: ReadonlySet<string>;
 }
 
 export interface SaveAgentResult {
@@ -127,9 +136,15 @@ export class SaveAgentRunnerService {
             throw new Error(`SaveAgent manifest invalid: ${validation.error}`);
         }
 
+        const pruned = pruneInvalidSourceMessageIds(validation.hunks, input.validMessageIds);
+        if (pruned.warnings.length) {
+            console.warn('[SaveAgentRunner] fabricated sourceMessageIds dropped:', pruned.warnings.join('; '));
+            this.progress.setEntryWarnings(entryId, pruned.warnings);
+        }
+
         this.progress.finishEntry(entryId, 'done');
         return {
-            hunks: validation.hunks,
+            hunks: pruned.hunks,
             rawJson: accumulator,
             thought: thoughtAccumulator,
             usage,
