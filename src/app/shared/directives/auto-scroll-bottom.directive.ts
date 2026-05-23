@@ -110,7 +110,7 @@ export class AutoScrollBottomDirective {
         };
         host.addEventListener('wheel', onUserDrive, { passive: true });
         host.addEventListener('touchstart', onUserDrive, { passive: true });
-        host.addEventListener('keydown', onUserDrive);
+        host.addEventListener('keydown', onUserDrive, { passive: true });
 
         const onScroll = () => {
             const dist = host.scrollHeight - host.scrollTop - host.clientHeight;
@@ -192,8 +192,15 @@ export class AutoScrollBottomDirective {
     }
 
     private scheduleAutoScroll(): void {
+        // Cancel any pending RAF before the paused-gate so a pause that
+        // arrives between scheduling and firing drops the queued trigger
+        // instead of letting performAutoScroll re-check at fire time.
+        // Symmetric with the cancel-then-schedule on the normal path below.
+        if (this.rafId !== null) {
+            cancelAnimationFrame(this.rafId);
+            this.rafId = null;
+        }
         if (this.paused()) return;
-        if (this.rafId !== null) cancelAnimationFrame(this.rafId);
         this.rafId = requestAnimationFrame(() => {
             this.rafId = null;
             this.performAutoScroll();

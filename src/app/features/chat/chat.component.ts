@@ -168,9 +168,13 @@ export class ChatComponent {
             const scroller = this.scroller();
             if (!scroller) return;
             if ((status === 'idle' || status === 'generating') && scroller.isFollowing()) {
-                // We use a small timeout to allow new elements to render before scrolling
+                // We use a small timeout to allow new elements to render before
+                // scrolling. Re-check isFollowing() inside the timer too — the
+                // user may have scrolled up in those 50 ms, and force-snapping
+                // them back would yank away content they're trying to read.
                 setTimeout(() => {
                     if (this.jumpInProgress()) return;
+                    if (!scroller.isFollowing()) return;
                     scroller.scrollToBottom(true);
                 }, 50);
             }
