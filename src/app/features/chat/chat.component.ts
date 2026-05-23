@@ -163,7 +163,7 @@ export class ChatComponent {
         // Status-change safety net: an LLM completion may have drifted past
         // the directive's threshold during the stream. On settle, force-snap
         // back to bottom unless the user is reading earlier content.
-        effect(() => {
+        effect((onCleanup) => {
             const status = this.state.status();
             const scroller = this.scroller();
             if (!scroller) return;
@@ -172,11 +172,14 @@ export class ChatComponent {
                 // scrolling. Re-check isFollowing() inside the timer too — the
                 // user may have scrolled up in those 50 ms, and force-snapping
                 // them back would yank away content they're trying to read.
-                setTimeout(() => {
+                // onCleanup clears the orphan timer on effect re-run (rapid
+                // status flip) or component destroy.
+                const timerId = setTimeout(() => {
                     if (this.jumpInProgress()) return;
                     if (!scroller.isFollowing()) return;
                     scroller.scrollToBottom(true);
                 }, 50);
+                onCleanup(() => clearTimeout(timerId));
             }
         });
 
@@ -241,6 +244,15 @@ export class ChatComponent {
         });
 
         this.destroyRef.onDestroy(() => {
+            // cancelActiveJump covers jumpTimeoutId, stabilizeAbort,
+            // spotlightTimerId, spotlightRetargetTimerId. The pin/flash/cv
+            // transient timers below are owned by per-id state setters
+            // (revealMessage / pinToolbar / flashMessage) and aren't covered
+            // by cancelActiveJump, so clear them separately.
+            this.cancelActiveJump();
+            if (this.pinTimerId !== null) clearTimeout(this.pinTimerId);
+            if (this.flashTimerId !== null) clearTimeout(this.flashTimerId);
+            if (this.cvTimerId !== null) clearTimeout(this.cvTimerId);
             this.agentPanelPortal.unmount();
         });
     }
