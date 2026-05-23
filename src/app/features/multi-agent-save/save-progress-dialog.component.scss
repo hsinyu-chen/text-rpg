@@ -142,18 +142,24 @@ mat-dialog-actions {
     margin: 0.4rem 0;
 }
 
-// Cap the rich agent trace at a similar height to .output-text so a chatty
-// advanced agent doesn't push the expansion-panel beyond the dialog viewport.
-// `display: flex` + min-height: 0 lets the surface's internal scroll viewport
-// take effect inside the bounded box.
+// Embed the rich trace inline: no internal scroll, no height cap — the
+// outer .save-progress-content owns the only scroll viewport so the user
+// doesn't fight two nested scrollbars per panel.
+//
+// `--agent-trace-surface-bg` is pinned to a solid dark color: the default
+// `rgba(0, 0, 0, 0.3)` alpha-blends with the mat-expansion-panel body
+// (light Material surface) and reads as grey. Matching `--bg-surface-dark`
+// gives the same solid-black feel the file-agent console has on the chat
+// panel.
 .entry-trace {
     display: flex;
     flex-direction: column;
-    max-height: 50vh;
     margin: 0.4rem 0;
-    // No CSS-var overrides — reuse the trace surface's chat-side defaults
-    // (translucent black bg + white-tinted text) so the save dialog reads
-    // identically to the file-agent console.
+    --agent-trace-surface-bg: var(--bg-surface-dark);
+
+    ::ng-deep .agent-console {
+        overflow: visible;
+    }
 }
 
 .entry-warnings {
