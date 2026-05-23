@@ -91,6 +91,8 @@ export class GameStateService {
     dynamicProtocolResolverInjection = signal<string>('');
     dynamicProtocolNarratorInjection = signal<string>('');
     dynamicCorrectionInjection = signal<string>('');
+    dynamicSaveManifestInjection = signal<string>('');
+    dynamicSaveInventoryConsistencyInjection = signal<string>('');
     postProcessScript = signal<string>('');
 
     // Flag to prevent effects from saving until after initial load

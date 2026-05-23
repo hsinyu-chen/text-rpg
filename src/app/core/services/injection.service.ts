@@ -10,10 +10,10 @@ import { ActiveProfileStore } from './active-profile-store';
 import { AppConfigStore } from './app-config-store';
 import { KVStore } from './kv/kv-store';
 
-export type PromptType = 'action' | 'continue' | 'fastforward' | 'system' | 'postprocess' | 'system_main' | 'protocol_single' | 'protocol_resolver' | 'protocol_narrator' | 'correction';
+export type PromptType = 'action' | 'continue' | 'fastforward' | 'system' | 'postprocess' | 'system_main' | 'protocol_single' | 'protocol_resolver' | 'protocol_narrator' | 'correction' | 'save_manifest' | 'save_inventory_consistency';
 
 export const ALL_PROMPT_TYPES: readonly PromptType[] = [
-    'action', 'continue', 'fastforward', 'system', 'system_main', 'postprocess', 'protocol_single', 'protocol_resolver', 'protocol_narrator', 'correction'
+    'action', 'continue', 'fastforward', 'system', 'system_main', 'postprocess', 'protocol_single', 'protocol_resolver', 'protocol_narrator', 'correction', 'save_manifest', 'save_inventory_consistency'
 ] as const;
 
 // Optional types soft-load: missing asset returns '' instead of throwing,
@@ -239,9 +239,9 @@ export class InjectionService {
         const loadPath = (filename: string) => this.loadBuiltInAsset(langFolder, filename, currentProfile);
         const loadOptional = (filename: string) => this.loadOptionalProfileAsset(langFolder, filename, currentProfile);
 
-        let actionDef, continueDef, fastforwardDef, systemDef, systemMainDef, postprocessDef, protocolSingleDef, protocolResolverDef, protocolNarratorDef;
+        let actionDef, continueDef, fastforwardDef, systemDef, systemMainDef, postprocessDef, protocolSingleDef, protocolResolverDef, protocolNarratorDef, correctionDef, saveManifestDef, saveInventoryConsistencyDef;
         try {
-            [actionDef, continueDef, fastforwardDef, systemDef, systemMainDef, postprocessDef, protocolSingleDef, protocolResolverDef, protocolNarratorDef] =
+            [actionDef, continueDef, fastforwardDef, systemDef, systemMainDef, postprocessDef, protocolSingleDef, protocolResolverDef, protocolNarratorDef, correctionDef, saveManifestDef, saveInventoryConsistencyDef] =
                 await Promise.all([
                     loadPath(INJECTION_FILE_PATHS.action),
                     loadPath(INJECTION_FILE_PATHS.continue),
@@ -251,7 +251,10 @@ export class InjectionService {
                     loadPath(INJECTION_FILE_PATHS.postprocess),
                     loadOptional(INJECTION_FILE_PATHS.protocol_single),
                     loadOptional(INJECTION_FILE_PATHS.protocol_resolver),
-                    loadOptional(INJECTION_FILE_PATHS.protocol_narrator)
+                    loadOptional(INJECTION_FILE_PATHS.protocol_narrator),
+                    loadOptional(INJECTION_FILE_PATHS.correction),
+                    loadPath(INJECTION_FILE_PATHS.save_manifest),
+                    loadPath(INJECTION_FILE_PATHS.save_inventory_consistency)
                 ]);
         } catch (err: unknown) {
             console.error('[InjectionService] Critical Error loading prompts', err);
@@ -270,7 +273,10 @@ export class InjectionService {
             { id: 'postprocess', content: postprocessDef, legacyKey: 'post_process_script', isPost: true },
             { id: 'protocol_single', content: protocolSingleDef, legacyKey: '', isPost: false },
             { id: 'protocol_resolver', content: protocolResolverDef, legacyKey: '', isPost: false },
-            { id: 'protocol_narrator', content: protocolNarratorDef, legacyKey: '', isPost: false }
+            { id: 'protocol_narrator', content: protocolNarratorDef, legacyKey: '', isPost: false },
+            { id: 'correction', content: correctionDef, legacyKey: '', isPost: false },
+            { id: 'save_manifest', content: saveManifestDef, legacyKey: '', isPost: false },
+            { id: 'save_inventory_consistency', content: saveInventoryConsistencyDef, legacyKey: '', isPost: false }
         ] as const;
 
         const updateStatusMap = new Map<string, { hasUpdate: boolean, serverContent: string }>();
@@ -359,6 +365,8 @@ export class InjectionService {
             case 'protocol_resolver': this.state.dynamicProtocolResolverInjection.set(content); break;
             case 'protocol_narrator': this.state.dynamicProtocolNarratorInjection.set(content); break;
             case 'correction': this.state.dynamicCorrectionInjection.set(content); break;
+            case 'save_manifest': this.state.dynamicSaveManifestInjection.set(content); break;
+            case 'save_inventory_consistency': this.state.dynamicSaveInventoryConsistencyInjection.set(content); break;
         }
     }
 
@@ -494,6 +502,8 @@ export class InjectionService {
             case 'protocol_resolver': return this.state.dynamicProtocolResolverInjection();
             case 'protocol_narrator': return this.state.dynamicProtocolNarratorInjection();
             case 'correction': return this.state.dynamicCorrectionInjection();
+            case 'save_manifest': return this.state.dynamicSaveManifestInjection();
+            case 'save_inventory_consistency': return this.state.dynamicSaveInventoryConsistencyInjection();
         }
     }
 }
