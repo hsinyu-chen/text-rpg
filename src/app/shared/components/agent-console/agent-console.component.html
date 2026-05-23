@@ -39,8 +39,15 @@
     }
 
     <!-- Console Logs -->
-    <div class="agent-console" #agentConsole>
-        <div class="agent-console-content" #agentConsoleContent>
+    <div class="agent-console-wrap">
+        <div class="agent-console"
+            [appAutoScrollBottom]="agentService.agentLogs()"
+            [threshold]="50"
+            scrollMode="smooth"
+            [observeResize]="true"
+            (atBottom)="showScrollButton.set(!$event)"
+            #scroller="autoScroll">
+        <div class="agent-console-content">
         @for (log of agentService.agentLogs(); track $index) {
             <div class="console-log-entry" [ngClass]="'log-type-' + log.type + ' log-role-' + log.role">
                 <span class="log-prefix">{{ log.role === 'user' ? '>' : (log.role === 'model' ? '<' : '*') }}</span>
@@ -118,6 +125,13 @@
             </div>
         }
         </div>
+        </div>
+        @if (showScrollButton()) {
+            <button mat-icon-button class="agent-console-scroll-bottom" (click)="onScrollToBottomClick()"
+                [matTooltip]="'dialog.agentScrollToBottom' | translate">
+                <mat-icon>arrow_downward</mat-icon>
+            </button>
+        }
     </div>
 
     <!-- Prompt Input -->
