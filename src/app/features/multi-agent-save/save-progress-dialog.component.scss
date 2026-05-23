@@ -151,16 +151,9 @@ mat-dialog-actions {
     flex-direction: column;
     max-height: 50vh;
     margin: 0.4rem 0;
-    // Retheme the trace surface to match the Material dialog chrome. The
-    // surface's defaults (translucent black bg + white-tinted text/borders)
-    // read as an alien "embedded terminal" on the dialog's light surface;
-    // surface-container-high + outline-variant keep the embedded-block hint
-    // without forcing dark mode inside a light dialog, and the fg-rgb flip
-    // to `0, 0, 0` turns every opacity-tinted text and divider into the
-    // dark-on-light equivalent.
-    --agent-trace-surface-bg: var(--mat-sys-surface-container-high);
-    --agent-trace-surface-border: var(--mat-sys-outline-variant);
-    --agent-trace-surface-fg-rgb: 0, 0, 0;
+    // No CSS-var overrides — reuse the trace surface's chat-side defaults
+    // (translucent black bg + white-tinted text) so the save dialog reads
+    // identically to the file-agent console.
 }
 
 .entry-warnings {
