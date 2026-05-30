@@ -671,8 +671,8 @@ export class SessionService {
 
         const newBook: Book = {
             id: newBookId,
-            name: await this.uniqueBookName(newNameForNewBook, oldBook.collectionId),
-            collectionId: oldBook.collectionId, // Inherit collection from previous Act
+            name: await this.uniqueBookName(newNameForNewBook, oldBook.collectionId || ROOT_COLLECTION_ID),
+            collectionId: oldBook.collectionId || ROOT_COLLECTION_ID, // Inherit collection from previous Act
             createdAt: Date.now(),
             lastActiveAt: Date.now(),
             preview: 'New Chapter',
