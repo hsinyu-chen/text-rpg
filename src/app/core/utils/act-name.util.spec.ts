@@ -47,6 +47,10 @@ describe('extractActNumberFromKb', () => {
     expect(extractActNumberFromKb(kb(['roadmap.md', '## React 2.0 roadmap']))).toBeNull();
   });
 
+  it('does not match a word merely starting with "act" before a later number', () => {
+    expect(extractActNumberFromKb(kb(['outline.md', '## Active Quests 5\n## Activity 3']))).toBeNull();
+  });
+
   it('requires a unit word for the Chinese form', () => {
     expect(extractActNumberFromKb(kb(['outline.md', '## 第 2 個房間']))).toBeNull();
   });

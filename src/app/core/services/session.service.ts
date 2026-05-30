@@ -636,52 +636,37 @@ export class SessionService {
         const currentId = this.currentBookId();
         if (!currentId) return;
 
-        // 1. Determine Naming & State BEFORE Unloading.
-        // Act number is derived from the KB (the story outline accumulates
-        // `## Act.N` headers on save), not chat — the chat-header source was
-        // removed with the inline auto-save block.
+        // 1. Determine the next act number from the KB — the story outline
+        // accumulates `## Act.N` headers on save. (The old chat-header source
+        // was removed with the inline auto-save block.) The current book keeps
+        // its own name; only the new book is named, at creation time.
         const currentActNum = extractActNumberFromKb(this.state.loadedFiles()) ?? 1;
-
-        const newNameForOldBook = formatActName(currentActNum);
         const newNameForNewBook = formatActName(currentActNum + 1);
 
-        console.log(`[SessionService] Create Next: Renaming current to "${newNameForOldBook}", creating "${newNameForNewBook}"`);
+        console.log(`[SessionService] Create Next: creating "${newNameForNewBook}"`);
 
-        // 2. Unload and Save Current
+        // 2. Unload and save the current book (under its existing name).
         await this.unloadCurrentSession(true);
 
-        // 3. Update Old Book Name
+        // 3. Re-read the old book for its KB files + collection to seed the next one.
         const oldBook = await this.books.get(currentId);
         if (!oldBook) return;
 
-        oldBook.name = newNameForOldBook;
-
-        // Critical: Ensure files exist. If oldBook.files is empty, it means save failed or state was broken.
-        // But we just called unloadCurrentSession(true) which calls saveCurrentSessionToBook.
-        // saveCurrentSessionToBook grabs files from this.state.loadedFiles().
-        // If that was empty, we are in trouble.
         if (!oldBook.files || oldBook.files.length === 0) {
-            console.warn('[SessionService] Old book files are empty! Attempting to recover from storage/cache if possible?');
-            // If really empty, we can't do much but warn.
+            console.warn('[SessionService] Old book files are empty after unload — the next book will start with no KB.');
         }
-
-        await this.books.save(oldBook);
 
         // 4. Create NEW Book
         const newBookId = crypto.randomUUID();
 
-        // We do NOT set this.currentBookId directly here.
-        // We let loadBook() handle the switch.
-        // Also, we do NOT clear this.state.* manually, because unloadCurrentSession already did that or loadBook will do it.
-        // If we set currentBookId here, loadBook() will trigger unloadCurrentSession() AGAIN, 
-        // which will save the *current empty state* (loadedFiles is empty!) to the NEW book, wiping out the files we are about to save.
+        // We do NOT set this.currentBookId directly here. We let loadBook() handle
+        // the switch. Setting it here would make loadBook() trigger unloadCurrentSession()
+        // again, saving the *current empty state* (loadedFiles is cleared) onto the NEW
+        // book and wiping the files we are about to copy.
 
-        // Copy Files from Old Book
-
-        // Copy Files from Old Book
-        // logic reused from loadBook but applied to current 'loadedFiles' which are cleared.
-        // We need to reload them from the Old Book data since we unloaded.
-        const files = oldBook.files; // These are safe to copy
+        // Copy the KB files from the old book — `loadedFiles` is already cleared by
+        // the unload above, so re-read them from the persisted old book.
+        const files = oldBook.files;
         // Prompts are app-global (stored in prompt_store) — not copied per-book.
 
         const newBook: Book = {

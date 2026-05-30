@@ -9,7 +9,9 @@
  * `第 <num> 章/節/幕`, taking the highest number found across all files.
  */
 const ATX_HEADER = /^#{1,6}\s/;
-const EN_ACT = /\bACT\D*(\d+)/i; // \b keeps "react.2" etc. from matching
+// \b keeps "react.2" from matching; the required separator class keeps
+// "Active Quests 5" / "Activity 3" from being read as an act number.
+const EN_ACT = /\bAct[.\s:-]+(\d+)/i;
 const ZH_ACT = /第\D*(\d+)\D*[章節幕]/;
 
 export function extractActNumberFromKb(files: Map<string, string>): number | null {
