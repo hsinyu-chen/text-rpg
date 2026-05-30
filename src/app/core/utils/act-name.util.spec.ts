@@ -54,4 +54,12 @@ describe('extractActNumberFromKb', () => {
   it('requires a unit word for the Chinese form', () => {
     expect(extractActNumberFromKb(kb(['outline.md', '## 第 2 個房間']))).toBeNull();
   });
+
+  it('matches the English form without a separator', () => {
+    expect(extractActNumberFromKb(kb(['outline.md', '## Act3']))).toBe(3);
+  });
+
+  it('does not misread Chinese prose with a number and a unit word elsewhere', () => {
+    expect(extractActNumberFromKb(kb(['outline.md', '## 第 2 頁的章節']))).toBeNull();
+  });
 });

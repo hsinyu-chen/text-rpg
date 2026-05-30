@@ -9,10 +9,13 @@
  * `第 <num> 章/節/幕`, taking the highest number found across all files.
  */
 const ATX_HEADER = /^#{1,6}\s/;
-// \b keeps "react.2" from matching; the required separator class keeps
-// "Active Quests 5" / "Activity 3" from being read as an act number.
-const EN_ACT = /\bAct[.\s:-]+(\d+)/i;
-const ZH_ACT = /第\D*(\d+)\D*[章節幕]/;
+// \b keeps "react.2" from matching, and the digit must immediately follow the
+// (optional) separators, so "Active Quests 5" / "Activity 3" still don't match
+// while "Act.3" / "Act 3" / "Act3" all do.
+const EN_ACT = /\bAct[.\s:-]*(\d+)/i;
+// Restrict the gaps to punctuation/whitespace so prose like "第 2 頁的章節"
+// (page 2's chapters) is not misread as act 2.
+const ZH_ACT = /第[.\s:-]*(\d+)[.\s:-]*[章節幕]/;
 
 export function extractActNumberFromKb(files: Map<string, string>): number | null {
     let max: number | null = null;

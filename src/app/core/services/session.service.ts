@@ -470,10 +470,18 @@ export class SessionService {
         // Read existing first so we can preserve identity fields (name, createdAt, collectionId)
         const existing = await this.books.get(bookId);
 
-        const actNum = extractActNumberFromKb(filesMap);
-        const slotName = this.state.messages().length > 0
-            ? (actNum !== null ? formatActName(actNum) : 'Untitled Session')
-            : 'Empty Session';
+        // Name only matters when persisting a brand-new book — an existing book
+        // keeps its own name verbatim (set below). Skip the KB scan, which runs
+        // on every save, in that common path.
+        let slotName: string;
+        if (existing) {
+            slotName = existing.name;
+        } else if (this.state.messages().length > 0) {
+            const actNum = extractActNumberFromKb(filesMap);
+            slotName = actNum !== null ? formatActName(actNum) : 'Untitled Session';
+        } else {
+            slotName = 'Empty Session';
+        }
 
         const book: Book = {
             id: bookId,
@@ -506,7 +514,6 @@ export class SessionService {
         };
 
         if (existing) {
-            book.name = existing.name; // Keep user-defined name
             book.createdAt = existing.createdAt;
         }
 
