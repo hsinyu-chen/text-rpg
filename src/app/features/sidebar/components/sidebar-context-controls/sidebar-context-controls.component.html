@@ -8,25 +8,23 @@
 
 <button mat-flat-button color="primary" (click)="newGame()" (hintActivate)="newGame()" [disabled]="state.isBusy()"
     appAgentHint="sidebar/session-tab/start-session"
-    class="full-width new-game-btn"
-    style="margin-top: 8px; font-weight: bold; background: linear-gradient(45deg, #4facfe 0%, #00f2fe 100%);">
+    class="full-width new-game-btn gradient-btn-blue">
     <mat-icon>add_circle</mat-icon>
     {{ 'sidebar.controls.startNewGame' | translate }}
 </button>
 
-<button mat-flat-button class="full-width create-next-btn" (click)="createNext()" [disabled]="!session.currentBookId() || state.isBusy()"
+<button mat-flat-button (click)="createNext()" [disabled]="!session.currentBookId() || state.isBusy()"
     appAgentHint="sidebar/session-tab/context/create-next"
     [matTooltip]="'sidebar.controls.createNextTooltip' | translate"
-    style="margin-top: 8px; font-weight: bold; background: linear-gradient(45deg, #11998e 0%, #38ef7d 100%); color: white;">
+    class="full-width create-next-btn gradient-btn-green">
     <mat-icon>fast_forward</mat-icon>
     {{ 'sidebar.controls.createNext' | translate }}
 </button>
 
-<button mat-flat-button class="full-width create-scene-btn" (click)="createScene()"
+<button mat-flat-button class="full-width create-scene-btn gradient-btn-pink" (click)="createScene()"
     appAgentHint="sidebar/session-tab/context/create-scene"
     [disabled]="state.loadedFiles().size === 0 || state.isBusy()"
-    [matTooltip]="'sidebar.controls.createSceneTooltip' | translate"
-    style="margin-top: 8px; font-weight: bold; background: linear-gradient(45deg, #f093fb 0%, #f5576c 100%); color: white;">
+    [matTooltip]="'sidebar.controls.createSceneTooltip' | translate">
     <mat-icon>auto_awesome</mat-icon>
     {{ 'sidebar.controls.createScene' | translate }}
 </button>
