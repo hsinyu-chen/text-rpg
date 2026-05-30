@@ -18,7 +18,7 @@ import { getCoreFilenames, getSectionHeaders } from '../constants/engine-protoco
 import { I18nService } from '../i18n';
 import { LOCALES } from '../constants/locales';
 import { convertLatexToSymbols, repairCorruptedLatex } from '../utils/latex.util';
-import { extractActName } from '../utils/act-name.util';
+import { extractActNumberFromKb, formatActName } from '../utils/act-name.util';
 
 // Legacy saves stored intent as the raw localized tag (e.g. zh-tw "<行動意圖>",
 // en "<Action>") instead of the canonical GAME_INTENTS id. Built dynamically
@@ -470,9 +470,14 @@ export class SessionService {
         // Read existing first so we can preserve identity fields (name, createdAt, collectionId)
         const existing = await this.books.get(bookId);
 
+        const actNum = extractActNumberFromKb(filesMap);
+        const slotName = this.state.messages().length > 0
+            ? (actNum ? formatActName(actNum) : 'Untitled Session')
+            : 'Empty Session';
+
         const book: Book = {
             id: bookId,
-            name: this.state.messages().length > 0 ? (this.extractActName() || 'Untitled Session') : 'Empty Session',
+            name: slotName,
             collectionId: existing?.collectionId || ROOT_COLLECTION_ID,
             createdAt: Date.now(),
             lastActiveAt: bumpTimestamp ? Date.now() : (existing?.lastActiveAt ?? Date.now()),
@@ -631,16 +636,14 @@ export class SessionService {
         const currentId = this.currentBookId();
         if (!currentId) return;
 
-        // 1. Determine Naming & State BEFORE Unloading
-        const actName = this.extractActName() || 'Act.1';
-        let currentActNum = 1;
-        const match = actName.match(/Act\.(\d+)/i) || actName.match(/第\s*(\d+)\s*章/);
-        if (match) {
-            currentActNum = parseInt(match[1]);
-        }
+        // 1. Determine Naming & State BEFORE Unloading.
+        // Act number is derived from the KB (the story outline accumulates
+        // `## Act.N` headers on save), not chat — the chat-header source was
+        // removed with the inline auto-save block.
+        const currentActNum = extractActNumberFromKb(this.state.loadedFiles()) ?? 1;
 
-        const newNameForOldBook = `Act.${currentActNum}`;
-        const newNameForNewBook = `Act.${currentActNum + 1}`;
+        const newNameForOldBook = formatActName(currentActNum);
+        const newNameForNewBook = formatActName(currentActNum + 1);
 
         console.log(`[SessionService] Create Next: Renaming current to "${newNameForOldBook}", creating "${newNameForNewBook}"`);
 
@@ -683,7 +686,7 @@ export class SessionService {
 
         const newBook: Book = {
             id: newBookId,
-            name: newNameForNewBook,
+            name: await this.uniqueBookName(newNameForNewBook, oldBook.collectionId),
             collectionId: oldBook.collectionId, // Inherit collection from previous Act
             createdAt: Date.now(),
             lastActiveAt: Date.now(),
@@ -913,12 +916,20 @@ export class SessionService {
     }
 
     /**
-     * Extracts the act/chapter name from the chat history for naming save slots.
-     * Re-exposed on SessionService since callers (book-list, etc.) reach for it via
-     * the session injection.
+     * Returns `base`, or `base-1` / `base-2` / … if a book with that name already
+     * exists in the same collection — keeps auto-generated `Act.N` names from
+     * silently colliding when the act number can't advance (e.g. a fresh KB).
      */
-    extractActName(): string | null {
-        return extractActName(this.state.messages());
+    private async uniqueBookName(base: string, collectionId: string): Promise<string> {
+        const taken = new Set(
+            (await this.books.list())
+                .filter(b => b.collectionId === collectionId)
+                .map(b => b.name)
+        );
+        if (!taken.has(base)) return base;
+        let i = 1;
+        while (taken.has(`${base}-${i}`)) i++;
+        return `${base}-${i}`;
     }
 
     /**
