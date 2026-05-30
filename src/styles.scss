@@ -343,3 +343,54 @@ body.agent-panel-pip {
     display: flex;
     flex-direction: column;
 }
+
+// Outlined action button: gradient border + gradient text, no fill.
+// `$surface` is the inner fill the border trick paints over — must match the
+// panel behind the button. Two stacked backgrounds + `background-clip:
+// padding-box, border-box` give a rounded-corner-safe gradient border without
+// a pseudo-element.
+@mixin gradient-outline-btn($grad, $surface: var(--bg-surface, #1e1e1e)) {
+    background-color: transparent;
+    background-image: linear-gradient($surface, $surface), $grad;
+    background-origin: border-box;
+    background-clip: padding-box, border-box;
+    border: 2px solid transparent;
+    box-shadow: none;
+    font-weight: bold;
+
+    .mdc-button__label,
+    .mat-icon {
+        background: $grad;
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    // Disabled: drop the gradient entirely and grey out border + text so the
+    // state reads as clearly inactive. Material clobbers the host
+    // background-color on disabled, hence the !important on that one line.
+    &:disabled,
+    &.mat-mdc-button-disabled {
+        background-image: none;
+        background-color: transparent !important;
+        border-color: rgba(255, 255, 255, 0.3);
+
+        .mdc-button__label,
+        .mat-icon {
+            background: none;
+            -webkit-text-fill-color: rgba(255, 255, 255, 0.3);
+        }
+    }
+}
+
+.gradient-btn-blue.mat-mdc-button-base {
+    @include gradient-outline-btn(linear-gradient(45deg, #4facfe 0%, #00f2fe 100%));
+}
+
+.gradient-btn-green.mat-mdc-button-base {
+    @include gradient-outline-btn(linear-gradient(45deg, #11998e 0%, #38ef7d 100%));
+}
+
+.gradient-btn-pink.mat-mdc-button-base {
+    @include gradient-outline-btn(linear-gradient(45deg, #f093fb 0%, #f5576c 100%));
+}

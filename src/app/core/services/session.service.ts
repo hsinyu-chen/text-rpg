@@ -18,7 +18,7 @@ import { getCoreFilenames, getSectionHeaders } from '../constants/engine-protoco
 import { I18nService } from '../i18n';
 import { LOCALES } from '../constants/locales';
 import { convertLatexToSymbols, repairCorruptedLatex } from '../utils/latex.util';
-import { extractActName } from '../utils/act-name.util';
+import { extractActNumberFromKb, formatActName } from '../utils/act-name.util';
 
 // Legacy saves stored intent as the raw localized tag (e.g. zh-tw "<行動意圖>",
 // en "<Action>") instead of the canonical GAME_INTENTS id. Built dynamically
@@ -470,9 +470,22 @@ export class SessionService {
         // Read existing first so we can preserve identity fields (name, createdAt, collectionId)
         const existing = await this.books.get(bookId);
 
+        // Name only matters when persisting a brand-new book — an existing book
+        // keeps its own name verbatim (set below). Skip the KB scan, which runs
+        // on every save, in that common path.
+        let slotName: string;
+        if (existing) {
+            slotName = existing.name;
+        } else if (this.state.messages().length > 0) {
+            const actNum = extractActNumberFromKb(filesMap);
+            slotName = actNum !== null ? formatActName(actNum) : 'Untitled Session';
+        } else {
+            slotName = 'Empty Session';
+        }
+
         const book: Book = {
             id: bookId,
-            name: this.state.messages().length > 0 ? (this.extractActName() || 'Untitled Session') : 'Empty Session',
+            name: slotName,
             collectionId: existing?.collectionId || ROOT_COLLECTION_ID,
             createdAt: Date.now(),
             lastActiveAt: bumpTimestamp ? Date.now() : (existing?.lastActiveAt ?? Date.now()),
@@ -501,7 +514,6 @@ export class SessionService {
         };
 
         if (existing) {
-            book.name = existing.name; // Keep user-defined name
             book.createdAt = existing.createdAt;
         }
 
@@ -631,60 +643,43 @@ export class SessionService {
         const currentId = this.currentBookId();
         if (!currentId) return;
 
-        // 1. Determine Naming & State BEFORE Unloading
-        const actName = this.extractActName() || 'Act.1';
-        let currentActNum = 1;
-        const match = actName.match(/Act\.(\d+)/i) || actName.match(/第\s*(\d+)\s*章/);
-        if (match) {
-            currentActNum = parseInt(match[1]);
-        }
+        // 1. Determine the next act number from the KB — the story outline
+        // accumulates `## Act.N` headers on save. (The old chat-header source
+        // was removed with the inline auto-save block.) The current book keeps
+        // its own name; only the new book is named, at creation time.
+        const currentActNum = extractActNumberFromKb(this.state.loadedFiles()) ?? 1;
+        const newNameForNewBook = formatActName(currentActNum + 1);
 
-        const newNameForOldBook = `Act.${currentActNum}`;
-        const newNameForNewBook = `Act.${currentActNum + 1}`;
+        console.log(`[SessionService] Create Next: creating "${newNameForNewBook}"`);
 
-        console.log(`[SessionService] Create Next: Renaming current to "${newNameForOldBook}", creating "${newNameForNewBook}"`);
-
-        // 2. Unload and Save Current
+        // 2. Unload and save the current book (under its existing name).
         await this.unloadCurrentSession(true);
 
-        // 3. Update Old Book Name
+        // 3. Re-read the old book for its KB files + collection to seed the next one.
         const oldBook = await this.books.get(currentId);
         if (!oldBook) return;
 
-        oldBook.name = newNameForOldBook;
-
-        // Critical: Ensure files exist. If oldBook.files is empty, it means save failed or state was broken.
-        // But we just called unloadCurrentSession(true) which calls saveCurrentSessionToBook.
-        // saveCurrentSessionToBook grabs files from this.state.loadedFiles().
-        // If that was empty, we are in trouble.
         if (!oldBook.files || oldBook.files.length === 0) {
-            console.warn('[SessionService] Old book files are empty! Attempting to recover from storage/cache if possible?');
-            // If really empty, we can't do much but warn.
+            console.warn('[SessionService] Old book files are empty after unload — the next book will start with no KB.');
         }
-
-        await this.books.save(oldBook);
 
         // 4. Create NEW Book
         const newBookId = crypto.randomUUID();
 
-        // We do NOT set this.currentBookId directly here.
-        // We let loadBook() handle the switch.
-        // Also, we do NOT clear this.state.* manually, because unloadCurrentSession already did that or loadBook will do it.
-        // If we set currentBookId here, loadBook() will trigger unloadCurrentSession() AGAIN, 
-        // which will save the *current empty state* (loadedFiles is empty!) to the NEW book, wiping out the files we are about to save.
+        // We do NOT set this.currentBookId directly here. We let loadBook() handle
+        // the switch. Setting it here would make loadBook() trigger unloadCurrentSession()
+        // again, saving the *current empty state* (loadedFiles is cleared) onto the NEW
+        // book and wiping the files we are about to copy.
 
-        // Copy Files from Old Book
-
-        // Copy Files from Old Book
-        // logic reused from loadBook but applied to current 'loadedFiles' which are cleared.
-        // We need to reload them from the Old Book data since we unloaded.
-        const files = oldBook.files; // These are safe to copy
+        // Copy the KB files from the old book — `loadedFiles` is already cleared by
+        // the unload above, so re-read them from the persisted old book.
+        const files = oldBook.files || [];
         // Prompts are app-global (stored in prompt_store) — not copied per-book.
 
         const newBook: Book = {
             id: newBookId,
-            name: newNameForNewBook,
-            collectionId: oldBook.collectionId, // Inherit collection from previous Act
+            name: await this.uniqueBookName(newNameForNewBook, oldBook.collectionId || ROOT_COLLECTION_ID),
+            collectionId: oldBook.collectionId || ROOT_COLLECTION_ID, // Inherit collection from previous Act
             createdAt: Date.now(),
             lastActiveAt: Date.now(),
             preview: 'New Chapter',
@@ -913,12 +908,20 @@ export class SessionService {
     }
 
     /**
-     * Extracts the act/chapter name from the chat history for naming save slots.
-     * Re-exposed on SessionService since callers (book-list, etc.) reach for it via
-     * the session injection.
+     * Returns `base`, or `base-1` / `base-2` / … if a book with that name already
+     * exists in the same collection — keeps auto-generated `Act.N` names from
+     * silently colliding when the act number can't advance (e.g. a fresh KB).
      */
-    extractActName(): string | null {
-        return extractActName(this.state.messages());
+    private async uniqueBookName(base: string, collectionId: string): Promise<string> {
+        const taken = new Set(
+            (await this.books.list())
+                .filter(b => (b.collectionId || ROOT_COLLECTION_ID) === collectionId)
+                .map(b => b.name)
+        );
+        if (!taken.has(base)) return base;
+        let i = 1;
+        while (taken.has(`${base}-${i}`)) i++;
+        return `${base}-${i}`;
     }
 
     /**

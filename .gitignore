@@ -64,6 +64,9 @@ Thumbs.db
 !.claude/skills/
 .mcp.json
 
+# Project-local Claude Code instructions (personal, not shared)
+/CLAUDE.md
+
 # AI Agent local configurations
 .agent/
 
