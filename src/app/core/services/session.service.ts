@@ -908,7 +908,7 @@ export class SessionService {
     private async uniqueBookName(base: string, collectionId: string): Promise<string> {
         const taken = new Set(
             (await this.books.list())
-                .filter(b => b.collectionId === collectionId)
+                .filter(b => (b.collectionId || ROOT_COLLECTION_ID) === collectionId)
                 .map(b => b.name)
         );
         if (!taken.has(base)) return base;
