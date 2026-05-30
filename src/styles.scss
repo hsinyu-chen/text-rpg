@@ -349,7 +349,7 @@ body.agent-panel-pip {
 // panel behind the button. Two stacked backgrounds + `background-clip:
 // padding-box, border-box` give a rounded-corner-safe gradient border without
 // a pseudo-element.
-@mixin gradient-outline-btn($grad, $surface: #1e1e1e) {
+@mixin gradient-outline-btn($grad, $surface: var(--bg-surface, #1e1e1e)) {
     background-color: transparent;
     background-image: linear-gradient($surface, $surface), $grad;
     background-origin: border-box;

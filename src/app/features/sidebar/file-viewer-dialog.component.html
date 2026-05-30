@@ -214,7 +214,7 @@
     <!-- Footer Actions -->
     <mat-dialog-actions align="end">
         @if (data.createWorldMode) {
-            <button mat-flat-button color="accent" (click)="startGame()"
+            <button mat-flat-button (click)="startGame()"
                 [disabled]="isStartingGame() || isAgentRunning()"
                 [matTooltip]="isAgentRunning() ? ('sidebar.fileViewer.startGameAgentBusyTooltip' | translate) : ''"
                 class="gradient-btn-blue">
