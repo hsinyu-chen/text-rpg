@@ -23,9 +23,9 @@ export function extractActNumberFromKb(files: Map<string, string>): number | nul
         for (const line of content.split('\n')) {
             if (!ATX_HEADER.test(line)) continue;
             const en = line.match(EN_ACT);
-            if (en) take(parseInt(en[1]));
+            if (en) take(parseInt(en[1], 10));
             const zh = line.match(ZH_ACT);
-            if (zh) take(parseInt(zh[1]));
+            if (zh) take(parseInt(zh[1], 10));
         }
     }
 

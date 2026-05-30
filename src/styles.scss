@@ -366,8 +366,20 @@ body.agent-panel-pip {
         -webkit-text-fill-color: transparent;
     }
 
-    &:disabled {
-        opacity: 0.45;
+    // Disabled: drop the gradient entirely and grey out border + text so the
+    // state reads as clearly inactive. Material clobbers the host
+    // background-color on disabled, hence the !important on that one line.
+    &:disabled,
+    &.mat-mdc-button-disabled {
+        background-image: none;
+        background-color: transparent !important;
+        border-color: rgba(255, 255, 255, 0.3);
+
+        .mdc-button__label,
+        .mat-icon {
+            background: none;
+            -webkit-text-fill-color: rgba(255, 255, 255, 0.3);
+        }
     }
 }
 

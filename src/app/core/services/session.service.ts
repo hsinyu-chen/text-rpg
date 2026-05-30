@@ -472,7 +472,7 @@ export class SessionService {
 
         const actNum = extractActNumberFromKb(filesMap);
         const slotName = this.state.messages().length > 0
-            ? (actNum ? formatActName(actNum) : 'Untitled Session')
+            ? (actNum !== null ? formatActName(actNum) : 'Untitled Session')
             : 'Empty Session';
 
         const book: Book = {
@@ -666,7 +666,7 @@ export class SessionService {
 
         // Copy the KB files from the old book — `loadedFiles` is already cleared by
         // the unload above, so re-read them from the persisted old book.
-        const files = oldBook.files;
+        const files = oldBook.files || [];
         // Prompts are app-global (stored in prompt_store) — not copied per-book.
 
         const newBook: Book = {
