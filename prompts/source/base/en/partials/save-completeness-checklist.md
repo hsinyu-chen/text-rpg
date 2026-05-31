@@ -5,6 +5,6 @@ Before outputting, verify you have processed:
 - [ ] **ALL** `quest_log`
 - [ ] **ALL** `world_log`
 - [ ] **ALL** `summary`
-- [ ] Story Outline updated with current ACT events
+- [ ] Story Outline has a **new** ACT block added for this ACT (a new ACT heading + its time nodes, not appended into an old ACT)
 - [ ] **Newly generated people/things/location details from `Look`/`Observe` actions** → persisted to the corresponding files
 - [ ] When the ACT timeSpan is significant, existing character / faction entries NOT mentioned in this ACT's logs have been **evaluated** for off-screen projection (a hunk is not required, but the evaluation is)

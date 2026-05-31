@@ -46,7 +46,12 @@ The three operations are determined by which fields are present:
 >
 > `target` must match the source file exactly, or the apply step will fail to anchor it.
 
-For the Story Outline (chronicle) file, write the ACT's progress as a new time-node hunk covering the key turning points, conflict outcomes, and notable lines, following the file's existing chronicle style. Chronicle hunks summarise the whole ACT rather than any single message, so **omit `sourceMessageIds`** for them — listing every message in the ACT carries no signal for the downstream consistency layer.
+For the Story Outline (chronicle) file, **every save MUST add one complete new ACT block** (a new ACT heading plus its time nodes) covering the key turning points, conflict outcomes, and notable lines, following the file's existing ACT-heading format and chronicle style, with the number continuing from the highest existing ACT in the file, +1.
+
+- **It MUST be an Add hunk**: omit `target` and append the whole new ACT block at the end of the chronicle section.
+- **Never append into an old ACT**: do not use a Replace hunk to edit an existing ACT block, and do not push this ACT's time nodes under the previous ACT. Each save is a new act — the chronicle only ever grows by one new block.
+
+Chronicle hunks summarise the whole ACT rather than any single message, so **omit `sourceMessageIds`** for them — listing every message in the ACT carries no signal for the downstream consistency layer.
 
 Field rules for updating character entries:
 
