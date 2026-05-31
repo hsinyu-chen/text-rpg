@@ -23,6 +23,13 @@ describe('normalizeStep', () => {
         expect(out.hook_title).toBe('');
     });
 
+    it('preserves source:"skill_item" on a fresh event step', () => {
+        const out = normalizeStep({ kind: 'event', source: 'skill_item', action: '護身符受魔力共鳴而發熱示警' });
+        expect(out.kind).toBe('event');
+        expect(out.source).toBe('skill_item');
+        expect(out.hook_title).toBe('');
+    });
+
     it('preserves source:"hook_fire" + hook_title on a hook event', () => {
         const out = normalizeStep({
             kind: 'event',

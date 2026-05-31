@@ -93,14 +93,14 @@ type LegacyAnalysisStep = Omit<Partial<AnalysisStep>, 'kind' | 'source'> & {
 
 export function normalizeStep(raw: LegacyAnalysisStep | undefined): AnalysisStep {
     // Legacy: pre-rename books emitted `kind: "random_event"`; current schema
-    // uses `kind: "event"` + `source: "random" | "hook_fire"`. Map old kind
-    // to the new pair so existing saves replay unchanged.
+    // uses `kind: "event"` + `source: "random" | "skill_item" | "hook_fire"`.
+    // Map old kind to the new pair so existing saves replay unchanged.
     const rawKind = raw?.kind;
     const isEvent = rawKind === 'event' || rawKind === 'random_event';
     const kind: AnalysisStep['kind'] = isEvent ? 'event' : 'user_intent';
     const rawSource = raw?.source;
     const source: AnalysisStep['source'] = isEvent
-        ? (rawSource === 'hook_fire' ? 'hook_fire' : 'random')
+        ? (rawSource === 'hook_fire' || rawSource === 'skill_item' ? rawSource : 'random')
         : '';
     const hookTitle = source === 'hook_fire' && typeof raw?.hook_title === 'string'
         ? raw.hook_title

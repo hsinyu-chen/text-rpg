@@ -41,12 +41,13 @@ Larry Cotter pushed open the tavern's wooden door...
    - first appearance or actual change ⇒ render in scene description
 6. **`kind: "event"` steps** ⇒ narration branches by `source`:
    - **`source: "random"`** ⇒ narrate the same way as user_intent steps, woven into the prose at their chronological position in `steps[]`; no separate heading.
-   - **`source: "hook_fire"`** ⇒ per `system_prompt.md` "Story Guidance Handling" / "Trigger = Immediate Performance", **MUST be rendered with full sensory build-up and character reaction** — narrate the awakening / knowledge gain / identity establishment / foreshadowing revelation with concrete sensory detail, **not reduced to a single sentence**. The `action` field is a narrative seed; the finished prose adds the texture (bodily sensation of an awakening, sudden grasp of a world law, opening of a new perception). **`hook_title` MUST NOT appear in the prose** (it is a KB marker, not scene content).
+   - **`source: "skill_item"`** ⇒ narrate the same way as user_intent steps, woven in chronologically with no separate heading; but **render concretely how the triggered passive ability / item / equipment manifests** (the amulet heating up, instinct snapping taut, equipment deploying on its own), so the trigger is felt in the scene rather than merely stated as an effect.
+   - **`source: "hook_fire"`** ⇒ per "Story Guidance Handling" / "Trigger = Immediate Performance", **MUST be rendered with full sensory build-up and character reaction** — narrate the awakening / knowledge gain / identity establishment / foreshadowing revelation with concrete sensory detail, **not reduced to a single sentence**. The `action` field is a narrative seed; the finished prose adds the texture (bodily sensation of an awakening, sudden grasp of a world law, opening of a new perception). **`hook_title` MUST NOT appear in the prose** (it is a KB marker, not scene content).
 7. **`scene_snapshot.environment`** ⇒ permeate naturally through opening / between-step transitions; do not list-bullet.
 
 ### Physical detail alignment
 
-Before writing any action, gaze, posture, clothing / equipment change, or object interaction, you **MUST** reconcile against the current scene state per `system_prompt.md`'s [State Synchronization Principle].
+Before writing any action, gaze, posture, clothing / equipment change, or object interaction, you **MUST** reconcile against the current scene state per the [State Synchronization Principle].
 
 Current state is composed of:
 - **KB-registered entities**: base state from the knowledge-base files, layered with state changes from prior turns and earlier steps this turn
@@ -73,10 +74,11 @@ Narrate only the steps in `analysis.steps`.
 
 ### Other fields
 
-- **`summary`** — `[EVT] | [NPC] | [PLOT]` telegraphic per `system_prompt.md`.
+- **`summary`** — high-density context log, for LLM reference only. Keyword-dense, telegraphic, pronouns dropped, segments split by `|` / `/` / `→` / `:`; MUST contain `[EVT]` (event causal chain), `[NPC]` (character interactions), `[PLOT]` (reveals, turning points). Do NOT record items / quests / status (those go in `*_log`); no prose.
 - **`character_log[]`** — named NPC + protagonist state changes / location / possession / equipment changes. Mob NPCs (Guard A / Villager) excluded.
 - **`inventory_log[]`** — protagonist-owned items (Gained / Consumed / Moved / Deposited / Retrieved / Equipped / Unequipped / Corrected); equipment changes mandatorily double-written with `character_log`.
-- **`quest_log[]`** / **`world_log[]`** — single-call semantics.
+- **`quest_log[]`** — this turn's quest / plan (`{{FILE_PLANS}}`) changes — protagonist accepts a new quest, a quest objective is met / failed / makes major progress, or the protagonist actively changes a plan's direction; everyday trivia and repeated status are not recorded.
+- **`world_log[]`** — this turn's world events, technology, and worldview/setting expansions or changes (unregistered named places / factions / concepts, etc.).
 - **Story Trigger fulfillment** — when this turn's events satisfy a Condition declared under `{{FILE_STORY_OUTLINE}}` `## Story Triggers`, each consequent **Knowledge Acquired** item MUST be written into the appropriate log this turn, **chosen by the nature of the item**: `character_log` for protagonist capability / sensory / mental / state gains; `inventory_log` for tangible items; `world_log` for world / faction / setting facts; `quest_log` for quest-related unlocks or plot-progression beats. Phrase as data, e.g. `Capability Gained: Protagonist_Name (<knowledge> per <Trigger Name>)`. This routes the acquisition through save flow's existing `*_log → file` mapping. **Do NOT** surface trigger fulfillment as a system-message or game-mechanic announcement in the prose.
 - **KB-gap completion authority & log routing** — when the analysis stage discloses a setting absent from or incompletely covered in the knowledge base (`dialogue` or `motivation` carries the `(completed by narrator)` marker, or the disclosure mentions an unregistered named NPC / place / faction / object / concept):
   - Generate the completion in `story` per the world-setting; it must match the era / culture in `{{FILE_BASIC_SETTINGS}}` and `{{FILE_WORLD_FACTIONS}}`. Modern objects / institutions / metaphors are forbidden.

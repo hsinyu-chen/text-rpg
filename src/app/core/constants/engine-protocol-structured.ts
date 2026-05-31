@@ -11,9 +11,11 @@ import { Schema } from '../models/types';
  *
  * Each {@link AnalysisStep} is one atomic step in the turn's sequence — either
  * a `user_intent` step (an action the user described in their input) or an
- * `event` step (a non-user occurrence the model judged this turn — either a
- * third-party / environmental injection (`source: "random"`) or an authored
- * story-hook firing whose trigger condition was met (`source: "hook_fire"`)).
+ * `event` step (a non-user occurrence the model judged this turn — a
+ * third-party / environmental injection (`source: "random"`), a passive
+ * ability / item / equipment of the PC or an NPC triggering or activating
+ * (`source: "skill_item"`), or an authored story-hook firing whose trigger
+ * condition was met (`source: "hook_fire"`)).
  * All steps carry the same NPC + object reaction fields and the same
  * `breaks_ideal` semantics.
  *
@@ -98,7 +100,7 @@ export interface ObjectReaction {
 const STEP_KINDS = ['user_intent', 'event'] as const;
 export type StepKind = typeof STEP_KINDS[number];
 
-export type EventSource = 'random' | 'hook_fire';
+export type EventSource = 'random' | 'skill_item' | 'hook_fire';
 
 export interface AnalysisStep {
     /**
@@ -112,6 +114,10 @@ export interface AnalysisStep {
      * Sub-discriminator for `kind: "event"` steps:
      * - `"random"`: third-party / environmental injection (NPC arrival,
      *   alarm, weather, etc.). Existing pre-rename semantics.
+     * - `"skill_item"`: a passive ability / item / equipment of the PC or an
+     *   NPC triggers or activates this turn. Carries no `hook_title`; same
+     *   `breaks_ideal` rule as `"random"` (neutral / supportive `false`,
+     *   `true` only when it interrupts the PC's step sequence).
      * - `"hook_fire"`: an authored hook entry under `{{FILE_STORY_OUTLINE}}`
      *   "啟動劇情引導" had its trigger condition met this turn. Carries
      *   {@link hook_title}; usually `breaks_ideal=false` (hooks are
@@ -125,7 +131,7 @@ export interface AnalysisStep {
     /**
      * Exact hook title from `{{FILE_STORY_OUTLINE}}` "啟動劇情引導" when
      * {@link source} is `"hook_fire"`. Always `""` for `kind: "user_intent"`
-     * and for `source: "random"` event steps.
+     * and for `source: "random"` / `source: "skill_item"` event steps.
      */
     hook_title: string;
     action: string;
@@ -304,7 +310,7 @@ const objectReactionSchema: Schema = {
 
 const analysisStepSchema: Schema = {
     type: 'object',
-    description: 'One atomic step in the turn\'s sequence — either a user_intent step (an action the user described) or an event step (a non-user occurrence YOU judged this turn — random injection OR an authored story-hook firing; see `source`). Both kinds carry the same NPC + object reaction fields and the same breaks_ideal semantics.',
+    description: 'One atomic step in the turn\'s sequence — either a user_intent step (an action the user described) or an event step (a non-user occurrence YOU judged this turn — random injection, a passive skill/item activation, OR an authored story-hook firing; see `source`). Both kinds carry the same NPC + object reaction fields and the same breaks_ideal semantics.',
     properties: {
         kind: {
             type: 'string',
@@ -313,16 +319,16 @@ const analysisStepSchema: Schema = {
         },
         source: {
             type: 'string',
-            enum: ['', 'random', 'hook_fire'],
-            description: 'Sub-discriminator. "random" or "hook_fire" when `kind:"event"`; "" when `kind:"user_intent"`. "random" = third-party / environmental injection (NPC arrival, alarm, weather shift, etc.). "hook_fire" = an authored hook entry under {{FILE_STORY_OUTLINE}} "啟動劇情引導" had its trigger condition met this turn; carries `hook_title`; narrator must give full sensory awakening prose per `# 劇情引導處理`.'
+            enum: ['', 'random', 'skill_item', 'hook_fire'],
+            description: 'Sub-discriminator. "random", "skill_item", or "hook_fire" when `kind:"event"`; "" when `kind:"user_intent"`. "random" = third-party / environmental injection (NPC arrival, alarm, weather shift, etc.). "skill_item" = a passive ability / item / equipment of the PC or an NPC triggers or activates this turn; no `hook_title`; same breaks_ideal rule as "random". "hook_fire" = an authored hook entry under {{FILE_STORY_OUTLINE}} "啟動劇情引導" had its trigger condition met this turn; carries `hook_title`; narrator must give full sensory awakening prose per `# 劇情引導處理`.'
         },
         hook_title: {
             type: 'string',
-            description: 'EXACT hook title from {{FILE_STORY_OUTLINE}} "啟動劇情引導" when `source:"hook_fire"`. ALWAYS "" for `kind:"user_intent"` and for `source:"random"` event steps. Reproduce the title verbatim — used downstream to cross-reference the hook entry and to append `(已完成)` at next save.'
+            description: 'EXACT hook title from {{FILE_STORY_OUTLINE}} "啟動劇情引導" when `source:"hook_fire"`. ALWAYS "" for `kind:"user_intent"` and for `source:"random"` / `source:"skill_item"` event steps. Reproduce the title verbatim — used downstream to cross-reference the hook entry and to append `(已完成)` at next save.'
         },
         action: {
             type: 'string',
-            description: 'For user_intent: verb-phrase rewording of the user input action (e.g. "走向廣場中央" / "嘗試攻擊李如玉"). NOT a verbatim echo — paraphrase objectively. For `source:"random"` event: one-sentence description of the event itself (e.g. "王大福推門進入並截住程楊宗"). For `source:"hook_fire"` event: one-sentence narrative seed describing how the content recorded under that hook surfaces in the current scene.'
+            description: 'For user_intent: verb-phrase rewording of the user input action (e.g. "走向廣場中央" / "嘗試攻擊李如玉"). NOT a verbatim echo — paraphrase objectively. For `source:"random"` event: one-sentence description of the event itself (e.g. "王大福推門進入並截住程楊宗"). For `source:"skill_item"` event: one-sentence description of which passive ability / item / equipment of the PC or an NPC triggers and what it does (e.g. "程楊宗腰間的護身符受魔力共鳴而發熱示警"). For `source:"hook_fire"` event: one-sentence narrative seed describing how the content recorded under that hook surfaces in the current scene.'
         },
         pc_dialogue: {
             type: 'string',
@@ -370,7 +376,7 @@ export const structuredAnalysisSchema: Schema = {
         scene_snapshot: sceneSnapshotSchema,
         steps: {
             type: 'array',
-            description: 'Atomic steps in input order, mixing user_intent and event kinds (where event sub-categorizes into source:"random" / source:"hook_fire"). At least 1 element when this object is non-null. The model stops emitting steps after the first breaks_ideal=true (which becomes the last element); subsequent attempted steps are NOT emitted. Program-side truncation is a safety net only.',
+            description: 'Atomic steps in input order, mixing user_intent and event kinds (where event sub-categorizes into source:"random" / source:"skill_item" / source:"hook_fire"). At least 1 element when this object is non-null. The model stops emitting steps after the first breaks_ideal=true (which becomes the last element); subsequent attempted steps are NOT emitted. Program-side truncation is a safety net only.',
             items: analysisStepSchema
         }
     },

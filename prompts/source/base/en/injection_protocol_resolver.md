@@ -55,9 +55,9 @@ The program assembles the user-facing scene header `[<date_in_world> <time_hhmm>
 | Field | Content |
 |---|---|
 | `kind` | `"user_intent"` (the user described this action) or `"event"` (you injected this — sub-classified by `source`). |
-| `source` | **Only used when `kind: "event"`**. `"random"` = third-party / environmental injection; `"hook_fire"` = an authored hook under `{{FILE_STORY_OUTLINE}}` "Story Triggers" had its condition met this turn. ALWAYS `""` for `kind: "user_intent"`. |
-| `hook_title` | **Only filled when `source: "hook_fire"`** — the **exact original title** of the hook from "Story Triggers" (verbatim, e.g. `"First Combat Insight"`). ALWAYS `""` otherwise. |
-| `action` | user_intent: verb-phrase paraphrase of the user's action (do NOT echo verbatim). `source: "random"` event: one-sentence description of the event itself. `source: "hook_fire"` event: one-sentence narrative seed describing how the content recorded under the hook surfaces in the current scene (the narrator stage expands this into a full sensory build-up). |
+| `source` | **Only used when `kind: "event"`**. `"random"` = third-party / environmental injection; `"skill_item"` = a passive ability / item / equipment of the PC or an NPC triggers or activates this turn (no `hook_title`; `breaks_ideal` follows the `random` rule); `"hook_fire"` = an authored hook under `{{FILE_STORY_OUTLINE}}` "Story Triggers" had its condition met this turn. ALWAYS `""` for `kind: "user_intent"`. |
+| `hook_title` | **Only filled when `source: "hook_fire"`** — the **exact original title** of the hook from "Story Triggers" (verbatim, e.g. `"First Combat Insight"`). ALWAYS `""` otherwise (incl. `source: "random"` / `source: "skill_item"`). |
+| `action` | user_intent: verb-phrase paraphrase of the user's action (do NOT echo verbatim). `source: "random"` event: one-sentence description of the event itself. `source: "skill_item"` event: one sentence naming whose passive ability / item / equipment triggers and what effect it produces (e.g. `"the amulet at Larry Cotter's waist heats up in magical resonance as a warning"`). `source: "hook_fire"` event: one-sentence narrative seed describing how the content recorded under the hook surfaces in the current scene (the narrator stage expands this into a full sensory build-up). |
 | `pc_dialogue` | user_intent: verbatim PC line, `""` if no speech, **no paraphrase or polish**. event (any source): always `""`. |
 | `mood` | user_intent: PC mood mirroring the `[mood]` tag, `""` if none. event (any source): always `""`. |
 | `risk_factors[]` | user_intent: list of risks (list even when outcome is success). event (any source): usually empty. |
@@ -83,18 +83,30 @@ The program assembles the user-facing scene header `[<date_in_world> <time_hhmm>
 | `name` | Must match a `key_objects[].name`. |
 | `change` | When state is unchanged AND not interacted with: use the reserved literal `"unchanged"`. On first appearance: describe initial state in detail. On change / interaction: describe the concrete change. |
 
-## Per-turn `event` step checks (run in order, both mandatory)
+## Per-turn `event` step checks (run in order, all mandatory)
 
-1. **Random / environmental event check** — judge the current `scene_snapshot` and scene tension to decide whether to inject a third-party intervention / NPC action / environmental shift. If triggered → emit a step with `kind: "event"` / `source: "random"` / `hook_title: ""`.
-2. **Story-hook check** — for **every hook** under `{{FILE_STORY_OUTLINE}}` "Story Triggers", run **a dual "already-fired" check (any condition true → treat as fired, skip)**:
-   - (a) **KB already marked `(Completed)`**.
-   - (b) **Recent turns' `summary` / `analysis.steps[]` already contain a `hook_fire` with the same `hook_title`** (in-session self-check that guards against re-firing during the window before the `(Completed)` marker lands in KB; the marker is written at the next save, not at trigger time).
+Each turn, run the three checks below in the order ① → ② → ③; each may emit **one or more** `kind: "event"` steps. When several fire, the event steps still slot in chronologically among the `user_intent` steps they interrupt or affect.
 
-   Both negative → evaluate the trigger condition against this turn's `user_intent` step(s) and `scene_snapshot`. If satisfied → emit a step with `kind: "event"` / `source: "hook_fire"` / `hook_title` set to the hook's verbatim title; `action` **MUST cover every item recorded under the hook in one shot** — do not split across multiple turns; `outcome` and `breaks_ideal` are judged based on the hook's content (no special override; follow the same rules as other steps).
+### ① `source: "skill_item"` — passive ability / item / equipment trigger
 
-   **This check runs every turn** — even if no hook fires, you MUST scan internally and decide each hook explicitly. Skip the sub-step only when `{{FILE_STORY_OUTLINE}}` lacks a "Story Triggers" section OR every hook beneath it is already `(Completed)`.
+From this turn's `user_intent` step(s) and `scene_snapshot`, judge whether a passive ability / item / equipment of **the PC or any present NPC** (per `{{FILE_BASIC_SETTINGS}}` / `{{FILE_CHARACTER_STATUS}}` / `{{FILE_MAGIC_SKILLS}}` / `{{FILE_INVENTORY}}` / `{{FILE_TECH_EQUIPMENT}}`) triggers or activates due to the current situation. If triggered → emit a step with `kind: "event"` / `source: "skill_item"` / `hook_title: ""`; `action` names whose ability / item / equipment fires and what effect it produces. `breaks_ideal` follows the `source: "random"` rule (neutral / supportive `false`; `true` only when it clearly interrupts the PC's step sequence).
 
-Ordering: run check 1 then check 2. If both fire this turn, event steps follow chronological order (`hook_fire` typically lands immediately after the `user_intent` step that triggered it).
+### ② `source: "random"` — random / environmental event
+
+Judge the current `scene_snapshot` and scene tension to decide whether to inject a third-party intervention / NPC action / environmental shift. Match the event types and positive/negative balance to the "Random Events" subsection of `[World Reaction]` (positive and negative events must be balanced — do NOT trigger only negative ones). If triggered → emit a step with `kind: "event"` / `source: "random"` / `hook_title: ""`.
+
+### ③ `source: "hook_fire"` — story hook
+
+For **every not-yet-fired hook** under `{{FILE_STORY_OUTLINE}}` "Story Triggers", first run **a dual "already-fired" check (any condition true → treat as fired, skip that hook)**:
+
+- (a) **KB already marked `(Completed)`**.
+- (b) **Recent turns' `summary` / `analysis.steps[]` already contain a `hook_fire` with the same `hook_title`** (in-session self-check that guards against re-firing during the window before the `(Completed)` marker lands in KB; the marker is written at the next save, not at trigger time).
+
+For hooks that pass the check (i.e. not yet fired), evaluate the trigger condition against this turn's `user_intent` step(s) and `scene_snapshot`. If satisfied → emit a step with `kind: "event"` / `source: "hook_fire"` / `hook_title` set to the hook's verbatim title; `action` **MUST cover every item recorded under the hook in one shot** — do not split across multiple turns; `outcome` and `breaks_ideal` are judged based on the hook's content (no special override; follow the same rules as other steps).
+
+**This check runs every turn, but only scans not-yet-fired hooks** — hooks already `(Completed)` or already fired in this session are skipped outright, not re-evaluated. Skip the whole check only when `{{FILE_STORY_OUTLINE}}` lacks a "Story Triggers" section OR every hook beneath it has already fired.
+
+Ordering: run ① → ② → ③. When several fire this turn, event steps follow chronological order (`skill_item` and `hook_fire` typically land immediately after the `user_intent` step that triggered them).
 
 ## `breaks_ideal=true` triggers
 
@@ -110,7 +122,7 @@ For each step, run all five checks below. Any trigger fires → `breaks_ideal=tr
    - Required attribute is missing but environment provides partial substitute → does NOT break, but `outcome` MUST be downgraded to "partial success" or "costly success". **Do NOT** let environmental factors fully compensate a no-skill attempt into clean "success".
 2. **NPC autonomous refusal** — judged against `{{FILE_CHARACTER_STATUS}}` personality + relationship stage + motive. Strong personality / relationship / motive conflict with the requested action → `breaks_ideal=true`. **Exception**: when the PC's intent is coercive (threat / force / mind-affecting magic) AND the PC has the capability to enforce it (per check #1), NPC autonomy is overridden and this trigger does NOT fire. If the PC tries to coerce but lacks the capability, this trigger still fires.
 3. **Hard environmental block** — terrain / structure / weather / mechanism makes the action **physically impossible** → `breaks_ideal=true`. Surmountable adversity goes into `risk_factors`, no break.
-4. **`source: "random"` event interrupts** — when you insert a `source: "random"` event step whose nature interrupts the user's planned sequence, set `breaks_ideal=true` on that event step. Neutral / supportive events do not trigger. `source: "hook_fire"` events usually do NOT apply this rule (hooks are augmentations), but can if the hook content genuinely interrupts the PC's action.
+4. **`source: "random"` / `source: "skill_item"` event interrupts** — when you insert a `source: "random"` or `source: "skill_item"` event step whose nature interrupts the user's planned sequence, set `breaks_ideal=true` on that event step. Neutral / supportive events do not trigger. `source: "hook_fire"` events usually do NOT apply this rule (hooks are augmentations), but can if the hook content genuinely interrupts the PC's action.
 5. **Agency conflict** — the step is essentially deciding for an NPC, not the PC's own action or attempt to influence the NPC → `breaks_ideal=true`
 
 **Binary objectives**: when a step's core success condition is described in all-or-nothing / negation form (any violation = failure, no continuum), it is a binary objective — **no partial middle ground**. Once the core condition is broken → `breaks_ideal=true`, subsequent steps are truncated. The action's "process / positioning" may succeed while the binary core condition fails; that is still **failure**, **do NOT** downgrade to partial. **`ideal_strength` does NOT affect step-level binary judgment**: pragmatic/desperate tolerates variance on the *overall* outcome, not on a step's binary success condition. Every binary step is judged independently on its core condition.
