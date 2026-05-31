@@ -32,7 +32,7 @@ export interface PresentNpc {
      * Physical / outer state — free-form short prose describing what the NPC
      * currently looks like and carries: clothing, equipment, held items,
      * posture, injuries, visible marks. e.g.
-     * `"赤裸，依偎於宇成懷中；殘片在床邊衣物堆內"` /
+     * `"赤裸，依偎於程楊宗懷中；殘片在床邊衣物堆內"` /
      * `"披風帶兜帽，腰間佩劍，左肩有舊傷"`.
      *
      * `""` = no explicit physical-state info this turn (narrator falls back
@@ -188,11 +188,11 @@ const presentNpcSchema: Schema = {
     properties: {
         name: {
             type: 'string',
-            description: 'Display name. Aliases use [] (e.g. "莉塔[銀月]"); unknown names use ??? suffix; one-shot mooks use generic role labels.'
+            description: 'Display name. Aliases use [] (e.g. "王如花[阿花]"); unknown names use ??? suffix; one-shot mooks use generic role labels.'
         },
         state: {
             type: 'string',
-            description: 'PHYSICAL / OUTER STATE — free-form short prose describing what the NPC currently looks like and carries: clothing / equipment / held items / posture / injuries / visible marks. e.g. "赤裸，依偎於宇成懷中；殘片在床邊衣物堆內" / "披風帶兜帽，腰間佩劍，左肩有舊傷" / "穿便服，雙手束縛於背後". This is the persistent visible state that survives between turns and grows by accumulating each step\'s scene_change. "" = no explicit physical-state info this turn (narrator falls back to KB + history). DISTINCT from `awareness` (reactivity flag) and `npc_reactions[].physical` (momentary motion this step).'
+            description: 'PHYSICAL / OUTER STATE — free-form short prose describing what the NPC currently looks like and carries: clothing / equipment / held items / posture / injuries / visible marks. e.g. "赤裸，依偎於程楊宗懷中；殘片在床邊衣物堆內" / "披風帶兜帽，腰間佩劍，左肩有舊傷" / "穿便服，雙手束縛於背後". This is the persistent visible state that survives between turns and grows by accumulating each step\'s scene_change. "" = no explicit physical-state info this turn (narrator falls back to KB + history). DISTINCT from `awareness` (reactivity flag) and `npc_reactions[].physical` (momentary motion this step).'
         },
         awareness: {
             type: 'string',
@@ -234,11 +234,11 @@ const sceneSnapshotSchema: Schema = {
         },
         pc_name: {
             type: 'string',
-            description: 'PC display name. e.g. "程楊宗" / "艾爾". The program assembles the scene-header presentation from pc_name + pc_alias + pc_state.'
+            description: 'PC display name. e.g. "程楊宗". The program assembles the scene-header presentation from pc_name + pc_alias + pc_state.'
         },
         pc_alias: {
             type: 'string',
-            description: 'PC alias / nickname. e.g. "魯蛇" / "銀月". Empty string when no alias. The program wraps this in [] when present.'
+            description: 'PC alias / nickname. e.g. "阿宗". Empty string when no alias. The program wraps this in [] when present.'
         },
         pc_state: {
             type: 'string',
@@ -322,7 +322,7 @@ const analysisStepSchema: Schema = {
         },
         action: {
             type: 'string',
-            description: 'For user_intent: verb-phrase rewording of the user input action (e.g. "走向廣場中央" / "嘗試攻擊梨菲"). NOT a verbatim echo — paraphrase objectively. For `source:"random"` event: one-sentence description of the event itself (e.g. "凱爾推門進入並截住艾爾"). For `source:"hook_fire"` event: one-sentence narrative seed describing how the content recorded under that hook surfaces in the current scene.'
+            description: 'For user_intent: verb-phrase rewording of the user input action (e.g. "走向廣場中央" / "嘗試攻擊李如玉"). NOT a verbatim echo — paraphrase objectively. For `source:"random"` event: one-sentence description of the event itself (e.g. "王大福推門進入並截住程楊宗"). For `source:"hook_fire"` event: one-sentence narrative seed describing how the content recorded under that hook surfaces in the current scene.'
         },
         pc_dialogue: {
             type: 'string',
@@ -335,11 +335,11 @@ const analysisStepSchema: Schema = {
         risk_factors: {
             type: 'array',
             items: { type: 'string' },
-            description: 'For user_intent: risks that could derail this step (e.g. ["梨菲有反擊能力", "大雨影響命中"]). MUST list risks even when outcome is success. For event (any source): usually empty.'
+            description: 'For user_intent: risks that could derail this step (e.g. ["李如玉有反擊能力", "大雨影響命中"]). MUST list risks even when outcome is success. For event (any source): usually empty.'
         },
         outcome: {
             type: 'string',
-            description: 'Single free-text judgment. For user_intent: "成功 - 勉強站穩" / "部份成功 - 達成A但B被拒" / "伴隨代價的成功 - 翻牆但扭傷腳踝" / "失敗 - 梨菲閃過並反擊". For `source:"random"` event: describe the event\'s immediate effect (e.g. "成功 - 凱爾擋在櫃檯前阻斷接近路徑" / "失敗 - 警鈴觸發，附近護衛全數警覺"). For `source:"hook_fire"` event: judge by the hook\'s content nature — same wording grammar as above, no mandatory "success" override. The narrator quotes this in prose.'
+            description: 'Single free-text judgment. For user_intent: "成功 - 勉強站穩" / "部份成功 - 達成A但B被拒" / "伴隨代價的成功 - 翻牆但扭傷腳踝" / "失敗 - 李如玉閃過並反擊". For `source:"random"` event: describe the event\'s immediate effect (e.g. "成功 - 王大福擋在櫃檯前阻斷接近路徑" / "失敗 - 警鈴觸發，附近護衛全數警覺"). For `source:"hook_fire"` event: judge by the hook\'s content nature — same wording grammar as above, no mandatory "success" override. The narrator quotes this in prose.'
         },
         breaks_ideal: {
             type: 'boolean',
@@ -357,7 +357,7 @@ const analysisStepSchema: Schema = {
         },
         scene_change: {
             type: 'string',
-            description: 'Mandatory CUMULATIVE STATE DELTA from this step — short free-form prose describing what physical / outer state PERSISTS past this moment (clothing pulled off, equipment unsheathed, item taken into hand, posture shift that holds, injury sustained, awareness flipped to 昏迷, object physical condition flipped). DISTINCT from npc_reactions[].physical (momentary motion that does not persist) and object_reactions[].change (single-step event description). Leave empty / "" when nothing persistent changes. The narrator (and subsequent turns) reconstruct current scene state by replaying scene_change deltas in order. Examples: "李霜凝衣物已退至腰下；殘片落在床上" / "宇成右手握住劍柄,劍已半出鞘" / "" (nothing persistent).'
+            description: 'Mandatory CUMULATIVE STATE DELTA from this step — short free-form prose describing what physical / outer state PERSISTS past this moment (clothing pulled off, equipment unsheathed, item taken into hand, posture shift that holds, injury sustained, awareness flipped to 昏迷, object physical condition flipped). DISTINCT from npc_reactions[].physical (momentary motion that does not persist) and object_reactions[].change (single-step event description). Leave empty / "" when nothing persistent changes. The narrator (and subsequent turns) reconstruct current scene state by replaying scene_change deltas in order. Examples: "李如玉衣物已退至腰下；殘片落在床上" / "王大福右手握住劍柄,劍已半出鞘" / "" (nothing persistent).'
         }
     },
     required: ['kind', 'source', 'hook_title', 'action', 'pc_dialogue', 'mood', 'risk_factors', 'outcome', 'breaks_ideal', 'npc_reactions', 'object_reactions', 'scene_change']

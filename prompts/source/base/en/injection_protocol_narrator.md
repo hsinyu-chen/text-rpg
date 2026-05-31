@@ -23,7 +23,7 @@ The `[NARRATOR INPUT]` block contains structured JSON:
 Example `story` opening:
 ```
 <CREATIVE FICTION CONTEXT>
-Cheng Yangzong pushed open the tavern's wooden door...
+Larry Cotter pushed open the tavern's wooden door...
 ```
 
 **Body**:

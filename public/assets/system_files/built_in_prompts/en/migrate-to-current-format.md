@@ -84,7 +84,7 @@ Use the placeholder content ONLY if a careful read genuinely turns up nothing:
 
 **Clean up the source fields after migrating** (the goal here is consolidation, not duplication):
 - For **dedicated fields** (e.g. `Possessions or Equipment: Bee Sting, Communication Device`): remove the migrated entries; if the field is left empty, drop the field itself.
-- For **prose fields** (Attire / Appearance / Disguise / Background, etc.): rewrite to remove the item's description while keeping the surrounding tone and any unrelated details (e.g. "On her left ring finger she wears the 'Hyacinth Ring' Yusei gave her, symbolizing 'a lifetime'" → drop the sentence; the item moves to the new subsection with the meaning "gifted by Yusei, symbolizes 'a lifetime'" preserved in its summary).
+- For **prose fields** (Attire / Appearance / Disguise / Background, etc.): rewrite to remove the item's description while keeping the surrounding tone and any unrelated details (e.g. "On her left ring finger she wears the 'Hyacinth Ring' Tom Stark gave her, symbolizing 'a lifetime'" → drop the sentence; the item moves to the new subsection with the meaning "gifted by Tom Stark, symbolizes 'a lifetime'" preserved in its summary).
 - If a rewrite would leave the prose broken or strip away important unrelated context, list the sentence in the final report for user judgment instead of forcing the deletion.
 
 **Never add this subsection to the protagonist's entry.**
@@ -92,7 +92,7 @@ Use the placeholder content ONLY if a careful read genuinely turns up nothing:
 ## 3. `9.Inventory.md`
 
 New rule: this file records ONLY items **owned by the protagonist** that are **carried (on-person)** — including pocket cash and any small valuables the protagonist keeps on them. Review the content:
-- If any entries describe an NPC's personal items (e.g. "Lita's necklace"), move them into that NPC's `### Known Significant Possessions` in `3.Character_Status.md` and delete them from this file.
+- If any entries describe an NPC's personal items (e.g. "Cara Loft's necklace"), move them into that NPC's `### Known Significant Possessions` in `3.Character_Status.md` and delete them from this file.
 - If any containers represent storage at a base, inn, or third-party safekeeping (e.g. "Home Chest", "Inn Locker"), remove them from this file and write the content under the corresponding base layout in `4.Assets.md` (create the base in `4.Assets.md` if it does not yet exist).
 - For any **on-person cash** split out from `4.Assets.md`'s Movable Assets, add it under a carried container here (e.g. `## 【On-Person】Pockets` → `### Cash → * Gold / N`); create the container if none exists yet.
 - For ambiguous entries, leave them in place and call them out in the final report so the user can decide.
