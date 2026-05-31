@@ -1,10 +1,10 @@
-import { Component, model, ChangeDetectionStrategy, inject, output, viewChild, ElementRef, computed } from '@angular/core';
+import { Component, model, ChangeDetectionStrategy, inject, output, viewChild, ElementRef, computed, afterNextRender } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { DOCUMENT } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatBadgeModule } from '@angular/material/badge';
-import { TextFieldModule } from '@angular/cdk/text-field';
+import { TextFieldModule, CdkTextareaAutosize } from '@angular/cdk/text-field';
 import { CORE_MAT, FORM_MAT } from '@app/shared/material/material-groups';
 import { GAME_INTENTS, STORY_INTENTS } from '@app/core/constants/game-intents';
 import { GameEngineService } from '@app/core/services/game-engine.service';
@@ -82,6 +82,14 @@ export class ChatInputComponent {
 
     // Queries
     messageInput = viewChild.required<ElementRef<HTMLTextAreaElement>>('messageInput');
+    private messageAutosize = viewChild('messageInput', { read: CdkTextareaAutosize });
+
+    constructor() {
+        // cdkTextareaAutosize measures on init; if the input column is still
+        // collapsed/unsettled at that moment it caches a too-tall height that
+        // only self-corrects on focus. Re-measure once layout has painted.
+        afterNextRender(() => this.messageAutosize()?.resizeToFitContent(true));
+    }
 
     // Inputs/Models
     userInput = model<string>('');

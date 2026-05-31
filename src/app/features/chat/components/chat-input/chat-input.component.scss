@@ -208,7 +208,14 @@
     color: #e0e0e0 !important;
 }
 
-@media (max-width: 900px) {
+// Responsive switch is keyed off the component's OWN width (container query),
+// NOT the viewport. The left sidenav runs in `side` mode above its own 900px
+// viewport breakpoint and eats horizontal space, so a viewport media query
+// would keep the desktop FAB row mounted while the actual chat-input width is
+// far too narrow — the `1fr` input track then collapses to min-content. A
+// container query reacts to the real available width, so the hamburger layout
+// engages whenever the row can't fit the full FAB set, sidenav-open included.
+@container (max-width: 900px) {
     .input-wrapper {
         // Menu | Intent | Input | Send (Preview hidden/moved to menu)
         grid-template-columns: auto minmax(80px, 100px) 1fr auto;
@@ -235,8 +242,30 @@
     }
 }
 
+// On a narrow row the single-line status row can't fit the context bar plus
+// all the pills, so the right-most time/battery pills get pushed off-screen.
+// Wrap the row and lift the context bar onto its own full-width line at the
+// top; the pills then flow on the line below where they stay visible.
+// Container query (own width), same rationale as the layout switch above.
+@container (max-width: 600px) {
+    .input-status-row {
+        flex-wrap: wrap;
+
+        app-context-usage-bar {
+            order: -1;
+            flex-basis: 100%;
+        }
+    }
+}
+
 // Intent color CSS variables
 :host {
+    // Establish a containment context so the layout queries above resolve
+    // against this component's width. inline-size contains only the inline
+    // axis, leaving the input area free to grow vertically.
+    display: block;
+    container-type: inline-size;
+
     --intent-action: #81c784; // Green - primary action
     --intent-continue: #64b5f6; // Blue - continue/flow
     --intent-fastforward: #ba68c8; // Purple - fast forward
