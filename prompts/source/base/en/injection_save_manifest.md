@@ -36,6 +36,10 @@ The three operations are determined by which fields are present:
 - **Replace**: `target` is the verbatim original, `replacement` is the new content.
 - **Delete**: `target` is the verbatim original, `replacement` is an empty string `""`.
 
+> **Replace hunks: one field, one hunk — never merge.** When a single entry has several changed fields (e.g. affinity, current status, and last-known location all change at once), emit **a separate replace hunk for each changed field** — do NOT bundle them into one large hunk. Each hunk's `target` covers only that field's line (or that field's own contiguous lines), matched verbatim against the file.
+>
+> **`target` MUST be one contiguous, non-skipping span of the original file.** Never stitch non-adjacent lines into a single `target` with unchanged lines skipped in between — that is not verbatim file content and the apply step will fail to anchor it. If the lines you want to change have unchanged lines between them, split into multiple hunks — one contiguous change per hunk.
+
 > **Match the file's format verbatim**: `target` / `replacement` are finished text. When writing `replacement`:
 > - If the KB file has a **format-definition section** at the top (user-authored format rules), you **must** render strictly to that definition — do not impose a format of your own.
 > - Without an explicit format definition, follow the format demonstrated by the file's existing entries.
