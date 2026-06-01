@@ -365,36 +365,10 @@ The combination \`surface: file-edit\` + \`kb-file-writes: disabled\` should not
 Use the provided function-calling tools to interact with files. You MAY emit multiple tool calls in a single turn when the calls are independent — for example, reading several files or sections at once. The runtime will execute them and return all their results together in the next turn, saving round-trips. Prefer batching independent reads. For writes (replaceFile / replaceSection), still issue them one per turn so each result is observed before the next change. You may also write a short plain-text comment alongside the tool calls.`
       : `## TOOL-CALL MODE — NATIVE, SINGLE
 Use the provided function-calling tools to interact with files. Emit at most ONE tool call per turn — the runtime will execute it and feed the result back to you for the next turn. You may also write a short plain-text comment before the tool call.`)
-    : `## TOOL-CALL MODE — JSON
-IMPORTANT: You MUST output valid JSON matching the provided schema. Do NOT output any other text or markdown formatting outside the JSON.
-CRITICAL RULE: DO NOT use any native tool call tags like <tool_call|>, <|tool_call|>, or \`\`\`json. Your response must be pure JSON starting with { and ending with }.
-THINKING EFFICIENCY: Do NOT rehearse, repeat, or draft the JSON output multiple times in your thinking. Decide the action and arguments once, then output immediately.
-
-TOOL ARGUMENTS GUIDE (JSON mode):
-You must ONLY provide the arguments required for your chosen action. Omit all other fields.
-
-EVERY file-operation action (all except reportProgress / submitResponse) REQUIRES a "reason" field — one sentence in plain language stating WHY you are calling this tool right now (what you intend to find or change, and how it advances the current task). Write it BEFORE the other args; this anchors your own intent so subsequent turns stay coherent. Avoid restating the file name or echoing the tool name.
-
-- action: "readFile" -> args: { "reason": "...", "filename": "...", "startLine"?: 1, "lineCount"?: 200 }   // startLine/lineCount optional; omit both to read whole file
-- action: "replaceFile" -> args: { "reason": "...", "filename": "...", "content": "..." }
-- action: "getFileOutline" -> args: { "reason": "...", "filename": "..." }
-- action: "grep" -> args: { "reason": "...", "pattern": "...", "filename"?: "...", "caseInsensitive"?: false, "maxResults"?: 100, "contextLines"?: 2 }
-- action: "searchReplace" -> args: { "reason": "...", "filename": "...", "replacements": [{ "pattern": "...", "replacement": "...", "isRegex"?: false, "caseInsensitive"?: false, "multiline"?: false, "expectedCount"?: 27 }], "expectedTotalReplacements"?: 10, "dryRun"?: false }
-- action: "readSection" -> args: { "reason": "...", "filename": "...", "sectionPaths": ["path1", "path2"] }
-- action: "replaceSection" -> args: { "reason": "...", "filename": "...", "updates": [{ "sectionPath": "...", "content": "...", "newTitle"?: "...", "force"?: false }] }
-- action: "insertSection" -> args: { "reason": "...", "filename": "...", "heading": "## ...", "content"?: "...", "anchor"?: "append-into", "anchorSectionPath"?: "..." }   // content is the BODY ONLY — never repeat the value of "heading" inside content (causes duplicate headings)
-- action: "insertIntoSection" -> args: { "reason": "...", "filename": "...", "sectionPath": "...", "content": "...", "position": "start" | "end" }
-- action: "listChatMessages" -> args: { "reason": "...", "limit"?: 30, "before"?: "<messageId>", "includeHidden"?: false }
-- action: "searchChatMessages" -> args: { "reason": "...", "pattern": "...", "scope": "content" | "thought" | "summary" | "all", "caseInsensitive"?: false, "limit"?: 100, "contextChars"?: 80 }
-- action: "readChatMessage" -> args: { "reason": "...", "messageIds": ["id1", "id2"], "include"?: ["content", "thought", "logs", "analysis", "summary", "intent"] }
-- action: "readTurnLogs" -> args: { "reason": "...", "messageIds"?: ["id1"], "kinds"?: ["character", "world", "inventory", "quest"], "recent"?: 20 }
-- action: "uiMap" -> args: { "reason": "..." }
-- action: "listBooks" -> args: { "reason": "...", "collectionId"?: "...", "limit"?: 50 }
-- action: "listCollections" -> args: { "reason": "..." }
-- action: "reportProgress" -> args: { "message": "..." }
-- action: "submitResponse" -> args: { "message": "..." }
-
-CRITICAL RULE: Never output dummy values like "..." or "null" for fields you don't need. Omit the field entirely from the JSON object!`;
+    // JSON-mode tool-call rules + per-tool args guide are auto-generated from
+    // the tool declarations and appended by BaseToolCallAgent (single source of
+    // truth — no longer hand-maintained here).
+    : '';
 
   const progressBlock = `## TURN-CONTROL TOOLS — READ CAREFULLY
 The agent loop continues automatically after every tool call EXCEPT submitResponse. You decide when the turn ends.
@@ -586,7 +560,7 @@ Until the tool ships, point users to the in-app docs if they need depth beyond t
     chatGuide,
     commonRecipes,
     referenceTopicsBlock
-  ].join('\n\n');
+  ].filter(Boolean).join('\n\n');
 }
 
 /**

@@ -8,6 +8,7 @@ import {
     processAgentStream,
 } from './agent-stream-processor';
 import { buildJsonSchema } from './tool-schema-builder';
+import { renderJsonModeBlock } from './json-tool-guide';
 
 /**
  * Per-turn mutable bookkeeping passed down the loop helpers. Lives on the
@@ -190,7 +191,15 @@ export abstract class BaseToolCallAgent<TAction extends BaseAction, TContext> {
 
         const setup = this.resolveTurnSetup(context);
         if (!setup) return;
-        const { provider, providerSettings, mode, allowParallel, systemInstruction, genConfig } = setup;
+        const { provider, providerSettings, mode, allowParallel, genConfig } = setup;
+
+        // JSON mode strips tool descriptions out of the responseSchema, so the
+        // model would otherwise never see tool usage strategy. Append the
+        // auto-generated tool guide (derived from the same declarations native
+        // mode reads) to the system prompt. Native is left untouched.
+        const systemInstruction = mode === 'json'
+            ? `${setup.systemInstruction}\n\n${renderJsonModeBlock(this.tools)}`
+            : setup.systemInstruction;
 
         const ctx = this.openTurnLogEntry();
         const stream = provider.generateContentStream(providerSettings, this.agentHistory(), systemInstruction, genConfig);
