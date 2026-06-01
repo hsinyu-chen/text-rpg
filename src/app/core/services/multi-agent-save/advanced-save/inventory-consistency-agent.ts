@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { LLMFunctionDeclaration } from '@hcs/llm-core';
+import type { LLMFunctionDeclaration } from '@hcs/llm-core';
 import { getLocale } from '@app/core/constants/locales';
 import type { PromptType } from '../../injection.service';
 import { type ReadOnlyAgentContext } from '../../agent-runner/read-only-agent';

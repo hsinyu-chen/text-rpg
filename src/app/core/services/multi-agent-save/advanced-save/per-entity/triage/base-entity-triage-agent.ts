@@ -1,4 +1,4 @@
-import { LLMFunctionDeclaration } from '@hcs/llm-core';
+import type { LLMFunctionDeclaration } from '@hcs/llm-core';
 import { type ReadOnlyAgentContext } from '../../../../agent-runner/read-only-agent';
 import type { TurnContext } from '../../../../agent-runner/base-tool-call-agent';
 import type { ReadOnlyAction } from '../../../../agent-runner/agent-runner.types';

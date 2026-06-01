@@ -1,5 +1,5 @@
 import { inject } from '@angular/core';
-import { LLMFunctionDeclaration } from '@hcs/llm-core';
+import type { LLMFunctionDeclaration } from '@hcs/llm-core';
 import type { ChatMessage } from '@app/core/models/types';
 import { getLocale } from '@app/core/constants/locales';
 import type { AppLocale } from '@app/core/constants/locales/locale.interface';
@@ -165,9 +165,7 @@ export abstract class BasePerEntityStateAgent extends BaseSaveSubAgent<PerEntity
         const seedCtx: SeedContext = {
             targetFile,
             formatTemplate: extractFormatTemplate(input.files.get(targetFile) ?? ''),
-            fileList: triageCtx.fileList,
-            timeSpan: triageCtx.timeSpan,
-            logDigest: triageCtx.logDigest,
+            ...triageCtx,
         };
         // newHunks may target any known entity's section, so the gate is the
         // full roster — not just the processed subset.
