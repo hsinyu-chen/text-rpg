@@ -6,7 +6,7 @@ import { ContextBuilderService } from '../context-builder.service';
 import { LLMProviderRegistryService } from '../llm-provider-registry.service';
 import { GameStateService } from '../game-state.service';
 import type { FileUpdate } from '../file-update.service';
-import { AutoUpdateDialogComponent } from '@app/shared/components/auto-update-dialog/auto-update-dialog.component';
+import { AutoUpdateDialogComponent, type AutoUpdateResult } from '@app/shared/components/auto-update-dialog/auto-update-dialog.component';
 import { SaveProgressDialogComponent } from '@app/features/multi-agent-save/save-progress-dialog.component';
 import { SaveAgentRunnerService } from './save-agent-runner.service';
 import { SaveProgressTracker } from './progress/save-progress-tracker.service';
@@ -14,10 +14,14 @@ import { SaveSettingsStore } from './save-settings.store';
 import { AdvancedSaveStageService } from './advanced-save/advanced-save-stage.service';
 import type { SaveHunk } from './multi-agent-save.types';
 import { DEFAULT_PROFILE_ID } from '@app/core/constants/prompt-profiles';
+import { SAVE_TRACE_INTENT } from '@app/core/constants/game-intents';
 import { FULLSCREEN_DIALOG_CONFIG } from '@app/shared/material/dialog-presets';
 import { I18nService } from '@app/core/i18n';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { InjectionService } from '../injection.service';
+import { SessionService } from '../session.service';
+import { CacheManagerService } from '../cache-manager.service';
+import { ChatHistoryService } from '../chat-history.service';
 
 /**
  * Top-level orchestrator for the multi-agent save path.
@@ -60,14 +64,21 @@ export class MultiAgentSaveService {
     private i18n = inject(I18nService);
     private snackBar = inject(MatSnackBar);
     private injection = inject(InjectionService);
+    private session = inject(SessionService);
+    private cacheManager = inject(CacheManagerService);
+    private chatHistory = inject(ChatHistoryService);
 
     /**
      * Runs one save end-to-end. `userInput` is the raw text the user typed
      * after the `<save>` intent tag (range hint / correction request) — same
      * input that legacy save would get; the manifest prompt's `{{USER_INPUT}}`
      * placeholder substitution mirrors `ContextBuilder.augmentSingleCallHistory`.
+     *
+     * Returns whether the caller should init a fresh act afterwards: `true`
+     * only on the AutoUpdate dialog's "apply & new act" path (the engine runs
+     * `startSession()` — kept out of here to avoid a GameEngineService cycle).
      */
-    async run(userInput: string): Promise<void> {
+    async run(userInput: string): Promise<boolean> {
         // Re-entrancy guard. GameEngineService.sendMessage's status==='generating'
         // guard doesn't fire for multi-agent save (we bypass startTurn), so a
         // user double-clicking the save button would otherwise spawn two
@@ -84,7 +95,7 @@ export class MultiAgentSaveService {
                 this.i18n.translate('ui.CLOSE'),
                 { duration: 6000, panelClass: ['snackbar-warning'] },
             );
-            return;
+            return false;
         }
         if (this.state.loadedFiles().size === 0) {
             this.snackBar.open(
@@ -92,10 +103,10 @@ export class MultiAgentSaveService {
                 this.i18n.translate('ui.CLOSE'),
                 { duration: 6000, panelClass: ['snackbar-warning'] },
             );
-            return;
+            return false;
         }
 
-        if (this.progress.isRunning()) return;
+        if (this.progress.isRunning()) return false;
 
         this.progress.reset();
         this.progress.setRunning(true);
@@ -198,8 +209,8 @@ export class MultiAgentSaveService {
                 dialogRef.close();
                 await firstValueFrom(dialogRef.afterClosed());
             }
-            if (!proceed || !hasUpdates) return;
-            await this.openAutoUpdateDialog(updates);
+            if (!proceed || !hasUpdates) return false;
+            return await this.runAutoUpdate(updates);
         } catch (err: unknown) {
             // User-initiated cancellation (Cancel button → AbortController.abort()).
             // Stream error names vary by provider — match the common ones rather
@@ -208,7 +219,7 @@ export class MultiAgentSaveService {
                 console.log('[MultiAgentSave] Run aborted by user.');
                 // Leave the progress dialog open so the user sees which entries
                 // completed before the abort.
-                return;
+                return false;
             }
             const msg = err instanceof Error ? err.message : String(err);
             console.error('[MultiAgentSave] Run failed:', err);
@@ -217,6 +228,7 @@ export class MultiAgentSaveService {
                 this.i18n.translate('ui.CLOSE'),
                 { duration: 10000, panelClass: ['snackbar-error'] },
             );
+            return false;
         } finally {
             // Single canonical reset site — `setRunning(false)` hides the
             // dialog's Cancel button + lets the chat mask lift, both on
@@ -237,21 +249,66 @@ export class MultiAgentSaveService {
     }
 
     /**
-     * Hands the dispatcher's `FileUpdate[]` to AutoUpdateDialog. The dialog
-     * runs its own apply pipeline (`engine.updateSingleFile` per group,
-     * `saveCurrentSessionToBook` for timestamp bumps) and closes with a
-     * boolean — no afterClosed-driven post-processing needed here.
-     *
-     * Returns the afterClosed promise so the orchestrator can keep the
-     * save-locked surface up + the sendMessage re-entrancy guard armed
-     * while the user reviews the diff.
+     * Open AutoUpdateDialog and act on the user's choice. The dialog is pure
+     * UI — it returns the composed per-file content + a mode; this method owns
+     * every side effect:
+     *   - 'current': write into the current act's KB, leave a chat trace, and
+     *     lock new story turns until the user advances to the next act.
+     *   - 'newAct': create the next act FIRST so the current act keeps its
+     *     pre-apply KB (stays replayable), write into the new act, and return
+     *     true so the engine inits it.
+     * Cancel / empty selection → no-op, returns false.
      */
-    private async openAutoUpdateDialog(updates: FileUpdate[]): Promise<void> {
+    private async runAutoUpdate(updates: FileUpdate[]): Promise<boolean> {
         const ref = this.dialog.open(AutoUpdateDialogComponent, {
             data: { updates },
             ...FULLSCREEN_DIALOG_CONFIG,
         });
-        await firstValueFrom(ref.afterClosed());
+        const result = (await firstValueFrom(ref.afterClosed())) as AutoUpdateResult | undefined;
+        if (!result || result.files.length === 0) return false;
+
+        if (result.mode === 'newAct') {
+            // Order matters: createNextBook persists the CURRENT book with its
+            // un-applied KB before cloning, so the act the user wants to keep
+            // replayable stays untouched. Apply lands on the new act below.
+            await this.session.createNextBook();
+            await this.applyFiles(result.files);
+            return true;
+        }
+
+        await this.applyFiles(result.files);
+        await this.commitSaveTrace(result.files);
+        return false;
+    }
+
+    /** Write each file to the active book's KB and drop server-side caches keyed on the old KB. */
+    private async applyFiles(files: AutoUpdateResult['files']): Promise<void> {
+        for (const f of files) {
+            await this.session.updateSingleFile(f.fileName, f.content);
+        }
+        await this.cacheManager.clearAllServerCaches();
+    }
+
+    /**
+     * Leave a visible ref-only trace pair after a current-act apply so the
+     * user — and the file-agent, which reads `state.messages()` — can tell a
+     * save landed. The hidden user marker keeps the user/model alternation
+     * intact; `isRefOnly` on the model line keeps it out of story export /
+     * last_scene extraction. Persisted to the book so it survives reload.
+     */
+    private async commitSaveTrace(files: AutoUpdateResult['files']): Promise<void> {
+        const fileList = files.map((f) => f.fileName).join(', ');
+        const userMarker = this.i18n.translate('multiAgentSave.trace.userMarker');
+        const applied = this.i18n.translate('multiAgentSave.trace.applied', { count: files.length, files: fileList });
+        // The model line carries SAVE_TRACE_INTENT as a marker: it being the
+        // last message is the single source of truth for the pendingActAdvance
+        // lock (a derived signal — no manual flag to set here).
+        await this.chatHistory.updateMessages((prev) => [
+            ...prev,
+            { id: crypto.randomUUID(), role: 'user', content: userMarker, parts: [{ text: userMarker }], isHidden: true },
+            { id: crypto.randomUUID(), role: 'model', content: applied, parts: [{ text: applied }], isRefOnly: true, intent: SAVE_TRACE_INTENT },
+        ]);
+        await this.session.saveCurrentSessionToBook();
     }
 }
 

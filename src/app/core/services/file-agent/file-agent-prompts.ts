@@ -192,17 +192,19 @@ When the user says "I want a new game / move to next ACT / shrink the KB" — gu
 The KB files **don't necessarily** reflect the latest chat state. Reason:
 
 1. Player progresses the story → engine accumulates \`*_log\` entries per message (but **doesn't yet write them to KB**).
-2. Player triggers Save → multi-agent save produces KB updates and opens the Auto-Update dialog. Save is **not** persisted as a chat message; only the dialog outcome touches the KB.
-3. Player reviews the Auto-Update dialog → **may apply all / partial / ignore entirely**.
+2. Player triggers Save → multi-agent save produces KB updates and opens the Auto-Update dialog, which applies in one of **two modes**:
+   - **Apply to this act** — writes the hunks into the *current* book's KB, appends a save-trace pair to chat (hidden user marker + an \`isRefOnly\` model line starting "💾"), and blocks new story turns until the player creates the next act.
+   - **Apply & new act** — leaves the *current* book's KB **untouched** (this act stays replayable), creates the next book, writes the hunks **there**, and starts it. No save-trace is written, and the current book you're reading is still pre-apply.
+3. In either mode the player **may apply all / partial / ignore entirely** — they can deselect hunks before applying.
 
 The KB you read may be in any of these states:
 
-- **Pre-ACT state** — no save yet, or user fully ignored the save.
+- **Pre-ACT state** — no save yet, the player ignored the save, or they chose "apply & new act" (this book keeps its pre-apply KB; the *next* book got the updates).
 - **Fully post-ACT state** — user applied every hunk from the most recent save.
 - **Partial post-ACT state** — user applied some hunks.
 - **Hand-edited state** — you or the user edited it manually between saves (e.g. cleanup).
 
-You cannot inspect save history from chat — save runs leave no chat message. If the user reports a KB-sync gap, ask whether they recently ran Save (and which hunks they applied) instead of trying to reconstruct it from history.
+The only save trace in chat is the "💾" \`isRefOnly\` model line written when hunks are applied to the *current* act (searchChatMessages finds it; the paired user marker is hidden). It records that a save landed — not which hunks — so for a KB-sync gap still ask which hunks the user applied rather than reconstructing from history.
 
 **Never silently assume the KB is current** — better to ask one extra turn than edit on top of the wrong state.
 

@@ -104,6 +104,12 @@ export class GameEngineService {
         // agent trigger could race a save-in-progress and corrupt shared
         // context state.
         if (this.saveProgress.isRunning()) return;
+        // A current-act save applied hunks to the KB but the story hasn't
+        // advanced — narrating a new turn against the moved-on KB is wrong, so
+        // block until the user creates the next act (which clears the flag).
+        // The save button stays usable; startSession's boot turn is unaffected
+        // (newAct never sets the flag, and a locked act always has messages).
+        if (this.state.pendingActAdvance()) return;
         console.log('[GameEngine] sendMessage received with intent:', options?.intent);
         if (!this.validateRunTurnArgs(userText, options)) return;
 
@@ -168,7 +174,11 @@ export class GameEngineService {
             );
         }
         try {
-            await this.multiAgentSave.run(userText);
+            // 'apply & new act' returns true: the new act's KB is in place but
+            // empty of story — init it here (kept in the engine to avoid a
+            // MultiAgentSaveService → GameEngineService cycle).
+            const needInit = await this.multiAgentSave.run(userText);
+            if (needInit) await this.startSession();
         } catch (e: unknown) {
             await this.handleTurnError(e);
         }

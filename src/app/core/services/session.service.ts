@@ -690,7 +690,8 @@ export class SessionService {
 
         await this.books.save(newBook);
 
-        // Load the new book (rehydrate files)
+        // Load the new book (rehydrate files). Its messages start empty, so the
+        // derived pendingActAdvance lock is naturally clear for the new act.
         await this.loadBook(newBookId);
 
         // Initialize Story (Start Session)

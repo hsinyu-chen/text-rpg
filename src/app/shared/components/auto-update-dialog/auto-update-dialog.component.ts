@@ -11,15 +11,24 @@ import { FormsModule } from '@angular/forms';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MonacoEditorComponent } from '../monaco-editor/monaco-editor.component';
 import { FileUpdate } from '@app/core/services/file-update.service';
-import { GameEngineService } from '@app/core/services/game-engine.service';
 import { AppConfigStore } from '@app/core/services/app-config-store';
 import { CORE_MAT } from '@app/shared/material/material-groups';
-import { CacheManagerService } from '@app/core/services/cache-manager.service';
 import { ConfirmDialogComponent, ConfirmDialogData } from '../confirm-dialog/confirm-dialog.component';
 import { getLocale } from '@app/core/constants/locales';
 import { I18nService, TranslatePipe } from '@app/core/i18n';
-import { GroupedUpdate, HunkApplyController, MonacoUpdateItem } from './hunk-apply-controller';
+import { HunkApplyController, MonacoUpdateItem } from './hunk-apply-controller';
 import { HunkAutoFixService } from './hunk-auto-fix.service';
+
+/**
+ * Dialog close payload. The dialog stays pure UI — it composes the per-file
+ * content from the selected hunks and hands it back; the save orchestrator
+ * does the actual writing + trace + lock + new-act. `mode` decides whether the
+ * apply lands on the current act's KB or a freshly-created next act.
+ */
+export interface AutoUpdateResult {
+  mode: 'current' | 'newAct';
+  files: { fileName: string; content: string }[];
+}
 
 @Component({
   selector: 'app-auto-update-dialog',
@@ -43,11 +52,9 @@ import { HunkAutoFixService } from './hunk-auto-fix.service';
 export class AutoUpdateDialogComponent {
   public dialogRef = inject<MatDialogRef<AutoUpdateDialogComponent>>(MatDialogRef);
   public data = inject<{ updates: FileUpdate[] }>(MAT_DIALOG_DATA);
-  private engine = inject(GameEngineService);
   private appConfig = inject(AppConfigStore);
   private snackBar = inject(MatSnackBar);
   private dialog = inject(MatDialog);
-  private cacheManager = inject(CacheManagerService);
   private clipboard = inject(Clipboard);
   private i18n = inject(I18nService);
   hunks = inject(HunkApplyController);
@@ -106,75 +113,52 @@ export class AutoUpdateDialogComponent {
     this.dialogRef.close();
   }
 
-  async onApply(): Promise<void> {
-    const groups = this.hunks.groupedUpdates();
-    const allSelected = groups.flatMap((g) => g.updates.filter((u) => u.selected()));
-    if (allSelected.length === 0) {
+  /**
+   * Per file with at least one selected hunk, the fully-composed content.
+   * `combinedContent` already reflects selection + manual edits + calibration,
+   * so this is a plain read — the dialog never writes; the close result hands
+   * these to the save orchestrator, which owns apply / trace / lock / new-act.
+   */
+  private collectSelectedFiles(): AutoUpdateResult['files'] {
+    return this.hunks
+      .groupedUpdates()
+      .filter((g) => g.updates.some((u) => u.selected()))
+      .map((g) => ({ fileName: g.fileName, content: g.combinedContent() }));
+  }
+
+  private countSelectedHunks(): number {
+    return this.hunks
+      .groupedUpdates()
+      .reduce((sum, g) => sum + g.updates.filter((u) => u.selected()).length, 0);
+  }
+
+  private async confirmAndClose(mode: AutoUpdateResult['mode'], titleKey: string, bodyKey: string, btnKey: string): Promise<void> {
+    const files = this.collectSelectedFiles();
+    if (files.length === 0) {
       this.snackBar.open(this.t('noFilesToApply'), this.i18n.translate('ui.CLOSE'), { duration: 2000 });
       return;
     }
-
-    const fileCount = groups.filter((g) => g.updates.some((u) => u.selected())).length;
-    const dialogRef = this.dialog.open(ConfirmDialogComponent, {
-      data: {
-        title: this.t('applyAllChangesTitle'),
-        message: this.t('applyAllChangesBody', { hunks: allSelected.length, files: fileCount }),
-        okText: this.t('applyAllChangesBtn'),
-        cancelText: this.t('cancel'),
-      } as ConfirmDialogData,
-    });
-    const confirmed = await firstValueFrom(dialogRef.afterClosed());
+    const confirmed = await firstValueFrom(
+      this.dialog.open(ConfirmDialogComponent, {
+        data: {
+          title: this.t(titleKey),
+          message: this.t(bodyKey, { hunks: this.countSelectedHunks(), files: files.length }),
+          okText: this.t(btnKey),
+          cancelText: this.t('cancel'),
+        } as ConfirmDialogData,
+      }).afterClosed(),
+    );
     if (!confirmed) return;
-
-    this.isInitializing.set(true);
-    try {
-      for (const group of groups) {
-        if (group.updates.some((u) => u.selected())) {
-          await this.engine.updateSingleFile(group.fileName, group.combinedContent());
-        }
-      }
-      await this.cacheManager.clearAllServerCaches();
-      this.dialogRef.close(true);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      this.snackBar.open(this.t('failedApplyUpdates', { error: message }), this.i18n.translate('ui.CLOSE'), { duration: 3000 });
-    } finally {
-      this.isInitializing.set(false);
-    }
+    this.dialogRef.close({ mode, files } satisfies AutoUpdateResult);
   }
 
-  /**
-   * Apply changes for a single file only, then refresh that group.
-   */
-  async onApplyFile(group: GroupedUpdate): Promise<void> {
-    if (!this.hunks.hasSelectedInGroup(group)) {
-      this.snackBar.open(this.t('noHunksSelected'), this.i18n.translate('ui.CLOSE'), { duration: 2000 });
-      return;
-    }
+  /** Apply selected hunks to the CURRENT act's KB (leaves a chat trace + locks new turns). */
+  onApplyCurrent(): Promise<void> {
+    return this.confirmAndClose('current', 'applyAllChangesTitle', 'applyAllChangesBody', 'applyAllChangesBtn');
+  }
 
-    const selectedCount = group.updates.filter((u) => u.selected()).length;
-    const dialogRef = this.dialog.open(ConfirmDialogComponent, {
-      data: {
-        title: this.t('applyCurrentFileTitle'),
-        message: this.t('applyCurrentFileBody', { count: selectedCount, file: group.fileName }),
-        okText: this.t('applyCurrentFileBtn'),
-        cancelText: this.t('cancel'),
-      } as ConfirmDialogData,
-    });
-    const confirmed = await firstValueFrom(dialogRef.afterClosed());
-    if (!confirmed) return;
-
-    this.isInitializing.set(true);
-    try {
-      await this.engine.updateSingleFile(group.fileName, group.combinedContent());
-      await this.cacheManager.clearAllServerCaches();
-      await this.hunks.refreshGroupAfterApply(group);
-      this.snackBar.open(this.t('appliedToFile', { file: group.fileName }), this.i18n.translate('ui.CLOSE'), { duration: 2000 });
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      this.snackBar.open(this.t('failedApply', { error: message }), this.i18n.translate('ui.CLOSE'), { duration: 3000 });
-    } finally {
-      this.isInitializing.set(false);
-    }
+  /** Apply selected hunks into a freshly-created NEXT act, then init it; the current act stays replayable. */
+  onApplyNewAct(): Promise<void> {
+    return this.confirmAndClose('newAct', 'applyNewActTitle', 'applyNewActBody', 'applyNewActBtn');
   }
 }

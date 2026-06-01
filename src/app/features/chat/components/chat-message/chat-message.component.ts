@@ -13,7 +13,7 @@ import { GameEngineService } from '@app/core/services/game-engine.service';
 import { GameStateService } from '@app/core/services/game-state.service';
 import { AppConfigStore } from '@app/core/services/app-config-store';
 import { TurnUpdateComponent } from '../turn-update/turn-update.component';
-import { GAME_INTENTS } from '@app/core/constants/game-intents';
+import { GAME_INTENTS, SAVE_TRACE_INTENT } from '@app/core/constants/game-intents';
 import { getLocale } from '@app/core/constants/locales';
 import { I18nService, TranslatePipe } from '@app/core/i18n';
 import { computed } from '@angular/core';
@@ -50,6 +50,8 @@ export class ChatMessageComponent {
     private i18n = inject(I18nService);
 
     protected readonly Intents = GAME_INTENTS;
+    // Internal lock marker, not a user intent — never rendered as an intent chip.
+    protected readonly SaveTraceIntent = SAVE_TRACE_INTENT;
 
     // Inputs
     message = input.required<ChatMessage>();
