@@ -154,7 +154,7 @@ export class AutoUpdateDialogComponent {
 
   /** Apply selected hunks to the CURRENT act's KB (leaves a chat trace + locks new turns). */
   onApplyCurrent(): Promise<void> {
-    return this.confirmAndClose('current', 'applyAllChangesTitle', 'applyAllChangesBody', 'applyAllChangesBtn');
+    return this.confirmAndClose('current', 'applyToActTitle', 'applyToActBody', 'applyToActBtn');
   }
 
   /** Apply selected hunks into a freshly-created NEXT act, then init it; the current act stays replayable. */

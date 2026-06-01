@@ -196,8 +196,8 @@
 <mat-dialog-actions align="end">
     <button mat-button (click)="onCancel()">{{ 'dialog.cancel' | translate }}</button>
     <button mat-stroked-button color="accent" (click)="onApplyCurrent()" [disabled]="!hunks.hasSelectedUpdates()"
-        [matTooltip]="'dialog.applyAllChangesTooltip' | translate">
-        {{ 'dialog.applyAllChanges' | translate }}
+        [matTooltip]="'dialog.applyToActTooltip' | translate">
+        {{ 'dialog.applyToAct' | translate }}
     </button>
     <button mat-flat-button color="primary" (click)="onApplyNewAct()" [disabled]="!hunks.hasSelectedUpdates()"
         [matTooltip]="'dialog.applyNewActTooltip' | translate">

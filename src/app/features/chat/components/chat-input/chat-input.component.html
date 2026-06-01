@@ -47,7 +47,7 @@
             <mat-label>{{ 'ui.IDEAL_OUTCOME_FIELD_LABEL' | translate }}</mat-label>
             <textarea matInput rows="1" cdkTextareaAutosize cdkAutosizeMinRows="1" cdkAutosizeMaxRows="3"
                 [(ngModel)]="userIdealOutcome" [placeholder]="'ui.IDEAL_OUTCOME_FIELD_PLACEHOLDER' | translate"
-                [disabled]="state.status() === 'generating' || !hasActiveSession()"></textarea>
+                [disabled]="state.status() === 'generating' || !hasActiveSession() || state.pendingActAdvance()"></textarea>
         </mat-form-field>
     </div>
     }

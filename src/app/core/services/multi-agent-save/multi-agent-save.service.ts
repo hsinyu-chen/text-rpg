@@ -276,8 +276,13 @@ export class MultiAgentSaveService {
             return true;
         }
 
-        await this.applyFiles(result.files);
+        // Trace first, then apply. Both persist; the order only matters on
+        // failure. If the chat-trace write fails we'd rather end with a stale
+        // trace + unchanged KB (locked, and the trace is deletable) than a
+        // moved-on KB with no trace and no lock — the silent KB desync this
+        // whole feature exists to prevent.
         await this.commitSaveTrace(result.files);
+        await this.applyFiles(result.files);
         return false;
     }
 
