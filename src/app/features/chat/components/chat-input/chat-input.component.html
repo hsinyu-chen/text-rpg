@@ -1,4 +1,10 @@
 <div class="input-area" [class.editing-mode]="editingMessageId()" appAgentHint="chat-input">
+    @if (state.pendingActAdvance()) {
+    <div class="pending-act-advance-banner">
+        <mat-icon>bookmark_added</mat-icon>
+        <span>{{ 'multiAgentSave.pendingActAdvanceHint' | translate }}</span>
+    </div>
+    }
     <div class="input-status-row">
         <button class="profile-pill" (click)="openConfigDialog()" (hintActivate)="openConfigDialog()"
             appAgentHint="chat-input/prompt-profile"
@@ -41,7 +47,7 @@
             <mat-label>{{ 'ui.IDEAL_OUTCOME_FIELD_LABEL' | translate }}</mat-label>
             <textarea matInput rows="1" cdkTextareaAutosize cdkAutosizeMinRows="1" cdkAutosizeMaxRows="3"
                 [(ngModel)]="userIdealOutcome" [placeholder]="'ui.IDEAL_OUTCOME_FIELD_PLACEHOLDER' | translate"
-                [disabled]="state.status() === 'generating' || !hasActiveSession()"></textarea>
+                [disabled]="state.status() === 'generating' || !hasActiveSession() || state.pendingActAdvance()"></textarea>
         </mat-form-field>
     </div>
     }
@@ -177,7 +183,7 @@
             <mat-label>{{ editingMessageId() ? ('ui.EDITING_MODE_HINT' | translate) : (dynamicPlaceholder() || ('ui.FALLBACK_PLACEHOLDER' | translate)) }}</mat-label>
             <textarea #messageInput matInput rows="1" cdkTextareaAutosize cdkAutosizeMinRows="1" cdkAutosizeMaxRows="5"
                 [(ngModel)]="userInput" (keydown)="onEnter($event)" (focus)="onInteraction()" (click)="onInteraction()"
-                (blur)="onBlur()" [disabled]="state.status() === 'generating' || !hasActiveSession()"
+                (blur)="onBlur()" [disabled]="state.status() === 'generating' || !hasActiveSession() || state.pendingActAdvance()"
                 [placeholder]="!hasActiveSession() ? ('ui.NO_ACTIVE_SESSION_PLACEHOLDER' | translate) : ''"></textarea>
 
             @if (editingMessageId()) {
@@ -204,7 +210,7 @@
         </button>
         } @else {
         <button mat-mini-fab color="primary" class="send-btn"
-            [disabled]="state.status() === 'generating' || !hasActiveSession()" (click)="sendMessage()"
+            [disabled]="state.status() === 'generating' || !hasActiveSession() || state.pendingActAdvance()" (click)="sendMessage()"
             appAgentHint="chat-input/send"
             [matTooltip]="'ui.SEND_TOOLTIP' | translate">
             <mat-icon>send</mat-icon>

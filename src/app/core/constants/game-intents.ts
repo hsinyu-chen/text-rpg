@@ -22,3 +22,13 @@ export const STORY_INTENTS = [
  * Type for Game Intents
  */
 export type GameIntent = typeof GAME_INTENTS[keyof typeof GAME_INTENTS];
+
+/**
+ * Marker intent on the save-trace message left after a current-act apply. NOT
+ * a user-selectable intent (kept out of GAME_INTENTS so it never shows in the
+ * picker). The chat's last message carrying this intent is the single source
+ * of truth for the "pending act advance" lock: deleting that message unlocks,
+ * creating the next act moves past it. Must differ from the legacy `'save'`
+ * value, which `isLegacySaveMessage` strips on load.
+ */
+export const SAVE_TRACE_INTENT = 'save_trace';

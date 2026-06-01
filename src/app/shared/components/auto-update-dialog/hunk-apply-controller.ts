@@ -165,10 +165,6 @@ export class HunkApplyController {
     return this.groupedUpdates().some((g) => g.updates.some((u) => u.selected()));
   }
 
-  hasSelectedInGroup(group: GroupedUpdate): boolean {
-    return group.updates.some((u) => u.selected());
-  }
-
   async onCheckboxClick(group: GroupedUpdate, update: MonacoUpdateItem, event: Event): Promise<void> {
     event.stopPropagation();
     const targetChecked = !update.selected();
@@ -332,21 +328,6 @@ export class HunkApplyController {
     else update.replacementContent = newVal;
 
     void this.revalidateUpdate(update, group);
-  }
-
-  /**
-   * Refresh validation + originalContent on a group whose contents were just
-   * written to disk. Used by the dialog's onApplyFile flow. Only re-validates
-   * this group — flashing spinners on untouched files would be misleading.
-   */
-  async refreshGroupAfterApply(group: GroupedUpdate): Promise<void> {
-    group.originalContent.set(group.combinedContent());
-    group.computedContent.set(group.combinedContent());
-    for (const update of group.updates) {
-      update.status = { exists: false, matched: false, validating: true };
-    }
-    this.groupedUpdates.update((groups) => [...groups]);
-    await this.validateGroup(group);
   }
 
   private async confirmDiscardIfDirty(group: GroupedUpdate, message: string, okText: string): Promise<boolean> {

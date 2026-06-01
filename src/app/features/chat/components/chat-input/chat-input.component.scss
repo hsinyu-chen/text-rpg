@@ -341,3 +341,24 @@
     width: auto !important;
     max-width: 450px !important;
 }
+
+// Save-applied lock: shown while pendingActAdvance is set (current-act save
+// landed, new turns blocked until the user creates the next act).
+.pending-act-advance-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: rgba(255, 193, 7, 0.12);
+    border: 1px solid rgba(255, 193, 7, 0.4);
+    color: #ffca28;
+    font-size: 13px;
+
+    mat-icon {
+        font-size: 18px;
+        width: 18px;
+        height: 18px;
+    }
+}

@@ -195,10 +195,12 @@
 
 <mat-dialog-actions align="end">
     <button mat-button (click)="onCancel()">{{ 'dialog.cancel' | translate }}</button>
-    @if (hunks.activeGroup(); as group) {
-    <button mat-stroked-button color="accent" (click)="onApplyFile(group)" [disabled]="!hunks.hasSelectedInGroup(group)">
-        {{ 'dialog.applyCurrentFile' | translate }}
+    <button mat-stroked-button color="accent" (click)="onApplyCurrent()" [disabled]="!hunks.hasSelectedUpdates()"
+        [matTooltip]="'dialog.applyToActTooltip' | translate">
+        {{ 'dialog.applyToAct' | translate }}
     </button>
-    }
-    <button mat-flat-button color="primary" (click)="onApply()" [disabled]="!hunks.hasSelectedUpdates()">{{ 'dialog.applyAllChanges' | translate }}</button>
+    <button mat-flat-button color="primary" (click)="onApplyNewAct()" [disabled]="!hunks.hasSelectedUpdates()"
+        [matTooltip]="'dialog.applyNewActTooltip' | translate">
+        {{ 'dialog.applyNewAct' | translate }}
+    </button>
 </mat-dialog-actions>

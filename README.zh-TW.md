@@ -68,7 +68,7 @@ TextRPG 是一個**本地優先 (Local-First)**、**自帶金鑰 (Bring Your Own
    *   **開始**: 前往 **Session** 分頁 → 點擊 **New Game**。**建議走 Generate 分頁** —— 用一段描述告訴 AI 您想要的世界與主角，讓 Agent 自動填寫全部 9 個世界檔案（詳見下方〈AI 世界生成器〉）。**Pre-build** 分頁目前僅內建一個非常陽春的 demo 劇本，用來快速試玩引擎可以，認真遊玩請走 Generate。
    *   **遊玩**: 與 AI 進行角色扮演與劇情推演。
    *   **章節結束**: 一個劇情段落收尾時，按輸入欄旁的 **Save** 按鈕（磁碟片圖示）→ 確認 dialog → 跑 SaveAgent。
-   *   **更新世界**: 存檔完成後跳的 **Auto-Update** 視窗會逐條列出 KB 更新建議，逐項審核後套用。
+   *   **更新世界**: 存檔完成後跳的 **Auto-Update** 視窗會逐條列出 KB 更新建議。兩種套法:**套用到本幕**(寫進目前這本書、在聊天留一條存檔痕跡、並鎖住新回合直到你開下一幕),或 **套用並開新幕**(預設;保留本幕不動、可重玩,直接開下一幕套用更新並開場)。
 
 2. **備份（重要）**
    *   **雲端同步**: 在 **Session** (冒險之書列表) 點擊 **"Sync All"**，將所有 Book 與 Collection 與目前選定的 Sync Provider 雙向同步。在 **Settings → Sync Provider** 切換 Provider:
@@ -81,7 +81,7 @@ TextRPG 是一個**本地優先 (Local-First)**、**自帶金鑰 (Bring Your Own
 3. **下一章節 (Act II+)**
    *   **建立下一章**: 一個 Act 結束時，點擊側邊欄的 **"Create Next"** 按鈕，系統會自動建立一本新的冒險之書（例如 "Act 2"），繼承所有記憶與數值。新書會落在與來源書相同的 Collection 內。
    *   **繼續遊玩**: 開啟 **Session** (冒險之書列表) -> 選擇最新的冒險之書繼續。
-   *   **循環**: 遊玩 -> **Save** 按鈕 -> **Auto-Update** 視窗審核 -> **Create Next**。
+   *   **循環**: 遊玩 -> **Save** 按鈕 -> 在 **Auto-Update** 審核 -> **套用並開新幕**(或 **套用到本幕**,之後再 **Create Next**)。
 
 ---
 
@@ -110,7 +110,7 @@ TextRPG 是一個**本地優先 (Local-First)**、**自帶金鑰 (Bring Your Own
 ### 存檔 (Save) : 分析並同步狀態
 **操作**: 點輸入欄旁邊的 **Save** 按鈕（磁碟片圖示）；按下後跳確認 dialog，確認即直接執行（不需要在輸入欄打任何字）。
 > [!NOTE]
-> 存檔走 multi-agent 路徑：由 SaveAgent 把本 ACT 自 `--- ACT START ---` 起的 logs 與摘要整理成一份 hunk manifest（一串逐字的 KB 編輯），再交給 Auto-Update 視窗讓你逐條審核（不再經過主敘事 turn engine）。
+> 存檔走 multi-agent 路徑：由 SaveAgent 把本 ACT 自 `--- ACT START ---` 起的 logs 與摘要整理成一份 hunk manifest（一串逐字的 KB 編輯），再交給 Auto-Update 視窗讓你逐條審核。審核後兩種出口:**套用到本幕**（寫進目前 KB、在聊天留一條存檔痕跡、並鎖住新回合直到你開下一幕）或 **套用並開新幕**（保留本幕可重玩，把更新套進新建的下一幕）。整個流程不經過主敘事 turn engine。
 
 ### 繼續 (Continue) : 自然推進
 **動作**: 直接點擊發送或輸入 `繼續`  
@@ -296,9 +296,9 @@ AI 產生的 **Inventory (物品欄)**、**Quest Log (任務)**、**World (世�
 
 ### 3. 自動世界更新 (Automatic World Update)
 存檔不只記錄進度，還會**更新世界設定檔**：
-*   **觸發方式**: 點擊輸入框旁的 **Save**（磁碟片圖示）按鈕 → 確認 dialog → 存檔直接執行。存檔不會在聊天紀錄留下訊息,直接彈出 Auto-Update 視窗。
+*   **觸發方式**: 點擊輸入框旁的 **Save**（磁碟片圖示）按鈕 → 確認 dialog → 存檔直接執行,彈出 Auto-Update 視窗。存檔流程本身不在聊天留訊息;但若你在 Auto-Update 選 **套用到本幕**,套用後會在聊天留下一條存檔痕跡訊息(選 **套用並開新幕** 則不留)。
 *   **運作機制**: **SaveAgent**（單次 LLM call）檢視本 ACT 自 `--- ACT START ---` 起的 logs 與摘要，整理出一份 **hunk manifest** —— 一串逐字的 KB 編輯（新增 / 取代 / 刪除），每條都錨定到目標檔案 + 標題。Settings 啟用任何進階存檔 agent 時,manifest 會先經過進階存檔階段(額外的 opt-in LLM 處理:drop / revise / 補完 hunk)再交給 Auto-Update;否則直接送進 Auto-Update 視窗。
-*   **審核介面**: 跑完跳 **"Auto-Update"** 視窗，逐檔逐條 diff 預覽（如 `2.劇情綱要.md` / `6.勢力與世界.md` / `3.人物狀態.md`），可選擇套用或忽略。
+*   **審核介面**: 跑完跳 **"Auto-Update"** 視窗，逐檔逐條 diff 預覽（如 `2.劇情綱要.md` / `6.勢力與世界.md` / `3.人物狀態.md`），可勾選要套用的 hunk。兩個套用動作:**套用到本幕**（寫進目前這本、留存檔痕跡、鎖住新回合直到開下一幕）或 **套用並開新幕**（預設;本幕不動,把更新套進新建的下一幕並開場）。
 
 ### 4. 知識庫檔案編輯 (KB File Editing)
 除了對話與日誌外,您也可以直接編輯遊戲的底層知識庫(Markdown 檔案):
@@ -333,7 +333,7 @@ Agent 引導你到特定 UI 時,可以輸出**可點擊的 UI 麵包屑**(例如
 | 詢問 | 你會得到的回應 |
 | :--- | :--- |
 | 「主角撿到一把魔法劍要記哪?」 | 依 §4 routing 規則回答(主寫 `Inventory`,若有詳細規格 / lore 加 `Tech Equipment`)。 |
-| 「我 save 完 Inventory 還是空的。」 | 調查實際 KB,反問上次 **Auto-Update** dialog 是否有忽略掉相關 hunk;若是,推薦重跑 **Save**;最後才提案直接改檔。 |
+| 「我 save 完 Inventory 還是空的。」 | 調查實際 KB,反問上次 **Auto-Update** dialog 是否有忽略掉相關 hunk、或選了 **套用並開新幕**(更新進了新書、本書維持不動);若是漏勾就推薦重跑 **Save**;最後才提案直接改檔。 |
 | 「兩回合前 NPC 沒提到 X,幫我處理。」 | 同時列三條方案:劇情推進(附建議 action-intent 台詞)、Edit text 補白(附以 NPC 個性 + 派系慣例 grounding 的具體插入內容)、Fork / Delete + 重玩。 |
 | 「把 CHARACTER_STATUS 每個 NPC 壓到三行。」 | File Viewer agent 一次 batch `readSection` 所有 NPC heading,再 batch `replaceSection` 全部送回。 |
 

@@ -1,5 +1,6 @@
 import { Injectable, signal, computed, inject } from '@angular/core';
 import { ChatMessage } from '../models/types';
+import { SAVE_TRACE_INTENT } from '../constants/game-intents';
 import { CostService } from './cost.service';
 import { KnowledgeService } from './knowledge.service';
 import { LLMProviderRegistryService } from './llm-provider-registry.service';
@@ -40,6 +41,17 @@ export class GameStateService {
 
     // ==================== Chat Messages ====================
     messages = signal<ChatMessage[]>([]);
+
+    // Save-applied lock, derived purely from chat: true when the last message
+    // is the save-trace marker left by a current-act apply (the KB moved on
+    // but the story hasn't). Blocks new turns (not the save button). Being a
+    // derivation, it auto-clears on every unlock path — creating the next act
+    // (new last message), switching/deleting books (loadBook restores that
+    // book's messages), and the user deleting the trace message to keep going.
+    pendingActAdvance = computed(() => {
+        const msgs = this.messages();
+        return msgs[msgs.length - 1]?.intent === SAVE_TRACE_INTENT;
+    });
 
     // ==================== Files & Knowledge Base ====================
     loadedFiles = signal<Map<string, string>>(new Map());
