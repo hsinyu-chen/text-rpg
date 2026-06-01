@@ -604,3 +604,18 @@ mat-tab-nav-panel {
         display: none; // Hide description on mobile
     }
 }
+.save-block-warning {
+    margin-right: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--mat-sys-error, #d32f2f);
+    font-size: 0.8rem;
+    font-weight: 500;
+
+    mat-icon {
+        font-size: 18px;
+        width: 18px;
+        height: 18px;
+    }
+}

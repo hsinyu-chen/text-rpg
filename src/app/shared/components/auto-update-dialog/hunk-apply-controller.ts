@@ -30,6 +30,22 @@ import { I18nService } from '@app/core/i18n';
  */
 const MAX_AUTO_FIX_ATTEMPTS = 3;
 
+/**
+ * Result of one {@link HunkApplyController.requestAutoFix} run. `applied` =
+ * matched + written back; `idempotent` = LLM says already applied (left as-is);
+ * `unmatched` = retries exhausted without a verbatim match; `failed` = LLM/parse
+ * error; `aborted` = user cancelled the progress dialog; `cancelled` = user
+ * declined the preview; `skipped` = not eligible / already in flight.
+ */
+export type AutoFixOutcome =
+  | 'applied'
+  | 'idempotent'
+  | 'unmatched'
+  | 'failed'
+  | 'aborted'
+  | 'cancelled'
+  | 'skipped';
+
 export interface ValidationStatus {
   exists: boolean;
   matched: boolean;
@@ -219,27 +235,66 @@ export class HunkApplyController {
   }
 
   /**
-   * Whether the LLM repair button should render for `update`. Only offered
-   * on `target_not_found` failures (`context_mismatch` is rarer and harder
-   * to LLM-recover from) and only until the attempt counter saturates.
+   * Whether the LLM repair button should render for `update`. Offered on both
+   * failure modes — `target_not_found` (substring absent) and `context_mismatch`
+   * (substring present but under the wrong heading path); the repair prompt
+   * fixes target + context together — and only until the per-button attempt
+   * counter saturates.
    */
   canAutoFix(update: MonacoUpdateItem): boolean {
+    const reason = update.status?.failReason;
     return update.status?.exists === true
       && update.status?.matched === false
-      && update.status?.failReason === 'target_not_found'
+      && (reason === 'target_not_found' || reason === 'context_mismatch')
       && update.autoFixAttempts() < MAX_AUTO_FIX_ATTEMPTS;
   }
 
+  /** Any hunk currently in a repairable error state — gates the "fix all" button. */
+  hasFixableErrors = computed(() =>
+    this.groupedUpdates().some((g) => g.updates.some((u) => this.canAutoFix(u))),
+  );
+
   /**
-   * Ask {@link HunkAutoFixService} for a corrected target/replacement, show
-   * the preview dialog, and on confirm splice the result back into the hunk
-   * + revalidate. Empty-string repair output means the LLM thinks the file
-   * already reflects the intended state — we surface that as a snackbar
-   * rather than wiping the hunk on the user's behalf.
+   * Any SELECTED hunk that exists but doesn't match — these would corrupt the
+   * apply, so the dialog blocks save while one is present (a new-file hunk,
+   * `!exists`, is not an error). Unchecking the bad hunk clears the block.
    */
-  async requestAutoFix(update: MonacoUpdateItem, group: GroupedUpdate): Promise<void> {
-    if (!this.canAutoFix(update)) return;
-    if (update.autoFixInProgress()) return;
+  hasSelectedUnresolvedError = computed(() =>
+    this.groupedUpdates().some((g) =>
+      g.updates.some((u) => u.selected() && u.status?.exists === true && u.status?.matched === false),
+    ),
+  );
+
+  /**
+   * Ask {@link HunkAutoFixService} for a corrected target/replacement/context,
+   * (unless `autoApply`) show the preview dialog, and on confirm splice the
+   * result back into the hunk + revalidate. The service runs its own internal
+   * retry loop against the source, so a returned candidate is either a verbatim
+   * match (`matched`), the LLM's idempotent "already applied" signal (empty
+   * target+replacement), or an exhausted-without-match best effort.
+   *
+   * `autoApply` (used by {@link requestAutoFixAll}) skips the preview AND the
+   * per-hunk snackbars so the batch can report a single summary. The returned
+   * outcome lets the batch caller tally results.
+   */
+  async requestAutoFix(
+    update: MonacoUpdateItem,
+    group: GroupedUpdate,
+    opts?: { autoApply?: boolean },
+  ): Promise<AutoFixOutcome> {
+    if (!this.canAutoFix(update)) return 'skipped';
+    if (update.autoFixInProgress()) return 'skipped';
+    const autoApply = opts?.autoApply === true;
+    const notify = (key: string, params?: Record<string, string | number>, duration = 3000): void => {
+      if (!autoApply) this.snackBar.open(this.t(key, params), this.i18n.translate('ui.CLOSE'), { duration });
+    };
+    const reportUnmatched = (): AutoFixOutcome => {
+      const next = update.autoFixAttempts() + 1;
+      update.autoFixAttempts.set(next);
+      const key = next >= MAX_AUTO_FIX_ATTEMPTS ? 'autoFixLimitReached' : 'autoFixStillFailed';
+      notify(key, { attempts: next, max: MAX_AUTO_FIX_ATTEMPTS }, 4000);
+      return 'unmatched';
+    };
 
     update.autoFixInProgress.set(true);
     const abortController = new AbortController();
@@ -257,42 +312,58 @@ export class HunkApplyController {
         intendedTarget: update.targetContent ?? '',
         intendedReplacement: update.replacementContent ?? '',
         context: update.context,
+        failReason: update.status!.failReason!,
         signal: abortController.signal,
         onThoughtChunk: (text) => progressInstance.appendThought(text),
         onOutputChunk: (text) => progressInstance.appendOutput(text),
         onUsage: (usage) => progressInstance.setUsage(usage),
+        onRoundStart: (round, max) => progressInstance.startRound(round, max),
       });
       // Close the progress dialog before any follow-up dialog (preview /
       // confirm) opens, otherwise the user sees two modals stacked. Service
       // returns null on abort too, so this path covers cancel + success + fail.
       progressRef.close();
 
-      if (abortController.signal.aborted) return;
+      if (abortController.signal.aborted) return 'aborted';
 
       if (!result) {
         update.autoFixAttempts.update(n => n + 1);
-        this.snackBar.open(this.t('autoFixFailed'), this.i18n.translate('ui.CLOSE'), { duration: 3000 });
-        return;
+        notify('autoFixFailed');
+        return 'failed';
       }
 
       if (!result.target && !result.replacement) {
-        this.snackBar.open(this.t('autoFixIdempotent'), this.i18n.translate('ui.CLOSE'), { duration: 3000 });
-        return;
+        // The repair LLM judged the KB already reflects this change —
+        // definitively not fixable. Saturate the counter so the button hides
+        // and Fix All skips it; the user unchecks the redundant hunk to clear
+        // the save block.
+        update.autoFixAttempts.set(MAX_AUTO_FIX_ATTEMPTS);
+        notify('autoFixIdempotent');
+        return 'idempotent';
       }
 
-      const previewData: HunkFixPreviewData = {
-        oldTarget: update.targetContent ?? '',
-        newTarget: result.target,
-        oldReplacement: update.replacementContent ?? '',
-        newReplacement: result.replacement,
-      };
-      const confirmed = await firstValueFrom(
-        this.dialog.open(HunkFixPreviewDialogComponent, { data: previewData }).afterClosed(),
-      );
-      if (!confirmed) return;
+      if (!result.matched) {
+        return reportUnmatched();
+      }
+
+      if (!autoApply) {
+        const previewData: HunkFixPreviewData = {
+          oldTarget: update.targetContent ?? '',
+          newTarget: result.target,
+          oldReplacement: update.replacementContent ?? '',
+          newReplacement: result.replacement,
+          oldContext: update.context ?? [],
+          newContext: result.context,
+        };
+        const confirmed = await firstValueFrom(
+          this.dialog.open(HunkFixPreviewDialogComponent, { data: previewData }).afterClosed(),
+        );
+        if (!confirmed) return 'cancelled';
+      }
 
       update.targetContent = result.target;
       update.replacementContent = result.replacement;
+      update.context = result.context;
       await this.revalidateUpdate(update, group);
 
       // `runValidation` replaces the array entry with a fresh object whose
@@ -304,19 +375,47 @@ export class HunkApplyController {
       const latest = group.updates.find(u => u.id === update.id);
       if (latest?.status?.matched) {
         update.autoFixAttempts.set(0);
-        this.snackBar.open(this.t('autoFixSuccess'), this.i18n.translate('ui.CLOSE'), { duration: 2000 });
-      } else {
-        const next = update.autoFixAttempts() + 1;
-        update.autoFixAttempts.set(next);
-        const key = next >= MAX_AUTO_FIX_ATTEMPTS ? 'autoFixLimitReached' : 'autoFixStillFailed';
-        this.snackBar.open(this.t(key, { attempts: next, max: MAX_AUTO_FIX_ATTEMPTS }), this.i18n.translate('ui.CLOSE'), { duration: 4000 });
+        notify('autoFixSuccess', undefined, 2000);
+        return 'applied';
       }
+      return reportUnmatched();
     } finally {
       update.autoFixInProgress.set(false);
       // Defensive close in case an unexpected throw left the dialog hanging
       // (the success path closes earlier; this is a no-op if already closed).
       progressRef.close();
     }
+  }
+
+  /**
+   * Sequentially repair every fixable hunk across all groups, auto-applying
+   * each successful match without per-hunk preview, then surface one summary.
+   * Sequential (not concurrent) so the shared progress dialog and the LLM
+   * aren't hammered; aborting one hunk's progress dialog stops the batch.
+   */
+  async requestAutoFixAll(): Promise<void> {
+    const targets = this.groupedUpdates().flatMap((group) =>
+      group.updates.filter((u) => this.canAutoFix(u)).map((u) => ({ group, id: u.id })),
+    );
+    if (targets.length === 0) return;
+
+    let applied = 0;
+    let failed = 0;
+    for (const { group, id } of targets) {
+      // Re-resolve off the live array — revalidate swaps the element each round.
+      const current = group.updates.find((u) => u.id === id);
+      if (!current || !this.canAutoFix(current)) continue;
+      const outcome = await this.requestAutoFix(current, group, { autoApply: true });
+      if (outcome === 'applied') applied++;
+      else if (outcome === 'aborted') break;
+      else failed++;
+    }
+
+    this.snackBar.open(
+      this.t('autoFixAllSummary', { applied, failed }),
+      this.i18n.translate('ui.CLOSE'),
+      { duration: 4000 },
+    );
   }
 
   onHunkContentChange(update: MonacoUpdateItem, type: 'target' | 'replacement', event: Event): void {

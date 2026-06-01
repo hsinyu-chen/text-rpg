@@ -133,6 +133,12 @@ export class AutoUpdateDialogComponent {
   }
 
   private async confirmAndClose(mode: AutoUpdateResult['mode'], titleKey: string, bodyKey: string, btnKey: string): Promise<void> {
+    // Backstop for the disabled apply buttons — also blocks any programmatic
+    // path that reaches here with a selected-but-unresolved hunk.
+    if (this.hunks.hasSelectedUnresolvedError()) {
+      this.snackBar.open(this.t('saveBlockedUnresolved'), this.i18n.translate('ui.CLOSE'), { duration: 3000 });
+      return;
+    }
     const files = this.collectSelectedFiles();
     if (files.length === 0) {
       this.snackBar.open(this.t('noFilesToApply'), this.i18n.translate('ui.CLOSE'), { duration: 2000 });

@@ -6,6 +6,9 @@
     <div class="header-row">
         <mat-spinner diameter="20"></mat-spinner>
         <span class="file-label">{{ data.fileName }}</span>
+        @if (showRounds()) {
+            <span class="round-badge">{{ 'dialog.autoFixRound' | translate: { round: round(), max: maxRounds() } }}</span>
+        }
     </div>
 
     @if (hasThought()) {

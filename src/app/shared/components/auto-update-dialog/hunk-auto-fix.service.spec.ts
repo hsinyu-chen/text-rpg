@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import { TestBed } from '@angular/core/testing';
-import { HunkAutoFixService } from './hunk-auto-fix.service';
+import { HunkAutoFixService, HunkAutoFixInput } from './hunk-auto-fix.service';
 import { LLMProviderRegistryService } from '@app/core/services/llm-provider-registry.service';
 import { LLMConfigService } from '@app/core/services/llm-config.service';
 import { ContentParserService } from '@app/core/services/content-parser.service';
@@ -84,12 +84,18 @@ function activeMain(): { llmConfig: StubLLMConfigService; registry: StubProvider
     return { llmConfig: ctx.llmConfig, registry: ctx.registry, provider };
 }
 
-const sampleInput = {
+const sampleInput: HunkAutoFixInput = {
     fileName: 'kb.md',
     sourceContent: '- **最後已知位置**: 新手村廣場\n',
     intendedTarget: '- 最後已知位置: 新手村廣場',
     intendedReplacement: '- 最後已知位置: 山洞入口',
+    failReason: 'target_not_found',
 };
+
+/** A repair candidate whose target IS present verbatim in sampleInput's source. */
+const matchingCandidate = JSON.stringify({ target: '- **最後已知位置**: 新手村廣場', replacement: '- **最後已知位置**: 山洞入口', context: [] });
+/** A repair candidate whose target is NOT present (missing the ** wrappers). */
+const nonMatchingCandidate = JSON.stringify({ target: '- 最後已知位置: 新手村廣場', replacement: '- 最後已知位置: 山洞入口', context: [] });
 
 describe('HunkAutoFixService', () => {
     let baseCtx: ReturnType<typeof activeMain>;
@@ -99,45 +105,77 @@ describe('HunkAutoFixService', () => {
     });
 
     it('passes the structured-output schema + JSON mime to the provider', async () => {
-        baseCtx.provider.enqueueJsonStream(JSON.stringify({ target: 'x', replacement: 'y' }));
+        baseCtx.provider.enqueueJsonStream(matchingCandidate);
         const service = TestBed.inject(HunkAutoFixService);
 
         await service.fix(sampleInput);
 
         const call = baseCtx.provider.calls[0];
         expect(call.genConfig.responseMimeType).toBe('application/json');
-        expect((call.genConfig.responseSchema as { required: string[] }).required).toEqual(['target', 'replacement']);
+        expect((call.genConfig.responseSchema as { required: string[] }).required).toEqual(['target', 'replacement', 'context']);
         expect(call.genConfig.intent).toBe('hunk_auto_fix');
     });
 
-    it('returns parsed {target, replacement} on a well-formed response', async () => {
-        const fixed = { target: '- **最後已知位置**: 新手村廣場', replacement: '- **最後已知位置**: 山洞入口' };
-        baseCtx.provider.enqueueJsonStream(JSON.stringify(fixed));
+    it('returns a matched candidate (target + context + matched) on a well-formed, source-matching response', async () => {
+        baseCtx.provider.enqueueJsonStream(matchingCandidate);
         const service = TestBed.inject(HunkAutoFixService);
 
         const result = await service.fix(sampleInput);
 
-        expect(result).toEqual(fixed);
+        expect(result).toEqual({ target: '- **最後已知位置**: 新手村廣場', replacement: '- **最後已知位置**: 山洞入口', context: [], matched: true });
     });
 
-    it('returns null when the response is missing required fields', async () => {
-        baseCtx.provider.enqueueJsonStream(JSON.stringify({ target: 'only-target' }));
+    it('threads failReason into the initial user prompt', async () => {
+        baseCtx.provider.enqueueJsonStream(matchingCandidate);
         const service = TestBed.inject(HunkAutoFixService);
 
-        expect(await service.fix(sampleInput)).toBeNull();
+        await service.fix({ ...sampleInput, failReason: 'context_mismatch' });
+
+        const firstUserText = baseCtx.provider.calls[0].contents[0].parts[0].text ?? '';
+        expect(firstUserText).toContain('WAS found verbatim');
     });
 
-    it('returns null when the provider throws', async () => {
+    it('returns null when the provider throws on the first round', async () => {
         // No script enqueued — MockLLMProvider throws on missing script.
         const service = TestBed.inject(HunkAutoFixService);
         expect(await service.fix(sampleInput)).toBeNull();
     });
 
-    it('passes empty strings through as a legal idempotent result (not coerced to null)', async () => {
-        baseCtx.provider.enqueueJsonStream(JSON.stringify({ target: '', replacement: '' }));
+    it('passes empty strings through as a legal idempotent (matched) result', async () => {
+        baseCtx.provider.enqueueJsonStream(JSON.stringify({ target: '', replacement: '', context: [] }));
         const service = TestBed.inject(HunkAutoFixService);
 
-        expect(await service.fix(sampleInput)).toEqual({ target: '', replacement: '' });
+        expect(await service.fix(sampleInput)).toEqual({ target: '', replacement: '', context: [], matched: true });
+    });
+
+    it('retries in the SAME conversation when the first candidate does not match, feeding back the failure', async () => {
+        baseCtx.provider.enqueueJsonStream(nonMatchingCandidate);
+        baseCtx.provider.enqueueJsonStream(matchingCandidate);
+        const service = TestBed.inject(HunkAutoFixService);
+
+        const result = await service.fix(sampleInput);
+
+        expect(result?.matched).toBe(true);
+        expect(result?.target).toBe('- **最後已知位置**: 新手村廣場');
+        expect(baseCtx.provider.calls.length).toBe(2);
+        // Second call ran against the accumulated history: original user turn +
+        // round-1 model turn + retry-feedback user turn (same array reference).
+        const history = baseCtx.provider.calls[1].contents;
+        expect(history.length).toBe(3);
+        expect(history.map(c => c.role)).toEqual(['user', 'model', 'user']);
+        expect(history[2].parts[0].text).toContain('still does not apply');
+    });
+
+    it('returns matched:false after exhausting the retry budget without a match', async () => {
+        baseCtx.provider.enqueueJsonStream(nonMatchingCandidate);
+        baseCtx.provider.enqueueJsonStream(nonMatchingCandidate);
+        baseCtx.provider.enqueueJsonStream(nonMatchingCandidate);
+        const service = TestBed.inject(HunkAutoFixService);
+
+        const result = await service.fix(sampleInput);
+
+        expect(result?.matched).toBe(false);
+        expect(baseCtx.provider.calls.length).toBe(service.maxFixRounds);
     });
 
     it('honours hunkFixupProfileId when set, dispatching on that profile\'s provider', async () => {
@@ -150,7 +188,7 @@ describe('HunkAutoFixService', () => {
         ], 'main');
 
         TestBed.inject(SaveSettingsStore).setHunkFixupProfileId('cheap');
-        cheapProvider.enqueueJsonStream(JSON.stringify({ target: 't', replacement: 'r' }));
+        cheapProvider.enqueueJsonStream(matchingCandidate);
 
         const service = TestBed.inject(HunkAutoFixService);
         await service.fix(sampleInput);
@@ -163,7 +201,7 @@ describe('HunkAutoFixService', () => {
 
     it('falls back to active main profile when hunkFixupProfileId points at a deleted profile', async () => {
         TestBed.inject(SaveSettingsStore).setHunkFixupProfileId('ghost-profile');
-        baseCtx.provider.enqueueJsonStream(JSON.stringify({ target: 't', replacement: 'r' }));
+        baseCtx.provider.enqueueJsonStream(matchingCandidate);
 
         const service = TestBed.inject(HunkAutoFixService);
         await service.fix(sampleInput);

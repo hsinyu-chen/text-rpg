@@ -194,13 +194,28 @@
 </mat-dialog-content>
 
 <mat-dialog-actions align="end">
+    @if (hunks.hasSelectedUnresolvedError()) {
+    <span class="save-block-warning">
+        <mat-icon>warning</mat-icon>
+        {{ 'dialog.saveBlockedUnresolved' | translate }}
+    </span>
+    }
     <button mat-button (click)="onCancel()">{{ 'dialog.cancel' | translate }}</button>
-    <button mat-stroked-button color="accent" (click)="onApplyCurrent()" [disabled]="!hunks.hasSelectedUpdates()"
-        [matTooltip]="'dialog.applyToActTooltip' | translate">
+    @if (hunks.hasFixableErrors()) {
+    <button mat-stroked-button color="warn" (click)="hunks.requestAutoFixAll()"
+        [matTooltip]="'dialog.autoFixAllTooltip' | translate">
+        <mat-icon>auto_fix_high</mat-icon>
+        {{ 'dialog.autoFixAll' | translate }}
+    </button>
+    }
+    <button mat-stroked-button color="accent" (click)="onApplyCurrent()"
+        [disabled]="!hunks.hasSelectedUpdates() || hunks.hasSelectedUnresolvedError()"
+        [matTooltip]="(hunks.hasSelectedUnresolvedError() ? 'dialog.saveBlockedUnresolved' : 'dialog.applyToActTooltip') | translate">
         {{ 'dialog.applyToAct' | translate }}
     </button>
-    <button mat-flat-button color="primary" (click)="onApplyNewAct()" [disabled]="!hunks.hasSelectedUpdates()"
-        [matTooltip]="'dialog.applyNewActTooltip' | translate">
+    <button mat-flat-button color="primary" (click)="onApplyNewAct()"
+        [disabled]="!hunks.hasSelectedUpdates() || hunks.hasSelectedUnresolvedError()"
+        [matTooltip]="(hunks.hasSelectedUnresolvedError() ? 'dialog.saveBlockedUnresolved' : 'dialog.applyNewActTooltip') | translate">
         {{ 'dialog.applyNewAct' | translate }}
     </button>
 </mat-dialog-actions>
