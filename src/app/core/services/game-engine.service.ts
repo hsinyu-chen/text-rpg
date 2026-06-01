@@ -109,7 +109,10 @@ export class GameEngineService {
         // block until the user creates the next act (which clears the flag).
         // The save button stays usable; startSession's boot turn is unaffected
         // (newAct never sets the flag, and a locked act always has messages).
-        if (this.state.pendingActAdvance()) return;
+        if (this.state.pendingActAdvance()) {
+            console.warn('[GameEngine] sendMessage blocked: pending act advance.');
+            return;
+        }
         console.log('[GameEngine] sendMessage received with intent:', options?.intent);
         if (!this.validateRunTurnArgs(userText, options)) return;
 
