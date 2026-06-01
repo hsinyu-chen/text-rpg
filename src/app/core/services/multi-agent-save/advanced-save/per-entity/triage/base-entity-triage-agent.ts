@@ -1,7 +1,7 @@
 import { LLMFunctionDeclaration } from '@hcs/llm-core';
 import { type ReadOnlyAgentContext } from '../../../../agent-runner/read-only-agent';
 import type { TurnContext } from '../../../../agent-runner/base-tool-call-agent';
-import type { Awaitable, ReadOnlyAction, ToolExecutionResult } from '../../../../agent-runner/agent-runner.types';
+import type { ReadOnlyAction } from '../../../../agent-runner/agent-runner.types';
 import { BaseSaveSubAgent } from '../../base-save-sub-agent';
 import type { AdvancedSaveAgentInput } from '../../advanced-save-agent';
 import {
@@ -82,15 +82,6 @@ export abstract class BaseEntityTriageAgent extends BaseSaveSubAgent<TriageActio
 
     protected override isTerminal(action: TriageAction): boolean {
         return action.action === COMMIT_TRIAGE_SELECTION;
-    }
-
-    protected override dispatchTool(
-        action: TriageAction, context: ReadOnlyAgentContext,
-    ): Awaitable<ToolExecutionResult> {
-        const read = this.dispatchReadTool(action, context);
-        if (read !== null) return read;
-        // commitTriageSelection is terminal — it never routes through here.
-        return { response: { error: `Unknown action: ${action.action}` } };
     }
 
     protected override async handleTerminalAction(

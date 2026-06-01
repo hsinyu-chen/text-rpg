@@ -1,13 +1,13 @@
+import { inject } from '@angular/core';
 import { LLMFunctionDeclaration } from '@hcs/llm-core';
 import type { ChatMessage } from '@app/core/models/types';
 import { getLocale } from '@app/core/constants/locales';
 import type { AppLocale } from '@app/core/constants/locales/locale.interface';
 import { extractSceneHeader } from '@app/core/utils/scene-header.util';
 import { I18nService } from '../../../../i18n/i18n.service';
-import { inject } from '@angular/core';
 import { type ReadOnlyAgentContext } from '../../../agent-runner/read-only-agent';
 import type { TurnContext } from '../../../agent-runner/base-tool-call-agent';
-import type { Awaitable, ReadOnlyAction, ToolExecutionResult } from '../../../agent-runner/agent-runner.types';
+import type { Awaitable, ReadOnlyAction } from '../../../agent-runner/agent-runner.types';
 import type { SaveHunk } from '../../multi-agent-save.types';
 import { sliceToActStart, renderActLogDigest } from '../../utils/act-window.util';
 import { makeAbortError } from '../../utils/abort-error.util';
@@ -249,15 +249,6 @@ export abstract class BasePerEntityStateAgent extends BaseSaveSubAgent<PerEntity
 
     protected override isTerminal(action: PerEntityAction): boolean {
         return action.action === COMMIT_ENTITY_STATE_REVIEW || action.action === REPORT_NOT_AN_ENTITY;
-    }
-
-    protected override dispatchTool(
-        action: PerEntityAction, context: ReadOnlyAgentContext,
-    ): Awaitable<ToolExecutionResult> {
-        const read = this.dispatchReadTool(action, context);
-        if (read !== null) return read;
-        // The two terminals never route through here.
-        return { response: { error: `Unknown action: ${action.action}` } };
     }
 
     /** Capture whichever terminal fired, then stop the loop. */
