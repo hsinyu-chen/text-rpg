@@ -68,7 +68,7 @@ The app ships a service worker and manifest, so it can be installed as a PWA —
    *   **Start**: Go to **Session** tab → Click **New Game**. The recommended path is the **Generate** tab — describe the kind of world and protagonist you want and let an AI agent fill in all 9 world files (see *AI World Generator* below). The **Pre-build** tab only ships a thin demo scenario for a quick first look; use it for trying the engine, not for serious play.
    *   **Play**: Engage in roleplay and plot deduction with the AI.
    *   **Finish Act**: When a narrative arc concludes, hit the **Save** button (disk icon) next to the input → confirm in the dialog → SaveAgent runs.
-   *   **Update World**: The **Auto-Update** dialog that pops up after save lists every proposed KB update line-by-line; review and apply.
+   *   **Update World**: The **Auto-Update** dialog that pops up after save lists every proposed KB update line-by-line. Two ways to apply: **Apply to This Act** writes them into the current book (leaves a save mark in chat and locks new turns until you start the next act), or **Apply & New Act** (the default) keeps this act untouched and replayable, spins up the next act with the updates applied, and starts it.
 
 2. **Backup (Crucial)**
    *   **Cloud Sync**: Go to **Session** (Book List) -> click **"Sync All"** to two-way sync all Books and Collections with the active sync provider. Choose the provider under **Settings → Sync Provider**:
@@ -81,7 +81,7 @@ The app ships a service worker and manifest, so it can be installed as a PWA —
 3. **Next Session (Act II+)**
    *   **Create Next Act**: When an Act concludes, clicking **"Create Next"** in the sidebar will automatically generate a new Adventure Book (e.g., "Act 2") inheriting all memory and stats. The new book lands in the same Collection as the source.
    *   **Continue**: Open **Session** (Book List) -> Select the latest Book to resume play.
-   *   **Loop**: Play -> **Save** button -> review in **Auto-Update** -> **Create Next**.
+   *   **Loop**: Play -> **Save** button -> review in **Auto-Update** -> **Apply & New Act** (or **Apply to This Act**, then **Create Next** when ready).
 
 ---
 
@@ -110,7 +110,7 @@ The app ships a service worker and manifest, so it can be installed as a PWA —
 ### Save : Analysis and state synchronization
 **Action**: Click the **Save** button (disk icon) next to the input — a confirm dialog opens; on accept, save runs immediately. No text input required.
 > [!NOTE]
-> Save runs through the multi-agent pipeline: SaveAgent compiles a hunk manifest — a flat list of verbatim KB edits — from this ACT's logs + summaries (since `--- ACT START ---`), then hands it to the **Auto-Update** dialog for line-by-line review. The turn engine is bypassed entirely.
+> Save runs through the multi-agent pipeline: SaveAgent compiles a hunk manifest — a flat list of verbatim KB edits — from this ACT's logs + summaries (since `--- ACT START ---`), then hands it to the **Auto-Update** dialog for line-by-line review. From there you either **Apply to This Act** (writes to the current KB, drops a save mark in chat, and blocks new story turns until you advance to the next act) or **Apply & New Act** (leaves this act replayable and applies the updates into a freshly-created next act). The turn engine is bypassed entirely.
 
 ### Continue : Fluid progression
 **Action**: Just click send or type `Continue`  
@@ -334,7 +334,7 @@ Think of it as an **in-app wiki + editor**: ask anything about your world, mecha
 | Ask | What you'll get |
 | :--- | :--- |
 | *"Where in the KB does this enchanted sword go?"* | Routing answer grounded in §4 rules (`Inventory` primary; also `Tech Equipment` if it has detailed specs). |
-| *"My inventory still looks empty after save."* | Investigates the actual KB, asks whether the user skipped any hunks in the **Auto-Update** dialog the last save opened, recommends re-running **Save** if so, offers a direct fix only if needed. |
+| *"My inventory still looks empty after save."* | Investigates the actual KB, asks whether the user skipped hunks in the **Auto-Update** dialog the last save opened — or chose **Apply & New Act** (the updates went into the new book; this one stays untouched); recommends re-running **Save** if hunks were skipped, offers a direct fix only if needed. |
 | *"Two turns ago the NPC didn't mention X — help."* | Presents all three valid paths: in-character continuation (suggested action-intent line), Edit text retcon (with concrete proposed insertion grounded in NPC profile + faction conventions), or Fork / Delete + replay. |
 | *"Compress every NPC in CHARACTER_STATUS to 3 lines"* | File Viewer agent batches `readSection` over all NPC headings, then `replaceSection` for all of them in one turn. |
 
