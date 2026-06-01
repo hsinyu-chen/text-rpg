@@ -111,6 +111,8 @@ The app ships a service worker and manifest, so it can be installed as a PWA —
 **Action**: Click the **Save** button (disk icon) next to the input — a confirm dialog opens; on accept, save runs immediately. No text input required.
 > [!NOTE]
 > Save runs through the multi-agent pipeline: SaveAgent compiles a hunk manifest — a flat list of verbatim KB edits — from this ACT's logs + summaries (since `--- ACT START ---`), then hands it to the **Auto-Update** dialog for line-by-line review. From there you either **Apply to This Act** (writes to the current KB, drops a save mark in chat, and blocks new story turns until you advance to the next act) or **Apply & New Act** (leaves this act replayable and applies the updates into a freshly-created next act). The turn engine is bypassed entirely.
+>
+> Optional post-processing agents (off by default) refine the manifest before Auto-Update — see [AGENT-EXECUTION-ORDER.md](AGENT-EXECUTION-ORDER.md) for the full agent execution order when they're all enabled.
 
 ### Continue : Fluid progression
 **Action**: Just click send or type `Continue`  
