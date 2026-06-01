@@ -39,9 +39,29 @@ export class HunkAutoFixProgressDialogComponent {
     readonly thought = signal('');
     readonly output = signal('');
     readonly usage = signal<LLMUsageMetadata | null>(null);
+    /** Current retry round, surfaced so the user sees the loop re-prompting. */
+    readonly round = signal(0);
+    readonly maxRounds = signal(0);
 
     readonly hasThought = computed(() => this.thought().length > 0);
     readonly hasOutput = computed(() => this.output().length > 0);
+    // Only surface from round 2 — round 1 isn't a "retry" yet.
+    readonly showRounds = computed(() => this.round() > 1);
+
+    /**
+     * Mark the start of a repair round. The first round just records the
+     * counters; later rounds also push a visual separator into the streams so
+     * each round's reasoning/output stays delimited as they accumulate.
+     */
+    startRound(round: number, maxRounds: number): void {
+        this.round.set(round);
+        this.maxRounds.set(maxRounds);
+        if (round > 1) {
+            const divider = `\n\n──── retry ${round}/${maxRounds} ────\n\n`;
+            if (this.thought()) this.thought.update(t => t + divider);
+            if (this.output()) this.output.update(o => o + divider);
+        }
+    }
 
     appendThought(chunk: string): void {
         this.thought.update(t => t + chunk);

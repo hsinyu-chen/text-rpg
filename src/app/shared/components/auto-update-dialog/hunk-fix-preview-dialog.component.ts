@@ -9,6 +9,8 @@ export interface HunkFixPreviewData {
     newTarget: string;
     oldReplacement: string;
     newReplacement: string;
+    oldContext: string[];
+    newContext: string[];
 }
 
 /**

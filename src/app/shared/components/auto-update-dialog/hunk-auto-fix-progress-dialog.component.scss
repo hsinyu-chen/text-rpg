@@ -17,6 +17,16 @@
         font-size: 0.85rem;
         color: var(--mat-app-text-color, rgba(0, 0, 0, 0.75));
     }
+
+    .round-badge {
+        margin-left: auto;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 0.72rem;
+        font-weight: 600;
+        background: rgba(99, 102, 241, 0.12);
+        color: #818cf8;
+    }
 }
 
 .waiting {

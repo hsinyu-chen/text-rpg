@@ -6,6 +6,18 @@
     <p class="hint">{{ 'dialog.autoFixPreviewHint' | translate }}</p>
 
     <section class="diff-block">
+        <h3>{{ 'dialog.autoFixContextLabel' | translate }}</h3>
+        <div class="diff-row">
+            <span class="diff-label old">{{ 'dialog.autoFixOldLabel' | translate }}</span>
+            <pre class="diff-text old">{{ data.oldContext.length ? data.oldContext.join(' > ') : ('dialog.hunkRootContext' | translate) }}</pre>
+        </div>
+        <div class="diff-row">
+            <span class="diff-label new">{{ 'dialog.autoFixNewLabel' | translate }}</span>
+            <pre class="diff-text new">{{ data.newContext.length ? data.newContext.join(' > ') : ('dialog.hunkRootContext' | translate) }}</pre>
+        </div>
+    </section>
+
+    <section class="diff-block">
         <h3>{{ 'dialog.targetLabel' | translate }}</h3>
         <div class="diff-row">
             <span class="diff-label old">{{ 'dialog.autoFixOldLabel' | translate }}</span>
