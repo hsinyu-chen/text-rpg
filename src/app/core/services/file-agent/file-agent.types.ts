@@ -62,11 +62,14 @@ export type {
   TurnLogKind,
   ChatSearchScope,
   ReadOnlyAction,
+  TodoItem,
+  UpdateTodosArgs,
 } from '../agent-runner/agent-runner.types';
 
-// ReadOnlyAction is the only moved type actually referenced in code below
-// (the rest are pure re-exports). Import explicitly so the union below resolves.
-import type { ReadOnlyAction } from '../agent-runner/agent-runner.types';
+// ReadOnlyAction + UpdateTodosArgs are the moved types actually referenced in
+// code below (the rest are pure re-exports). Import explicitly so the
+// WriteOnlyAction union resolves.
+import type { ReadOnlyAction, UpdateTodosArgs } from '../agent-runner/agent-runner.types';
 
 export interface FileAgentContext {
   files: Map<string, string>;
@@ -248,6 +251,10 @@ export interface ReportProgressArgs {
 
 export interface SubmitResponseArgs {
   message: string;
+  /** When true and the task is fully complete, the base loop ticks every
+   *  remaining todo so the checklist shows done. Omitted/false when the
+   *  submit is a question or a blocked state (task not actually finished). */
+  markAllTodosDone?: boolean;
 }
 
 /* eslint-disable-next-line @typescript-eslint/no-empty-object-type */
@@ -290,7 +297,8 @@ export type WriteOnlyAction =
   | { action: 'listCollections'; args: ListCollectionsArgs; callId?: string }
   | { action: 'proposeChatReplace'; args: ProposeChatReplaceArgs; callId?: string }
   | { action: 'reportProgress'; args: ReportProgressArgs; callId?: string }
-  | { action: 'submitResponse'; args: SubmitResponseArgs; callId?: string };
+  | { action: 'submitResponse'; args: SubmitResponseArgs; callId?: string }
+  | { action: 'updateTodos'; args: UpdateTodosArgs; callId?: string };
 
 /**
  * Full file-agent action union — discriminated by `action` name.

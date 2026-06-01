@@ -228,17 +228,12 @@ describe('buildSystemInstruction', () => {
       expect(out).not.toContain('PARALLEL ALLOWED');
     });
 
-    it('produces the JSON-mode block when mode=json', () => {
+    it('no longer emits a JSON-mode tool guide — it is auto-generated + appended by BaseToolCallAgent (see json-tool-guide.spec)', () => {
       const out = build({ mode: 'json' });
-      expect(out).toContain('TOOL-CALL MODE — JSON');
-      expect(out).toContain('valid JSON');
-      expect(out).toContain('"reason"');
-    });
-
-    it('lists listBooks / listCollections in the JSON-mode action enum', () => {
-      const out = build({ mode: 'json' });
-      expect(out).toContain('action: "listBooks"');
-      expect(out).toContain('action: "listCollections"');
+      // The hand-maintained TOOL ARGUMENTS GUIDE was removed; buildSystemInstruction
+      // produces no tool-call-mode block in json mode.
+      expect(out).not.toContain('TOOL-CALL MODE — JSON');
+      expect(out).not.toContain('action: "listBooks"');
     });
   });
 

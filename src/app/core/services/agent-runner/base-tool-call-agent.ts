@@ -1,6 +1,6 @@
 import { signal } from '@angular/core';
 import { LLMContent, LLMFunctionCall, LLMFunctionDeclaration, LLMPart, LLMProvider } from '@hcs/llm-core';
-import { AgentLogEntry, Awaitable, BaseAction, ToolExecutionResult } from './agent-runner.types';
+import { AgentLogEntry, Awaitable, BaseAction, TodoItem, ToolExecutionResult } from './agent-runner.types';
 import {
     AgentStreamChunk,
     AgentStreamEvent,
@@ -79,6 +79,10 @@ export abstract class BaseToolCallAgent<TAction extends BaseAction, TContext> {
     readonly generatedChunkCount = signal(0);
     /** Live prefill / prompt-processing progress (0..1) for providers that report it (e.g. llama.cpp). undefined when unknown or finished. */
     readonly promptProgress = signal<number | undefined>(undefined);
+    /** Ordered task checklist published via the `updateTodos` tool — mirrored
+     *  into the agent surface's pinned progress block. Empty when the agent
+     *  has no active plan. Cleared on `clearHistory`. */
+    readonly todoList = signal<TodoItem[]>([]);
 
     protected abortController: AbortController | null = null;
 
@@ -146,11 +150,12 @@ export abstract class BaseToolCallAgent<TAction extends BaseAction, TContext> {
         this.promptProgress.set(undefined);
     }
 
-    /** Reset agent state — history, logs. Refuses when a turn is in flight. */
+    /** Reset agent state — history, logs, todo checklist. Refuses when a turn is in flight. */
     clearHistory(): void {
         if (this.isAgentRunning()) return;
         this.agentHistory.set([]);
         this.agentLogs.set([]);
+        this.todoList.set([]);
     }
 
     // ===== Loop (driven by subclass's runAgent wrapper) =====
@@ -191,15 +196,15 @@ export abstract class BaseToolCallAgent<TAction extends BaseAction, TContext> {
 
         const setup = this.resolveTurnSetup(context);
         if (!setup) return;
-        const { provider, providerSettings, mode, allowParallel, genConfig } = setup;
+        const { provider, providerSettings, mode, allowParallel, systemInstruction: baseInstruction, genConfig } = setup;
 
         // JSON mode strips tool descriptions out of the responseSchema, so the
         // model would otherwise never see tool usage strategy. Append the
         // auto-generated tool guide (derived from the same declarations native
         // mode reads) to the system prompt. Native is left untouched.
         const systemInstruction = mode === 'json'
-            ? `${setup.systemInstruction}\n\n${renderJsonModeBlock(this.tools)}`
-            : setup.systemInstruction;
+            ? `${baseInstruction}\n\n${renderJsonModeBlock(this.tools)}`
+            : baseInstruction;
 
         const ctx = this.openTurnLogEntry();
         const stream = provider.generateContentStream(providerSettings, this.agentHistory(), systemInstruction, genConfig);
@@ -469,6 +474,15 @@ export abstract class BaseToolCallAgent<TAction extends BaseAction, TContext> {
         })();
 
         this.updateLogAt(ctx.currentLogIndex, e => ({ ...e, text: finalMsg, isToolCall: false }));
+
+        // Explicit task-complete signal on the terminal action (e.g.
+        // submitResponse's markAllTodosDone) — the model opts in only when the
+        // whole task is done, which distinguishes "finished" from "stopping to
+        // ask a question", so we never tick the checklist presumptuously.
+        if (readArg(terminalAction.args, 'markAllTodosDone') && this.todoList().length) {
+            this.todoList.update(items => items.map(i => (i.done ? i : { ...i, done: true })));
+        }
+
         this.isAgentRunning.set(false);
     }
 
@@ -522,7 +536,15 @@ export abstract class BaseToolCallAgent<TAction extends BaseAction, TContext> {
                 } else {
                     this.agentLogs.update(logs => [...logs, toolEntry]);
                 }
-                const result = await this.dispatchTool(a, context);
+                // updateTodos mutates the agent's own todoList signal (UI
+                // progress block), not domain state, so the base owns it
+                // directly instead of routing through the subclass dispatcher
+                // — same "self-management tool handled at the loop" rationale
+                // as the reportProgress branch above. It still renders through
+                // the normal tool-call entry + result path.
+                const result = a.action === 'updateTodos'
+                    ? this.applyUpdateTodos(a.args)
+                    : await this.dispatchTool(a, context);
                 if (result.infoLog) {
                     this.agentLogs.update(logs => [...logs, { role: 'system', text: result.infoLog!, type: 'info' }]);
                 }
@@ -557,6 +579,40 @@ export abstract class BaseToolCallAgent<TAction extends BaseAction, TContext> {
      * side effects collected during the loop." Default no-op.
      */
     protected onBatchLoopEnd(): void { /* no-op */ }
+
+    /**
+     * Apply an `updateTodos` call: replace the whole `todoList` with the
+     * validated items (mark-done = resend with done:true; clear = empty array).
+     * Malformed entries (missing/blank `content`) are dropped; a wholly-
+     * malformed non-empty list is rejected without touching the existing list
+     * so the model can correct rather than silently wiping its plan. Returns a
+     * tool-result so the trace + history get the normal acknowledgment.
+     */
+    private applyUpdateTodos(rawArgs: unknown): ToolExecutionResult {
+        const todosRaw = readArg(rawArgs, 'todos');
+        if (!Array.isArray(todosRaw)) {
+            return { response: { status: 'error', message: 'updateTodos requires a "todos" array (send [] to clear the list).' } };
+        }
+        const items: TodoItem[] = [];
+        for (const t of todosRaw.slice(0, 50)) {
+            const content = typeof (t as { content?: unknown })?.content === 'string'
+                ? (t as { content: string }).content.trim() : '';
+            if (content) items.push({ content, done: !!(t as { done?: unknown })?.done });
+        }
+        if (todosRaw.length > 0 && items.length === 0) {
+            return { response: { status: 'error', message: 'Each todo needs a non-empty "content" string — the list was left unchanged.' } };
+        }
+        this.todoList.set(items);
+        const completed = items.filter(i => i.done).length;
+        return {
+            response: {
+                status: 'success',
+                total: items.length,
+                completed,
+                current: items.find(i => !i.done)?.content ?? null,
+            },
+        };
+    }
 
     /**
      * Append a single user-role message containing all tool responses from

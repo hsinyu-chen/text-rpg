@@ -23,7 +23,10 @@ export const SUBMIT_RESPONSE_TOOL: LLMFunctionDeclaration = {
     description: 'End the agent turn and hand control back to the user. Call this ONLY when (a) the entire task is fully complete and you want to summarize, (b) you need to ask the user a question or need clarification, or (c) you are blocked and cannot proceed. After this call the agent stops and the user must type a new message to resume.',
     parameters: {
         type: 'object',
-        properties: { message: { type: 'string', description: 'The final summary, question, or clarification to show to the user' } },
+        properties: {
+            message: { type: 'string', description: 'The final summary, question, or clarification to show to the user' },
+            markAllTodosDone: { type: 'boolean', description: 'Optional. Set true ONLY in case (a) — this response completes the whole task — to tick every remaining todo so the checklist shows fully done. Leave false/unset for cases (b) and (c) (asking a question or blocked), since the task is not actually finished.' },
+        },
         required: ['message'],
     },
 };

@@ -1,6 +1,7 @@
 import {
     ChangeDetectionStrategy,
     Component,
+    computed,
     inject,
     input,
     output,
@@ -15,7 +16,7 @@ import { TranslatePipe } from '@app/core/i18n';
 import { AutoScrollBottomDirective } from '@app/shared/directives/auto-scroll-bottom.directive';
 import { AgentLinkInterceptor } from '@app/core/services/agent-hints/agent-link-interceptor.service';
 import { AgentHintRegistry } from '@app/core/services/agent-hints/agent-hints.registry';
-import type { AgentLogEntry } from '@app/core/services/agent-runner/agent-runner.types';
+import type { AgentLogEntry, TodoItem } from '@app/core/services/agent-runner/agent-runner.types';
 
 /** The fold-toggle keys carried on `AgentLogEntry` — view click handlers flip these. */
 export type AgentLogFoldKey = 'isThoughtCollapsed' | 'isToolCallCollapsed' | 'isToolResultCollapsed';
@@ -68,6 +69,31 @@ export class AgentTraceSurfaceComponent {
     indicator = input<AgentRunningIndicator | null>(null);
     /** When false, the floating "snap to bottom" button never shows even if the user scrolls up. SaveProgressDialog disables it (entries live inside a constrained expansion panel). */
     showScrollToBottomButton = input(true);
+    /** The agent's active task checklist (from the `updateTodos` tool). Empty
+     *  ⇒ the pinned progress block is omitted. SaveProgressDialog leaves this
+     *  default-empty; only the chat console wires it. */
+    todos = input<readonly TodoItem[]>([]);
+
+    /** Pinned progress block is collapsed by default — expand shows one line per step. */
+    protected todoCollapsed = signal(true);
+    protected todoTotal = computed(() => this.todos().length);
+    protected todoCompleted = computed(() => this.todos().filter(t => t.done).length);
+    /** Index of the first not-done step (top-down), or -1 when all are done. */
+    protected todoCurrentIndex = computed(() => this.todos().findIndex(t => !t.done));
+    protected todoCurrent = computed(() => {
+        const i = this.todoCurrentIndex();
+        return i >= 0 ? this.todos()[i] : null;
+    });
+    protected todoAllDone = computed(() => this.todos().length > 0 && this.todoCurrentIndex() === -1);
+    /** Completed fraction as a percentage — drives the collapsed-state progress bar. */
+    protected todoPercent = computed(() => {
+        const total = this.todoTotal();
+        return total > 0 ? Math.round((this.todoCompleted() / total) * 100) : 0;
+    });
+
+    protected toggleTodo(): void {
+        this.todoCollapsed.update(c => !c);
+    }
 
     /**
      * Fold-header click. Parent owns the log array (in AgentConsole it's

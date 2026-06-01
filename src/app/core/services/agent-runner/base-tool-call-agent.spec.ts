@@ -48,6 +48,9 @@ class TestAgent extends BaseToolCallAgent<BaseAction, TestContext> {
     publicExecuteBatch(actions: BaseAction[], ctx: TestContext, turnCtx: TurnContext, hasTerminal: boolean): Awaitable<void> {
         return this.executeBatchActions(actions, ctx, 'native', turnCtx, 0, hasTerminal);
     }
+    publicHandleTerminal(action: BaseAction, turnCtx: TurnContext): Promise<void> {
+        return this.handleTerminalAction({ calls: [] }, action, 'native', turnCtx, 0);
+    }
 }
 
 function setupAgent(): TestAgent {
@@ -147,6 +150,88 @@ describe('BaseToolCallAgent.executeBatchActions — hasTerminalAfter sequencing'
         expect(agent.agentLogs()[turnCtx.currentLogIndex].isToolCall).toBeFalsy();
         // No recursion — terminal handler will run next.
         expect(agent.recurseCount).toBe(0);
+    });
+});
+
+describe('BaseToolCallAgent.updateTodos interception', () => {
+    function runTodos(agent: TestAgent, todos: unknown): Promise<void> {
+        const turnCtx = agent.publicOpenTurn();
+        return Promise.resolve(agent.publicExecuteBatch(
+            [{ action: 'updateTodos', args: { todos } }],
+            { calls: [] }, turnCtx, false,
+        ));
+    }
+
+    it('replaces todoList with validated items, coercing done', async () => {
+        const agent = setupAgent();
+        await runTodos(agent, [{ content: 'plan' }, { content: 'do', done: true }]);
+        expect(agent.todoList()).toEqual([
+            { content: 'plan', done: false },
+            { content: 'do', done: true },
+        ]);
+    });
+
+    it('does NOT route updateTodos through dispatchTool', async () => {
+        const agent = setupAgent();
+        const turnCtx = agent.publicOpenTurn();
+        const ctx: TestContext = { calls: [] };
+        await agent.publicExecuteBatch(
+            [{ action: 'updateTodos', args: { todos: [{ content: 'x' }] } }],
+            ctx, turnCtx, false,
+        );
+        expect(ctx.calls).toEqual([]);
+    });
+
+    it('empty array clears the list', async () => {
+        const agent = setupAgent();
+        agent.todoList.set([{ content: 'x', done: false }]);
+        await runTodos(agent, []);
+        expect(agent.todoList()).toEqual([]);
+    });
+
+    it('leaves the list unchanged when todos is not an array', async () => {
+        const agent = setupAgent();
+        agent.todoList.set([{ content: 'keep', done: false }]);
+        await runTodos(agent, 'nope');
+        expect(agent.todoList()).toEqual([{ content: 'keep', done: false }]);
+    });
+
+    it('rejects a wholly-malformed non-empty list without wiping the existing one', async () => {
+        const agent = setupAgent();
+        agent.todoList.set([{ content: 'keep', done: false }]);
+        await runTodos(agent, [{ done: true }, { content: '   ' }]);
+        expect(agent.todoList()).toEqual([{ content: 'keep', done: false }]);
+    });
+
+    it('clearHistory resets the todoList', () => {
+        const agent = setupAgent();
+        agent.todoList.set([{ content: 'x', done: false }]);
+        agent.clearHistory();
+        expect(agent.todoList()).toEqual([]);
+    });
+});
+
+describe('BaseToolCallAgent terminal markAllTodosDone', () => {
+    it('ticks every remaining todo when the terminal action sets markAllTodosDone', async () => {
+        const agent = setupAgent();
+        agent.todoList.set([{ content: 'a', done: true }, { content: 'b', done: false }]);
+        const turnCtx = agent.publicOpenTurn();
+        await agent.publicHandleTerminal(
+            { action: 'submitResponse', args: { message: 'done', markAllTodosDone: true } },
+            turnCtx,
+        );
+        expect(agent.todoList()).toEqual([{ content: 'a', done: true }, { content: 'b', done: true }]);
+    });
+
+    it('leaves todos untouched when the flag is absent (e.g. submit is a question)', async () => {
+        const agent = setupAgent();
+        agent.todoList.set([{ content: 'a', done: false }]);
+        const turnCtx = agent.publicOpenTurn();
+        await agent.publicHandleTerminal(
+            { action: 'submitResponse', args: { message: 'a question?' } },
+            turnCtx,
+        );
+        expect(agent.todoList()).toEqual([{ content: 'a', done: false }]);
     });
 });
 

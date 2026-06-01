@@ -95,8 +95,12 @@ export function executeFileTool(
       return listCollections(nonReadAction.args, context);
     case 'proposeChatReplace':
       return proposeChatReplace(nonReadAction.args, context);
+    // updateTodos is intercepted by BaseToolCallAgent before dispatch (it
+    // mutates the todoList signal); it's listed here only to keep the
+    // exhaustive switch honest, alongside the other acknowledged-only tools.
     case 'reportProgress':
     case 'submitResponse':
+    case 'updateTodos':
       return { response: { status: 'acknowledged' } };
     default: {
       // Exhaustive check — TS errors here if a new file-agent action is
