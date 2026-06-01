@@ -36,9 +36,11 @@ The advanced-save chain passes the hunk list, baton-style, through every **enabl
 | # | Agent | id (`enabledSaveAgents` key) | Target file(s) | Prompt | Mode |
 |---|---|---|---|---|---|
 | 0 | **SaveAgentRunner** | — (always runs, not advanced) | entire KB | `save_manifest` | single call → manifest |
-| 1 | **InventoryConsistencyAgent** | `inventory-consistency` | `9.物品欄.md` / `4.資產.md` / `5.科技裝備.md` / `6.勢力與世界.md` (inventory scope) | `save_inventory_consistency` | single call (sees all hunks) |
-| 2 | **CharacterStateAgent** | `character-state` | `3.人物狀態.md` | `save_character_state` | **sequential per-entity** (one call per character) |
-| 3 | **FactionStateAgent** | `faction-state` | `6.勢力與世界.md` | `save_faction_state` | **sequential per-entity** (one call per faction) |
+| 1 | **InventoryConsistencyAgent** | `inventory-consistency` | `9.Inventory.md` / `4.Assets.md` / `5.Tech_Equipment.md` / `6.Factions_and_World.md` (inventory scope) | `save_inventory_consistency` | single call (sees all hunks) |
+| 2 | **CharacterStateAgent** | `character-state` | `3.Character_Status.md` | `save_character_state` | **sequential per-entity** (one call per character) |
+| 3 | **FactionStateAgent** | `faction-state` | `6.Factions_and_World.md` | `save_faction_state` | **sequential per-entity** (one call per faction) |
+
+> Filenames above are the **English-locale** names; the actual target file is resolved per locale via `AppLocale['coreFilenames']` (e.g. the zh-TW book uses `3.人物狀態.md`, `6.勢力與世界.md`, …). Agents resolve their target through `coreFilenames`, never a hardcoded literal.
 
 File locations:
 - InventoryConsistencyAgent → [inventory-consistency-agent.ts](src/app/core/services/multi-agent-save/advanced-save/inventory-consistency-agent.ts)
@@ -73,7 +75,7 @@ Within the same call each entity does two things at once (the prompt requires bo
 - **Job A — fact verification / enrichment** (always): verify / revise the hunks SaveAgent already wrote, and fill in real updates it missed.
 - **Job B — time-elapse projection** (when the time span has meaningful length; the LLM decides): for a character, injury recovery / state-of-mind continuation / off-screen plans; for a faction, internal movements / leadership / cross-faction tension.
 
-FactionStateAgent has the exact same structure, just `listFactions` + target `6.勢力與世界.md` + the faction-flavored prompt.
+FactionStateAgent has the exact same structure, just `listFactions` + target `6.Factions_and_World.md` + the faction-flavored prompt.
 
 ## Failure / abort behavior
 
