@@ -28,7 +28,7 @@ export const SUBMIT_RESPONSE_TOOL: LLMFunctionDeclaration = {
         type: 'object',
         properties: {
             message: { type: 'string', description: 'The final summary, question, or clarification to show to the user' },
-            markAllTodosDone: { type: 'boolean', description: 'Optional. Set true ONLY in case (a) — this response completes the whole task — to tick every remaining todo so the checklist shows fully done. Leave false/unset for cases (b) and (c) (asking a question or blocked), since the task is not actually finished.' },
+            markAllTodosDone: { type: 'boolean', description: 'Optional. Set true ONLY in case (a) — this response completes the whole task — to tick every remaining todo so the checklist shows fully done; this saves you a final updateTodos turn just to mark the last step. Leave false/unset for cases (b) and (c) (asking a question or blocked), since the task is not actually finished.' },
         },
         required: ['message'],
     },

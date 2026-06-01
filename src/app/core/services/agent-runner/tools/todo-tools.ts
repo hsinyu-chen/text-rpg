@@ -17,7 +17,6 @@ export const UPDATE_TODOS_TOOL: LLMFunctionDeclaration = {
         + 'Each call REPLACES the entire list — there is no separate add / mark-done / clear tool: to mark a step finished, resend the WHOLE list with that step\'s "done" set to true; to clear the list, send an empty "todos" array. '
         + 'The first item with "done": false (counting from the top) is shown to the user as the step currently in progress, so keep the order meaningful. '
         + 'IMPORTANT — update step by step: the moment you finish a step, call updateTodos again with that step marked "done": true (resend the whole list). Do this after EACH step as you go; do NOT leave the whole list unmarked until the end. This per-step update is what gives the user live progress. '
-        + 'When the whole task is finished, you do not need a final turn just to tick the last step — set markAllTodosDone: true on your submitResponse call and the checklist is marked fully complete. '
         + 'Keep steps short and outcome-oriented (e.g. "Grep all KB files for the old name", "Rewrite the intro section"). This does not end your turn.',
     parameters: {
         type: 'object',
