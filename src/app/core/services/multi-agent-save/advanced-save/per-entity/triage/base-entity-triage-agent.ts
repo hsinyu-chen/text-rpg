@@ -39,20 +39,24 @@ export abstract class BaseEntityTriageAgent extends BaseSaveSubAgent<TriageActio
     private toolsCache: LLMFunctionDeclaration[] | null = null;
 
     /**
-     * Decide which entities need per-entity processing this save. Returns the
-     * selected subset (name + jobs + reason), or `null` to signal "process all"
-     * — the safe degrade for any failure / empty result. An abort propagates
-     * (via `runConversation`) so the save run stops.
+     * Decide which of the **no-hunk** `candidates` need per-entity processing
+     * this save — the ones the SaveAgent already changed are handled
+     * unconditionally and are passed only as `autoIncluded` context. Returns
+     * the selected subset (name + jobs + reason), or `null` to signal "process
+     * all candidates" — the safe degrade for any failure / no selection. An
+     * abort propagates (via `runConversation`) so the save run stops.
      */
     async selectEntities(
-        entities: readonly { name: string }[],
+        candidates: readonly { name: string }[],
+        autoIncluded: readonly string[],
         targetFile: string,
         ctx: TriageSeedContext,
         input: AdvancedSaveAgentInput,
     ): Promise<TriageEntitySelection[] | null> {
         const entryId = this.progress.startEntry('advanced-agent', { toolName: this.traceLabel });
         this.capturedSelection = null;
-        const ok = await this.runConversation(this.buildSeedMessage(entities, targetFile, ctx, input), entryId, input);
+        const seed = this.buildSeedMessage(candidates, autoIncluded, targetFile, ctx, input);
+        const ok = await this.runConversation(seed, entryId, input);
         if (!ok) return null;
 
         // Cast widens past TS's control-flow narrowing — the terminal handler
@@ -60,17 +64,17 @@ export abstract class BaseEntityTriageAgent extends BaseSaveSubAgent<TriageActio
         const selection = this.capturedSelection as TriageSelectionArgs | null;
         if (selection === null) {
             // Loop ended without a selection (maxTurns / commentary-only) — degrade to all.
-            this.progress.finishEntry(entryId, 'done', 'no selection — processing all');
+            this.progress.finishEntry(entryId, 'done', 'undecided — processing all candidates');
             return null;
         }
-        const entityNames = new Set(entities.map(e => e.name));
-        const { selected, warnings } = resolveTriageSubset(entityNames, selection);
+        const candidateNames = new Set(candidates.map(e => e.name));
+        const { selected, warnings } = resolveTriageSubset(candidateNames, selection);
         if (warnings.length) {
             console.warn(`[${this.traceLabel}] ${warnings.join('; ')}`);
             this.progress.setEntryWarnings(entryId, warnings);
         }
         this.progress.setEntryLogs(entryId, this.agentLogs());
-        this.progress.finishEntry(entryId, 'done', `selected ${selected.length}/${entities.length}`);
+        this.progress.finishEntry(entryId, 'done', `selected ${selected.length}/${candidates.length} no-hunk entit${candidates.length === 1 ? 'y' : 'ies'}`);
         return selected;
     }
 
@@ -101,23 +105,31 @@ export abstract class BaseEntityTriageAgent extends BaseSaveSubAgent<TriageActio
     // ===== Internals =====
 
     private buildSeedMessage(
-        entities: readonly { name: string }[],
+        candidates: readonly { name: string }[],
+        autoIncluded: readonly string[],
         targetFile: string,
         ctx: TriageSeedContext,
         input: AdvancedSaveAgentInput,
     ): string {
-        const roster = entities.map(e => `- ${e.name}`).join('\n');
+        const candidateList = candidates.map(e => `- ${e.name}`).join('\n');
+        const autoList = autoIncluded.length ? autoIncluded.map(n => `- ${n}`).join('\n') : '(none)';
         const fileHunks = input.hunks
             .filter(h => h.file === targetFile)
             .map(h => ({ id: h.id, context: h.context, target: h.target, replacement: h.replacement }));
         const fileContent = input.files.get(targetFile) ?? '(file not found)';
         return [
-            `You are the triage step for "${targetFile}". Decide WHICH of the entities below need per-entity `
-                + `processing this save. Do NOT make any edits — call ${COMMIT_TRIAGE_SELECTION} exactly once with the `
-                + `subset (who, which jobs, why). When unsure, include the entity (recall over precision).`,
+            `You are the triage step for "${targetFile}". The [CANDIDATES] below have NO SaveAgent change this save. `
+                + `Decide WHICH of them still need per-entity processing — either the SaveAgent missed a real change to `
+                + `them this ACT (Job A), or meaningful time passed and they plausibly evolved off-screen (Job B). `
+                + `Do NOT make any edits — call ${COMMIT_TRIAGE_SELECTION} exactly once with the subset (who, which `
+                + `jobs, why). When unsure, include the candidate (recall over precision).`,
             '',
-            `[ROSTER] — every entity in "${targetFile}" (${entities.length}). Copy names verbatim:`,
-            roster,
+            `[CANDIDATES] — no-hunk entities you decide among (${candidates.length}). Copy names verbatim:`,
+            candidateList,
+            '',
+            '[ALREADY HANDLED] — entities the SaveAgent already changed; processed unconditionally, listed for context '
+                + 'only. Do NOT select these:',
+            autoList,
             '',
             'Available KB files:',
             ctx.fileList,
@@ -127,7 +139,8 @@ export abstract class BaseEntityTriageAgent extends BaseSaveSubAgent<TriageActio
             fileContent,
             '```',
             '',
-            "[EXISTING HUNKS] — the SaveAgent's proposed (unapplied) edits to this file:",
+            "[SAVEAGENT HUNKS] — the SaveAgent's proposed (unapplied) edits to this file (they target the ALREADY "
+                + 'HANDLED entities; shown so you can see what changed):',
             '```json',
             JSON.stringify(fileHunks, null, 2),
             '```',

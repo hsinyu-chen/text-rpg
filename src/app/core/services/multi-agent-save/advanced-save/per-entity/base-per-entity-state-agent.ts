@@ -122,6 +122,16 @@ export abstract class BasePerEntityStateAgent extends BaseSaveSubAgent<PerEntity
             return [...input.hunks];
         }
 
+        // An entity the SaveAgent already emitted a hunk for ALWAYS gets
+        // per-entity review — it has a concrete change to verify (Job A), so it
+        // never goes through triage. Triage only decides among the rest: the
+        // entities with no SaveAgent change, where the question is whether the
+        // SaveAgent missed something or time-elapse projection applies.
+        const hasHunk = (name: string): boolean =>
+            input.hunks.some(h => h.file === targetFile && h.context.includes(name));
+        const hunked = entities.filter(e => hasHunk(e.name));
+        const unhunked = entities.filter(e => !hasHunk(e.name));
+
         const actMessages = sliceToActStart(input.chatMessages);
         const triageCtx: TriageSeedContext = {
             fileList: Array.from(input.files.keys()).map(f => `- ${f}`).join('\n'),
@@ -129,17 +139,25 @@ export abstract class BasePerEntityStateAgent extends BaseSaveSubAgent<PerEntity
             logDigest: renderActLogDigest(actMessages, [...DIGEST_KINDS]),
         };
 
-        // Triage gate: process only the entities that need work this save. A
-        // null decision (triage failed / returned no selection) means "process
-        // all" — triage must never silently drop a background entity.
-        const decisions = await this.triage.selectEntities(entities, targetFile, triageCtx, input);
+        // Triage the no-hunk entities. A null decision (triage failed / no
+        // selection) degrades to "process all of them" — triage must never
+        // silently drop a background entity that needed projection.
         const reasonByName = new Map<string, string>();
-        let toProcess = entities;
-        if (decisions !== null) {
-            const selected = new Set(decisions.map(d => d.name));
-            toProcess = entities.filter(e => selected.has(e.name));
-            for (const d of decisions) reasonByName.set(d.name, d.reason);
+        let selectedUnhunked: PerEntityState[] = [];
+        if (unhunked.length > 0) {
+            const decisions = await this.triage.selectEntities(
+                unhunked, hunked.map(e => e.name), targetFile, triageCtx, input,
+            );
+            if (decisions === null) {
+                selectedUnhunked = unhunked;
+            } else {
+                const selected = new Set(decisions.map(d => d.name));
+                selectedUnhunked = unhunked.filter(e => selected.has(e.name));
+                for (const d of decisions) reasonByName.set(d.name, d.reason);
+            }
         }
+
+        const toProcess = [...hunked, ...selectedUnhunked];
         if (toProcess.length === 0) return [...input.hunks];
 
         await this.prepareRun();
