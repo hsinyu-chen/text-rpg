@@ -27,6 +27,103 @@ $fg-medium:   rgba(var(--agent-trace-surface-fg-rgb), 0.6);  // mid text (header
 $fg-strong:   rgba(var(--agent-trace-surface-fg-rgb), 0.8);  // emphasized text (hover, info type)
 $fg-emph:     rgba(var(--agent-trace-surface-fg-rgb), 0.9);  // headings
 
+// Pinned task checklist (updateTodos). Sits above the scroll viewport as a
+// non-scrolling host child, so it stays put while the trace scrolls.
+.agent-todo-panel {
+    // Same rationale as .log-thought-container: the dark-tint backdrop reads on
+    // both themes, so pin descendant fg to white — without it a light host
+    // (save dialog) would render dark text on the dark-tint panel.
+    --agent-trace-surface-fg-rgb: 255, 255, 255;
+    flex: 0 0 auto;
+    margin-bottom: 4px;
+    border: 1px solid $fg-divider;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+    font-size: 12px;
+
+    .agent-todo-header {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 5px 8px;
+        cursor: pointer;
+        user-select: none;
+        color: $fg-strong;
+        background: $fg-faint;
+
+        &:hover { color: $fg-emph; }
+
+        mat-icon {
+            flex-shrink: 0;
+            font-size: 16px;
+            width: 16px;
+            height: 16px;
+            line-height: 16px;
+        }
+
+        .agent-todo-summary {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+
+            &.done { color: #4caf50; }
+        }
+
+        .agent-todo-title { color: $fg-medium; }
+    }
+
+    // Cline-style thin progress bar, shown only while collapsed (expanded view
+    // conveys progress via the per-item checkboxes instead).
+    .agent-todo-progress {
+        height: 3px;
+        background: $fg-divider;
+        overflow: hidden;
+
+        .agent-todo-progress-fill {
+            height: 100%;
+            background: #4caf50;
+            transition: width 0.25s ease;
+        }
+    }
+
+    .agent-todo-list {
+        margin: 0;
+        padding: 4px 8px 6px 8px;
+        list-style: none;
+        border-top: 1px solid $fg-faint;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+
+        .agent-todo-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 6px;
+            color: $fg-strong;
+
+            mat-icon {
+                flex-shrink: 0;
+                font-size: 16px;
+                width: 16px;
+                height: 16px;
+                line-height: 1.4;
+                color: $fg-soft;
+            }
+
+            &.done {
+                color: $fg-soft;
+
+                mat-icon { color: #4caf50; }
+
+                // line-through only on the label text — putting it on the flex
+                // row would strike through the checkbox icon too.
+                span { text-decoration: line-through; }
+            }
+        }
+    }
+}
+
 .agent-console-wrap {
     flex: 1;
     position: relative;

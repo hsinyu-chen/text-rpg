@@ -14,6 +14,7 @@ import {
 } from '../agent-runner/tools/kb-write-tools';
 import { CHAT_READ_TOOLS } from '../agent-runner/tools/chat-read-tools';
 import { FLOW_CONTROL_TOOLS } from '../agent-runner/tools/flow-control-tools';
+import { UPDATE_TODOS_TOOL } from '../agent-runner/tools/todo-tools';
 import { UI_HELP_TOOLS } from './ui-help-tools';
 import { PROPOSE_CHAT_REPLACE_TOOL } from './propose-chat-replace-tool';
 
@@ -42,5 +43,6 @@ export const FILE_AGENT_TOOLS: LLMFunctionDeclaration[] = [
     ...CHAT_READ_TOOLS,
     ...UI_HELP_TOOLS,
     PROPOSE_CHAT_REPLACE_TOOL,
+    UPDATE_TODOS_TOOL,
     ...FLOW_CONTROL_TOOLS,
 ];

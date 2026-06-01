@@ -76,11 +76,17 @@ function renderProps(node: SchemaNode | undefined, depth: number): string[] {
 }
 
 function typeLabel(prop: SchemaNode): string {
-    if (prop.enum) return prop.enum.map(e => JSON.stringify(e)).join(' | ');
+    if (prop.enum) return enumLabel(prop.enum);
     if (prop.type === 'array') {
         const it = prop.items;
-        const itType = it?.properties ? 'object' : (it?.type ?? 'any');
+        // Surface array-item enums (e.g. readChatMessage.include / readTurnLogs.kinds)
+        // as `("a" | "b")[]` — otherwise the permitted literals vanish from the guide.
+        const itType = it?.properties ? 'object' : it?.enum ? `(${enumLabel(it.enum)})` : (it?.type ?? 'any');
         return `${itType}[]`;
     }
     return prop.type ?? 'any';
+}
+
+function enumLabel(values: unknown[]): string {
+    return values.map(e => JSON.stringify(e)).join(' | ');
 }

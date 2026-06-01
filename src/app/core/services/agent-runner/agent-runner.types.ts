@@ -65,6 +65,24 @@ export interface BaseToolArgs {
     reason?: string;
 }
 
+/**
+ * One step in the agent's working checklist, surfaced by the `updateTodos`
+ * tool. The first item with `done: false` (top-down) is the "current step".
+ */
+export interface TodoItem {
+    content: string;
+    done: boolean;
+}
+
+/**
+ * Args for `updateTodos`. The list is REPLACED wholesale on every call — there
+ * is no per-item add/mark/clear; mark-done = resend with `done: true`, clear =
+ * send an empty array. `done` defaults to false when omitted by the model.
+ */
+export interface UpdateTodosArgs extends BaseToolArgs {
+    todos: { content: string; done?: boolean }[];
+}
+
 // ============================================================================
 // Read-only tool args — declared here because the corresponding tool
 // declarations (KB_READ_TOOLS / CHAT_READ_TOOLS) and their executor

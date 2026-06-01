@@ -50,6 +50,21 @@ const SAMPLE: LLMFunctionDeclaration[] = [
             required: [],
         },
     },
+    {
+        name: 'readChatMessage',
+        description: 'Read chat messages.',
+        parameters: {
+            type: 'object',
+            properties: {
+                include: {
+                    type: 'array',
+                    description: 'fields to include',
+                    items: { type: 'string', enum: ['content', 'thought', 'logs'] },
+                },
+            },
+            required: [],
+        },
+    },
 ];
 
 describe('renderJsonModeBlock', () => {
@@ -82,5 +97,9 @@ describe('renderJsonModeBlock', () => {
 
     it('renders enum args as a pipe-joined union of literals', () => {
         expect(out).toContain('- anchor ("prepend" | "before" | "after", optional): where');
+    });
+
+    it('surfaces array-of-enum item literals instead of a bare string[]', () => {
+        expect(out).toContain('- include (("content" | "thought" | "logs")[], optional): fields to include');
     });
 });

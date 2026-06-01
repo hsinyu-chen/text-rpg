@@ -1,3 +1,36 @@
+@if (todos().length) {
+    <div class="agent-todo-panel" [class.collapsed]="todoCollapsed()">
+        <div class="agent-todo-header" (click)="toggleTodo()" tabindex="0" role="button"
+            [attr.aria-expanded]="!todoCollapsed()"
+            (keydown.enter)="toggleTodo()" (keydown.space)="$event.preventDefault(); toggleTodo()">
+            <mat-icon inline="true">{{ todoCollapsed() ? 'chevron_right' : 'expand_more' }}</mat-icon>
+            @if (todoCollapsed()) {
+                @if (todoAllDone()) {
+                    <span class="agent-todo-summary done">{{ 'dialog.agentTodoAllDone' | translate: { total: todoTotal() } }}</span>
+                } @else {
+                    <span class="agent-todo-summary">{{ 'dialog.agentTodoCurrentStep' | translate: { step: todoCurrent()?.content ?? '', n: todoCurrentIndex() + 1, total: todoTotal() } }}</span>
+                }
+            } @else {
+                <span class="agent-todo-title">{{ 'dialog.agentTodoTitle' | translate }} ({{ todoCompleted() }}/{{ todoTotal() }})</span>
+            }
+        </div>
+        @if (todoCollapsed()) {
+            <div class="agent-todo-progress" role="progressbar" [attr.aria-valuenow]="todoPercent()" aria-valuemin="0" aria-valuemax="100">
+                <div class="agent-todo-progress-fill" [style.width.%]="todoPercent()"></div>
+            </div>
+        }
+        @if (!todoCollapsed()) {
+            <ol class="agent-todo-list">
+                @for (item of todos(); track $index) {
+                    <li class="agent-todo-item" [class.done]="item.done">
+                        <mat-icon inline="true">{{ item.done ? 'check_box' : 'check_box_outline_blank' }}</mat-icon>
+                        <span>{{ item.content }}</span>
+                    </li>
+                }
+            </ol>
+        }
+    </div>
+}
 <div class="agent-console-wrap">
     <div class="agent-console"
         [appAutoScrollBottom]="logs()"
