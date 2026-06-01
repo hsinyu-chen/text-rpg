@@ -6,7 +6,7 @@
  * Plan: TextRPG_Plans/doing/multi-agent-save-hunk-redesign.md
  */
 
-import type { AgentLogEntry } from '../agent-runner/agent-runner.types';
+import type { AgentLogEntry, TodoItem } from '../agent-runner/agent-runner.types';
 
 /**
  * One condensed unit of "something happened in the ACT" extracted from a
@@ -180,6 +180,12 @@ export interface SaveProgressEntry {
      * and an empty `output`) — the template prefers `logs` when non-empty.
      */
     logs?: readonly AgentLogEntry[];
+    /**
+     * The agent's live `updateTodos` checklist, mirrored mid-loop. Drives the
+     * header's compact "current step (N/M)" progress readout in place of the
+     * long terminal summary, which overflows the panel description row.
+     */
+    todos?: readonly TodoItem[];
     /**
      * Framework-side notes about inputs the agent's terminal commit asked for
      * but the framework rejected (out-of-domain file, unknown id…). Rendered

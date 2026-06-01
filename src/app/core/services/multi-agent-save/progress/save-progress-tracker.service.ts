@@ -1,5 +1,5 @@
 import { Injectable, signal } from '@angular/core';
-import type { AgentLogEntry } from '../../agent-runner/agent-runner.types';
+import type { AgentLogEntry, TodoItem } from '../../agent-runner/agent-runner.types';
 import type {
     SaveEntryState,
     SavePhase,
@@ -102,6 +102,11 @@ export class SaveProgressTracker {
      */
     setEntryLogs(entryId: string, logs: readonly AgentLogEntry[]): void {
         this.patch(entryId, e => ({ ...e, logs }));
+    }
+
+    /** Mirror the agent's live `updateTodos` checklist into the entry's card. */
+    setEntryTodos(entryId: string, todos: readonly TodoItem[]): void {
+        this.patch(entryId, e => ({ ...e, todos }));
     }
 
     /**

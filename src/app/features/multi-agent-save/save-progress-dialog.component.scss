@@ -88,6 +88,27 @@ mat-dialog-actions {
     font-size: 0.75rem;
 }
 
+// Compact checklist readout: the step text shrinks + ellipsizes so the
+// (N/M) count stays visible no matter how long the current step reads.
+.todo-progress {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.4em;
+    min-width: 0;
+    overflow: hidden;
+
+    .todo-step {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .todo-count {
+        flex: 0 0 auto;
+        font-family: 'Fira Code', 'Consolas', monospace;
+    }
+}
+
 .pp-progress {
     display: flex;
     align-items: center;

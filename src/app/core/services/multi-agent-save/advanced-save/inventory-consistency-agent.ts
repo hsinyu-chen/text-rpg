@@ -1,6 +1,5 @@
-import { Injectable, effect, inject, signal } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 import type { LLMFunctionDeclaration, LLMProvider, LLMProviderConfig } from '@hcs/llm-core';
-import type { ChatMessage } from '@app/core/models/types';
 import { getLocale } from '@app/core/constants/locales';
 import { DEFAULT_PROFILE_ID } from '@app/core/constants/prompt-profiles';
 import { LLMConfigService } from '../../llm-config.service';
@@ -13,6 +12,10 @@ import type { Awaitable, ReadOnlyAction, ToolExecutionResult } from '../../agent
 import type { SaveHunk } from '../multi-agent-save.types';
 import { SaveSettingsStore } from '../save-settings.store';
 import { SaveProgressTracker } from '../progress/save-progress-tracker.service';
+import { sliceToActStart, renderActLogDigest } from '../utils/act-window.util';
+import { makeAbortError } from '../utils/abort-error.util';
+import { installAgentProgressMirrors } from '../progress/agent-progress-mirror.util';
+import { resolveAutoToolCallMode } from '../utils/resolve-tool-call-mode.util';
 import type { AdvancedSaveAgent, AdvancedSaveAgentInput } from './advanced-save-agent';
 import {
     COMMIT_INVENTORY_REVIEW,
@@ -83,26 +86,12 @@ export class InventoryConsistencyAgent extends ReadOnlyAgent<InventoryAgentActio
 
     constructor() {
         super();
-        // Mirror the base loop's per-chunk `promptProgress` signal into the
-        // active progress entry so the save dialog's PP bar reflects the
-        // agent's prefill / prompt-processing progress (same UX as the
-        // SaveAgentRunner). Both reads are signals so the effect re-fires on
-        // either an entry-id swap or a new pp value.
-        effect(() => {
-            const pp = this.promptProgress();
-            const id = this.activeEntryId();
-            if (id && pp !== undefined) this.progress.setPpProgress(id, pp);
-        });
-        // Mirror the running log to the active progress entry on every change.
-        // The base runner mutates `agentLogs` per streaming chunk (thought,
-        // text, tool-call, tool-result), so the dialog's trace surface
-        // re-renders live instead of only at turn boundaries — without it,
-        // PP reaches 100 % and the user stares at an empty card until the
-        // whole turn finishes.
-        effect(() => {
-            const id = this.activeEntryId();
-            const logs = this.agentLogs();
-            if (id) this.progress.setEntryLogs(id, logs);
+        installAgentProgressMirrors({
+            progress: this.progress,
+            activeEntryId: this.activeEntryId,
+            promptProgress: this.promptProgress,
+            agentLogs: this.agentLogs,
+            todoList: this.todoList,
         });
     }
 
@@ -144,7 +133,9 @@ export class InventoryConsistencyAgent extends ReadOnlyAgent<InventoryAgentActio
         try {
             this.systemPrompt = await this.loadPrompt();
             this.resolvedProvider = this.resolveProvider();
-            this.toolCallMode = await this.probeToolCallMode(this.resolvedProvider);
+            this.toolCallMode = this.resolvedProvider
+                ? await resolveAutoToolCallMode(this.resolvedProvider.provider, this.resolvedProvider.config)
+                : 'json';
             this.agentHistory.set([{
                 role: 'user',
                 parts: [{ text: this.buildSeedMessage(input, inventoryFile) }],
@@ -236,26 +227,6 @@ export class InventoryConsistencyAgent extends ReadOnlyAgent<InventoryAgentActio
         };
     }
 
-    /**
-     * One pre-loop probe per run: native tool-call if the provider supports it,
-     * JSON otherwise. Failures fall back to JSON — the universal-fallback path
-     * always works, so a flaky probe never sinks an enabled save run.
-     *
-     * Unlike file-agent's per-profile cached probe, this fires fresh every run
-     * (no cross-run sharing). The one extra tiny LLM call is acceptable for a
-     * once-per-save signal — and it avoids any cache-staleness when the user
-     * swaps the underlying model (llama.cpp GGUF reload, etc.) between saves.
-     */
-    private async probeToolCallMode(
-        resolved: { provider: LLMProvider; config: LLMProviderConfig } | null,
-    ): Promise<'native' | 'json'> {
-        if (!resolved?.provider.probeNativeToolSupport) return 'json';
-        try {
-            return (await resolved.provider.probeNativeToolSupport(resolved.config)) ? 'native' : 'json';
-        } catch {
-            return 'json';
-        }
-    }
 
     /** Capture the committed delta, then stop the loop. The base terminal
      *  handler's `args.message` finalization doesn't fit this tool's shape,
@@ -308,7 +279,10 @@ export class InventoryConsistencyAgent extends ReadOnlyAgent<InventoryAgentActio
         }));
         const fileList = Array.from(input.files.keys()).map(f => `- ${f}`).join('\n');
         const actMessages = sliceToActStart(input.chatMessages);
-        const logDigest = renderActLogDigest(actMessages);
+        const logDigest = renderActLogDigest(actMessages, [
+            { key: 'inventory_log', label: 'inventory' },
+            { key: 'world_log', label: 'world' },
+        ]);
         return [
             `The save manifest below has ${input.hunks.length} hunk(s). Review the inventory hunks `
                 + `(file "${inventoryFile}") per your instructions, using the ACT log digest as your `
@@ -330,41 +304,3 @@ export class InventoryConsistencyAgent extends ReadOnlyAgent<InventoryAgentActio
     }
 }
 
-/**
- * Slice messages from the most recent `--- ACT START ---` marker onward —
- * the boundary the SaveAgent's prompt scopes to. Falls back to the full list
- * if the marker is not found (e.g. early-session edge cases).
- */
-function sliceToActStart(messages: readonly ChatMessage[]): ChatMessage[] {
-    for (let i = messages.length - 1; i >= 0; i--) {
-        if (messages[i].content?.includes('--- ACT START ---')) {
-            return messages.slice(i);
-        }
-    }
-    return [...messages];
-}
-
-/**
- * Render the ACT's `inventory_log` + `world_log` entries as a compact digest
- * grouped by message id. The agent uses this as the starting anchor for
- * Job 1 verification and for noticing item lore worth Job 2 deepening.
- */
-function renderActLogDigest(messages: readonly ChatMessage[]): string {
-    const lines: string[] = [];
-    for (const m of messages) {
-        const inv = m.inventory_log ?? [];
-        const world = m.world_log ?? [];
-        if (inv.length === 0 && world.length === 0) continue;
-        lines.push(`message ${m.id}:`);
-        for (const e of inv) lines.push(`  [inventory] ${e}`);
-        for (const e of world) lines.push(`  [world] ${e}`);
-    }
-    return lines.length ? lines.join('\n') : '(no inventory or world log entries in this ACT)';
-}
-
-/** Standard `AbortController`-style error so `isAbortError` in the orchestrator matches. */
-function makeAbortError(): Error {
-    const err = new Error('Aborted');
-    err.name = 'AbortError';
-    return err;
-}

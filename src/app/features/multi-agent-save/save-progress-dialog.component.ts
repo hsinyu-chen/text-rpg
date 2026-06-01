@@ -129,4 +129,26 @@ export class SaveProgressDialogComponent {
             case 'failed':  return 'error';
         }
     }
+
+    /**
+     * Compact checklist readout shown in the header in place of the long
+     * terminal summary (which overflows the description row). Returns null when
+     * the entry has no `updateTodos` checklist, or when it ended on `skipped` /
+     * `failed` — those need their `statusReason` (the skip reason / error)
+     * instead. While running: the first incomplete step + done count. On `done`:
+     * forced to total/total (e.g. 5/5) so the bar reads complete without the
+     * agent having to tick the final item.
+     */
+    todoProgress(entry: SaveProgressEntry): { current: string | null; done: number; total: number } | null {
+        const todos = entry.todos;
+        if (!todos?.length) return null;
+        if (entry.state !== 'running' && entry.state !== 'done') return null;
+        const total = todos.length;
+        if (entry.state === 'done') return { current: null, done: total, total };
+        return {
+            current: todos.find(t => !t.done)?.content ?? null,
+            done: todos.filter(t => t.done).length,
+            total,
+        };
+    }
 }
