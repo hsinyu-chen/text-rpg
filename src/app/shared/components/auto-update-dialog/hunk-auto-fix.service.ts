@@ -183,8 +183,8 @@ export class HunkAutoFixService {
     }
 
     private parseCandidate(raw: string): ParsedCandidate | null {
-        const parsed = this.parser.bestEffortJsonParser(raw) as Partial<ParsedCandidate>;
-        if (typeof parsed.target !== 'string' || typeof parsed.replacement !== 'string') {
+        const parsed = this.parser.bestEffortJsonParser(raw) as Partial<ParsedCandidate> | null;
+        if (!parsed || typeof parsed.target !== 'string' || typeof parsed.replacement !== 'string') {
             console.warn('[HunkAutoFix] Response missing target/replacement strings:', raw);
             return null;
         }
