@@ -107,15 +107,16 @@ export class InventoryConsistencyAgent extends ReadOnlyAgent<InventoryAgentActio
         const inventoryFile = reviewFiles.inventoryFile;
 
         const entryId = this.progress.startEntry('advanced-agent', { toolName: AGENT_LABEL });
-        // Reset PP + agentLogs BEFORE swapping the entry id — both mirror
-        // effects fire the instant `activeEntryId` swaps. Without these
-        // pre-resets the previous run's final PP (e.g. 1) and trailing
-        // agentLogs from the prior turn would be stamped onto the new
-        // entry, painting them into the dialog's auto-expanded panel for
-        // the 0.5–2 s window between this line and the post-probe reset
-        // at the start of the try block.
+        // Reset PP + agentLogs + todoList BEFORE swapping the entry id — all
+        // three mirror effects fire the instant `activeEntryId` swaps. Without
+        // these pre-resets the previous run's final PP (e.g. 1), trailing
+        // agentLogs, and stale todo checklist from the prior turn would be
+        // stamped onto the new entry, painting them into the dialog's
+        // auto-expanded panel for the 0.5–2 s window between this line and the
+        // post-probe reset at the start of the try block.
         this.promptProgress.set(undefined);
         this.agentLogs.set([]);
+        this.todoList.set([]);
         this.activeEntryId.set(entryId);
         this.capturedCommit = null;
 
