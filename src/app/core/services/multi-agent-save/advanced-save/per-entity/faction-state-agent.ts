@@ -3,9 +3,10 @@ import type { AppLocale } from '@app/core/constants/locales/locale.interface';
 import type { PromptType } from '../../../injection.service';
 import { FACTION_PROVIDER } from '../../multi-agent-save.tokens';
 import { BasePerEntityStateAgent, type PerEntityState } from './base-per-entity-state-agent';
+import { FACTION_STATE_AGENT_ID } from './per-entity-agent-ids';
+import { FactionTriageAgent } from './triage/faction-triage-agent';
 
-/** Stable agent id — also the `enabledSaveAgents` / `saveAgentProfileIds` key. */
-export const FACTION_STATE_AGENT_ID = 'faction-state';
+export { FACTION_STATE_AGENT_ID };
 
 /**
  * Per-entity state agent for `6.勢力與世界.md`. Job B for factions has no
@@ -20,6 +21,7 @@ export class FactionStateAgent extends BasePerEntityStateAgent {
     readonly i18nKey = 'advancedSaveAgents.factionState';
     protected readonly promptType: PromptType = 'save_faction_state';
     protected readonly traceLabel = 'FactionStateAgent';
+    protected readonly triage = inject(FactionTriageAgent);
 
     private factionProvider = inject(FACTION_PROVIDER);
 

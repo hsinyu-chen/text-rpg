@@ -107,6 +107,8 @@ export class GameStateService {
     dynamicSaveInventoryConsistencyInjection = signal<string>('');
     dynamicSaveCharacterStateInjection = signal<string>('');
     dynamicSaveFactionStateInjection = signal<string>('');
+    dynamicSaveCharacterTriageInjection = signal<string>('');
+    dynamicSaveFactionTriageInjection = signal<string>('');
     postProcessScript = signal<string>('');
 
     // Flag to prevent effects from saving until after initial load

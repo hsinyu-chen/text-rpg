@@ -1,27 +1,21 @@
-import { inject, signal } from '@angular/core';
-import type { LLMFunctionDeclaration, LLMProvider, LLMProviderConfig } from '@hcs/llm-core';
+import { LLMFunctionDeclaration } from '@hcs/llm-core';
 import type { ChatMessage } from '@app/core/models/types';
 import { getLocale } from '@app/core/constants/locales';
 import type { AppLocale } from '@app/core/constants/locales/locale.interface';
-import { DEFAULT_PROFILE_ID } from '@app/core/constants/prompt-profiles';
 import { extractSceneHeader } from '@app/core/utils/scene-header.util';
-import { LLMConfigService } from '../../../llm-config.service';
-import { LLMProviderRegistryService } from '../../../llm-provider-registry.service';
-import { InjectionService, type PromptType } from '../../../injection.service';
-import { GameStateService } from '../../../game-state.service';
 import { I18nService } from '../../../../i18n/i18n.service';
-import { ReadOnlyAgent, type ReadOnlyAgentContext } from '../../../agent-runner/read-only-agent';
-import type { TurnSetup, TurnContext } from '../../../agent-runner/base-tool-call-agent';
+import { inject } from '@angular/core';
+import { type ReadOnlyAgentContext } from '../../../agent-runner/read-only-agent';
+import type { TurnContext } from '../../../agent-runner/base-tool-call-agent';
 import type { Awaitable, ReadOnlyAction, ToolExecutionResult } from '../../../agent-runner/agent-runner.types';
 import type { SaveHunk } from '../../multi-agent-save.types';
-import { SaveSettingsStore } from '../../save-settings.store';
-import { SaveProgressTracker } from '../../progress/save-progress-tracker.service';
-import { installAgentProgressMirrors } from '../../progress/agent-progress-mirror.util';
 import { sliceToActStart, renderActLogDigest } from '../../utils/act-window.util';
 import { makeAbortError } from '../../utils/abort-error.util';
 import { extractFormatTemplate } from '../../utils/extract-format-template.util';
-import { resolveAutoToolCallMode } from '../../utils/resolve-tool-call-mode.util';
+import { BaseSaveSubAgent } from '../base-save-sub-agent';
 import type { AdvancedSaveAgent, AdvancedSaveAgentInput } from '../advanced-save-agent';
+import type { BaseEntityTriageAgent } from './triage/base-entity-triage-agent';
+import type { TriageSeedContext } from './triage/triage-selection-tool';
 import {
     COMMIT_ENTITY_STATE_REVIEW,
     COMMIT_ENTITY_STATE_REVIEW_TOOL,
@@ -80,11 +74,14 @@ interface SeedContext {
 /**
  * Shared base for the two per-entity state agents
  * ({@link import('./character-state-agent').CharacterStateAgent} and
- * {@link import('./faction-state-agent').FactionStateAgent}). One LLM call
- * per entity — perspective can't be mixed across entities — run **sequentially**
- * (the base {@link ReadOnlyAgent} loop drives a single conversation off instance
- * state, so parallel entities would tread on each other; cloud parallelism is a
- * Phase 2 refactor).
+ * {@link import('./faction-state-agent').FactionStateAgent}). One LLM call per
+ * entity — perspective can't be mixed across entities — run **sequentially**
+ * (the base loop drives a single conversation off instance state, so parallel
+ * entities would tread on each other; cloud parallelism is a later refactor).
+ *
+ * A {@link BaseEntityTriageAgent} runs first and narrows the roster to the
+ * entities that actually need work this save; the per-entity loop only touches
+ * that subset (triage degrades to "process all" on any failure).
  *
  * Per entity it runs Job A (fact verify / deepen against visible events) and
  * Job B (time-elapse evolution) in one prompt, ending in either
@@ -93,51 +90,22 @@ interface SeedContext {
  * identity for THAT entity — the rest of the run proceeds — so the agent can
  * never sink a save.
  */
-export abstract class BasePerEntityStateAgent extends ReadOnlyAgent<PerEntityAction> implements AdvancedSaveAgent {
-    abstract readonly id: string;
+export abstract class BasePerEntityStateAgent extends BaseSaveSubAgent<PerEntityAction> implements AdvancedSaveAgent {
     abstract readonly i18nKey: string;
-    /** The prompt registered with {@link InjectionService} for this agent. */
-    protected abstract readonly promptType: PromptType;
-    /** Trace-card label, e.g. `CharacterStateAgent`. */
-    protected abstract readonly traceLabel: string;
 
     /** Locale-resolved file this agent owns (character status / world factions). */
     protected abstract resolveTargetFile(cf: AppLocale['coreFilenames']): string;
     /** Provider call — `listCharacters` / `listFactions` adapted to the shared shape. */
     protected abstract listEntities(files: ReadonlyMap<string, string>): Awaitable<PerEntityState[]>;
+    /** The triage agent that selects which entities to process (subclass-injected). */
+    protected abstract readonly triage: BaseEntityTriageAgent;
 
-    private llmConfig = inject(LLMConfigService);
-    private providerRegistry = inject(LLMProviderRegistryService);
-    private injection = inject(InjectionService);
-    private gameState = inject(GameStateService);
-    private saveSettings = inject(SaveSettingsStore);
-    private progress = inject(SaveProgressTracker);
     private i18n = inject(I18nService);
 
-    /** Save sub-step — a tighter budget than the file-agent's interactive loop. */
-    protected override readonly maxTurns = 30;
-
-    /** Loaded once per run; resolved provider + tool-call mode reused across entities. */
-    private systemPrompt = '';
-    private resolvedProvider: { provider: LLMProvider; config: LLMProviderConfig } | null = null;
-    private toolCallMode: 'native' | 'json' = 'json';
     /** Set by the terminal handler; consumed after each entity's loop. */
     private capturedCommit: CommitEntityStateReviewArgs | null = null;
     private capturedNotAnEntity: ReportNotAnEntityArgs | null = null;
-    /** Active progress entry id — a signal so the PP/log mirror effects re-fire on swap. */
-    private activeEntryId = signal<string | null>(null);
     private toolsCache: LLMFunctionDeclaration[] | null = null;
-
-    constructor() {
-        super();
-        installAgentProgressMirrors({
-            progress: this.progress,
-            activeEntryId: this.activeEntryId,
-            promptProgress: this.promptProgress,
-            agentLogs: this.agentLogs,
-            todoList: this.todoList,
-        });
-    }
 
     async process(input: AdvancedSaveAgentInput): Promise<SaveHunk[]> {
         const cf = getLocale(input.lang).coreFilenames;
@@ -154,20 +122,37 @@ export abstract class BasePerEntityStateAgent extends ReadOnlyAgent<PerEntityAct
             return [...input.hunks];
         }
 
-        this.systemPrompt = await this.loadPrompt();
-        this.resolvedProvider = this.resolveProvider();
-        this.toolCallMode = this.resolvedProvider
-            ? await resolveAutoToolCallMode(this.resolvedProvider.provider, this.resolvedProvider.config)
-            : 'json';
-
         const actMessages = sliceToActStart(input.chatMessages);
-        const seedCtx: SeedContext = {
-            targetFile,
-            formatTemplate: extractFormatTemplate(input.files.get(targetFile) ?? ''),
+        const triageCtx: TriageSeedContext = {
             fileList: Array.from(input.files.keys()).map(f => `- ${f}`).join('\n'),
             timeSpan: extractActTimeSpan(actMessages),
             logDigest: renderActLogDigest(actMessages, [...DIGEST_KINDS]),
         };
+
+        // Triage gate: process only the entities that need work this save. A
+        // null decision (triage failed / returned no selection) means "process
+        // all" — triage must never silently drop a background entity.
+        const decisions = await this.triage.selectEntities(entities, targetFile, triageCtx, input);
+        const reasonByName = new Map<string, string>();
+        let toProcess = entities;
+        if (decisions !== null) {
+            const selected = new Set(decisions.map(d => d.name));
+            toProcess = entities.filter(e => selected.has(e.name));
+            for (const d of decisions) reasonByName.set(d.name, d.reason);
+        }
+        if (toProcess.length === 0) return [...input.hunks];
+
+        await this.prepareRun();
+
+        const seedCtx: SeedContext = {
+            targetFile,
+            formatTemplate: extractFormatTemplate(input.files.get(targetFile) ?? ''),
+            fileList: triageCtx.fileList,
+            timeSpan: triageCtx.timeSpan,
+            logDigest: triageCtx.logDigest,
+        };
+        // newHunks may target any known entity's section, so the gate is the
+        // full roster — not just the processed subset.
         const knownEntityNames = new Set(entities.map(e => e.name));
         const validMessageIds = new Set(input.chatMessages.map(m => m.id));
 
@@ -175,16 +160,17 @@ export abstract class BasePerEntityStateAgent extends ReadOnlyAgent<PerEntityAct
         let notAnEntityCount = 0;
 
         // Sequential — one conversation at a time on the shared instance state.
-        for (const entity of entities) {
+        for (const entity of toProcess) {
             if (input.signal.aborted) throw makeAbortError();
             const outcome = await this.runEntity(
                 entity, hunks, seedCtx, targetFile, knownEntityNames, validMessageIds, input,
+                reasonByName.get(entity.name),
             );
             hunks = outcome.hunks;
             if (outcome.notAnEntity) notAnEntityCount++;
         }
 
-        this.maybeWarnProviderMismatch(entities.length, notAnEntityCount, targetFile);
+        this.maybeWarnProviderMismatch(toProcess.length, notAnEntityCount, targetFile);
         return hunks;
     }
 
@@ -198,58 +184,19 @@ export abstract class BasePerEntityStateAgent extends ReadOnlyAgent<PerEntityAct
         knownEntityNames: ReadonlySet<string>,
         validMessageIds: ReadonlySet<string>,
         input: AdvancedSaveAgentInput,
+        triageReason: string | undefined,
     ): Promise<{ hunks: SaveHunk[]; notAnEntity: boolean }> {
         const entryId = this.progress.startEntry('advanced-agent', {
             toolName: this.traceLabel,
             entityName: entity.name,
         });
-        // Reset per-entity loop state BEFORE swapping the entry id — both mirror
-        // effects fire the instant `activeEntryId` swaps, so a stale PP / log
-        // from the previous entity must not stamp onto this card.
-        this.promptProgress.set(undefined);
-        this.agentLogs.set([]);
-        this.todoList.set([]);
-        this.activeEntryId.set(entryId);
         this.capturedCommit = null;
         this.capturedNotAnEntity = null;
 
-        // Bridge the save run's abort into a fresh per-entity controller. Capture
-        // it in a local so a late-firing listener aborts THIS entity's run, not a
-        // later entity that reassigned `this.abortController`.
-        const agentController = new AbortController();
-        this.abortController = agentController;
-        const abortHandler = (): void => agentController.abort();
-        if (input.signal.aborted) agentController.abort();
-        else input.signal.addEventListener('abort', abortHandler, { once: true });
-
-        try {
-            this.agentHistory.set([{
-                role: 'user',
-                parts: [{ text: this.buildSeedMessage(entity, hunks, seedCtx, targetFile) }],
-            }]);
-            this.isAgentRunning.set(true);
-            await this.processAgentTurn({ files: input.files, chatMessages: input.chatMessages });
-        } catch (err: unknown) {
-            if (input.signal.aborted) {
-                this.progress.skip(entryId, 'user_aborted');
-                this.activeEntryId.set(null);
-                throw err;
-            }
-            // Degrade to identity for THIS entity — the rest of the run proceeds.
-            console.error(`[${this.traceLabel}] entity "${entity.name}" failed:`, err);
-            this.progress.finishEntry(entryId, 'failed', err instanceof Error ? err.message : String(err));
-            this.activeEntryId.set(null);
-            return { hunks, notAnEntity: false };
-        } finally {
-            input.signal.removeEventListener('abort', abortHandler);
-            this.isAgentRunning.set(false);
-        }
-
-        this.activeEntryId.set(null);
-        if (input.signal.aborted) {
-            this.progress.skip(entryId, 'user_aborted');
-            throw makeAbortError();
-        }
+        const ok = await this.runConversation(
+            this.buildSeedMessage(entity, hunks, seedCtx, targetFile, triageReason), entryId, input, true,
+        );
+        if (!ok) return { hunks, notAnEntity: false };
 
         // Cast widens past TS's control-flow narrowing — the terminal handler
         // assigns these via a callback path inside processAgentTurn that TS
@@ -313,21 +260,6 @@ export abstract class BasePerEntityStateAgent extends ReadOnlyAgent<PerEntityAct
         return { response: { error: `Unknown action: ${action.action}` } };
     }
 
-    protected override resolveTurnSetup(): TurnSetup | null {
-        const resolved = this.resolvedProvider;
-        if (!resolved) return null;
-        const cap = resolved.provider.getCapabilities(resolved.config);
-        const mode = this.toolCallMode;
-        return {
-            provider: resolved.provider,
-            providerSettings: resolved.config as unknown as Record<string, unknown>,
-            mode,
-            allowParallel: false,
-            systemInstruction: this.systemPrompt,
-            genConfig: this.buildGenConfig(mode, cap.isLocalProvider),
-        };
-    }
-
     /** Capture whichever terminal fired, then stop the loop. */
     protected override async handleTerminalAction(
         _context: ReadOnlyAgentContext,
@@ -349,27 +281,9 @@ export abstract class BasePerEntityStateAgent extends ReadOnlyAgent<PerEntityAct
 
     // ===== Internals =====
 
-    /** Per-agent profile override wins; else the active main-chat profile. */
-    private resolveProvider(): { provider: LLMProvider; config: LLMProviderConfig } | null {
-        const pickedId = this.saveSettings.saveAgentProfileIds()[this.id];
-        if (pickedId) {
-            const profile = this.llmConfig.profiles().find(p => p.id === pickedId);
-            if (profile) {
-                const provider = this.providerRegistry.getProvider(profile.provider);
-                if (provider) return { provider, config: profile.settings };
-            }
-            console.warn(`[${this.traceLabel}] profile '${pickedId}' not found; falling back to active.`);
-        }
-        return this.providerRegistry.getActiveBundle();
-    }
-
-    private async loadPrompt(): Promise<string> {
-        const profileId = this.gameState.activePromptProfile() || DEFAULT_PROFILE_ID;
-        return this.injection.getResolvedProfilePrompt(this.promptType, profileId);
-    }
-
     private buildSeedMessage(
         entity: PerEntityState, hunks: readonly SaveHunk[], ctx: SeedContext, targetFile: string,
+        triageReason: string | undefined,
     ): string {
         const entityHunks = hunks
             .filter(h => h.file === targetFile && h.context.includes(entity.name))
@@ -390,6 +304,10 @@ export abstract class BasePerEntityStateAgent extends ReadOnlyAgent<PerEntityAct
             'Available KB files:',
             ctx.fileList,
         ];
+
+        if (triageReason) {
+            parts.push('', `[TRIAGE NOTE] — why the triage step flagged this entity (a lead, not a limit): ${triageReason}`);
+        }
 
         if (ctx.formatTemplate) {
             parts.push('', '[FORMAT TEMPLATE] — write revise / new hunks to match this entry shape:', '```markdown', ctx.formatTemplate, '```');

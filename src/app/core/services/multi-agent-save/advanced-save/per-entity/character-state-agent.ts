@@ -3,9 +3,10 @@ import type { AppLocale } from '@app/core/constants/locales/locale.interface';
 import type { PromptType } from '../../../injection.service';
 import { CHARACTER_PROVIDER } from '../../multi-agent-save.tokens';
 import { BasePerEntityStateAgent, type PerEntityState } from './base-per-entity-state-agent';
+import { CHARACTER_STATE_AGENT_ID } from './per-entity-agent-ids';
+import { CharacterTriageAgent } from './triage/character-triage-agent';
 
-/** Stable agent id — also the `enabledSaveAgents` / `saveAgentProfileIds` key. */
-export const CHARACTER_STATE_AGENT_ID = 'character-state';
+export { CHARACTER_STATE_AGENT_ID };
 
 /**
  * Per-entity state agent for `3.人物狀態.md`. Job B for characters covers
@@ -20,6 +21,7 @@ export class CharacterStateAgent extends BasePerEntityStateAgent {
     readonly i18nKey = 'advancedSaveAgents.characterState';
     protected readonly promptType: PromptType = 'save_character_state';
     protected readonly traceLabel = 'CharacterStateAgent';
+    protected readonly triage = inject(CharacterTriageAgent);
 
     private characterProvider = inject(CHARACTER_PROVIDER);
 

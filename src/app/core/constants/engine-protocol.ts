@@ -75,5 +75,7 @@ export const INJECTION_FILE_PATHS = {
     save_manifest: 'injection_save_manifest.md',
     save_inventory_consistency: 'injection_advanced_inventory_consistency.md',
     save_character_state: 'injection_advanced_character_state.md',
-    save_faction_state: 'injection_advanced_faction_state.md'
+    save_faction_state: 'injection_advanced_faction_state.md',
+    save_character_triage: 'injection_advanced_character_triage.md',
+    save_faction_triage: 'injection_advanced_faction_triage.md'
 } as const;

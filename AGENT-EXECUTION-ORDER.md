@@ -55,30 +55,36 @@ File locations:
 
 ## Internal order of a per-entity agent (all enabled)
 
-CharacterStateAgent / FactionStateAgent are not single calls — they run **one independent LLM conversation per entity** listed by the provider (perspectives must not mix), and in **Phase 1 always sequentially** (the base loop relies on singleton instance state to run a single conversation; running in parallel would corrupt that — cloud parallelism is a Phase 2 perf refactor).
+CharacterStateAgent / FactionStateAgent are not single calls. They first run a **triage** pass (one LLM call over the whole file) to pick which entities need work, then run **one independent LLM conversation per selected entity** (perspectives must not mix), **always sequentially** (the base loop relies on singleton instance state to run a single conversation; running in parallel would corrupt that — cloud parallelism is a later perf refactor).
 
 ```
 CharacterStateAgent.process()
-   │  provider.listCharacters(files) → [Character A, Character B, …]
-   │  (empty list → warn + skip, identity passthrough)
+   │  provider.listCharacters(files) → [Character A, B, C, …]  (empty → warn + skip, passthrough)
    │
-   ├─ Character A: seed (format template + character card + that character's hunks + time span + log digest)
+   ├─ CharacterTriageAgent.selectEntities(roster, full file, hunks, timespan, log digest)
+   │     → one call → commitTriageSelection → subset [A, C] + per-entity job/reason
+   │     (failure / no selection → null = "process all" — never silently drops anyone)
+   │
+   ├─ Character A: seed (triage note + format template + card + that character's hunks + timespan + log digest)
    │              → loop (read KB / read chat) → commitEntityStateReview or reportNotAnEntity
    │              → apply to hunks (limited to that character's section)
-   ├─ Character B: same
-   └─ …
+   ├─ Character C: same
+   └─ (B was not selected — skipped)
    │
-   └─ Wrap-up: if ≥4 entities and ≥50% were judged reportNotAnEntity → append a format-mismatch summary warning
+   └─ Wrap-up: if ≥4 processed entities and ≥50% were judged reportNotAnEntity → append a format-mismatch summary warning
 ```
 
-Within the same call each entity does two things at once (the prompt requires both):
+The triage step is **classify-only** — its sole terminal is `commitTriageSelection`, so it structurally cannot write an edit; deciding *who* is its whole job. It reuses the state agent's profile (shared id) and always runs (no separate toggle). Cost: `1 triage call + K per-entity calls` where K = selected count, versus N per-entity calls before. Triage uses recall-over-precision (include if unsure), so a borderline entity costs at worst a no-op per-entity call rather than a silent miss.
+
+Within each per-entity call the entity does two things at once (the prompt requires both):
 - **Job A — fact verification / enrichment** (always): verify / revise the hunks SaveAgent already wrote, and fill in real updates it missed.
 - **Job B — time-elapse projection** (when the time span has meaningful length; the LLM decides): for a character, injury recovery / state-of-mind continuation / off-screen plans; for a faction, internal movements / leadership / cross-faction tension.
 
-FactionStateAgent has the exact same structure, just `listFactions` + target `6.Factions_and_World.md` + the faction-flavored prompt.
+FactionStateAgent has the exact same structure, just `listFactions` + `FactionTriageAgent` + target `6.Factions_and_World.md` + the faction-flavored prompts.
 
 ## Failure / abort behavior
 
 - **A single advanced agent fails** → degrade to identity (that agent leaves the hunks untouched and the chain continues); the whole save is never sunk.
+- **The triage pass fails** (provider error / no selection) → degrade to "process all" — the per-entity loop runs the full roster rather than risk dropping a background entity that needed projection.
 - **A single entity in a per-entity agent fails** → only that one entity degrades to passthrough; the rest of the same agent's entities run as normal.
 - **User aborts** → the stage checks `signal.throwIfAborted()` between agents, so no extra LLM call is spent.

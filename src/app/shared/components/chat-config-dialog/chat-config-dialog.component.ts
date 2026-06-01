@@ -23,7 +23,7 @@ import { ProfileManagementController } from './profile-management-controller';
 import { AppAgentHintDirective } from '@app/core/services/agent-hints/agent-hints.directive';
 
 interface InjectionType {
-    id: 'action' | 'continue' | 'fastforward' | 'system' | 'postprocess' | 'system_main' | 'protocol_single' | 'protocol_resolver' | 'protocol_narrator' | 'correction' | 'save_manifest' | 'save_inventory_consistency' | 'save_character_state' | 'save_faction_state';
+    id: 'action' | 'continue' | 'fastforward' | 'system' | 'postprocess' | 'system_main' | 'protocol_single' | 'protocol_resolver' | 'protocol_narrator' | 'correction' | 'save_manifest' | 'save_inventory_consistency' | 'save_character_state' | 'save_faction_state' | 'save_character_triage' | 'save_faction_triage';
     label: string;
     icon: string;
     category: 'main' | 'injection' | 'process' | 'save';
@@ -94,7 +94,9 @@ export class ChatConfigDialogComponent {
             { id: 'postprocess', label: this.i18n.translate('intent.labels.post_process'), icon: 'code', category: 'process' },
             { id: 'save_manifest', label: this.i18n.translate('ui.SAVE_MANIFEST_TITLE'), icon: 'save', category: 'save' },
             { id: 'save_inventory_consistency', label: this.i18n.translate('ui.SAVE_INVENTORY_CONSISTENCY_TITLE'), icon: 'inventory_2', category: 'save' },
+            { id: 'save_character_triage', label: this.i18n.translate('ui.SAVE_CHARACTER_TRIAGE_TITLE'), icon: 'filter_alt', category: 'save' },
             { id: 'save_character_state', label: this.i18n.translate('ui.SAVE_CHARACTER_STATE_TITLE'), icon: 'person', category: 'save' },
+            { id: 'save_faction_triage', label: this.i18n.translate('ui.SAVE_FACTION_TRIAGE_TITLE'), icon: 'filter_alt', category: 'save' },
             { id: 'save_faction_state', label: this.i18n.translate('ui.SAVE_FACTION_STATE_TITLE'), icon: 'groups', category: 'save' }
         ];
     });
@@ -131,6 +133,8 @@ export class ChatConfigDialogComponent {
         files.set('save_inventory_consistency', this.state.dynamicSaveInventoryConsistencyInjection());
         files.set('save_character_state', this.state.dynamicSaveCharacterStateInjection());
         files.set('save_faction_state', this.state.dynamicSaveFactionStateInjection());
+        files.set('save_character_triage', this.state.dynamicSaveCharacterTriageInjection());
+        files.set('save_faction_triage', this.state.dynamicSaveFactionTriageInjection());
         return files;
     });
 
