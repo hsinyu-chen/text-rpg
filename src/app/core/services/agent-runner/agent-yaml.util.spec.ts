@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
-import { toAgentYaml } from './file-agent-yaml.util';
+import { toAgentYaml } from './agent-yaml.util';
 
 describe('toAgentYaml', () => {
   it('round-trips nested objects', () => {

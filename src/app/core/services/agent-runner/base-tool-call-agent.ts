@@ -11,6 +11,7 @@ import { buildJsonSchema } from './tool-schema-builder';
 import { renderJsonModeBlock } from './json-tool-guide';
 import { REPORT_PROGRESS_TOOL } from './tools/flow-control-tools';
 import { UPDATE_TODOS_TOOL } from './tools/todo-tools';
+import { toAgentYaml } from './agent-yaml.util';
 
 /**
  * Self-management tools every tool-call agent gets for free. Their handlers
@@ -333,11 +334,12 @@ export abstract class BaseToolCallAgent<TAction extends BaseAction, TContext> {
     }
 
     /**
-     * How tool result objects render into `agentLogs[].text`. Default JSON
-     * stringify; file-agent overrides with toAgentYaml for prettier output.
+     * How tool result objects render into `agentLogs[].text`. Default YAML —
+     * indent-aligned, no `\"` / `\n` escapes — for a trace that scans without
+     * parsing. Subclasses may override for a different shape.
      */
     protected formatToolResult(response: Record<string, unknown>): string {
-        return JSON.stringify(response);
+        return toAgentYaml(response);
     }
 
     /**
@@ -700,9 +702,10 @@ export abstract class BaseToolCallAgent<TAction extends BaseAction, TContext> {
         return a.action;
     }
 
-    /** How the action body is rendered into the trace log entry's `text`. */
+    /** How the action body is rendered into the trace log entry's `text`.
+     *  Default YAML, matching {@link formatToolResult}. */
     protected formatToolCallEntryText(a: TAction): string {
-        return JSON.stringify({ action: a.action, args: a.args });
+        return toAgentYaml({ action: a.action, args: a.args });
     }
 
     // ===== Helper exposed for subclass setup =====
