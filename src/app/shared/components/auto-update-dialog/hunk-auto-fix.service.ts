@@ -145,6 +145,8 @@ export class HunkAutoFixService {
                 return { ...parsed, matched: true };
             }
 
+            // No point appending feedback on the final round — it'd never be sent.
+            if (round === MAX_FIX_ROUNDS - 1) break;
             history.push({ role: 'model', parts: [{ text: output }] });
             history.push({ role: 'user', parts: [{ text: this.buildRetryFeedback(parsed, input.sourceContent) }] });
         }

@@ -331,7 +331,7 @@ export const en: TranslationDict = {
         autoFixFailed: 'LLM repair failed. Please retry or calibrate manually.',
         autoFixStillFailed: 'Repair still does not match (attempt {{attempts}}/{{max}})',
         autoFixLimitReached: 'Reached max repair attempts ({{max}}). Please calibrate manually.',
-        autoFixIdempotent: 'The LLM thinks this hunk is already applied to the source.',
+        autoFixIdempotent: 'The KB already reflects this change — nothing to repair. Uncheck this hunk to proceed.',
         autoFixSuccess: 'Hunk repaired successfully',
         autoFixPreviewTitle: 'Review LLM Repair',
         autoFixPreviewHint: 'Compare the LLM\'s proposed target / replacement against the original before applying.',

@@ -331,7 +331,7 @@ export const zhTW: TranslationDict = {
         autoFixFailed: 'LLM 修復失敗,請重試或手動校準。',
         autoFixStillFailed: '修復後仍不符（第 {{attempts}} / {{max}} 次嘗試）',
         autoFixLimitReached: '已達修復次數上限（{{max}} 次）,請改用手動校準。',
-        autoFixIdempotent: 'LLM 判斷源檔已是目標狀態,沒有需要修復的內容。',
+        autoFixIdempotent: 'KB 已反映此改動,沒有需要修復的內容。請取消勾選此 hunk 以繼續。',
         autoFixSuccess: 'Hunk 修復成功',
         autoFixPreviewTitle: '檢視 LLM 修復結果',
         autoFixPreviewHint: '套用前對照 LLM 提出的新 target / replacement 與原始版本。',

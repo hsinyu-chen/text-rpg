@@ -288,6 +288,13 @@ export class HunkApplyController {
     const notify = (key: string, params?: Record<string, string | number>, duration = 3000): void => {
       if (!autoApply) this.snackBar.open(this.t(key, params), this.i18n.translate('ui.CLOSE'), { duration });
     };
+    const reportUnmatched = (): AutoFixOutcome => {
+      const next = update.autoFixAttempts() + 1;
+      update.autoFixAttempts.set(next);
+      const key = next >= MAX_AUTO_FIX_ATTEMPTS ? 'autoFixLimitReached' : 'autoFixStillFailed';
+      notify(key, { attempts: next, max: MAX_AUTO_FIX_ATTEMPTS }, 4000);
+      return 'unmatched';
+    };
 
     update.autoFixInProgress.set(true);
     const abortController = new AbortController();
@@ -326,16 +333,17 @@ export class HunkApplyController {
       }
 
       if (!result.target && !result.replacement) {
+        // The repair LLM judged the KB already reflects this change —
+        // definitively not fixable. Saturate the counter so the button hides
+        // and Fix All skips it; the user unchecks the redundant hunk to clear
+        // the save block.
+        update.autoFixAttempts.set(MAX_AUTO_FIX_ATTEMPTS);
         notify('autoFixIdempotent');
         return 'idempotent';
       }
 
       if (!result.matched) {
-        const next = update.autoFixAttempts() + 1;
-        update.autoFixAttempts.set(next);
-        const key = next >= MAX_AUTO_FIX_ATTEMPTS ? 'autoFixLimitReached' : 'autoFixStillFailed';
-        notify(key, { attempts: next, max: MAX_AUTO_FIX_ATTEMPTS }, 4000);
-        return 'unmatched';
+        return reportUnmatched();
       }
 
       if (!autoApply) {
@@ -370,11 +378,7 @@ export class HunkApplyController {
         notify('autoFixSuccess', undefined, 2000);
         return 'applied';
       }
-      const next = update.autoFixAttempts() + 1;
-      update.autoFixAttempts.set(next);
-      const key = next >= MAX_AUTO_FIX_ATTEMPTS ? 'autoFixLimitReached' : 'autoFixStillFailed';
-      notify(key, { attempts: next, max: MAX_AUTO_FIX_ATTEMPTS }, 4000);
-      return 'unmatched';
+      return reportUnmatched();
     } finally {
       update.autoFixInProgress.set(false);
       // Defensive close in case an unexpected throw left the dialog hanging
