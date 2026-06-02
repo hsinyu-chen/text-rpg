@@ -81,9 +81,22 @@ export interface TriageSubsetResult {
 }
 
 /**
- * Matches a parsed triage selection against the real entity roster. A name the
- * agent invented (not in the roster) can't be processed, so it's dropped with a
- * warning rather than silently. Duplicate names keep the first selection.
+ * Normalize a name for roster matching — strips whitespace, folds full-width
+ * parens to half-width, lowercases. The model frequently returns a name with
+ * minor formatting drift (`露娜（Luna）` vs `露娜 (Luna)`, stray spaces, casing);
+ * a verbatim compare would drop it, which — given triage's recall-over-precision
+ * goal — is exactly the silent miss we must avoid.
+ */
+function normalizeEntityName(s: string): string {
+    return s.replace(/\s+/g, '').replace(/（/g, '(').replace(/）/g, ')').toLowerCase();
+}
+
+/**
+ * Matches a parsed triage selection against the real entity roster, normalizing
+ * both sides so formatting drift doesn't drop a real pick. The selection's name
+ * is mapped back to the exact roster spelling (the per-entity loop filters by
+ * verbatim roster name). A name with no roster match is dropped with a warning
+ * rather than silently; duplicates keep the first selection.
  */
 export function resolveTriageSubset(
     entityNames: ReadonlySet<string>, selection: TriageSelectionArgs,
@@ -91,14 +104,18 @@ export function resolveTriageSubset(
     const selected: TriageEntitySelection[] = [];
     const warnings: string[] = [];
     const seen = new Set<string>();
+    const canonicalByNormalized = new Map<string, string>();
+    for (const name of entityNames) canonicalByNormalized.set(normalizeEntityName(name), name);
+
     for (const e of selection.entities) {
-        if (!entityNames.has(e.name)) {
+        const canonical = canonicalByNormalized.get(normalizeEntityName(e.name));
+        if (!canonical) {
             warnings.push(`triage: unknown entity "${e.name}" (not in roster) — dropped`);
             continue;
         }
-        if (seen.has(e.name)) continue;
-        seen.add(e.name);
-        selected.push(e);
+        if (seen.has(canonical)) continue;
+        seen.add(canonical);
+        selected.push({ ...e, name: canonical });
     }
     return { selected, warnings };
 }

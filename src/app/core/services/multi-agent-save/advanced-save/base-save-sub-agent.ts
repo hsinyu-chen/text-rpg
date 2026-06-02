@@ -119,7 +119,9 @@ export abstract class BaseSaveSubAgent<TAction extends BaseAction = ReadOnlyActi
         else input.signal.addEventListener('abort', abortHandler, { once: true });
 
         try {
+            if (input.signal.aborted) throw makeAbortError();
             if (!prepared) await this.prepareRun();
+            if (input.signal.aborted) throw makeAbortError();
             this.agentHistory.set([{ role: 'user', parts: [{ text: seed }] }]);
             this.isAgentRunning.set(true);
             await this.processAgentTurn({ files: input.files, chatMessages: input.chatMessages });

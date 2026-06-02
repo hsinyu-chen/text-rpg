@@ -56,6 +56,21 @@ describe('resolveTriageSubset', () => {
         expect(warnings[0]).toContain('查無此人');
     });
 
+    it('matches names robustly regardless of whitespace, casing, or full-width parens', () => {
+        const { selected, warnings } = resolveTriageSubset(roster, {
+            entities: [
+                { name: '露娜（Luna）', jobs: ['A'], reason: 'full-width parens' },
+                { name: '  凱爾 (kyle)  ', jobs: ['B'], reason: 'spaces and casing' },
+            ],
+        });
+        // Both map back to the exact roster spelling (the per-entity loop filters by it).
+        expect(selected).toEqual([
+            { name: '露娜 (Luna)', jobs: ['A'], reason: 'full-width parens' },
+            { name: '凱爾 (Kyle)', jobs: ['B'], reason: 'spaces and casing' },
+        ]);
+        expect(warnings).toEqual([]);
+    });
+
     it('dedupes by name, keeping the first selection', () => {
         const { selected } = resolveTriageSubset(roster, {
             entities: [
