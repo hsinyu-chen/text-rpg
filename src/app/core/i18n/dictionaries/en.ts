@@ -1183,6 +1183,8 @@ export const en: TranslationDict = {
             ppLabel: 'PP',
             cotLabel: 'Chain of thought',
             frameworkWarningsLabel: 'Framework warnings',
+            copyDebug: 'Copy debug log',
+            debugCopied: 'Debug log copied',
             totalLabel: 'Total tokens',
             cancel: 'Cancel',
             close: 'Close',

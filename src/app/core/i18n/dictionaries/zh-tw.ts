@@ -1183,6 +1183,8 @@ export const zhTW: TranslationDict = {
             ppLabel: 'PP',
             cotLabel: '思考',
             frameworkWarningsLabel: 'Framework 警告',
+            copyDebug: '複製 debug log',
+            debugCopied: '已複製 debug log',
             totalLabel: '累計 token',
             cancel: '中斷',
             close: '關閉',

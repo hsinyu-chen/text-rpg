@@ -44,6 +44,13 @@
                                 }
                             }
                         </mat-panel-description>
+                        @if (hasDebug(entry)) {
+                            <button mat-icon-button class="copy-debug-btn"
+                                    (click)="copyEntryDebug(entry, $event)"
+                                    [matTooltip]="'multiAgentSave.progress.copyDebug' | translate">
+                                <mat-icon>content_copy</mat-icon>
+                            </button>
+                        }
                     </mat-expansion-panel-header>
 
                     @if (entry.ppProgress !== undefined && entry.state === 'running') {
