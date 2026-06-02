@@ -27,12 +27,16 @@ type InventoryAgentAction =
  * First real {@link AdvancedSaveAgent}. When enabled it post-processes the
  * SaveAgent manifest's inventory hunks:
  *
- * - **Job 1 — verify**: cross-checks each `9.物品欄.md` hunk against the ACT's
- *   chat messages; drops hunks the story does not support, revises hunks whose
- *   item is real but whose details (quantity, property) are wrong.
+ * - **Job 1 — verify + gap-fill**: cross-checks each inventory / assets hunk
+ *   against the ACT's chat messages; drops hunks the story does not support,
+ *   revises hunks whose item is real but whose details (quantity, property)
+ *   are wrong, and gap-fills a missing possession line into inventory / assets
+ *   when the digest grounds a change the manifest omitted (dedup + net-state
+ *   guarded).
  * - **Job 2 — detail settings**: for significant (non-mundane) items, ensures
- *   the tech-equipment file has a proper entry — appends a missing one, or
- *   deepens an existing one with what the current ACT revealed.
+ *   the right file has a proper entry — equipment / technical-product specs to
+ *   tech-equipment, faction-token / relic lore to world-factions — appending a
+ *   missing one or deepening an existing one with what the current ACT revealed.
  *
  * Runs one {@link BaseSaveSubAgent} conversation (read tools + the
  * `commitInventoryReview` terminal) and returns the full processed hunk list.

@@ -263,13 +263,38 @@ describe('applyInventoryReview', () => {
         expect(warnings).toEqual([]);
     });
 
-    it('warns and rejects a new hunk targeting any file outside tech-equipment / world-factions', () => {
+    it('appends a Job-1 gap-fill hunk to inventory (SaveAgent missed a carried item)', () => {
         const input = [hunk('H1', INV)];
-        // Inventory and assets are NOT in the `new` scope (they only allow drop/revise).
-        const fresh = [newHunk(INV), newHunk(ASSETS), newHunk(OTHER)];
+        const fresh = [newHunk(INV, { context: ['持有'], replacement: '- 銅製冒險者徽章 x1' })];
+        const { hunks, warnings } = applyInventoryReview(
+            input, { ...empty(), newHunks: fresh }, FILES, new Set(),
+        );
+        expect(hunks).toHaveLength(2);
+        expect(hunks[1].file).toBe(INV);
+        expect(hunks[1].id).toBe('H2');
+        expect(warnings).toEqual([]);
+    });
+
+    it('appends a Job-1 gap-fill hunk to assets (non-carried money/property)', () => {
+        const input = [hunk('H1', INV)];
+        const fresh = [newHunk(ASSETS, { context: ['動產'], replacement: '* 金幣 / 20 G' })];
+        const { hunks, warnings } = applyInventoryReview(
+            input, { ...empty(), newHunks: fresh }, FILES, new Set(),
+        );
+        expect(hunks).toHaveLength(2);
+        expect(hunks[1].file).toBe(ASSETS);
+        expect(warnings).toEqual([]);
+    });
+
+    it('warns and rejects a new hunk targeting a file outside the new scope (e.g. character-status)', () => {
+        const input = [hunk('H1', INV)];
+        // new scope is inventory / assets (Job-1 gap-fill) + tech / world
+        // (Job-2 detail-settings) — character-status is out of domain.
+        const fresh = [newHunk(OTHER)];
         const { hunks, warnings } = applyInventoryReview(input, { ...empty(), newHunks: fresh }, FILES, new Set());
         expect(hunks).toHaveLength(1);
-        expect(warnings).toHaveLength(3);
+        expect(warnings).toHaveLength(1);
+        expect(warnings.join(' ')).toMatch(/not allowed/);
     });
 
     it('stamps new-hunk ids past the manifest max, not its length (gap-safe)', () => {
