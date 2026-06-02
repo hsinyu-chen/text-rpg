@@ -21,9 +21,9 @@ export const COMMIT_INVENTORY_REVIEW = 'commitInventoryReview';
 
 /** Parsed, type-checked `commitInventoryReview` payload. */
 export interface CommitInventoryReviewArgs {
-    /** Ids of inventory hunks the story does not support — removed outright. */
+    /** Ids of inventory / assets hunks the story does not support — removed outright. */
     dropHunkIds: string[];
-    /** Corrected inventory hunks — each carries the existing hunk's `id`. */
+    /** Corrected hunks (inventory / assets / tech-equipment / world-factions) — each carries the existing hunk's `id`. */
     reviseHunks: SaveHunk[];
     /** New hunks — Job-1 gap-fill (inventory/assets) or Job-2 detail-settings (tech/world); id assigned by the framework. */
     newHunks: NewHunk[];
@@ -53,7 +53,7 @@ export const COMMIT_INVENTORY_REVIEW_TOOL: LLMFunctionDeclaration = {
             },
             reviseHunks: {
                 type: 'array',
-                description: 'Corrected hunks for (a) an inventory hunk whose item is real but whose details are wrong, or (b) a tech-equipment / world-factions item-setting hunk the main LLM already emitted that you can improve. Each entry MUST carry the original hunk id and keep the same `file` (no relocation). For world-factions: only revise hunks about items / relics / key objects — never touch faction-dynamics or world-event hunks.',
+                description: 'Corrected hunks for (a) an inventory / assets hunk whose item is real but whose details are wrong, or (b) a tech-equipment / world-factions item-setting hunk the main LLM already emitted that you can improve. Each entry MUST carry the original hunk id and keep the same `file` (no relocation). For world-factions: only revise hunks about key items / relics / artifacts / faction tokens / rank insignia — never touch faction-dynamics or world-event hunks.',
                 items: {
                     type: 'object',
                     properties: {
@@ -94,13 +94,13 @@ export interface InventoryReviewResult {
  * agent's write scope evolves.
  */
 export interface InventoryReviewFiles {
-    /** `{{FILE_INVENTORY}}` — carried protagonist items. */
+    /** `{{FILE_INVENTORY}}` — carried protagonist property (items + carried money). */
     inventoryFile: string;
-    /** `{{FILE_ASSETS}}` — protagonist money / real-estate / stored items. */
+    /** `{{FILE_ASSETS}}` — non-carried protagonist property (real-estate, stored caches, money kept elsewhere). */
     assetsFile: string;
-    /** `{{FILE_TECH_EQUIPMENT}}` — physical-item detail settings (PC-held). */
+    /** `{{FILE_TECH_EQUIPMENT}}` — equipment / technical-product specs (regardless of who holds it). */
     techEquipmentFile: string;
-    /** `{{FILE_WORLD_FACTIONS}}` — non-PC key item / relic settings. */
+    /** `{{FILE_WORLD_FACTIONS}}` — faction-token / rank-insignia / relic lore (even when protagonist-held). */
     worldFactionsFile: string;
 }
 
@@ -172,7 +172,7 @@ export function applyInventoryReview(
     const accepted: NewHunk[] = [];
     for (const n of args.newHunks) {
         if (!newAllowed.has(n.file)) {
-            warnings.push(`new: file "${n.file}" not allowed — new hunks must target "${techEquipmentFile}" or "${worldFactionsFile}"`);
+            warnings.push(`new: file "${n.file}" not allowed — new hunks must target "${inventoryFile}", "${assetsFile}", "${techEquipmentFile}", or "${worldFactionsFile}"`);
             continue;
         }
         accepted.push(n);
