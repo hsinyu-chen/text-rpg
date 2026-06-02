@@ -55,30 +55,45 @@ File locations:
 
 ## Internal order of a per-entity agent (all enabled)
 
-CharacterStateAgent / FactionStateAgent are not single calls — they run **one independent LLM conversation per entity** listed by the provider (perspectives must not mix), and in **Phase 1 always sequentially** (the base loop relies on singleton instance state to run a single conversation; running in parallel would corrupt that — cloud parallelism is a Phase 2 perf refactor).
+CharacterStateAgent / FactionStateAgent are not single calls. They split the roster, run a **triage** pass over the no-hunk entities to decide which of those still need work, then run **one independent LLM conversation per processed entity** (perspectives must not mix), **always sequentially** (the base loop relies on singleton instance state to run a single conversation; running in parallel would corrupt that — cloud parallelism is a later perf refactor).
 
 ```
 CharacterStateAgent.process()
-   │  provider.listCharacters(files) → [Character A, Character B, …]
-   │  (empty list → warn + skip, identity passthrough)
+   │  provider.listCharacters(files) → roster [A, B, C, D, …]  (empty → warn + skip, passthrough)
    │
-   ├─ Character A: seed (format template + character card + that character's hunks + time span + log digest)
+   │  split by "does the SaveAgent already have a hunk for this name?"
+   │   ├─ HUNKED  [A, B] → always processed (they have a concrete change to verify — Job A)
+   │   └─ NO HUNK [C, D] → handed to triage
+   │
+   ├─ CharacterTriageAgent.selectEntities(candidates=[C,D], autoIncluded=[A,B], full file, hunks, timespan, digest)
+   │     → one call → commitTriageSelection → subset [C] + per-candidate job/reason
+   │     (failure / no selection → null = "process all candidates" — never silently drops anyone)
+   │
+   ├─ Character A: seed (card + that character's hunks + timespan + log digest)
    │              → loop (read KB / read chat) → commitEntityStateReview or reportNotAnEntity
    │              → apply to hunks (limited to that character's section)
    ├─ Character B: same
-   └─ …
+   ├─ Character C: same (+ a triage note on why it was flagged)
+   └─ (D was not selected — skipped)
    │
-   └─ Wrap-up: if ≥4 entities and ≥50% were judged reportNotAnEntity → append a format-mismatch summary warning
+   └─ Wrap-up: if ≥4 PROCESSED entities and ≥50% were judged reportNotAnEntity → append a format-mismatch warning
 ```
 
-Within the same call each entity does two things at once (the prompt requires both):
+Why the split: an entity the SaveAgent already wrote a hunk for **always** needs Job A (verify / correct that hunk), so it bypasses triage entirely — triage can never wrongly drop it. Triage's real value is the no-hunk entities: deciding which of them the SaveAgent *missed* (a real change with no hunk) or which plausibly evolved **off-screen** (Job B) — exactly the "didn't appear, no signal" case deterministic filtering can't find.
+
+The triage step is **classify-only** — its sole terminal is `commitTriageSelection`, so it structurally cannot write an edit; deciding *who* is its whole job. It reuses the state agent's profile (shared id) and always runs when there are no-hunk entities. Cost: `1 triage call + K per-entity calls` where K = hunked + selected-no-hunk, versus N (whole roster) before. Triage uses recall-over-precision (include if unsure), so a borderline candidate costs at worst a no-op per-entity call rather than a silent miss.
+
+> Note: the format-mismatch warning is computed over the *processed* set only. A misconfigured provider that returns an all-junk roster now has those junk entries quietly dropped by triage (no hunks, no logs, no projection) rather than each being processed and flagged — so that specific diagnostic can stay silent. The hunks themselves are unaffected either way; the empty-roster case still raises its own `emptyProvider` warning.
+
+Within each per-entity call the entity does two things at once (the prompt requires both):
 - **Job A — fact verification / enrichment** (always): verify / revise the hunks SaveAgent already wrote, and fill in real updates it missed.
 - **Job B — time-elapse projection** (when the time span has meaningful length; the LLM decides): for a character, injury recovery / state-of-mind continuation / off-screen plans; for a faction, internal movements / leadership / cross-faction tension.
 
-FactionStateAgent has the exact same structure, just `listFactions` + target `6.Factions_and_World.md` + the faction-flavored prompt.
+FactionStateAgent has the exact same structure, just `listFactions` + `FactionTriageAgent` + target `6.Factions_and_World.md` + the faction-flavored prompts.
 
 ## Failure / abort behavior
 
 - **A single advanced agent fails** → degrade to identity (that agent leaves the hunks untouched and the chain continues); the whole save is never sunk.
+- **The triage pass fails** (provider error / no selection) → degrade to "process all candidates" — every no-hunk entity is run (on top of the always-processed hunked ones) rather than risk dropping a background entity that needed projection.
 - **A single entity in a per-entity agent fails** → only that one entity degrades to passthrough; the rest of the same agent's entities run as normal.
 - **User aborts** → the stage checks `signal.throwIfAborted()` between agents, so no extra LLM call is spent.

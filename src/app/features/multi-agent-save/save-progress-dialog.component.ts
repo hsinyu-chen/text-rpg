@@ -1,9 +1,12 @@
 import { Component, computed, inject } from '@angular/core';
+import { Clipboard } from '@angular/cdk/clipboard';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatChipsModule } from '@angular/material/chips';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { CORE_MAT, DIALOG_MAT, PROGRESS_MAT } from '@app/shared/material/material-groups';
-import { TranslatePipe } from '@app/core/i18n';
+import { TranslatePipe, I18nService } from '@app/core/i18n';
+import { formatAgentDebugLog } from '@app/core/utils/format-agent-debug-log';
 import { SaveProgressTracker } from '@app/core/services/multi-agent-save/progress/save-progress-tracker.service';
 import type { SaveProgressEntry } from '@app/core/services/multi-agent-save/multi-agent-save.types';
 import { AutoScrollBottomDirective } from '@app/shared/directives/auto-scroll-bottom.directive';
@@ -53,6 +56,9 @@ export interface SaveProgressDialogData {
 export class SaveProgressDialogComponent {
     private dialogRef = inject(MatDialogRef<SaveProgressDialogComponent>);
     private tracker = inject(SaveProgressTracker);
+    private clipboard = inject(Clipboard);
+    private snackBar = inject(MatSnackBar);
+    private i18n = inject(I18nService);
     /**
      * Abort source supplied by the orchestrator at open time via
      * MAT_DIALOG_DATA — declarative dependency, no temporal coupling
@@ -117,6 +123,38 @@ export class SaveProgressDialogComponent {
         const next = logs.slice();
         next[evt.index] = { ...target, [evt.key]: !target[evt.key] };
         this.tracker.setEntryLogs(entry.entryId, next);
+    }
+
+    /** Whether an entry carries anything worth copying (trace / output / CoT). */
+    hasDebug(entry: SaveProgressEntry): boolean {
+        return !!(entry.logs?.length || entry.output || entry.thought);
+    }
+
+    /**
+     * Copies one entry's trace to the clipboard in the same plain-text format
+     * the file-agent console's copy-debug button uses ({@link formatAgentDebugLog})
+     * — the per-card analogue, so a tester can grab a single agent's run (e.g. a
+     * triage card) and paste it verbatim. Stops propagation so the header click
+     * doesn't also toggle the panel.
+     */
+    copyEntryDebug(entry: SaveProgressEntry, event: MouseEvent): void {
+        event.stopPropagation();
+        this.clipboard.copy(this.buildEntryDebug(entry));
+        this.snackBar.open(this.i18n.translate('multiAgentSave.progress.debugCopied'), undefined, { duration: 1500 });
+    }
+
+    /** Render one entry as the shared debug-log text. Structured-trace entries
+     *  go through {@link formatAgentDebugLog}; an output-only entry (e.g. the
+     *  SaveAgent's manifest, which has no `logs`) falls back to its CoT + output. */
+    private buildEntryDebug(entry: SaveProgressEntry): string {
+        const title = entry.entityName ? `${entry.toolName ?? entry.phase} — ${entry.entityName}` : (entry.toolName ?? entry.phase);
+        if (entry.logs?.length) {
+            return formatAgentDebugLog([{ title, logs: entry.logs }]);
+        }
+        const parts = [`=== ${title} ===`];
+        if (entry.thought) parts.push('', '<thinking>', entry.thought, '</thinking>');
+        if (entry.output) parts.push('', entry.output);
+        return parts.join('\n');
     }
 
     /** Material icon for each entry state — keeps the template free of icon-mapping logic. */

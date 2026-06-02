@@ -13,7 +13,19 @@
     },
     {
       "variantKey": "zh-tw/default",
+      "filePath": "public/assets/system_files/zh-tw/injection_advanced_character_triage.md",
+      "passthrough": false,
+      "slots": []
+    },
+    {
+      "variantKey": "zh-tw/default",
       "filePath": "public/assets/system_files/zh-tw/injection_advanced_faction_state.md",
+      "passthrough": false,
+      "slots": []
+    },
+    {
+      "variantKey": "zh-tw/default",
+      "filePath": "public/assets/system_files/zh-tw/injection_advanced_faction_triage.md",
       "passthrough": false,
       "slots": []
     },
@@ -124,7 +136,19 @@
     },
     {
       "variantKey": "zh-tw/local",
+      "filePath": "public/assets/system_files/zh-tw/profiles/local/injection_advanced_character_triage.md",
+      "passthrough": false,
+      "slots": []
+    },
+    {
+      "variantKey": "zh-tw/local",
       "filePath": "public/assets/system_files/zh-tw/profiles/local/injection_advanced_faction_state.md",
+      "passthrough": false,
+      "slots": []
+    },
+    {
+      "variantKey": "zh-tw/local",
+      "filePath": "public/assets/system_files/zh-tw/profiles/local/injection_advanced_faction_triage.md",
       "passthrough": false,
       "slots": []
     },
@@ -245,7 +269,19 @@
     },
     {
       "variantKey": "en/default",
+      "filePath": "public/assets/system_files/en/injection_advanced_character_triage.md",
+      "passthrough": false,
+      "slots": []
+    },
+    {
+      "variantKey": "en/default",
       "filePath": "public/assets/system_files/en/injection_advanced_faction_state.md",
+      "passthrough": false,
+      "slots": []
+    },
+    {
+      "variantKey": "en/default",
+      "filePath": "public/assets/system_files/en/injection_advanced_faction_triage.md",
       "passthrough": false,
       "slots": []
     },
@@ -356,7 +392,19 @@
     },
     {
       "variantKey": "en/local",
+      "filePath": "public/assets/system_files/en/profiles/local/injection_advanced_character_triage.md",
+      "passthrough": false,
+      "slots": []
+    },
+    {
+      "variantKey": "en/local",
       "filePath": "public/assets/system_files/en/profiles/local/injection_advanced_faction_state.md",
+      "passthrough": false,
+      "slots": []
+    },
+    {
+      "variantKey": "en/local",
+      "filePath": "public/assets/system_files/en/profiles/local/injection_advanced_faction_triage.md",
       "passthrough": false,
       "slots": []
     },
