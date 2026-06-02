@@ -18,7 +18,19 @@
                         </mat-panel-title>
                         <mat-panel-description class="entry-meta">
                             <span class="state-label">{{ ('multiAgentSave.progress.state.' + entry.state) | translate }}</span>
-                            @if (entry.statusReason) {
+                            @if (todoProgress(entry); as tp) {
+                                <!--
+                                  Compact checklist readout replaces the long terminal summary
+                                  (which overflows): running shows the current step + count,
+                                  done forces total/total.
+                                -->
+                                <span class="todo-progress">
+                                    @if (tp.current) {
+                                        <span class="todo-step">— {{ tp.current }}</span>
+                                    }
+                                    <span class="todo-count">({{ tp.done }}/{{ tp.total }})</span>
+                                </span>
+                            } @else if (entry.statusReason) {
                                 <!--
                                   'skipped' reasons are enum keys (SaveSkipReason) and translate.
                                   'failed' reasons are raw error messages from the provider /
@@ -32,6 +44,13 @@
                                 }
                             }
                         </mat-panel-description>
+                        @if (hasDebug(entry)) {
+                            <button mat-icon-button class="copy-debug-btn"
+                                    (click)="copyEntryDebug(entry, $event)"
+                                    [matTooltip]="'multiAgentSave.progress.copyDebug' | translate">
+                                <mat-icon>content_copy</mat-icon>
+                            </button>
+                        }
                     </mat-expansion-panel-header>
 
                     @if (entry.ppProgress !== undefined && entry.state === 'running') {

@@ -1,11 +1,14 @@
 import { LLMFunctionDeclaration } from '@hcs/llm-core';
 
 /**
- * Flow-control tools used by user-facing agents to communicate with the
- * human (`reportProgress` is mid-turn, `submitResponse` is terminal).
- * Save-sim per-entity agents do NOT use these — they have their own
- * terminal tools (`proposeDiff` / `commitNoChange`) that return diffs
- * to the dispatcher rather than text to the user.
+ * Flow-control tools (`reportProgress` is mid-turn, `submitResponse` is
+ * terminal).
+ *
+ * `reportProgress` is a base self-management tool — every tool-call agent gets
+ * it via `BASE_SELF_MANAGEMENT_TOOLS`, so it's not opted into per agent.
+ * `submitResponse` is file-agent's terminal; the save agents end on their own
+ * commit tools instead (inventory: `commitInventoryReview`; per-entity:
+ * `commitEntityStateReview` / `reportNotAnEntity`).
  */
 
 export const REPORT_PROGRESS_TOOL: LLMFunctionDeclaration = {
@@ -25,7 +28,7 @@ export const SUBMIT_RESPONSE_TOOL: LLMFunctionDeclaration = {
         type: 'object',
         properties: {
             message: { type: 'string', description: 'The final summary, question, or clarification to show to the user' },
-            markAllTodosDone: { type: 'boolean', description: 'Optional. Set true ONLY in case (a) — this response completes the whole task — to tick every remaining todo so the checklist shows fully done. Leave false/unset for cases (b) and (c) (asking a question or blocked), since the task is not actually finished.' },
+            markAllTodosDone: { type: 'boolean', description: 'Optional. Set true ONLY in case (a) — this response completes the whole task — to tick every remaining todo so the checklist shows fully done; this saves you a final updateTodos turn just to mark the last step. Leave false/unset for cases (b) and (c) (asking a question or blocked), since the task is not actually finished.' },
         },
         required: ['message'],
     },

@@ -111,6 +111,8 @@ TextRPG 是一個**本地優先 (Local-First)**、**自帶金鑰 (Bring Your Own
 **操作**: 點輸入欄旁邊的 **Save** 按鈕（磁碟片圖示）；按下後跳確認 dialog，確認即直接執行（不需要在輸入欄打任何字）。
 > [!NOTE]
 > 存檔走 multi-agent 路徑：由 SaveAgent 把本 ACT 自 `--- ACT START ---` 起的 logs 與摘要整理成一份 hunk manifest（一串逐字的 KB 編輯），再交給 Auto-Update 視窗讓你逐條審核。審核後兩種出口:**套用到本幕**（寫進目前 KB、在聊天留一條存檔痕跡、並鎖住新回合直到你開下一幕）或 **套用並開新幕**（保留本幕可重玩，把更新套進新建的下一幕）。整個流程不經過主敘事 turn engine。
+>
+> 進階存檔 agent（預設關閉）會在交給 Auto-Update 前再精修 manifest —— 全開時的完整 agent 執行順序見 [AGENT-EXECUTION-ORDER.md](AGENT-EXECUTION-ORDER.md)。
 
 ### 繼續 (Continue) : 自然推進
 **動作**: 直接點擊發送或輸入 `繼續`  

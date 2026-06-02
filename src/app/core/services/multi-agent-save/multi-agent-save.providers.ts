@@ -5,6 +5,8 @@ import { MarkdownFactionProvider } from './providers/markdown-faction.provider';
 import { LogBasedSceneEventProvider } from './providers/log-based-scene-event.provider';
 import { ADVANCED_SAVE_AGENT } from './advanced-save/advanced-save-agent';
 import { InventoryConsistencyAgent } from './advanced-save/inventory-consistency-agent';
+import { CharacterStateAgent } from './advanced-save/per-entity/character-state-agent';
+import { FactionStateAgent } from './advanced-save/per-entity/faction-state-agent';
 
 /**
  * Phase 1 default bindings for multi-agent save data providers.
@@ -23,4 +25,6 @@ export const MULTI_AGENT_SAVE_PROVIDERS: Provider[] = [
   { provide: FACTION_PROVIDER, useExisting: MarkdownFactionProvider },
   { provide: SCENE_EVENT_PROVIDER, useExisting: LogBasedSceneEventProvider },
   { provide: ADVANCED_SAVE_AGENT, useExisting: InventoryConsistencyAgent, multi: true },
+  { provide: ADVANCED_SAVE_AGENT, useExisting: CharacterStateAgent, multi: true },
+  { provide: ADVANCED_SAVE_AGENT, useExisting: FactionStateAgent, multi: true },
 ];

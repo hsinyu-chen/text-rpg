@@ -9,6 +9,20 @@ import {
 } from './agent-stream-processor';
 import { buildJsonSchema } from './tool-schema-builder';
 import { renderJsonModeBlock } from './json-tool-guide';
+import { REPORT_PROGRESS_TOOL } from './tools/flow-control-tools';
+import { UPDATE_TODOS_TOOL } from './tools/todo-tools';
+import { toAgentYaml } from './agent-yaml.util';
+
+/**
+ * Self-management tools every tool-call agent gets for free. Their handlers
+ * already live on the base loop (`reportProgress` mid-turn narration +
+ * `updateTodos` pinned checklist) — both mutate the agent's own surface, not
+ * domain state — so the declarations belong here too rather than being
+ * re-opted-in by every subclass. `submitResponse` is deliberately NOT here:
+ * it's a terminal tool whose semantics each agent owns (file-agent ends on it;
+ * the save agents end on their own commit tools).
+ */
+const BASE_SELF_MANAGEMENT_TOOLS: readonly LLMFunctionDeclaration[] = [REPORT_PROGRESS_TOOL, UPDATE_TODOS_TOOL];
 
 /**
  * Per-turn mutable bookkeeping passed down the loop helpers. Lives on the
@@ -88,8 +102,25 @@ export abstract class BaseToolCallAgent<TAction extends BaseAction, TContext> {
 
     // ===== Subclass-supplied (abstract) =====
 
-    /** Full tool catalog this agent exposes to the model. */
+    /** The subclass's own tool catalog (read / write / terminal tools). The
+     *  model actually sees {@link effectiveTools}, which folds in the base
+     *  self-management tools. */
     protected abstract get tools(): LLMFunctionDeclaration[];
+
+    /**
+     * The catalog the model actually sees: the subclass's `tools` plus any
+     * {@link BASE_SELF_MANAGEMENT_TOOLS} it didn't already declare. Dedupes by
+     * name so an agent (e.g. file-agent) that lists `reportProgress` /
+     * `updateTodos` in its own tuned order keeps that order — the base only
+     * appends the ones genuinely missing. Every base-loop consumer (gen-config,
+     * JSON tool guide) reads this, never `tools` directly.
+     */
+    protected get effectiveTools(): LLMFunctionDeclaration[] {
+        const own = this.tools;
+        const present = new Set(own.map(t => t.name));
+        const missing = BASE_SELF_MANAGEMENT_TOOLS.filter(t => !present.has(t.name));
+        return missing.length ? [...own, ...missing] : own;
+    }
 
     /** Dispatches a single parsed action to its implementation handler. */
     protected abstract dispatchTool(action: TAction, context: TContext): Awaitable<ToolExecutionResult>;
@@ -203,7 +234,7 @@ export abstract class BaseToolCallAgent<TAction extends BaseAction, TContext> {
         // auto-generated tool guide (derived from the same declarations native
         // mode reads) to the system prompt. Native is left untouched.
         const systemInstruction = mode === 'json'
-            ? `${baseInstruction}\n\n${renderJsonModeBlock(this.tools)}`
+            ? `${baseInstruction}\n\n${renderJsonModeBlock(this.effectiveTools)}`
             : baseInstruction;
 
         const ctx = this.openTurnLogEntry();
@@ -303,11 +334,12 @@ export abstract class BaseToolCallAgent<TAction extends BaseAction, TContext> {
     }
 
     /**
-     * How tool result objects render into `agentLogs[].text`. Default JSON
-     * stringify; file-agent overrides with toAgentYaml for prettier output.
+     * How tool result objects render into `agentLogs[].text`. Default YAML —
+     * indent-aligned, no `\"` / `\n` escapes — for a trace that scans without
+     * parsing. Subclasses may override for a different shape.
      */
     protected formatToolResult(response: Record<string, unknown>): string {
-        return JSON.stringify(response);
+        return toAgentYaml(response);
     }
 
     /**
@@ -670,9 +702,10 @@ export abstract class BaseToolCallAgent<TAction extends BaseAction, TContext> {
         return a.action;
     }
 
-    /** How the action body is rendered into the trace log entry's `text`. */
+    /** How the action body is rendered into the trace log entry's `text`.
+     *  Default YAML, matching {@link formatToolResult}. */
     protected formatToolCallEntryText(a: TAction): string {
-        return JSON.stringify({ action: a.action, args: a.args });
+        return toAgentYaml({ action: a.action, args: a.args });
     }
 
     // ===== Helper exposed for subclass setup =====
@@ -683,8 +716,8 @@ export abstract class BaseToolCallAgent<TAction extends BaseAction, TContext> {
      */
     protected buildGenConfig(mode: 'native' | 'json', isLocalProvider: boolean): Record<string, unknown> {
         return mode === 'native'
-            ? { tools: this.tools, signal: this.abortController?.signal }
-            : { responseSchema: buildJsonSchema(this.tools, isLocalProvider), responseMimeType: 'application/json', signal: this.abortController?.signal };
+            ? { tools: this.effectiveTools, signal: this.abortController?.signal }
+            : { responseSchema: buildJsonSchema(this.effectiveTools, isLocalProvider), responseMimeType: 'application/json', signal: this.abortController?.signal };
     }
 }
 

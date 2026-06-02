@@ -88,6 +88,45 @@ mat-dialog-actions {
     font-size: 0.75rem;
 }
 
+// Per-card copy-debug button — sits between the meta and the panel's toggle
+// arrow. Shrunk from the default 40px so it doesn't inflate the header row.
+.copy-debug-btn {
+    flex: 0 0 auto;
+    align-self: center;
+    margin-left: 4px;
+    --mdc-icon-button-state-layer-size: 32px;
+    width: 32px;
+    height: 32px;
+    padding: 4px;
+
+    .mat-icon {
+        font-size: 1.05rem;
+        width: 1.05rem;
+        height: 1.05rem;
+    }
+}
+
+// Compact checklist readout: the step text shrinks + ellipsizes so the
+// (N/M) count stays visible no matter how long the current step reads.
+.todo-progress {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.4em;
+    min-width: 0;
+    overflow: hidden;
+
+    .todo-step {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .todo-count {
+        flex: 0 0 auto;
+        font-family: 'Fira Code', 'Consolas', monospace;
+    }
+}
+
 .pp-progress {
     display: flex;
     align-items: center;

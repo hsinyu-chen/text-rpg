@@ -31,7 +31,11 @@ const TYPE_FILENAME: Record<PromptType, string> = {
     protocol_narrator: 'protocol_narrator.md',
     correction: 'correction.md',
     save_manifest: 'save_manifest.md',
-    save_inventory_consistency: 'save_inventory_consistency.md'
+    save_inventory_consistency: 'save_inventory_consistency.md',
+    save_character_state: 'save_character_state.md',
+    save_faction_state: 'save_faction_state.md',
+    save_character_triage: 'save_character_triage.md',
+    save_faction_triage: 'save_faction_triage.md'
 };
 
 /**

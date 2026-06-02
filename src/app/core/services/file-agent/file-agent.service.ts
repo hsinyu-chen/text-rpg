@@ -29,7 +29,6 @@ import { CollectionService } from '@app/core/services/collection.service';
 import { SessionService } from '@app/core/services/session.service';
 import { FULLSCREEN_DIALOG_CONFIG } from '@app/shared/material/dialog-presets';
 import { applyHarnessFallbacks } from './normalize-message-links.util';
-import { toAgentYaml } from './file-agent-yaml.util';
 
 /**
  * Thrown by the service's default `onFileReplaced` when a write tool fires
@@ -525,14 +524,6 @@ export class FileAgentService extends ReadOnlyAgent<ParsedAction, FileAgentConte
   // processModelText) — file-agent doesn't need an override because the
   // string-coercion + harness pipeline are already chained through
   // processModelText above.
-
-  protected override formatToolResult(response: Record<string, unknown>): string {
-    return toAgentYaml(response);
-  }
-
-  protected override formatToolCallEntryText(a: ParsedAction): string {
-    return toAgentYaml({ action: a.action, args: a.args });
-  }
 
   /** File-agent action labels include the target filename so the trace
    *  log header reads `readFile(foo.md)` instead of just `readFile`. */
