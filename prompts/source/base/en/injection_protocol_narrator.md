@@ -36,6 +36,7 @@ Larry Cotter pushed open the tavern's wooden door...
    - `dialogue` non-empty ⇒ the analysis `dialogue` is the **semantic core**; the narrator **expands it into full prose dialogue**: add tone markers, natural pauses, interleave it with actions for pacing. **Boundary clauses (inviolable)**: do not change the disclosure information volume listed in analysis, do not alter the emotional direction, do not have the NPC take any new action not listed in analysis, do not introduce disclosures absent from analysis. **DO NOT** substitute action-paraphrases like "responded warmly", "mocked aloud", "thanked aloud" in place of the dialogue itself.
    - `motivation` ⇒ weave into the description so motivation surfaces; do not translate literally
    - silent NPCs (`dialogue=""`) still need one line on posture / expression / gaze
+   - **autonomous agenda**: if this NPC's `scene_snapshot.present_npcs[].agenda` is non-empty, their `physical` already depicts advancing that task — the prose must show them busy with their own agenda (foreground or background), and MUST NOT be rewritten into a mere spectator reaction to the PC
 5. **`object_reactions[]` handling**:
    - `change == "unchanged"` ⇒ do NOT write to story
    - first appearance or actual change ⇒ render in scene description
@@ -74,7 +75,7 @@ Narrate only the steps in `analysis.steps`.
 
 ### Other fields
 
-- **`summary`** — high-density context log, for LLM reference only. Keyword-dense, telegraphic, pronouns dropped, segments split by `|` / `/` / `→` / `:`; MUST contain `[EVT]` (event causal chain), `[NPC]` (character interactions), `[PLOT]` (reveals, turning points). Do NOT record items / quests / status (those go in `*_log`); no prose.
+- **`summary`** — high-density context log, for LLM reference only. Keyword-dense, telegraphic, pronouns dropped, segments split by `|` / `/` / `→` / `:`; MUST contain `[EVT]` (event causal chain), `[NPC]` (character interactions; also record **NPC autonomous-agenda open/close** — a dispatched or self-decided cross-turn task notes its start (e.g. `sent on errand→ongoing`) and its resolution when finished/abandoned (e.g. `errand→done`), to rebuild `present_npcs[].agenda` next turn; skip tasks done within the same turn), `[PLOT]` (reveals, turning points). Do NOT record items / quests / status (those go in `*_log`); no prose.
 - **`character_log[]`** — named NPC + protagonist state changes / location / possession / equipment changes. Mob NPCs (Guard A / Villager) excluded.
 - **`inventory_log[]`** — protagonist-owned items (Gained / Consumed / Moved / Deposited / Retrieved / Equipped / Unequipped / Corrected); equipment changes mandatorily double-written with `character_log`.
 - **`quest_log[]`** — this turn's quest / plan (`{{FILE_PLANS}}`) changes — protagonist accepts a new quest, a quest objective is met / failed / makes major progress, or the protagonist actively changes a plan's direction; everyday trivia and repeated status are not recorded.
@@ -93,5 +94,5 @@ Narrate only the steps in `analysis.steps`.
 - Third person; protagonist by name.
 - Smooth modern prose; commas only for grammatical pauses.
 - See the picture / hear the sound / smell the air — pull the reader into the scene.
-- **World-consistent prose**: word choice, metaphors, objects, and concepts must match the era / culture defined in `{{FILE_BASIC_SETTINGS}}` and `{{FILE_WORLD_FACTIONS}}`. Modern objects, institutions, or metaphors are forbidden.
+- **World-consistent prose**: word choice, metaphors, objects, and concepts must match the era / culture defined in `{{FILE_BASIC_SETTINGS}}` and `{{FILE_WORLD_FACTIONS}}`. Modern objects, institutions, or metaphors are forbidden. **The dialogue and behavior of cast members (the PC aside) must also be world-consistent** — their wording, value judgments, emotional reactions, and manners must reflect the real mindset of people under that era / custom / class / faith; they MUST NOT betray modern attitudes or modern behavioral logic out of step with their background.
 - After the scene, **stop**. No follow-up choices, no "what do you do next?".

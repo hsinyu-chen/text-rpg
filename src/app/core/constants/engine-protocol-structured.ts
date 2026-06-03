@@ -55,6 +55,22 @@ export interface PresentNpc {
      * belong in `npc_reactions[].physical` / `motivation`.
      */
     awareness: string;
+    /**
+     * Autonomous agenda — a cross-turn, purposeful task / goal this NPC is
+     * currently pursuing on their own (an errand the PC entrusted them, a
+     * duty they are carrying out, a personal aim they are chasing). e.g.
+     * `"受託前往集市採買補給"` / `"巡視後院警戒"`. Distinct from the other
+     * two NPC-state fields: NOT physical appearance (`state`) and NOT a
+     * reactivity/consciousness flag (`awareness`), and NOT a single-step
+     * transient action (`npc_reactions[].physical`).
+     *
+     * Persists across turns and self-clears: rebuild it each turn from the
+     * running history (recent prose + summary `[NPC]` notes) by carrying
+     * forward any agenda not yet resolved; set to `""` once the NPC finishes
+     * or abandons it. While non-empty, this NPC's per-step reactions should
+     * depict ADVANCING this agenda rather than passively reacting to the PC.
+     */
+    agenda: string;
 }
 
 export interface KeyObject {
@@ -203,9 +219,13 @@ const presentNpcSchema: Schema = {
         awareness: {
             type: 'string',
             description: 'FOG-OF-WAR / CONSCIOUSNESS STATE — gates whether this NPC has the CAPACITY TO REACT to the environment / PC actions this turn. Free-form short string CONSTRAINED to that domain. Common tags: "昏迷" / "熟睡" / "麻痺" / "匿蹤" (hidden) / "通訊" (remote, not physically here). Same-domain inventions allowed (e.g. "幻象" / "靈魂出竅" / "淺眠（巨響可醒）"). "" (default) = fully reactive (conscious and on-scene). NOT for emotion, current activity, or behavior — "旁觀" / "交談中" / "抱著X" / "敵意" describe a fully-reactive NPC\'s choices and belong in npc_reactions[].physical / motivation, never here.'
+        },
+        agenda: {
+            type: 'string',
+            description: 'AUTONOMOUS AGENDA — a cross-turn, purposeful task / goal this NPC is currently pursuing on their own: an errand the PC entrusted them, a duty they carry out, a personal aim they chase. e.g. "受託前往集市採買補給" / "巡視後院警戒". DISTINCT from `state` (physical appearance), `awareness` (reactivity flag), and npc_reactions[].physical (single-step transient action). Rebuild each turn from the running history (recent prose + summary [NPC] notes): carry forward any agenda not yet resolved, and set to "" once the NPC finishes or abandons it. While non-empty, this NPC\'s per-step reactions should depict ADVANCING this agenda rather than passively reacting to the PC. "" = no autonomous agenda (default — simply present and reactive).'
         }
     },
-    required: ['name', 'state', 'awareness']
+    required: ['name', 'state', 'awareness', 'agenda']
 };
 
 const keyObjectSchema: Schema = {

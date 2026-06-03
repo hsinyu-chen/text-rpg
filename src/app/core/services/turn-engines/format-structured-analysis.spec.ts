@@ -65,7 +65,7 @@ describe('formatStructuredAnalysis', () => {
                 pc_alias: '',
                 pc_state: '',
                 pc_awareness: '平靜',
-                present_npcs: [{ name: '鮑伯', state: '', awareness: '昏迷' }, { name: '德茲爾', state: '', awareness: '通訊' }],
+                present_npcs: [{ name: '鮑伯', state: '', awareness: '昏迷', agenda: '' }, { name: '德茲爾', state: '', awareness: '通訊', agenda: '' }],
                 key_objects: [{ name: '窗戶', state: '半開' }]
             })
         }));
@@ -77,6 +77,22 @@ describe('formatStructuredAnalysis', () => {
         expect(out).toContain('德茲爾(通訊)');
         expect(out).toContain('暴雨中');
         expect(out).toContain('窗戶(半開)');
+    });
+
+    it('renders a NPC agenda block and omits NPCs with empty agenda', () => {
+        const out = formatStructuredAnalysis(analysis({
+            scene_snapshot: snap({
+                location: '兵器鋪',
+                pc_name: '程楊宗',
+                present_npcs: [
+                    { name: '王大福', state: '', awareness: '', agenda: '受託前往集市採買補給' },
+                    { name: '李如玉', state: '', awareness: '', agenda: '' }
+                ]
+            })
+        }));
+        expect(out).toContain('進行事務:');
+        expect(out).toContain('王大福: 受託前往集市採買補給');
+        expect(out).not.toContain('李如玉: ');
     });
 
     it('renders PC with both alias and state when populated', () => {
@@ -132,7 +148,7 @@ describe('formatStructuredAnalysis', () => {
                 time_hhmm: '18:40',
                 location: '旅店一樓',
                 pc_name: '程楊宗',
-                present_npcs: [{ name: '鮑伯', state: '', awareness: '昏迷' }, { name: '德茲爾', state: '', awareness: '通訊' }]
+                present_npcs: [{ name: '鮑伯', state: '', awareness: '昏迷', agenda: '' }, { name: '德茲爾', state: '', awareness: '通訊', agenda: '' }]
             }));
             expect(line).toBe('[聖曆 1000年04月02日 週二 18:40 / 旅店一樓 / 程楊宗, 鮑伯(昏迷), 德茲爾(通訊)]');
         });
@@ -315,7 +331,7 @@ describe('formatStructuredAnalysis', () => {
         const out = formatStructuredAnalysis(analysis({
             scene_snapshot: snap({
                 environment: '室內安靜。',
-                present_npcs: [{ name: '梨菲', state: '', awareness: '' }]
+                present_npcs: [{ name: '梨菲', state: '', awareness: '', agenda: '' }]
             })
         }));
         expect(out).toContain('環境: 室內安靜');
