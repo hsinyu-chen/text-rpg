@@ -130,7 +130,7 @@ describe('truncateAtBreak', () => {
                 pc_alias: '',
                 pc_state: '',
                 pc_awareness: '',
-                present_npcs: [{ name: '梨菲', state: '', awareness: '匿蹤' }],
+                present_npcs: [{ name: '梨菲', state: '', awareness: '匿蹤', agenda: '' }],
                 key_objects: []
             },
             steps: [step({ action: 'a', breaks_ideal: true }), step({ action: 'b' })]

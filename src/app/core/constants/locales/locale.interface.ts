@@ -80,6 +80,7 @@ export interface AppLocale {
         FULL_SCENE: string;
         SCENE_CHANGE: string;
         PHYSICAL_STATE: string;
+        AGENDA: string;
         PC_DIALOGUE: string;
         RISKS: string;
         OUTCOME: string;

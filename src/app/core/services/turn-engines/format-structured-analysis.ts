@@ -76,6 +76,12 @@ function formatSnapshot(snap: Partial<SceneSnapshot>, labels: TraceLabels): stri
         physicalLines.forEach(l => lines.push(`  - ${l}`));
     }
 
+    const agendaLines = formatAgendas(snap);
+    if (agendaLines.length > 0) {
+        lines.push(`- ${labels.AGENDA}:`);
+        agendaLines.forEach(l => lines.push(`  - ${l}`));
+    }
+
     if (lines.length === 0) return '';
     return [`**${labels.SCENE_HEADING}**`, ...lines].join('\n');
 }
@@ -90,6 +96,18 @@ function formatPhysicalStates(snap: Partial<SceneSnapshot>): string[] {
             const name = n?.name?.trim();
             const state = n?.state?.trim();
             if (name && state) lines.push(`${name}: ${state}`);
+        });
+    }
+    return lines;
+}
+
+function formatAgendas(snap: Partial<SceneSnapshot>): string[] {
+    const lines: string[] = [];
+    if (Array.isArray(snap.present_npcs)) {
+        snap.present_npcs.forEach(n => {
+            const name = n?.name?.trim();
+            const agenda = n?.agenda?.trim();
+            if (name && agenda) lines.push(`${name}: ${agenda}`);
         });
     }
     return lines;
