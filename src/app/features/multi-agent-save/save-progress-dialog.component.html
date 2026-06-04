@@ -10,8 +10,7 @@
                                      (closed)="onPanelToggle(entry, false)">
                     <mat-expansion-panel-header>
                         <mat-panel-title class="entry-title">
-                            <mat-icon class="state-icon" [attr.data-state]="entry.state"
-                                      [matTooltip]="('multiAgentSave.progress.state.' + entry.state) | translate">
+                            <mat-icon class="state-icon" [attr.data-state]="entry.state">
                                 {{ stateIcon(entry.state) }}
                             </mat-icon>
                             <span class="tool-name">{{ entry.toolName || entry.phase }}</span>

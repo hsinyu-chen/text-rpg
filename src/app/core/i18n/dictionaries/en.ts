@@ -1190,13 +1190,6 @@ export const en: TranslationDict = {
             cancel: 'Cancel',
             close: 'Close',
             continue: 'Continue',
-            state: {
-                running: 'Running',
-                retry: 'Retry',
-                done: 'Done',
-                skipped: 'Skipped',
-                failed: 'Failed',
-            },
             reason: {
                 user_aborted: 'User aborted',
             },
