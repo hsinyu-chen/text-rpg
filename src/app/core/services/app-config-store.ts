@@ -23,6 +23,10 @@ export interface AppConfigShape {
     smartContextTurns: number;
     contextMode: ContextMode;
     saveContextMode: ContextMode;
+    /** When true, a model message's native CoT (thought) panel auto-expands while thinking (the engine's `cotOpen` default). When false it stays collapsed until the user opens it. */
+    cotDefaultExpanded: boolean;
+    /** When true, a model message's analysis (atomic breakdown) panel auto-expands while thinking. When false it stays collapsed until the user opens it. */
+    analysisDefaultExpanded: boolean;
 }
 
 export type ContextMode = 'smart' | 'full' | 'summarized';
@@ -46,6 +50,8 @@ const KEYS = {
     smartContextTurns: 'app_smart_context_turns',
     contextMode: 'app_context_mode',
     saveContextMode: 'app_save_context_mode',
+    cotDefaultExpanded: 'app_cot_default_expanded',
+    analysisDefaultExpanded: 'app_analysis_default_expanded',
 } as const;
 
 function parseInterfaceLanguage(raw: string | null): InterfaceLanguageSetting {
@@ -80,6 +86,8 @@ export class AppConfigStore {
     private _smartContextTurns = signal<number>(10);
     private _contextMode = signal<ContextMode>('smart');
     private _saveContextMode = signal<ContextMode>('smart');
+    private _cotDefaultExpanded = signal<boolean>(false);
+    private _analysisDefaultExpanded = signal<boolean>(false);
 
     // Public read-only views. Consumers can subscribe / read but cannot
     // bypass `patch()` to write back without the matching KV sync.
@@ -97,6 +105,8 @@ export class AppConfigStore {
     readonly smartContextTurns = this._smartContextTurns.asReadonly();
     readonly contextMode = this._contextMode.asReadonly();
     readonly saveContextMode = this._saveContextMode.asReadonly();
+    readonly cotDefaultExpanded = this._cotDefaultExpanded.asReadonly();
+    readonly analysisDefaultExpanded = this._analysisDefaultExpanded.asReadonly();
 
     constructor() {
         this.load();
@@ -148,6 +158,9 @@ export class AppConfigStore {
 
         const scm = this.kv.get(KEYS.saveContextMode);
         if (isContextMode(scm)) this._saveContextMode.set(scm);
+
+        this._cotDefaultExpanded.set(this.kv.get(KEYS.cotDefaultExpanded) === 'true');
+        this._analysisDefaultExpanded.set(this.kv.get(KEYS.analysisDefaultExpanded) === 'true');
     }
 
     /**
@@ -213,6 +226,14 @@ export class AppConfigStore {
             this._saveContextMode.set(partial.saveContextMode);
             this.kv.set(KEYS.saveContextMode, partial.saveContextMode);
         }
+        if (partial.cotDefaultExpanded !== undefined) {
+            this._cotDefaultExpanded.set(partial.cotDefaultExpanded);
+            this.kv.set(KEYS.cotDefaultExpanded, String(partial.cotDefaultExpanded));
+        }
+        if (partial.analysisDefaultExpanded !== undefined) {
+            this._analysisDefaultExpanded.set(partial.analysisDefaultExpanded);
+            this.kv.set(KEYS.analysisDefaultExpanded, String(partial.analysisDefaultExpanded));
+        }
     }
 
     /**
@@ -235,6 +256,8 @@ export class AppConfigStore {
             smartContextTurns: this.smartContextTurns(),
             contextMode: this.contextMode(),
             saveContextMode: this.saveContextMode(),
+            cotDefaultExpanded: this.cotDefaultExpanded(),
+            analysisDefaultExpanded: this.analysisDefaultExpanded(),
         };
     }
 }

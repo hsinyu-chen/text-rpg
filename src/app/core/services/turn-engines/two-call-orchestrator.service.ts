@@ -92,9 +92,10 @@ export class TwoCallOrchestratorService {
             if (chunk.text) {
                 if (chunk.thought) {
                     thoughtAccumulator += chunk.text;
-                    patchLastModel(last => ({ ...last, thought: thoughtAccumulator, isThinking: true }));
+                    patchLastModel(last => ({ ...last, thought: thoughtAccumulator, isThinking: true, thoughtChunkCount: (last.thoughtChunkCount ?? 0) + 1 }));
                 } else {
                     accumulator += chunk.text;
+                    patchLastModel(last => ({ ...last, analysisChunkCount: (last.analysisChunkCount ?? 0) + 1 }));
                     if (!cotClosed) {
                         cotClosed = true;
                         patchLastModel(last => ({ ...last, cotOpen: false }));

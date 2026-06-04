@@ -80,6 +80,8 @@ export class SettingsDialogComponent {
   idleOnBlur = signal(false);
   enableAdultDeclaration = signal(true);
   engineMode = signal<'single' | 'two-call'>('single');
+  cotDefaultExpanded = signal(false);
+  analysisDefaultExpanded = signal(false);
   savePauseBeforeAutoUpdate = signal(false);
   hunkFixupProfileId = signal<string>('');
 
@@ -166,6 +168,8 @@ export class SettingsDialogComponent {
     this.idleOnBlur.set(this.appConfig.idleOnBlur());
     this.enableAdultDeclaration.set(this.appConfig.enableAdultDeclaration());
     this.engineMode.set(this.appConfig.engineMode());
+    this.cotDefaultExpanded.set(this.appConfig.cotDefaultExpanded());
+    this.analysisDefaultExpanded.set(this.appConfig.analysisDefaultExpanded());
     this.savePauseBeforeAutoUpdate.set(this.saveSettings.pauseBeforeAutoUpdate());
     this.hunkFixupProfileId.set(this.saveSettings.hunkFixupProfileId());
     this.enabledSaveAgents.set(new Set(this.saveSettings.enabledSaveAgents()));
@@ -243,6 +247,8 @@ export class SettingsDialogComponent {
       idleOnBlur: this.idleOnBlur(),
       enableAdultDeclaration: this.enableAdultDeclaration(),
       engineMode: this.engineMode(),
+      cotDefaultExpanded: this.cotDefaultExpanded(),
+      analysisDefaultExpanded: this.analysisDefaultExpanded(),
       outputLanguage: this.outputLanguage() === 'custom' ? this.customOutputLanguage() : this.outputLanguage(),
       interfaceLanguage: this.interfaceLanguage()
     };

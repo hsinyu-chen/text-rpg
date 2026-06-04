@@ -106,7 +106,7 @@ export class StreamProcessorService {
                         const arr = [...prev];
                         const last = arr[arr.length - 1];
                         if (last?.role === 'model') {
-                            arr[arr.length - 1] = { ...last, thought: currentThought };
+                            arr[arr.length - 1] = { ...last, thought: currentThought, thoughtChunkCount: (last.thoughtChunkCount ?? 0) + 1 };
                         }
                         return arr;
                     });
@@ -134,6 +134,7 @@ export class StreamProcessorService {
                             const last = arr[arr.length - 1];
                             if (last?.role === 'model') {
                                 const next = { ...last, isThinking: true };
+                                next.analysisChunkCount = (last.analysisChunkCount ?? 0) + 1;
 
                                 let snap: Partial<SceneSnapshot> | null = null;
                                 if (partial.analysis && typeof partial.analysis === 'object') {
@@ -315,7 +316,7 @@ export class StreamProcessorService {
             if (part.text) {
                 if ((part as ThoughtPart).thought) {
                     currentThought += part.text;
-                    updateLastModel(last => ({ ...last, thought: currentThought }));
+                    updateLastModel(last => ({ ...last, thought: currentThought, thoughtChunkCount: (last.thoughtChunkCount ?? 0) + 1 }));
                 } else {
                     currentJSONAccumulator += part.text;
                     if (!cotClosed) {
