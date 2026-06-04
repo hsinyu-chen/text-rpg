@@ -141,16 +141,16 @@
             </div>
 
             <div class="toggle-row">
-                <mat-slide-toggle [ngModel]="cotDefaultCollapsed()"
-                    (ngModelChange)="cotDefaultCollapsed.set($event)" color="primary">
-                    {{ 'settings.cotDefaultCollapsed' | translate }}
+                <mat-slide-toggle [ngModel]="cotDefaultExpanded()"
+                    (ngModelChange)="cotDefaultExpanded.set($event)" color="primary">
+                    {{ 'settings.cotDefaultExpanded' | translate }}
                 </mat-slide-toggle>
             </div>
 
             <div class="toggle-row">
-                <mat-slide-toggle [ngModel]="analysisDefaultCollapsed()"
-                    (ngModelChange)="analysisDefaultCollapsed.set($event)" color="primary">
-                    {{ 'settings.analysisDefaultCollapsed' | translate }}
+                <mat-slide-toggle [ngModel]="analysisDefaultExpanded()"
+                    (ngModelChange)="analysisDefaultExpanded.set($event)" color="primary">
+                    {{ 'settings.analysisDefaultExpanded' | translate }}
                 </mat-slide-toggle>
             </div>
         </div>

@@ -126,8 +126,8 @@ describe('AppConfigStore.snapshot', () => {
             smartContextTurns: 10,
             contextMode: 'smart',
             saveContextMode: 'smart',
-            cotDefaultCollapsed: false,
-            analysisDefaultCollapsed: false,
+            cotDefaultExpanded: false,
+            analysisDefaultExpanded: false,
         });
     });
 });

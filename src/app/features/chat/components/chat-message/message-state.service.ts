@@ -33,11 +33,11 @@ export class MessageStateService {
         computation: (hasContent) => hasContent
     });
 
-    // Auto-expand analysis while thinking — unless the user opted into
-    // `analysisDefaultCollapsed`. Source is a boolean computed so a manual
-    // toggle survives spurious same-value re-emits (linkedSignal only re-runs
-    // computation when the boolean actually flips).
-    private analysisDefaultVisible = computed(() => (this.message()?.isThinking ?? false) && !this.appConfig.analysisDefaultCollapsed());
+    // Auto-expand analysis while thinking — only when the user opted into
+    // `analysisDefaultExpanded` (off by default ⇒ stays collapsed). Source is a
+    // boolean computed so a manual toggle survives spurious same-value re-emits
+    // (linkedSignal only re-runs computation when the boolean actually flips).
+    private analysisDefaultVisible = computed(() => (this.message()?.isThinking ?? false) && this.appConfig.analysisDefaultExpanded());
     isAnalysisVisible = linkedSignal({
         source: this.analysisDefaultVisible,
         computation: (visible) => visible
@@ -45,11 +45,11 @@ export class MessageStateService {
 
     // Engine drives CoT via `cotOpen`: true when a thought phase starts (turn
     // begin / narrator phase begin in two-call), false on the first non-thought
-    // chunk. `cotDefaultCollapsed` forces it closed regardless. linkedSignal lets
-    // the user override mid-phase; the override holds until the default flips.
-    // Source is the resolved boolean so spurious same-value re-emits don't wipe
-    // the user's manual toggle.
-    private cotDefaultVisible = computed(() => (this.message()?.cotOpen ?? false) && !this.appConfig.cotDefaultCollapsed());
+    // chunk. The panel follows it only when `cotDefaultExpanded` is on; off by
+    // default ⇒ collapsed until the user opens it. linkedSignal lets the user
+    // override mid-phase; the override holds until the default flips. Source is
+    // the resolved boolean so spurious same-value re-emits don't wipe the toggle.
+    private cotDefaultVisible = computed(() => (this.message()?.cotOpen ?? false) && this.appConfig.cotDefaultExpanded());
     isThoughtVisible = linkedSignal({
         source: this.cotDefaultVisible,
         computation: (visible) => visible
