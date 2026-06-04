@@ -106,24 +106,49 @@ mat-dialog-actions {
     }
 }
 
-// Compact checklist readout: the step text shrinks + ellipsizes so the
-// (N/M) count stays visible no matter how long the current step reads.
-.todo-progress {
-    display: inline-flex;
-    align-items: baseline;
-    gap: 0.4em;
-    min-width: 0;
-    overflow: hidden;
+// Full checklist, expanded under the PP bar — one row per step so long step
+// text wraps instead of ellipsizing away in the (overflow-constrained) header.
+.entry-todos {
+    margin: 0.5rem 0;
 
-    .todo-step {
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+    .entry-todos-header {
+        font-size: 0.78rem;
+        opacity: 0.7;
+        margin-bottom: 0.25rem;
+        font-family: 'Fira Code', 'Consolas', monospace;
     }
 
-    .todo-count {
-        flex: 0 0 auto;
-        font-family: 'Fira Code', 'Consolas', monospace;
+    .entry-todos-list {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+
+        li {
+            display: flex;
+            align-items: flex-start;
+            gap: 0.4em;
+            font-size: 0.82rem;
+            line-height: 1.4;
+            padding: 0.1rem 0;
+
+            .mat-icon {
+                flex: 0 0 auto;
+                font-size: 1.05rem;
+                width: 1.05rem;
+                height: 1.05rem;
+                opacity: 0.6;
+            }
+
+            span {
+                word-break: break-word;
+            }
+
+            &.done {
+                opacity: 0.55;
+                .mat-icon { color: #43a047; opacity: 1; }
+                span { text-decoration: line-through; }
+            }
+        }
     }
 }
 

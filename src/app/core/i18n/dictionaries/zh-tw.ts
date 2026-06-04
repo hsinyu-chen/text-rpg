@@ -1182,6 +1182,7 @@ export const zhTW: TranslationDict = {
             waitingForStart: '正在啟動 SaveAgent…',
             ppLabel: 'PP',
             cotLabel: '思考',
+            todoLabel: '檢查清單',
             frameworkWarningsLabel: 'Framework 警告',
             copyDebug: '複製 debug log',
             debugCopied: '已複製 debug log',

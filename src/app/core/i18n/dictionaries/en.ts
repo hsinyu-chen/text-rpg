@@ -1182,6 +1182,7 @@ export const en: TranslationDict = {
             waitingForStart: 'Starting SaveAgent…',
             ppLabel: 'PP',
             cotLabel: 'Chain of thought',
+            todoLabel: 'Checklist',
             frameworkWarningsLabel: 'Framework warnings',
             copyDebug: 'Copy debug log',
             debugCopied: 'Debug log copied',

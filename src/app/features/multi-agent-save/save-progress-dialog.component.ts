@@ -1,4 +1,4 @@
-import { Component, computed, inject } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { Clipboard } from '@angular/cdk/clipboard';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { MatExpansionModule } from '@angular/material/expansion';
@@ -10,10 +10,7 @@ import { formatAgentDebugLog } from '@app/core/utils/format-agent-debug-log';
 import { SaveProgressTracker } from '@app/core/services/multi-agent-save/progress/save-progress-tracker.service';
 import type { SaveProgressEntry } from '@app/core/services/multi-agent-save/multi-agent-save.types';
 import { AutoScrollBottomDirective } from '@app/shared/directives/auto-scroll-bottom.directive';
-import {
-    AgentTraceSurfaceComponent,
-    type AgentLogFoldKey,
-} from '@app/shared/components/agent-trace-surface/agent-trace-surface.component';
+import { AgentTraceSurfaceComponent } from '@app/shared/components/agent-trace-surface/agent-trace-surface.component';
 
 /**
  * Modal dialog rendered for the duration of one multi-agent save run.
@@ -108,21 +105,34 @@ export class SaveProgressDialogComponent {
     }
 
     /**
-     * Surface-emitted fold click for one of the entry's structured log
-     * entries. The tracker owns its own snapshot of `logs` (set by the
-     * agent's mirror effect) — toggling here mutates only the dialog's
-     * view; we don't reach back into the agent's signal. While the agent
-     * is still streaming, the next mirror tick will overwrite the toggle.
-     * After the run finishes (no more mirrors), folds persist.
+     * Per-entry expand override for the panel and the CoT `<details>`,
+     * scoped to the state the user set it in. `state === 'running'` is the
+     * default (auto-open while working, auto-collapse once done) — but binding
+     * that reactively re-applies it every change-detection, so a manual
+     * collapse mid-run snaps back open. These overrides win while the entry
+     * stays in the same state; on a state transition the override lapses and
+     * the default applies once more.
      */
-    onTraceFoldToggle(entry: SaveProgressEntry, evt: { index: number; key: AgentLogFoldKey }): void {
-        const logs = entry.logs;
-        if (!logs) return;
-        const target = logs[evt.index];
-        if (!target) return;
-        const next = logs.slice();
-        next[evt.index] = { ...target, [evt.key]: !target[evt.key] };
-        this.tracker.setEntryLogs(entry.entryId, next);
+    private panelOverride = signal<ReadonlyMap<string, { state: SaveProgressEntry['state']; expanded: boolean }>>(new Map());
+    private cotOverride = signal<ReadonlyMap<string, { state: SaveProgressEntry['state']; open: boolean }>>(new Map());
+
+    protected isPanelExpanded(entry: SaveProgressEntry): boolean {
+        const o = this.panelOverride().get(entry.entryId);
+        return o && o.state === entry.state ? o.expanded : entry.state === 'running';
+    }
+
+    protected onPanelToggle(entry: SaveProgressEntry, expanded: boolean): void {
+        this.panelOverride.update(m => new Map(m).set(entry.entryId, { state: entry.state, expanded }));
+    }
+
+    protected isCotOpen(entry: SaveProgressEntry): boolean {
+        const o = this.cotOverride().get(entry.entryId);
+        return o && o.state === entry.state ? o.open : entry.state === 'running';
+    }
+
+    protected onCotToggle(entry: SaveProgressEntry, ev: Event): void {
+        const open = (ev.target as HTMLDetailsElement).open;
+        this.cotOverride.update(m => new Map(m).set(entry.entryId, { state: entry.state, open }));
     }
 
     /** Whether an entry carries anything worth copying (trace / output / CoT). */
@@ -169,24 +179,17 @@ export class SaveProgressDialogComponent {
     }
 
     /**
-     * Compact checklist readout shown in the header in place of the long
-     * terminal summary (which overflows the description row). Returns null when
-     * the entry has no `updateTodos` checklist, or when it ended on `skipped` /
-     * `failed` — those need their `statusReason` (the skip reason / error)
-     * instead. While running: the first incomplete step + done count. On `done`:
-     * forced to total/total (e.g. 5/5) so the bar reads complete without the
-     * agent having to tick the final item.
+     * Done/total count for the checklist header above the expanded TODO list.
+     * Null when the entry has no `updateTodos` checklist, or when it ended on
+     * `skipped` / `failed` — those surface their `statusReason` instead. On
+     * `done` the count is forced to total/total (e.g. 5/5) so it reads complete
+     * without the agent having to tick the final item.
      */
-    todoProgress(entry: SaveProgressEntry): { current: string | null; done: number; total: number } | null {
+    todoCount(entry: SaveProgressEntry): { done: number; total: number } | null {
         const todos = entry.todos;
         if (!todos?.length) return null;
         if (entry.state !== 'running' && entry.state !== 'done') return null;
         const total = todos.length;
-        if (entry.state === 'done') return { current: null, done: total, total };
-        return {
-            current: todos.find(t => !t.done)?.content ?? null,
-            done: todos.filter(t => t.done).length,
-            total,
-        };
+        return { done: entry.state === 'done' ? total : todos.filter(t => t.done).length, total };
     }
 }

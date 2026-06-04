@@ -42,8 +42,7 @@
     <app-agent-trace-surface
         [logs]="agentService.agentLogs()"
         [indicator]="runningIndicator()"
-        [todos]="agentService.todoList()"
-        (foldToggle)="toggleLogSection($event.index, $event.key)" />
+        [todos]="agentService.todoList()" />
 
     <!-- Prompt Input -->
     <div class="agent-input-container">

@@ -5,10 +5,13 @@
     } @else {
         <mat-accordion multi>
             @for (entry of entries(); track entry.entryId) {
-                <mat-expansion-panel [expanded]="entry.state === 'running'">
+                <mat-expansion-panel [expanded]="isPanelExpanded(entry)"
+                                     (opened)="onPanelToggle(entry, true)"
+                                     (closed)="onPanelToggle(entry, false)">
                     <mat-expansion-panel-header>
                         <mat-panel-title class="entry-title">
-                            <mat-icon class="state-icon" [attr.data-state]="entry.state">
+                            <mat-icon class="state-icon" [attr.data-state]="entry.state"
+                                      [matTooltip]="('multiAgentSave.progress.state.' + entry.state) | translate">
                                 {{ stateIcon(entry.state) }}
                             </mat-icon>
                             <span class="tool-name">{{ entry.toolName || entry.phase }}</span>
@@ -17,20 +20,7 @@
                             }
                         </mat-panel-title>
                         <mat-panel-description class="entry-meta">
-                            <span class="state-label">{{ ('multiAgentSave.progress.state.' + entry.state) | translate }}</span>
-                            @if (todoProgress(entry); as tp) {
-                                <!--
-                                  Compact checklist readout replaces the long terminal summary
-                                  (which overflows): running shows the current step + count,
-                                  done forces total/total.
-                                -->
-                                <span class="todo-progress">
-                                    @if (tp.current) {
-                                        <span class="todo-step">— {{ tp.current }}</span>
-                                    }
-                                    <span class="todo-count">({{ tp.done }}/{{ tp.total }})</span>
-                                </span>
-                            } @else if (entry.statusReason) {
+                            @if (entry.statusReason && (entry.state === 'skipped' || entry.state === 'failed')) {
                                 <!--
                                   'skipped' reasons are enum keys (SaveSkipReason) and translate.
                                   'failed' reasons are raw error messages from the provider /
@@ -38,9 +28,9 @@
                                   emit the i18n key as visible UI text.
                                 -->
                                 @if (entry.state === 'skipped') {
-                                    <span class="status-reason">— {{ ('multiAgentSave.progress.reason.' + entry.statusReason) | translate }}</span>
+                                    <span class="status-reason">{{ ('multiAgentSave.progress.reason.' + entry.statusReason) | translate }}</span>
                                 } @else {
-                                    <span class="status-reason">— {{ entry.statusReason }}</span>
+                                    <span class="status-reason">{{ entry.statusReason }}</span>
                                 }
                             }
                         </mat-panel-description>
@@ -60,8 +50,24 @@
                         </div>
                     }
 
+                    @if (todoCount(entry); as tc) {
+                        <div class="entry-todos">
+                            <div class="entry-todos-header">
+                                {{ 'multiAgentSave.progress.todoLabel' | translate }} ({{ tc.done }}/{{ tc.total }})
+                            </div>
+                            <ol class="entry-todos-list">
+                                @for (t of entry.todos; track $index) {
+                                    <li [class.done]="t.done">
+                                        <mat-icon inline="true">{{ t.done ? 'check_box' : 'check_box_outline_blank' }}</mat-icon>
+                                        <span>{{ t.content }}</span>
+                                    </li>
+                                }
+                            </ol>
+                        </div>
+                    }
+
                     @if (entry.thought) {
-                        <details class="cot-details" [open]="entry.state === 'running'">
+                        <details class="cot-details" [open]="isCotOpen(entry)" (toggle)="onCotToggle(entry, $event)">
                             <summary>{{ 'multiAgentSave.progress.cotLabel' | translate }}</summary>
                             <pre class="cot-text">{{ entry.thought }}</pre>
                         </details>
@@ -80,7 +86,6 @@
                             [logs]="entry.logs"
                             [indicator]="null"
                             [showScrollToBottomButton]="false"
-                            (foldToggle)="onTraceFoldToggle(entry, $event)"
                             class="entry-trace" />
                     } @else if (entry.output) {
                         <pre class="output-text">{{ entry.output }}</pre>
