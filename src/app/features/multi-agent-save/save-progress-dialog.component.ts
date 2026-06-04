@@ -179,17 +179,24 @@ export class SaveProgressDialogComponent {
     }
 
     /**
-     * Done/total count for the checklist header above the expanded TODO list.
-     * Null when the entry has no `updateTodos` checklist, or when it ended on
-     * `skipped` / `failed` — those surface their `statusReason` instead. On
-     * `done` the count is forced to total/total (e.g. 5/5) so it reads complete
-     * without the agent having to tick the final item.
+     * Per-entry checklist view-model, keyed by entryId. A `computed` (not a
+     * template method) so each change-detection reads a stable reference and
+     * doesn't re-allocate / thrash the inner `@for` bindings. Present only for
+     * entries that are running or done and carry a checklist — `skipped` /
+     * `failed` surface their `statusReason` instead. On `done` every item is
+     * forced complete so the header count and the rendered list agree without
+     * the agent having to tick the final box explicitly.
      */
-    todoCount(entry: SaveProgressEntry): { done: number; total: number } | null {
-        const todos = entry.todos;
-        if (!todos?.length) return null;
-        if (entry.state !== 'running' && entry.state !== 'done') return null;
-        const total = todos.length;
-        return { done: entry.state === 'done' ? total : todos.filter(t => t.done).length, total };
-    }
+    protected readonly entryTodos = computed(() => {
+        const map = new Map<string, { items: readonly { content: string; done: boolean }[]; done: number; total: number }>();
+        for (const e of this.entries()) {
+            const todos = e.todos;
+            if (!todos?.length) continue;
+            if (e.state !== 'running' && e.state !== 'done') continue;
+            const forceDone = e.state === 'done';
+            const items = todos.map(t => ({ content: t.content, done: t.done || forceDone }));
+            map.set(e.entryId, { items, done: items.filter(t => t.done).length, total: items.length });
+        }
+        return map;
+    });
 }

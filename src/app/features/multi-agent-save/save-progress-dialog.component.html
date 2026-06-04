@@ -50,13 +50,13 @@
                         </div>
                     }
 
-                    @if (todoCount(entry); as tc) {
+                    @if (entryTodos().get(entry.entryId); as tc) {
                         <div class="entry-todos">
                             <div class="entry-todos-header">
                                 {{ 'multiAgentSave.progress.todoLabel' | translate }} ({{ tc.done }}/{{ tc.total }})
                             </div>
                             <ol class="entry-todos-list">
-                                @for (t of entry.todos; track $index) {
+                                @for (t of tc.items; track $index) {
                                     <li [class.done]="t.done">
                                         <mat-icon inline="true">{{ t.done ? 'check_box' : 'check_box_outline_blank' }}</mat-icon>
                                         <span>{{ t.content }}</span>
