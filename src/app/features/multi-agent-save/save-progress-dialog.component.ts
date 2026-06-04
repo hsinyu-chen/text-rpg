@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal, type WritableSignal } from '@angular/core';
 import { Clipboard } from '@angular/cdk/clipboard';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { MatExpansionModule } from '@angular/material/expansion';
@@ -33,6 +33,9 @@ import { AgentTraceSurfaceComponent } from '@app/shared/components/agent-trace-s
 export interface SaveProgressDialogData {
     abortController: AbortController;
 }
+
+/** Per-entry open/expand override, scoped to the entry state it was set in. */
+type EntryOverrides = ReadonlyMap<string, { state: SaveProgressEntry['state']; value: boolean }>;
 
 @Component({
     selector: 'app-save-progress-dialog',
@@ -105,33 +108,46 @@ export class SaveProgressDialogComponent {
     }
 
     /**
-     * Per-entry expand override for the panel and the CoT `<details>`,
-     * scoped to the state the user set it in. `state === 'running'` is the
+     * Per-entry open/expand overrides for the panel and the CoT `<details>`,
+     * scoped to the state the user set them in. `state === 'running'` is the
      * default (auto-open while working, auto-collapse once done) — but binding
      * that reactively re-applies it every change-detection, so a manual
-     * collapse mid-run snaps back open. These overrides win while the entry
-     * stays in the same state; on a state transition the override lapses and
-     * the default applies once more.
+     * collapse mid-run snaps back open. An override wins while the entry stays
+     * in the same state; on a state transition it lapses and the default
+     * applies once more.
      */
-    private panelOverride = signal<ReadonlyMap<string, { state: SaveProgressEntry['state']; expanded: boolean }>>(new Map());
-    private cotOverride = signal<ReadonlyMap<string, { state: SaveProgressEntry['state']; open: boolean }>>(new Map());
+    private panelOverride = signal<EntryOverrides>(new Map());
+    private cotOverride = signal<EntryOverrides>(new Map());
+
+    /** The effective open state: a same-state user override, else the running default. */
+    private resolveOpen(overrides: EntryOverrides, entry: SaveProgressEntry): boolean {
+        const o = overrides.get(entry.entryId);
+        return o && o.state === entry.state ? o.value : entry.state === 'running';
+    }
+
+    /** Record a user toggle. Skips the write when it already matches the
+     *  resolved state — mat-expansion-panel and `<details>` both emit their
+     *  open/close events on programmatic toggles too, and a redundant write
+     *  would spin change detection (and risk ExpressionChangedAfterChecked). */
+    private writeOpen(target: WritableSignal<EntryOverrides>, entry: SaveProgressEntry, value: boolean): void {
+        if (this.resolveOpen(target(), entry) === value) return;
+        target.update(m => new Map(m).set(entry.entryId, { state: entry.state, value }));
+    }
 
     protected isPanelExpanded(entry: SaveProgressEntry): boolean {
-        const o = this.panelOverride().get(entry.entryId);
-        return o && o.state === entry.state ? o.expanded : entry.state === 'running';
+        return this.resolveOpen(this.panelOverride(), entry);
     }
 
     protected onPanelToggle(entry: SaveProgressEntry, expanded: boolean): void {
-        this.panelOverride.update(m => new Map(m).set(entry.entryId, { state: entry.state, expanded }));
+        this.writeOpen(this.panelOverride, entry, expanded);
     }
 
     protected isCotOpen(entry: SaveProgressEntry): boolean {
-        const o = this.cotOverride().get(entry.entryId);
-        return o && o.state === entry.state ? o.open : entry.state === 'running';
+        return this.resolveOpen(this.cotOverride(), entry);
     }
 
     protected onCotToggle(entry: SaveProgressEntry, open: boolean): void {
-        this.cotOverride.update(m => new Map(m).set(entry.entryId, { state: entry.state, open }));
+        this.writeOpen(this.cotOverride, entry, open);
     }
 
     /** Whether an entry carries anything worth copying (trace / output / CoT). */
