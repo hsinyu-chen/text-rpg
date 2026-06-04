@@ -123,7 +123,7 @@
                             <mat-icon class="brain-icon">psychology</mat-icon>
                             <span>{{ 'ui.MODEL_THOUGHT_PROCESS' | translate }}</span>
                         </div>
-                        @if (msg.isThinking) {
+                        @if (msg.isThinking && msg.cotOpen) {
                         <div class="header-status">
                             @if (msg.progress !== undefined && msg.progress < 1) {
                                 {{ 'ui.PROCESSING_PERCENT' | translate: { percent: ((msg.progress * 100) | number:'1.0-0') ?? '' } }}
@@ -154,7 +154,7 @@
                             <mat-icon class="brain-icon">fact_check</mat-icon>
                             <span>{{ 'ui.ATOMIC_BREAKDOWN' | translate }}</span>
                         </div>
-                        @if (msg.isThinking && msg.analysis) {
+                        @if (msg.isThinking && msg.analysis && !msg.cotOpen && !msg.content) {
                         <div class="header-status">
                             @if (msg.progress !== undefined && msg.progress < 1) {
                                 {{ 'ui.PROCESSING_PERCENT' | translate: { percent: ((msg.progress * 100) | number:'1.0-0') ?? '' } }}
