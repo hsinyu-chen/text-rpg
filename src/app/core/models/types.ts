@@ -31,6 +31,10 @@ export interface ChatMessage {
     correction?: string;
     /** Engine-controlled CoT panel default. true while a thought phase is active, false once non-thought content begins. UI's per-message toggle overrides until the next phase transition. */
     cotOpen?: boolean;
+    /** Cumulative count of streamed thought (CoT) chunks — a liveness readout in the thought panel header. In two-call mode it spans both the resolver and narrator calls. */
+    thoughtChunkCount?: number;
+    /** Cumulative count of streamed analysis chunks — a liveness readout in the analysis panel header. Resolver-only in two-call mode. */
+    analysisChunkCount?: number;
     /** Optional user-supplied ideal_outcome consumed by both engine modes via the {{IDEAL_OUTCOME_CONSTRAINT}} slot (carried on the user message that committed the turn). */
     userIdealOutcome?: string;
     /** Post-turn KV cache occupancy in tokens. In two-call mode this is the narrator-call only — `usage.prompt + usage.candidates` would double-count both LLM calls. Sidebar uses this when present. */

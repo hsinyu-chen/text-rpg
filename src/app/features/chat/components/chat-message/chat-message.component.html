@@ -127,6 +127,8 @@
                         <div class="header-status">
                             @if (msg.progress !== undefined && msg.progress < 1) {
                                 {{ 'ui.PROCESSING_PERCENT' | translate: { percent: ((msg.progress * 100) | number:'1.0-0') ?? '' } }}
+                            } @else if (msg.thoughtChunkCount) {
+                                {{ 'ui.THINKING_CHUNKS' | translate: { count: msg.thoughtChunkCount } }}
                             } @else {
                                 {{ 'ui.THINKING_DOTS' | translate }}
                             }
@@ -152,10 +154,12 @@
                             <mat-icon class="brain-icon">fact_check</mat-icon>
                             <span>{{ 'ui.ATOMIC_BREAKDOWN' | translate }}</span>
                         </div>
-                        @if (msg.isThinking && !msg.thought && msg.analysis) {
+                        @if (msg.isThinking && msg.analysis) {
                         <div class="header-status">
                             @if (msg.progress !== undefined && msg.progress < 1) {
                                 {{ 'ui.PROCESSING_PERCENT' | translate: { percent: ((msg.progress * 100) | number:'1.0-0') ?? '' } }}
+                            } @else if (msg.analysisChunkCount) {
+                                {{ 'ui.ANALYZING_CHUNKS' | translate: { count: msg.analysisChunkCount } }}
                             } @else {
                                 {{ 'ui.ANALYZING_DOTS' | translate }}
                             }
