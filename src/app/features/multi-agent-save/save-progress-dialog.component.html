@@ -66,7 +66,7 @@
                     }
 
                     @if (entry.thought) {
-                        <details class="cot-details" [open]="isCotOpen(entry)" (toggle)="onCotToggle(entry, $event)">
+                        <details #cotDetails class="cot-details" [open]="isCotOpen(entry)" (toggle)="onCotToggle(entry, cotDetails.open)">
                             <summary>{{ 'multiAgentSave.progress.cotLabel' | translate }}</summary>
                             <pre class="cot-text">{{ entry.thought }}</pre>
                         </details>

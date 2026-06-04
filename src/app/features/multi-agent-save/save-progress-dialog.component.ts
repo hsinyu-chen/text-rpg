@@ -130,8 +130,7 @@ export class SaveProgressDialogComponent {
         return o && o.state === entry.state ? o.open : entry.state === 'running';
     }
 
-    protected onCotToggle(entry: SaveProgressEntry, ev: Event): void {
-        const open = (ev.target as HTMLDetailsElement).open;
+    protected onCotToggle(entry: SaveProgressEntry, open: boolean): void {
         this.cotOverride.update(m => new Map(m).set(entry.entryId, { state: entry.state, open }));
     }
 

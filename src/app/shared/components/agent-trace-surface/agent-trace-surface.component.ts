@@ -2,9 +2,9 @@ import {
     ChangeDetectionStrategy,
     Component,
     computed,
-    effect,
     inject,
     input,
+    linkedSignal,
     signal,
     viewChild,
 } from '@angular/core';
@@ -106,19 +106,15 @@ export class AgentTraceSurfaceComponent {
      * keyed by entry would be wiped each tick; index is stable under the
      * append-only stream.
      */
-    private foldOverrides = signal<ReadonlyMap<string, boolean>>(new Map());
-
-    /** Indices alias different entries once the log array shrinks (history
-     *  reset / clear), so drop overrides when `logs` gets shorter. */
-    private lastLogCount = 0;
-
-    constructor() {
-        effect(() => {
-            const count = this.logs().length;
-            if (count < this.lastLogCount) this.foldOverrides.set(new Map());
-            this.lastLogCount = count;
-        });
-    }
+    private foldOverrides = linkedSignal<number, ReadonlyMap<string, boolean>>({
+        source: () => this.logs().length,
+        // Carry overrides across the append-only stream; reset them only when the
+        // log array shrinks (history clear), since indices then alias different
+        // entries. linkedSignal (not an effect writing a signal) is the Angular
+        // way to derive-yet-keep-writable here — onFoldClick still writes it.
+        computation: (count, prev) =>
+            prev && count < prev.source ? new Map() : prev?.value ?? new Map(),
+    });
 
     /**
      * Logs with user fold overrides applied. Template reads `log.isXxxCollapsed`
