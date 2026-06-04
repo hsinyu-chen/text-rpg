@@ -639,16 +639,24 @@ export class SessionService {
         }
     }
 
-    async createNextBook() {
+    async createNextBook(appliedFiles?: Map<string, string>) {
         const currentId = this.currentBookId();
         if (!currentId) return;
 
-        // 1. Determine the next act number from the KB — the story outline
-        // accumulates `## Act.N` headers on save. (The old chat-header source
-        // was removed with the inline auto-save block.) The current book keeps
-        // its own name; only the new book is named, at creation time.
-        const currentActNum = extractActNumberFromKb(this.state.loadedFiles()) ?? 1;
-        const newNameForNewBook = formatActName(currentActNum + 1);
+        // 1. Name the new book one act past the highest act it will actually
+        // contain. The story outline accumulates `## Act.N` headers on save.
+        // Standalone "create next" names off the current (up-to-date) KB. The
+        // save's "apply & new act" path passes the applied delta: there the
+        // current KB is deliberately left un-applied (stays replayable) and so
+        // lags a full act behind, but the new book = current KB overlaid with
+        // the delta — naming off `loadedFiles` alone would come up one act
+        // short, and off the delta alone would miss the highest act when the
+        // outline hunk isn't in the delta. Merge mirrors the new book's content.
+        const kbForNaming = appliedFiles
+            ? new Map([...this.state.loadedFiles(), ...appliedFiles])
+            : this.state.loadedFiles();
+        const baseActNum = extractActNumberFromKb(kbForNaming) ?? 1;
+        const newNameForNewBook = formatActName(baseActNum + 1);
 
         console.log(`[SessionService] Create Next: creating "${newNameForNewBook}"`);
 
