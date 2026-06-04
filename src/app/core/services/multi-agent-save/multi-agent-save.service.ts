@@ -271,7 +271,12 @@ export class MultiAgentSaveService {
             // Order matters: createNextBook persists the CURRENT book with its
             // un-applied KB before cloning, so the act the user wants to keep
             // replayable stays untouched. Apply lands on the new act below.
-            await this.session.createNextBook();
+            // Name the new book off the applied delta, not the un-applied
+            // current KB: the current KB is left un-applied here, so it lags a
+            // full act behind. createNextBook overlays this delta on the current
+            // KB to mirror what the new book will actually contain.
+            const appliedFiles = new Map(result.files.map((f) => [f.fileName, f.content]));
+            await this.session.createNextBook(appliedFiles);
             await this.applyFiles(result.files);
             return true;
         }
