@@ -1182,6 +1182,7 @@ export const zhTW: TranslationDict = {
             waitingForStart: '正在啟動 SaveAgent…',
             ppLabel: 'PP',
             cotLabel: '思考',
+            todoLabel: '檢查清單',
             frameworkWarningsLabel: 'Framework 警告',
             copyDebug: '複製 debug log',
             debugCopied: '已複製 debug log',
@@ -1189,13 +1190,6 @@ export const zhTW: TranslationDict = {
             cancel: '中斷',
             close: '關閉',
             continue: '繼續',
-            state: {
-                running: '進行中',
-                retry: '重試',
-                done: '完成',
-                skipped: '略過',
-                failed: '失敗',
-            },
             reason: {
                 user_aborted: '使用者中斷',
             },

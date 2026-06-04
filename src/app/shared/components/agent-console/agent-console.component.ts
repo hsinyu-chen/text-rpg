@@ -26,7 +26,6 @@ import { AgentPanelStateService } from '@app/core/services/file-agent/agent-pane
 import { formatAgentDebugLog } from '@app/core/utils/format-agent-debug-log';
 import {
   AgentTraceSurfaceComponent,
-  type AgentLogFoldKey,
   type AgentRunningIndicator,
 } from '../agent-trace-surface/agent-trace-surface.component';
 import { PipAwareOverlayContainer } from './pip-aware-overlay-container';
@@ -111,22 +110,6 @@ export class AgentConsoleComponent implements OnDestroy {
       chunkCount: this.agentService.generatedChunkCount(),
     };
   });
-
-  /**
-   * Per-log-entry fold toggles. The collapse flags live on `AgentLogEntry`
-   * (the streaming side sets `isThoughtCollapsed` automatically when text
-   * follows thought), but the toggle action itself is a view concern —
-   * surface emits, this component mutates the source signal.
-   */
-  toggleLogSection(index: number, key: AgentLogFoldKey): void {
-    this.agentService.agentLogs.update(logs => {
-      const next = [...logs];
-      if (next[index]) {
-        next[index] = { ...next[index], [key]: !next[index][key] };
-      }
-      return next;
-    });
-  }
 
   private initialPromptTimeoutId: ReturnType<typeof setTimeout> | null = null;
 

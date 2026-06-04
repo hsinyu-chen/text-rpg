@@ -40,13 +40,13 @@
         (atBottom)="showScrollButton.set(!$event)"
         #scroller="autoScroll">
         <div class="agent-console-content">
-            @for (log of logs(); track $index) {
+            @for (log of displayLogs(); track $index) {
                 <div class="console-log-entry" [ngClass]="'log-type-' + log.type + ' log-role-' + log.role">
                     <span class="log-prefix">{{ log.role === 'user' ? '>' : (log.role === 'model' ? '<' : '*') }}</span>
                     <div class="log-content-wrapper">
                         @if (log.thought) {
                             <div class="log-thought-container" [class.collapsed]="log.isThoughtCollapsed">
-                                <div class="log-thought-header" (click)="onFoldClick($index, 'isThoughtCollapsed')" tabindex="0" (keydown.enter)="onFoldClick($index, 'isThoughtCollapsed')" (keydown.space)="$event.preventDefault(); onFoldClick($index, 'isThoughtCollapsed')">
+                                <div class="log-thought-header" (click)="onFoldClick($index, 'isThoughtCollapsed', log)" tabindex="0" (keydown.enter)="onFoldClick($index, 'isThoughtCollapsed', log)" (keydown.space)="$event.preventDefault(); onFoldClick($index, 'isThoughtCollapsed', log)">
                                     <mat-icon inline="true">{{ log.isThoughtCollapsed ? 'chevron_right' : 'expand_more' }}</mat-icon>
                                     <span>{{ 'dialog.agentThinkingProcess' | translate }}</span>
                                 </div>
@@ -58,7 +58,7 @@
                         @if (log.text) {
                             @if (log.isToolCall) {
                                 <div class="log-thought-container" [class.collapsed]="log.isToolCallCollapsed">
-                                    <div class="log-thought-header" (click)="onFoldClick($index, 'isToolCallCollapsed')" tabindex="0" (keydown.enter)="onFoldClick($index, 'isToolCallCollapsed')" (keydown.space)="$event.preventDefault(); onFoldClick($index, 'isToolCallCollapsed')">
+                                    <div class="log-thought-header" (click)="onFoldClick($index, 'isToolCallCollapsed', log)" tabindex="0" (keydown.enter)="onFoldClick($index, 'isToolCallCollapsed', log)" (keydown.space)="$event.preventDefault(); onFoldClick($index, 'isToolCallCollapsed', log)">
                                         <mat-icon inline="true">{{ log.isToolCallCollapsed ? 'chevron_right' : 'expand_more' }}</mat-icon>
                                         <span>{{ log.toolName ? ('dialog.agentToolRequest' | translate: { name: log.toolName }) : ('dialog.agentToolExecutionRequest' | translate) }}</span>
                                     </div>
@@ -71,7 +71,7 @@
                                 </div>
                             } @else if (log.isToolResult) {
                                 <div class="log-thought-container" [class.collapsed]="log.isToolResultCollapsed">
-                                    <div class="log-thought-header" (click)="onFoldClick($index, 'isToolResultCollapsed')" tabindex="0" (keydown.enter)="onFoldClick($index, 'isToolResultCollapsed')" (keydown.space)="$event.preventDefault(); onFoldClick($index, 'isToolResultCollapsed')">
+                                    <div class="log-thought-header" (click)="onFoldClick($index, 'isToolResultCollapsed', log)" tabindex="0" (keydown.enter)="onFoldClick($index, 'isToolResultCollapsed', log)" (keydown.space)="$event.preventDefault(); onFoldClick($index, 'isToolResultCollapsed', log)">
                                         <mat-icon inline="true">{{ log.isToolResultCollapsed ? 'chevron_right' : 'expand_more' }}</mat-icon>
                                         <span>{{ log.toolName ? ('dialog.agentToolResult' | translate: { name: log.toolName }) : ('dialog.agentToolResultFallback' | translate) }}</span>
                                     </div>

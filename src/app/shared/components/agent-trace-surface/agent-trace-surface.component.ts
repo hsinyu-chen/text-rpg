@@ -4,7 +4,7 @@ import {
     computed,
     inject,
     input,
-    output,
+    linkedSignal,
     signal,
     viewChild,
 } from '@angular/core';
@@ -40,8 +40,9 @@ export interface AgentRunningIndicator {
  * show the same rich card layout instead of a flat text blob.
  *
  * Owns: scroll viewport (with auto-follow + floating snap-back button),
- * per-entry rendering (thought / tool-call / tool-result folds, markdown +
- * `app://` link interception), and the running-indicator row.
+ * per-entry rendering (thought / tool-call / tool-result folds — collapse
+ * state is owned locally here, not by the parent; markdown + `app://` link
+ * interception), and the running-indicator row.
  *
  * Does NOT own: agent input bar, profile picker, context-usage bar, copy-debug
  * button. Those stay in AgentConsole — they couple to the live FileAgentService
@@ -96,13 +97,47 @@ export class AgentTraceSurfaceComponent {
     }
 
     /**
-     * Fold-header click. Parent owns the log array (in AgentConsole it's
-     * `FileAgentService.agentLogs`; in the save dialog it's the per-agent
-     * signal mirrored via the tracker) so the mutation happens there.
-     * Surface is intentionally controlled — same fold state shows on every
-     * mounted surface for the same log signal.
+     * Per-(index, fold-key) user collapse override, layered over the
+     * engine-set flag on each log entry. Kept HERE rather than written back
+     * to the parent's log signal because the save dialog mirrors a fresh
+     * `logs` array every stream tick — a write-back gets clobbered on the
+     * next mirror (the original "collapse re-expands" bug). Keyed by position,
+     * not entry identity: the mirrored copies are fresh objects, so a WeakMap
+     * keyed by entry would be wiped each tick; index is stable under the
+     * append-only stream.
      */
-    foldToggle = output<{ index: number; key: AgentLogFoldKey }>();
+    private foldOverrides = linkedSignal<number, ReadonlyMap<string, boolean>>({
+        source: () => this.logs().length,
+        // Carry overrides across the append-only stream; reset them only when the
+        // log array shrinks (history clear), since indices then alias different
+        // entries. linkedSignal (not an effect writing a signal) is the Angular
+        // way to derive-yet-keep-writable here — onFoldClick still writes it.
+        computation: (count, prev) =>
+            prev && count < prev.source ? new Map() : prev?.value ?? new Map(),
+    });
+
+    /**
+     * Logs with user fold overrides applied. Template reads `log.isXxxCollapsed`
+     * off these so the rest of the render stays property-based; only the
+     * overridden positions get a shallow copy.
+     */
+    protected displayLogs = computed<readonly AgentLogEntry[]>(() => {
+        const logs = this.logs();
+        const overrides = this.foldOverrides();
+        if (overrides.size === 0) return logs;
+        return logs.map((log, i) => {
+            const thought = overrides.get(`${i}:isThoughtCollapsed`);
+            const toolCall = overrides.get(`${i}:isToolCallCollapsed`);
+            const toolResult = overrides.get(`${i}:isToolResultCollapsed`);
+            if (thought === undefined && toolCall === undefined && toolResult === undefined) return log;
+            return {
+                ...log,
+                ...(thought !== undefined ? { isThoughtCollapsed: thought } : {}),
+                ...(toolCall !== undefined ? { isToolCallCollapsed: toolCall } : {}),
+                ...(toolResult !== undefined ? { isToolResultCollapsed: toolResult } : {}),
+            };
+        });
+    });
 
     private linkInterceptor = inject(AgentLinkInterceptor);
     private hintRegistry = inject(AgentHintRegistry);
@@ -114,8 +149,15 @@ export class AgentTraceSurfaceComponent {
     protected showScrollButton = signal(false);
     private scroller = viewChild('scroller', { read: AutoScrollBottomDirective });
 
-    protected onFoldClick(index: number, key: AgentLogFoldKey): void {
-        this.foldToggle.emit({ index, key });
+    /** Toggle a fold block's local collapse override (flips off the effective
+     *  value already shown — engine flag or prior override). */
+    protected onFoldClick(index: number, key: AgentLogFoldKey, log: AgentLogEntry): void {
+        const next = !(log[key] ?? false);
+        this.foldOverrides.update(m => {
+            const copy = new Map(m);
+            copy.set(`${index}:${key}`, next);
+            return copy;
+        });
     }
 
     /** Floating-button click — explicit user intent, overrides directive's internal sticky state. */

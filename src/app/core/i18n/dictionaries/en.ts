@@ -1182,6 +1182,7 @@ export const en: TranslationDict = {
             waitingForStart: 'Starting SaveAgent…',
             ppLabel: 'PP',
             cotLabel: 'Chain of thought',
+            todoLabel: 'Checklist',
             frameworkWarningsLabel: 'Framework warnings',
             copyDebug: 'Copy debug log',
             debugCopied: 'Debug log copied',
@@ -1189,13 +1190,6 @@ export const en: TranslationDict = {
             cancel: 'Cancel',
             close: 'Close',
             continue: 'Continue',
-            state: {
-                running: 'Running',
-                retry: 'Retry',
-                done: 'Done',
-                skipped: 'Skipped',
-                failed: 'Failed',
-            },
             reason: {
                 user_aborted: 'User aborted',
             },

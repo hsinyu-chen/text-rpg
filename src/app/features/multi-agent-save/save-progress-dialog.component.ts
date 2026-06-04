@@ -1,4 +1,4 @@
-import { Component, computed, inject } from '@angular/core';
+import { Component, computed, inject, signal, type WritableSignal } from '@angular/core';
 import { Clipboard } from '@angular/cdk/clipboard';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { MatExpansionModule } from '@angular/material/expansion';
@@ -10,10 +10,7 @@ import { formatAgentDebugLog } from '@app/core/utils/format-agent-debug-log';
 import { SaveProgressTracker } from '@app/core/services/multi-agent-save/progress/save-progress-tracker.service';
 import type { SaveProgressEntry } from '@app/core/services/multi-agent-save/multi-agent-save.types';
 import { AutoScrollBottomDirective } from '@app/shared/directives/auto-scroll-bottom.directive';
-import {
-    AgentTraceSurfaceComponent,
-    type AgentLogFoldKey,
-} from '@app/shared/components/agent-trace-surface/agent-trace-surface.component';
+import { AgentTraceSurfaceComponent } from '@app/shared/components/agent-trace-surface/agent-trace-surface.component';
 
 /**
  * Modal dialog rendered for the duration of one multi-agent save run.
@@ -36,6 +33,9 @@ import {
 export interface SaveProgressDialogData {
     abortController: AbortController;
 }
+
+/** Per-entry open/expand override, scoped to the entry state it was set in. */
+type EntryOverrides = ReadonlyMap<string, { state: SaveProgressEntry['state']; value: boolean }>;
 
 @Component({
     selector: 'app-save-progress-dialog',
@@ -108,21 +108,46 @@ export class SaveProgressDialogComponent {
     }
 
     /**
-     * Surface-emitted fold click for one of the entry's structured log
-     * entries. The tracker owns its own snapshot of `logs` (set by the
-     * agent's mirror effect) — toggling here mutates only the dialog's
-     * view; we don't reach back into the agent's signal. While the agent
-     * is still streaming, the next mirror tick will overwrite the toggle.
-     * After the run finishes (no more mirrors), folds persist.
+     * Per-entry open/expand overrides for the panel and the CoT `<details>`,
+     * scoped to the state the user set them in. `state === 'running'` is the
+     * default (auto-open while working, auto-collapse once done) — but binding
+     * that reactively re-applies it every change-detection, so a manual
+     * collapse mid-run snaps back open. An override wins while the entry stays
+     * in the same state; on a state transition it lapses and the default
+     * applies once more.
      */
-    onTraceFoldToggle(entry: SaveProgressEntry, evt: { index: number; key: AgentLogFoldKey }): void {
-        const logs = entry.logs;
-        if (!logs) return;
-        const target = logs[evt.index];
-        if (!target) return;
-        const next = logs.slice();
-        next[evt.index] = { ...target, [evt.key]: !target[evt.key] };
-        this.tracker.setEntryLogs(entry.entryId, next);
+    private panelOverride = signal<EntryOverrides>(new Map());
+    private cotOverride = signal<EntryOverrides>(new Map());
+
+    /** The effective open state: a same-state user override, else the running default. */
+    private resolveOpen(overrides: EntryOverrides, entry: SaveProgressEntry): boolean {
+        const o = overrides.get(entry.entryId);
+        return o && o.state === entry.state ? o.value : entry.state === 'running';
+    }
+
+    /** Record a user toggle. Skips the write when it already matches the
+     *  resolved state — mat-expansion-panel and `<details>` both emit their
+     *  open/close events on programmatic toggles too, and a redundant write
+     *  would spin change detection (and risk ExpressionChangedAfterChecked). */
+    private writeOpen(target: WritableSignal<EntryOverrides>, entry: SaveProgressEntry, value: boolean): void {
+        if (this.resolveOpen(target(), entry) === value) return;
+        target.update(m => new Map(m).set(entry.entryId, { state: entry.state, value }));
+    }
+
+    protected isPanelExpanded(entry: SaveProgressEntry): boolean {
+        return this.resolveOpen(this.panelOverride(), entry);
+    }
+
+    protected onPanelToggle(entry: SaveProgressEntry, expanded: boolean): void {
+        this.writeOpen(this.panelOverride, entry, expanded);
+    }
+
+    protected isCotOpen(entry: SaveProgressEntry): boolean {
+        return this.resolveOpen(this.cotOverride(), entry);
+    }
+
+    protected onCotToggle(entry: SaveProgressEntry, open: boolean): void {
+        this.writeOpen(this.cotOverride, entry, open);
     }
 
     /** Whether an entry carries anything worth copying (trace / output / CoT). */
@@ -169,24 +194,24 @@ export class SaveProgressDialogComponent {
     }
 
     /**
-     * Compact checklist readout shown in the header in place of the long
-     * terminal summary (which overflows the description row). Returns null when
-     * the entry has no `updateTodos` checklist, or when it ended on `skipped` /
-     * `failed` — those need their `statusReason` (the skip reason / error)
-     * instead. While running: the first incomplete step + done count. On `done`:
-     * forced to total/total (e.g. 5/5) so the bar reads complete without the
-     * agent having to tick the final item.
+     * Per-entry checklist view-model, keyed by entryId. A `computed` (not a
+     * template method) so each change-detection reads a stable reference and
+     * doesn't re-allocate / thrash the inner `@for` bindings. Present only for
+     * entries that are running or done and carry a checklist — `skipped` /
+     * `failed` surface their `statusReason` instead. On `done` every item is
+     * forced complete so the header count and the rendered list agree without
+     * the agent having to tick the final box explicitly.
      */
-    todoProgress(entry: SaveProgressEntry): { current: string | null; done: number; total: number } | null {
-        const todos = entry.todos;
-        if (!todos?.length) return null;
-        if (entry.state !== 'running' && entry.state !== 'done') return null;
-        const total = todos.length;
-        if (entry.state === 'done') return { current: null, done: total, total };
-        return {
-            current: todos.find(t => !t.done)?.content ?? null,
-            done: todos.filter(t => t.done).length,
-            total,
-        };
-    }
+    protected readonly entryTodos = computed(() => {
+        const map = new Map<string, { items: readonly { content: string; done: boolean }[]; done: number; total: number }>();
+        for (const e of this.entries()) {
+            const todos = e.todos;
+            if (!todos?.length) continue;
+            if (e.state !== 'running' && e.state !== 'done') continue;
+            const forceDone = e.state === 'done';
+            const items = todos.map(t => ({ content: t.content, done: t.done || forceDone }));
+            map.set(e.entryId, { items, done: items.filter(t => t.done).length, total: items.length });
+        }
+        return map;
+    });
 }
