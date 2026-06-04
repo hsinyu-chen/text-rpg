@@ -511,6 +511,8 @@ export const en: TranslationDict = {
         spaceInvaders: 'Space Invaders',
         codeEditorBossKey: 'Code Editor (Boss Key)',
         idleOnBlur: 'Immediate Idle on Focus Loss',
+        cotDefaultCollapsed: 'Collapse thought panel by default',
+        analysisDefaultCollapsed: 'Collapse analysis panel by default',
         billingCurrency: 'Billing & Currency',
         enableConversion: 'Enable Currency Conversion',
         displayCurrency: 'Display Currency',

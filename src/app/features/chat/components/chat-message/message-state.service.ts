@@ -8,6 +8,7 @@ import { BookRepository } from '@app/core/services/storage/book.repository';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ChatMessage } from '@app/core/models/types';
 import { I18nService } from '@app/core/i18n';
+import { AppConfigStore } from '@app/core/services/app-config-store';
 
 @Injectable()
 export class MessageStateService {
@@ -19,6 +20,7 @@ export class MessageStateService {
     private snackBar = inject(MatSnackBar);
     private clipboard = inject(Clipboard);
     private i18n = inject(I18nService);
+    private appConfig = inject(AppConfigStore);
 
     // Reactive sources initialized by the component
     message = signal<ChatMessage>(null!);
@@ -31,21 +33,26 @@ export class MessageStateService {
         computation: (hasContent) => hasContent
     });
 
-    // Auto-expand/collapse analysis based on thinking state transition
+    // Auto-expand analysis while thinking — unless the user opted into
+    // `analysisDefaultCollapsed`. Source is a boolean computed so a manual
+    // toggle survives spurious same-value re-emits (linkedSignal only re-runs
+    // computation when the boolean actually flips).
+    private analysisDefaultVisible = computed(() => (this.message()?.isThinking ?? false) && !this.appConfig.analysisDefaultCollapsed());
     isAnalysisVisible = linkedSignal({
-        source: () => this.message()?.isThinking,
-        computation: (isThinking) => isThinking ?? false
+        source: this.analysisDefaultVisible,
+        computation: (visible) => visible
     });
 
-    // Engine drives this via `cotOpen`: true when a thought phase starts (turn
+    // Engine drives CoT via `cotOpen`: true when a thought phase starts (turn
     // begin / narrator phase begin in two-call), false on the first non-thought
-    // chunk. linkedSignal lets the user override mid-phase; the override holds
-    // until cotOpen flips again. Source is wrapped in computed() so spurious
-    // re-emits with the same boolean don't wipe the user's manual toggle.
-    private cotOpenSource = computed(() => this.message()?.cotOpen ?? false);
+    // chunk. `cotDefaultCollapsed` forces it closed regardless. linkedSignal lets
+    // the user override mid-phase; the override holds until the default flips.
+    // Source is the resolved boolean so spurious same-value re-emits don't wipe
+    // the user's manual toggle.
+    private cotDefaultVisible = computed(() => (this.message()?.cotOpen ?? false) && !this.appConfig.cotDefaultCollapsed());
     isThoughtVisible = linkedSignal({
-        source: this.cotOpenSource,
-        computation: (cotOpen) => cotOpen
+        source: this.cotDefaultVisible,
+        computation: (visible) => visible
     });
 
     isRaw = signal(false);

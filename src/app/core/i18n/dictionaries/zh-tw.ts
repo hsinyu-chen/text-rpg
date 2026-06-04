@@ -511,6 +511,8 @@ export const zhTW: TranslationDict = {
         spaceInvaders: '小蜜蜂',
         codeEditorBossKey: '程式編輯器（老闆鍵）',
         idleOnBlur: '失焦時立即計入閒置',
+        cotDefaultCollapsed: '思考區塊預設收合',
+        analysisDefaultCollapsed: '分析區塊預設收合',
         billingCurrency: '帳單與幣別',
         enableConversion: '啟用幣別換算',
         displayCurrency: '顯示幣別',
