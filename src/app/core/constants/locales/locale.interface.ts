@@ -36,6 +36,12 @@ export interface AppLocale {
         STATS_YAML: string;
     };
     /**
+     * Starter content for the numeric-stats ledger, scaffolded by the file
+     * viewer's "create stats ledger" action so authors don't hand-write the YAML.
+     * Must parse cleanly (zero warnings) under parseStats / validateStatsYaml.
+     */
+    statsLedgerTemplate: string;
+    /**
      * Locale-specific KB section headings the multi-agent save dispatcher
      * pins context to. These are the heading TEXTS (no `#` prefix); the
      * dispatcher wraps them into the appropriate breadcrumb form.

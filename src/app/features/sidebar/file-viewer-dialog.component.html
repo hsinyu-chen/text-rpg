@@ -68,6 +68,12 @@
                                 [matTooltip]="'sidebar.fileViewer.newFileTooltip' | translate">
                                 <mat-icon>note_add</mat-icon>
                             </button>
+                            @if (!hasStatsLedger()) {
+                            <button mat-icon-button class="new-file-btn" (click)="createStatsLedger()"
+                                [matTooltip]="'sidebar.fileViewer.statsLedgerTooltip' | translate">
+                                <mat-icon>query_stats</mat-icon>
+                            </button>
+                            }
                             }
                             <span class="file-count">{{ fileList().length }}</span>
                         </div>

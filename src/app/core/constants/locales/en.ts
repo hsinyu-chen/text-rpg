@@ -38,6 +38,40 @@ When performing the <Save> command, please only compare and synchronize based on
     optionalFilenames: {
         STATS_YAML: '0.Stats.yaml'
     },
+    statsLedgerTemplate: `# Numeric-stats definition file. Its presence opts this Book into the stats
+# system (requires the two-call engine). Each stat is self-describing; the LLM
+# emits stat_changes against these each turn.
+
+stats:
+  hp:
+    type: scalar          # scalar = single number; map = several named entries
+    value: 100            # starting value
+    min: 0                # lower bound (omit for none)
+    max: 100              # upper bound (omit for none); growth/debuff may move it
+    desc: Health; reaching 0 means down
+
+  affinity:
+    type: map             # one number per subkey (e.g. an NPC name)
+    value:
+      Pete Barker: 50     # an already-known NPC
+    min: 0
+    max: 100
+    allow_new_item: true  # let the LLM add a subkey for a newly-met NPC
+    desc: Each NPC's affinity toward the protagonist
+
+# Overall usage / growth guidance (passed verbatim to the LLM).
+rules: |
+  Injury lowers hp, healing restores it. Positive interactions raise an NPC's
+  affinity, conflict lowers it. On level-up, use field:"max" to raise hp's cap
+  (e.g. hp.max +20); a lasting wound may lower it.
+
+# Events: when condition is truthy the trigger fires into the narration.
+# type: level = fires whenever truthy; edge = fires once on a false->true crossing.
+events:
+  - condition: "hp.value <= 0"
+    type: edge
+    trigger: The protagonist goes down — a crisis
+`,
     kbSectionHeadings: {
         STORY_OUTLINE_CHRONICLE: 'Story Outline',
     },
