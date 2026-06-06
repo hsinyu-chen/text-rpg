@@ -384,6 +384,34 @@ describe('evaluateEvents', () => {
     expect(warnings.length).toBeGreaterThan(0);
   });
 
+  it('does not execute injected code when a stat key bypasses key validation', () => {
+    // A ParsedStats crafted directly (not via parseStats, which rejects this key)
+    // smuggles a malicious param name into compileCondition's `new Function`. The
+    // defense-in-depth guard must compile it to a non-triggering fn, never run it.
+    const pwnKey = Symbol.for('stat-pwn');
+    const sink = globalThis as unknown as Record<symbol, unknown>;
+    delete sink[pwnKey];
+    const malicious = 'hp),{}; (globalThis[Symbol.for("stat-pwn")]=1);//';
+    const stats: ParsedStats = {
+      stats: { [malicious]: { type: 'scalar', min: 0, max: 100, value: 0 } },
+      rules: '',
+      events: [],
+    };
+    const events: StatEvent[] = [{ condition: 'true', type: 'level', trigger: 'boom' }];
+    const warnings: string[] = [];
+    const out = evaluateEvents(
+      stats,
+      { [malicious]: 0 },
+      { [malicious]: 0 },
+      events,
+      new Map(),
+      warnings,
+    );
+    expect(out).toEqual([]);
+    expect(sink[pwnKey]).toBeUndefined();
+    expect(warnings.some((w) => w.includes('invalid stat param name'))).toBe(true);
+  });
+
   it('console.warns a throwing condition when no warnings array is supplied', () => {
     const events: StatEvent[] = [
       { condition: 'hp.value.nope.crash()', type: 'level', trigger: 'boom' },

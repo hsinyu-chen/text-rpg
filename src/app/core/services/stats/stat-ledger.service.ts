@@ -7,6 +7,7 @@ import {
   StatEvent,
   StatValues,
 } from '../../models/stats.types';
+import { isValidStatKey } from './stats-yaml.util';
 
 /** Clamp `n` to `[min, max]`; either bound is optional (open on that side). */
 export function clamp(n: number, min?: number, max?: number): number {
@@ -223,9 +224,10 @@ function buildConditionArgs(
  * condition reads `hp.value <= 0` or `affinity.value["王如花"] < 50`. `level`
  * events fire whenever the condition is truthy on curr; `edge` events fire only
  * on a false->true crossing (falsy on prev, truthy on curr). A condition that
- * fails to compile (malformed source) or throws at runtime is treated as
- * not-triggered (the turn must never crash); the failure is pushed to `warnings`
- * when one is supplied, otherwise `console.warn`d so it's never silently swallowed.
+ * fails to compile (malformed source), carries a stat param name that isn't a
+ * single legal identifier, or throws at runtime is treated as not-triggered (the
+ * turn must never crash); the failure is pushed to `warnings` when one is
+ * supplied, otherwise `console.warn`d so it's never silently swallowed.
  */
 export function evaluateEvents(
   stats: ParsedStats,
@@ -242,7 +244,7 @@ export function evaluateEvents(
   for (const event of events) {
     let fn: CompiledCondition;
     try {
-      fn = compileCondition(event.condition, prev.names, cache);
+      fn = compileCondition(event.condition, prev.names, cache, warnings);
     } catch (err) {
       const message = `Event condition "${event.condition}" failed to compile: ${err instanceof Error ? err.message : String(err)}`;
       if (warnings) warnings.push(message);
@@ -265,10 +267,13 @@ export function evaluateEvents(
   return triggered;
 }
 
+const alwaysFalse: CompiledCondition = () => false;
+
 function compileCondition(
   condition: string,
   paramNames: string[],
   cache: Map<string, CompiledCondition>,
+  warnings?: string[],
 ): CompiledCondition {
   // The compiled fn bakes paramNames in as its formal parameters, so two stat
   // schemas sharing a condition string but differing in key set/order must not
@@ -276,6 +281,20 @@ function compileCondition(
   const cacheKey = `${paramNames.join(',')}|${condition}`;
   const cached = cache.get(cacheKey);
   if (cached) return cached;
+  // Defense-in-depth: paramNames are stat keys already validated by parseStats,
+  // but `new Function` is the dangerous sink — re-prove every name is a single
+  // legal identifier here so the security property is local to this call site.
+  // A bad name (e.g. an injection like `a),{};return process//`) compiles to the
+  // always-false fn instead of executing, keeping the guarantee independent of
+  // every upstream caller having sanitized its keys.
+  const badName = paramNames.find((name) => !isValidStatKey(name));
+  if (badName !== undefined) {
+    const message = `Event condition "${condition}" skipped: invalid stat param name "${badName}".`;
+    if (warnings) warnings.push(message);
+    else console.warn(`[StatLedger] ${message}`);
+    cache.set(cacheKey, alwaysFalse);
+    return alwaysFalse;
+  }
   // v1 treats stat-event conditions as author-trusted content (same accepted
   // posture as post-processor.service.ts's `new Function`); a sandbox is deferred to v2.
   const fn = new Function(...paramNames, `return (${condition});`) as CompiledCondition;
