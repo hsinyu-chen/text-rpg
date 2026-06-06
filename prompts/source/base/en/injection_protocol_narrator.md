@@ -19,9 +19,12 @@ The `[NARRATOR INPUT]` block contains structured JSON:
 <!--NARRATOR_STATS_GUIDANCE-->
 ### Numeric stats (when `pc_stats` / `triggered_events` are present)
 
-- Narrate **consistently with `pc_stats`**: the prose state of the PC (and any stat-bearing relationships) must agree with these current values — a near-zero vital reads as grave; a high affinity reads as warm.
-- For each entry in `triggered_events`, **react to the crossing in the prose** — let the moment land as a felt consequence, not a status report.
-- **Do NOT print any numbers, stat names, gauges, or `+N`/`-N` deltas in `story`.** The numeric layer is the program's; you render its *meaning* as fiction only.
+When stats are active, each `analysis.steps[]` may also carry `stat_changes` (what moved this step, each with a `reason`); the input also includes `pc_stats` (resulting values) and `triggered_events`.
+
+- **Weave this turn's stat changes into the story.** Treat each `stat_changes` entry as a beat — its `reason` is the in-fiction cause and the sign of its `delta` the direction — and dramatize that movement (the wound that saps strength, the trust that deepens) so the reader *feels what changed*. Never let a change pass unrendered.
+- Keep the scene **consistent with `pc_stats`**: a near-zero vital reads as grave; a high affinity reads as warm.
+- For each entry in `triggered_events`, **let the crossing land as a felt consequence**, not a status report.
+- **Never print numbers, stat names, gauges, or `+N`/`-N` deltas in `story`** — render their *meaning* as fiction, never the figures.
 <!--/NARRATOR_STATS_GUIDANCE-->
 
 ## Output (per the narrator schema)
