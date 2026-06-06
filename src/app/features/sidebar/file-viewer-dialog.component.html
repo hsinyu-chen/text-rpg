@@ -25,7 +25,7 @@
                 [matTooltip]="(isDiffView() ? 'sidebar.fileViewer.showNormalView' : 'sidebar.fileViewer.showDiffView') | translate">
                 <mat-icon>{{ isDiffView() ? 'difference' : 'compare' }}</mat-icon>
             </button>
-            @if (canEdit()) {
+            @if (canEdit() && !data.createWorldMode) {
             <button mat-icon-button class="delete-file-btn" (click)="deleteFile()"
                 [matTooltip]="'sidebar.fileViewer.deleteFileTooltip' | translate">
                 <mat-icon>delete</mat-icon>
@@ -211,15 +211,17 @@
 
         <!-- Monaco Editor -->
         <div class="editor-container">
-            @if (isDiffView()) {
-                <app-monaco-editor #editorRef [multiModelMode]="true" [files]="data.files"
-                    [originalFiles]="dbBaselineSnapshot()" [activeFile]="activeFile()"
-                    [options]="agentDiffEditorOptions()" (valueChange)="onValueChange($event)">
-                </app-monaco-editor>
-            } @else {
-                <app-monaco-editor #editorRef [multiModelMode]="true" [files]="data.files" [activeFile]="activeFile()"
-                    [options]="editorOptions()" (valueChange)="onValueChange($event)">
-                </app-monaco-editor>
+            @if (fileList().length > 0) {
+                @if (isDiffView()) {
+                    <app-monaco-editor #editorRef [multiModelMode]="true" [files]="data.files"
+                        [originalFiles]="dbBaselineSnapshot()" [activeFile]="activeFile()"
+                        [options]="agentDiffEditorOptions()" (valueChange)="onValueChange($event)">
+                    </app-monaco-editor>
+                } @else {
+                    <app-monaco-editor #editorRef [multiModelMode]="true" [files]="data.files" [activeFile]="activeFile()"
+                        [options]="editorOptions()" (valueChange)="onValueChange($event)">
+                    </app-monaco-editor>
+                }
             }
         </div>
 

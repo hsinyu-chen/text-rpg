@@ -566,6 +566,8 @@ export class FileViewerDialogComponent implements OnDestroy {
         return next;
       });
 
+      this.editorRef()?.removeFile(fileName);
+
       const remaining = this.fileList();
       this.activeFile.set(remaining[0] ?? '');
       this.activeFileContent.set(this.data.files.get(this.activeFile()) ?? '');
