@@ -1,0 +1,320 @@
+import { Injectable } from '@angular/core';
+import {
+  AppliedDelta,
+  ParsedStats,
+  StatChange,
+  StatDefinition,
+  StatEvent,
+  StatValues,
+} from '../../models/stats.types';
+
+/** Clamp `n` to `[min, max]`; either bound is optional (open on that side). */
+export function clamp(n: number, min?: number, max?: number): number {
+  let out = n;
+  if (typeof min === 'number') out = Math.max(out, min);
+  if (typeof max === 'number') out = Math.min(out, max);
+  return out;
+}
+
+/**
+ * Apply an ordered list of {@link StatChange}s to a baseline, producing the new
+ * values plus an audit trail. Pure: `baseline` is deep-copied and never mutated.
+ *
+ * Changes are processed strictly in order — the caller is responsible for
+ * passing only surviving/truncated steps, already flattened. Clamping happens
+ * AFTER every change so a value that transiently exceeds a bound mid-sequence is
+ * pinned at each step (no remembered overflow). Authorization, accumulation
+ * protection, and tolerance rules are documented inline per branch.
+ */
+export function fold(
+  stats: ParsedStats,
+  baseline: StatValues,
+  changes: StatChange[],
+): { values: StatValues; applied: AppliedDelta[] } {
+  const values: StatValues = deepCopyValues(baseline);
+  const applied: AppliedDelta[] = [];
+
+  for (const change of changes) {
+    applied.push(applyChange(stats, values, change));
+  }
+
+  return { values, applied };
+}
+
+function applyChange(stats: ParsedStats, values: StatValues, change: StatChange): AppliedDelta {
+  const { key, subkey } = change;
+  const def = stats.stats[key];
+
+  if (!def) {
+    return drop(change, 0, `Unknown stat "${key}".`);
+  }
+
+  if (subkey === undefined) {
+    return applyScalar(def, values, change);
+  }
+
+  if (def.type !== 'map') {
+    return drop(change, 0, `Stat "${key}" is scalar but a subkey "${subkey}" was given.`);
+  }
+
+  return applyMapSubkey(def, values, change);
+}
+
+function applyScalar(def: StatDefinition, values: StatValues, change: StatChange): AppliedDelta {
+  const { key, delta, value, reason } = change;
+  const before = typeof values[key] === 'number' ? (values[key] as number) : 0;
+
+  // Safety net: a scalar must accumulate via delta. An absolute `value` on an
+  // existing scalar would clobber the running total, so ignore it.
+  if (value !== undefined && delta === undefined) {
+    return {
+      key,
+      before,
+      after: before,
+      value,
+      reason,
+      dropped: true,
+      warning: `Scalar "${key}" received absolute value; ignored to protect accumulation.`,
+    };
+  }
+
+  const after = clamp(before + (delta ?? 0), def.min, def.max);
+  values[key] = after;
+  return { key, before, after, delta, reason };
+}
+
+function applyMapSubkey(def: StatDefinition, values: StatValues, change: StatChange): AppliedDelta {
+  const { key, subkey, delta, value, reason } = change;
+  const sub = subkey as string;
+  const map = ensureMap(values, key);
+  const exists = Object.prototype.hasOwnProperty.call(map, sub);
+  const before = exists ? map[sub] : 0;
+
+  if (exists) {
+    // Safety net: protect an existing subkey's running total from an absolute set.
+    if (value !== undefined && delta === undefined) {
+      return {
+        key,
+        subkey: sub,
+        before,
+        after: before,
+        value,
+        reason,
+        dropped: true,
+        warning: `Subkey "${key}.${sub}" received absolute value; ignored to protect accumulation.`,
+      };
+    }
+    const after = clamp(before + (delta ?? 0), def.min, def.max);
+    map[sub] = after;
+    return { key, subkey: sub, before, after, delta, reason };
+  }
+
+  // New subkey — only authorized when the stat opts in.
+  if (!def.allow_new_item) {
+    return {
+      key,
+      subkey: sub,
+      before,
+      after: before,
+      delta,
+      value,
+      reason,
+      dropped: true,
+      warning: `New subkey "${key}.${sub}" not allowed (allow_new_item is false).`,
+    };
+  }
+
+  // Authorized creation. `value` is the intended absolute initial amount; a
+  // `delta` on a not-yet-existing subkey is tolerated as its initial value.
+  if (value !== undefined) {
+    const after = clamp(value, def.min, def.max);
+    map[sub] = after;
+    return { key, subkey: sub, before, after, value, reason };
+  }
+
+  const after = clamp(delta ?? 0, def.min, def.max);
+  map[sub] = after;
+  return {
+    key,
+    subkey: sub,
+    before,
+    after,
+    delta,
+    reason,
+    warning: `New subkey "${key}.${sub}" created from delta as its initial value.`,
+  };
+}
+
+function drop(change: StatChange, before: number, warning: string): AppliedDelta {
+  return {
+    key: change.key,
+    subkey: change.subkey,
+    before,
+    after: before,
+    delta: change.delta,
+    value: change.value,
+    reason: change.reason,
+    dropped: true,
+    warning,
+  };
+}
+
+function ensureMap(values: StatValues, key: string): Record<string, number> {
+  const current = values[key];
+  if (typeof current === 'object' && current !== null) return current;
+  const fresh: Record<string, number> = {};
+  values[key] = fresh;
+  return fresh;
+}
+
+function deepCopyValues(values: StatValues): StatValues {
+  const out: StatValues = {};
+  for (const [key, val] of Object.entries(values)) {
+    out[key] = typeof val === 'object' && val !== null ? { ...val } : val;
+  }
+  return out;
+}
+
+/**
+ * Flatten chronological per-message delta lists and fold them onto the baseline.
+ * `deltaLists` is each message's `stat_delta` in order — kept decoupled from
+ * ChatMessage on purpose so the ledger stays free of the chat model.
+ */
+export function computeCurrent(
+  stats: ParsedStats,
+  baseline: StatValues,
+  deltaLists: StatChange[][],
+): StatValues {
+  return fold(stats, baseline, deltaLists.flat()).values;
+}
+
+/** The per-stat named argument exposed to a compiled event condition. */
+interface StatArg {
+  value: number | Record<string, number>;
+  min?: number;
+  max?: number;
+}
+
+type CompiledCondition = (...args: StatArg[]) => unknown;
+
+/**
+ * Build the ordered named-argument list (param names + matching values) handed
+ * to a compiled condition. Same stat order is used for both prev and curr
+ * evaluation so a single compiled function applies to both.
+ */
+function buildConditionArgs(
+  stats: ParsedStats,
+  values: StatValues,
+): { names: string[]; args: StatArg[] } {
+  const names: string[] = [];
+  const args: StatArg[] = [];
+  for (const [key, def] of Object.entries(stats.stats)) {
+    names.push(key);
+    const raw = values[key];
+    args.push({
+      value: typeof raw === 'object' && raw !== null ? raw : typeof raw === 'number' ? raw : 0,
+      min: def.min,
+      max: def.max,
+    });
+  }
+  return { names, args };
+}
+
+/**
+ * Evaluate stat events against a prev/curr value pair, returning the triggered
+ * `trigger` strings in event order.
+ *
+ * Each condition is compiled once (cached by its source string) into a function
+ * whose parameters are the stat keys, each bound to a {@link StatArg} so a
+ * condition reads `hp.value <= 0` or `affinity.value["王如花"] < 50`. `level`
+ * events fire whenever the condition is truthy on curr; `edge` events fire only
+ * on a false->true crossing (falsy on prev, truthy on curr). A condition that
+ * throws is treated as not-triggered (the turn must never crash) and noted in
+ * `warnings`.
+ */
+export function evaluateEvents(
+  stats: ParsedStats,
+  prevValues: StatValues,
+  currValues: StatValues,
+  events: StatEvent[],
+  cache = new Map<string, CompiledCondition>(),
+  warnings: string[] = [],
+): string[] {
+  const triggered: string[] = [];
+  const prev = buildConditionArgs(stats, prevValues);
+  const curr = buildConditionArgs(stats, currValues);
+
+  for (const event of events) {
+    const fn = compileCondition(event.condition, prev.names, cache);
+
+    const currTruthy = safeEval(fn, curr.args, event.condition, warnings);
+    if (!currTruthy) continue;
+
+    if (event.type === 'level') {
+      triggered.push(event.trigger);
+      continue;
+    }
+
+    const prevTruthy = safeEval(fn, prev.args, event.condition, warnings);
+    if (!prevTruthy) triggered.push(event.trigger);
+  }
+
+  return triggered;
+}
+
+function compileCondition(
+  condition: string,
+  paramNames: string[],
+  cache: Map<string, CompiledCondition>,
+): CompiledCondition {
+  const cached = cache.get(condition);
+  if (cached) return cached;
+  const fn = new Function(...paramNames, `return (${condition});`) as CompiledCondition;
+  cache.set(condition, fn);
+  return fn;
+}
+
+function safeEval(
+  fn: CompiledCondition,
+  args: StatArg[],
+  condition: string,
+  warnings: string[],
+): boolean {
+  try {
+    return Boolean(fn(...args));
+  } catch (err) {
+    warnings.push(`Event condition "${condition}" threw: ${(err as Error).message}`);
+    return false;
+  }
+}
+
+@Injectable({ providedIn: 'root' })
+export class StatLedgerService {
+  private readonly conditionCache = new Map<string, CompiledCondition>();
+
+  clamp(n: number, min?: number, max?: number): number {
+    return clamp(n, min, max);
+  }
+
+  fold(
+    stats: ParsedStats,
+    baseline: StatValues,
+    changes: StatChange[],
+  ): { values: StatValues; applied: AppliedDelta[] } {
+    return fold(stats, baseline, changes);
+  }
+
+  computeCurrent(stats: ParsedStats, baseline: StatValues, deltaLists: StatChange[][]): StatValues {
+    return computeCurrent(stats, baseline, deltaLists);
+  }
+
+  evaluateEvents(
+    stats: ParsedStats,
+    prevValues: StatValues,
+    currValues: StatValues,
+    events: StatEvent[],
+    warnings: string[] = [],
+  ): string[] {
+    return evaluateEvents(stats, prevValues, currValues, events, this.conditionCache, warnings);
+  }
+}
