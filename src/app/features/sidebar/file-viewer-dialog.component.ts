@@ -516,7 +516,7 @@ export class FileViewerDialogComponent implements OnDestroy {
     // traversal, no empty segments (leading/trailing/'//' yield empty FSA dir
     // names), and no characters that crash Windows disk sync.
     const segments = name.split('/');
-    const hasInvalidSegment = segments.some(seg => seg === '' || seg === '.' || seg === '..');
+    const hasInvalidSegment = segments.some(seg => seg.trim() === '' || seg === '.' || seg === '..');
     if (hasInvalidSegment || /[\\:*?"<>|]/.test(name)) {
       await this.dialogService.alert(this.t('newFileInvalidError'), this.t('newFileTitle'));
       return;
