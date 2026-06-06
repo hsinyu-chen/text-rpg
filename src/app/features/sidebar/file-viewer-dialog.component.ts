@@ -154,7 +154,7 @@ export class FileViewerDialogComponent implements OnDestroy {
   fileList = computed(() => [...this.fileNames()].sort());
 
   /** True once a numeric-stats ledger exists (any locale) — hides the create-ledger action. */
-  protected readonly hasStatsLedger = computed(() => this.fileNames().some(isStatsYamlFilename));
+  protected readonly hasStatsLedger = computed(() => this.fileNames().some(name => isStatsYamlFilename(name)));
 
   // Check if current file can be edited
   canEdit = computed(() => {
@@ -555,8 +555,7 @@ export class FileViewerDialogComponent implements OnDestroy {
       return;
     }
 
-    const exists = [...this.data.files.keys()].some(f => f.toLowerCase() === name.toLowerCase());
-    if (exists) {
+    if (this.fileExists(name)) {
       await this.dialogService.alert(this.t('newFileDuplicateError', { name }), this.t('newFileTitle'));
       return;
     }
@@ -582,6 +581,13 @@ export class FileViewerDialogComponent implements OnDestroy {
     }
     const locale = getLocale(this.appConfig.outputLanguage());
     const fileName = locale.optionalFilenames.STATS_YAML;
+    // A case-only collision (e.g. a hand-made "0.stats.yaml") isn't seen by
+    // hasStatsLedger (exact match) yet maps to the same OPFS file — guard it as
+    // createFile does, so the file list never desyncs from disk.
+    if (this.fileExists(fileName)) {
+      await this.dialogService.alert(this.t('newFileDuplicateError', { name: fileName }), this.t('statsLedgerTitle'));
+      return;
+    }
     try {
       await this.addNewFile(fileName, locale.statsLedgerTemplate);
       this.snackBar.open(this.t('statsLedgerCreated'), this.i18n.translate('ui.CLOSE'), { duration: 3000 });
@@ -602,6 +608,15 @@ export class FileViewerDialogComponent implements OnDestroy {
    * `selectFile` because models are created upfront at init only, so a freshly
    * created file has none and `switchToFile` would no-op with a warning.
    */
+  /**
+   * Case-insensitive existence check. OPFS is case-insensitive on Windows/macOS,
+   * so a differently-cased name resolves to the same file on disk; both create
+   * paths guard with this before adding to avoid a file-list/disk desync.
+   */
+  private fileExists(name: string): boolean {
+    return [...this.data.files.keys()].some(f => f.toLowerCase() === name.toLowerCase());
+  }
+
   private async addNewFile(name: string, content: string): Promise<void> {
     await this.engine.updateSingleFile(name, content);
     this.data.files.set(name, content);
