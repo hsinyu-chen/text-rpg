@@ -19,10 +19,10 @@
 <!--NARRATOR_STATS_GUIDANCE-->
 ### 數值（當輸入帶有 `pc_stats` / `triggered_events` 時）
 
-數值啟用時，`analysis.steps[]` 各步可能另帶 `stat_changes`（本步變動了什麼，每筆附 `reason`）；輸入也含 `pc_stats`（變動後的值）與 `triggered_events`。
+數值啟用時，某個 step 可能帶 `stat_changes`（**該 step** 的數值後果，每筆附 `reason`）；輸入也含 `pc_stats`（變動後的值）與 `triggered_events`。
 
-- **把本回合的數值變化編進劇情。** 將每一筆 `stat_changes` 當成一個情節節拍——`reason` 是它在故事中的成因、`delta` 的正負是方向——把那個變動演出來（耗損氣力的傷、漸深的信任），讓讀者*感覺到變了什麼*。任何變化都不可略過不寫。
-- 場景須**與 `pc_stats` 一致**：某項生命值將近歸零就寫得危殆，好感度高就寫得親暱。
+- **用一個 step 的 `stat_changes` 決定你渲染該 step 的戲劇份量。** 變動幅度代表這一刻對 PC 的代價或收穫有多重，正負代表好壞——大幅下降寫成重創，輕微變動寫成擦身而過的小插曲，關係值上升寫成漸深的暖意。它是**調節你本來就在敘述的那個 step——不是另一個獨立節拍**，也不凌駕該 step 自身的 `outcome` / `mood` / `breaks_ideal`（它是這些信號的量化夥伴）。
+- 場景須**與 `pc_stats` 一致**（變動後的狀態）：某項生命值將近歸零就寫得危殆，好感度高就寫得親暱。
 - `triggered_events` 內每一項，**讓那一刻成為可感受的後果**，而非狀態回報。
 - **`story` 中絕不出現數字、數值名稱、量表或 `+N`/`-N` 增量**——只把它的*意義*寫成虛構情節，絕不寫出數字本身。
 <!--/NARRATOR_STATS_GUIDANCE-->

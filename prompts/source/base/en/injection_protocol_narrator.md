@@ -19,10 +19,10 @@ The `[NARRATOR INPUT]` block contains structured JSON:
 <!--NARRATOR_STATS_GUIDANCE-->
 ### Numeric stats (when `pc_stats` / `triggered_events` are present)
 
-When stats are active, each `analysis.steps[]` may also carry `stat_changes` (what moved this step, each with a `reason`); the input also includes `pc_stats` (resulting values) and `triggered_events`.
+When stats are active, a step may carry `stat_changes` (the numeric consequence of *that* step, each with a `reason`); the input also includes `pc_stats` (resulting values) and `triggered_events`.
 
-- **Weave this turn's stat changes into the story.** Treat each `stat_changes` entry as a beat — its `reason` is the in-fiction cause and the sign of its `delta` the direction — and dramatize that movement (the wound that saps strength, the trust that deepens) so the reader *feels what changed*. Never let a change pass unrendered.
-- Keep the scene **consistent with `pc_stats`**: a near-zero vital reads as grave; a high affinity reads as warm.
+- **Let a step's `stat_changes` set the dramatic weight of how you render that step.** The magnitude is how much the moment costs or gives the PC; the sign is its valence — a large drop lands as a serious blow, a slight one as a glancing note, a relationship gain as deepening warmth. It **modulates the step you are already narrating — it is not a separate beat**, and it does not override that step's own `outcome` / `mood` / `breaks_ideal` (it is the quantified companion to those signals).
+- Keep the scene **consistent with `pc_stats`** (the resulting state): a near-zero vital reads as grave; a high affinity reads as warm.
 - For each entry in `triggered_events`, **let the crossing land as a felt consequence**, not a status report.
 - **Never print numbers, stat names, gauges, or `+N`/`-N` deltas in `story`** — render their *meaning* as fiction, never the figures.
 <!--/NARRATOR_STATS_GUIDANCE-->
