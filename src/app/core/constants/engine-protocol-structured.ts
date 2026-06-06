@@ -1,4 +1,5 @@
 import { Schema } from '../models/types';
+import { StatChange } from '../models/stats.types';
 
 /**
  * Unified structured analysis used by both engine modes (1-call and 2-call).
@@ -170,6 +171,14 @@ export interface AnalysisStep {
      * Use `""` when nothing persistent changes this step.
      */
     scene_change: string;
+    /**
+     * Numeric-stat mutations this step produces. Present only when the book
+     * opts into the numeric-stats system (the schema injects the field via
+     * {@link getStructuredAnalysisSchema}'s `enableStats` gate); absent for
+     * every existing book. Each entry follows {@link StatChange}: `delta` for a
+     * scalar / existing map subkey, `value` for a brand-new map subkey.
+     */
+    stat_changes?: StatChange[];
 }
 
 export interface StructuredAnalysis {
@@ -328,10 +337,27 @@ const objectReactionSchema: Schema = {
     required: ['name', 'change']
 };
 
-const analysisStepSchema: Schema = {
+/**
+ * Per-change schema for {@link AnalysisStep.stat_changes}. Injected into the
+ * step schema only when the numeric-stats system is opted in. `delta` and
+ * `value` are mutually exclusive (delta = scalar / existing-subkey accumulation,
+ * value = brand-new subkey initial amount); only `key` is required.
+ */
+const statChangeSchema: Schema = {
     type: 'object',
-    description: 'One atomic step in the turn\'s sequence — either a user_intent step (an action the user described) or an event step (a non-user occurrence YOU judged this turn — random injection, a passive skill/item activation, OR an authored story-hook firing; see `source`). Both kinds carry the same NPC + object reaction fields and the same breaks_ideal semantics.',
+    description: 'One numeric-stat mutation produced by this step. Use `delta` for a scalar stat or an existing map subkey (accumulates), `value` for a brand-new map subkey (absolute initial amount) — set exactly one of the two.',
     properties: {
+        key: { type: 'string', description: 'Stat key being changed. MUST match a stat declared in the book\'s numeric-stats definition.' },
+        subkey: { type: 'string', description: 'Map subkey within `key` for map-type stats (e.g. an item name under an inventory stat). Omit for scalar stats.' },
+        delta: { type: 'number', description: 'Signed amount to ADD to the current scalar / existing-subkey value (e.g. -5, +10). Mutually exclusive with `value`.' },
+        value: { type: 'number', description: 'Absolute initial amount for a brand-new map subkey. Mutually exclusive with `delta`.' },
+        reason: { type: 'string', description: 'Short human-readable justification for the change, surfaced in the save log / UI.' }
+    },
+    required: ['key']
+};
+
+const buildAnalysisStepSchema = (options?: { enableStats?: boolean }): Schema => {
+    const properties: Record<string, Schema> = {
         kind: {
             type: 'string',
             enum: [...STEP_KINDS],
@@ -385,11 +411,32 @@ const analysisStepSchema: Schema = {
             type: 'string',
             description: 'Mandatory CUMULATIVE STATE DELTA from this step — short free-form prose describing what physical / outer state PERSISTS past this moment (clothing pulled off, equipment unsheathed, item taken into hand, posture shift that holds, injury sustained, awareness flipped to 昏迷, object physical condition flipped). DISTINCT from npc_reactions[].physical (momentary motion that does not persist) and object_reactions[].change (single-step event description). Leave empty / "" when nothing persistent changes. The narrator (and subsequent turns) reconstruct current scene state by replaying scene_change deltas in order. Examples: "李如玉衣物已退至腰下；殘片落在床上" / "王大福右手握住劍柄,劍已半出鞘" / "" (nothing persistent).'
         }
-    },
-    required: ['kind', 'source', 'hook_title', 'action', 'pc_dialogue', 'mood', 'risk_factors', 'outcome', 'breaks_ideal', 'npc_reactions', 'object_reactions', 'scene_change']
+    };
+
+    if (options?.enableStats) {
+        properties['stat_changes'] = {
+            type: 'array',
+            description: 'Numeric-stat mutations this step produces against the book\'s declared stats. Empty array when this step changes no stat. Each entry sets exactly one of `delta` (scalar / existing map subkey) or `value` (brand-new map subkey).',
+            items: statChangeSchema
+        };
+    }
+
+    return {
+        type: 'object',
+        description: 'One atomic step in the turn\'s sequence — either a user_intent step (an action the user described) or an event step (a non-user occurrence YOU judged this turn — random injection, a passive skill/item activation, OR an authored story-hook firing; see `source`). Both kinds carry the same NPC + object reaction fields and the same breaks_ideal semantics.',
+        properties,
+        required: ['kind', 'source', 'hook_title', 'action', 'pc_dialogue', 'mood', 'risk_factors', 'outcome', 'breaks_ideal', 'npc_reactions', 'object_reactions', 'scene_change']
+    };
 };
 
-export const structuredAnalysisSchema: Schema = {
+/**
+ * Builds the unified structured-analysis schema. When `options.enableStats` is
+ * true the per-step schema gains a `stat_changes` array (the numeric-stats
+ * opt-in); when false/absent the schema is byte-for-byte the opt-out shape every
+ * existing book relies on. {@link structuredAnalysisSchema} is the default-off
+ * snapshot retained for callers that don't thread options.
+ */
+export const getStructuredAnalysisSchema = (options?: { enableStats?: boolean }): Schema => ({
     type: 'object',
     description: 'Structured atomic-action breakdown + judgment. Used by 1-call (alongside story/summary/*_log) and by 2-call resolver (which then hands the analysis to the narrator). For non-action inputs (general <系統> Q&A, <存檔>) callers may pass null instead of this object.',
     properties: {
@@ -397,14 +444,16 @@ export const structuredAnalysisSchema: Schema = {
         steps: {
             type: 'array',
             description: 'Atomic steps in input order, mixing user_intent and event kinds (where event sub-categorizes into source:"random" / source:"skill_item" / source:"hook_fire"). At least 1 element when this object is non-null. The model stops emitting steps after the first breaks_ideal=true (which becomes the last element); subsequent attempted steps are NOT emitted. Program-side truncation is a safety net only.',
-            items: analysisStepSchema
+            items: buildAnalysisStepSchema(options)
         }
     },
     required: ['scene_snapshot', 'steps']
-};
+});
+
+export const structuredAnalysisSchema: Schema = getStructuredAnalysisSchema();
 
 /**
- * Resolver schema for 2-call mode. Wraps {@link structuredAnalysisSchema} with
+ * Resolver schema for 2-call mode. Wraps {@link getStructuredAnalysisSchema} with
  * the player-intent fields (ideal_outcome / ideal_strength) the narrator needs
  * but cannot derive (it does not see the original user input).
  *
@@ -413,7 +462,7 @@ export const structuredAnalysisSchema: Schema = {
  * `analysis.steps[].breaks_ideal` so the model never self-reports an
  * inconsistent flag.
  */
-export const getResolverSchemaV2 = (lang = 'default'): Schema => {
+export const getResolverSchemaV2 = (lang = 'default', options?: { enableStats?: boolean }): Schema => {
     void lang;
     return {
         type: 'object',
@@ -428,7 +477,7 @@ export const getResolverSchemaV2 = (lang = 'default'): Schema => {
                 enum: [...IDEAL_STRENGTHS],
                 description: 'How rigid the user\'s expectation is. perfectionist = any deviation is failure; pragmatic = partial success acceptable; desperate = surviving counts as success. Default pragmatic. Drives narrator tension when breaks_ideal=false but outcome is imperfect.'
             },
-            analysis: structuredAnalysisSchema
+            analysis: getStructuredAnalysisSchema(options)
         },
         required: ['ideal_outcome', 'ideal_strength', 'analysis']
     };

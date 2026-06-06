@@ -143,6 +143,7 @@ describe('two-call orchestrator integration', () => {
             dynamicProtocolSingle: '',
             dynamicCorrection: '',
             engineMode: 'two-call',
+            enableStatsSystem: false,
             ...overrides
         };
     }
@@ -268,6 +269,33 @@ describe('two-call orchestrator integration', () => {
         expect(Object.keys(resolverSchema.properties ?? {})).toContain('analysis');
         expect(Object.keys(narratorSchema.properties ?? {})).toContain('story');
         expect(Object.keys(narratorSchema.properties ?? {})).not.toContain('analysis');
+    });
+
+    function resolverStepProps() {
+        const schema = mockProvider.calls[0].genConfig.responseSchema as {
+            properties: { analysis: { properties: { steps: { items: { properties: Record<string, unknown> } } } } };
+        };
+        return schema.properties.analysis.properties.steps.items.properties;
+    }
+
+    it('omits stat_changes from the resolver schema when enableStatsSystem is false (opt-in off)', async () => {
+        pushUser('x');
+        mockProvider.enqueueJsonStream(resolverJson({ ideal_outcome: '', ideal_strength: 'pragmatic', analysis: analysis() }));
+        mockProvider.enqueueJsonStream(narratorJson('s'));
+
+        await getEngine().runTurn(runtime('x', { enableStatsSystem: false }));
+
+        expect(resolverStepProps()).not.toHaveProperty('stat_changes');
+    });
+
+    it('threads enableStatsSystem=true through to a stat_changes resolver schema', async () => {
+        pushUser('x');
+        mockProvider.enqueueJsonStream(resolverJson({ ideal_outcome: '', ideal_strength: 'pragmatic', analysis: analysis() }));
+        mockProvider.enqueueJsonStream(narratorJson('s'));
+
+        await getEngine().runTurn(runtime('x', { enableStatsSystem: true }));
+
+        expect(resolverStepProps()).toHaveProperty('stat_changes');
     });
 
     it('injects {{IDEAL_OUTCOME_CONSTRAINT}} into the resolver call when the latest user msg supplied userIdealOutcome', async () => {

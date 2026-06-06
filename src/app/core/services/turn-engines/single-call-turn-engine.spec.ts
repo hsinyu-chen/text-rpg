@@ -85,7 +85,8 @@ describe('SingleCallTurnEngine.runTurn', () => {
         dynamicProtocolNarrator: '',
         dynamicProtocolSingle: '',
         dynamicCorrection: '',
-        engineMode: 'single'
+        engineMode: 'single',
+        enableStatsSystem: false
     };
 
     function input(extra: { systemInstruction?: string; cachedContentName?: string } = {}) {

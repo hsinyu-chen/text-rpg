@@ -35,6 +35,9 @@ export const ZH_TW_LOCALE: AppLocale = {
         PLANS: '8.計畫.md',
         INVENTORY: '9.物品欄.md'
     },
+    optionalFilenames: {
+        STATS_YAML: '0.數值.yaml'
+    },
     kbSectionHeadings: {
         STORY_OUTLINE_CHRONICLE: '劇情綱要',
     },
@@ -76,6 +79,7 @@ history 訊息或 stateUpdates summary 出現 \`correction:\` 條目時，**必�
         STEP_EVENT: '事件',
         FULL_SCENE: '全場景',
         SCENE_CHANGE: '場景變化',
+        STAT_CHANGES: '數值變化',
         PHYSICAL_STATE: '外觀狀態',
         AGENDA: '進行事務',
         PC_DIALOGUE: '主角',

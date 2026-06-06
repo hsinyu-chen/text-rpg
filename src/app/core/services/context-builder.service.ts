@@ -63,6 +63,11 @@ export interface BuildContext {
     // and the resolver/narrator paths disagree about engine mode.
     engineMode: 'single' | 'two-call';
 
+    // True only when the Book opts into numeric stats AND the turn runs through
+    // two-call — single-mode never emits stat_changes. Captured on the snapshot
+    // so the resolver schema decision can't drift from the dispatch decision.
+    enableStatsSystem: boolean;
+
     // Preview path only — engine path goes through TurnRunInput so these
     // never need to be set there.
     modelId?: string;
@@ -608,6 +613,7 @@ export class ContextBuilderService {
         // preview path's edge case.
         const providerCapabilities = provider?.getCapabilities()
             ?? ({ cacheBakesContent: true } as LLMProviderCapabilities);
+        const engineMode = this.appConfig.engineMode();
         return {
             messages: this.state.messages(),
             contextMode: this.state.contextMode(),
@@ -625,7 +631,8 @@ export class ContextBuilderService {
             dynamicProtocolNarrator: this.state.dynamicProtocolNarratorInjection(),
             dynamicProtocolSingle: this.state.dynamicProtocolSingleInjection(),
             dynamicCorrection: this.state.dynamicCorrectionInjection(),
-            engineMode: this.appConfig.engineMode(),
+            engineMode,
+            enableStatsSystem: this.state.hasStatsYaml() && engineMode === 'two-call',
             modelId: this.providerRegistry.getActiveModelId() || undefined,
             outputLanguage: this.appConfig.outputLanguage(),
             provider: provider ?? undefined

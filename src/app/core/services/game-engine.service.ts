@@ -16,6 +16,8 @@ import { TwoCallTurnEngine } from './turn-engines/two-call-turn-engine.service';
 import type { TurnEngine } from './turn-engines/turn-engine.interface';
 import { InjectionService } from './injection.service';
 import { StreamProcessResult } from './stream-processor.service';
+import { DialogService } from './dialog.service';
+import { runStatsTwoCallGate } from './stats-two-call-gate';
 
 import { SessionSave, Scenario } from '../models/types';
 import { GAME_INTENTS, STORY_INTENTS } from '../constants/game-intents';
@@ -71,6 +73,7 @@ export class GameEngineService {
     private i18n = inject(I18nService);
     private multiAgentSave = inject(MultiAgentSaveService);
     private saveProgress = inject(SaveProgressTracker);
+    private dialogService = inject(DialogService);
 
     private currentAbortController: AbortController | null = null;
 
@@ -115,6 +118,11 @@ export class GameEngineService {
         }
         console.log('[GameEngine] sendMessage received with intent:', options?.intent);
         if (!this.validateRunTurnArgs(userText, options)) return;
+
+        // Stats opt-in gate: a stats Book in single-call mode can't produce
+        // stat_changes. Offer the two-call switch before any state mutates
+        // (no user message pushed yet), so a decline is a clean no-op.
+        if (!(await this.passStatsTwoCallGate(options?.intent || GAME_INTENTS.ACTION))) return;
 
         const turn = await this.startTurn(userText, options);
         if (!(await this.prepareCacheOrAbort(turn))) return;
@@ -225,6 +233,30 @@ export class GameEngineService {
             || options.intent === GAME_INTENTS.SYSTEM
             || options.intent === GAME_INTENTS.FAST_FORWARD;
         return !(isActionOrSystem && !userText.trim());
+    }
+
+    /**
+     * Stats opt-in gate. Returns true to proceed with the turn, false to abort.
+     * When a stats Book is on single-call for a story intent, prompts the user
+     * to switch to two-call (the only mode that emits stat_changes). Confirm →
+     * persist engineMode='two-call' via the normal config path so the
+     * subsequent compose reads two-call; decline → abort with no side effects.
+     * Pure state-driven: nothing records that the user was asked, so a later
+     * single-mode story turn re-prompts.
+     */
+    private passStatsTwoCallGate(intent: string): Promise<boolean> {
+        return runStatsTwoCallGate({
+            hasStatsYaml: this.state.hasStatsYaml(),
+            engineMode: this.appConfig.engineMode(),
+            intent,
+            confirm: () => this.dialogService.confirm(
+                this.i18n.translate('statsGate.message'),
+                this.i18n.translate('statsGate.title'),
+                this.i18n.translate('statsGate.ok'),
+                this.i18n.translate('statsGate.cancel'),
+            ),
+            switchToTwoCall: () => this.configService.saveConfig({ engineMode: 'two-call' }),
+        });
     }
 
     /** Phase 1: legacy-fork autoswitch + push the user message + flip status to generating. */

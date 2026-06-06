@@ -1216,4 +1216,10 @@ export const en: TranslationDict = {
         },
         pendingActAdvanceHint: 'Progress saved to this act. Create the next act to continue the story.',
     },
+    statsGate: {
+        title: 'Numeric Stats Need Two-Call Mode',
+        message: 'This book uses the numeric stats system. Stat changes are only tracked in two-call mode. Switch to two-call mode and continue this turn?',
+        ok: 'Switch & Continue',
+        cancel: 'Cancel',
+    },
 };

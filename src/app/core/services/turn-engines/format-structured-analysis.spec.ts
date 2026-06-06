@@ -375,6 +375,38 @@ describe('formatStructuredAnalysis', () => {
         expect(out).toContain('- Strength: pragmatic');
     });
 
+    it('renders a stat_changes block with signed deltas, absolute values, subkeys, and reasons', () => {
+        const out = formatStructuredAnalysis(analysis({
+            steps: [step({
+                action: '揮劍',
+                stat_changes: [
+                    { key: 'hp', delta: -5, reason: '中箭' },
+                    { key: 'gold', delta: 10 },
+                    { key: 'inventory', subkey: 'potion', value: 3 }
+                ]
+            })]
+        }));
+        expect(out).toContain('[數值變化]');
+        expect(out).toContain('hp -5 (中箭)');
+        expect(out).toContain('gold +10');
+        expect(out).toContain('inventory.potion =3');
+    });
+
+    it('renders no stat_changes block when the field is absent or empty', () => {
+        const absent = formatStructuredAnalysis(analysis({ steps: [step({ action: 'walk' })] }));
+        expect(absent).not.toContain('[數值變化]');
+        const empty = formatStructuredAnalysis(analysis({ steps: [step({ action: 'walk', stat_changes: [] })] }));
+        expect(empty).not.toContain('[數值變化]');
+    });
+
+    it('renders the English stat_changes label when outputLanguage is English', () => {
+        const out = formatStructuredAnalysis(analysis({
+            steps: [step({ action: 'swing', stat_changes: [{ key: 'hp', delta: -5 }] })]
+        }), 'English');
+        expect(out).toContain('[Stat changes]');
+        expect(out).toContain('hp -5');
+    });
+
     it('handles streaming partial input (snapshot only, no steps yet)', () => {
         const out = formatStructuredAnalysis({
             scene_snapshot: snap({

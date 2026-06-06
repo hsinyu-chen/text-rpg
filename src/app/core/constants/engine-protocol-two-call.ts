@@ -29,7 +29,7 @@ export type {
  *   / *_log) plus an `interrupted_acknowledged` flag.
  */
 
-export const getResolverSchema = (lang = 'default'): Schema => getResolverSchemaV2(lang);
+export const getResolverSchema = (lang = 'default', options?: { enableStats?: boolean }): Schema => getResolverSchemaV2(lang, options);
 
 export const getNarratorSchema = (lang = 'default'): Schema => {
     // story / summary / *_log share semantics with single-call's response shape,

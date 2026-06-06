@@ -1216,4 +1216,10 @@ export const zhTW: TranslationDict = {
         },
         pendingActAdvanceHint: '本幕進度已存檔。請建立下一幕以繼續劇情。',
     },
+    statsGate: {
+        title: '數值系統需要雙呼叫模式',
+        message: '此書本使用數值系統。數值變動僅在雙呼叫模式下會被追蹤。要切換為雙呼叫模式並繼續本回合嗎？',
+        ok: '切換並繼續',
+        cancel: '取消',
+    },
 };
