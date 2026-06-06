@@ -177,6 +177,63 @@ export function computeCurrent(
   return fold(stats, baseline, deltaLists.flat()).values;
 }
 
+/**
+ * Render resolved {@link StatValues} as a compact, model-readable block — one
+ * line per stat in declaration order, scalars as `key: n` and maps as
+ * `key: { sub: n, sub2: n }` (empty map as `key: {}`). A stat present in the
+ * definition but absent from `values` falls back to its declared baseline shape
+ * (0 / {}), so the block always covers every declared stat. Returns '' when no
+ * stats are declared. Pure; reads only the definition's key set + types.
+ */
+export function renderStatValues(stats: ParsedStats, values: StatValues): string {
+  const lines: string[] = [];
+  for (const [key, def] of Object.entries(stats.stats)) {
+    const raw = values[key];
+    if (def.type === 'map') {
+      const map =
+        typeof raw === 'object' && raw !== null && !Array.isArray(raw)
+          ? (raw as Record<string, number>)
+          : {};
+      const entries = Object.entries(map).map(([sub, n]) => `${sub}: ${n}`);
+      lines.push(`${key}: { ${entries.join(', ')} }`);
+    } else {
+      lines.push(`${key}: ${typeof raw === 'number' ? raw : 0}`);
+    }
+  }
+  return lines.join('\n');
+}
+
+/**
+ * Render each stat's authored DEFINITION (not its live values) as a compact,
+ * deterministic block — one line per stat in declaration order, so the resolver
+ * sees what each stat tracks without the author re-describing it in `rules`.
+ *
+ * Line shape: `<key> — <desc> (<type>[, <range>][, new items allowed])`, where
+ * `<range>` is `min–max` / `≥min` / `≤max` (omitted when neither bound is set),
+ * the ` — <desc>` segment is omitted when the stat has no `desc`, and
+ * `, new items allowed` is appended only for map stats that opt into
+ * `allow_new_item`. Returns '' when no stats are declared. Pure.
+ */
+export function renderStatDefinitions(stats: ParsedStats): string {
+  const lines: string[] = [];
+  for (const [key, def] of Object.entries(stats.stats)) {
+    const attrs: string[] = [def.type];
+    const range = renderRange(def.min, def.max);
+    if (range) attrs.push(range);
+    if (def.type === 'map' && def.allow_new_item) attrs.push('new items allowed');
+    const desc = def.desc ? ` — ${def.desc}` : '';
+    lines.push(`${key}${desc} (${attrs.join(', ')})`);
+  }
+  return lines.join('\n');
+}
+
+function renderRange(min?: number, max?: number): string {
+  if (typeof min === 'number' && typeof max === 'number') return `${min}–${max}`;
+  if (typeof min === 'number') return `≥${min}`;
+  if (typeof max === 'number') return `≤${max}`;
+  return '';
+}
+
 /** The per-stat named argument exposed to a compiled event condition. */
 interface StatArg {
   value: number | Record<string, number>;
@@ -336,6 +393,14 @@ export class StatLedgerService {
 
   computeCurrent(stats: ParsedStats, baseline: StatValues, deltaLists: StatChange[][]): StatValues {
     return computeCurrent(stats, baseline, deltaLists);
+  }
+
+  renderStatValues(stats: ParsedStats, values: StatValues): string {
+    return renderStatValues(stats, values);
+  }
+
+  renderStatDefinitions(stats: ParsedStats): string {
+    return renderStatDefinitions(stats);
   }
 
   evaluateEvents(

@@ -174,6 +174,7 @@ export class TurnCommitService {
             inventory_log: result.finalInventoryLog,
             quest_log: result.finalQuestLog,
             world_log: result.finalWorldLog,
+            stat_delta: result.stat_delta ?? [],
             usage: result.turnUsage,
             contextTokens: result.contextTokens,
             // intent stays the user's original (SYSTEM for correction-declaration

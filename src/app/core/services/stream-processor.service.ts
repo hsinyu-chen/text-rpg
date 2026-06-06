@@ -11,6 +11,7 @@ import { assembleStoryWithSceneHeader, formatStructuredAnalysis } from './turn-e
 import { normalizeAnalysis } from './turn-engines/normalize-structured-analysis';
 import type { SceneSnapshot } from '../constants/engine-protocol-structured';
 import { mergeUsage } from './llm-usage-merge';
+import { StatChange } from '../models/stats.types';
 
 export interface StreamProcessResult {
     finalAnalysis: string;
@@ -34,6 +35,13 @@ export interface StreamProcessResult {
      * falls back to `prompt + candidates` (which is correct there).
      */
     contextTokens?: number;
+    /**
+     * Raw proposed numeric-stat changes for this turn — the flattened
+     * `stat_changes` of the truncated resolver steps. Set only by the two-call
+     * engine when the stats system is enabled; the commit layer persists it onto
+     * the `ChatMessage`. Single-call leaves it undefined.
+     */
+    stat_delta?: StatChange[];
 }
 
 @Injectable({

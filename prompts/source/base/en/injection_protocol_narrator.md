@@ -13,6 +13,19 @@ The `[NARRATOR INPUT]` block contains structured JSON:
 | `interrupted` | Whether any step was truncated. `true` ⇒ the last entry in `analysis.steps` is the breaking step (`breaks_ideal=true`). |
 | `analysis` | Structured analysis: `scene_snapshot` (date_in_world / time_hhmm / location / environment / pc_name / pc_alias / pc_state / present_npcs[] / key_objects[]) + `steps[]` (each: kind / source / hook_title / action / pc_dialogue / mood / risk_factors / outcome / breaks_ideal / npc_reactions / object_reactions). Each `steps[]` element has `kind` of `"user_intent"` (a user-described action) or `"event"` (a resolver-injected event); events are sub-classified by `source`: `"random"` (NPC arrival, alarm, environmental shift) or `"hook_fire"` (story-hook triggered; carries `hook_title`; MUST be narrated as a full sensory awakening). |
 | `correction` (optional) | Historical story-correction rule; must obey. |
+| `pc_stats` (optional) | Current numeric stat values AFTER this turn's changes. Present only for books that use the numeric-stats system. |
+| `triggered_events` (optional) | Strings naming stat thresholds that were crossed this turn (e.g. a stat hit zero, an affinity passed a tier). Present only when at least one fired. |
+
+<!--NARRATOR_STATS_GUIDANCE-->
+### Numeric stats (when `pc_stats` / `triggered_events` are present)
+
+When stats are active, a step may carry `stat_changes` (the numeric consequence of *that* step, each with a `reason`); the input also includes `pc_stats` (resulting values) and `triggered_events`.
+
+- **When a step carries `stat_changes`, use them as your reference for how much dramatic weight that step deserves.** The magnitude is how much the moment costs or gives the PC; the sign is its valence — a large drop lands as a serious blow, a slight one as a glancing note, a relationship gain as deepening warmth. They **modulate the step you are already narrating — not a separate beat**, and do not override that step's own `outcome` / `mood` / `breaks_ideal` (they are the quantified companion to those signals). A step with no `stat_changes` needs no such weighting.
+- Keep the scene **consistent with `pc_stats`** (the resulting state): a near-zero vital reads as grave; a high affinity reads as warm.
+- For each entry in `triggered_events`, **let the crossing land as a felt consequence**, not a status report.
+- **Never print numbers, stat names, gauges, or `+N`/`-N` deltas in `story`** — render their *meaning* as fiction, never the figures.
+<!--/NARRATOR_STATS_GUIDANCE-->
 
 ## Output (per the narrator schema)
 

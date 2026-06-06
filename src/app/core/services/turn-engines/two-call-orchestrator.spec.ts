@@ -22,6 +22,7 @@ import type {
     StructuredAnalysis
 } from '@app/core/constants/engine-protocol-structured';
 import type { ChatMessage } from '@app/core/models/types';
+import type { ParsedStats, StatValues } from '@app/core/models/stats.types';
 
 /** Minimal ILLMStorage stub — LLMConfigService is in the DI graph but never exercised in this spec. */
 function stubLLMStorage(): ILLMStorage {
@@ -69,6 +70,23 @@ function analysis(overrides: Partial<StructuredAnalysis> = {}): StructuredAnalys
         steps: [],
         ...overrides
     };
+}
+
+/**
+ * Small opt-in stats fixture as a BuildContext overlay: enables the system and
+ * supplies hp scalar (0-100) + affinity map + one death event with its baseline.
+ */
+function statsFixture(): Partial<BuildContext> {
+    const statsParsed: ParsedStats = {
+        stats: {
+            hp: { type: 'scalar', value: 100, min: 0, max: 100 },
+            affinity: { type: 'map', value: {}, min: 0, max: 100, allow_new_item: true },
+        },
+        rules: '',
+        events: [{ condition: 'hp.value <= 0', type: 'level', trigger: '程楊宗倒下了' }],
+    };
+    const statsBaseline: StatValues = { hp: 100, affinity: {} };
+    return { enableStatsSystem: true, statsParsed, statsBaseline };
 }
 
 function resolverJson(payload: ResolverResponse): string {
@@ -144,6 +162,8 @@ describe('two-call orchestrator integration', () => {
             dynamicCorrection: '',
             engineMode: 'two-call',
             enableStatsSystem: false,
+            statsParsed: null,
+            statsBaseline: null,
             ...overrides
         };
     }
@@ -371,5 +391,118 @@ describe('two-call orchestrator integration', () => {
         expect(result.turnUsage.prompt).toBe(300);
         expect(result.turnUsage.candidates).toBe(70);
         expect(result.turnUsage.cached).toBe(200);
+    });
+
+    describe('numeric-stats fold seam', () => {
+        // Captures the post-turn values + triggered events the engine threads into
+        // buildNarratorContext (phase 2 will render them; phase 1 only wires them).
+        function spyNarratorOptions(): { current: { postStatValues?: StatValues; triggeredEvents?: string[] } } {
+            const builder = TestBed.inject(ContextBuilderService);
+            const captured: { current: { postStatValues?: StatValues; triggeredEvents?: string[] } } = { current: {} };
+            const original = builder.buildNarratorContext.bind(builder);
+            builder.buildNarratorContext = (ctx, options) => {
+                captured.current = { postStatValues: options.postStatValues, triggeredEvents: options.triggeredEvents };
+                return original(ctx, options);
+            };
+            return captured;
+        }
+
+        function enqueueStatsTurn(steps: AnalysisStep[]) {
+            mockProvider.enqueueJsonStream(resolverJson({
+                ideal_outcome: '', ideal_strength: 'pragmatic', analysis: analysis({ steps })
+            }));
+            mockProvider.enqueueJsonStream(narratorJson('s'));
+        }
+
+        it('persists thisTurnChanges (flattened truncated steps) as stat_delta', async () => {
+            pushUser('attack');
+            enqueueStatsTurn([
+                step({ action: 'a', stat_changes: [{ key: 'hp', delta: -10 }] }),
+                step({ action: 'b', stat_changes: [{ key: 'affinity', subkey: '王如花', value: 20 }] }),
+            ]);
+
+            const result = await getEngine().runTurn(runtime('attack', statsFixture()));
+
+            expect(result.stat_delta).toEqual([
+                { key: 'hp', delta: -10 },
+                { key: 'affinity', subkey: '王如花', value: 20 },
+            ]);
+        });
+
+        it('drops the stat_changes of steps cut by the break (raw delta = surviving steps only)', async () => {
+            pushUser('attack then flee');
+            enqueueStatsTurn([
+                step({ action: 'a', stat_changes: [{ key: 'hp', delta: -10 }] }),
+                step({ action: 'b', breaks_ideal: true, outcome: '失敗', stat_changes: [{ key: 'hp', delta: -5 }] }),
+                step({ action: 'c', stat_changes: [{ key: 'hp', delta: -99 }] }),
+            ]);
+
+            const result = await getEngine().runTurn(runtime('attack then flee', statsFixture()));
+
+            // Truncation keeps steps up to and including the breaking step.
+            expect(result.stat_delta).toEqual([{ key: 'hp', delta: -10 }, { key: 'hp', delta: -5 }]);
+        });
+
+        it('folds post-turn values off baseline + full prior history, not the base context', async () => {
+            // Prior committed model message carries a -30 hp delta. The fold basis is
+            // the FULL captured history, so post hp = 100 - 30 (prior) - 10 (this turn).
+            pushUser('start');
+            messages.push({ id: 'mPrior', role: 'model', content: 's', stat_delta: [{ key: 'hp', delta: -30 }] });
+            pushUser('attack');
+            enqueueStatsTurn([step({ action: 'a', stat_changes: [{ key: 'hp', delta: -10 }] })]);
+
+            const captured = spyNarratorOptions();
+            await getEngine().runTurn(runtime('attack', statsFixture()));
+
+            expect(captured.current.postStatValues?.['hp']).toBe(60);
+        });
+
+        it('a deleted mid-history model message drops its delta so post values roll back', async () => {
+            // Same shape as above but the prior delta-bearing message is absent
+            // (deleted / retried) — its -30 must not apply: post hp = 100 - 10.
+            pushUser('attack');
+            enqueueStatsTurn([step({ action: 'a', stat_changes: [{ key: 'hp', delta: -10 }] })]);
+
+            const captured = spyNarratorOptions();
+            await getEngine().runTurn(runtime('attack', statsFixture()));
+
+            expect(captured.current.postStatValues?.['hp']).toBe(90);
+        });
+
+        it('ignores ref-only model messages in the fold basis', async () => {
+            pushUser('start');
+            messages.push({ id: 'mRef', role: 'model', content: 's', isRefOnly: true, stat_delta: [{ key: 'hp', delta: -40 }] });
+            pushUser('attack');
+            enqueueStatsTurn([step({ action: 'a', stat_changes: [{ key: 'hp', delta: -10 }] })]);
+
+            const captured = spyNarratorOptions();
+            await getEngine().runTurn(runtime('attack', statsFixture()));
+
+            expect(captured.current.postStatValues?.['hp']).toBe(90);
+        });
+
+        it('evaluates triggered events across the pre/post value pair', async () => {
+            // hp 100 -> drops to 0 this turn; the level event fires on the post value.
+            pushUser('fatal blow');
+            enqueueStatsTurn([step({ action: 'a', stat_changes: [{ key: 'hp', delta: -100 }] })]);
+
+            const captured = spyNarratorOptions();
+            await getEngine().runTurn(runtime('fatal blow', statsFixture()));
+
+            expect(captured.current.postStatValues?.['hp']).toBe(0);
+            expect(captured.current.triggeredEvents).toContain('程楊宗倒下了');
+        });
+
+        it('does no fold and sets no stat_delta when the stats system is off (byte-identical path)', async () => {
+            pushUser('walk');
+            enqueueStatsTurn([step({ action: 'a', stat_changes: [{ key: 'hp', delta: -10 }] })]);
+
+            const captured = spyNarratorOptions();
+            const result = await getEngine().runTurn(runtime('walk', { enableStatsSystem: false }));
+
+            expect(result.stat_delta).toBeUndefined();
+            expect(captured.current.postStatValues).toBeUndefined();
+            expect(captured.current.triggeredEvents).toBeUndefined();
+        });
     });
 });

@@ -7,7 +7,9 @@ import { GameStateService } from './game-state.service';
 import { KVStore } from './kv/kv-store';
 import { InMemoryKVStore } from '../testing/in-memory-kv-store';
 import { LLMProviderRegistryService } from './llm-provider-registry.service';
+import { StatLedgerService } from './stats/stat-ledger.service';
 import type { ChatMessage } from '../models/types';
+import type { ParsedStats, StatValues } from '../models/stats.types';
 
 function modelMsg(content: string, extra: Partial<ChatMessage> = {}): ChatMessage {
     return {
@@ -49,6 +51,8 @@ function emptyCtx(overrides: Partial<BuildContext> = {}): BuildContext {
         dynamicCorrection: '',
         engineMode: 'single',
         enableStatsSystem: false,
+        statsParsed: null,
+        statsBaseline: null,
         ...overrides
     };
 }
@@ -63,6 +67,7 @@ describe('ContextBuilderService', () => {
                 LanguageService,
                 KnowledgeService,
                 { provide: KVStore, useValue: new InMemoryKVStore() },
+                StatLedgerService,
                 { provide: GameStateService, useValue: {} as unknown as GameStateService },
                 { provide: LLMProviderRegistryService, useValue: { getActive: () => null } }
             ]
@@ -203,6 +208,26 @@ describe('ContextBuilderService', () => {
             expect(history.length).toBe(1);
             expect(history[0].role).toBe('model');
         });
+
+        it('never re-feeds stat_delta into LLM history (excluded from getDetailFields)', () => {
+            // The model message DOES carry a state-update field (character_log), so
+            // the detail block is produced — but stat_delta's sentinel value must
+            // not leak into it: numeric stats are re-derived each turn, never replayed.
+            const ctx = emptyCtx({
+                messages: [
+                    userMsg('go'),
+                    modelMsg('done', {
+                        intent: 'action',
+                        character_log: ['程楊宗 受傷'],
+                        stat_delta: [{ key: 'hp', delta: -777 }],
+                    }),
+                ],
+            });
+            const text = builder.getLLMHistory(ctx).map(c => c.parts[0].text ?? '').join('\n');
+            expect(text).toContain('character_log');
+            expect(text).not.toContain('777');
+            expect(text).not.toContain('stat_delta');
+        });
     });
 
     describe('shouldOmitKbFromSystemInstruction', () => {
@@ -317,6 +342,128 @@ describe('ContextBuilderService', () => {
             expect(tail).not.toContain('{{IDEAL_OUTCOME_CONSTRAINT}}');
             expect(tail).not.toContain('使用者聲明的 ideal_outcome');
             expect(tail).not.toContain('User-declared ideal_outcome');
+        });
+    });
+
+    describe('buildResolverContext — stats section', () => {
+        // Sentinel-wrapped section mirrors the prompt-source shape; the static
+        // mechanics line stands in for the real prose so we can assert it is
+        // present (enabled) / gone (disabled) alongside the two slots.
+        const RESOLVER_PROTOCOL =
+            'PROTOCOL\n\n<!--STATS_SECTION-->\nSTATS MECHANICS TEXT\n\n{{STATS_DEFS}}\n\n{{STATS_RULES}}\n\n{{PC_STATS_CURRENT}}\n<!--/STATS_SECTION-->\n\n{{USER_INPUT}}';
+
+        const statsParsed: ParsedStats = {
+            stats: {
+                hp: { type: 'scalar', value: 100, min: 0, max: 100, desc: 'Vitality; 0 means down. {{USER_INPUT}} stays literal.' },
+                affinity: { type: 'map', value: { 王如花: 50 }, allow_new_item: true, desc: 'Per-NPC affinity' }
+            },
+            rules: 'Lose 5 hp per failed step. Echo {{USER_INPUT}} literally — must NOT be substituted.',
+            events: []
+        };
+        const statsBaseline: StatValues = { hp: 100, affinity: { 王如花: 50 } };
+
+        function resolverTail(ctx: BuildContext): string {
+            const history = builder.buildResolverContext(ctx, {
+                baseHistory: [{ role: 'user', parts: [{ text: 'attack' }] }],
+                intent: 'action',
+                lang: 'zh-tw'
+            });
+            return history[history.length - 1].parts[0].text!;
+        }
+
+        it('fills rules + pre-turn current values and keeps the mechanics text when enabled', () => {
+            const ctx = emptyCtx({
+                messages: [userMsg('attack')],
+                enableStatsSystem: true,
+                statsParsed,
+                statsBaseline,
+                dynamicProtocolResolver: RESOLVER_PROTOCOL
+            });
+            const tail = resolverTail(ctx);
+            expect(tail).toContain('STATS MECHANICS TEXT');
+            expect(tail).toContain('Lose 5 hp per failed step');
+            expect(tail).toContain('hp: 100');
+            expect(tail).toContain('affinity: { 王如花: 50 }');
+            // The rendered stat definitions (with desc) are surfaced.
+            expect(tail).toContain('hp — Vitality; 0 means down.');
+            expect(tail).toContain('(scalar, 0–100)');
+            expect(tail).toContain('affinity — Per-NPC affinity (map, new items allowed)');
+            expect(tail).not.toContain('{{STATS_DEFS}}');
+            expect(tail).not.toContain('{{STATS_RULES}}');
+            expect(tail).not.toContain('{{PC_STATS_CURRENT}}');
+            expect(tail).not.toContain('<!--STATS_SECTION-->');
+        });
+
+        it('escapes {{ }} inside a stat desc so the later USER_INPUT pass cannot fire in it', () => {
+            const ctx = emptyCtx({
+                messages: [userMsg('attack')],
+                enableStatsSystem: true,
+                statsParsed,
+                statsBaseline,
+                dynamicProtocolResolver: RESOLVER_PROTOCOL
+            });
+            const tail = resolverTail(ctx);
+            const descLine = tail.split('\n').find(l => l.startsWith('hp — Vitality'))!;
+            // The literal {{USER_INPUT}} authored in `desc` survives verbatim
+            // (zero-width-spaced) and is NOT replaced by the player's "attack".
+            expect(descLine).not.toContain('Vitality; 0 means down. attack stays literal.');
+            expect(descLine.replace(new RegExp(String.fromCharCode(0x200b), 'g'), ''))
+                .toBe('hp — Vitality; 0 means down. {{USER_INPUT}} stays literal. (scalar, 0–100)');
+        });
+
+        it('folds prior model messages stat_delta into the PRE-turn current values', () => {
+            const ctx = emptyCtx({
+                messages: [
+                    userMsg('u1'),
+                    modelMsg('m1', { stat_delta: [{ key: 'hp', delta: -30 }] }),
+                    modelMsg('ref', { isRefOnly: true, stat_delta: [{ key: 'hp', delta: -999 }] }),
+                    userMsg('attack')
+                ],
+                enableStatsSystem: true,
+                statsParsed,
+                statsBaseline,
+                dynamicProtocolResolver: RESOLVER_PROTOCOL
+            });
+            const tail = resolverTail(ctx);
+            // 100 - 30 = 70; the ref-only message's -999 must NOT count.
+            expect(tail).toContain('hp: 70');
+            expect(tail).not.toContain('hp: 100');
+        });
+
+        it('escapes {{ }} inside author rules so the later USER_INPUT pass cannot fire in it', () => {
+            const ctx = emptyCtx({
+                messages: [userMsg('attack')],
+                enableStatsSystem: true,
+                statsParsed,
+                statsBaseline,
+                dynamicProtocolResolver: RESOLVER_PROTOCOL
+            });
+            const tail = resolverTail(ctx);
+            // The literal {{USER_INPUT}} authored in `rules` must survive verbatim
+            // (zero-width-spaced) and NOT be replaced by the player's "attack".
+            expect(tail).toContain('Echo');
+            const rulesLine = tail.split('\n').find(l => l.startsWith('Lose 5 hp'))!;
+            expect(rulesLine).not.toContain('Echo attack literally');
+            // The trailing {{USER_INPUT}} slot (outside the rules) still resolves.
+            expect(tail.trimEnd().endsWith('attack')).toBe(true);
+        });
+
+        it('strips the whole stats section (mechanics + slots) when disabled', () => {
+            const ctx = emptyCtx({
+                messages: [userMsg('attack')],
+                enableStatsSystem: false,
+                statsParsed: null,
+                statsBaseline: null,
+                dynamicProtocolResolver: RESOLVER_PROTOCOL
+            });
+            const tail = resolverTail(ctx);
+            expect(tail).not.toContain('STATS MECHANICS TEXT');
+            expect(tail).not.toContain('{{STATS_DEFS}}');
+            expect(tail).not.toContain('{{STATS_RULES}}');
+            expect(tail).not.toContain('{{PC_STATS_CURRENT}}');
+            expect(tail).not.toContain('<!--STATS_SECTION-->');
+            expect(tail).toContain('PROTOCOL');
+            expect(tail.trimEnd().endsWith('attack')).toBe(true);
         });
     });
 });

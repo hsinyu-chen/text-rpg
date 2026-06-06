@@ -10,9 +10,13 @@ import { LanguageService } from './language.service';
 import { LOCALES, getLocale } from '../constants/locales';
 import { GAME_INTENTS, STORY_INTENTS } from '../constants/game-intents';
 import { IdealStrength, StructuredAnalysis } from '../constants/engine-protocol-structured';
-import { applyIntentTag, buildResolverUserMessage, buildNarratorUserMessage } from './turn-engines/build-context-utils';
+import { applyIntentTag, buildResolverUserMessage, buildNarratorUserMessage, resolveStatsSection, escapeSlots } from './turn-engines/build-context-utils';
 import { stripSystemMainMarker } from './profile-compat';
 import { extractSceneHeader } from '@app/core/utils/scene-header.util';
+import { ParsedStats, StatValues } from '../models/stats.types';
+import { parseStats } from './stats/stats-yaml.util';
+import { getStatsYamlContent, priorStatDeltaLists } from './stats/stats-opt-in.util';
+import { StatLedgerService } from './stats/stat-ledger.service';
 
 // Engine prompt directives (HISTORICAL_CORRECTION_RULE, IDEAL_OUTCOME_CONSTRAINT)
 // live in the locale files under `enginePromptDirectives`. Engine behaviour,
@@ -68,6 +72,13 @@ export interface BuildContext {
     // so the resolver schema decision can't drift from the dispatch decision.
     enableStatsSystem: boolean;
 
+    // Parsed stats ledger + the baseline values built from its declared
+    // `stats[].value`. Both null unless `enableStatsSystem` is true. Captured
+    // here so the two-call seam folds against a turn-stable definition rather
+    // than re-reading loadedFiles mid-turn.
+    statsParsed: ParsedStats | null;
+    statsBaseline: StatValues | null;
+
     // Preview path only — engine path goes through TurnRunInput so these
     // never need to be set there.
     modelId?: string;
@@ -84,6 +95,7 @@ export class ContextBuilderService {
     private state = inject(GameStateService);
     private providerRegistry = inject(LLMProviderRegistryService);
     private appConfig = inject(AppConfigStore);
+    private statLedger = inject(StatLedgerService);
 
     /**
      * Gets the effective system instruction, replacing placeholders and adding language overrides.
@@ -545,8 +557,11 @@ export class ContextBuilderService {
 
         const intentInjection = this.intentInjection(ctx, options.intent);
 
-        const protocolResolver = ctx.dynamicProtocolResolver
-            .replace(/\{\{HISTORICAL_CORRECTION_RULE\}\}/g, () => this.getHistoricalCorrectionRule(ctx, options.lang));
+        const protocolResolver = this.fillResolverStatsSection(
+            ctx.dynamicProtocolResolver
+                .replace(/\{\{HISTORICAL_CORRECTION_RULE\}\}/g, () => this.getHistoricalCorrectionRule(ctx, options.lang)),
+            ctx
+        );
 
         const tail = buildResolverUserMessage({
             userInput,
@@ -559,6 +574,35 @@ export class ContextBuilderService {
 
         history.push({ role: 'user', parts: [{ text: finalContent }] });
         return history;
+    }
+
+    /**
+     * Resolve the resolver protocol's sentinel-delimited stats section. When the
+     * Book opts in, the section's slots are filled with the rendered stat
+     * definitions (what each stat tracks), the per-book author rules, and a
+     * compact rendering of the PRE-turn values (baseline folded over the full
+     * prior history — same basis the seam re-uses post-turn). Both the
+     * definitions and the rules carry author text, so their `{{...}}` is
+     * neutralized so the later `{{USER_INPUT}}` / `{{IDEAL_OUTCOME_CONSTRAINT}}`
+     * pass can't substitute into them. When stats are off the whole section is
+     * stripped, leaving the protocol byte-identical to a no-stats book.
+     */
+    private fillResolverStatsSection(protocol: string, ctx: BuildContext): string {
+        const { statsParsed, statsBaseline } = ctx;
+        if (!ctx.enableStatsSystem || !statsParsed || !statsBaseline) {
+            return resolveStatsSection(protocol, 'STATS_SECTION', false);
+        }
+        const preTurnValues = this.statLedger.computeCurrent(
+            statsParsed,
+            statsBaseline,
+            priorStatDeltaLists(ctx.messages)
+        );
+        return resolveStatsSection(protocol, 'STATS_SECTION', true)
+            .replace(/\{\{STATS_DEFS\}\}/g, () =>
+                escapeSlots(this.statLedger.renderStatDefinitions(statsParsed)))
+            .replace(/\{\{STATS_RULES\}\}/g, () => escapeSlots(statsParsed.rules))
+            .replace(/\{\{PC_STATS_CURRENT\}\}/g, () =>
+                escapeSlots(this.statLedger.renderStatValues(statsParsed, preTurnValues)));
     }
 
     /**
@@ -579,19 +623,30 @@ export class ContextBuilderService {
         idealStrength: IdealStrength;
         truncatedAnalysis: StructuredAnalysis;
         lang: string;
+        // Post-turn folded stat values + triggered event strings, computed at the
+        // two-call seam. Phase 1 threads them through; the narrator user message
+        // starts consuming them (PC_STATS / triggered-event slots) in phase 2.
+        postStatValues?: StatValues;
+        triggeredEvents?: string[];
     }): LLMContent[] {
         const history = options.baseHistory.slice();
         history.pop();
 
-        const protocolNarrator = ctx.dynamicProtocolNarrator
-            .replace(/\{\{HISTORICAL_CORRECTION_RULE\}\}/g, () => this.getHistoricalCorrectionRule(ctx, options.lang));
+        const protocolNarrator = resolveStatsSection(
+            ctx.dynamicProtocolNarrator
+                .replace(/\{\{HISTORICAL_CORRECTION_RULE\}\}/g, () => this.getHistoricalCorrectionRule(ctx, options.lang)),
+            'NARRATOR_STATS_GUIDANCE',
+            ctx.enableStatsSystem
+        );
 
         const tail = buildNarratorUserMessage({
             idealOutcome: options.idealOutcome,
             idealStrength: options.idealStrength,
             truncatedAnalysis: options.truncatedAnalysis,
             protocolNarrator,
-            correction: this.getRecentCorrection(ctx)
+            correction: this.getRecentCorrection(ctx),
+            pcStats: options.postStatValues,
+            triggeredEvents: options.triggeredEvents
         });
         const finalContent = this.wrapUserMessage(tail, history);
 
@@ -614,13 +669,16 @@ export class ContextBuilderService {
         const providerCapabilities = provider?.getCapabilities()
             ?? ({ cacheBakesContent: true } as LLMProviderCapabilities);
         const engineMode = this.appConfig.engineMode();
+        const loadedFiles = this.state.loadedFiles();
+        const enableStatsSystem = this.state.hasStatsYaml() && engineMode === 'two-call';
+        const { statsParsed, statsBaseline } = this.resolveStatsSnapshot(enableStatsSystem, loadedFiles);
         return {
             messages: this.state.messages(),
             contextMode: this.state.contextMode(),
             saveContextMode: this.state.saveContextMode(),
             smartContextTurns: this.appConfig.smartContextTurns(),
             systemInstructionCache: this.state.systemInstructionCache(),
-            loadedFiles: this.state.loadedFiles(),
+            loadedFiles,
             kbCacheName: this.state.kbCacheName(),
             providerCapabilities,
             dynamicAction: this.state.dynamicActionInjection(),
@@ -632,11 +690,43 @@ export class ContextBuilderService {
             dynamicProtocolSingle: this.state.dynamicProtocolSingleInjection(),
             dynamicCorrection: this.state.dynamicCorrectionInjection(),
             engineMode,
-            enableStatsSystem: this.state.hasStatsYaml() && engineMode === 'two-call',
+            enableStatsSystem,
+            statsParsed,
+            statsBaseline,
             modelId: this.providerRegistry.getActiveModelId() || undefined,
             outputLanguage: this.appConfig.outputLanguage(),
             provider: provider ?? undefined
         };
+    }
+
+    /**
+     * Parse the stats ledger and derive its baseline (declared `stats[].value`
+     * per key). Returns both null when stats are off — keeping every "no stats"
+     * read byte-identical to the pre-stats path.
+     */
+    private resolveStatsSnapshot(
+        enableStatsSystem: boolean,
+        loadedFiles: Map<string, string>
+    ): { statsParsed: ParsedStats | null; statsBaseline: StatValues | null } {
+        if (!enableStatsSystem) return { statsParsed: null, statsBaseline: null };
+        const content = getStatsYamlContent(loadedFiles);
+        if (content === null) return { statsParsed: null, statsBaseline: null };
+        let parsed: ParsedStats;
+        try {
+            ({ parsed } = parseStats(content));
+        } catch (err) {
+            // A genuine YAML syntax error propagates out of parseStats; degrade
+            // to the no-stats path (byte-identical) so one malformed ledger
+            // can't take down the whole turn.
+            console.warn(
+                `[stats] stats YAML failed to parse, stats disabled this turn: ${err instanceof Error ? err.message : String(err)}`
+            );
+            return { statsParsed: null, statsBaseline: null };
+        }
+        const statsBaseline: StatValues = Object.fromEntries(
+            Object.entries(parsed.stats).map(([k, d]) => [k, d.value])
+        );
+        return { statsParsed: parsed, statsBaseline };
     }
 
     /**

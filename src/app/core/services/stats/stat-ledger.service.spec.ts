@@ -5,6 +5,8 @@ import {
   computeCurrent,
   evaluateEvents,
   fold,
+  renderStatDefinitions,
+  renderStatValues,
   StatLedgerService,
 } from './stat-ledger.service';
 
@@ -447,5 +449,110 @@ describe('StatLedgerService', () => {
     ];
     expect(service.evaluateEvents(stats, { hp: 0 }, { hp: 0 }, events)).toEqual(['x']);
     expect(service.evaluateEvents(stats, { hp: 0 }, { hp: 0 }, events)).toEqual(['x']);
+  });
+
+  it('renderStatValues delegates to the pure function', () => {
+    const service = new StatLedgerService();
+    expect(service.renderStatValues(scalarStats(), { hp: 42 })).toBe('hp: 42');
+  });
+
+  it('renderStatDefinitions delegates to the pure function', () => {
+    const service = new StatLedgerService();
+    expect(service.renderStatDefinitions(scalarStats())).toBe('hp (scalar, 0–100)');
+  });
+});
+
+describe('renderStatValues', () => {
+  it('renders a scalar as `key: n`', () => {
+    expect(renderStatValues(scalarStats(), { hp: 73 })).toBe('hp: 73');
+  });
+
+  it('renders a map as `key: { sub: n, ... }`', () => {
+    const out = renderStatValues(affinityStats(true), { affinity: { 王大福: 60, 李如玉: 30 } });
+    expect(out).toBe('affinity: { 王大福: 60, 李如玉: 30 }');
+  });
+
+  it('renders an empty map as `key: {}`', () => {
+    expect(renderStatValues(affinityStats(true), { affinity: {} })).toBe('affinity: {  }');
+  });
+
+  it('falls back to the declared shape (0 / empty map) for a stat missing from values', () => {
+    const stats: ParsedStats = {
+      stats: {
+        hp: { type: 'scalar', value: 100 },
+        affinity: { type: 'map', value: {} },
+      },
+      rules: '',
+      events: [],
+    };
+    expect(renderStatValues(stats, {})).toBe('hp: 0\naffinity: {  }');
+  });
+
+  it('returns empty string when no stats are declared', () => {
+    expect(renderStatValues({ stats: {}, rules: '', events: [] }, {})).toBe('');
+  });
+});
+
+describe('renderStatDefinitions', () => {
+  it('renders a scalar with both bounds and a desc', () => {
+    const stats: ParsedStats = {
+      stats: { hp: { type: 'scalar', min: 0, max: 100, value: 100, desc: '生命值' } },
+      rules: '',
+      events: [],
+    };
+    expect(renderStatDefinitions(stats)).toBe('hp — 生命值 (scalar, 0–100)');
+  });
+
+  it('marks a map that allows new items', () => {
+    const stats: ParsedStats = {
+      stats: {
+        affinity: {
+          type: 'map',
+          min: 0,
+          max: 100,
+          value: { 王大福: 50 },
+          allow_new_item: true,
+          desc: 'NPC affinity',
+        },
+      },
+      rules: '',
+      events: [],
+    };
+    expect(renderStatDefinitions(stats)).toBe('affinity — NPC affinity (map, 0–100, new items allowed)');
+  });
+
+  it('omits the range when neither min nor max is set, and renders one-sided bounds', () => {
+    const stats: ParsedStats = {
+      stats: {
+        score: { type: 'scalar', value: 0, desc: 'running score' },
+        gold: { type: 'scalar', min: 0, value: 10 },
+        fatigue: { type: 'scalar', max: 100, value: 0 },
+      },
+      rules: '',
+      events: [],
+    };
+    expect(renderStatDefinitions(stats)).toBe(
+      'score — running score (scalar)\ngold (scalar, ≥0)\nfatigue (scalar, ≤100)',
+    );
+  });
+
+  it('omits the desc segment when a stat has no desc', () => {
+    expect(renderStatDefinitions(scalarStats())).toBe('hp (scalar, 0–100)');
+  });
+
+  it('preserves declaration order', () => {
+    const stats: ParsedStats = {
+      stats: {
+        b: { type: 'scalar', value: 0, desc: 'second key declared first slot' },
+        a: { type: 'scalar', value: 0 },
+      },
+      rules: '',
+      events: [],
+    };
+    expect(renderStatDefinitions(stats)).toBe('b — second key declared first slot (scalar)\na (scalar)');
+  });
+
+  it('returns empty string when no stats are declared', () => {
+    expect(renderStatDefinitions({ stats: {}, rules: '', events: [] })).toBe('');
   });
 });

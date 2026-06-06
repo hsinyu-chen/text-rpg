@@ -13,6 +13,19 @@
 | `interrupted` | 是否有步驟被截斷。`true` ⇒ `analysis.steps` 最後一筆是 `breaks_ideal=true` 的破壞點。 |
 | `analysis` | 結構化分析：`scene_snapshot`（date_in_world / time_hhmm / location / environment / pc_name / pc_alias / pc_state / present_npcs[] / key_objects[]）+ `steps[]`（每筆含 kind / source / hook_title / action / pc_dialogue / mood / risk_factors / outcome / breaks_ideal / npc_reactions / object_reactions）。`steps[]` 元素的 `kind` 可能為 `"user_intent"`（使用者動作）或 `"event"`（resolver 插入的事件）；event 再以 `source` 細分為 `"random"`（隨機 / 環境事件，如 NPC 闖入、警鈴觸發）與 `"hook_fire"`（劇情鉤子觸發；附帶 `hook_title`，必須以完整感官覺醒敘述）。 |
 | `correction`（選填） | 歷史劇情修正規則，必須遵守。 |
+| `pc_stats`（選填） | 本回合變動套用後的目前數值。僅使用數值系統的書才會出現。 |
+| `triggered_events`（選填） | 本回合跨越的數值門檻字串（如某項生命值歸零、好感度升級）。僅在至少一項觸發時出現。 |
+
+<!--NARRATOR_STATS_GUIDANCE-->
+### 數值（當輸入帶有 `pc_stats` / `triggered_events` 時）
+
+數值啟用時，某個 step 可能帶 `stat_changes`（**該 step** 的數值後果，每筆附 `reason`）；輸入也含 `pc_stats`（變動後的值）與 `triggered_events`。
+
+- **某個 step 帶 `stat_changes` 時，拿它當作該 step 該有多少戲劇份量的參考。** 變動幅度代表這一刻對 PC 的代價或收穫有多重，正負代表好壞——大幅下降寫成重創，輕微變動寫成擦身而過的小插曲，關係值上升寫成漸深的暖意。它**調節你本來就在敘述的那個 step——不是另一個獨立節拍**，也不凌駕該 step 自身的 `outcome` / `mood` / `breaks_ideal`（它是這些信號的量化夥伴）。沒帶 `stat_changes` 的 step 就不需要這種加權。
+- 場景須**與 `pc_stats` 一致**（變動後的狀態）：某項生命值將近歸零就寫得危殆，好感度高就寫得親暱。
+- `triggered_events` 內每一項，**讓那一刻成為可感受的後果**，而非狀態回報。
+- **`story` 中絕不出現數字、數值名稱、量表或 `+N`/`-N` 增量**——只把它的*意義*寫成虛構情節，絕不寫出數字本身。
+<!--/NARRATOR_STATS_GUIDANCE-->
 
 ## 輸出（依 narrator schema）
 

@@ -3,6 +3,8 @@ import {
     applyIntentTag,
     buildResolverUserMessage,
     buildNarratorUserMessage,
+    resolveStatsSection,
+    escapeSlots,
     type IntentTagSet
 } from './build-context-utils';
 import type { AnalysisStep, StructuredAnalysis } from '@app/core/constants/engine-protocol-structured';
@@ -295,5 +297,114 @@ describe('buildNarratorUserMessage', () => {
         });
         const parsed = JSON.parse(out.split('~~~json\n')[1].split('\n~~~')[0]);
         expect('correction' in parsed).toBe(false);
+    });
+
+    it('embeds pc_stats + triggered_events when present', () => {
+        const out = buildNarratorUserMessage({
+            idealOutcome: 'X',
+            idealStrength: 'pragmatic',
+            truncatedAnalysis: analysis({ steps: [step()] }),
+            protocolNarrator: '',
+            correction: '',
+            pcStats: { hp: 70, affinity: { 王如花: 60 } },
+            triggeredEvents: ['hp_critical']
+        });
+        const parsed = JSON.parse(out.split('~~~json\n')[1].split('\n~~~')[0]);
+        expect(parsed.pc_stats).toEqual({ hp: 70, affinity: { 王如花: 60 } });
+        expect(parsed.triggered_events).toEqual(['hp_critical']);
+    });
+
+    it('omits pc_stats + triggered_events entirely when absent or empty', () => {
+        const out = buildNarratorUserMessage({
+            idealOutcome: 'X',
+            idealStrength: 'pragmatic',
+            truncatedAnalysis: analysis({ steps: [step()] }),
+            protocolNarrator: '',
+            correction: '',
+            pcStats: {},
+            triggeredEvents: []
+        });
+        const parsed = JSON.parse(out.split('~~~json\n')[1].split('\n~~~')[0]);
+        expect('pc_stats' in parsed).toBe(false);
+        expect('triggered_events' in parsed).toBe(false);
+    });
+
+    it('omits pc_stats + triggered_events when the fields are not supplied at all', () => {
+        const out = buildNarratorUserMessage({
+            idealOutcome: 'X',
+            idealStrength: 'pragmatic',
+            truncatedAnalysis: analysis({ steps: [step()] }),
+            protocolNarrator: '',
+            correction: ''
+        });
+        const parsed = JSON.parse(out.split('~~~json\n')[1].split('\n~~~')[0]);
+        expect('pc_stats' in parsed).toBe(false);
+        expect('triggered_events' in parsed).toBe(false);
+    });
+});
+
+describe('resolveStatsSection', () => {
+    const SRC = 'HEAD\n<!--SEC-->\nbody {{SLOT}}\n<!--/SEC-->\nTAIL';
+
+    it('keeps the section body and drops the sentinels when enabled', () => {
+        const out = resolveStatsSection(SRC, 'SEC', true);
+        expect(out).toBe('HEAD\nbody {{SLOT}}\nTAIL');
+    });
+
+    it('removes the whole region (sentinels included) when disabled', () => {
+        const out = resolveStatsSection(SRC, 'SEC', false);
+        expect(out).toBe('HEAD\nTAIL');
+    });
+
+    it('is a no-op when the named sentinel is absent', () => {
+        expect(resolveStatsSection('no section here', 'SEC', true)).toBe('no section here');
+        expect(resolveStatsSection('no section here', 'SEC', false)).toBe('no section here');
+    });
+
+    // Mirrors the real prompt source: the section is wrapped in a blank line
+    // BEFORE the opening sentinel and a blank line AFTER the closing one.
+    const WRAPPED = 'HEAD\n\n<!--SEC-->\nbody {{SLOT}}\n<!--/SEC-->\n\nTAIL';
+
+    it('disabled strip is byte-identical to a no-stats prompt (no extra blank line)', () => {
+        const out = resolveStatsSection(WRAPPED, 'SEC', false);
+        // A book that never had the section: HEAD\n\nTAIL — a single blank line.
+        expect(out).toBe('HEAD\n\nTAIL');
+        expect(out).not.toContain('\n\n\n');
+    });
+
+    it('enabled strip keeps the body and the surrounding blank lines intact', () => {
+        const out = resolveStatsSection(WRAPPED, 'SEC', true);
+        expect(out).toBe('HEAD\n\nbody {{SLOT}}\n\nTAIL');
+    });
+
+    // A markdown formatter may append trailing spaces/tabs after a sentinel tag;
+    // the section must still resolve rather than leak raw template markers.
+    const TRAILING_WS = 'HEAD\n<!--SEC--> \t\nbody {{SLOT}}\n<!--/SEC-->\t \nTAIL';
+
+    it('tolerates trailing spaces/tabs after the sentinel tags when enabled', () => {
+        const out = resolveStatsSection(TRAILING_WS, 'SEC', true);
+        expect(out).toBe('HEAD\nbody {{SLOT}}\nTAIL');
+    });
+
+    it('tolerates trailing spaces/tabs after the sentinel tags when disabled', () => {
+        const out = resolveStatsSection(TRAILING_WS, 'SEC', false);
+        expect(out).toBe('HEAD\nTAIL');
+    });
+});
+
+describe('escapeSlots', () => {
+    it('breaks {{...}} so a later slot pass cannot match it, but stays human-readable', () => {
+        const escaped = escapeSlots('keep {{USER_INPUT}} verbatim');
+        expect(escaped).not.toContain('{{');
+        expect(escaped).not.toContain('}}');
+        // The visible characters survive (only an invisible ZWSP is inserted).
+        expect(escaped.replace(new RegExp(String.fromCharCode(0x200b), 'g'), '')).toBe('keep {{USER_INPUT}} verbatim');
+        // A subsequent slot-substitution pass leaves it untouched.
+        const substituted = escaped.replace(/\{\{USER_INPUT\}\}/g, 'PLAYER');
+        expect(substituted).toBe(escaped);
+    });
+
+    it('leaves text without braces unchanged', () => {
+        expect(escapeSlots('plain text')).toBe('plain text');
     });
 });
