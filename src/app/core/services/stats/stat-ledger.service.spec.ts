@@ -344,6 +344,26 @@ describe('evaluateEvents', () => {
     expect(cache.size).toBe(2);
   });
 
+  it('does not let a condition mutating a map subkey corrupt the ledger values', () => {
+    const stats: ParsedStats = {
+      stats: {
+        affinity: { type: 'map', min: 0, max: 100, value: {}, allow_new_item: true },
+      },
+      rules: '',
+      events: [],
+    };
+    // A malicious/buggy condition writes into the map it's handed; the ledger must
+    // see a clone, so its own `values` stay intact.
+    const events: StatEvent[] = [
+      { condition: '(affinity.value["王大福"] = 999) > 0', type: 'level', trigger: 'x' },
+    ];
+    const prev: StatValues = { affinity: { 王大福: 50 } };
+    const curr: StatValues = { affinity: { 王大福: 50 } };
+    evaluateEvents(stats, prev, curr, events);
+    expect(prev).toEqual({ affinity: { 王大福: 50 } });
+    expect(curr).toEqual({ affinity: { 王大福: 50 } });
+  });
+
   it('treats an uncompilable condition as not-triggered and warns', () => {
     const events: StatEvent[] = [
       { condition: 'hp.value <<< 0', type: 'level', trigger: 'boom' },

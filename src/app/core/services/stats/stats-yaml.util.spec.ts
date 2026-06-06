@@ -272,4 +272,25 @@ describe('isValidStatKey', () => {
     expect(isValidStatKey('a, b')).toBe(false);
     expect(isValidStatKey('let')).toBe(false);
   });
+
+  it('rejects a multi-declarator default-param injection payload', () => {
+    // `const x = 0, y = (()=>{})(), z` compiles as a valid multi-declarator const,
+    // and as a `new Function` param its default-value IIFE would execute — the
+    // single-identifier check must reject it outright.
+    expect(isValidStatKey('x = 0, y = (()=>{})(), z')).toBe(false);
+    expect(isValidStatKey('x = (() => 1)()')).toBe(false);
+  });
+
+  it('rejects reserved words that are unsafe as a binding/param name', () => {
+    for (const reserved of ['const', 'function', 'this', 'arguments', 'eval', 'await', 'yield']) {
+      expect(isValidStatKey(reserved)).toBe(false);
+    }
+  });
+
+  it('accepts single identifiers containing (but not equal to) reserved words', () => {
+    expect(isValidStatKey('letter')).toBe(true);
+    expect(isValidStatKey('evaluation')).toBe(true);
+    expect(isValidStatKey('好感度')).toBe(true);
+    expect(isValidStatKey('affinity_王大福')).toBe(true);
+  });
 });

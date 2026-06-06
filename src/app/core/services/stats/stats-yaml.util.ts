@@ -122,22 +122,32 @@ function parseEventsSection(raw: unknown, warnings: string[]): StatEvent[] {
   return out;
 }
 
+// A `new Function` param accepts far more than one identifier — `a, b` is two
+// params, `x = (()=>{...})()` is a default-value IIFE that runs when called with
+// fewer args. So validation can't lean on the engine accepting the param; it must
+// prove the key is exactly ONE identifier and not a reserved word, by pure means.
+const STAT_KEY_RE = /^[\p{ID_Start}_$][\p{ID_Continue}_$‌‍]*$/u;
+
+const RESERVED_STAT_KEYS = new Set([
+  'break', 'case', 'catch', 'class', 'const', 'continue', 'debugger', 'default',
+  'delete', 'do', 'else', 'enum', 'export', 'extends', 'false', 'finally', 'for',
+  'function', 'if', 'import', 'in', 'instanceof', 'new', 'null', 'return', 'super',
+  'switch', 'this', 'throw', 'true', 'try', 'typeof', 'var', 'void', 'while',
+  'with', 'let', 'static', 'yield', 'await', 'implements', 'interface', 'package',
+  'private', 'protected', 'public', 'arguments', 'eval',
+]);
+
 /**
  * A stat key is used verbatim as a `new Function` parameter name when compiling
- * event conditions, so it must be a legal JS identifier. CJK letters are allowed
- * (JS identifiers permit them); spaces, symbols, and a leading digit are not.
+ * event conditions, so it must be a single legal JS identifier and not a reserved
+ * word. CJK letters are allowed (JS identifiers permit them); anything containing
+ * a space, comma, operator, paren, dot, or a leading digit is rejected — which is
+ * what keeps a multi-declarator / default-param injection from passing.
  */
 export function isValidStatKey(key: string): boolean {
   if (!key) return false;
-  try {
-    // Declaring it as a `const` (not a `new Function` parameter) forces the
-    // runtime to accept exactly one valid, non-reserved identifier — the param
-    // form would wave through `a, b` (two params) or a default-value assignment.
-    new Function(`const ${key} = 0;`);
-    return true;
-  } catch {
-    return false;
-  }
+  if (!STAT_KEY_RE.test(key)) return false;
+  return !RESERVED_STAT_KEYS.has(key);
 }
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {

@@ -200,12 +200,16 @@ function buildConditionArgs(
     names.push(key);
     const raw = values[key];
     const fallback = def.type === 'map' ? {} : 0;
-    args.push({
-      value:
-        typeof raw === 'object' && raw !== null ? raw : typeof raw === 'number' ? raw : fallback,
-      min: def.min,
-      max: def.max,
-    });
+    // A condition is author-trusted but still untrusted to mutate: pass a shallow
+    // clone of a map so `affinity.value['x'] = 999` can't write back into the
+    // ledger. Scalars are numbers (immutable) — no clone needed.
+    const value =
+      typeof raw === 'object' && raw !== null && !Array.isArray(raw)
+        ? { ...raw }
+        : typeof raw === 'number'
+          ? raw
+          : fallback;
+    args.push({ value, min: def.min, max: def.max });
   }
   return { names, args };
 }
