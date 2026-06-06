@@ -162,32 +162,33 @@ function applyMapSubkey(
 interface Bounds { min?: number; max?: number }
 
 /**
- * Effective bounds for `key`: the overlay entry merged OVER the declared
- * defaults, per side. `ensureBounds` always seeds both sides, so an overlay is
- * never partial in practice — but merging per side keeps this helper correct on
- * its own (a declared bound is never lost) regardless of how the overlay was
- * built, rather than relying on that seeding invariant holding upstream.
+ * Resolve an overlay entry over the declared defaults, PER SIDE: each bound is
+ * the overlay's when set, else the definition's. The single definition of
+ * "overlay-over-def" — both the read path ({@link boundsFor}) and the write path
+ * ({@link ensureBounds}) go through it, so a half-open overlay can never drop a
+ * declared bound at any call site.
  */
-function boundsFor(def: StatDefinition, bounds: StatBounds, key: string): Bounds {
-  const b = bounds[key];
-  if (!b) return { min: def.min, max: def.max };
+function resolveBounds(def: StatDefinition, entry: Bounds | undefined): Bounds {
   return {
-    min: b.min !== undefined ? b.min : def.min,
-    max: b.max !== undefined ? b.max : def.max,
+    min: entry?.min !== undefined ? entry.min : def.min,
+    max: entry?.max !== undefined ? entry.max : def.max,
   };
 }
 
+/** Effective (read-only) bounds for `key`: the overlay merged over the defaults. */
+function boundsFor(def: StatDefinition, bounds: StatBounds, key: string): Bounds {
+  return resolveBounds(def, bounds[key]);
+}
+
 /**
- * Materialize `key`'s overlay entry (seeded from the declared bounds on first
- * touch) so a later bound change mutates an absolute current bound rather than a
- * delta against the definition.
+ * Resolve and STORE `key`'s overlay entry as fully populated, returning it. A
+ * later `b[field] = next` then mutates an absolute current bound, and any
+ * re-clamp through the returned object sees BOTH sides — never a half-open
+ * overlay that would silently treat a declared bound as open.
  */
 function ensureBounds(def: StatDefinition, bounds: StatBounds, key: string): Bounds {
-  let b = bounds[key];
-  if (!b) {
-    b = { min: def.min, max: def.max };
-    bounds[key] = b;
-  }
+  const b = resolveBounds(def, bounds[key]);
+  bounds[key] = b;
   return b;
 }
 

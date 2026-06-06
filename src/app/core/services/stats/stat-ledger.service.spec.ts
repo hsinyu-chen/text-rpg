@@ -313,13 +313,27 @@ describe('fold — dynamic bounds', () => {
     expect(baselineBounds).toEqual({ hp: { min: 0, max: 150 } });
   });
 
-  it('keeps the declared bound for a side a partial overlay leaves unset', () => {
+  it('keeps the declared bound for a side a partial overlay leaves unset (value change)', () => {
     // Overlay carries only min; the declared max (100) must still clamp, not be
     // treated as open — boundsFor merges the overlay over the definition per side.
     const { values } = fold(scalarStats(), { hp: 90 }, [{ key: 'hp', delta: 50 }], {
       hp: { min: 0 },
     });
     expect(values['hp']).toBe(100);
+  });
+
+  it('re-clamps against the declared bound a partial overlay omits (bound change)', () => {
+    // Partial baseline overlay: hp.min set, hp.max absent (declared 100). A bound
+    // change re-clamps via ensureBounds — which must resolve max from the def, so
+    // the pre-clamped 150 drops to 100 rather than staying open.
+    const { values, bounds } = fold(
+      scalarStats(),
+      { hp: 150 },
+      [{ key: 'hp', field: 'min', value: 0 }],
+      { hp: { min: 0 } },
+    );
+    expect(values['hp']).toBe(100);
+    expect(bounds['hp']).toEqual({ min: 0, max: 100 });
   });
 
   it('records the field and before/after bound in the audit trail', () => {
