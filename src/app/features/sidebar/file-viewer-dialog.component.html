@@ -25,6 +25,12 @@
                 [matTooltip]="(isDiffView() ? 'sidebar.fileViewer.showNormalView' : 'sidebar.fileViewer.showDiffView') | translate">
                 <mat-icon>{{ isDiffView() ? 'difference' : 'compare' }}</mat-icon>
             </button>
+            @if (canEdit()) {
+            <button mat-icon-button class="delete-file-btn" (click)="deleteFile()"
+                [matTooltip]="'sidebar.fileViewer.deleteFileTooltip' | translate">
+                <mat-icon>delete</mat-icon>
+            </button>
+            }
             <button mat-icon-button (click)="close()" [matTooltip]="'sidebar.fileViewer.close' | translate">
                 <mat-icon>close</mat-icon>
             </button>
@@ -56,7 +62,15 @@
                 <div class="files-list-section">
                     <div class="sidebar-header">
                         <span>{{ 'sidebar.fileViewer.filesSection' | translate }}</span>
-                        <span class="file-count">{{ fileList().length }}</span>
+                        <div class="files-header-actions">
+                            @if (!data.createWorldMode) {
+                            <button mat-icon-button class="new-file-btn" (click)="createFile()"
+                                [matTooltip]="'sidebar.fileViewer.newFileTooltip' | translate">
+                                <mat-icon>note_add</mat-icon>
+                            </button>
+                            }
+                            <span class="file-count">{{ fileList().length }}</span>
+                        </div>
                     </div>
 
                     <mat-nav-list class="file-nav-list">

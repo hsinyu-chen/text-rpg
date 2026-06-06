@@ -415,7 +415,9 @@ export class MonacoEditorComponent implements OnDestroy, ControlValueAccessor {
             'html': 'html',
             'css': 'css',
             'scss': 'scss',
-            'txt': 'plaintext'
+            'txt': 'plaintext',
+            'yaml': 'yaml',
+            'yml': 'yaml'
         };
         return langMap[ext] || 'markdown';
     }

@@ -204,4 +204,38 @@ export class SessionFileService {
             this.state.estimatedKbTokens.set(totalTokenCount);
         }
     }
+
+    /**
+     * Removes a single file from IndexedDB and the loadedFiles / token-count
+     * maps, then invalidates the remote KB cache if dropping the file shifted
+     * the KB hash. Mirror of writeSingleFile — same boundary guard and same
+     * cache-invalidation tail.
+     */
+    async deleteSingleFile(filePath: string): Promise<void> {
+        if (filePath === 'system_files/system_prompt.md' || filePath === 'system_prompt.md') {
+            throw new Error('Refused to delete system_prompt.md as a file — prompts live in prompt_store now.');
+        }
+
+        await this.files.delete(filePath);
+
+        this.state.loadedFiles.update(map => {
+            const newMap = new Map(map);
+            newMap.delete(filePath);
+            return newMap;
+        });
+
+        this.state.fileTokenCounts.update(map => {
+            const newMap = new Map(map);
+            newMap.delete(filePath);
+            return newMap;
+        });
+
+        const currentHash = this.state.currentKbHash();
+        if (this.state.kbCacheHash() !== currentHash) {
+            await this.invalidateKbCache(currentHash, 'single delete');
+            const modelId = this.providerRegistry.getActiveModelId();
+            const totalTokenCount = await this.recountKbTokens(this.state.loadedFiles(), modelId);
+            this.state.estimatedKbTokens.set(totalTokenCount);
+        }
+    }
 }
