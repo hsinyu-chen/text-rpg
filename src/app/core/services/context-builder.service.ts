@@ -15,7 +15,7 @@ import { stripSystemMainMarker } from './profile-compat';
 import { extractSceneHeader } from '@app/core/utils/scene-header.util';
 import { ParsedStats, StatValues } from '../models/stats.types';
 import { parseStats } from './stats/stats-yaml.util';
-import { getStatsYamlContent } from './stats/stats-opt-in.util';
+import { getStatsYamlContent, priorStatDeltaLists } from './stats/stats-opt-in.util';
 import { StatLedgerService } from './stats/stat-ledger.service';
 
 // Engine prompt directives (HISTORICAL_CORRECTION_RULE, IDEAL_OUTCOME_CONSTRAINT)
@@ -594,25 +594,12 @@ export class ContextBuilderService {
         const preTurnValues = this.statLedger.computeCurrent(
             statsParsed,
             statsBaseline,
-            this.priorStatDeltaLists(ctx)
+            priorStatDeltaLists(ctx.messages)
         );
         return resolveStatsSection(protocol, 'STATS_SECTION', true)
             .replace(/\{\{STATS_RULES\}\}/g, () => escapeSlots(statsParsed.rules))
             .replace(/\{\{PC_STATS_CURRENT\}\}/g, () =>
                 escapeSlots(this.statLedger.renderStatValues(statsParsed, preTurnValues)));
-    }
-
-    /**
-     * The `stat_delta` of every prior non-ref-only model message in the FULL
-     * captured history, as per-message lists in chronological order. This is the
-     * authoritative fold basis (NOT the possibly-truncated context history), so a
-     * deleted / retried mid-history message drops its delta and the running
-     * totals roll back naturally — identical to the two-call seam's basis.
-     */
-    private priorStatDeltaLists(ctx: BuildContext) {
-        return ctx.messages
-            .filter(m => m.role === 'model' && !m.isRefOnly && !m.isManualRefOnly)
-            .map(m => m.stat_delta ?? []);
     }
 
     /**

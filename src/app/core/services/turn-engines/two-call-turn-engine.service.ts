@@ -9,6 +9,7 @@ import { TwoCallOrchestratorService } from './two-call-orchestrator.service';
 import { truncateAtBreak, StructuredAnalysis } from '@app/core/constants/engine-protocol-structured';
 import { formatResolverIntent, formatStructuredAnalysis } from './format-structured-analysis';
 import { StatLedgerService } from '../stats/stat-ledger.service';
+import { priorStatDeltaLists } from '../stats/stats-opt-in.util';
 
 /**
  * Two-call turn engine — splits a turn into a resolver call (atomic action
@@ -173,9 +174,7 @@ export class TwoCallTurnEngine implements TurnEngine {
         const { statsParsed, statsBaseline } = ctx;
         if (!ctx.enableStatsSystem || !statsParsed || !statsBaseline) return null;
 
-        const priorDeltaLists = ctx.messages
-            .filter(m => m.role === 'model' && !m.isRefOnly && !m.isManualRefOnly)
-            .map(m => m.stat_delta ?? []);
+        const priorDeltaLists = priorStatDeltaLists(ctx.messages);
         const priorDeltas = priorDeltaLists.flat();
         const thisTurnChanges = truncatedAnalysis.steps.flatMap(s => s.stat_changes ?? []);
 
