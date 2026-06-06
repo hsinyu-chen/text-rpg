@@ -75,8 +75,8 @@ function parseStatDefinition(
     allow_new_item: entry['allow_new_item'] === true,
   };
 
-  if (typeof entry['min'] === 'number') def.min = entry['min'];
-  if (typeof entry['max'] === 'number') def.max = entry['max'];
+  if (isFiniteNumber(entry['min'])) def.min = entry['min'];
+  if (isFiniteNumber(entry['max'])) def.max = entry['max'];
   if (typeof entry['desc'] === 'string') def.desc = entry['desc'];
   if (typeof entry['new_item_rule'] === 'string') def.new_item_rule = entry['new_item_rule'];
 
@@ -84,14 +84,14 @@ function parseStatDefinition(
 }
 
 function coerceScalarValue(value: unknown): number {
-  return typeof value === 'number' ? value : 0;
+  return isFiniteNumber(value) ? value : 0;
 }
 
 function coerceMapValue(value: unknown): Record<string, number> {
   const out: Record<string, number> = {};
   if (isPlainObject(value)) {
     for (const [subkey, sub] of Object.entries(value)) {
-      if (typeof sub === 'number') out[subkey] = sub;
+      if (isFiniteNumber(sub)) out[subkey] = sub;
     }
   }
   return out;
@@ -141,4 +141,10 @@ export function isValidStatKey(key: string): boolean {
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+// YAML `.nan`/`.inf`/`-.inf` parse to JS NaN/Infinity, which are `typeof "number"`
+// yet poison clamp(); a finite check keeps them out of values and bounds alike.
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
 }

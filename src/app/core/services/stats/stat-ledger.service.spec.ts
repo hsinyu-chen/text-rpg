@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ParsedStats, StatChange, StatEvent, StatValues } from '../../models/stats.types';
 import {
   clamp,
@@ -343,6 +343,21 @@ describe('evaluateEvents', () => {
     const out = evaluateEvents(hpStats, { hp: 50 }, { hp: 50 }, events, new Map(), warnings);
     expect(out).toEqual([]);
     expect(warnings.length).toBeGreaterThan(0);
+  });
+
+  it('console.warns a throwing condition when no warnings array is supplied', () => {
+    const events: StatEvent[] = [
+      { condition: 'hp.value.nope.crash()', type: 'level', trigger: 'boom' },
+    ];
+    const spy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const out = evaluateEvents(hpStats, { hp: 50 }, { hp: 50 }, events);
+      expect(out).toEqual([]);
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(spy.mock.calls[0][0]).toContain('[StatLedger]');
+    } finally {
+      spy.mockRestore();
+    }
   });
 });
 

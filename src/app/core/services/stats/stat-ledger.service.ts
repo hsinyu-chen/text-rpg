@@ -215,8 +215,9 @@ function buildConditionArgs(
  * condition reads `hp.value <= 0` or `affinity.value["王如花"] < 50`. `level`
  * events fire whenever the condition is truthy on curr; `edge` events fire only
  * on a false->true crossing (falsy on prev, truthy on curr). A condition that
- * throws is treated as not-triggered (the turn must never crash) and noted in
- * `warnings`.
+ * throws is treated as not-triggered (the turn must never crash); the throw is
+ * pushed to `warnings` when one is supplied, otherwise `console.warn`d so it's
+ * never silently swallowed.
  */
 export function evaluateEvents(
   stats: ParsedStats,
@@ -224,7 +225,7 @@ export function evaluateEvents(
   currValues: StatValues,
   events: StatEvent[],
   cache = new Map<string, CompiledCondition>(),
-  warnings: string[] = [],
+  warnings?: string[],
 ): string[] {
   const triggered: string[] = [];
   const prev = buildConditionArgs(stats, prevValues);
@@ -259,6 +260,8 @@ function compileCondition(
   const cacheKey = `${paramNames.join(',')}|${condition}`;
   const cached = cache.get(cacheKey);
   if (cached) return cached;
+  // v1 treats stat-event conditions as author-trusted content (same accepted
+  // posture as post-processor.service.ts's `new Function`); a sandbox is deferred to v2.
   const fn = new Function(...paramNames, `return (${condition});`) as CompiledCondition;
   cache.set(cacheKey, fn);
   return fn;
@@ -268,12 +271,14 @@ function safeEval(
   fn: CompiledCondition,
   args: StatArg[],
   condition: string,
-  warnings: string[],
+  warnings?: string[],
 ): boolean {
   try {
     return Boolean(fn(...args));
   } catch (err) {
-    warnings.push(`Event condition "${condition}" threw: ${(err as Error).message}`);
+    const message = `Event condition "${condition}" threw: ${(err as Error).message}`;
+    if (warnings) warnings.push(message);
+    else console.warn(`[StatLedger] ${message}`);
     return false;
   }
 }
@@ -303,7 +308,7 @@ export class StatLedgerService {
     prevValues: StatValues,
     currValues: StatValues,
     events: StatEvent[],
-    warnings: string[] = [],
+    warnings?: string[],
   ): string[] {
     return evaluateEvents(stats, prevValues, currValues, events, this.conditionCache, warnings);
   }

@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { isValidStatKey, parseStats } from './stats-yaml.util';
 
+/** True if any number reachable from `value` is NaN or non-finite. */
+function hasNonFiniteNumber(value: unknown): boolean {
+  if (typeof value === 'number') return !Number.isFinite(value);
+  if (value && typeof value === 'object') {
+    return Object.values(value).some(hasNonFiniteNumber);
+  }
+  return false;
+}
+
 describe('parseStats', () => {
   it('parses a full stats document', () => {
     const { parsed, warnings } = parseStats(`
@@ -193,6 +202,34 @@ stats:
     value:
       王大福: 50
       bad: hello
+`);
+    expect(parsed.stats['affinity'].value).toEqual({ 王大福: 50 });
+  });
+
+  it('drops non-finite YAML numerics (value .nan, bounds .inf/-.inf)', () => {
+    const { parsed } = parseStats(`
+stats:
+  hp:
+    type: scalar
+    value: .nan
+    min: -.inf
+    max: .inf
+`);
+    const hp = parsed.stats['hp'];
+    expect(hp.value).toBe(0);
+    expect(hp.min).toBeUndefined();
+    expect(hp.max).toBeUndefined();
+    expect(hasNonFiniteNumber(parsed)).toBe(false);
+  });
+
+  it('skips non-finite subkeys in a map value', () => {
+    const { parsed } = parseStats(`
+stats:
+  affinity:
+    type: map
+    value:
+      王大福: 50
+      bad: .inf
 `);
     expect(parsed.stats['affinity'].value).toEqual({ 王大福: 50 });
   });
