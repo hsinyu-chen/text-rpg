@@ -10,12 +10,13 @@ import { LanguageService } from './language.service';
 import { LOCALES, getLocale } from '../constants/locales';
 import { GAME_INTENTS, STORY_INTENTS } from '../constants/game-intents';
 import { IdealStrength, StructuredAnalysis } from '../constants/engine-protocol-structured';
-import { applyIntentTag, buildResolverUserMessage, buildNarratorUserMessage } from './turn-engines/build-context-utils';
+import { applyIntentTag, buildResolverUserMessage, buildNarratorUserMessage, resolveStatsSection, escapeSlots } from './turn-engines/build-context-utils';
 import { stripSystemMainMarker } from './profile-compat';
 import { extractSceneHeader } from '@app/core/utils/scene-header.util';
 import { ParsedStats, StatValues } from '../models/stats.types';
 import { parseStats } from './stats/stats-yaml.util';
 import { getStatsYamlContent } from './stats/stats-opt-in.util';
+import { StatLedgerService } from './stats/stat-ledger.service';
 
 // Engine prompt directives (HISTORICAL_CORRECTION_RULE, IDEAL_OUTCOME_CONSTRAINT)
 // live in the locale files under `enginePromptDirectives`. Engine behaviour,
@@ -94,6 +95,7 @@ export class ContextBuilderService {
     private state = inject(GameStateService);
     private providerRegistry = inject(LLMProviderRegistryService);
     private appConfig = inject(AppConfigStore);
+    private statLedger = inject(StatLedgerService);
 
     /**
      * Gets the effective system instruction, replacing placeholders and adding language overrides.
@@ -555,8 +557,11 @@ export class ContextBuilderService {
 
         const intentInjection = this.intentInjection(ctx, options.intent);
 
-        const protocolResolver = ctx.dynamicProtocolResolver
-            .replace(/\{\{HISTORICAL_CORRECTION_RULE\}\}/g, () => this.getHistoricalCorrectionRule(ctx, options.lang));
+        const protocolResolver = this.fillResolverStatsSection(
+            ctx.dynamicProtocolResolver
+                .replace(/\{\{HISTORICAL_CORRECTION_RULE\}\}/g, () => this.getHistoricalCorrectionRule(ctx, options.lang)),
+            ctx
+        );
 
         const tail = buildResolverUserMessage({
             userInput,
@@ -569,6 +574,45 @@ export class ContextBuilderService {
 
         history.push({ role: 'user', parts: [{ text: finalContent }] });
         return history;
+    }
+
+    /**
+     * Resolve the resolver protocol's sentinel-delimited stats section. When the
+     * Book opts in, the section's two slots are filled with the per-book author
+     * rules and a compact rendering of the PRE-turn values (baseline folded over
+     * the full prior history — same basis the seam re-uses post-turn). The author
+     * rules have their `{{...}}` neutralized so the later `{{USER_INPUT}}` /
+     * `{{IDEAL_OUTCOME_CONSTRAINT}}` pass can't substitute into them. When stats
+     * are off the whole section is stripped, leaving the protocol byte-identical
+     * to a no-stats book.
+     */
+    private fillResolverStatsSection(protocol: string, ctx: BuildContext): string {
+        const { statsParsed, statsBaseline } = ctx;
+        if (!ctx.enableStatsSystem || !statsParsed || !statsBaseline) {
+            return resolveStatsSection(protocol, 'STATS_SECTION', false);
+        }
+        const preTurnValues = this.statLedger.computeCurrent(
+            statsParsed,
+            statsBaseline,
+            this.priorStatDeltaLists(ctx)
+        );
+        return resolveStatsSection(protocol, 'STATS_SECTION', true)
+            .replace(/\{\{STATS_RULES\}\}/g, () => escapeSlots(statsParsed.rules))
+            .replace(/\{\{PC_STATS_CURRENT\}\}/g, () =>
+                escapeSlots(this.statLedger.renderStatValues(statsParsed, preTurnValues)));
+    }
+
+    /**
+     * The `stat_delta` of every prior non-ref-only model message in the FULL
+     * captured history, as per-message lists in chronological order. This is the
+     * authoritative fold basis (NOT the possibly-truncated context history), so a
+     * deleted / retried mid-history message drops its delta and the running
+     * totals roll back naturally — identical to the two-call seam's basis.
+     */
+    private priorStatDeltaLists(ctx: BuildContext) {
+        return ctx.messages
+            .filter(m => m.role === 'model' && !m.isRefOnly && !m.isManualRefOnly)
+            .map(m => m.stat_delta ?? []);
     }
 
     /**
@@ -598,15 +642,21 @@ export class ContextBuilderService {
         const history = options.baseHistory.slice();
         history.pop();
 
-        const protocolNarrator = ctx.dynamicProtocolNarrator
-            .replace(/\{\{HISTORICAL_CORRECTION_RULE\}\}/g, () => this.getHistoricalCorrectionRule(ctx, options.lang));
+        const protocolNarrator = resolveStatsSection(
+            ctx.dynamicProtocolNarrator
+                .replace(/\{\{HISTORICAL_CORRECTION_RULE\}\}/g, () => this.getHistoricalCorrectionRule(ctx, options.lang)),
+            'NARRATOR_STATS_GUIDANCE',
+            ctx.enableStatsSystem
+        );
 
         const tail = buildNarratorUserMessage({
             idealOutcome: options.idealOutcome,
             idealStrength: options.idealStrength,
             truncatedAnalysis: options.truncatedAnalysis,
             protocolNarrator,
-            correction: this.getRecentCorrection(ctx)
+            correction: this.getRecentCorrection(ctx),
+            pcStats: options.postStatValues,
+            triggeredEvents: options.triggeredEvents
         });
         const finalContent = this.wrapUserMessage(tail, history);
 

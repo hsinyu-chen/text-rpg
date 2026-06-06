@@ -7,6 +7,7 @@ import { AppConfigStore } from './app-config-store';
 import { LLMProviderRegistryService } from './llm-provider-registry.service';
 import { KnowledgeService } from './knowledge.service';
 import { LanguageService } from './language.service';
+import { StatLedgerService } from './stats/stat-ledger.service';
 
 /**
  * snapshotForTurn reads ~20 signals; stub each as a constant accessor so the
@@ -48,6 +49,7 @@ function makeBuilder(opts: { hasStatsYaml: boolean; engineMode: 'single' | 'two-
             { provide: LLMProviderRegistryService, useValue: providerRegistryStub },
             { provide: KnowledgeService, useValue: {} },
             { provide: LanguageService, useValue: {} },
+            { provide: StatLedgerService, useClass: StatLedgerService },
         ],
     });
     return runInInjectionContext(injector, () => new ContextBuilderService());

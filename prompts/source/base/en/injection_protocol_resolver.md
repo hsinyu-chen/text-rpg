@@ -85,6 +85,26 @@ The program assembles the user-facing scene header `[<date_in_world> <time_hhmm>
 | `name` | Must match a `key_objects[].name`. |
 | `change` | When state is unchanged AND not interacted with: use the reserved literal `"unchanged"`. On first appearance: describe initial state in detail. On change / interaction: describe the concrete change. |
 
+<!--STATS_SECTION-->
+### Numeric stats — `steps[].stat_changes`
+
+Each step may carry `stat_changes` only when the schema defines that field. Per step, emit ONE entry **only for each stat that actually changed this step** — never restate an unchanged stat. **Do not invent stats or subkeys not declared below.**
+
+- Scalar stat, or an **existing** subkey of a map stat → `{ "key", ("subkey",) "delta", "reason" }`. `delta` is the **signed increment** to add (e.g. `-5`, `+10`), NOT the new total.
+- A **brand-new authorized** subkey of a map stat → `{ "key", "subkey", "value", "reason" }`. `value` is the **absolute initial amount** for that new subkey.
+- Set exactly one of `delta` / `value` per entry. `reason` is a short justification surfaced in the log.
+
+The program owns the running totals, clamping, and authorization — you only report each step's change. The current values below are pre-turn; apply your `delta`s on top of them.
+
+**Per-book stat rules:**
+
+{{STATS_RULES}}
+
+**Current values (before this turn):**
+
+{{PC_STATS_CURRENT}}
+<!--/STATS_SECTION-->
+
 ## Per-turn `event` step checks (run in order, all mandatory)
 
 Each turn, run the three checks below in the order ① → ② → ③; each may emit **one or more** `kind: "event"` steps. When several fire, the event steps still slot in chronologically among the `user_intent` steps they interrupt or affect.

@@ -5,6 +5,7 @@ import {
   computeCurrent,
   evaluateEvents,
   fold,
+  renderStatValues,
   StatLedgerService,
 } from './stat-ledger.service';
 
@@ -447,5 +448,41 @@ describe('StatLedgerService', () => {
     ];
     expect(service.evaluateEvents(stats, { hp: 0 }, { hp: 0 }, events)).toEqual(['x']);
     expect(service.evaluateEvents(stats, { hp: 0 }, { hp: 0 }, events)).toEqual(['x']);
+  });
+
+  it('renderStatValues delegates to the pure function', () => {
+    const service = new StatLedgerService();
+    expect(service.renderStatValues(scalarStats(), { hp: 42 })).toBe('hp: 42');
+  });
+});
+
+describe('renderStatValues', () => {
+  it('renders a scalar as `key: n`', () => {
+    expect(renderStatValues(scalarStats(), { hp: 73 })).toBe('hp: 73');
+  });
+
+  it('renders a map as `key: { sub: n, ... }`', () => {
+    const out = renderStatValues(affinityStats(true), { affinity: { 王大福: 60, 李如玉: 30 } });
+    expect(out).toBe('affinity: { 王大福: 60, 李如玉: 30 }');
+  });
+
+  it('renders an empty map as `key: {}`', () => {
+    expect(renderStatValues(affinityStats(true), { affinity: {} })).toBe('affinity: {  }');
+  });
+
+  it('falls back to the declared shape (0 / empty map) for a stat missing from values', () => {
+    const stats: ParsedStats = {
+      stats: {
+        hp: { type: 'scalar', value: 100 },
+        affinity: { type: 'map', value: {} },
+      },
+      rules: '',
+      events: [],
+    };
+    expect(renderStatValues(stats, {})).toBe('hp: 0\naffinity: {  }');
+  });
+
+  it('returns empty string when no stats are declared', () => {
+    expect(renderStatValues({ stats: {}, rules: '', events: [] }, {})).toBe('');
   });
 });

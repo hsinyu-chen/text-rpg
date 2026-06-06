@@ -85,6 +85,26 @@
 | `name` | 必須對應 `key_objects[].name`。 |
 | `change` | 狀態未變且未被互動：填保留字串 `"無變化"`。首次登場：詳述初始狀態。被互動或變化：寫具體變化。 |
 
+<!--STATS_SECTION-->
+### 數值 — `steps[].stat_changes`
+
+只有當 schema 定義了該欄位時，step 才會帶 `stat_changes`。每個 step **只為本步真正變動的數值各輸出一筆**，未變動的數值絕不重列。**不得發明下方未宣告的數值或子鍵。**
+
+- scalar 數值，或 map 數值的**既有**子鍵 → `{ "key", ("subkey",) "delta", "reason" }`。`delta` 是要疊加的**帶號增量**（如 `-5`、`+10`），不是變動後的總值。
+- map 數值的**全新且已授權**子鍵 → `{ "key", "subkey", "value", "reason" }`。`value` 是該新子鍵的**絕對初始值**。
+- 每筆只能填 `delta` / `value` 其一。`reason` 是會顯示在記錄中的簡短理由。
+
+累計總值、上下限夾擠與授權由程式負責，你只回報本步的變動。下方為本回合開始前的目前值；把你的 `delta` 疊加上去即可。
+
+**本書數值規則：**
+
+{{STATS_RULES}}
+
+**目前值（本回合開始前）：**
+
+{{PC_STATS_CURRENT}}
+<!--/STATS_SECTION-->
+
 ## 每回合 `event` step 必檢核（順序執行，缺一不可）
 
 每回合依 ① → ② → ③ 的順序跑以下三項檢核，各項皆可能產生**一筆或多筆** `kind: "event"` step。多項觸發時，event step 仍依時序插入它打斷或影響的 `user_intent` step 之間。

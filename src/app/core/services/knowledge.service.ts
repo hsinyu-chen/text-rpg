@@ -20,9 +20,13 @@ export class KnowledgeService {
         let kbText = '';
         // Sort keys to ensure deterministic order regardless of insertion history
         const sortedKeys = Array.from(files.keys()).sort();
+        // The numeric-stats YAML is a machine-read ledger definition, not narrative
+        // KB — it reaches the model through the resolver protocol's stats slots, so
+        // it must never be embedded into the knowledge-base prose.
+        const statsYamlNames = Object.values(LOCALES).map(l => l.optionalFilenames.STATS_YAML);
 
         sortedKeys.forEach(path => {
-            if (!path.startsWith('system_files/') && path !== 'system_prompt.md') {
+            if (!path.startsWith('system_files/') && path !== 'system_prompt.md' && !statsYamlNames.includes(path)) {
                 let processedContent = files.get(path)!;
                 // Strip last_scene from Story Outline
                 const isStoryOutline = Object.values(LOCALES).some(l => l.coreFilenames.STORY_OUTLINE === path);

@@ -177,6 +177,32 @@ export function computeCurrent(
   return fold(stats, baseline, deltaLists.flat()).values;
 }
 
+/**
+ * Render resolved {@link StatValues} as a compact, model-readable block — one
+ * line per stat in declaration order, scalars as `key: n` and maps as
+ * `key: { sub: n, sub2: n }` (empty map as `key: {}`). A stat present in the
+ * definition but absent from `values` falls back to its declared baseline shape
+ * (0 / {}), so the block always covers every declared stat. Returns '' when no
+ * stats are declared. Pure; reads only the definition's key set + types.
+ */
+export function renderStatValues(stats: ParsedStats, values: StatValues): string {
+  const lines: string[] = [];
+  for (const [key, def] of Object.entries(stats.stats)) {
+    const raw = values[key];
+    if (def.type === 'map') {
+      const map =
+        typeof raw === 'object' && raw !== null && !Array.isArray(raw)
+          ? (raw as Record<string, number>)
+          : {};
+      const entries = Object.entries(map).map(([sub, n]) => `${sub}: ${n}`);
+      lines.push(`${key}: { ${entries.join(', ')} }`);
+    } else {
+      lines.push(`${key}: ${typeof raw === 'number' ? raw : 0}`);
+    }
+  }
+  return lines.join('\n');
+}
+
 /** The per-stat named argument exposed to a compiled event condition. */
 interface StatArg {
   value: number | Record<string, number>;
@@ -336,6 +362,10 @@ export class StatLedgerService {
 
   computeCurrent(stats: ParsedStats, baseline: StatValues, deltaLists: StatChange[][]): StatValues {
     return computeCurrent(stats, baseline, deltaLists);
+  }
+
+  renderStatValues(stats: ParsedStats, values: StatValues): string {
+    return renderStatValues(stats, values);
   }
 
   evaluateEvents(

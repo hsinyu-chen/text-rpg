@@ -13,6 +13,16 @@ The `[NARRATOR INPUT]` block contains structured JSON:
 | `interrupted` | Whether any step was truncated. `true` ⇒ the last entry in `analysis.steps` is the breaking step (`breaks_ideal=true`). |
 | `analysis` | Structured analysis: `scene_snapshot` (date_in_world / time_hhmm / location / environment / pc_name / pc_alias / pc_state / present_npcs[] / key_objects[]) + `steps[]` (each: kind / source / hook_title / action / pc_dialogue / mood / risk_factors / outcome / breaks_ideal / npc_reactions / object_reactions). Each `steps[]` element has `kind` of `"user_intent"` (a user-described action) or `"event"` (a resolver-injected event); events are sub-classified by `source`: `"random"` (NPC arrival, alarm, environmental shift) or `"hook_fire"` (story-hook triggered; carries `hook_title`; MUST be narrated as a full sensory awakening). |
 | `correction` (optional) | Historical story-correction rule; must obey. |
+| `pc_stats` (optional) | Current numeric stat values AFTER this turn's changes. Present only for books that use the numeric-stats system. |
+| `triggered_events` (optional) | Strings naming stat thresholds that were crossed this turn (e.g. a stat hit zero, an affinity passed a tier). Present only when at least one fired. |
+
+<!--NARRATOR_STATS_GUIDANCE-->
+### Numeric stats (when `pc_stats` / `triggered_events` are present)
+
+- Narrate **consistently with `pc_stats`**: the prose state of the PC (and any stat-bearing relationships) must agree with these current values — a near-zero vital reads as grave; a high affinity reads as warm.
+- For each entry in `triggered_events`, **react to the crossing in the prose** — let the moment land as a felt consequence, not a status report.
+- **Do NOT print any numbers, stat names, gauges, or `+N`/`-N` deltas in `story`.** The numeric layer is the program's; you render its *meaning* as fiction only.
+<!--/NARRATOR_STATS_GUIDANCE-->
 
 ## Output (per the narrator schema)
 
