@@ -1,5 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ParsedStats, StatChange, StatEvent, StatValues } from '../../models/stats.types';
+import {
+  ParsedStats,
+  StatBounds,
+  StatChange,
+  StatEvent,
+  StatState,
+  StatValues,
+} from '../../models/stats.types';
 import {
   clamp,
   computeCurrent,
@@ -9,6 +16,9 @@ import {
   renderStatValues,
   StatLedgerService,
 } from './stat-ledger.service';
+
+/** Wrap bare values (and optional bounds) into a {@link StatState} for the prev/curr args. */
+const st = (values: StatValues, bounds: StatBounds = {}): StatState => ({ values, bounds });
 
 function scalarStats(overrides: Partial<ParsedStats['stats']> = {}): ParsedStats {
   return {
@@ -199,6 +209,159 @@ describe('fold', () => {
   });
 });
 
+describe('fold — dynamic bounds', () => {
+  function openScalar(): ParsedStats {
+    return { stats: { score: { type: 'scalar', value: 0 } }, rules: '', events: [] };
+  }
+
+  it('raising max opens headroom without changing the value', () => {
+    const { values, bounds } = fold(scalarStats(), { hp: 100 }, [
+      { key: 'hp', field: 'max', delta: 50 },
+    ]);
+    expect(values['hp']).toBe(100);
+    expect(bounds['hp']).toEqual({ min: 0, max: 150 });
+  });
+
+  it('lets a value grow past the old max once the max is raised', () => {
+    const { values } = fold(scalarStats(), { hp: 100 }, [
+      { key: 'hp', field: 'max', delta: 50 },
+      { key: 'hp', delta: 40 },
+    ]);
+    expect(values['hp']).toBe(140);
+  });
+
+  it('lowering max below the current value drags the value down (debuff cap)', () => {
+    const { values, bounds } = fold(scalarStats(), { hp: 90 }, [
+      { key: 'hp', field: 'max', delta: -30 },
+    ]);
+    expect(bounds['hp']).toEqual({ min: 0, max: 70 });
+    expect(values['hp']).toBe(70);
+  });
+
+  it('raising min above the current value pulls the value up', () => {
+    const { values, bounds } = fold(scalarStats(), { hp: 10 }, [
+      { key: 'hp', field: 'min', delta: 20 },
+    ]);
+    expect(bounds['hp']).toEqual({ min: 20, max: 100 });
+    expect(values['hp']).toBe(20);
+  });
+
+  it('sets a bound absolutely with value (and re-clamps the value)', () => {
+    const { values, bounds } = fold(scalarStats(), { hp: 100 }, [
+      { key: 'hp', field: 'max', value: 80 },
+    ]);
+    expect(bounds['hp']).toEqual({ min: 0, max: 80 });
+    expect(values['hp']).toBe(80);
+  });
+
+  it('drops a delta on an open (unset) bound and materializes no override', () => {
+    const { applied, bounds } = fold(openScalar(), { score: 5 }, [
+      { key: 'score', field: 'max', delta: 10 },
+    ]);
+    expect(applied[0].dropped).toBe(true);
+    expect(applied[0].warning).toContain('open');
+    expect(bounds).toEqual({});
+  });
+
+  it('introduces a previously-open bound via an absolute value', () => {
+    const { values, bounds } = fold(openScalar(), { score: 120 }, [
+      { key: 'score', field: 'max', value: 100 },
+    ]);
+    expect(bounds['score']).toEqual({ max: 100 });
+    expect(values['score']).toBe(100);
+  });
+
+  it('drops a bound change that would invert the range', () => {
+    const { applied, bounds, values } = fold(scalarStats(), { hp: 50 }, [
+      { key: 'hp', field: 'max', value: -10 },
+    ]);
+    expect(applied[0].dropped).toBe(true);
+    expect(applied[0].warning).toContain('invert');
+    expect(bounds).toEqual({});
+    expect(values['hp']).toBe(50);
+  });
+
+  it('re-clamps every subkey when a map stat bound shrinks', () => {
+    const { values, bounds } = fold(affinityStats(true), { affinity: { 王大福: 90, 李如玉: 60 } }, [
+      { key: 'affinity', field: 'max', delta: -30 },
+    ]);
+    expect(bounds['affinity']).toEqual({ min: 0, max: 70 });
+    expect(values['affinity']).toEqual({ 王大福: 70, 李如玉: 60 });
+  });
+
+  it('applies a bound change at stat level, ignoring any subkey', () => {
+    const { bounds } = fold(affinityStats(true), { affinity: { 王大福: 50 } }, [
+      { key: 'affinity', subkey: '王大福', field: 'max', delta: -40 },
+    ]);
+    expect(bounds['affinity']).toEqual({ min: 0, max: 60 });
+  });
+
+  it('seeds the live bounds from baselineBounds for an incremental fold', () => {
+    const { values, bounds } = fold(
+      scalarStats(),
+      { hp: 120 },
+      [{ key: 'hp', delta: 40 }],
+      { hp: { min: 0, max: 150 } },
+    );
+    expect(values['hp']).toBe(150);
+    expect(bounds['hp']).toEqual({ min: 0, max: 150 });
+  });
+
+  it('never mutates baselineBounds (deep copy)', () => {
+    const baselineBounds: StatBounds = { hp: { min: 0, max: 150 } };
+    fold(scalarStats(), { hp: 100 }, [{ key: 'hp', field: 'max', delta: 20 }], baselineBounds);
+    expect(baselineBounds).toEqual({ hp: { min: 0, max: 150 } });
+  });
+
+  it('keeps the declared bound for a side a partial overlay leaves unset (value change)', () => {
+    // Overlay carries only min; the declared max (100) must still clamp, not be
+    // treated as open — boundsFor merges the overlay over the definition per side.
+    const { values } = fold(scalarStats(), { hp: 90 }, [{ key: 'hp', delta: 50 }], {
+      hp: { min: 0 },
+    });
+    expect(values['hp']).toBe(100);
+  });
+
+  it('re-clamps against the declared bound a partial overlay omits (bound change)', () => {
+    // Partial baseline overlay: hp.min set, hp.max absent (declared 100). A bound
+    // change re-clamps via ensureBounds — which must resolve max from the def, so
+    // the pre-clamped 150 drops to 100 rather than staying open.
+    const { values, bounds } = fold(
+      scalarStats(),
+      { hp: 150 },
+      [{ key: 'hp', field: 'min', value: 0 }],
+      { hp: { min: 0 } },
+    );
+    expect(values['hp']).toBe(100);
+    expect(bounds['hp']).toEqual({ min: 0, max: 100 });
+  });
+
+  it('records the field and before/after bound in the audit trail', () => {
+    const { applied } = fold(scalarStats(), { hp: 100 }, [
+      { key: 'hp', field: 'max', delta: 50, reason: '升級' },
+    ]);
+    expect(applied[0]).toMatchObject({
+      key: 'hp',
+      field: 'max',
+      before: 100,
+      after: 150,
+      delta: 50,
+      reason: '升級',
+    });
+    // delta decided `next`, so the unused `value` is absent from the audit.
+    expect(applied[0].value).toBeUndefined();
+  });
+
+  it('records only value (not the ignored delta) when both are given on a bound change', () => {
+    const { applied, bounds } = fold(scalarStats(), { hp: 100 }, [
+      { key: 'hp', field: 'max', value: 80, delta: 999 },
+    ]);
+    expect(bounds['hp']).toEqual({ min: 0, max: 80 });
+    expect(applied[0]).toMatchObject({ key: 'hp', field: 'max', value: 80 });
+    expect(applied[0].delta).toBeUndefined();
+  });
+});
+
 describe('computeCurrent', () => {
   it('flattens chronological delta lists in order and folds', () => {
     const stats = scalarStats();
@@ -207,12 +370,25 @@ describe('computeCurrent', () => {
       [{ key: 'hp', delta: -30 }],
       [{ key: 'hp', delta: -10 }, { key: 'hp', delta: 5 }],
     ];
-    expect(computeCurrent(stats, baseline, deltaLists)).toEqual({ hp: 65 });
+    expect(computeCurrent(stats, baseline, deltaLists)).toEqual({ values: { hp: 65 }, bounds: {} });
   });
 
   it('returns the baseline when no delta lists are given', () => {
     const stats = scalarStats();
-    expect(computeCurrent(stats, { hp: 42 }, [])).toEqual({ hp: 42 });
+    expect(computeCurrent(stats, { hp: 42 }, [])).toEqual({ values: { hp: 42 }, bounds: {} });
+  });
+
+  it('rolls bound changes across history into the live bounds', () => {
+    const stats = scalarStats();
+    const deltaLists: StatChange[][] = [
+      [{ key: 'hp', field: 'max', delta: 50 }],
+      [{ key: 'hp', delta: 40 }],
+    ];
+    // max 100 -> 150, then hp 100 + 40 clamps to 140 (the grown max, not 100).
+    expect(computeCurrent(stats, { hp: 100 }, deltaLists)).toEqual({
+      values: { hp: 140 },
+      bounds: { hp: { min: 0, max: 150 } },
+    });
   });
 });
 
@@ -227,7 +403,7 @@ describe('evaluateEvents', () => {
     const events: StatEvent[] = [
       { condition: 'hp.value <= 0', type: 'level', trigger: '程楊宗倒下' },
     ];
-    const out = evaluateEvents(hpStats, { hp: 0 }, { hp: 0 }, events);
+    const out = evaluateEvents(hpStats, st({ hp: 0 }), st({ hp: 0 }), events);
     expect(out).toEqual(['程楊宗倒下']);
   });
 
@@ -235,21 +411,21 @@ describe('evaluateEvents', () => {
     const events: StatEvent[] = [
       { condition: 'hp.value <= 0', type: 'level', trigger: '程楊宗倒下' },
     ];
-    expect(evaluateEvents(hpStats, { hp: 50 }, { hp: 50 }, events)).toEqual([]);
+    expect(evaluateEvents(hpStats, st({ hp: 50 }), st({ hp: 50 }), events)).toEqual([]);
   });
 
   it('fires an edge event only on a false->true crossing', () => {
     const events: StatEvent[] = [
       { condition: 'hp.value <= 0', type: 'edge', trigger: '程楊宗倒下' },
     ];
-    expect(evaluateEvents(hpStats, { hp: 10 }, { hp: 0 }, events)).toEqual(['程楊宗倒下']);
+    expect(evaluateEvents(hpStats, st({ hp: 10 }), st({ hp: 0 }), events)).toEqual(['程楊宗倒下']);
   });
 
   it('does not re-fire an edge event when the condition stays true', () => {
     const events: StatEvent[] = [
       { condition: 'hp.value <= 0', type: 'edge', trigger: '程楊宗倒下' },
     ];
-    expect(evaluateEvents(hpStats, { hp: 0 }, { hp: 0 }, events)).toEqual([]);
+    expect(evaluateEvents(hpStats, st({ hp: 0 }), st({ hp: 0 }), events)).toEqual([]);
   });
 
   it('re-fires an edge event after leaving and re-entering the range', () => {
@@ -257,8 +433,8 @@ describe('evaluateEvents', () => {
       { condition: 'hp.value <= 0', type: 'edge', trigger: '程楊宗倒下' },
     ];
     // 0 -> 50 (leave) does not fire; 50 -> 0 (re-enter) fires again.
-    expect(evaluateEvents(hpStats, { hp: 0 }, { hp: 50 }, events)).toEqual([]);
-    expect(evaluateEvents(hpStats, { hp: 50 }, { hp: 0 }, events)).toEqual(['程楊宗倒下']);
+    expect(evaluateEvents(hpStats, st({ hp: 0 }), st({ hp: 50 }), events)).toEqual([]);
+    expect(evaluateEvents(hpStats, st({ hp: 50 }), st({ hp: 0 }), events)).toEqual(['程楊宗倒下']);
   });
 
   it('treats first-turn prev as baseline for edge events', () => {
@@ -266,7 +442,7 @@ describe('evaluateEvents', () => {
       { condition: 'hp.value <= 0', type: 'edge', trigger: '程楊宗倒下' },
     ];
     // baseline hp 100 (false) -> curr 0 (true) => fires on the first turn.
-    expect(evaluateEvents(hpStats, { hp: 100 }, { hp: 0 }, events)).toEqual(['程楊宗倒下']);
+    expect(evaluateEvents(hpStats, st({ hp: 100 }), st({ hp: 0 }), events)).toEqual(['程楊宗倒下']);
   });
 
   it('fires multiple events in the same turn in event order', () => {
@@ -274,7 +450,7 @@ describe('evaluateEvents', () => {
       { condition: 'hp.value <= 50', type: 'level', trigger: 'low' },
       { condition: 'hp.value <= 0', type: 'edge', trigger: 'down' },
     ];
-    expect(evaluateEvents(hpStats, { hp: 60 }, { hp: 0 }, events)).toEqual(['low', 'down']);
+    expect(evaluateEvents(hpStats, st({ hp: 60 }), st({ hp: 0 }), events)).toEqual(['low', 'down']);
   });
 
   it('evaluates a cross-stat condition over named params', () => {
@@ -295,14 +471,38 @@ describe('evaluateEvents', () => {
     ];
     const prev: StatValues = { hp: 100, affinity: { 王如花: 40 } };
     const curr: StatValues = { hp: 20, affinity: { 王如花: 40 } };
-    expect(evaluateEvents(stats, prev, curr, events)).toEqual(['危機']);
+    expect(evaluateEvents(stats, st(prev), st(curr), events)).toEqual(['危機']);
   });
 
   it('exposes min/max on the named param', () => {
     const events: StatEvent[] = [
       { condition: 'hp.value >= hp.max', type: 'level', trigger: 'full' },
     ];
-    expect(evaluateEvents(hpStats, { hp: 100 }, { hp: 100 }, events)).toEqual(['full']);
+    expect(evaluateEvents(hpStats, st({ hp: 100 }), st({ hp: 100 }), events)).toEqual(['full']);
+  });
+
+  it('reads the LIVE (overridden) max in a condition, not the declared one', () => {
+    // Declared max is 100, but the live bounds raised it to 150. `hp.value >= hp.max`
+    // at value 120 must be false (120 < 150); a static def.max=100 would wrongly fire.
+    const events: StatEvent[] = [
+      { condition: 'hp.value >= hp.max', type: 'level', trigger: 'full' },
+    ];
+    const grown = st({ hp: 120 }, { hp: { min: 0, max: 150 } });
+    expect(evaluateEvents(hpStats, grown, grown, events)).toEqual([]);
+    const atGrownMax = st({ hp: 150 }, { hp: { min: 0, max: 150 } });
+    expect(evaluateEvents(hpStats, atGrownMax, atGrownMax, events)).toEqual(['full']);
+  });
+
+  it('fires an edge event when only the live max moved between prev and curr', () => {
+    // value stays 100; prev max 100 (100>=100 true), curr max 150 (100>=150 false).
+    // A "dropped below full" edge therefore crosses true->false (no fire), while the
+    // inverse condition crosses false->true.
+    const events: StatEvent[] = [
+      { condition: 'hp.value < hp.max', type: 'edge', trigger: 'no_longer_full' },
+    ];
+    const prev = st({ hp: 100 }, { hp: { min: 0, max: 100 } });
+    const curr = st({ hp: 100 }, { hp: { min: 0, max: 150 } });
+    expect(evaluateEvents(hpStats, prev, curr, events)).toEqual(['no_longer_full']);
   });
 
   it('compiles each condition once and reuses the cache', () => {
@@ -310,9 +510,9 @@ describe('evaluateEvents', () => {
     const events: StatEvent[] = [
       { condition: 'hp.value <= 0', type: 'level', trigger: 'a' },
     ];
-    evaluateEvents(hpStats, { hp: 0 }, { hp: 0 }, events, cache);
+    evaluateEvents(hpStats, st({ hp: 0 }), st({ hp: 0 }), events, cache);
     const compiled = cache.get('hp|hp.value <= 0');
-    evaluateEvents(hpStats, { hp: 0 }, { hp: 0 }, events, cache);
+    evaluateEvents(hpStats, st({ hp: 0 }), st({ hp: 0 }), events, cache);
     expect(cache.size).toBe(1);
     expect(cache.get('hp|hp.value <= 0')).toBe(compiled);
   });
@@ -338,11 +538,11 @@ describe('evaluateEvents', () => {
       rules: '',
       events: [],
     };
-    evaluateEvents(schemaA, { mp: 50, hp: 50 }, { mp: 50, hp: 50 }, events, cache);
+    evaluateEvents(schemaA, st({ mp: 50, hp: 50 }), st({ mp: 50, hp: 50 }), events, cache);
     // Under the old bug schemaB would reuse schemaA's fn and read hp from mp's slot.
-    expect(evaluateEvents(schemaB, { hp: 0, mp: 50 }, { hp: 0, mp: 50 }, events, cache)).toEqual([
-      'down',
-    ]);
+    expect(
+      evaluateEvents(schemaB, st({ hp: 0, mp: 50 }), st({ hp: 0, mp: 50 }), events, cache),
+    ).toEqual(['down']);
     expect(cache.size).toBe(2);
   });
 
@@ -361,7 +561,7 @@ describe('evaluateEvents', () => {
     ];
     const prev: StatValues = { affinity: { 王大福: 50 } };
     const curr: StatValues = { affinity: { 王大福: 50 } };
-    evaluateEvents(stats, prev, curr, events);
+    evaluateEvents(stats, st(prev), st(curr), events);
     expect(prev).toEqual({ affinity: { 王大福: 50 } });
     expect(curr).toEqual({ affinity: { 王大福: 50 } });
   });
@@ -371,7 +571,7 @@ describe('evaluateEvents', () => {
       { condition: 'hp.value <<< 0', type: 'level', trigger: 'boom' },
     ];
     const warnings: string[] = [];
-    const out = evaluateEvents(hpStats, { hp: 50 }, { hp: 50 }, events, new Map(), warnings);
+    const out = evaluateEvents(hpStats, st({ hp: 50 }), st({ hp: 50 }), events, new Map(), warnings);
     expect(out).toEqual([]);
     expect(warnings[0]).toContain('failed to compile');
   });
@@ -381,7 +581,7 @@ describe('evaluateEvents', () => {
       { condition: 'hp.value.nope.crash()', type: 'level', trigger: 'boom' },
     ];
     const warnings: string[] = [];
-    const out = evaluateEvents(hpStats, { hp: 50 }, { hp: 50 }, events, new Map(), warnings);
+    const out = evaluateEvents(hpStats, st({ hp: 50 }), st({ hp: 50 }), events, new Map(), warnings);
     expect(out).toEqual([]);
     expect(warnings.length).toBeGreaterThan(0);
   });
@@ -403,8 +603,8 @@ describe('evaluateEvents', () => {
     const warnings: string[] = [];
     const out = evaluateEvents(
       stats,
-      { [malicious]: 0 },
-      { [malicious]: 0 },
+      st({ [malicious]: 0 }),
+      st({ [malicious]: 0 }),
       events,
       new Map(),
       warnings,
@@ -420,7 +620,7 @@ describe('evaluateEvents', () => {
     ];
     const spy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     try {
-      const out = evaluateEvents(hpStats, { hp: 50 }, { hp: 50 }, events);
+      const out = evaluateEvents(hpStats, st({ hp: 50 }), st({ hp: 50 }), events);
       expect(out).toEqual([]);
       expect(spy).toHaveBeenCalledTimes(1);
       expect(spy.mock.calls[0][0]).toContain('[StatLedger]');
@@ -437,7 +637,8 @@ describe('StatLedgerService', () => {
     expect(service.clamp(150, 0, 100)).toBe(100);
     expect(service.fold(stats, { hp: 100 }, [{ key: 'hp', delta: -10 }]).values['hp']).toBe(90);
     expect(service.computeCurrent(stats, { hp: 100 }, [[{ key: 'hp', delta: -5 }]])).toEqual({
-      hp: 95,
+      values: { hp: 95 },
+      bounds: {},
     });
   });
 
@@ -447,8 +648,8 @@ describe('StatLedgerService', () => {
     const events: StatEvent[] = [
       { condition: 'hp.value <= 0', type: 'level', trigger: 'x' },
     ];
-    expect(service.evaluateEvents(stats, { hp: 0 }, { hp: 0 }, events)).toEqual(['x']);
-    expect(service.evaluateEvents(stats, { hp: 0 }, { hp: 0 }, events)).toEqual(['x']);
+    expect(service.evaluateEvents(stats, st({ hp: 0 }), st({ hp: 0 }), events)).toEqual(['x']);
+    expect(service.evaluateEvents(stats, st({ hp: 0 }), st({ hp: 0 }), events)).toEqual(['x']);
   });
 
   it('renderStatValues delegates to the pure function', () => {
@@ -550,6 +751,17 @@ describe('renderStatDefinitions', () => {
       events: [],
     };
     expect(renderStatDefinitions(stats)).toBe('b — second key declared first slot (scalar)\na (scalar)');
+  });
+
+  it('reflects the live bounds overlay in the range', () => {
+    const stats: ParsedStats = {
+      stats: { hp: { type: 'scalar', min: 0, max: 100, value: 100, desc: '生命值' } },
+      rules: '',
+      events: [],
+    };
+    expect(renderStatDefinitions(stats, { hp: { min: 0, max: 150 } })).toBe(
+      'hp — 生命值 (scalar, 0–150)',
+    );
   });
 
   it('returns empty string when no stats are declared', () => {

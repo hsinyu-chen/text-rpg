@@ -147,6 +147,8 @@ export function normalizeStep(raw: LegacyAnalysisStep | undefined): AnalysisStep
  * Validates one raw stat-change entry. Returns null (dropped) unless `key` is a
  * non-empty string passing {@link isValidStatKey}. `delta`/`value` survive only
  * when numeric; `subkey`/`reason` only when strings — anything else is omitted.
+ * `field` survives only as `"min"`/`"max"` (a bound change); `"value"` / absent
+ * / anything else is omitted so a plain value change normalizes byte-identically.
  */
 function normalizeStatChange(raw: unknown): StatChange | null {
     if (!raw || typeof raw !== 'object') return null;
@@ -156,6 +158,7 @@ function normalizeStatChange(raw: unknown): StatChange | null {
 
     const change: StatChange = { key };
     if (typeof r['subkey'] === 'string') change.subkey = r['subkey'];
+    if (r['field'] === 'min' || r['field'] === 'max') change.field = r['field'];
     if (typeof r['delta'] === 'number' && Number.isFinite(r['delta'])) change.delta = r['delta'];
     if (typeof r['value'] === 'number' && Number.isFinite(r['value'])) change.value = r['value'];
     if (typeof r['reason'] === 'string') change.reason = r['reason'];

@@ -117,5 +117,22 @@ describe('normalizeStep', () => {
             const out = normalizeStep({ stat_changes: [] } as unknown as Parameters<typeof normalizeStep>[0]);
             expect(out.stat_changes).toEqual([]);
         });
+
+        it('keeps field only when it is a bound ("min"/"max"); drops "value" and invalid', () => {
+            const out = normalizeStep({
+                stat_changes: [
+                    { key: 'hp', field: 'max', delta: 50 },
+                    { key: 'hp', field: 'min', value: 10 },
+                    { key: 'hp', field: 'value', delta: -5 },
+                    { key: 'hp', field: 'bogus', delta: 1 },
+                ]
+            } as unknown as Parameters<typeof normalizeStep>[0]);
+            expect(out.stat_changes).toEqual([
+                { key: 'hp', field: 'max', delta: 50 },
+                { key: 'hp', field: 'min', value: 10 },
+                { key: 'hp', delta: -5 },
+                { key: 'hp', delta: 1 },
+            ]);
+        });
     });
 });

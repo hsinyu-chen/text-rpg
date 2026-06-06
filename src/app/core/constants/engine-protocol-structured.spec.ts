@@ -14,7 +14,7 @@ interface StepSchema {
         steps: {
             items: {
                 required?: string[];
-                properties: Record<string, { type?: string; items?: { required?: string[]; properties?: Record<string, { type?: string }> } }>;
+                properties: Record<string, { type?: string; items?: { required?: string[]; properties?: Record<string, { type?: string; enum?: string[] }> } }>;
             };
         };
     };
@@ -250,9 +250,11 @@ describe('getStructuredAnalysisSchema stat_changes opt-in', () => {
         const itemSchema = stepProps['stat_changes'].items!;
         expect(itemSchema.properties).toHaveProperty('key');
         expect(itemSchema.properties).toHaveProperty('subkey');
+        expect(itemSchema.properties).toHaveProperty('field');
         expect(itemSchema.properties).toHaveProperty('delta');
         expect(itemSchema.properties).toHaveProperty('value');
         expect(itemSchema.properties).toHaveProperty('reason');
+        expect(itemSchema.properties?.['field']?.enum).toEqual(['value', 'min', 'max']);
     });
 
     it('marks only key as required inside stat_changes items and never adds stat_changes to the step required list', () => {

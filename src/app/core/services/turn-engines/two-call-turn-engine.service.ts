@@ -163,9 +163,9 @@ export class TwoCallTurnEngine implements TurnEngine {
      * The fold basis is the stat_delta of EVERY prior non-ref-only model message
      * in the FULL captured history — not the possibly-truncated base history — so
      * a deleted or retried mid-history message naturally drops its delta and the
-     * running totals roll back. prevValues are the pre-turn numbers (the resolver
-     * already ran against them); postValues fold this turn's surviving changes on
-     * top; triggered events are evaluated across that pre/post pair.
+     * running totals roll back. `prev` is the pre-turn state (values + live bounds
+     * the resolver already ran against); `post` folds this turn's surviving changes
+     * on top; triggered events are evaluated across that pre/post state pair.
      */
     private foldStats(
         ctx: TurnRunInput['buildContext'],
@@ -178,18 +178,15 @@ export class TwoCallTurnEngine implements TurnEngine {
         const thisTurnChanges = truncatedAnalysis.steps.flatMap(s => s.stat_changes ?? []);
 
         // Clamping is applied after every change with no remembered overflow, so
-        // folding this turn's changes onto prevValues is identical to re-folding
-        // the whole history from baseline — and skips the redundant prior pass.
-        // fold deep-copies its baseline arg, so prevValues stays intact for events.
-        const prevValues = this.statLedger.computeCurrent(statsParsed, statsBaseline, priorDeltaLists);
-        const postValues = this.statLedger.fold(statsParsed, prevValues, thisTurnChanges).values;
-        const triggered = this.statLedger.evaluateEvents(
-            statsParsed,
-            prevValues,
-            postValues,
-            statsParsed.events
-        );
+        // folding this turn's changes onto the prior state is identical to
+        // re-folding the whole history from baseline — and skips the redundant
+        // prior pass. Seed the fold with prev.bounds so this turn's value clamps
+        // respect bounds a prior turn grew/shrank. fold deep-copies its baseline
+        // value + bounds args, so `prev` stays intact for the event evaluation.
+        const prev = this.statLedger.computeCurrent(statsParsed, statsBaseline, priorDeltaLists);
+        const post = this.statLedger.fold(statsParsed, prev.values, thisTurnChanges, prev.bounds);
+        const triggered = this.statLedger.evaluateEvents(statsParsed, prev, post, statsParsed.events);
 
-        return { thisTurnChanges, postValues, triggered };
+        return { thisTurnChanges, postValues: post.values, triggered };
     }
 }

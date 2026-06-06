@@ -175,8 +175,9 @@ export interface AnalysisStep {
      * Numeric-stat mutations this step produces. Present only when the book
      * opts into the numeric-stats system (the schema injects the field via
      * {@link getStructuredAnalysisSchema}'s `enableStats` gate); absent for
-     * every existing book. Each entry follows {@link StatChange}: `delta` for a
-     * scalar / existing map subkey, `value` for a brand-new map subkey.
+     * every existing book. Each entry follows {@link StatChange}: a value change
+     * (`delta` for a scalar / existing map subkey, `value` for a brand-new map
+     * subkey) or a bound change (`field:"min"`/`"max"` shifting a stat's range).
      */
     stat_changes?: StatChange[];
 }
@@ -345,12 +346,13 @@ const objectReactionSchema: Schema = {
  */
 const statChangeSchema: Schema = {
     type: 'object',
-    description: 'One numeric-stat mutation produced by this step. Use `delta` for a scalar stat or an existing map subkey (accumulates), `value` for a brand-new map subkey (absolute initial amount) — set exactly one of the two.',
+    description: 'One numeric-stat mutation produced by this step. `field` selects WHAT changes (default "value"). For a VALUE change: use `delta` for a scalar / existing map subkey (accumulates), `value` for a brand-new map subkey (absolute initial amount) — set exactly one. For a BOUND change ("min" / "max"): use `delta` to shift the current bound (growth / debuff cap) or `value` to set it absolutely.',
     properties: {
         key: { type: 'string', description: 'Stat key being changed. MUST match a stat declared in the book\'s numeric-stats definition.' },
-        subkey: { type: 'string', description: 'Map subkey within `key` for map-type stats (e.g. an item name under an inventory stat). Omit for scalar stats.' },
-        delta: { type: 'number', description: 'Signed amount to ADD to the current scalar / existing-subkey value (e.g. -5, +10). Mutually exclusive with `value`.' },
-        value: { type: 'number', description: 'Absolute initial amount for a brand-new map subkey. Mutually exclusive with `delta`.' },
+        subkey: { type: 'string', description: 'Map subkey within `key` for map-type stats (e.g. an item name under an inventory stat). Omit for scalar stats. Ignored for a bound change (min/max are stat-level).' },
+        field: { type: 'string', enum: ['value', 'min', 'max'], description: 'WHAT this change targets. "value" (default — omit it) changes the stat\'s amount. "max"/"min" change the stat\'s upper/lower BOUND — use for growth (e.g. level-up raises hp.max) or debuff caps (e.g. a curse lowers hp.max). Lowering max below the current value drags the value down with it; raising max only opens headroom.' },
+        delta: { type: 'number', description: 'Signed amount to ADD (e.g. -5, +10). For field "value": added to the current scalar / existing-subkey amount. For field "min"/"max": added to the current bound. Mutually exclusive with `value`.' },
+        value: { type: 'number', description: 'Absolute amount. For field "value": the initial amount of a brand-new map subkey. For field "min"/"max": the bound set outright (use this to introduce a previously-open bound). Mutually exclusive with `delta`.' },
         reason: { type: 'string', description: 'Short human-readable justification for the change, surfaced in the save log / UI.' }
     },
     required: ['key']

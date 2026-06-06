@@ -592,17 +592,17 @@ export class ContextBuilderService {
         if (!ctx.enableStatsSystem || !statsParsed || !statsBaseline) {
             return resolveStatsSection(protocol, 'STATS_SECTION', false);
         }
-        const preTurnValues = this.statLedger.computeCurrent(
+        const preTurn = this.statLedger.computeCurrent(
             statsParsed,
             statsBaseline,
             priorStatDeltaLists(ctx.messages)
         );
         return resolveStatsSection(protocol, 'STATS_SECTION', true)
             .replace(/\{\{STATS_DEFS\}\}/g, () =>
-                escapeSlots(this.statLedger.renderStatDefinitions(statsParsed)))
+                escapeSlots(this.statLedger.renderStatDefinitions(statsParsed, preTurn.bounds)))
             .replace(/\{\{STATS_RULES\}\}/g, () => escapeSlots(statsParsed.rules))
             .replace(/\{\{PC_STATS_CURRENT\}\}/g, () =>
-                escapeSlots(this.statLedger.renderStatValues(statsParsed, preTurnValues)));
+                escapeSlots(this.statLedger.renderStatValues(statsParsed, preTurn.values)));
     }
 
     /**
