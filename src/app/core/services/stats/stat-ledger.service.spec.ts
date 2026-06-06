@@ -170,6 +170,15 @@ describe('fold', () => {
     expect(applied[0].dropped).toBe(true);
   });
 
+  it('drops a subkey-less change on a map stat without clobbering the map', () => {
+    const stats = affinityStats(true);
+    const baseline: StatValues = { affinity: { 王大福: 50 } };
+    const { values, applied } = fold(stats, baseline, [{ key: 'affinity', delta: 5 }]);
+    expect(values).toEqual({ affinity: { 王大福: 50 } });
+    expect(applied[0].dropped).toBe(true);
+    expect(applied[0].warning).toContain('needs a subkey');
+  });
+
   it('records before/after/reason in the audit trail', () => {
     const stats = scalarStats();
     const { applied } = fold(stats, { hp: 100 }, [
@@ -291,10 +300,39 @@ describe('evaluateEvents', () => {
       { condition: 'hp.value <= 0', type: 'level', trigger: 'a' },
     ];
     evaluateEvents(hpStats, { hp: 0 }, { hp: 0 }, events, cache);
-    const compiled = cache.get('hp.value <= 0');
+    const compiled = cache.get('hp|hp.value <= 0');
     evaluateEvents(hpStats, { hp: 0 }, { hp: 0 }, events, cache);
     expect(cache.size).toBe(1);
-    expect(cache.get('hp.value <= 0')).toBe(compiled);
+    expect(cache.get('hp|hp.value <= 0')).toBe(compiled);
+  });
+
+  it('does not reuse a cached fn across stat schemas with a different param order', () => {
+    const cache = new Map();
+    const condition = 'hp.value <= 0';
+    const events: StatEvent[] = [{ condition, type: 'level', trigger: 'down' }];
+    // Schema A params [mp, hp]; schema B params [hp, mp] — same condition string.
+    const schemaA: ParsedStats = {
+      stats: {
+        mp: { type: 'scalar', min: 0, max: 100, value: 100 },
+        hp: { type: 'scalar', min: 0, max: 100, value: 100 },
+      },
+      rules: '',
+      events: [],
+    };
+    const schemaB: ParsedStats = {
+      stats: {
+        hp: { type: 'scalar', min: 0, max: 100, value: 100 },
+        mp: { type: 'scalar', min: 0, max: 100, value: 100 },
+      },
+      rules: '',
+      events: [],
+    };
+    evaluateEvents(schemaA, { mp: 50, hp: 50 }, { mp: 50, hp: 50 }, events, cache);
+    // Under the old bug schemaB would reuse schemaA's fn and read hp from mp's slot.
+    expect(evaluateEvents(schemaB, { hp: 0, mp: 50 }, { hp: 0, mp: 50 }, events, cache)).toEqual([
+      'down',
+    ]);
+    expect(cache.size).toBe(2);
   });
 
   it('treats a throwing condition as not-triggered and warns', () => {

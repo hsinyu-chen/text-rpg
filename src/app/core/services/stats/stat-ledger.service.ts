@@ -50,6 +50,9 @@ function applyChange(stats: ParsedStats, values: StatValues, change: StatChange)
   }
 
   if (subkey === undefined) {
+    if (def.type === 'map') {
+      return drop(change, 0, `Map stat "${key}" change needs a subkey.`);
+    }
     return applyScalar(def, values, change);
   }
 
@@ -67,15 +70,11 @@ function applyScalar(def: StatDefinition, values: StatValues, change: StatChange
   // Safety net: a scalar must accumulate via delta. An absolute `value` on an
   // existing scalar would clobber the running total, so ignore it.
   if (value !== undefined && delta === undefined) {
-    return {
-      key,
+    return drop(
+      change,
       before,
-      after: before,
-      value,
-      reason,
-      dropped: true,
-      warning: `Scalar "${key}" received absolute value; ignored to protect accumulation.`,
-    };
+      `Scalar "${key}" received absolute value; ignored to protect accumulation.`,
+    );
   }
 
   const after = clamp(before + (delta ?? 0), def.min, def.max);
@@ -93,16 +92,11 @@ function applyMapSubkey(def: StatDefinition, values: StatValues, change: StatCha
   if (exists) {
     // Safety net: protect an existing subkey's running total from an absolute set.
     if (value !== undefined && delta === undefined) {
-      return {
-        key,
-        subkey: sub,
+      return drop(
+        change,
         before,
-        after: before,
-        value,
-        reason,
-        dropped: true,
-        warning: `Subkey "${key}.${sub}" received absolute value; ignored to protect accumulation.`,
-      };
+        `Subkey "${key}.${sub}" received absolute value; ignored to protect accumulation.`,
+      );
     }
     const after = clamp(before + (delta ?? 0), def.min, def.max);
     map[sub] = after;
@@ -111,17 +105,7 @@ function applyMapSubkey(def: StatDefinition, values: StatValues, change: StatCha
 
   // New subkey — only authorized when the stat opts in.
   if (!def.allow_new_item) {
-    return {
-      key,
-      subkey: sub,
-      before,
-      after: before,
-      delta,
-      value,
-      reason,
-      dropped: true,
-      warning: `New subkey "${key}.${sub}" not allowed (allow_new_item is false).`,
-    };
+    return drop(change, before, `New subkey "${key}.${sub}" not allowed (allow_new_item is false).`);
   }
 
   // Authorized creation. `value` is the intended absolute initial amount; a
@@ -211,8 +195,10 @@ function buildConditionArgs(
   for (const [key, def] of Object.entries(stats.stats)) {
     names.push(key);
     const raw = values[key];
+    const fallback = def.type === 'map' ? {} : 0;
     args.push({
-      value: typeof raw === 'object' && raw !== null ? raw : typeof raw === 'number' ? raw : 0,
+      value:
+        typeof raw === 'object' && raw !== null ? raw : typeof raw === 'number' ? raw : fallback,
       min: def.min,
       max: def.max,
     });
@@ -267,10 +253,14 @@ function compileCondition(
   paramNames: string[],
   cache: Map<string, CompiledCondition>,
 ): CompiledCondition {
-  const cached = cache.get(condition);
+  // The compiled fn bakes paramNames in as its formal parameters, so two stat
+  // schemas sharing a condition string but differing in key set/order must not
+  // share a cached fn — key on the signature too.
+  const cacheKey = `${paramNames.join(',')}|${condition}`;
+  const cached = cache.get(cacheKey);
   if (cached) return cached;
   const fn = new Function(...paramNames, `return (${condition});`) as CompiledCondition;
-  cache.set(condition, fn);
+  cache.set(cacheKey, fn);
   return fn;
 }
 
