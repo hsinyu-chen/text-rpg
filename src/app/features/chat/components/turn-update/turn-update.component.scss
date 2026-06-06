@@ -80,9 +80,10 @@
         border-color: rgba(186, 104, 200, 0.35);
     }
 
-    // A stat's own color (set via --stat-color) becomes its identity tint and
-    // overrides the gain/loss colour — direction is then read from the +/- label.
-    // More specific than the kind classes, so it wins regardless of order.
+    // A stat's own color (--stat-color) is its identity tint, overriding the
+    // gain/loss colour (direction stays in the +/- label). Equal specificity to
+    // the kind classes — must stay declared AFTER them to win on source order.
+    // Keep these percentages in sync with stats-state-dialog's .stat-name.has-color.
     &.has-color {
         background: color-mix(in srgb, var(--stat-color) 18%, transparent);
         border-color: color-mix(in srgb, var(--stat-color) 45%, transparent);
