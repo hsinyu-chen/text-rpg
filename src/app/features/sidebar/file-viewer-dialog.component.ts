@@ -511,6 +511,17 @@ export class FileViewerDialogComponent implements OnDestroy {
       return;
     }
 
+    // '/' is an intentional subdirectory separator across the sync layer, so it
+    // is allowed — but each segment must be a real dir/file name: no '..'/'.'
+    // traversal, no empty segments (leading/trailing/'//' yield empty FSA dir
+    // names), and no characters that crash Windows disk sync.
+    const segments = name.split('/');
+    const hasInvalidSegment = segments.some(seg => seg === '' || seg === '.' || seg === '..');
+    if (hasInvalidSegment || /[\\:*?"<>|]/.test(name)) {
+      await this.dialogService.alert(this.t('newFileInvalidError'), this.t('newFileTitle'));
+      return;
+    }
+
     const exists = [...this.data.files.keys()].some(f => f.toLowerCase() === name.toLowerCase());
     if (exists) {
       await this.dialogService.alert(this.t('newFileDuplicateError', { name }), this.t('newFileTitle'));

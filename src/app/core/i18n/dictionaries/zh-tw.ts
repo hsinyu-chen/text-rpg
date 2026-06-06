@@ -703,6 +703,7 @@ export const zhTW: TranslationDict = {
             newFileMessage: '請輸入新檔案的名稱。',
             newFilePlaceholder: 'example.yaml',
             newFileSystemError: '檔案名稱不能以「system_files/」開頭。',
+            newFileInvalidError: '檔案名稱不能包含「..」或 \\ : * ? " < > | 等字元。',
             newFileDuplicateError: '已存在名為「{{name}}」的檔案。',
             newFileFailed: '建立檔案失敗。',
             deleteFileTooltip: '刪除檔案',

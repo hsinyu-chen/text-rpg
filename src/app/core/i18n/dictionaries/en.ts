@@ -703,6 +703,7 @@ export const en: TranslationDict = {
             newFileMessage: 'Enter a name for the new file.',
             newFilePlaceholder: 'example.yaml',
             newFileSystemError: 'File names cannot start with "system_files/".',
+            newFileInvalidError: 'File names cannot contain ".." or any of \\ : * ? " < > |',
             newFileDuplicateError: 'A file named "{{name}}" already exists.',
             newFileFailed: 'Failed to create file.',
             deleteFileTooltip: 'Delete File',
