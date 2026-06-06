@@ -392,6 +392,20 @@ describe('formatStructuredAnalysis', () => {
         expect(out).toContain('inventory.potion =3');
     });
 
+    it('renders a bound change as key.max / key.min instead of a value change', () => {
+        const out = formatStructuredAnalysis(analysis({
+            steps: [step({
+                action: '升級',
+                stat_changes: [
+                    { key: 'hp', field: 'max', delta: 50, reason: '升級' },
+                    { key: 'hp', field: 'min', value: 10 },
+                ]
+            })]
+        }));
+        expect(out).toContain('hp.max +50 (升級)');
+        expect(out).toContain('hp.min =10');
+    });
+
     it('renders no stat_changes block when the field is absent or empty', () => {
         const absent = formatStructuredAnalysis(analysis({ steps: [step({ action: 'walk' })] }));
         expect(absent).not.toContain('[數值變化]');

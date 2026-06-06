@@ -2,9 +2,11 @@ import { Injectable } from '@angular/core';
 import {
   AppliedDelta,
   ParsedStats,
+  StatBounds,
   StatChange,
   StatDefinition,
   StatEvent,
+  StatState,
   StatValues,
 } from '../../models/stats.types';
 import { isValidStatKey } from './stats-yaml.util';
@@ -19,52 +21,69 @@ export function clamp(n: number, min?: number, max?: number): number {
 
 /**
  * Apply an ordered list of {@link StatChange}s to a baseline, producing the new
- * values plus an audit trail. Pure: `baseline` is deep-copied and never mutated.
+ * values, the live bounds, and an audit trail. Pure: `baseline` /
+ * `baselineBounds` are deep-copied and never mutated.
  *
  * Changes are processed strictly in order — the caller is responsible for
- * passing only surviving/truncated steps, already flattened. Clamping happens
- * AFTER every change so a value that transiently exceeds a bound mid-sequence is
- * pinned at each step (no remembered overflow). Authorization, accumulation
- * protection, and tolerance rules are documented inline per branch.
+ * passing only surviving/truncated steps, already flattened. Value changes clamp
+ * to the LIVE bounds (declared `min`/`max` folded with any earlier `field:"min"`
+ * / `field:"max"` changes in this same sequence), AFTER every change, so a value
+ * that transiently exceeds a bound mid-sequence is pinned at each step (no
+ * remembered overflow). A bound change re-clamps the stat's current value(s) to
+ * the new range, so LOWERING a max below the current value pulls it down (debuff
+ * caps) while RAISING a max only opens headroom. `baselineBounds` seeds the live
+ * bounds so an incremental fold continues from a prior turn's bounds.
  */
 export function fold(
   stats: ParsedStats,
   baseline: StatValues,
   changes: StatChange[],
-): { values: StatValues; applied: AppliedDelta[] } {
+  baselineBounds: StatBounds = {},
+): { values: StatValues; bounds: StatBounds; applied: AppliedDelta[] } {
   const values: StatValues = deepCopyValues(baseline);
+  const bounds: StatBounds = deepCopyBounds(baselineBounds);
   const applied: AppliedDelta[] = [];
 
   for (const change of changes) {
-    applied.push(applyChange(stats, values, change));
+    applied.push(applyChange(stats, values, bounds, change));
   }
 
-  return { values, applied };
+  return { values, bounds, applied };
 }
 
-function applyChange(stats: ParsedStats, values: StatValues, change: StatChange): AppliedDelta {
-  const { key, subkey } = change;
+function applyChange(
+  stats: ParsedStats,
+  values: StatValues,
+  bounds: StatBounds,
+  change: StatChange,
+): AppliedDelta {
+  const { key, subkey, field } = change;
   const def = stats.stats[key];
 
   if (!def) {
     return drop(change, 0, `Unknown stat "${key}".`);
   }
 
+  if (field === 'min' || field === 'max') {
+    return applyBoundChange(def, values, bounds, change, field);
+  }
+
+  const eff = boundsFor(def, bounds, key);
   if (subkey === undefined) {
     if (def.type === 'map') {
       return drop(change, 0, `Map stat "${key}" change needs a subkey.`);
     }
-    return applyScalar(def, values, change);
+    return applyScalar(eff, values, change);
   }
 
   if (def.type !== 'map') {
     return drop(change, 0, `Stat "${key}" is scalar but a subkey "${subkey}" was given.`);
   }
 
-  return applyMapSubkey(def, values, change);
+  return applyMapSubkey(def, eff, values, change);
 }
 
-function applyScalar(def: StatDefinition, values: StatValues, change: StatChange): AppliedDelta {
+function applyScalar(eff: Bounds, values: StatValues, change: StatChange): AppliedDelta {
   const { key, delta, value, reason } = change;
   const before = typeof values[key] === 'number' ? (values[key] as number) : 0;
 
@@ -78,12 +97,17 @@ function applyScalar(def: StatDefinition, values: StatValues, change: StatChange
     );
   }
 
-  const after = clamp(before + (delta ?? 0), def.min, def.max);
+  const after = clamp(before + (delta ?? 0), eff.min, eff.max);
   values[key] = after;
   return { key, before, after, delta, reason };
 }
 
-function applyMapSubkey(def: StatDefinition, values: StatValues, change: StatChange): AppliedDelta {
+function applyMapSubkey(
+  def: StatDefinition,
+  eff: Bounds,
+  values: StatValues,
+  change: StatChange,
+): AppliedDelta {
   const { key, subkey, delta, value, reason } = change;
   const sub = subkey as string;
   // Read the existing map without materializing one: a dropped change must not
@@ -102,7 +126,7 @@ function applyMapSubkey(def: StatDefinition, values: StatValues, change: StatCha
         `Subkey "${key}.${sub}" received absolute value; ignored to protect accumulation.`,
       );
     }
-    const after = clamp(before + (delta ?? 0), def.min, def.max);
+    const after = clamp(before + (delta ?? 0), eff.min, eff.max);
     map[sub] = after;
     return { key, subkey: sub, before, after, delta, reason };
   }
@@ -116,12 +140,12 @@ function applyMapSubkey(def: StatDefinition, values: StatValues, change: StatCha
   // `delta` on a not-yet-existing subkey is tolerated as its initial value.
   const targetMap = map ?? ensureMap(values, key);
   if (value !== undefined) {
-    const after = clamp(value, def.min, def.max);
+    const after = clamp(value, eff.min, eff.max);
     targetMap[sub] = after;
     return { key, subkey: sub, before, after, value, reason };
   }
 
-  const after = clamp(delta ?? 0, def.min, def.max);
+  const after = clamp(delta ?? 0, eff.min, eff.max);
   targetMap[sub] = after;
   return {
     key,
@@ -131,6 +155,114 @@ function applyMapSubkey(def: StatDefinition, values: StatValues, change: StatCha
     delta,
     reason,
     warning: `New subkey "${key}.${sub}" created from delta as its initial value.`,
+  };
+}
+
+/** Live bounds for one stat (each side optional/open). */
+interface Bounds { min?: number; max?: number }
+
+/** Effective bounds for `key`: the overlay entry, or the declared defaults. */
+function boundsFor(def: StatDefinition, bounds: StatBounds, key: string): Bounds {
+  return bounds[key] ?? { min: def.min, max: def.max };
+}
+
+/**
+ * Materialize `key`'s overlay entry (seeded from the declared bounds on first
+ * touch) so a later bound change mutates an absolute current bound rather than a
+ * delta against the definition.
+ */
+function ensureBounds(def: StatDefinition, bounds: StatBounds, key: string): Bounds {
+  let b = bounds[key];
+  if (!b) {
+    b = { min: def.min, max: def.max };
+    bounds[key] = b;
+  }
+  return b;
+}
+
+/** Re-clamp a stat's current value(s) into `b` — scalar in place, every map subkey. */
+function reclampStat(values: StatValues, b: Bounds, key: string): void {
+  const v = values[key];
+  if (typeof v === 'number') {
+    values[key] = clamp(v, b.min, b.max);
+  } else if (v && typeof v === 'object' && !Array.isArray(v)) {
+    const map = v as Record<string, number>;
+    for (const sub of Object.keys(map)) map[sub] = clamp(map[sub], b.min, b.max);
+  }
+}
+
+/**
+ * Apply a `field:"min"` / `field:"max"` change: `value` sets the bound
+ * absolutely, `delta` shifts the current bound. A delta on an open (unset) bound
+ * is dropped — an open side must be introduced with an absolute `value`. A change
+ * that would invert the range (min above max / max below min) is dropped so
+ * {@link clamp} never sees a contradictory `[min, max]`. On success the stat's
+ * current value(s) are re-clamped to the new range. Stat-level — `subkey` is
+ * ignored.
+ */
+function applyBoundChange(
+  def: StatDefinition,
+  values: StatValues,
+  bounds: StatBounds,
+  change: StatChange,
+  field: 'min' | 'max',
+): AppliedDelta {
+  const { key, delta, value, reason } = change;
+  const eff = boundsFor(def, bounds, key);
+  const before = eff[field];
+
+  let next: number;
+  if (value !== undefined) {
+    next = value;
+  } else if (delta !== undefined) {
+    if (before === undefined) {
+      return dropBound(
+        change,
+        field,
+        before,
+        `Bound "${key}.${field}" is open; introduce it with an absolute value, not a delta.`,
+      );
+    }
+    next = before + delta;
+  } else {
+    return dropBound(change, field, before, `Bound change "${key}.${field}" has neither delta nor value.`);
+  }
+
+  const other = field === 'min' ? eff.max : eff.min;
+  if (other !== undefined && (field === 'min' ? next > other : next < other)) {
+    return dropBound(
+      change,
+      field,
+      before,
+      `Bound change "${key}.${field}"=${next} would invert the range (other bound ${other}); ignored.`,
+    );
+  }
+
+  const b = ensureBounds(def, bounds, key);
+  b[field] = next;
+  reclampStat(values, b, key);
+  // before is undefined only when introducing a previously-open bound via value;
+  // record `next` so the audit line reads as a no-op delta rather than NaN.
+  return { key, field, before: before ?? next, after: next, delta, value, reason };
+}
+
+function dropBound(
+  change: StatChange,
+  field: 'min' | 'max',
+  before: number | undefined,
+  warning: string,
+): AppliedDelta {
+  const at = before ?? 0;
+  return {
+    key: change.key,
+    field,
+    before: at,
+    after: at,
+    delta: change.delta,
+    value: change.value,
+    reason: change.reason,
+    dropped: true,
+    warning,
   };
 }
 
@@ -164,8 +296,18 @@ function deepCopyValues(values: StatValues): StatValues {
   return out;
 }
 
+function deepCopyBounds(bounds: StatBounds): StatBounds {
+  const out: StatBounds = {};
+  for (const [key, b] of Object.entries(bounds)) {
+    out[key] = { ...b };
+  }
+  return out;
+}
+
 /**
- * Flatten chronological per-message delta lists and fold them onto the baseline.
+ * Flatten chronological per-message delta lists and fold them onto the baseline,
+ * returning the resolved {@link StatState} (live values + live bounds — the
+ * latter reflecting every `field:"min"` / `field:"max"` change across history).
  * `deltaLists` is each message's `stat_delta` in order — kept decoupled from
  * ChatMessage on purpose so the ledger stays free of the chat model.
  */
@@ -173,8 +315,9 @@ export function computeCurrent(
   stats: ParsedStats,
   baseline: StatValues,
   deltaLists: StatChange[][],
-): StatValues {
-  return fold(stats, baseline, deltaLists.flat()).values;
+): StatState {
+  const { values, bounds } = fold(stats, baseline, deltaLists.flat());
+  return { values, bounds };
 }
 
 /**
@@ -212,19 +355,26 @@ export function renderStatValues(stats: ParsedStats, values: StatValues): string
  * `<range>` is `min–max` / `≥min` / `≤max` (omitted when neither bound is set),
  * the ` — <desc>` segment is omitted when the stat has no `desc`, and
  * `, new items allowed` is appended only for map stats that opt into
- * `allow_new_item`. Returns '' when no stats are declared. Pure.
+ * `allow_new_item`. The optional `bounds` overlay makes the range reflect the
+ * LIVE bounds (after `field:"min"` / `field:"max"` changes); omit it for the
+ * declared range. Returns '' when no stats are declared. Pure.
  */
-export function renderStatDefinitions(stats: ParsedStats): string {
+export function renderStatDefinitions(stats: ParsedStats, bounds: StatBounds = {}): string {
   const lines: string[] = [];
   for (const [key, def] of Object.entries(stats.stats)) {
     const attrs: string[] = [def.type];
-    const range = renderRange(def.min, def.max);
+    const range = renderRangeFor(def, bounds, key);
     if (range) attrs.push(range);
     if (def.type === 'map' && def.allow_new_item) attrs.push('new items allowed');
     const desc = def.desc ? ` — ${def.desc}` : '';
     lines.push(`${key}${desc} (${attrs.join(', ')})`);
   }
   return lines.join('\n');
+}
+
+function renderRangeFor(def: StatDefinition, bounds: StatBounds, key: string): string {
+  const eff = boundsFor(def, bounds, key);
+  return renderRange(eff.min, eff.max);
 }
 
 function renderRange(min?: number, max?: number): string {
@@ -246,17 +396,20 @@ type CompiledCondition = (...args: StatArg[]) => unknown;
 /**
  * Build the ordered named-argument list (param names + matching values) handed
  * to a compiled condition. Same stat order is used for both prev and curr
- * evaluation so a single compiled function applies to both.
+ * evaluation so a single compiled function applies to both. Each arg's `min`/
+ * `max` carry the LIVE bounds from the state, so a condition reading `hp.max`
+ * sees the bound after any `field:"max"` change rather than the declared one.
  */
 function buildConditionArgs(
   stats: ParsedStats,
-  values: StatValues,
+  state: StatState,
 ): { names: string[]; args: StatArg[] } {
   const names: string[] = [];
   const args: StatArg[] = [];
   for (const [key, def] of Object.entries(stats.stats)) {
     names.push(key);
-    const raw = values[key];
+    const raw = state.values[key];
+    const eff = boundsFor(def, state.bounds, key);
     const fallback = def.type === 'map' ? {} : 0;
     // A condition is author-trusted but still untrusted to mutate: pass a shallow
     // clone of a map so `affinity.value['x'] = 999` can't write back into the
@@ -267,7 +420,7 @@ function buildConditionArgs(
         : typeof raw === 'number'
           ? raw
           : fallback;
-    args.push({ value, min: def.min, max: def.max });
+    args.push({ value, min: eff.min, max: eff.max });
   }
   return { names, args };
 }
@@ -280,23 +433,25 @@ function buildConditionArgs(
  * whose parameters are the stat keys, each bound to a {@link StatArg} so a
  * condition reads `hp.value <= 0` or `affinity.value["王如花"] < 50`. `level`
  * events fire whenever the condition is truthy on curr; `edge` events fire only
- * on a false->true crossing (falsy on prev, truthy on curr). A condition that
- * fails to compile (malformed source), carries a stat param name that isn't a
- * single legal identifier, or throws at runtime is treated as not-triggered (the
- * turn must never crash); the failure is pushed to `warnings` when one is
- * supplied, otherwise `console.warn`d so it's never silently swallowed.
+ * on a false->true crossing (falsy on prev, truthy on curr). The prev/curr
+ * {@link StatState}s each supply their own live bounds, so a condition over
+ * `hp.max` sees the right bound on each side of a turn that changed it. A
+ * condition that fails to compile (malformed source), carries a stat param name
+ * that isn't a single legal identifier, or throws at runtime is treated as
+ * not-triggered (the turn must never crash); the failure is pushed to `warnings`
+ * when one is supplied, otherwise `console.warn`d so it's never silently swallowed.
  */
 export function evaluateEvents(
   stats: ParsedStats,
-  prevValues: StatValues,
-  currValues: StatValues,
+  prevState: StatState,
+  currState: StatState,
   events: StatEvent[],
   cache = new Map<string, CompiledCondition>(),
   warnings?: string[],
 ): string[] {
   const triggered: string[] = [];
-  const prev = buildConditionArgs(stats, prevValues);
-  const curr = buildConditionArgs(stats, currValues);
+  const prev = buildConditionArgs(stats, prevState);
+  const curr = buildConditionArgs(stats, currState);
 
   for (const event of events) {
     let fn: CompiledCondition;
@@ -387,11 +542,12 @@ export class StatLedgerService {
     stats: ParsedStats,
     baseline: StatValues,
     changes: StatChange[],
-  ): { values: StatValues; applied: AppliedDelta[] } {
-    return fold(stats, baseline, changes);
+    baselineBounds: StatBounds = {},
+  ): { values: StatValues; bounds: StatBounds; applied: AppliedDelta[] } {
+    return fold(stats, baseline, changes, baselineBounds);
   }
 
-  computeCurrent(stats: ParsedStats, baseline: StatValues, deltaLists: StatChange[][]): StatValues {
+  computeCurrent(stats: ParsedStats, baseline: StatValues, deltaLists: StatChange[][]): StatState {
     return computeCurrent(stats, baseline, deltaLists);
   }
 
@@ -399,17 +555,17 @@ export class StatLedgerService {
     return renderStatValues(stats, values);
   }
 
-  renderStatDefinitions(stats: ParsedStats): string {
-    return renderStatDefinitions(stats);
+  renderStatDefinitions(stats: ParsedStats, bounds: StatBounds = {}): string {
+    return renderStatDefinitions(stats, bounds);
   }
 
   evaluateEvents(
     stats: ParsedStats,
-    prevValues: StatValues,
-    currValues: StatValues,
+    prevState: StatState,
+    currState: StatState,
     events: StatEvent[],
     warnings?: string[],
   ): string[] {
-    return evaluateEvents(stats, prevValues, currValues, events, this.conditionCache, warnings);
+    return evaluateEvents(stats, prevState, currState, events, this.conditionCache, warnings);
   }
 }

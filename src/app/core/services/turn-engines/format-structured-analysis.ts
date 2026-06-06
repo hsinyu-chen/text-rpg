@@ -296,14 +296,19 @@ function formatStep(step: AnalysisStep | null | undefined, ordinal: number, trun
 }
 
 /**
- * Renders one stat change as `key` / `key.subkey`, the signed delta (or
- * `=value` for an absolute), and the reason in parens. Returns empty string
- * when the entry has no usable key.
+ * Renders one stat change as `key` / `key.subkey` / `key.max` (bound change),
+ * the signed delta (or `=value` for an absolute), and the reason in parens.
+ * Returns empty string when the entry has no usable key.
  */
 function formatStatChange(c: StatChange | null | undefined): string {
     const key = c?.key?.trim();
     if (!key) return '';
-    const target = c?.subkey ? `${key}.${c.subkey}` : key;
+    const target =
+        c?.field === 'min' || c?.field === 'max'
+            ? `${key}.${c.field}`
+            : c?.subkey
+              ? `${key}.${c.subkey}`
+              : key;
 
     let amount = '';
     if (typeof c?.delta === 'number') amount = c.delta >= 0 ? `+${c.delta}` : `${c.delta}`;

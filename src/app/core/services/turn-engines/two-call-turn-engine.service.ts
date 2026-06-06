@@ -178,18 +178,15 @@ export class TwoCallTurnEngine implements TurnEngine {
         const thisTurnChanges = truncatedAnalysis.steps.flatMap(s => s.stat_changes ?? []);
 
         // Clamping is applied after every change with no remembered overflow, so
-        // folding this turn's changes onto prevValues is identical to re-folding
-        // the whole history from baseline — and skips the redundant prior pass.
-        // fold deep-copies its baseline arg, so prevValues stays intact for events.
-        const prevValues = this.statLedger.computeCurrent(statsParsed, statsBaseline, priorDeltaLists);
-        const postValues = this.statLedger.fold(statsParsed, prevValues, thisTurnChanges).values;
-        const triggered = this.statLedger.evaluateEvents(
-            statsParsed,
-            prevValues,
-            postValues,
-            statsParsed.events
-        );
+        // folding this turn's changes onto the prior state is identical to
+        // re-folding the whole history from baseline — and skips the redundant
+        // prior pass. Seed the fold with prev.bounds so this turn's value clamps
+        // respect bounds a prior turn grew/shrank. fold deep-copies its baseline
+        // value + bounds args, so `prev` stays intact for the event evaluation.
+        const prev = this.statLedger.computeCurrent(statsParsed, statsBaseline, priorDeltaLists);
+        const post = this.statLedger.fold(statsParsed, prev.values, thisTurnChanges, prev.bounds);
+        const triggered = this.statLedger.evaluateEvents(statsParsed, prev, post, statsParsed.events);
 
-        return { thisTurnChanges, postValues, triggered };
+        return { thisTurnChanges, postValues: post.values, triggered };
     }
 }

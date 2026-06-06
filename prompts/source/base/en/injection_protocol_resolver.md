@@ -92,6 +92,7 @@ Only when a step actually changes a stat, add a `stat_changes` entry for **each 
 
 - Scalar stat, or an **existing** subkey of a map stat → use `delta`, the **signed increment** to add (e.g. `-5`, `+10`), NOT the new total. e.g. `{"key":"hp","delta":-5,"reason":"cut by a sword"}` or `{"key":"affinity","subkey":"Pete Barker","delta":10,"reason":"trust grew after fighting side by side"}`.
 - A **brand-new authorized** subkey of a map stat → use `value`, the **absolute initial amount** for that new subkey. e.g. `{"key":"affinity","subkey":"Cara Loft","value":20,"reason":"a good first impression"}`.
+- To change a stat's **upper / lower bound** (growth or debuff caps — e.g. a level-up raises hp's max, a grievous wound lowers it) → add `"field":"max"` (or `"min"`), and use `delta` to shift the current bound or `value` to set it outright. Lowering max below the current value drags the value down with it; raising max only opens headroom for growth. e.g. `{"key":"hp","field":"max","delta":50,"reason":"level up"}` or `{"key":"hp","field":"max","delta":-30,"reason":"lasting toll of a grievous wound"}`.
 - Set exactly one of `delta` / `value` per entry. `reason` is a short justification surfaced in the log.
 
 The program owns the running totals, clamping, and authorization — you only report each step's change. The current values below are pre-turn; apply your `delta`s on top of them.
