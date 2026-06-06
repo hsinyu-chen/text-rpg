@@ -1,7 +1,7 @@
 import { Injectable, computed, inject } from '@angular/core';
 import { AppliedDelta, ParsedStats, StatBounds, StatValues } from '../../models/stats.types';
 import { GameStateService } from '../game-state.service';
-import { StatLedgerService } from './stat-ledger.service';
+import { evaluateEvents, fold } from './stat-ledger.service';
 import { buildStatBaseline, parseStats } from './stats-yaml.util';
 import { getStatsYamlContent } from './stats-opt-in.util';
 
@@ -24,7 +24,6 @@ export interface MessageStatView {
 @Injectable({ providedIn: 'root' })
 export class StatsViewService {
   private readonly gameState = inject(GameStateService);
-  private readonly ledger = inject(StatLedgerService);
 
   // Re-parse the ledger whenever the loaded files change. Null when no Book
   // opted in or the YAML is unusable — a broken ledger simply yields no chips
@@ -52,28 +51,34 @@ export class StatsViewService {
    * engine's fold basis); a message with no `stat_delta` gets no entry. `prev`
    * is the running state BEFORE each message — safe to alias because `fold` deep-
    * copies its value/bounds args, so it stays the pre-fold state for the event
-   * evaluation. Warnings are discarded (a malformed event condition is surfaced
-   * to the author at save time via validateStatsYaml); passing an array keeps
-   * evaluateEvents off its console.warn fallback, which would otherwise fire on
-   * every re-render.
+   * evaluation.
+   *
+   * Uses the PURE `fold` / `evaluateEvents` functions with a run-local compile
+   * cache rather than the injected {@link StatLedgerService} (whose cache is
+   * shared engine state): a `computed` must be side-effect-free, so it touches no
+   * singleton. Warnings go to a discarded array (a malformed event condition is
+   * surfaced to the author at save time via validateStatsYaml) so evaluateEvents
+   * never hits its console.warn fallback, which would otherwise fire every render.
    */
   private readonly auditByMessage = computed<Map<string, MessageStatView>>(() => {
     const out = new Map<string, MessageStatView>();
     const snap = this.snapshot();
     if (!snap) return out;
 
+    const conditionCache = new Map();
     let values: StatValues = snap.baseline;
     let bounds: StatBounds = {};
     for (const message of this.gameState.messages()) {
       if (message.role !== 'model' || message.isRefOnly) continue;
       const delta = message.stat_delta ?? [];
-      const post = this.ledger.fold(snap.parsed, values, delta, bounds);
+      const post = fold(snap.parsed, values, delta, bounds);
       if (delta.length > 0) {
-        const triggered = this.ledger.evaluateEvents(
+        const triggered = evaluateEvents(
           snap.parsed,
           { values, bounds },
           post,
           snap.parsed.events,
+          conditionCache,
           []
         );
         out.set(message.id, { applied: post.applied, triggered });

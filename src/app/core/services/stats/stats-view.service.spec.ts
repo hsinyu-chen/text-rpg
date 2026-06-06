@@ -2,7 +2,6 @@ import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { StatsViewService } from './stats-view.service';
-import { StatLedgerService } from './stat-ledger.service';
 import { GameStateService } from '../game-state.service';
 import { LOCALES } from '../../constants/locales';
 import { ChatMessage } from '../../models/types';
@@ -32,7 +31,6 @@ describe('StatsViewService.appliedForMessage', () => {
     TestBed.configureTestingModule({
       providers: [
         StatsViewService,
-        StatLedgerService,
         { provide: GameStateService, useValue: { messages, loadedFiles } },
       ],
     });
