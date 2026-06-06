@@ -19,6 +19,8 @@ import { AgentPanelStateService } from '@app/core/services/file-agent/agent-pane
 import { WorldCompletionValidator } from '@app/core/services/file-agent/world-completion-validator';
 import { SessionService } from '@app/core/services/session.service';
 import { DialogService } from '@app/core/services/dialog.service';
+import { isStatsYamlFilename } from '@app/core/services/stats/stats-opt-in.util';
+import { validateStatsYaml } from '@app/core/services/stats/stats-validation.util';
 import { findAtxHeadings } from '@app/core/utils/markdown.util';
 import { FileSearchEngine, type SearchResult } from './file-search/file-search-engine';
 import { I18nService, TranslatePipe } from '@app/core/i18n';
@@ -443,14 +445,33 @@ export class FileViewerDialogComponent implements OnDestroy {
     const editor = this.editorRef();
     if (!editor) return;
 
+    // Get content from Monaco model
+    const content = editor.getFileContent(fileName);
+    if (content === undefined) {
+      this.snackBar.open(this.t('saveFailed'), this.i18n.translate('ui.CLOSE'), { duration: 5000 });
+      return;
+    }
+
+    // Stats-ledger save guard: a YAML syntax error means the file won't load as
+    // stats, so confirm before saving (the runtime degrades gracefully, so an
+    // override is allowed mid-edit). Recoverable issues — dropped keys, malformed
+    // event conditions caught by dry-compile — surface as a post-save notice.
+    let statsWarnings: string[] = [];
+    if (isStatsYamlFilename(fileName)) {
+      const { syntaxError, warnings } = validateStatsYaml(content);
+      if (syntaxError) {
+        const proceed = await this.dialogService.confirm(
+          this.t('statsYamlSyntaxMessage', { error: syntaxError }),
+          this.t('statsYamlSyntaxTitle'),
+          this.t('statsYamlSaveAnyway')
+        );
+        if (!proceed) return;
+      }
+      statsWarnings = warnings;
+    }
+
     this.isSaving.set(true);
     try {
-      // Get content from Monaco model
-      const content = editor.getFileContent(fileName);
-      if (content === undefined) {
-        throw new Error('Unable to get file content');
-      }
-
       // Use engine.updateSingleFile — this writes to file_store, updates state.loadedFiles,
       // refreshes token counts, and invalidates the KB cache hash.
       await this.engine.updateSingleFile(fileName, content);
@@ -469,7 +490,13 @@ export class FileViewerDialogComponent implements OnDestroy {
       // Without this, loadBook() on next reload would wipe the change from file_store.
       await this.engine.saveCurrentSessionToBook();
 
-      this.snackBar.open(this.t('saveSuccess'), this.i18n.translate('ui.CLOSE'), { duration: 3000 });
+      this.snackBar.open(
+        statsWarnings.length > 0
+          ? this.t('statsYamlSavedWithIssues', { count: statsWarnings.length, issues: statsWarnings.join('; ') })
+          : this.t('saveSuccess'),
+        this.i18n.translate('ui.CLOSE'),
+        { duration: statsWarnings.length > 0 ? 6000 : 3000 }
+      );
       // Update the local data map
       this.data.files.set(fileName, content);
       

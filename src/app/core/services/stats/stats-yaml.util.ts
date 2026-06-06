@@ -1,5 +1,14 @@
 import { parse } from 'yaml';
-import { ParsedStats, StatDefinition, StatEvent } from '../../models/stats.types';
+import { ParsedStats, StatDefinition, StatEvent, StatValues } from '../../models/stats.types';
+
+/**
+ * The starting values for a fold: each stat's declared `value` (a scalar number
+ * or a map of subkey -> number). Shared by the engine's per-turn snapshot and
+ * any display-side re-fold so both fold off the identical baseline.
+ */
+export function buildStatBaseline(parsed: ParsedStats): StatValues {
+  return Object.fromEntries(Object.entries(parsed.stats).map(([key, def]) => [key, def.value]));
+}
 
 /**
  * Lenient parser for the stats-definition YAML block.
