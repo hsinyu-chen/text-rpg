@@ -1,4 +1,5 @@
 import { LLMPart, LLMUsageMetadata } from '@hcs/llm-core';
+import { StatChange } from './stats.types';
 
 export type Schema = object;
 
@@ -39,6 +40,16 @@ export interface ChatMessage {
     userIdealOutcome?: string;
     /** Post-turn KV cache occupancy in tokens. In two-call mode this is the narrator-call only — `usage.prompt + usage.candidates` would double-count both LLM calls. Sidebar uses this when present. */
     contextTokens?: number;
+    /**
+     * Raw proposed numeric-stat changes this turn produced (the flattened
+     * `stat_changes` of the surviving/truncated resolver steps). The single
+     * authorization/clamp pass lives in the ledger fold, so the persisted value
+     * is the unauthorized proposal — re-folding the full history yields the
+     * applied/dropped audit. Deliberately excluded from `getDetailFields`: it
+     * must never re-enter the LLM as cross-turn history. Two-call + opt-in only;
+     * absent for every existing book.
+     */
+    stat_delta?: StatChange[];
 }
 
 export interface TauriWindow extends Window {

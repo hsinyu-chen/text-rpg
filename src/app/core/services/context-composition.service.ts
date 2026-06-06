@@ -358,7 +358,9 @@ export class ContextCompositionService implements OnDestroy {
             engineMode: this.appConfig.engineMode(),
             // History-segment counting never reaches the resolver schema, so the
             // stats opt-in is irrelevant here.
-            enableStatsSystem: false
+            enableStatsSystem: false,
+            statsParsed: null,
+            statsBaseline: null
         } satisfies BuildContext as BuildContext;
     }
 }

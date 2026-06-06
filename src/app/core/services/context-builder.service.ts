@@ -13,6 +13,9 @@ import { IdealStrength, StructuredAnalysis } from '../constants/engine-protocol-
 import { applyIntentTag, buildResolverUserMessage, buildNarratorUserMessage } from './turn-engines/build-context-utils';
 import { stripSystemMainMarker } from './profile-compat';
 import { extractSceneHeader } from '@app/core/utils/scene-header.util';
+import { ParsedStats, StatValues } from '../models/stats.types';
+import { parseStats } from './stats/stats-yaml.util';
+import { getStatsYamlContent } from './stats/stats-opt-in.util';
 
 // Engine prompt directives (HISTORICAL_CORRECTION_RULE, IDEAL_OUTCOME_CONSTRAINT)
 // live in the locale files under `enginePromptDirectives`. Engine behaviour,
@@ -67,6 +70,13 @@ export interface BuildContext {
     // two-call — single-mode never emits stat_changes. Captured on the snapshot
     // so the resolver schema decision can't drift from the dispatch decision.
     enableStatsSystem: boolean;
+
+    // Parsed stats ledger + the baseline values built from its declared
+    // `stats[].value`. Both null unless `enableStatsSystem` is true. Captured
+    // here so the two-call seam folds against a turn-stable definition rather
+    // than re-reading loadedFiles mid-turn.
+    statsParsed: ParsedStats | null;
+    statsBaseline: StatValues | null;
 
     // Preview path only — engine path goes through TurnRunInput so these
     // never need to be set there.
@@ -579,6 +589,11 @@ export class ContextBuilderService {
         idealStrength: IdealStrength;
         truncatedAnalysis: StructuredAnalysis;
         lang: string;
+        // Post-turn folded stat values + triggered event strings, computed at the
+        // two-call seam. Phase 1 threads them through; the narrator user message
+        // starts consuming them (PC_STATS / triggered-event slots) in phase 2.
+        postStatValues?: StatValues;
+        triggeredEvents?: string[];
     }): LLMContent[] {
         const history = options.baseHistory.slice();
         history.pop();
@@ -614,13 +629,16 @@ export class ContextBuilderService {
         const providerCapabilities = provider?.getCapabilities()
             ?? ({ cacheBakesContent: true } as LLMProviderCapabilities);
         const engineMode = this.appConfig.engineMode();
+        const loadedFiles = this.state.loadedFiles();
+        const enableStatsSystem = this.state.hasStatsYaml() && engineMode === 'two-call';
+        const { statsParsed, statsBaseline } = this.resolveStatsSnapshot(enableStatsSystem, loadedFiles);
         return {
             messages: this.state.messages(),
             contextMode: this.state.contextMode(),
             saveContextMode: this.state.saveContextMode(),
             smartContextTurns: this.appConfig.smartContextTurns(),
             systemInstructionCache: this.state.systemInstructionCache(),
-            loadedFiles: this.state.loadedFiles(),
+            loadedFiles,
             kbCacheName: this.state.kbCacheName(),
             providerCapabilities,
             dynamicAction: this.state.dynamicActionInjection(),
@@ -632,11 +650,32 @@ export class ContextBuilderService {
             dynamicProtocolSingle: this.state.dynamicProtocolSingleInjection(),
             dynamicCorrection: this.state.dynamicCorrectionInjection(),
             engineMode,
-            enableStatsSystem: this.state.hasStatsYaml() && engineMode === 'two-call',
+            enableStatsSystem,
+            statsParsed,
+            statsBaseline,
             modelId: this.providerRegistry.getActiveModelId() || undefined,
             outputLanguage: this.appConfig.outputLanguage(),
             provider: provider ?? undefined
         };
+    }
+
+    /**
+     * Parse the stats ledger and derive its baseline (declared `stats[].value`
+     * per key). Returns both null when stats are off — keeping every "no stats"
+     * read byte-identical to the pre-stats path.
+     */
+    private resolveStatsSnapshot(
+        enableStatsSystem: boolean,
+        loadedFiles: Map<string, string>
+    ): { statsParsed: ParsedStats | null; statsBaseline: StatValues | null } {
+        if (!enableStatsSystem) return { statsParsed: null, statsBaseline: null };
+        const content = getStatsYamlContent(loadedFiles);
+        if (content === null) return { statsParsed: null, statsBaseline: null };
+        const { parsed } = parseStats(content);
+        const statsBaseline: StatValues = Object.fromEntries(
+            Object.entries(parsed.stats).map(([k, d]) => [k, d.value])
+        );
+        return { statsParsed: parsed, statsBaseline };
     }
 
     /**

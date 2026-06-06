@@ -49,6 +49,8 @@ function emptyCtx(overrides: Partial<BuildContext> = {}): BuildContext {
         dynamicCorrection: '',
         engineMode: 'single',
         enableStatsSystem: false,
+        statsParsed: null,
+        statsBaseline: null,
         ...overrides
     };
 }
@@ -202,6 +204,26 @@ describe('ContextBuilderService', () => {
             const history = builder.getLLMHistory(ctx, false, m => m.role !== 'user');
             expect(history.length).toBe(1);
             expect(history[0].role).toBe('model');
+        });
+
+        it('never re-feeds stat_delta into LLM history (excluded from getDetailFields)', () => {
+            // The model message DOES carry a state-update field (character_log), so
+            // the detail block is produced — but stat_delta's sentinel value must
+            // not leak into it: numeric stats are re-derived each turn, never replayed.
+            const ctx = emptyCtx({
+                messages: [
+                    userMsg('go'),
+                    modelMsg('done', {
+                        intent: 'action',
+                        character_log: ['程楊宗 受傷'],
+                        stat_delta: [{ key: 'hp', delta: -777 }],
+                    }),
+                ],
+            });
+            const text = builder.getLLMHistory(ctx).map(c => c.parts[0].text ?? '').join('\n');
+            expect(text).toContain('character_log');
+            expect(text).not.toContain('777');
+            expect(text).not.toContain('stat_delta');
         });
     });
 

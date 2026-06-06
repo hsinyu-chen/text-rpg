@@ -3,10 +3,12 @@ import { LLMUsageMetadata } from '@hcs/llm-core';
 import { ContextBuilderService } from '../context-builder.service';
 import { StreamProcessResult } from '../stream-processor.service';
 import { ChatMessage } from '@app/core/models/types';
+import { StatChange, StatValues } from '@app/core/models/stats.types';
 import { TurnEngine, TurnRunInput } from './turn-engine.interface';
 import { TwoCallOrchestratorService } from './two-call-orchestrator.service';
-import { truncateAtBreak } from '@app/core/constants/engine-protocol-structured';
+import { truncateAtBreak, StructuredAnalysis } from '@app/core/constants/engine-protocol-structured';
 import { formatResolverIntent, formatStructuredAnalysis } from './format-structured-analysis';
+import { StatLedgerService } from '../stats/stat-ledger.service';
 
 /**
  * Two-call turn engine — splits a turn into a resolver call (atomic action
@@ -22,6 +24,7 @@ import { formatResolverIntent, formatStructuredAnalysis } from './format-structu
 export class TwoCallTurnEngine implements TurnEngine {
     private orchestrator = inject(TwoCallOrchestratorService);
     private contextBuilder = inject(ContextBuilderService);
+    private statLedger = inject(StatLedgerService);
 
     async runTurn(input: TurnRunInput): Promise<StreamProcessResult> {
         const baseHistory = input.history;
@@ -59,12 +62,22 @@ export class TwoCallTurnEngine implements TurnEngine {
 
         const truncatedAnalysis = truncateAtBreak(resolverResult.resolverOutput.analysis);
 
+        // Numeric-stats fold seam. thisTurnChanges = the surviving (truncated)
+        // steps' stat_changes, in order; postValues = baseline folded over the
+        // full prior history PLUS this turn; triggered = events that crossed
+        // between the pre-turn and post-turn values. Computed here so the
+        // narrator (phase 2) renders post-turn numbers, and persisted raw on the
+        // model message so a re-fold can reproduce the applied/dropped audit.
+        const fold = this.foldStats(input.buildContext, truncatedAnalysis);
+
         const narratorHistory = this.contextBuilder.buildNarratorContext(input.buildContext, {
             baseHistory,
             idealOutcome: resolverResult.resolverOutput.ideal_outcome,
             idealStrength: resolverResult.resolverOutput.ideal_strength,
             truncatedAnalysis,
-            lang: input.outputLanguage
+            lang: input.outputLanguage,
+            postStatValues: fold?.postValues,
+            triggeredEvents: fold?.triggered
         });
 
         // Prefix narrator's CoT with the resolver's so both phases share one panel.
@@ -136,7 +149,49 @@ export class TwoCallTurnEngine implements TurnEngine {
             finalAnalysis: finalTrace || resolverResult.rawJson,
             turnUsage: combinedUsage,
             finalFinishReason: narratorResult.finalFinishReason || resolverResult.finishReason,
-            contextTokens: narratorContextTokens
+            contextTokens: narratorContextTokens,
+            stat_delta: fold?.thisTurnChanges
         };
+    }
+
+    /**
+     * Fold the numeric-stats ledger for this turn. Returns null (no stats work,
+     * byte-identical to the pre-stats path) unless the Book opted in AND the
+     * snapshot carries a parsed ledger + baseline.
+     *
+     * The fold basis is the stat_delta of EVERY prior non-ref-only model message
+     * in the FULL captured history — not the possibly-truncated base history — so
+     * a deleted or retried mid-history message naturally drops its delta and the
+     * running totals roll back. prevValues are the pre-turn numbers (the resolver
+     * already ran against them); postValues fold this turn's surviving changes on
+     * top; triggered events are evaluated across that pre/post pair.
+     */
+    private foldStats(
+        ctx: TurnRunInput['buildContext'],
+        truncatedAnalysis: StructuredAnalysis
+    ): { thisTurnChanges: StatChange[]; postValues: StatValues; triggered: string[] } | null {
+        const { statsParsed, statsBaseline } = ctx;
+        if (!ctx.enableStatsSystem || !statsParsed || !statsBaseline) return null;
+
+        const priorDeltaLists = ctx.messages
+            .filter(m => m.role === 'model' && !m.isRefOnly && !m.isManualRefOnly)
+            .map(m => m.stat_delta ?? []);
+        const priorDeltas = priorDeltaLists.flat();
+        const thisTurnChanges = truncatedAnalysis.steps.flatMap(s => s.stat_changes ?? []);
+
+        const prevValues = this.statLedger.computeCurrent(statsParsed, statsBaseline, priorDeltaLists);
+        const postValues = this.statLedger.fold(
+            statsParsed,
+            statsBaseline,
+            priorDeltas.concat(thisTurnChanges)
+        ).values;
+        const triggered = this.statLedger.evaluateEvents(
+            statsParsed,
+            prevValues,
+            postValues,
+            statsParsed.events
+        );
+
+        return { thisTurnChanges, postValues, triggered };
     }
 }
