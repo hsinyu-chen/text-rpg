@@ -21,6 +21,8 @@ import { SessionService } from '@app/core/services/session.service';
 import { DialogService } from '@app/core/services/dialog.service';
 import { isStatsYamlFilename } from '@app/core/services/stats/stats-opt-in.util';
 import { validateStatsYaml } from '@app/core/services/stats/stats-validation.util';
+import { getLocale } from '@app/core/constants/locales';
+import { AppConfigStore } from '@app/core/services/app-config-store';
 import { findAtxHeadings } from '@app/core/utils/markdown.util';
 import { FileSearchEngine, type SearchResult } from './file-search/file-search-engine';
 import { I18nService, TranslatePipe } from '@app/core/i18n';
@@ -81,6 +83,7 @@ export class FileViewerDialogComponent implements OnDestroy {
   private state = inject(GameStateService);
   private session = inject(SessionService);
   private dialogService = inject(DialogService);
+  private appConfig = inject(AppConfigStore);
   private snackBar = inject(MatSnackBar);
   private matDialog = inject(MatDialog);
   private cacheManager = inject(CacheManagerService);
@@ -149,6 +152,9 @@ export class FileViewerDialogComponent implements OnDestroy {
 
   // Derived file list for sidebar display
   fileList = computed(() => [...this.fileNames()].sort());
+
+  /** True once a numeric-stats ledger exists (any locale) — hides the create-ledger action. */
+  protected readonly hasStatsLedger = computed(() => this.fileNames().some(isStatsYamlFilename));
 
   // Check if current file can be edited
   canEdit = computed(() => {
@@ -556,26 +562,57 @@ export class FileViewerDialogComponent implements OnDestroy {
     }
 
     try {
-      // updateSingleFile already persists to the active Book — no separate
-      // saveCurrentSessionToBook needed here (unlike save(), which interleaves
-      // cache cleanup between the two calls).
-      await this.engine.updateSingleFile(name, '');
-      this.data.files.set(name, '');
-      this.fileNames.update(names => [...names, name]);
-      this.dbBaselineSnapshot.update(map => {
-        const next = new Map(map);
-        next.set(name, '');
-        return next;
-      });
-      // Lazy-register the model in Monaco before switching — models are only
-      // created upfront at init, so a freshly created file has none and
-      // switchToFile would no-op with a warning.
-      this.editorRef()?.updateFileContent(name, '');
-      this.selectFile(name);
+      await this.addNewFile(name, '');
     } catch (err) {
       console.error('Create file failed:', err);
       await this.dialogService.alert(this.t('newFileFailed'), this.t('newFileTitle'));
     }
+  }
+
+  /**
+   * Scaffold the numeric-stats ledger for the active locale from its starter
+   * template, so an author opts a Book in without hand-writing the YAML. Hidden
+   * once a ledger exists (only one per Book); the locale picks both the filename
+   * (`optionalFilenames.STATS_YAML`) and the template content.
+   */
+  async createStatsLedger(): Promise<void> {
+    if (this.hasStatsLedger()) {
+      await this.dialogService.alert(this.t('statsLedgerExists'), this.t('statsLedgerTitle'));
+      return;
+    }
+    const locale = getLocale(this.appConfig.outputLanguage());
+    const fileName = locale.optionalFilenames.STATS_YAML;
+    try {
+      await this.addNewFile(fileName, locale.statsLedgerTemplate);
+      this.snackBar.open(this.t('statsLedgerCreated'), this.i18n.translate('ui.CLOSE'), { duration: 3000 });
+    } catch (err) {
+      console.error('Create stats ledger failed:', err);
+      await this.dialogService.alert(this.t('statsLedgerFailed'), this.t('statsLedgerTitle'));
+    }
+  }
+
+  /**
+   * Persist a brand-new KB file, register it in the local maps, and open it.
+   * Shared by the empty-file and stats-template create paths; the caller is
+   * responsible for validating the name and surfacing failures.
+   *
+   * `updateSingleFile` already persists to the active Book — no separate
+   * `saveCurrentSessionToBook` is needed here (unlike `save()`, which interleaves
+   * cache cleanup between the two calls). The Monaco model is registered before
+   * `selectFile` because models are created upfront at init only, so a freshly
+   * created file has none and `switchToFile` would no-op with a warning.
+   */
+  private async addNewFile(name: string, content: string): Promise<void> {
+    await this.engine.updateSingleFile(name, content);
+    this.data.files.set(name, content);
+    this.fileNames.update(names => [...names, name]);
+    this.dbBaselineSnapshot.update(map => {
+      const next = new Map(map);
+      next.set(name, content);
+      return next;
+    });
+    this.editorRef()?.updateFileContent(name, content);
+    this.selectFile(name);
   }
 
   /** Delete the active file after a type-to-confirm prompt. */

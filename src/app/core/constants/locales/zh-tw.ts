@@ -38,6 +38,38 @@ export const ZH_TW_LOCALE: AppLocale = {
     optionalFilenames: {
         STATS_YAML: '0.數值.yaml'
     },
+    statsLedgerTemplate: `# 數值系統定義檔。本檔存在即代表本書啟用數值系統(需切換到 two-call 引擎)。
+# 每個數值自含說明,LLM 依此在每回合產出 stat_changes。
+
+stats:
+  hp:
+    type: scalar          # scalar = 單一數值;map = 多個具名子項
+    value: 100            # 初始值
+    min: 0                # 下限(可省略 = 無下限)
+    max: 100              # 上限(可省略 = 無上限);成長/減益可調整
+    desc: 生命值,歸零即倒下
+
+  affinity:
+    type: map             # 以子鍵(如 NPC 名)各記一個數值
+    value:
+      王大福: 50            # 預先認識的 NPC
+    min: 0
+    max: 100
+    allow_new_item: true  # 允許 LLM 為新登場 NPC 新增子鍵
+    desc: 各 NPC 對主角的好感度
+
+# 整體使用與成長指引(這段會原樣交給 LLM)。
+rules: |
+  受傷扣 hp、治療回 hp。與 NPC 正向互動加 affinity,衝突則扣。
+  升級時用 field:"max" 提升 hp 上限(例:hp.max +20);重傷後遺症則調降。
+
+# 事件:condition 為真時觸發 trigger,交給敘事。
+# type: level = 每次為真都觸發;edge = 只在 false→true 跨越時觸發一次。
+events:
+  - condition: "hp.value <= 0"
+    type: edge
+    trigger: 主角倒下,陷入危機
+`,
     kbSectionHeadings: {
         STORY_OUTLINE_CHRONICLE: '劇情綱要',
     },
