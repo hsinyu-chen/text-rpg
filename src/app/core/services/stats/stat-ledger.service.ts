@@ -57,7 +57,7 @@ function applyChange(
   bounds: StatBounds,
   change: StatChange,
 ): AppliedDelta {
-  const { key, subkey, field } = change;
+  const { key, field } = change;
   const def = stats.stats[key];
 
   if (!def) {
@@ -68,6 +68,10 @@ function applyChange(
     return applyBoundChange(def, values, bounds, change, field);
   }
 
+  // An empty / whitespace subkey means "no subkey" (a scalar change): models
+  // routinely fill the optional subkey field with "" instead of omitting it, and
+  // that shouldn't be rejected as a malformed map change.
+  const subkey = change.subkey?.trim() ? change.subkey : undefined;
   const eff = boundsFor(def, bounds, key);
   if (subkey === undefined) {
     if (def.type === 'map') {

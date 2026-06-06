@@ -7,6 +7,7 @@ import { LLMProviderRegistryService } from './llm-provider-registry.service';
 import { ActiveProfileStore } from './active-profile-store';
 import { AppConfigStore } from './app-config-store';
 import { isSystemMainCompatible, stripSystemMainMarker } from './profile-compat';
+import { hasStatsYamlFile } from './stats/stats-opt-in.util';
 
 /**
  * Centralized state service for the game engine.
@@ -62,8 +63,9 @@ export class GameStateService {
     // True when the loaded Book ships a numeric-stats ledger file (any locale's
     // optionalFilenames.STATS_YAML). Opt-in flag for the stats system — drives
     // the two-call resolver's stat_changes schema and the single-mode gate.
-    // Set by SessionService.loadBook off the freshly-built filesMap.
-    hasStatsYaml = signal<boolean>(false);
+    // Derived from loadedFiles so creating / deleting the ledger in the file
+    // viewer flips it immediately, with no book reload.
+    hasStatsYaml = computed(() => hasStatsYamlFile(this.loadedFiles()));
 
     // Reactive KB Hash. systemInstruction is stripped of the version marker so
     // this matches what CacheManager hashes when validating / minting a cache —

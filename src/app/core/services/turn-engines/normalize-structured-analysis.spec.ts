@@ -118,6 +118,21 @@ describe('normalizeStep', () => {
             expect(out.stat_changes).toEqual([]);
         });
 
+        it('drops an empty / whitespace subkey (a scalar change, not a malformed map one)', () => {
+            const out = normalizeStep({
+                stat_changes: [
+                    { key: 'mp', delta: -1, subkey: '' },
+                    { key: 'mp', delta: -1, subkey: '   ' },
+                    { key: 'affinity', subkey: '王大福', value: 10 },
+                ]
+            } as unknown as Parameters<typeof normalizeStep>[0]);
+            expect(out.stat_changes).toEqual([
+                { key: 'mp', delta: -1 },
+                { key: 'mp', delta: -1 },
+                { key: 'affinity', subkey: '王大福', value: 10 },
+            ]);
+        });
+
         it('keeps field only when it is a bound ("min"/"max"); drops "value" and invalid', () => {
             const out = normalizeStep({
                 stat_changes: [
