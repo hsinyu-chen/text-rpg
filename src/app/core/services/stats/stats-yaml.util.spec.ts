@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isValidStatKey, parseStats } from './stats-yaml.util';
+import { buildStatBaseline, isValidStatKey, parseStats } from './stats-yaml.util';
 
 /** True if any number reachable from `value` is NaN or non-finite. */
 function hasNonFiniteNumber(value: unknown): boolean {
@@ -246,6 +246,24 @@ rules: 7
 
   it('throws only on a genuine YAML syntax error', () => {
     expect(() => parseStats('key: [unclosed')).toThrow();
+  });
+});
+
+describe('buildStatBaseline', () => {
+  it('maps each declared stat to its initial value (scalar number / map object)', () => {
+    const { parsed } = parseStats(`
+stats:
+  hp:
+    value: 100
+  affinity:
+    value:
+      王大福: 50
+`);
+    expect(buildStatBaseline(parsed)).toEqual({ hp: 100, affinity: { 王大福: 50 } });
+  });
+
+  it('returns an empty baseline when no stats are declared', () => {
+    expect(buildStatBaseline({ stats: {}, rules: '', events: [] })).toEqual({});
   });
 });
 

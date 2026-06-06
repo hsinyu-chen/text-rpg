@@ -228,6 +228,15 @@
 
                     }
 
+                    @if (statChips().length > 0) {
+                    <div class="stat-chips" [attr.aria-label]="'ui.STAT_CHANGES_ARIA' | translate">
+                        @for (chip of statChips(); track $index) {
+                        <span class="stat-chip" [class]="'stat-chip-' + chip.kind"
+                            [matTooltip]="chip.tooltip" [matTooltipDisabled]="!chip.tooltip">{{ chip.label }}</span>
+                        }
+                    </div>
+                    }
+
                     <div class="msg-meta">
                         @if (msg.intent && msg.intent !== SaveTraceIntent) { <span class="intent-tag" [class.system]="msg.intent === Intents.SYSTEM">{{ getIntentLabel(msg.intent) }}</span> }
                         @if (msg.correction) { <span class="correction-tag" [matTooltip]="msg.correction">{{ 'ui.CORRECTION_TAG' | translate }}</span> }

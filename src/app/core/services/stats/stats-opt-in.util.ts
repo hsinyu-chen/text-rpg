@@ -13,6 +13,15 @@ export function hasStatsYamlFile(files: ReadonlyMap<string, string>): boolean {
 }
 
 /**
+ * Whether `name` is the stats ledger filename for ANY locale — same all-locale
+ * scan as {@link hasStatsYamlFile}, but matching a single known filename (e.g.
+ * the file currently open in the editor) rather than a file map.
+ */
+export function isStatsYamlFilename(name: string): boolean {
+    return Object.values(LOCALES).some(l => l.optionalFilenames.STATS_YAML === name);
+}
+
+/**
  * The raw stats ledger content for whichever locale's filename is present, or
  * `null` if no Book opted in. Same all-locale scan as {@link hasStatsYamlFile}
  * so the two never disagree about which file is the stats file.

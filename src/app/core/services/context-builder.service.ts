@@ -14,7 +14,7 @@ import { applyIntentTag, buildResolverUserMessage, buildNarratorUserMessage, res
 import { stripSystemMainMarker } from './profile-compat';
 import { extractSceneHeader } from '@app/core/utils/scene-header.util';
 import { ParsedStats, StatValues } from '../models/stats.types';
-import { parseStats } from './stats/stats-yaml.util';
+import { parseStats, buildStatBaseline } from './stats/stats-yaml.util';
 import { getStatsYamlContent, priorStatDeltaLists } from './stats/stats-opt-in.util';
 import { StatLedgerService } from './stats/stat-ledger.service';
 
@@ -723,10 +723,7 @@ export class ContextBuilderService {
             );
             return { statsParsed: null, statsBaseline: null };
         }
-        const statsBaseline: StatValues = Object.fromEntries(
-            Object.entries(parsed.stats).map(([k, d]) => [k, d.value])
-        );
-        return { statsParsed: parsed, statsBaseline };
+        return { statsParsed: parsed, statsBaseline: buildStatBaseline(parsed) };
     }
 
     /**
