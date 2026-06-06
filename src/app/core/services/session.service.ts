@@ -17,6 +17,7 @@ import { GAME_INTENTS } from '../constants/game-intents';
 import { getCoreFilenames, getSectionHeaders } from '../constants/engine-protocol';
 import { I18nService } from '../i18n';
 import { LOCALES } from '../constants/locales';
+import { hasStatsYamlFile } from './stats/stats-opt-in.util';
 import { convertLatexToSymbols, repairCorruptedLatex } from '../utils/latex.util';
 import { extractActNumberFromKb, formatActName } from '../utils/act-name.util';
 
@@ -558,6 +559,11 @@ export class SessionService {
             }
             this.state.loadedFiles.set(filesMap);
             this.state.fileTokenCounts.set(tokensMap);
+
+            // Opt-in: a Book carrying any locale's stats ledger file is in the
+            // numeric-stats system. Set unconditionally so a book without it
+            // clears the flag left by a previously-loaded stats book.
+            this.state.hasStatsYaml.set(hasStatsYamlFile(filesMap));
 
             // Prompts are app-global — they live in prompt_store across all
             // book switches and are no longer carried in the Book payload.

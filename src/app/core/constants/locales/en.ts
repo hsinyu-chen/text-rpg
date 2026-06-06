@@ -35,6 +35,9 @@ When performing the <Save> command, please only compare and synchronize based on
         PLANS: '8.Plans.md',
         INVENTORY: '9.Inventory.md'
     },
+    optionalFilenames: {
+        STATS_YAML: '0.Stats.yaml'
+    },
     kbSectionHeadings: {
         STORY_OUTLINE_CHRONICLE: 'Story Outline',
     },

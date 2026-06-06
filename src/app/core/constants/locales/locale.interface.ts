@@ -26,6 +26,16 @@ export interface AppLocale {
         INVENTORY: string;
     };
     /**
+     * Opt-in KB files NOT part of new-book scaffolding. Kept out of
+     * `coreFilenames` because that set is iterated by create-scene-dialog
+     * scaffolding, file-system sync, and file-agent prompts — listing an
+     * opt-in file there would seed it into every new book.
+     */
+    optionalFilenames: {
+        /** Numeric-stats ledger. Its presence in a Book opts that book into the stats system (two-call resolver emits `stat_changes`). */
+        STATS_YAML: string;
+    };
+    /**
      * Locale-specific KB section headings the multi-agent save dispatcher
      * pins context to. These are the heading TEXTS (no `#` prefix); the
      * dispatcher wraps them into the appropriate breadcrumb form.

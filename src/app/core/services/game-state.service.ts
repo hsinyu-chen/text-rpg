@@ -59,6 +59,12 @@ export class GameStateService {
     estimatedKbTokens = signal<number>(0);
     unsavedFiles = signal<Set<string>>(new Set());
 
+    // True when the loaded Book ships a numeric-stats ledger file (any locale's
+    // optionalFilenames.STATS_YAML). Opt-in flag for the stats system — drives
+    // the two-call resolver's stat_changes schema and the single-mode gate.
+    // Set by SessionService.loadBook off the freshly-built filesMap.
+    hasStatsYaml = signal<boolean>(false);
+
     // Reactive KB Hash. systemInstruction is stripped of the version marker so
     // this matches what CacheManager hashes when validating / minting a cache —
     // otherwise stored vs current diverge across reloads on profiles that ship

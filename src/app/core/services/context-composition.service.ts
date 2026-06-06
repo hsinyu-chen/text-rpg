@@ -355,7 +355,10 @@ export class ContextCompositionService implements OnDestroy {
             dynamicProtocolNarrator: this.state.dynamicProtocolNarratorInjection(),
             dynamicProtocolSingle: this.state.dynamicProtocolSingleInjection(),
             dynamicCorrection: this.state.dynamicCorrectionInjection(),
-            engineMode: this.appConfig.engineMode()
+            engineMode: this.appConfig.engineMode(),
+            // History-segment counting never reaches the resolver schema, so the
+            // stats opt-in is irrelevant here.
+            enableStatsSystem: false
         } satisfies BuildContext as BuildContext;
     }
 }

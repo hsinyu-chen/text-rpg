@@ -48,6 +48,7 @@ function emptyCtx(overrides: Partial<BuildContext> = {}): BuildContext {
         dynamicProtocolSingle: '',
         dynamicCorrection: '',
         engineMode: 'single',
+        enableStatsSystem: false,
         ...overrides
     };
 }

@@ -52,6 +52,7 @@ export class TwoCallTurnEngine implements TurnEngine {
             outputLanguage: input.outputLanguage,
             intent: input.intent,
             signal: input.signal,
+            enableStats: input.buildContext.enableStatsSystem,
             modelMsgId: input.modelMsgId,
             updateMessages: input.updateMessages
         });

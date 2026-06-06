@@ -52,6 +52,8 @@ export class TwoCallOrchestratorService {
         outputLanguage: string;
         intent: string;
         signal: AbortSignal;
+        /** Opt-in flag from the turn's BuildContext — adds `stat_changes` to the resolver schema only for stats-enabled two-call turns. */
+        enableStats?: boolean;
         modelMsgId?: string;
         updateMessages?: (updater: (prev: ChatMessage[]) => ChatMessage[]) => void;
     }): Promise<ResolverRunResult> {
@@ -61,7 +63,7 @@ export class TwoCallOrchestratorService {
             input.systemInstruction,
             {
                 cachedContentName: input.cachedContentName,
-                responseSchema: getResolverSchema(input.outputLanguage),
+                responseSchema: getResolverSchema(input.outputLanguage, { enableStats: input.enableStats }),
                 responseMimeType: 'application/json',
                 intent: input.intent,
                 signal: input.signal
