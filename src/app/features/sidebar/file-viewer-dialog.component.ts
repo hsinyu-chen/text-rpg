@@ -580,8 +580,7 @@ export class FileViewerDialogComponent implements OnDestroy {
       this.editorRef()?.removeFile(fileName);
 
       const remaining = this.fileList();
-      this.activeFile.set(remaining[0] ?? '');
-      this.activeFileContent.set(this.data.files.get(this.activeFile()) ?? '');
+      this.selectFile(remaining[0] ?? '');
     } catch (err) {
       console.error('Delete file failed:', err);
       await this.dialogService.alert(this.t('deleteFileFailed'), this.t('deleteFileTitle'));
