@@ -598,6 +598,15 @@ export class FileViewerDialogComponent implements OnDestroy {
   }
 
   /**
+   * Case-insensitive existence check. OPFS is case-insensitive on Windows/macOS,
+   * so a differently-cased name resolves to the same file on disk; both create
+   * paths guard with this before adding to avoid a file-list/disk desync.
+   */
+  private fileExists(name: string): boolean {
+    return [...this.data.files.keys()].some(f => f.toLowerCase() === name.toLowerCase());
+  }
+
+  /**
    * Persist a brand-new KB file, register it in the local maps, and open it.
    * Shared by the empty-file and stats-template create paths; the caller is
    * responsible for validating the name and surfacing failures.
@@ -608,15 +617,6 @@ export class FileViewerDialogComponent implements OnDestroy {
    * `selectFile` because models are created upfront at init only, so a freshly
    * created file has none and `switchToFile` would no-op with a warning.
    */
-  /**
-   * Case-insensitive existence check. OPFS is case-insensitive on Windows/macOS,
-   * so a differently-cased name resolves to the same file on disk; both create
-   * paths guard with this before adding to avoid a file-list/disk desync.
-   */
-  private fileExists(name: string): boolean {
-    return [...this.data.files.keys()].some(f => f.toLowerCase() === name.toLowerCase());
-  }
-
   private async addNewFile(name: string, content: string): Promise<void> {
     await this.engine.updateSingleFile(name, content);
     this.data.files.set(name, content);
