@@ -1,0 +1,43 @@
+<h2 mat-dialog-title>{{ 'ui.STAT_STATE_TITLE' | translate }}</h2>
+<mat-dialog-content>
+    @if (rows.length === 0) {
+    <p class="stat-state-empty">{{ 'ui.STAT_STATE_EMPTY' | translate }}</p>
+    } @else {
+    <table class="stat-state-table">
+        <thead>
+            <tr>
+                <th>{{ 'ui.STAT_STATE_COL_STAT' | translate }}</th>
+                <th>{{ 'ui.STAT_STATE_COL_VALUE' | translate }}</th>
+                <th>{{ 'ui.STAT_STATE_COL_RANGE' | translate }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            @for (row of rows; track row.key) {
+            <tr>
+                <td>
+                    <span class="stat-name" [class.has-color]="row.color" [style.--stat-color]="row.color">{{ row.key }}</span>
+                    @if (row.desc) { <span class="stat-desc">{{ row.desc }}</span> }
+                </td>
+                <td>
+                    @if (row.scalarValue !== null) {
+                    {{ row.scalarValue }}
+                    } @else if (row.mapEntries?.length) {
+                    <span class="map-entries">
+                        @for (entry of row.mapEntries; track entry.sub) {
+                        <span class="map-entry">{{ entry.sub }}: {{ entry.value }}</span>
+                        }
+                    </span>
+                    } @else {
+                    <span class="muted">—</span>
+                    }
+                </td>
+                <td class="range">{{ row.range || '—' }}</td>
+            </tr>
+            }
+        </tbody>
+    </table>
+    }
+</mat-dialog-content>
+<mat-dialog-actions align="end">
+    <button mat-button (click)="close()">{{ 'ui.CLOSE' | translate }}</button>
+</mat-dialog-actions>

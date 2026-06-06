@@ -15,10 +15,13 @@ describe('statsLedgerTemplate (per-locale stats on-ramp starter)', () => {
         expect(result.warnings).toEqual([]);
       });
 
-      it('declares the advertised starter stats and event', () => {
+      it('declares the advertised starter stats, colors, and event', () => {
         const { parsed } = parseStats(locale.statsLedgerTemplate);
         expect(parsed.stats['hp']?.type).toBe('scalar');
         expect(parsed.stats['hp']?.max).toBe(100);
+        expect(parsed.stats['hp']?.color).toBeTruthy();
+        expect(parsed.stats['mp']?.type).toBe('scalar');
+        expect(parsed.stats['mp']?.color).toBeTruthy();
         expect(parsed.stats['affinity']?.type).toBe('map');
         expect(parsed.stats['affinity']?.allow_new_item).toBe(true);
         expect(parsed.events.length).toBeGreaterThan(0);

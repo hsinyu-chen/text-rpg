@@ -48,6 +48,15 @@ stats:
     min: 0                # 下限(可省略 = 無下限)
     max: 100              # 上限(可省略 = 無上限);成長/減益可調整
     desc: 生命值,歸零即倒下
+    color: mediumseagreen # chip 底色 — 任何 CSS 顏色:色名 / rgb() / oklch() / "#hex"(hex 需加引號)
+
+  mp:
+    type: scalar
+    value: 50
+    min: 0
+    max: 50
+    desc: 魔力值,施法消耗
+    color: dodgerblue
 
   affinity:
     type: map             # 以子鍵(如 NPC 名)各記一個數值
@@ -57,11 +66,12 @@ stats:
     max: 100
     allow_new_item: true  # 允許 LLM 為新登場 NPC 新增子鍵
     desc: 各 NPC 對主角的好感度
+    color: hotpink
 
 # 整體使用與成長指引(這段會原樣交給 LLM)。
 rules: |
-  受傷扣 hp、治療回 hp。與 NPC 正向互動加 affinity,衝突則扣。
-  升級時用 field:"max" 提升 hp 上限(例:hp.max +20);重傷後遺症則調降。
+  受傷扣 hp、治療回 hp;施法消耗 mp、休息回 mp。與 NPC 正向互動加 affinity,衝突則扣。
+  升級時用 field:"max" 提升上限(例:hp.max +20);重傷後遺症則調降。
 
 # 事件:condition 為真時觸發 trigger,交給敘事。
 # type: level = 每次為真都觸發;edge = 只在 false→true 跨越時觸發一次。

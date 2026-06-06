@@ -1,14 +1,22 @@
 import { Injectable, computed, inject } from '@angular/core';
 import { AppliedDelta, ParsedStats, StatBounds, StatValues } from '../../models/stats.types';
 import { GameStateService } from '../game-state.service';
-import { evaluateEvents, fold } from './stat-ledger.service';
+import { computeCurrent, evaluateEvents, fold } from './stat-ledger.service';
 import { buildStatBaseline, parseStats } from './stats-yaml.util';
-import { getStatsYamlContent } from './stats-opt-in.util';
+import { getStatsYamlContent, priorStatDeltaLists } from './stats-opt-in.util';
+import { isValidCssColor } from '../../utils/color.util';
 
 /** What one model message's stat chips render from. */
 export interface MessageStatView {
   applied: AppliedDelta[];
   triggered: string[];
+}
+
+/** The fully-folded current stat state — definitions + live values + live bounds. */
+export interface StatsCurrentState {
+  parsed: ParsedStats;
+  values: StatValues;
+  bounds: StatBounds;
 }
 
 /**
@@ -97,5 +105,30 @@ export class StatsViewService {
    */
   appliedForMessage(messageId: string): MessageStatView | null {
     return this.auditByMessage().get(messageId) ?? null;
+  }
+
+  /**
+   * The full folded current state — every active model message's stat_delta
+   * applied off the current ledger — for the "current stats" viewer dialog. null
+   * when no Book opted in. Lazy: only recomputes while something reads it.
+   */
+  readonly currentState = computed<StatsCurrentState | null>(() => {
+    const snap = this.snapshot();
+    if (!snap) return null;
+    const { values, bounds } = computeCurrent(
+      snap.parsed,
+      snap.baseline,
+      priorStatDeltaLists(this.gameState.messages()),
+    );
+    return { parsed: snap.parsed, values, bounds };
+  });
+
+  /**
+   * The validated CSS chip color a stat declares, or undefined when absent /
+   * invalid (the chip then falls back to its gain/loss tint).
+   */
+  colorFor(key: string): string | undefined {
+    const color = this.snapshot()?.parsed.stats[key]?.color;
+    return isValidCssColor(color) ? color : undefined;
   }
 }

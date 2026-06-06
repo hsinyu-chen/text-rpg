@@ -1,5 +1,11 @@
 <div class="summary-content update-content">
     <div class="log-toggles">
+        @if (statChips().length > 0) {
+        <button mat-icon-button class="tiny-btn" (click)="showStats.set(!showStats())"
+            [matTooltip]="(showStats() ? 'ui.HIDE_STATS' : 'ui.SHOW_STATS') | translate">
+            <mat-icon [class.muted]="!showStats()" class="stat-icon">query_stats</mat-icon>
+        </button>
+        }
         <button mat-icon-button class="tiny-btn" (click)="showInventory.set(!showInventory())"
             [matTooltip]="(showInventory() ? 'ui.HIDE_INVENTORY' : 'ui.SHOW_INVENTORY') | translate">
             <mat-icon [class.muted]="!showInventory()" class="inv-icon">inventory_2</mat-icon>
@@ -43,6 +49,24 @@
             <mat-icon>edit</mat-icon>
         </button>
         }
+    </div>
+    }
+
+    <!-- Stat Changes — compact and title-less like the narrative summary. -->
+    @if (statChips().length > 0 && showStats()) {
+    <div class="stat-summary">
+        <mat-icon class="sub-icon">query_stats</mat-icon>
+        <div class="stat-chip-list">
+            @for (chip of statChips(); track $index) {
+            <span class="stat-chip" [class]="'stat-chip-' + chip.kind" [class.has-color]="!!chip.color"
+                [style.--stat-color]="chip.color" [matTooltip]="chip.tooltip"
+                [matTooltipDisabled]="!chip.tooltip">{{ chip.label }}</span>
+            }
+        </div>
+        <button mat-icon-button class="tiny-btn" (click)="openStateViewer()"
+            [matTooltip]="'ui.STAT_OPEN_VIEWER' | translate">
+            <mat-icon>open_in_full</mat-icon>
+        </button>
     </div>
     }
 

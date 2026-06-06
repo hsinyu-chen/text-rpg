@@ -191,6 +191,27 @@ describe('fold', () => {
     expect(applied[0].dropped).toBe(true);
   });
 
+  it('treats an empty / whitespace subkey on a scalar as no subkey (applies it)', () => {
+    const stats = scalarStats();
+    const { values, applied } = fold(stats, { hp: 100 }, [
+      { key: 'hp', subkey: '', delta: -5 },
+      { key: 'hp', subkey: '   ', delta: -5 },
+    ]);
+    expect(values['hp']).toBe(90);
+    expect(applied[0].dropped).toBeUndefined();
+    expect(applied[0].subkey).toBeUndefined();
+    expect(applied[1].dropped).toBeUndefined();
+  });
+
+  it('still drops an empty subkey on a map stat (a map needs a real subkey)', () => {
+    const stats = affinityStats(true);
+    const { applied } = fold(stats, { affinity: { 王大福: 50 } }, [
+      { key: 'affinity', subkey: '', delta: 5 },
+    ]);
+    expect(applied[0].dropped).toBe(true);
+    expect(applied[0].warning).toContain('needs a subkey');
+  });
+
   it('drops a subkey-less change on a map stat without clobbering the map', () => {
     const stats = affinityStats(true);
     const baseline: StatValues = { affinity: { 王大福: 50 } };

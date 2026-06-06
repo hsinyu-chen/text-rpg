@@ -88,6 +88,9 @@ function parseStatDefinition(
   if (isFiniteNumber(entry['max'])) def.max = entry['max'];
   if (typeof entry['desc'] === 'string') def.desc = entry['desc'];
   if (typeof entry['new_item_rule'] === 'string') def.new_item_rule = entry['new_item_rule'];
+  // Kept as a raw string — CSS-color validity is checked at render (CSS.supports),
+  // not here, so the parser stays environment-agnostic.
+  if (typeof entry['color'] === 'string' && entry['color'].trim() !== '') def.color = entry['color'].trim();
 
   return def;
 }

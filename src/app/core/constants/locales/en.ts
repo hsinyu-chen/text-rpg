@@ -49,6 +49,15 @@ stats:
     min: 0                # lower bound (omit for none)
     max: 100              # upper bound (omit for none); growth/debuff may move it
     desc: Health; reaching 0 means down
+    color: mediumseagreen # chip tint — any CSS color: name / rgb() / oklch() / "#hex" (hex must be quoted)
+
+  mp:
+    type: scalar
+    value: 50
+    min: 0
+    max: 50
+    desc: Magic points; spent to cast
+    color: dodgerblue
 
   affinity:
     type: map             # one number per subkey (e.g. an NPC name)
@@ -58,12 +67,13 @@ stats:
     max: 100
     allow_new_item: true  # let the LLM add a subkey for a newly-met NPC
     desc: Each NPC's affinity toward the protagonist
+    color: hotpink
 
 # Overall usage / growth guidance (passed verbatim to the LLM).
 rules: |
-  Injury lowers hp, healing restores it. Positive interactions raise an NPC's
-  affinity, conflict lowers it. On level-up, use field:"max" to raise hp's cap
-  (e.g. hp.max +20); a lasting wound may lower it.
+  Injury lowers hp, healing restores it; casting spends mp, resting restores it.
+  Positive interactions raise an NPC's affinity, conflict lowers it. On level-up,
+  use field:"max" to raise a cap (e.g. hp.max +20); a lasting wound may lower it.
 
 # Events: when condition is truthy the trigger fires into the narration.
 # type: level = fires whenever truthy; edge = fires once on a false->true crossing.

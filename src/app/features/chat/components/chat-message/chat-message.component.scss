@@ -123,59 +123,6 @@
     }
 }
 
-.stat-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin: 6px 0 2px;
-}
-
-.stat-chip {
-    padding: 1px 7px;
-    border-radius: 10px;
-    font-size: 10px;
-    font-weight: 500;
-    letter-spacing: 0.2px;
-    border: 1px solid transparent;
-    white-space: nowrap;
-    cursor: default;
-
-    // Gains rise (green), losses fall (red), bound/no-net changes stay neutral.
-    &.stat-chip-gain {
-        background: rgba(102, 187, 106, 0.15);
-        color: #a5d6a7;
-        border-color: rgba(102, 187, 106, 0.35);
-    }
-
-    &.stat-chip-loss {
-        background: rgba(239, 83, 80, 0.15);
-        color: #ef9a9a;
-        border-color: rgba(239, 83, 80, 0.35);
-    }
-
-    &.stat-chip-neutral {
-        background: rgba(255, 255, 255, 0.06);
-        color: #bdbdbd;
-        border-color: rgba(255, 255, 255, 0.12);
-    }
-
-    // Dropped (unauthorized / clamped-away) changes — muted + struck so they read
-    // as "requested but not applied".
-    &.stat-chip-dropped {
-        background: rgba(255, 255, 255, 0.04);
-        color: #757575;
-        border-color: rgba(255, 255, 255, 0.08);
-        text-decoration: line-through;
-    }
-
-    // Triggered stat events — accent so a threshold crossing stands out.
-    &.stat-chip-event {
-        background: rgba(186, 104, 200, 0.15);
-        color: #ce93d8;
-        border-color: rgba(186, 104, 200, 0.35);
-    }
-}
-
 .model-bubble {
     background-color: #1e1e1e;
     border: 1px solid #333;
