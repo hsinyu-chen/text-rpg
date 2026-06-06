@@ -12,6 +12,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { MonacoEditorComponent } from '../monaco-editor/monaco-editor.component';
 import { FileUpdate } from '@app/core/services/file-update.service';
 import { AppConfigStore } from '@app/core/services/app-config-store';
+import { GameStateService } from '@app/core/services/game-state.service';
 import { CORE_MAT } from '@app/shared/material/material-groups';
 import { ConfirmDialogComponent, ConfirmDialogData } from '../confirm-dialog/confirm-dialog.component';
 import { getLocale } from '@app/core/constants/locales';
@@ -53,6 +54,7 @@ export class AutoUpdateDialogComponent {
   public dialogRef = inject<MatDialogRef<AutoUpdateDialogComponent>>(MatDialogRef);
   public data = inject<{ updates: FileUpdate[] }>(MAT_DIALOG_DATA);
   private appConfig = inject(AppConfigStore);
+  private gameState = inject(GameStateService);
   private snackBar = inject(MatSnackBar);
   private dialog = inject(MatDialog);
   private clipboard = inject(Clipboard);
@@ -69,6 +71,12 @@ export class AutoUpdateDialogComponent {
   private monacoEditor = viewChild(MonacoEditorComponent);
 
   locale = computed(() => getLocale(this.appConfig.outputLanguage()));
+
+  // A stats Book carries its closing values forward only on the "Apply & new act"
+  // path (createNextBook re-folds the old act into the inherited ledger). Applying
+  // to the current act would leave the next act resetting to the template baseline,
+  // so that button is hard-disabled here.
+  blockApplyCurrentForStats = computed(() => this.gameState.hasStatsYaml());
 
   constructor() {
     this.hunks.bind({
@@ -160,6 +168,12 @@ export class AutoUpdateDialogComponent {
 
   /** Apply selected hunks to the CURRENT act's KB (leaves a chat trace + locks new turns). */
   onApplyCurrent(): Promise<void> {
+    // Backstop for the disabled button — a stats Book must advance via a new act
+    // so its closing values carry forward; applying to the current act would reset.
+    if (this.blockApplyCurrentForStats()) {
+      this.snackBar.open(this.t('applyToActStatsBlocked'), this.i18n.translate('ui.CLOSE'), { duration: 3000 });
+      return Promise.resolve();
+    }
     return this.confirmAndClose('current', 'applyToActTitle', 'applyToActBody', 'applyToActBtn');
   }
 

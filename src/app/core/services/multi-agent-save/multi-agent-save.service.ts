@@ -22,6 +22,7 @@ import { InjectionService } from '../injection.service';
 import { SessionService } from '../session.service';
 import { CacheManagerService } from '../cache-manager.service';
 import { ChatHistoryService } from '../chat-history.service';
+import { isStatsYamlFilename } from '../stats/stats-opt-in.util';
 
 /**
  * Top-level orchestrator for the multi-agent save path.
@@ -275,9 +276,13 @@ export class MultiAgentSaveService {
             // current KB: the current KB is left un-applied here, so it lags a
             // full act behind. createNextBook overlays this delta on the current
             // KB to mirror what the new book will actually contain.
-            const appliedFiles = new Map(result.files.map((f) => [f.fileName, f.content]));
+            // createNextBook carry-forwards the closing act's folded stats ledger
+            // onto the new act; a stray save hunk targeting that ledger would
+            // clobber the seeded baseline, so drop it before applying the delta.
+            const newActFiles = result.files.filter((f) => !isStatsYamlFilename(f.fileName));
+            const appliedFiles = new Map(newActFiles.map((f) => [f.fileName, f.content]));
             await this.session.createNextBook(appliedFiles);
-            await this.applyFiles(result.files);
+            await this.applyFiles(newActFiles);
             return true;
         }
 

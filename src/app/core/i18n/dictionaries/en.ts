@@ -9,6 +9,7 @@ export const en: TranslationDict = {
     ui: {
         GAME_INIT_SUCCESS: 'New game initialized!',
         GAME_INIT_FAILED: 'Startup Failed: Unable to load initial scene files.',
+        STATS_YAML_MALFORMED_CARRY_FORWARD: 'The stats file has a format error and was carried into the new act verbatim; please fix it before continuing.',
         MARKER_NOT_FOUND: '❌ Save Load Failed: Could not find `last_scene` marker in `{{fileName}}`, or file content is invalid. Loading status reset.',
         CLOSE: 'Close',
         FORMAT_ERROR: '⚠️ Model output format anomaly, please retry.',
@@ -322,6 +323,7 @@ export const en: TranslationDict = {
         noUpdates: 'No updates found in the message.',
         applyToAct: 'Apply to This Act',
         applyToActTooltip: 'Write the selected hunks into the current act and mark a save. Create the next act to continue the story.',
+        applyToActStatsBlocked: 'This book tracks numeric stats. Use "Apply & New Act" so the closing values carry forward — applying to the current act would reset them to the template baseline.',
         applyToActTitle: 'Apply to This Act',
         applyToActBtn: 'Apply',
         applyToActBody: 'Apply {{hunks}} hunk(s) across {{files}} file(s) to the current act?',
