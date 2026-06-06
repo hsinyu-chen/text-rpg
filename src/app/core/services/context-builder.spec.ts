@@ -350,12 +350,12 @@ describe('ContextBuilderService', () => {
         // mechanics line stands in for the real prose so we can assert it is
         // present (enabled) / gone (disabled) alongside the two slots.
         const RESOLVER_PROTOCOL =
-            'PROTOCOL\n\n<!--STATS_SECTION-->\nSTATS MECHANICS TEXT\n\n{{STATS_RULES}}\n\n{{PC_STATS_CURRENT}}\n<!--/STATS_SECTION-->\n\n{{USER_INPUT}}';
+            'PROTOCOL\n\n<!--STATS_SECTION-->\nSTATS MECHANICS TEXT\n\n{{STATS_DEFS}}\n\n{{STATS_RULES}}\n\n{{PC_STATS_CURRENT}}\n<!--/STATS_SECTION-->\n\n{{USER_INPUT}}';
 
         const statsParsed: ParsedStats = {
             stats: {
-                hp: { type: 'scalar', value: 100, min: 0, max: 100 },
-                affinity: { type: 'map', value: { 王如花: 50 }, allow_new_item: true }
+                hp: { type: 'scalar', value: 100, min: 0, max: 100, desc: 'Vitality; 0 means down. {{USER_INPUT}} stays literal.' },
+                affinity: { type: 'map', value: { 王如花: 50 }, allow_new_item: true, desc: 'Per-NPC affinity' }
             },
             rules: 'Lose 5 hp per failed step. Echo {{USER_INPUT}} literally — must NOT be substituted.',
             events: []
@@ -384,9 +384,31 @@ describe('ContextBuilderService', () => {
             expect(tail).toContain('Lose 5 hp per failed step');
             expect(tail).toContain('hp: 100');
             expect(tail).toContain('affinity: { 王如花: 50 }');
+            // The rendered stat definitions (with desc) are surfaced.
+            expect(tail).toContain('hp — Vitality; 0 means down.');
+            expect(tail).toContain('(scalar, 0–100)');
+            expect(tail).toContain('affinity — Per-NPC affinity (map, new items allowed)');
+            expect(tail).not.toContain('{{STATS_DEFS}}');
             expect(tail).not.toContain('{{STATS_RULES}}');
             expect(tail).not.toContain('{{PC_STATS_CURRENT}}');
             expect(tail).not.toContain('<!--STATS_SECTION-->');
+        });
+
+        it('escapes {{ }} inside a stat desc so the later USER_INPUT pass cannot fire in it', () => {
+            const ctx = emptyCtx({
+                messages: [userMsg('attack')],
+                enableStatsSystem: true,
+                statsParsed,
+                statsBaseline,
+                dynamicProtocolResolver: RESOLVER_PROTOCOL
+            });
+            const tail = resolverTail(ctx);
+            const descLine = tail.split('\n').find(l => l.startsWith('hp — Vitality'))!;
+            // The literal {{USER_INPUT}} authored in `desc` survives verbatim
+            // (zero-width-spaced) and is NOT replaced by the player's "attack".
+            expect(descLine).not.toContain('Vitality; 0 means down. attack stays literal.');
+            expect(descLine.replace(new RegExp(String.fromCharCode(0x200b), 'g'), ''))
+                .toBe('hp — Vitality; 0 means down. {{USER_INPUT}} stays literal. (scalar, 0–100)');
         });
 
         it('folds prior model messages stat_delta into the PRE-turn current values', () => {
@@ -436,6 +458,7 @@ describe('ContextBuilderService', () => {
             });
             const tail = resolverTail(ctx);
             expect(tail).not.toContain('STATS MECHANICS TEXT');
+            expect(tail).not.toContain('{{STATS_DEFS}}');
             expect(tail).not.toContain('{{STATS_RULES}}');
             expect(tail).not.toContain('{{PC_STATS_CURRENT}}');
             expect(tail).not.toContain('<!--STATS_SECTION-->');

@@ -360,6 +360,22 @@ describe('resolveStatsSection', () => {
         expect(resolveStatsSection('no section here', 'SEC', true)).toBe('no section here');
         expect(resolveStatsSection('no section here', 'SEC', false)).toBe('no section here');
     });
+
+    // Mirrors the real prompt source: the section is wrapped in a blank line
+    // BEFORE the opening sentinel and a blank line AFTER the closing one.
+    const WRAPPED = 'HEAD\n\n<!--SEC-->\nbody {{SLOT}}\n<!--/SEC-->\n\nTAIL';
+
+    it('disabled strip is byte-identical to a no-stats prompt (no extra blank line)', () => {
+        const out = resolveStatsSection(WRAPPED, 'SEC', false);
+        // A book that never had the section: HEAD\n\nTAIL — a single blank line.
+        expect(out).toBe('HEAD\n\nTAIL');
+        expect(out).not.toContain('\n\n\n');
+    });
+
+    it('enabled strip keeps the body and the surrounding blank lines intact', () => {
+        const out = resolveStatsSection(WRAPPED, 'SEC', true);
+        expect(out).toBe('HEAD\n\nbody {{SLOT}}\n\nTAIL');
+    });
 });
 
 describe('escapeSlots', () => {

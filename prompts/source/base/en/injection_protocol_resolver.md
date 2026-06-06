@@ -96,7 +96,11 @@ Only when a step actually changes a stat, add a `stat_changes` entry for **each 
 
 The program owns the running totals, clamping, and authorization — you only report each step's change. The current values below are pre-turn; apply your `delta`s on top of them.
 
-**Per-book stat rules:**
+**Stats in play (what each tracks):**
+
+{{STATS_DEFS}}
+
+**Per-book usage & growth guidance:**
 
 {{STATS_RULES}}
 

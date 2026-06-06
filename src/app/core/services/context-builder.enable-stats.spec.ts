@@ -1,5 +1,5 @@
 import '@angular/compiler';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { Injector, runInInjectionContext } from '@angular/core';
 import { ContextBuilderService } from './context-builder.service';
 import { GameStateService } from './game-state.service';
@@ -14,13 +14,17 @@ import { StatLedgerService } from './stats/stat-ledger.service';
  * spec can assert the one derivation under test (enableStatsSystem) in
  * isolation, without the engine's DI graph.
  */
-function makeBuilder(opts: { hasStatsYaml: boolean; engineMode: 'single' | 'two-call' }): ContextBuilderService {
+function makeBuilder(opts: {
+    hasStatsYaml: boolean;
+    engineMode: 'single' | 'two-call';
+    loadedFiles?: Map<string, string>;
+}): ContextBuilderService {
     const stateStub = {
         messages: () => [],
         contextMode: () => 'smart',
         saveContextMode: () => 'smart',
         systemInstructionCache: () => '',
-        loadedFiles: () => new Map<string, string>(),
+        loadedFiles: () => opts.loadedFiles ?? new Map<string, string>(),
         kbCacheName: () => null,
         dynamicActionInjection: () => '',
         dynamicContinueInjection: () => '',
@@ -70,5 +74,22 @@ describe('snapshotForTurn enableStatsSystem', () => {
 
     it('is false when neither holds', () => {
         expect(makeBuilder({ hasStatsYaml: false, engineMode: 'single' }).snapshotForTurn().enableStatsSystem).toBe(false);
+    });
+});
+
+describe('snapshotForTurn malformed stats YAML', () => {
+    it('degrades to null/null (does not throw) and warns when the stats YAML is unparseable', () => {
+        const loadedFiles = new Map<string, string>([['0.Stats.yaml', 'stats:\n  hp: [unclosed']]);
+        const builder = makeBuilder({ hasStatsYaml: true, engineMode: 'two-call', loadedFiles });
+
+        const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        try {
+            const snapshot = builder.snapshotForTurn();
+            expect(snapshot.statsParsed).toBeNull();
+            expect(snapshot.statsBaseline).toBeNull();
+            expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('[stats]'));
+        } finally {
+            warnSpy.mockRestore();
+        }
     });
 });

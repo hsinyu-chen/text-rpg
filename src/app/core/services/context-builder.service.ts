@@ -578,13 +578,14 @@ export class ContextBuilderService {
 
     /**
      * Resolve the resolver protocol's sentinel-delimited stats section. When the
-     * Book opts in, the section's two slots are filled with the per-book author
-     * rules and a compact rendering of the PRE-turn values (baseline folded over
-     * the full prior history — same basis the seam re-uses post-turn). The author
-     * rules have their `{{...}}` neutralized so the later `{{USER_INPUT}}` /
-     * `{{IDEAL_OUTCOME_CONSTRAINT}}` pass can't substitute into them. When stats
-     * are off the whole section is stripped, leaving the protocol byte-identical
-     * to a no-stats book.
+     * Book opts in, the section's slots are filled with the rendered stat
+     * definitions (what each stat tracks), the per-book author rules, and a
+     * compact rendering of the PRE-turn values (baseline folded over the full
+     * prior history — same basis the seam re-uses post-turn). Both the
+     * definitions and the rules carry author text, so their `{{...}}` is
+     * neutralized so the later `{{USER_INPUT}}` / `{{IDEAL_OUTCOME_CONSTRAINT}}`
+     * pass can't substitute into them. When stats are off the whole section is
+     * stripped, leaving the protocol byte-identical to a no-stats book.
      */
     private fillResolverStatsSection(protocol: string, ctx: BuildContext): string {
         const { statsParsed, statsBaseline } = ctx;
@@ -597,6 +598,8 @@ export class ContextBuilderService {
             priorStatDeltaLists(ctx.messages)
         );
         return resolveStatsSection(protocol, 'STATS_SECTION', true)
+            .replace(/\{\{STATS_DEFS\}\}/g, () =>
+                escapeSlots(this.statLedger.renderStatDefinitions(statsParsed)))
             .replace(/\{\{STATS_RULES\}\}/g, () => escapeSlots(statsParsed.rules))
             .replace(/\{\{PC_STATS_CURRENT\}\}/g, () =>
                 escapeSlots(this.statLedger.renderStatValues(statsParsed, preTurnValues)));
@@ -708,7 +711,18 @@ export class ContextBuilderService {
         if (!enableStatsSystem) return { statsParsed: null, statsBaseline: null };
         const content = getStatsYamlContent(loadedFiles);
         if (content === null) return { statsParsed: null, statsBaseline: null };
-        const { parsed } = parseStats(content);
+        let parsed: ParsedStats;
+        try {
+            ({ parsed } = parseStats(content));
+        } catch (err) {
+            // A genuine YAML syntax error propagates out of parseStats; degrade
+            // to the no-stats path (byte-identical) so one malformed ledger
+            // can't take down the whole turn.
+            console.warn(
+                `[stats] stats YAML failed to parse, stats disabled this turn: ${err instanceof Error ? err.message : String(err)}`
+            );
+            return { statsParsed: null, statsBaseline: null };
+        }
         const statsBaseline: StatValues = Object.fromEntries(
             Object.entries(parsed.stats).map(([k, d]) => [k, d.value])
         );

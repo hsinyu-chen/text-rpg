@@ -24,15 +24,21 @@ const TAG_BY_INTENT: Record<string, keyof IntentTagSet> = {
  * static prose sitting between the slots. `<name>` is the sentinel id
  * (`STATS_SECTION` / `NARRATOR_STATS_GUIDANCE`).
  *
- * - `enabled=false` → the region (sentinels included, plus one trailing blank
- *   line so no double gap is left) is removed — byte-identical to a book that
- *   never had stats.
+ * - `enabled=false` → the region (sentinels included, plus the one trailing
+ *   blank line that follows the closing sentinel in the source) is removed —
+ *   byte-identical to a book that never had stats. The source wraps the section
+ *   with a blank line before AND after, so eating only the sentinel's own
+ *   newline would leave `\n\n\n` where a no-stats book has `\n\n`.
  * - `enabled=true` → only the sentinel comment lines are stripped; the body
- *   (with its slots already substituted by the caller) stays.
+ *   (with its slots already substituted by the caller) and the surrounding
+ *   blank lines stay intact.
  */
 export function resolveStatsSection(protocol: string, name: string, enabled: boolean): string {
+    if (!enabled) {
+        const disabledRegion = new RegExp(`<!--${name}-->\\r?\\n[\\s\\S]*?<!--/${name}-->\\r?\\n(\\r?\\n)?`);
+        return protocol.replace(disabledRegion, '');
+    }
     const region = new RegExp(`<!--${name}-->\\r?\\n([\\s\\S]*?)<!--/${name}-->\\r?\\n?`);
-    if (!enabled) return protocol.replace(region, '');
     return protocol.replace(region, (_full, body: string) => body);
 }
 
