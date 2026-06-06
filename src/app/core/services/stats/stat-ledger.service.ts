@@ -161,9 +161,20 @@ function applyMapSubkey(
 /** Live bounds for one stat (each side optional/open). */
 interface Bounds { min?: number; max?: number }
 
-/** Effective bounds for `key`: the overlay entry, or the declared defaults. */
+/**
+ * Effective bounds for `key`: the overlay entry merged OVER the declared
+ * defaults, per side. `ensureBounds` always seeds both sides, so an overlay is
+ * never partial in practice — but merging per side keeps this helper correct on
+ * its own (a declared bound is never lost) regardless of how the overlay was
+ * built, rather than relying on that seeding invariant holding upstream.
+ */
 function boundsFor(def: StatDefinition, bounds: StatBounds, key: string): Bounds {
-  return bounds[key] ?? { min: def.min, max: def.max };
+  const b = bounds[key];
+  if (!b) return { min: def.min, max: def.max };
+  return {
+    min: b.min !== undefined ? b.min : def.min,
+    max: b.max !== undefined ? b.max : def.max,
+  };
 }
 
 /**
