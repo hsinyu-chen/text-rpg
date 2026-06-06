@@ -376,6 +376,20 @@ describe('resolveStatsSection', () => {
         const out = resolveStatsSection(WRAPPED, 'SEC', true);
         expect(out).toBe('HEAD\n\nbody {{SLOT}}\n\nTAIL');
     });
+
+    // A markdown formatter may append trailing spaces/tabs after a sentinel tag;
+    // the section must still resolve rather than leak raw template markers.
+    const TRAILING_WS = 'HEAD\n<!--SEC--> \t\nbody {{SLOT}}\n<!--/SEC-->\t \nTAIL';
+
+    it('tolerates trailing spaces/tabs after the sentinel tags when enabled', () => {
+        const out = resolveStatsSection(TRAILING_WS, 'SEC', true);
+        expect(out).toBe('HEAD\nbody {{SLOT}}\nTAIL');
+    });
+
+    it('tolerates trailing spaces/tabs after the sentinel tags when disabled', () => {
+        const out = resolveStatsSection(TRAILING_WS, 'SEC', false);
+        expect(out).toBe('HEAD\nTAIL');
+    });
 });
 
 describe('escapeSlots', () => {

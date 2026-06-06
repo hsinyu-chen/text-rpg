@@ -35,10 +35,10 @@ const TAG_BY_INTENT: Record<string, keyof IntentTagSet> = {
  */
 export function resolveStatsSection(protocol: string, name: string, enabled: boolean): string {
     if (!enabled) {
-        const disabledRegion = new RegExp(`<!--${name}-->\\r?\\n[\\s\\S]*?<!--/${name}-->\\r?\\n(\\r?\\n)?`);
+        const disabledRegion = new RegExp(`<!--${name}-->[ \\t]*\\r?\\n[\\s\\S]*?<!--/${name}-->[ \\t]*\\r?\\n(\\r?\\n)?`);
         return protocol.replace(disabledRegion, '');
     }
-    const region = new RegExp(`<!--${name}-->\\r?\\n([\\s\\S]*?)<!--/${name}-->\\r?\\n?`);
+    const region = new RegExp(`<!--${name}-->[ \\t]*\\r?\\n([\\s\\S]*?)<!--/${name}-->[ \\t]*\\r?\\n?`);
     return protocol.replace(region, (_full, body: string) => body);
 }
 
