@@ -1,9 +1,9 @@
 import { Injectable, computed, inject } from '@angular/core';
-import { AppliedDelta, ParsedStats, StatValues } from '../../models/stats.types';
+import { AppliedDelta, ParsedStats, StatBounds, StatValues } from '../../models/stats.types';
 import { GameStateService } from '../game-state.service';
 import { StatLedgerService } from './stat-ledger.service';
 import { buildStatBaseline, parseStats } from './stats-yaml.util';
-import { getStatsYamlContent, priorStatDeltaLists } from './stats-opt-in.util';
+import { getStatsYamlContent } from './stats-opt-in.util';
 
 /** What one model message's stat chips render from. */
 export interface MessageStatView {
@@ -26,10 +26,10 @@ export class StatsViewService {
   private readonly gameState = inject(GameStateService);
   private readonly ledger = inject(StatLedgerService);
 
-  // Parse the ledger once per content change. Null when no Book opted in or the
-  // YAML is unusable — a broken ledger simply yields no chips (the engine logs
-  // the parse failure on its own per-turn path; re-logging here every render
-  // would spam the console).
+  // Re-parse the ledger whenever the loaded files change. Null when no Book
+  // opted in or the YAML is unusable — a broken ledger simply yields no chips
+  // (the engine logs the parse failure on its own per-turn path; re-logging here
+  // every render would spam the console).
   private readonly snapshot = computed<{ parsed: ParsedStats; baseline: StatValues } | null>(() => {
     const content = getStatsYamlContent(this.gameState.loadedFiles());
     if (content === null) return null;
@@ -42,26 +42,55 @@ export class StatsViewService {
   });
 
   /**
+   * Every active model message's applied audit + triggered events, folded in a
+   * SINGLE forward pass off the current ledger. One pass — not one fold per
+   * message — because the chat reads this for every rendered message on every
+   * `messages()` emission (including each stream chunk), so a per-message refold
+   * would be O(history²) per chunk and freeze the UI as history grows.
+   *
+   * ref-only messages are skipped (excluded from the active total, matching the
+   * engine's fold basis); a message with no `stat_delta` gets no entry. `prev`
+   * is the running state BEFORE each message — safe to alias because `fold` deep-
+   * copies its value/bounds args, so it stays the pre-fold state for the event
+   * evaluation. Warnings are discarded (a malformed event condition is surfaced
+   * to the author at save time via validateStatsYaml); passing an array keeps
+   * evaluateEvents off its console.warn fallback, which would otherwise fire on
+   * every re-render.
+   */
+  private readonly auditByMessage = computed<Map<string, MessageStatView>>(() => {
+    const out = new Map<string, MessageStatView>();
+    const snap = this.snapshot();
+    if (!snap) return out;
+
+    let values: StatValues = snap.baseline;
+    let bounds: StatBounds = {};
+    for (const message of this.gameState.messages()) {
+      if (message.role !== 'model' || message.isRefOnly) continue;
+      const delta = message.stat_delta ?? [];
+      const post = this.ledger.fold(snap.parsed, values, delta, bounds);
+      if (delta.length > 0) {
+        const triggered = this.ledger.evaluateEvents(
+          snap.parsed,
+          { values, bounds },
+          post,
+          snap.parsed.events,
+          []
+        );
+        out.set(message.id, { applied: post.applied, triggered });
+      }
+      values = post.values;
+      bounds = post.bounds;
+    }
+    return out;
+  });
+
+  /**
    * The applied stat audit + triggered events for one model message, or null
    * when there is nothing to show: stats are off / the YAML is unusable, the
    * message is unknown, carries no `stat_delta`, or is ref-only (its changes are
    * excluded from the active total, so showing them as "applied" would mislead).
    */
   appliedForMessage(messageId: string): MessageStatView | null {
-    const snap = this.snapshot();
-    if (!snap) return null;
-
-    const messages = this.gameState.messages();
-    const index = messages.findIndex(m => m.id === messageId);
-    if (index < 0) return null;
-
-    const message = messages[index];
-    if (message.isRefOnly || !message.stat_delta || message.stat_delta.length === 0) return null;
-
-    const prior = priorStatDeltaLists(messages.slice(0, index));
-    const prev = this.ledger.computeCurrent(snap.parsed, snap.baseline, prior);
-    const post = this.ledger.fold(snap.parsed, prev.values, message.stat_delta, prev.bounds);
-    const triggered = this.ledger.evaluateEvents(snap.parsed, prev, post, snap.parsed.events);
-    return { applied: post.applied, triggered };
+    return this.auditByMessage().get(messageId) ?? null;
   }
 }

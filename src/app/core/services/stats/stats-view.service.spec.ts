@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach } from 'vitest';
+import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { StatsViewService } from './stats-view.service';
@@ -107,5 +107,31 @@ describe('StatsViewService.appliedForMessage', () => {
   it('returns null for an unknown message id', () => {
     withLedger();
     expect(service.appliedForMessage('nope')).toBeNull();
+  });
+
+  it('does not console.warn when an event condition throws at render', () => {
+    // A condition that compiles but throws at eval would hit evaluateEvents'
+    // uncached console.warn path on every chip re-render; the service must route
+    // it to a discarded warnings array instead.
+    const yaml = [
+      'stats:',
+      '  hp:',
+      '    value: 100',
+      '    min: 0',
+      '    max: 100',
+      'events:',
+      '  - condition: "hp.value.nope.crash()"',
+      '    type: level',
+      '    trigger: boom',
+    ].join('\n');
+    loadedFiles.set(new Map([[STATS_FILE, yaml]]));
+    messages.set([{ id: 'm1', role: 'model', content: 's', stat_delta: [{ key: 'hp', delta: -10 }] }]);
+    const spy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      expect(service.appliedForMessage('m1')).not.toBeNull();
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
   });
 });
