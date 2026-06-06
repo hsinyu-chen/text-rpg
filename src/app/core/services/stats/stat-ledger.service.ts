@@ -85,11 +85,14 @@ function applyScalar(def: StatDefinition, values: StatValues, change: StatChange
 function applyMapSubkey(def: StatDefinition, values: StatValues, change: StatChange): AppliedDelta {
   const { key, subkey, delta, value, reason } = change;
   const sub = subkey as string;
-  const map = ensureMap(values, key);
-  const exists = Object.prototype.hasOwnProperty.call(map, sub);
-  const before = exists ? map[sub] : 0;
+  // Read the existing map without materializing one: a dropped change must not
+  // leave a spurious empty map (or clobber a non-object) behind in `values`.
+  const current = values[key];
+  const map = typeof current === 'object' && current !== null ? current : null;
+  const exists = map ? Object.prototype.hasOwnProperty.call(map, sub) : false;
+  const before = map && exists ? map[sub] : 0;
 
-  if (exists) {
+  if (exists && map) {
     // Safety net: protect an existing subkey's running total from an absolute set.
     if (value !== undefined && delta === undefined) {
       return drop(
@@ -110,14 +113,15 @@ function applyMapSubkey(def: StatDefinition, values: StatValues, change: StatCha
 
   // Authorized creation. `value` is the intended absolute initial amount; a
   // `delta` on a not-yet-existing subkey is tolerated as its initial value.
+  const targetMap = map ?? ensureMap(values, key);
   if (value !== undefined) {
     const after = clamp(value, def.min, def.max);
-    map[sub] = after;
+    targetMap[sub] = after;
     return { key, subkey: sub, before, after, value, reason };
   }
 
   const after = clamp(delta ?? 0, def.min, def.max);
-  map[sub] = after;
+  targetMap[sub] = after;
   return {
     key,
     subkey: sub,
@@ -215,9 +219,9 @@ function buildConditionArgs(
  * condition reads `hp.value <= 0` or `affinity.value["王如花"] < 50`. `level`
  * events fire whenever the condition is truthy on curr; `edge` events fire only
  * on a false->true crossing (falsy on prev, truthy on curr). A condition that
- * throws is treated as not-triggered (the turn must never crash); the throw is
- * pushed to `warnings` when one is supplied, otherwise `console.warn`d so it's
- * never silently swallowed.
+ * fails to compile (malformed source) or throws at runtime is treated as
+ * not-triggered (the turn must never crash); the failure is pushed to `warnings`
+ * when one is supplied, otherwise `console.warn`d so it's never silently swallowed.
  */
 export function evaluateEvents(
   stats: ParsedStats,
@@ -232,7 +236,15 @@ export function evaluateEvents(
   const curr = buildConditionArgs(stats, currValues);
 
   for (const event of events) {
-    const fn = compileCondition(event.condition, prev.names, cache);
+    let fn: CompiledCondition;
+    try {
+      fn = compileCondition(event.condition, prev.names, cache);
+    } catch (err) {
+      const message = `Event condition "${event.condition}" failed to compile: ${err instanceof Error ? err.message : String(err)}`;
+      if (warnings) warnings.push(message);
+      else console.warn(`[StatLedger] ${message}`);
+      continue;
+    }
 
     const currTruthy = safeEval(fn, curr.args, event.condition, warnings);
     if (!currTruthy) continue;
@@ -276,7 +288,7 @@ function safeEval(
   try {
     return Boolean(fn(...args));
   } catch (err) {
-    const message = `Event condition "${condition}" threw: ${(err as Error).message}`;
+    const message = `Event condition "${condition}" threw: ${err instanceof Error ? err.message : String(err)}`;
     if (warnings) warnings.push(message);
     else console.warn(`[StatLedger] ${message}`);
     return false;

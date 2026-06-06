@@ -267,4 +267,9 @@ describe('isValidStatKey', () => {
     expect(isValidStatKey('1hp')).toBe(false);
     expect(isValidStatKey('')).toBe(false);
   });
+
+  it('rejects multi-identifier and reserved-word keys the param form would wave through', () => {
+    expect(isValidStatKey('a, b')).toBe(false);
+    expect(isValidStatKey('let')).toBe(false);
+  });
 });

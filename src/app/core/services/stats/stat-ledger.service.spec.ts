@@ -124,6 +124,15 @@ describe('fold', () => {
     expect(applied[0].warning).toContain('not allowed');
   });
 
+  it('drops an unauthorized new subkey without materializing an empty map', () => {
+    const stats = affinityStats(false);
+    const { values, applied } = fold(stats, {}, [
+      { key: 'affinity', subkey: '王如花', value: 40 },
+    ]);
+    expect(values).toEqual({});
+    expect(applied[0].dropped).toBe(true);
+  });
+
   it('creates an authorized new subkey from an absolute value (clamped)', () => {
     const stats = affinityStats(true);
     const { values, applied } = fold(stats, { affinity: { 王大福: 50 } }, [
@@ -333,6 +342,16 @@ describe('evaluateEvents', () => {
       'down',
     ]);
     expect(cache.size).toBe(2);
+  });
+
+  it('treats an uncompilable condition as not-triggered and warns', () => {
+    const events: StatEvent[] = [
+      { condition: 'hp.value <<< 0', type: 'level', trigger: 'boom' },
+    ];
+    const warnings: string[] = [];
+    const out = evaluateEvents(hpStats, { hp: 50 }, { hp: 50 }, events, new Map(), warnings);
+    expect(out).toEqual([]);
+    expect(warnings[0]).toContain('failed to compile');
   });
 
   it('treats a throwing condition as not-triggered and warns', () => {

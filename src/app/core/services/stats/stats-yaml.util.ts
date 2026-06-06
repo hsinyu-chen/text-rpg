@@ -130,9 +130,10 @@ function parseEventsSection(raw: unknown, warnings: string[]): StatEvent[] {
 export function isValidStatKey(key: string): boolean {
   if (!key) return false;
   try {
-    // The identifier-shape check the runtime itself enforces — cheaper to
-    // maintain than a hand-rolled Unicode regex that has to track ID_Start.
-    new Function(key, 'return 0;');
+    // Declaring it as a `const` (not a `new Function` parameter) forces the
+    // runtime to accept exactly one valid, non-reserved identifier — the param
+    // form would wave through `a, b` (two params) or a default-value assignment.
+    new Function(`const ${key} = 0;`);
     return true;
   } catch {
     return false;
