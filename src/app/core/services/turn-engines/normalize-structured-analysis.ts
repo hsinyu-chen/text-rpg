@@ -157,9 +157,10 @@ function normalizeStatChange(raw: unknown): StatChange | null {
     if (typeof key !== 'string' || !isValidStatKey(key)) return null;
 
     const change: StatChange = { key };
-    // Keep subkey only when it's a non-empty/non-whitespace string — models often
-    // emit "" for the optional field, which means "no subkey" (a scalar change).
-    if (typeof r['subkey'] === 'string' && r['subkey'].trim() !== '') change.subkey = r['subkey'];
+    // Keep subkey only when non-empty after trimming: models emit "" for the
+    // optional field (= a scalar change), and stray whitespace would otherwise
+    // fork a map subkey into a duplicate ("foo " vs "foo").
+    if (typeof r['subkey'] === 'string' && r['subkey'].trim() !== '') change.subkey = r['subkey'].trim();
     if (r['field'] === 'min' || r['field'] === 'max') change.field = r['field'];
     if (typeof r['delta'] === 'number' && Number.isFinite(r['delta'])) change.delta = r['delta'];
     if (typeof r['value'] === 'number' && Number.isFinite(r['value'])) change.value = r['value'];

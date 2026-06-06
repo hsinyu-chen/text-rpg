@@ -49,7 +49,7 @@ stats:
     min: 0                # lower bound (omit for none)
     max: 100              # upper bound (omit for none); growth/debuff may move it
     desc: Health; reaching 0 means down
-    color: mediumseagreen # chip tint — any CSS color (name / #hex / rgb() / oklch())
+    color: mediumseagreen # chip tint — any CSS color: name / rgb() / oklch() / "#hex" (hex must be quoted)
 
   mp:
     type: scalar

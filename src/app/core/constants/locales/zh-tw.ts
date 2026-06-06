@@ -48,7 +48,7 @@ stats:
     min: 0                # 下限(可省略 = 無下限)
     max: 100              # 上限(可省略 = 無上限);成長/減益可調整
     desc: 生命值,歸零即倒下
-    color: mediumseagreen # chip 底色 — 任何 CSS 顏色(色名 / #hex / rgb() / oklch())
+    color: mediumseagreen # chip 底色 — 任何 CSS 顏色:色名 / rgb() / oklch() / "#hex"(hex 需加引號)
 
   mp:
     type: scalar
