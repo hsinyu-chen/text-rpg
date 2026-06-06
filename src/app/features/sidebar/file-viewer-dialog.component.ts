@@ -18,6 +18,7 @@ import { FileAgentService } from '@app/core/services/file-agent/file-agent.servi
 import { AgentPanelStateService } from '@app/core/services/file-agent/agent-panel-state.service';
 import { WorldCompletionValidator } from '@app/core/services/file-agent/world-completion-validator';
 import { SessionService } from '@app/core/services/session.service';
+import { DialogService } from '@app/core/services/dialog.service';
 import { findAtxHeadings } from '@app/core/utils/markdown.util';
 import { FileSearchEngine, type SearchResult } from './file-search/file-search-engine';
 import { I18nService, TranslatePipe } from '@app/core/i18n';
@@ -77,6 +78,7 @@ export class FileViewerDialogComponent implements OnDestroy {
   private engine = inject(GameEngineService);
   private state = inject(GameStateService);
   private session = inject(SessionService);
+  private dialogService = inject(DialogService);
   private snackBar = inject(MatSnackBar);
   private matDialog = inject(MatDialog);
   private cacheManager = inject(CacheManagerService);
@@ -138,12 +140,13 @@ export class FileViewerDialogComponent implements OnDestroy {
    */
   dbBaselineSnapshot = signal<Map<string, string>>(new Map(this.data.files));
 
+  // Reactive set of file names. data.files is a plain Map (content store, not
+  // a signal), so create/delete must drive the sidebar list through this
+  // signal — mutating data.files alone would not refresh fileList.
+  private fileNames = signal<string[]>([...this.data.files.keys()]);
+
   // Derived file list for sidebar display
-  fileList = computed(() => {
-    const list: string[] = [];
-    this.data.files.forEach((_, name) => list.push(name));
-    return list.sort();
-  });
+  fileList = computed(() => [...this.fileNames()].sort());
 
   // Check if current file can be edited
   canEdit = computed(() => {
@@ -492,6 +495,95 @@ export class FileViewerDialogComponent implements OnDestroy {
       this.snackBar.open(this.t('saveFailed'), this.i18n.translate('ui.CLOSE'), { duration: 5000 });
     } finally {
       this.isSaving.set(false);
+    }
+  }
+
+  /** Create a new (empty) KB file, then select it. */
+  async createFile(): Promise<void> {
+    const name = await this.dialogService.prompt(this.t('newFileMessage'), {
+      title: this.t('newFileTitle'),
+      placeholder: this.t('newFilePlaceholder'),
+    });
+    if (!name) return;
+
+    if (name.startsWith('system_files/')) {
+      await this.dialogService.alert(this.t('newFileSystemError'), this.t('newFileTitle'));
+      return;
+    }
+
+    // '/' is an intentional subdirectory separator across the sync layer, so it
+    // is allowed — but each segment must be a real dir/file name: no '..'/'.'
+    // traversal, no empty segments (leading/trailing/'//' yield empty FSA dir
+    // names), and no characters that crash Windows disk sync.
+    const segments = name.split('/');
+    const hasInvalidSegment = segments.some(seg => seg.trim() === '' || seg === '.' || seg === '..');
+    if (hasInvalidSegment || /[\\:*?"<>|]/.test(name)) {
+      await this.dialogService.alert(this.t('newFileInvalidError'), this.t('newFileTitle'));
+      return;
+    }
+
+    const exists = [...this.data.files.keys()].some(f => f.toLowerCase() === name.toLowerCase());
+    if (exists) {
+      await this.dialogService.alert(this.t('newFileDuplicateError', { name }), this.t('newFileTitle'));
+      return;
+    }
+
+    try {
+      // updateSingleFile already persists to the active Book — no separate
+      // saveCurrentSessionToBook needed here (unlike save(), which interleaves
+      // cache cleanup between the two calls).
+      await this.engine.updateSingleFile(name, '');
+      this.data.files.set(name, '');
+      this.fileNames.update(names => [...names, name]);
+      this.dbBaselineSnapshot.update(map => {
+        const next = new Map(map);
+        next.set(name, '');
+        return next;
+      });
+      // Lazy-register the model in Monaco before switching — models are only
+      // created upfront at init, so a freshly created file has none and
+      // switchToFile would no-op with a warning.
+      this.editorRef()?.updateFileContent(name, '');
+      this.selectFile(name);
+    } catch (err) {
+      console.error('Create file failed:', err);
+      await this.dialogService.alert(this.t('newFileFailed'), this.t('newFileTitle'));
+    }
+  }
+
+  /** Delete the active file after a type-to-confirm prompt. */
+  async deleteFile(): Promise<void> {
+    const fileName = this.activeFile();
+    if (!fileName || !this.canEdit()) return;
+
+    const typed = await this.dialogService.prompt(this.t('deleteFileMessage', { name: fileName }), {
+      title: this.t('deleteFileTitle'),
+      placeholder: fileName,
+    });
+    if (typed !== fileName) return;
+
+    try {
+      await this.engine.deleteSingleFile(fileName);
+      this.data.files.delete(fileName);
+      this.fileNames.update(names => names.filter(n => n !== fileName));
+      this.dbBaselineSnapshot.update(map => {
+        const next = new Map(map);
+        next.delete(fileName);
+        return next;
+      });
+      this.unsavedFiles.update(set => {
+        const next = new Set(set);
+        next.delete(fileName);
+        return next;
+      });
+
+      this.editorRef()?.removeFile(fileName);
+
+      const remaining = this.fileList();
+      this.selectFile(remaining[0] ?? '');
+    } catch (err) {
+      console.error('Delete file failed:', err);
+      await this.dialogService.alert(this.t('deleteFileFailed'), this.t('deleteFileTitle'));
     }
   }
 

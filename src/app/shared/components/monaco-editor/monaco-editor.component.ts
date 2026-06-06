@@ -415,7 +415,9 @@ export class MonacoEditorComponent implements OnDestroy, ControlValueAccessor {
             'html': 'html',
             'css': 'css',
             'scss': 'scss',
-            'txt': 'plaintext'
+            'txt': 'plaintext',
+            'yaml': 'yaml',
+            'yml': 'yaml'
         };
         return langMap[ext] || 'markdown';
     }
@@ -451,6 +453,41 @@ export class MonacoEditorComponent implements OnDestroy, ControlValueAccessor {
         const model = this.originalModelMap.get(fileName);
         if (model) {
             model.setValue(newContent);
+        }
+    }
+
+    /**
+     * Dispose and forget a file's model(s) when its file is deleted. No-op if
+     * the file has no model. If the model being removed is the one currently
+     * shown, the editor is switched off it first (same ordering as ngOnDestroy)
+     * so Monaco's widget never holds a disposed model.
+     */
+    removeFile(fileName: string): void {
+        const model = this.multiModelMap.get(fileName);
+        const original = this.originalModelMap.get(fileName);
+        if (!model && !original) return;
+
+        if (this.editor && model) {
+            if (this.isMultiDiff) {
+                const diffEditor = this.editor as import('monaco-editor').editor.IStandaloneDiffEditor;
+                if (diffEditor.getModel()?.modified === model) {
+                    diffEditor.setModel(null);
+                }
+            } else if (!this.isAnyDiff) {
+                const codeEditor = this.editor as import('monaco-editor').editor.IStandaloneCodeEditor;
+                if (codeEditor.getModel() === model) {
+                    codeEditor.setModel(null);
+                }
+            }
+        }
+
+        if (model) {
+            model.dispose();
+            this.multiModelMap.delete(fileName);
+        }
+        if (original) {
+            original.dispose();
+            this.originalModelMap.delete(fileName);
         }
     }
 

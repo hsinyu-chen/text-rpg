@@ -568,6 +568,12 @@
     font-size: 13px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
 
+    .files-header-actions {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
     .file-count {
         background: rgba(255, 255, 255, 0.1);
         padding: 2px 8px;

@@ -503,6 +503,7 @@ export class GameEngineService {
     importSession(save: SessionSave) { return this.session.importSession(save); }
     importFiles(files: Map<string, string>) { return this.session.importFiles(files); }
     updateSingleFile(filePath: string, content: string) { return this.session.updateSingleFile(filePath, content); }
+    deleteSingleFile(filePath: string) { return this.session.deleteSingleFile(filePath); }
     saveCurrentSessionToBook() { return this.session.saveCurrentSessionToBook(); }
 
     /**

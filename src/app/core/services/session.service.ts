@@ -963,6 +963,17 @@ export class SessionService {
     }
 
     /**
+     * Removes a single file from storage and refreshes the loadedFiles signal,
+     * then rebuilds the active Book so book.files no longer carries the file —
+     * otherwise loadBook() on next reload would resurrect it into file_store.
+     */
+    async deleteSingleFile(filePath: string): Promise<void> {
+        await this.sessionFile.deleteSingleFile(filePath);
+        console.log('[SessionService] Deleted file:', filePath);
+        await this.saveCurrentSessionToBook();
+    }
+
+    /**
      * Loads files from a directory and initializes the Knowledge Base, then
      * persists into the active Book so cloud sync sees the load. Guarded for
      * the startNewGame path where currentBookId may not be set yet. Callers
