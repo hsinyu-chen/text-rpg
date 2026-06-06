@@ -132,4 +132,43 @@ describe('StatsViewService.appliedForMessage', () => {
       spy.mockRestore();
     }
   });
+
+  describe('currentState', () => {
+    it('is null when no Book opted in', () => {
+      expect(service.currentState()).toBeNull();
+    });
+
+    it('folds all active model deltas off the current ledger', () => {
+      withLedger();
+      messages.set([
+        { id: 'm0', role: 'model', content: 's', stat_delta: [{ key: 'hp', delta: -30 }] },
+        { id: 'm1', role: 'model', content: 's', stat_delta: [{ key: 'hp', delta: -5 }] },
+      ]);
+      const state = service.currentState();
+      expect(state?.values['hp']).toBe(65);
+      expect(state?.parsed.stats['hp']?.type).toBe('scalar');
+    });
+  });
+
+  describe('colorFor', () => {
+    const COLOR_YAML = [
+      'stats:',
+      '  hp:',
+      '    value: 100',
+      '    color: dodgerblue',
+      '  mp:',
+      '    value: 50',
+    ].join('\n');
+
+    it('returns a declared valid color, undefined when absent or unknown', () => {
+      loadedFiles.set(new Map([[STATS_FILE, COLOR_YAML]]));
+      expect(service.colorFor('hp')).toBe('dodgerblue');
+      expect(service.colorFor('mp')).toBeUndefined();
+      expect(service.colorFor('nope')).toBeUndefined();
+    });
+
+    it('returns undefined when no Book opted in', () => {
+      expect(service.colorFor('hp')).toBeUndefined();
+    });
+  });
 });

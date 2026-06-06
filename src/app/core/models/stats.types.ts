@@ -32,6 +32,13 @@ export interface StatDefinition {
   desc?: string;
   allow_new_item?: boolean;
   new_item_rule?: string;
+  /**
+   * Optional chip tint — any CSS color string (hex / name / `rgb()` / `oklch()`,
+   * i.e. anything `CSS.supports('color', …)` accepts). The chat chip derives its
+   * background / border from it via `color-mix`; an invalid or absent value falls
+   * back to the gain/loss colouring.
+   */
+  color?: string;
 }
 
 export interface StatEvent {
