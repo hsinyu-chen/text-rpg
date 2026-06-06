@@ -175,15 +175,14 @@ export class TwoCallTurnEngine implements TurnEngine {
         if (!ctx.enableStatsSystem || !statsParsed || !statsBaseline) return null;
 
         const priorDeltaLists = priorStatDeltaLists(ctx.messages);
-        const priorDeltas = priorDeltaLists.flat();
         const thisTurnChanges = truncatedAnalysis.steps.flatMap(s => s.stat_changes ?? []);
 
+        // Clamping is applied after every change with no remembered overflow, so
+        // folding this turn's changes onto prevValues is identical to re-folding
+        // the whole history from baseline — and skips the redundant prior pass.
+        // fold deep-copies its baseline arg, so prevValues stays intact for events.
         const prevValues = this.statLedger.computeCurrent(statsParsed, statsBaseline, priorDeltaLists);
-        const postValues = this.statLedger.fold(
-            statsParsed,
-            statsBaseline,
-            priorDeltas.concat(thisTurnChanges)
-        ).values;
+        const postValues = this.statLedger.fold(statsParsed, prevValues, thisTurnChanges).values;
         const triggered = this.statLedger.evaluateEvents(
             statsParsed,
             prevValues,
