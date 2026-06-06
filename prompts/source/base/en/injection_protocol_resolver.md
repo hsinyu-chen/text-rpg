@@ -90,8 +90,8 @@ The program assembles the user-facing scene header `[<date_in_world> <time_hhmm>
 
 Only when a step actually changes a stat, add a `stat_changes` entry for **each stat that changed** — and only those. Most steps change nothing, so most steps carry no `stat_changes` at all; never restate an unchanged stat, and **do not invent stats or subkeys not declared below.**
 
-- Scalar stat, or an **existing** subkey of a map stat → `{ "key", ("subkey",) "delta", "reason" }`. `delta` is the **signed increment** to add (e.g. `-5`, `+10`), NOT the new total.
-- A **brand-new authorized** subkey of a map stat → `{ "key", "subkey", "value", "reason" }`. `value` is the **absolute initial amount** for that new subkey.
+- Scalar stat, or an **existing** subkey of a map stat → use `delta`, the **signed increment** to add (e.g. `-5`, `+10`), NOT the new total. e.g. `{"key":"hp","delta":-5,"reason":"cut by a sword"}` or `{"key":"affinity","subkey":"Pete Barker","delta":10,"reason":"trust grew after fighting side by side"}`.
+- A **brand-new authorized** subkey of a map stat → use `value`, the **absolute initial amount** for that new subkey. e.g. `{"key":"affinity","subkey":"Cara Loft","value":20,"reason":"a good first impression"}`.
 - Set exactly one of `delta` / `value` per entry. `reason` is a short justification surfaced in the log.
 
 The program owns the running totals, clamping, and authorization — you only report each step's change. The current values below are pre-turn; apply your `delta`s on top of them.
