@@ -79,6 +79,7 @@ export interface AppLocale {
         STEP_EVENT: string;
         FULL_SCENE: string;
         SCENE_CHANGE: string;
+        STAT_CHANGES: string;
         PHYSICAL_STATE: string;
         AGENDA: string;
         PC_DIALOGUE: string;

@@ -76,6 +76,7 @@ history 訊息或 stateUpdates summary 出現 \`correction:\` 條目時，**必�
         STEP_EVENT: '事件',
         FULL_SCENE: '全場景',
         SCENE_CHANGE: '場景變化',
+        STAT_CHANGES: '數值變化',
         PHYSICAL_STATE: '外觀狀態',
         AGENDA: '進行事務',
         PC_DIALOGUE: '主角',

@@ -10,6 +10,7 @@ import {
 } from '@app/core/constants/engine-protocol-structured';
 import { AppLocale } from '@app/core/constants/locales/locale.interface';
 import { getLocale } from '@app/core/constants/locales';
+import { StatChange } from '@app/core/models/stats.types';
 
 type TraceLabels = AppLocale['analysisTrace'];
 
@@ -279,11 +280,37 @@ function formatStep(step: AnalysisStep | null | undefined, ordinal: number, trun
         sceneLines.forEach(l => parts.push(`     - ${l}`));
     }
 
+    if (Array.isArray(step.stat_changes) && step.stat_changes.length > 0) {
+        const statLines = step.stat_changes.map(formatStatChange).filter(Boolean);
+        if (statLines.length > 0) {
+            parts.push(`   - **[${labels.STAT_CHANGES}]**`);
+            statLines.forEach(l => parts.push(`     - ${l}`));
+        }
+    }
+
     if (step.scene_change && step.scene_change.trim().length > 0) {
         parts.push(`   - **[${labels.SCENE_CHANGE}]** ${step.scene_change.trim()}`);
     }
 
     return parts.join('\n');
+}
+
+/**
+ * Renders one stat change as `key` / `key.subkey`, the signed delta (or
+ * `=value` for an absolute), and the reason in parens. Returns empty string
+ * when the entry has no usable key.
+ */
+function formatStatChange(c: StatChange | null | undefined): string {
+    const key = c?.key?.trim();
+    if (!key) return '';
+    const target = c?.subkey ? `${key}.${c.subkey}` : key;
+
+    let amount = '';
+    if (typeof c?.delta === 'number') amount = c.delta >= 0 ? `+${c.delta}` : `${c.delta}`;
+    else if (typeof c?.value === 'number') amount = `=${c.value}`;
+
+    const reason = c?.reason?.trim() ? ` (${c.reason.trim()})` : '';
+    return `${target}${amount ? ` ${amount}` : ''}${reason}`;
 }
 
 function formatNpcReaction(r: NpcReaction | null | undefined, labels: TraceLabels): string {

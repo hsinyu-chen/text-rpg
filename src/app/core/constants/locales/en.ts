@@ -76,6 +76,7 @@ Do not infer — pass this value directly into the schema's \`ideal_outcome\` fi
         STEP_EVENT: 'Event',
         FULL_SCENE: 'Scene',
         SCENE_CHANGE: 'Scene change',
+        STAT_CHANGES: 'Stat changes',
         PHYSICAL_STATE: 'Physical state',
         AGENDA: 'Agenda',
         PC_DIALOGUE: 'PC',

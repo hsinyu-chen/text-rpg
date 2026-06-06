@@ -2,11 +2,23 @@ import { describe, expect, it } from 'vitest';
 import {
     AnalysisStep,
     StructuredAnalysis,
+    getStructuredAnalysisSchema,
     interruptedAtStep,
     isInterrupted,
     structuredAnalysisSchema,
     truncateAtBreak
 } from './engine-protocol-structured';
+
+interface StepSchema {
+    properties: {
+        steps: {
+            items: {
+                required?: string[];
+                properties: Record<string, { type?: string; items?: { required?: string[]; properties?: Record<string, { type?: string }> } }>;
+            };
+        };
+    };
+}
 
 function step(overrides: Partial<AnalysisStep> = {}): AnalysisStep {
     return {
@@ -212,5 +224,42 @@ describe('structuredAnalysisSchema', () => {
         expect(schema.properties.scene_snapshot.required).toEqual(
             expect.arrayContaining(['time_hhmm', 'environment', 'present_npcs', 'key_objects'])
         );
+    });
+});
+
+describe('getStructuredAnalysisSchema stat_changes opt-in', () => {
+    it('omits stat_changes from the step schema when enableStats is absent (opt-in-off zero pollution)', () => {
+        const schema = getStructuredAnalysisSchema() as StepSchema;
+        expect(schema.properties.steps.items.properties).not.toHaveProperty('stat_changes');
+    });
+
+    it('omits stat_changes when enableStats is explicitly false', () => {
+        const schema = getStructuredAnalysisSchema({ enableStats: false }) as StepSchema;
+        expect(schema.properties.steps.items.properties).not.toHaveProperty('stat_changes');
+    });
+
+    it('the default-off snapshot export matches the factory default (byte-for-byte)', () => {
+        expect(structuredAnalysisSchema).toEqual(getStructuredAnalysisSchema());
+    });
+
+    it('injects a stat_changes array into the step schema when enableStats is true', () => {
+        const schema = getStructuredAnalysisSchema({ enableStats: true }) as StepSchema;
+        const stepProps = schema.properties.steps.items.properties;
+        expect(stepProps).toHaveProperty('stat_changes');
+        expect(stepProps['stat_changes'].type).toBe('array');
+        const itemSchema = stepProps['stat_changes'].items!;
+        expect(itemSchema.properties).toHaveProperty('key');
+        expect(itemSchema.properties).toHaveProperty('subkey');
+        expect(itemSchema.properties).toHaveProperty('delta');
+        expect(itemSchema.properties).toHaveProperty('value');
+        expect(itemSchema.properties).toHaveProperty('reason');
+    });
+
+    it('marks only key as required inside stat_changes items and never adds stat_changes to the step required list', () => {
+        const schema = getStructuredAnalysisSchema({ enableStats: true }) as StepSchema;
+        const stepReq = schema.properties.steps.items.required ?? [];
+        expect(stepReq).not.toContain('stat_changes');
+        const itemReq = schema.properties.steps.items.properties['stat_changes'].items!.required ?? [];
+        expect(itemReq).toEqual(['key']);
     });
 });

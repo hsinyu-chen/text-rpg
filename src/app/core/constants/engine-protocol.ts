@@ -1,6 +1,6 @@
 import { Schema } from '../models/types';
 import { getLocale } from './locales';
-import { structuredAnalysisSchema } from './engine-protocol-structured';
+import { getStructuredAnalysisSchema } from './engine-protocol-structured';
 
 /**
  * Single-call response schema. Flat shape — `analysis` is now a structured
@@ -9,7 +9,7 @@ import { structuredAnalysisSchema } from './engine-protocol-structured';
  * skeleton (empty `steps[]`, empty `scene_snapshot`); the renderer maps that
  * to an empty string for display.
  */
-export const getResponseSchema = (lang = 'default'): Schema => {
+export const getResponseSchema = (lang = 'default', options?: { enableStats?: boolean }): Schema => {
     const locale = getLocale(lang);
     const { responseSchema } = locale;
 
@@ -17,7 +17,7 @@ export const getResponseSchema = (lang = 'default'): Schema => {
         type: 'object',
         description: responseSchema.rootDescription,
         properties: {
-            analysis: structuredAnalysisSchema,
+            analysis: getStructuredAnalysisSchema(options),
             story: { type: 'string', description: 'The actual story content, system response, or XML Save data.' },
             summary: { type: 'string', description: responseSchema.summary },
             character_log: { type: 'array', items: { type: 'string' }, description: responseSchema.character },

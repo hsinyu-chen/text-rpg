@@ -65,4 +65,57 @@ describe('normalizeStep', () => {
         const out = normalizeStep({ kind: 'event', source: 'mystery' });
         expect(out.source).toBe('random');
     });
+
+    describe('stat_changes', () => {
+        it('omits the field entirely for a legacy step with no stat_changes', () => {
+            const out = normalizeStep({ action: 'walk' });
+            expect(out).not.toHaveProperty('stat_changes');
+        });
+
+        it('omits the field when stat_changes is present but not an array', () => {
+            const out = normalizeStep({ stat_changes: 'oops' } as unknown as Parameters<typeof normalizeStep>[0]);
+            expect(out).not.toHaveProperty('stat_changes');
+        });
+
+        it('parses valid stat_changes, preserving subkey / delta / value / reason', () => {
+            const out = normalizeStep({
+                stat_changes: [
+                    { key: 'hp', delta: -5, reason: 'took a hit' },
+                    { key: 'inventory', subkey: 'gold', value: 100 }
+                ]
+            } as unknown as Parameters<typeof normalizeStep>[0]);
+            expect(out.stat_changes).toEqual([
+                { key: 'hp', delta: -5, reason: 'took a hit' },
+                { key: 'inventory', subkey: 'gold', value: 100 }
+            ]);
+        });
+
+        it('drops entries with an invalid / non-string / empty key', () => {
+            const out = normalizeStep({
+                stat_changes: [
+                    { key: 'hp', delta: 1 },
+                    { key: '' },
+                    { key: 'has space', delta: 1 },
+                    { key: 42 },
+                    { delta: 1 },
+                    'not-an-object'
+                ]
+            } as unknown as Parameters<typeof normalizeStep>[0]);
+            expect(out.stat_changes).toEqual([{ key: 'hp', delta: 1 }]);
+        });
+
+        it('drops non-numeric delta / value fields but keeps the entry on a valid key', () => {
+            const out = normalizeStep({
+                stat_changes: [
+                    { key: 'hp', delta: 'lots', value: NaN, subkey: 5, reason: 99 }
+                ]
+            } as unknown as Parameters<typeof normalizeStep>[0]);
+            expect(out.stat_changes).toEqual([{ key: 'hp' }]);
+        });
+
+        it('yields an empty array (not absent) when stat_changes is an empty array', () => {
+            const out = normalizeStep({ stat_changes: [] } as unknown as Parameters<typeof normalizeStep>[0]);
+            expect(out.stat_changes).toEqual([]);
+        });
+    });
 });

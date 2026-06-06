@@ -3,6 +3,8 @@ import {
     SceneSnapshot,
     StructuredAnalysis
 } from '@app/core/constants/engine-protocol-structured';
+import { StatChange } from '@app/core/models/stats.types';
+import { isValidStatKey } from '@app/core/services/stats/stats-yaml.util';
 
 /**
  * Coerces a (possibly partial / malformed) parsed JSON into a fully-shaped
@@ -106,7 +108,7 @@ export function normalizeStep(raw: LegacyAnalysisStep | undefined): AnalysisStep
     const hookTitle = source === 'hook_fire' && typeof raw?.hook_title === 'string'
         ? raw.hook_title
         : '';
-    return {
+    const step: AnalysisStep = {
         kind,
         source,
         hook_title: hookTitle,
@@ -129,4 +131,33 @@ export function normalizeStep(raw: LegacyAnalysisStep | undefined): AnalysisStep
             : [],
         scene_change: typeof raw?.scene_change === 'string' ? raw.scene_change : ''
     };
+
+    // Opt-out books (and every legacy save) carry no stat_changes — leave the
+    // optional field absent so their normalized shape stays byte-identical.
+    if (Array.isArray((raw as { stat_changes?: unknown })?.stat_changes)) {
+        step.stat_changes = ((raw as { stat_changes: unknown[] }).stat_changes)
+            .map(normalizeStatChange)
+            .filter((c): c is StatChange => c !== null);
+    }
+
+    return step;
+}
+
+/**
+ * Validates one raw stat-change entry. Returns null (dropped) unless `key` is a
+ * non-empty string passing {@link isValidStatKey}. `delta`/`value` survive only
+ * when numeric; `subkey`/`reason` only when strings — anything else is omitted.
+ */
+function normalizeStatChange(raw: unknown): StatChange | null {
+    if (!raw || typeof raw !== 'object') return null;
+    const r = raw as Record<string, unknown>;
+    const key = r['key'];
+    if (typeof key !== 'string' || !isValidStatKey(key)) return null;
+
+    const change: StatChange = { key };
+    if (typeof r['subkey'] === 'string') change.subkey = r['subkey'];
+    if (typeof r['delta'] === 'number' && Number.isFinite(r['delta'])) change.delta = r['delta'];
+    if (typeof r['value'] === 'number' && Number.isFinite(r['value'])) change.value = r['value'];
+    if (typeof r['reason'] === 'string') change.reason = r['reason'];
+    return change;
 }
