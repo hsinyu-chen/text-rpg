@@ -88,7 +88,7 @@ The program assembles the user-facing scene header `[<date_in_world> <time_hhmm>
 <!--STATS_SECTION-->
 ### Numeric stats — `steps[].stat_changes`
 
-Each step may carry `stat_changes` only when the schema defines that field. Per step, emit ONE entry **only for each stat that actually changed this step** — never restate an unchanged stat. **Do not invent stats or subkeys not declared below.**
+Only when a step actually changes a stat, add a `stat_changes` entry for **each stat that changed** — and only those. Most steps change nothing, so most steps carry no `stat_changes` at all; never restate an unchanged stat, and **do not invent stats or subkeys not declared below.**
 
 - Scalar stat, or an **existing** subkey of a map stat → `{ "key", ("subkey",) "delta", "reason" }`. `delta` is the **signed increment** to add (e.g. `-5`, `+10`), NOT the new total.
 - A **brand-new authorized** subkey of a map stat → `{ "key", "subkey", "value", "reason" }`. `value` is the **absolute initial amount** for that new subkey.
