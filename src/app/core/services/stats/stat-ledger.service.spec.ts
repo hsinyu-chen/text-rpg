@@ -322,8 +322,20 @@ describe('fold — dynamic bounds', () => {
       field: 'max',
       before: 100,
       after: 150,
+      delta: 50,
       reason: '升級',
     });
+    // delta decided `next`, so the unused `value` is absent from the audit.
+    expect(applied[0].value).toBeUndefined();
+  });
+
+  it('records only value (not the ignored delta) when both are given on a bound change', () => {
+    const { applied, bounds } = fold(scalarStats(), { hp: 100 }, [
+      { key: 'hp', field: 'max', value: 80, delta: 999 },
+    ]);
+    expect(bounds['hp']).toEqual({ min: 0, max: 80 });
+    expect(applied[0]).toMatchObject({ key: 'hp', field: 'max', value: 80 });
+    expect(applied[0].delta).toBeUndefined();
   });
 });
 

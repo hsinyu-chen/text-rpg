@@ -241,9 +241,14 @@ function applyBoundChange(
   const b = ensureBounds(def, bounds, key);
   b[field] = next;
   reclampStat(values, b, key);
+  // Record only the field that decided `next` (value wins when both are given),
+  // mirroring the value path's audit — so the trail never shows an ignored input.
   // before is undefined only when introducing a previously-open bound via value;
   // record `next` so the audit line reads as a no-op delta rather than NaN.
-  return { key, field, before: before ?? next, after: next, delta, value, reason };
+  const audit: AppliedDelta = { key, field, before: before ?? next, after: next, reason };
+  if (value !== undefined) audit.value = value;
+  else audit.delta = delta;
+  return audit;
 }
 
 function dropBound(

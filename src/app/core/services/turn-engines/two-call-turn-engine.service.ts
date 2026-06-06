@@ -163,9 +163,9 @@ export class TwoCallTurnEngine implements TurnEngine {
      * The fold basis is the stat_delta of EVERY prior non-ref-only model message
      * in the FULL captured history — not the possibly-truncated base history — so
      * a deleted or retried mid-history message naturally drops its delta and the
-     * running totals roll back. prevValues are the pre-turn numbers (the resolver
-     * already ran against them); postValues fold this turn's surviving changes on
-     * top; triggered events are evaluated across that pre/post pair.
+     * running totals roll back. `prev` is the pre-turn state (values + live bounds
+     * the resolver already ran against); `post` folds this turn's surviving changes
+     * on top; triggered events are evaluated across that pre/post state pair.
      */
     private foldStats(
         ctx: TurnRunInput['buildContext'],
