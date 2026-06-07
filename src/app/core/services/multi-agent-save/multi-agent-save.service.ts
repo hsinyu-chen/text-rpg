@@ -176,7 +176,13 @@ export class MultiAgentSaveService {
 
             // 5. Map each hunk → FileUpdate. The model already wrote verbatim
             //    markdown into target/replacement, so this is a field copy.
-            const updates = processedHunks.map(hunkToFileUpdate);
+            //    The stats ledger is engine / carry-forward-managed, never a save
+            //    target — drop any stray hunk against it up front so it never sits
+            //    in the AutoUpdate dialog (an unresolved one there would block the
+            //    other updates) nor seed-clobbers the next act.
+            const updates = processedHunks
+                .map(hunkToFileUpdate)
+                .filter((u) => !isStatsYamlFilename(u.filePath));
 
             // 6. Mark the save work done so the progress dialog can swap its
             //    Cancel button for the Close (cancel-flow) / Continue
@@ -276,13 +282,9 @@ export class MultiAgentSaveService {
             // current KB: the current KB is left un-applied here, so it lags a
             // full act behind. createNextBook overlays this delta on the current
             // KB to mirror what the new book will actually contain.
-            // createNextBook carry-forwards the closing act's folded stats ledger
-            // onto the new act; a stray save hunk targeting that ledger would
-            // clobber the seeded baseline, so drop it before applying the delta.
-            const newActFiles = result.files.filter((f) => !isStatsYamlFilename(f.fileName));
-            const appliedFiles = new Map(newActFiles.map((f) => [f.fileName, f.content]));
+            const appliedFiles = new Map(result.files.map((f) => [f.fileName, f.content]));
             await this.session.createNextBook(appliedFiles);
-            await this.applyFiles(newActFiles);
+            await this.applyFiles(result.files);
             return true;
         }
 
