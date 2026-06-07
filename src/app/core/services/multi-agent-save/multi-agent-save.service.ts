@@ -22,7 +22,9 @@ import { InjectionService } from '../injection.service';
 import { SessionService } from '../session.service';
 import { CacheManagerService } from '../cache-manager.service';
 import { ChatHistoryService } from '../chat-history.service';
-import { isStatsYamlFilename } from '../stats/stats-opt-in.util';
+import { getStatsYamlContent, isStatsYamlFilename } from '../stats/stats-opt-in.util';
+import { confirmStatsYamlSyntaxOrAbort } from '../stats/stats-validation.util';
+import { DialogService } from '../dialog.service';
 
 /**
  * Top-level orchestrator for the multi-agent save path.
@@ -68,6 +70,7 @@ export class MultiAgentSaveService {
     private session = inject(SessionService);
     private cacheManager = inject(CacheManagerService);
     private chatHistory = inject(ChatHistoryService);
+    private dialogService = inject(DialogService);
 
     /**
      * Runs one save end-to-end. `userInput` is the raw text the user typed
@@ -108,6 +111,9 @@ export class MultiAgentSaveService {
         }
 
         if (this.progress.isRunning()) return false;
+
+        // Placed with the other preconditions, before reset/setRunning, so a declined gate leaves the tracker untouched.
+        if (!(await this.passStatsYamlSyntaxGate())) return false;
 
         this.progress.reset();
         this.progress.setRunning(true);
@@ -242,6 +248,23 @@ export class MultiAgentSaveService {
             // success and on any thrown / aborted exit.
             this.progress.setRunning(false);
         }
+    }
+
+    /**
+     * For a stats Book, a hard YAML syntax error in the active ledger means the
+     * save pass silently runs with stats off. Confirm before the run mutates
+     * state — cancel aborts the save (go fix the file), OK proceeds with the
+     * graceful no-stats degrade. Non-stats Books and clean ledgers pass through.
+     */
+    private passStatsYamlSyntaxGate(): Promise<boolean> {
+        if (!this.state.hasStatsYaml()) return Promise.resolve(true);
+        const content = getStatsYamlContent(this.state.loadedFiles());
+        if (content === null) return Promise.resolve(true);
+        return confirmStatsYamlSyntaxOrAbort(content, (error) => this.dialogService.confirm(
+            this.i18n.translate('statsYamlSyntaxGate.saveMessage', { error }),
+            this.i18n.translate('statsYamlSyntaxGate.title'),
+            this.i18n.translate('statsYamlSyntaxGate.saveOk'),
+        ));
     }
 
     /**

@@ -1243,4 +1243,11 @@ export const en: TranslationDict = {
         ok: 'Switch & Continue',
         cancel: 'Cancel',
     },
+    statsYamlSyntaxGate: {
+        title: 'Invalid stats YAML',
+        turnMessage: 'This book\'s stats file has a YAML syntax error and will not load as stats:\n\n{{error}}\n\nPlay this turn with stats off, or cancel to fix the file?',
+        turnOk: 'Play with stats off',
+        saveMessage: 'This book\'s stats file has a YAML syntax error and will not load as stats:\n\n{{error}}\n\nSave with stats off, or cancel to fix the file?',
+        saveOk: 'Save with stats off',
+    },
 };
