@@ -1,5 +1,8 @@
-import { describe, expect, it } from 'vitest';
-import { validateStatsYaml } from './stats-validation.util';
+import { describe, expect, it, vi } from 'vitest';
+import { confirmStatsYamlSyntaxOrAbort, validateStatsYaml } from './stats-validation.util';
+
+const CLEAN_YAML = 'stats:\n  hp:\n    value: 100\n    min: 0\n    max: 100\n';
+const BROKEN_YAML = 'key: [unclosed';
 
 describe('validateStatsYaml', () => {
   it('reports no syntax error and no warnings for a clean ledger', () => {
@@ -50,5 +53,32 @@ describe('validateStatsYaml', () => {
     const r = validateStatsYaml(yaml);
     expect(r.syntaxError).toBeNull();
     expect(r.warnings.length).toBeGreaterThan(0);
+  });
+});
+
+describe('confirmStatsYamlSyntaxOrAbort', () => {
+  it('proceeds without prompting when the ledger parses cleanly', async () => {
+    const confirm = vi.fn().mockResolvedValue(true);
+    expect(await confirmStatsYamlSyntaxOrAbort(CLEAN_YAML, confirm)).toBe(true);
+    expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it('proceeds without prompting when only warnings are present (non-blocking)', async () => {
+    const confirm = vi.fn().mockResolvedValue(false);
+    expect(await confirmStatsYamlSyntaxOrAbort('stats:\n  "has space":\n    value: 1\n', confirm)).toBe(true);
+    expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it('proceeds on a syntax error when the user confirms the override', async () => {
+    const confirm = vi.fn().mockResolvedValue(true);
+    expect(await confirmStatsYamlSyntaxOrAbort(BROKEN_YAML, confirm)).toBe(true);
+    expect(confirm).toHaveBeenCalledOnce();
+    expect(confirm.mock.calls[0][0]).toEqual(expect.any(String));
+  });
+
+  it('aborts on a syntax error when the user cancels', async () => {
+    const confirm = vi.fn().mockResolvedValue(false);
+    expect(await confirmStatsYamlSyntaxOrAbort(BROKEN_YAML, confirm)).toBe(false);
+    expect(confirm).toHaveBeenCalledOnce();
   });
 });

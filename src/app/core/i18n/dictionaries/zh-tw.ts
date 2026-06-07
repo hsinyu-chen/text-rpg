@@ -1243,4 +1243,11 @@ export const zhTW: TranslationDict = {
         ok: '切換並繼續',
         cancel: '取消',
     },
+    statsYamlSyntaxGate: {
+        title: '數值 YAML 無效',
+        turnMessage: '此書本的數值檔有 YAML 語法錯誤,將無法載入為數值系統:\n\n{{error}}\n\n要關閉數值繼續本回合,還是取消以修正檔案?',
+        turnOk: '關閉數值繼續',
+        saveMessage: '此書本的數值檔有 YAML 語法錯誤,將無法載入為數值系統:\n\n{{error}}\n\n要關閉數值繼續儲存,還是取消以修正檔案?',
+        saveOk: '關閉數值儲存',
+    },
 };

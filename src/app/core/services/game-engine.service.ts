@@ -18,6 +18,8 @@ import { InjectionService } from './injection.service';
 import { StreamProcessResult } from './stream-processor.service';
 import { DialogService } from './dialog.service';
 import { runStatsTwoCallGate } from './stats-two-call-gate';
+import { confirmStatsYamlSyntaxOrAbort } from './stats/stats-validation.util';
+import { getStatsYamlContent } from './stats/stats-opt-in.util';
 
 import { SessionSave, Scenario } from '../models/types';
 import { GAME_INTENTS, STORY_INTENTS } from '../constants/game-intents';
@@ -118,6 +120,9 @@ export class GameEngineService {
         }
         console.log('[GameEngine] sendMessage received with intent:', options?.intent);
         if (!this.validateRunTurnArgs(userText, options)) return;
+
+        // Placed before any state mutation, so a declined gate is a clean no-op.
+        if (!(await this.passStatsYamlSyntaxGate(options?.isHidden))) return;
 
         // Stats opt-in gate: a stats Book in single-call mode can't produce
         // stat_changes. Offer the two-call switch before any state mutates
@@ -257,6 +262,27 @@ export class GameEngineService {
             ),
             switchToTwoCall: () => this.configService.saveConfig({ engineMode: 'two-call' }),
         });
+    }
+
+    /**
+     * For a stats Book, a hard YAML syntax error in the active ledger means the
+     * turn silently runs with stats off. Confirm before composing — cancel
+     * aborts the turn (go fix the file), OK proceeds with the graceful no-stats
+     * degrade. Non-stats Books and clean ledgers pass straight through. Hidden
+     * boot/system turns auto-proceed (the user didn't initiate them, and a
+     * cancel would strand the opening scene) — they meet the gate on the first
+     * real turn instead.
+     */
+    private passStatsYamlSyntaxGate(isHidden?: boolean): Promise<boolean> {
+        if (isHidden) return Promise.resolve(true);
+        if (!this.state.hasStatsYaml()) return Promise.resolve(true);
+        const content = getStatsYamlContent(this.state.loadedFiles());
+        if (content === null) return Promise.resolve(true);
+        return confirmStatsYamlSyntaxOrAbort(content, (error) => this.dialogService.confirm(
+            this.i18n.translate('statsYamlSyntaxGate.turnMessage', { error }),
+            this.i18n.translate('statsYamlSyntaxGate.title'),
+            this.i18n.translate('statsYamlSyntaxGate.turnOk'),
+        ));
     }
 
     /** Phase 1: legacy-fork autoswitch + push the user message + flip status to generating. */

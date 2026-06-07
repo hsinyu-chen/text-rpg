@@ -14,8 +14,9 @@ export interface StatsYamlValidation {
 }
 
 /**
- * Validate edited stats-YAML content for the file editor's save path. A real
- * YAML syntax error (which `parseStats` throws on) is reported as `syntaxError`;
+ * Validate stats-YAML content — used by the turn / save entry gates and the
+ * file-editor save path. A real YAML syntax error (which `parseStats` throws on)
+ * is reported as `syntaxError`;
  * everything else degrades into `warnings`. The events are dry-compiled against
  * the declared baseline so a malformed `condition` or a bad stat key — which at
  * runtime would only no-op and `console.warn` — is surfaced at save time, when
@@ -36,4 +37,26 @@ export function validateStatsYaml(content: string): StatsYamlValidation {
   } catch (err) {
     return { syntaxError: err instanceof Error ? err.message : String(err), warnings: [] };
   }
+}
+
+/**
+ * Loud-at-the-entry gate shared by the turn / save gates: a hard YAML
+ * `syntaxError` means the ledger silently degrades to no-stats, so the caller
+ * asks the author whether to proceed anyway. `warnings` are non-blocking and
+ * ignored here — only the syntax error gates. (The file-editor save validates
+ * directly, not through this helper, because it also surfaces the non-blocking
+ * warnings this gate discards.)
+ *
+ * Returns true to proceed (clean parse, OR the author confirmed override),
+ * false only when there IS a syntax error AND `confirm` resolved false. The
+ * context-specific wording (turn vs save) lives in each caller's `confirm`, so
+ * the validate+gate shape is shared without coupling the message.
+ */
+export async function confirmStatsYamlSyntaxOrAbort(
+  content: string,
+  confirm: (error: string) => Promise<boolean>,
+): Promise<boolean> {
+  const { syntaxError } = validateStatsYaml(content);
+  if (!syntaxError) return true;
+  return confirm(syntaxError);
 }
