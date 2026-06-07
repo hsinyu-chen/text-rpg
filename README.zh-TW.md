@@ -398,6 +398,12 @@ npm run desktop
 >
 > **重要提醒**：結束遊玩時，請務必點擊側邊欄的 **"Clear Current Cache"** (清除快取/掃把圖示) 按鈕，以停止快取租賃計費！
 
+### Dev Bridge（從 MCP client 驅動 app）—— 僅開發用
+
+調整 prompt / engine 時，可以從瀏覽器外部驅動一個執行中的 dev build。App 內建一個受 `isDevMode()` 限制的 **Debug Bridge**（Settings → Debug Bridge），透過 WebSocket 連到一支小型 relay server（[text-rpg-test-bridge](https://github.com/hsinyu-chen/text-rpg-test-bridge)）。該 relay 對外是一個原生 **MCP-over-HTTP** server，所以任何 MCP client（例如 Claude Code）都能送出回合、檢視 chat / KB 狀態、fork 冒險之書、刪除並重試一組對話，或驅動 app 內的 file-agent —— 不必再手動複製貼上 LLM 輸出。
+
+這只是開發 / 測試用的便利設施：受 `isDevMode()` 限制、production build 不含此功能，需要 relay 執行中且 Debug Bridge 開啟，且 relay 沒有 auth token 就拒絕啟動。並非面向使用者的功能。
+
 ---
 
 ## 部署指南

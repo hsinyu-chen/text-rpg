@@ -399,6 +399,12 @@ On first launch, configure via the Settings panel:
 >
 > **Important**: Remember to click the **"Clear Current Cache"** button in the sidebar (Broom Icon) when you are done playing to stop the cache rental billing!
 
+### Dev Bridge (drive the app from an MCP client) — dev only
+
+For prompt/engine iteration, a running dev build can be driven from outside the browser. The app ships an `isDevMode()`-gated **Debug Bridge** (Settings → Debug Bridge) that connects over WebSocket to a small relay server ([text-rpg-test-bridge](https://github.com/hsinyu-chen/text-rpg-test-bridge)). The relay exposes a native **MCP-over-HTTP** server, so any MCP client (e.g. Claude Code) can send turns, inspect chat/KB state, fork books, delete-and-retry a pair, or drive the in-app file-agent — without copy-pasting LLM output by hand.
+
+This is a development/testing affordance only: gated by `isDevMode()` and absent from production builds, it needs the relay running and the Debug Bridge toggled on, and the relay refuses to start without an auth token. Not a user-facing feature.
+
 ---
 
 ## Deployment Guide
