@@ -1,4 +1,4 @@
-import { isStatsYamlFilename } from '../stats/stats-opt-in.util';
+import { getStatsYamlContent } from '../stats/stats-opt-in.util';
 import { validateStatsYaml } from '../stats/stats-validation.util';
 
 export interface WorldCompletionValidatorConfig {
@@ -61,20 +61,13 @@ export class WorldCompletionValidator {
 
   /** The stats-ledger leg of completion — null when the ledger is acceptable. */
   private validateStats(files: Map<string, string>): { valid: boolean; errorMessage: string } | null {
-    let statsContent: string | undefined;
-    for (const [filename, content] of files) {
-      if (isStatsYamlFilename(filename)) {
-        statsContent = content;
-        break;
-      }
-    }
-
     const fail = (syntaxError: string) => ({
       valid: false,
       errorMessage: this.config.statsErrorMessage?.(syntaxError) ?? syntaxError,
     });
 
-    if (statsContent === undefined) return fail('');
+    const statsContent = getStatsYamlContent(files);
+    if (statsContent === null) return fail('');
     const { syntaxError } = validateStatsYaml(statsContent);
     return syntaxError ? fail(syntaxError) : null;
   }
