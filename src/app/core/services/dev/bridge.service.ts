@@ -13,6 +13,7 @@ import { InjectionService, ALL_PROMPT_TYPES, type PromptType } from '../injectio
 import { PromptRepository } from '../storage/prompt.repository';
 import { PromptProfileRegistryService } from '../prompt-profile-registry.service';
 import { ConfigService } from '../config.service';
+import { DialogService } from '../dialog.service';
 import { LLMProviderRegistryService } from '../llm-provider-registry.service';
 import { LLMConfigService } from '../llm-config.service';
 import { AppConfigStore, AppConfigShape } from '../app-config-store';
@@ -149,6 +150,10 @@ const STORAGE_URL = 'app_debug_bridge_url';
 const STORAGE_ENABLED = 'app_debug_bridge_enabled';
 const STORAGE_CLIENT_ID = 'app_debug_bridge_client_id';
 const STORAGE_EVAL_ENABLED = 'app_debug_bridge_eval_enabled';
+// sessionStorage (NOT KVStore/localStorage): consent is per browser-tab session.
+// It survives the bridge's own reload command + manual refresh, but resets when
+// the tab closes — so the gate re-prompts once per session, not once forever.
+const SESSION_CONSENT_KEY = 'app_debug_bridge_session_consent';
 const HEARTBEAT_MS = 15_000;
 const RECONNECT_MIN_MS = 1_000;
 const RECONNECT_MAX_MS = 30_000;
@@ -339,6 +344,7 @@ export class BridgeService {
     private i18nService = inject(I18nService);
     private hintRegistry = inject(AgentHintRegistry);
     private matDialog = inject(MatDialog);
+    private dialogService = inject(DialogService);
     private diskProfileSync = inject(DiskProfileSyncService);
     private prompts = inject(PromptRepository);
 
@@ -393,6 +399,7 @@ export class BridgeService {
     private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     private reconnectDelay = RECONNECT_MIN_MS;
     private intentionalClose = false;
+    private consentPromise: Promise<boolean> | null = null;
 
     setUrl(url: string): void {
         this.url.set(url);
@@ -560,7 +567,7 @@ export class BridgeService {
                 console.warn('[bridge] non-json frame', event.data);
                 return;
             }
-            this.routeMessage(frame);
+            void this.routeMessage(frame);
         });
 
         ws.addEventListener('close', () => {
@@ -581,7 +588,13 @@ export class BridgeService {
         });
     }
 
-    private routeMessage(frame: BridgeFrame): void {
+    private async routeMessage(frame: BridgeFrame): Promise<void> {
+        if (!(await this.ensureSessionConsent(frame))) {
+            if (frame.requestId) {
+                this.send({ type: 'action_error', requestId: frame.requestId, error: 'consent_denied' });
+            }
+            return;
+        }
         const { type } = frame;
         switch (type) {
             case 'send_action':
@@ -691,6 +704,53 @@ export class BridgeService {
                 break;
             default:
                 console.warn('[bridge] unknown frame type', type, frame);
+        }
+    }
+
+    // First request this session shows one dialog; a concurrent burst of frames
+    // all await the same shared promise so only one dialog ever appears. Once
+    // resolved, the sessionStorage flag short-circuits every later request.
+    private ensureSessionConsent(frame: BridgeFrame): Promise<boolean> {
+        const stored = this.readSessionConsent();
+        if (stored === 'granted') return Promise.resolve(true);
+        if (stored === 'denied') return Promise.resolve(false);
+        this.consentPromise ??= this.askSessionConsent(frame);
+        return this.consentPromise;
+    }
+
+    private async askSessionConsent(frame: BridgeFrame): Promise<boolean> {
+        try {
+            const granted = await this.dialogService.confirm(
+                this.i18nService.translate('settings.bridgeConsentMessage', { type: frame.type ?? '?' }),
+                this.i18nService.translate('settings.bridgeConsentTitle'),
+            );
+            this.writeSessionConsent(granted ? 'granted' : 'denied');
+            return granted;
+        } catch {
+            // A dialog that fails to open / closes abnormally is not a user
+            // decision — clear the cache so the next frame re-prompts instead
+            // of every request re-awaiting a rejected promise (which would
+            // silently kill the bridge for the whole session).
+            this.consentPromise = null;
+            return false;
+        }
+    }
+
+    private readSessionConsent(): 'granted' | 'denied' | null {
+        try {
+            const v = (this.win as Window).sessionStorage?.getItem(SESSION_CONSENT_KEY);
+            return v === 'granted' || v === 'denied' ? v : null;
+        } catch {
+            return null;
+        }
+    }
+
+    private writeSessionConsent(value: 'granted' | 'denied'): void {
+        try {
+            (this.win as Window).sessionStorage?.setItem(SESSION_CONSENT_KEY, value);
+        } catch {
+            // sessionStorage unavailable — the in-memory consentPromise still
+            // guards the rest of this page load (just not across reloads).
         }
     }
 

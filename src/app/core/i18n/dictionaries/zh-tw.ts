@@ -546,6 +546,8 @@ export const zhTW: TranslationDict = {
         bridgeEvalEnabled: '允許 agent_eval（任意 JS 執行）',
         bridgeEvalEnabledHint: '開啟後，任何連到橋接的代理都能在這個 app 中執行任意 JavaScript。僅在透過信任的代理主動除錯時開啟。',
         bridgeAnotherTabActive: '另一個分頁已連線到橋接 — 關掉它或重新整理這個分頁來接手。',
+        bridgeConsentTitle: '除錯橋接請求',
+        bridgeConsentMessage: '有外部代理正嘗試透過除錯橋接操作這個 app（首個請求：{{type}}）。本次瀏覽器 session 是否允許橋接請求？',
         testConnection: '測試連線',
         connected: '已連線',
         connectDebugBridge: '連到除錯橋接',

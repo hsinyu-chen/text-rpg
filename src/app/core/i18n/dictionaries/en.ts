@@ -546,6 +546,8 @@ export const en: TranslationDict = {
         bridgeEvalEnabled: 'Allow agent_eval (arbitrary JS execution)',
         bridgeEvalEnabledHint: 'When on, any agent connected to the bridge can run arbitrary JavaScript in this app. Only enable when actively debugging through a trusted agent.',
         bridgeAnotherTabActive: 'Another tab is already connected to the bridge — close it or reload this tab to take over.',
+        bridgeConsentTitle: 'Debug Bridge request',
+        bridgeConsentMessage: 'An external agent is trying to drive this app through the debug bridge (first request: {{type}}). Allow bridge requests for this browser session?',
         testConnection: 'Test connection',
         connected: 'connected',
         connectDebugBridge: 'Connect to debug bridge',
