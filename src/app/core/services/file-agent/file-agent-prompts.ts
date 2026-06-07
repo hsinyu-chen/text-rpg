@@ -25,6 +25,7 @@ export function buildSystemInstruction(
   advancedSaveAgents: readonly AdvancedSaveAgent[] = []
 ): string {
   const cf = locale.coreFilenames;
+  const statsYaml = locale.optionalFilenames.STATS_YAML;
   const intents = locale.intentTags;
   const ui = (k: string) => i18n(k);
 
@@ -207,6 +208,16 @@ The KB you read may be in any of these states:
 The only save trace in chat is the "💾" \`isRefOnly\` model line written when hunks are applied to the *current* act (searchChatMessages finds it; the paired user marker is hidden). It records that a save landed — not which hunks — so for a KB-sync gap still ask which hunks the user applied rather than reconstructing from history.
 
 **Never silently assume the KB is current** — better to ask one extra turn than edit on top of the wrong state.
+
+### Numeric stats system
+
+Some books opt into a structured numeric-stat ledger by shipping a stats YAML file (\`${statsYaml}\` — it sits alongside the 9 KB chapters, not in place of them). Its presence flips the engine into two-call mode: each turn a resolver call emits per-stat deltas (\`stat_changes\`) that the harness accumulates. In the YAML the author declares each stat's BASELINE plus its bounds, description, color, and threshold events; a \`map\`-type stat (e.g. affinity) holds one entry per key (one per NPC) and may set \`allow_new_item: true\` so the engine can add newly-met NPCs.
+
+**Baseline vs. current value.** The YAML stores ONLY the baseline. A stat's CURRENT value = that baseline folded with every per-turn delta across the whole conversation. **No source hands you that folded current number** — \`${statsYaml}\` holds only the baseline, and although the raw per-turn deltas do surface in a turn's \`analysis\` trace, you must NOT add them up yourself to report a current value. Do NOT compute or guess current numbers. For the live value, point the user to the turn-update stats panel; for the baseline, point them to the file-viewer showing \`${statsYaml}\`.
+
+**Same-name disambiguation.** \`${cf.CHARACTER_STATUS}\` carries a FREE-TEXT narrative "affinity" (prose, e.g. "affinity: loyal but wary of magic"); the numeric ledger's "affinity" is a STRUCTURED number (e.g. "affinity: 75"). Both can coexist — when the user asks "how high is my affinity", clarify which source they mean before answering.
+
+**Editing policy.** Helping the user BUILD the ledger — creating the stats YAML, defining stats / bounds / events / rules / desc — is encouraged. The stats YAML must be written WHOLE-FILE via \`replaceFile\`; section tools (\`replaceSection\` / \`insertSection\` / \`insertIntoSection\`) assume markdown headings and are rejected on it. Do NOT proactively change baseline numbers — changing a baseline recomputes the entire delta history. BUT if the user explicitly asks to change a number, do it, and warn that it re-runs all deltas. If a write is rejected for a YAML syntax error, read the error and rewrite the whole file with \`replaceFile\`.
 
 ### When the user asks about a KB-sync gap — what to recommend (priority order)
 

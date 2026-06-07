@@ -22,6 +22,8 @@ import {
   SectionBounds
 } from './markdown-section.util';
 import { detectLatexViolations, latexViolationError, sanitizeLatexToUnicode } from '@app/core/utils/latex.util';
+import { isStatsYamlFilename } from '@app/core/services/stats/stats-opt-in.util';
+import { validateStatsYaml } from '@app/core/services/stats/stats-validation.util';
 import { KB_WRITE_TOOL_NAMES, READ_ONLY_REJECTION } from '../agent-runner/tools/kb-write-tools';
 import { clampInt } from '../agent-runner/tools/tool-helpers';
 
@@ -47,6 +49,27 @@ const NO_WRITE_PREFIX = '[NO-WRITE — file unchanged] ';
  *  all-or-nothing semantics, so any error means the file is untouched. */
 function writeError(detail: string, extras: Record<string, unknown> = {}): ToolExecutionResult {
   return { response: { error: `${NO_WRITE_PREFIX}${detail}`, fileChanged: false, ...extras } };
+}
+
+/** Section tools (replaceSection / insertSection / insertIntoSection) assume
+ *  markdown ## headings; the stats ledger is heading-less YAML, so they would
+ *  corrupt it (insertSection in particular appends after a non-existent
+ *  heading). Reject deterministically rather than relying on the prompt.
+ *  Returns null for non-stats files so they fall through unaffected. */
+function rejectSectionToolOnStatsYaml(filename: string): ToolExecutionResult | null {
+  if (!isStatsYamlFilename(filename)) return null;
+  return writeError('Section tools are not supported for stats YAML (it has no markdown headings) — rewrite the whole file with replaceFile.');
+}
+
+/** Whole-content write guard for the stats ledger: a YAML syntax error would
+ *  silently degrade the Book to no-stats, so reject before the write lands.
+ *  Warnings are non-blocking (the parser recovers from them) and never reject.
+ *  Returns null for non-stats files or clean/warnings-only content. */
+function rejectInvalidStatsYaml(filename: string, content: string): ToolExecutionResult | null {
+  if (!isStatsYamlFilename(filename)) return null;
+  const { syntaxError } = validateStatsYaml(content);
+  if (syntaxError === null) return null;
+  return writeError(`Stats YAML has a syntax error and was NOT written: ${syntaxError}. Fix the YAML and rewrite the whole file with replaceFile.`);
 }
 
 const PROPOSE_FILE_EDIT_REJECTION = 'proposeChatReplace is only available on the main agent surface (chat panel / PiP). You are currently on the file-edit surface (embedded inside the file-viewer dialog), which is scoped to a single KB file. Use submitResponse to tell the user to open the main agent console and re-issue the request there.';
@@ -223,6 +246,8 @@ function searchReplace(args: SearchReplaceArgs, context: FileAgentContext): Tool
   }
 
   if (!dryRun) {
+    const statsReject = rejectInvalidStatsYaml(filename, currentContent);
+    if (statsReject) return statsReject;
     context.onFileReplaced(filename, currentContent);
   }
 
@@ -245,6 +270,8 @@ function replaceFile(args: ReplaceFileArgs, context: FileAgentContext): ToolExec
   const latexCheck = checkLatex(args.content, 'content');
   if ('error' in latexCheck) return writeError(latexCheck.error);
   const newFileContent = latexCheck.content;
+  const statsReject = rejectInvalidStatsYaml(args.filename, newFileContent);
+  if (statsReject) return statsReject;
   const oldLines = oldContent.split('\n').length;
   const newLines = newFileContent.split('\n').length;
   const diff = newLines - oldLines;
@@ -263,6 +290,8 @@ function replaceFile(args: ReplaceFileArgs, context: FileAgentContext): ToolExec
 
 function replaceSection(args: ReplaceSectionArgs, context: FileAgentContext): ToolExecutionResult {
   const filename = args.filename;
+  const statsReject = rejectSectionToolOnStatsYaml(filename);
+  if (statsReject) return statsReject;
   const content = context.files.get(filename);
   if (content === undefined) return writeError('File not found');
 
@@ -342,6 +371,8 @@ function replaceSection(args: ReplaceSectionArgs, context: FileAgentContext): To
 }
 
 function insertSection(args: InsertSectionArgs, context: FileAgentContext): ToolExecutionResult {
+  const statsReject = rejectSectionToolOnStatsYaml(args.filename);
+  if (statsReject) return statsReject;
   const content = context.files.get(args.filename);
   if (content === undefined) return writeError('File not found');
   if (!args.heading || !args.heading.match(/^#{1,6}\s+\S/)) {
@@ -386,6 +417,8 @@ function insertSection(args: InsertSectionArgs, context: FileAgentContext): Tool
 
 function insertIntoSection(args: InsertIntoSectionArgs, context: FileAgentContext): ToolExecutionResult {
   const filename = args.filename;
+  const statsReject = rejectSectionToolOnStatsYaml(filename);
+  if (statsReject) return statsReject;
   const content = context.files.get(filename);
   if (content === undefined) return writeError('File not found');
 
