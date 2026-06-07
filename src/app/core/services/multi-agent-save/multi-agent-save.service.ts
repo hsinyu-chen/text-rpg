@@ -22,6 +22,7 @@ import { InjectionService } from '../injection.service';
 import { SessionService } from '../session.service';
 import { CacheManagerService } from '../cache-manager.service';
 import { ChatHistoryService } from '../chat-history.service';
+import { isStatsYamlFilename } from '../stats/stats-opt-in.util';
 
 /**
  * Top-level orchestrator for the multi-agent save path.
@@ -175,7 +176,13 @@ export class MultiAgentSaveService {
 
             // 5. Map each hunk → FileUpdate. The model already wrote verbatim
             //    markdown into target/replacement, so this is a field copy.
-            const updates = processedHunks.map(hunkToFileUpdate);
+            //    The stats ledger is engine / carry-forward-managed, never a save
+            //    target — drop any stray hunk against it up front so it never sits
+            //    in the AutoUpdate dialog (an unresolved one there would block the
+            //    other updates) nor seed-clobbers the next act.
+            const updates = processedHunks
+                .map(hunkToFileUpdate)
+                .filter((u) => !isStatsYamlFilename(u.filePath));
 
             // 6. Mark the save work done so the progress dialog can swap its
             //    Cancel button for the Close (cancel-flow) / Continue

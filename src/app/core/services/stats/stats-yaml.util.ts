@@ -1,5 +1,11 @@
-import { parse } from 'yaml';
-import { ParsedStats, StatDefinition, StatEvent, StatValues } from '../../models/stats.types';
+import { isMap, parse, parseDocument } from 'yaml';
+import {
+  ParsedStats,
+  StatDefinition,
+  StatEvent,
+  StatState,
+  StatValues,
+} from '../../models/stats.types';
 
 /**
  * The starting values for a fold: each stat's declared `value` (a scalar number
@@ -8,6 +14,49 @@ import { ParsedStats, StatDefinition, StatEvent, StatValues } from '../../models
  */
 export function buildStatBaseline(parsed: ParsedStats): StatValues {
   return Object.fromEntries(Object.entries(parsed.stats).map(([key, def]) => [key, def.value]));
+}
+
+/**
+ * Rewrite a stats-definition YAML's per-stat `value`/`min`/`max` so the document
+ * carries a folded {@link StatState} as its new baseline — used when seeding the
+ * next act's inherited ledger off the closing act's final state.
+ *
+ * Edits the parsed document in place (so schema / desc / color / allow_new_item /
+ * events / rules and every comment survive verbatim) rather than re-emitting from
+ * scratch. For each stat key still present under `stats:` it writes the folded
+ * `value` (a scalar number, or the full current subkey->number map including any
+ * LLM-added subkeys), and writes `min`/`max` only for the side the fold resolved
+ * to a finite bound — so a growth/debuff-drifted bound (including an originally
+ * open side that drifted finite) persists, while a still-open side is left as the
+ * document had it. A stat absent from the fold, or whose entry isn't a mapping,
+ * is left untouched. `color` is never written (we only emit numbers/maps, so the
+ * unquoted-`#hex` YAML footgun can't be hit).
+ *
+ * Subkey-level inline comments on a MAP stat are dropped when its value map is
+ * rewritten; stat-level and top-of-file comments survive.
+ */
+export function applyFoldToStatsYaml(originalYaml: string, state: StatState): string {
+  const doc = parseDocument(originalYaml);
+  const statsNode = doc.get('stats');
+  if (!isMap(statsNode)) return originalYaml;
+
+  for (const item of statsNode.items) {
+    const key = String(item.key);
+    if (!isMap(item.value)) continue;
+
+    if (key in state.values) {
+      const value = state.values[key];
+      // Map stats: replace the whole subkey set so LLM-added subkeys carry over
+      // and removed ones drop. Scalars write the number directly.
+      item.value.set('value', typeof value === 'object' && value !== null ? { ...value } : value);
+    }
+
+    const bound = state.bounds[key];
+    if (typeof bound?.min === 'number') item.value.set('min', bound.min);
+    if (typeof bound?.max === 'number') item.value.set('max', bound.max);
+  }
+
+  return doc.toString();
 }
 
 /**

@@ -19,6 +19,9 @@ import { I18nService } from '../i18n';
 import { LOCALES } from '../constants/locales';
 import { convertLatexToSymbols, repairCorruptedLatex } from '../utils/latex.util';
 import { extractActNumberFromKb, formatActName } from '../utils/act-name.util';
+import { applyFoldToStatsYaml, buildStatBaseline, parseStats } from './stats/stats-yaml.util';
+import { isStatsYamlFilename, priorStatDeltaLists } from './stats/stats-opt-in.util';
+import { computeCurrent } from './stats/stat-ledger.service';
 
 // Legacy saves stored intent as the raw localized tag (e.g. zh-tw "<行動意圖>",
 // en "<Action>") instead of the canonical GAME_INTENTS id. Built dynamically
@@ -80,6 +83,41 @@ function buildFreshBookStats(): Book['stats'] {
         estimatedKbTokens: 0,
         kbCacheHash: null,
     };
+}
+
+/**
+ * Seed the next act's inherited KB with the closing act's FINAL numeric stats.
+ *
+ * The new Book starts with an empty chat, so its fold would otherwise reset every
+ * stat to the template baseline. Fold the source Book's history (the same
+ * active-timeline basis the engine uses) onto the source's own stats YAML and
+ * write that folded state back into the COPY the next act inherits, so the new
+ * act's baseline = where the previous act left off. Returns the patched files
+ * array plus `malformed` — true iff a stats YAML failed to parse, so a genuine
+ * YAML syntax error degrades to carrying that file verbatim (mirroring the
+ * engine's per-turn no-stats degrade) instead of aborting the act advance.
+ * Non-stats Books pass through unchanged.
+ */
+export function carryForwardStats(
+    files: Book['files'],
+    messages: ChatMessage[],
+): { files: Book['files']; malformed: boolean } {
+    let malformed = false;
+    const patched = files.map((f) => {
+        if (!isStatsYamlFilename(f.name)) return f;
+        try {
+            const { parsed } = parseStats(f.content);
+            const state = computeCurrent(parsed, buildStatBaseline(parsed), priorStatDeltaLists(messages));
+            return { ...f, content: applyFoldToStatsYaml(f.content, state) };
+        } catch (err) {
+            console.warn(
+                `[SessionService] stats YAML "${f.name}" failed to parse during carry-forward; carrying it verbatim into the next act: ${err instanceof Error ? err.message : String(err)}`
+            );
+            malformed = true;
+            return { ...f };
+        }
+    });
+    return { files: patched, malformed };
 }
 
 @Injectable({
@@ -684,7 +722,14 @@ export class SessionService {
 
         // Copy the KB files from the old book — `loadedFiles` is already cleared by
         // the unload above, so re-read them from the persisted old book.
-        const files = oldBook.files || [];
+        const { files, malformed } = carryForwardStats(oldBook.files || [], oldBook.messages || []);
+        if (malformed) {
+            this.snackBar.open(
+                this.i18n.translate('ui.STATS_YAML_MALFORMED_CARRY_FORWARD'),
+                this.i18n.translate('ui.CLOSE'),
+                { duration: 5000 },
+            );
+        }
         // Prompts are app-global (stored in prompt_store) — not copied per-book.
 
         const newBook: Book = {

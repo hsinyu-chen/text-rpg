@@ -9,6 +9,7 @@ export const zhTW: TranslationDict = {
     ui: {
         GAME_INIT_SUCCESS: '新遊戲初始化完成！',
         GAME_INIT_FAILED: '啟動失敗：無法載入初始場景檔案。',
+        STATS_YAML_MALFORMED_CARRY_FORWARD: '數值檔格式有誤，已原樣帶到新的一幕；請修正後再繼續。',
         MARKER_NOT_FOUND: '❌ 存檔載入失敗：在 `{{fileName}}` 中找不到 `last_scene` 標記，或檔案內容無效。已重設載入狀態。',
         CLOSE: '關閉',
         FORMAT_ERROR: '⚠️ 模型輸出格式異常，請重試。',
@@ -322,6 +323,7 @@ export const zhTW: TranslationDict = {
         noUpdates: '訊息中沒有可套用的更新。',
         applyToAct: '套用到本幕',
         applyToActTooltip: '把所選 hunk 寫入目前這一幕並標記存檔。需建立下一幕才能繼續劇情。',
+        applyToActStatsBlocked: '這本書有數值系統，請改用「套用並開新幕」讓收尾數值延續下去；套用到目前這一幕會讓數值重置回範本初始值。',
         applyToActTitle: '套用到本幕',
         applyToActBtn: '套用',
         applyToActBody: '把 {{files}} 個檔案中的 {{hunks}} 個 hunk 套用到目前這一幕？',

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { buildStatBaseline, isValidStatKey, parseStats } from './stats-yaml.util';
+import { applyFoldToStatsYaml, buildStatBaseline, isValidStatKey, parseStats } from './stats-yaml.util';
+import { computeCurrent } from './stat-ledger.service';
+import { StatChange } from '../../models/stats.types';
 
 /** True if any number reachable from `value` is NaN or non-finite. */
 function hasNonFiniteNumber(value: unknown): boolean {
@@ -264,6 +266,153 @@ stats:
 
   it('returns an empty baseline when no stats are declared', () => {
     expect(buildStatBaseline({ stats: {}, rules: '', events: [] })).toEqual({});
+  });
+});
+
+describe('applyFoldToStatsYaml', () => {
+  /** Fold `deltaLists` onto `yaml`'s declared baseline, the same basis the engine uses. */
+  function foldOf(yaml: string, deltaLists: StatChange[][]) {
+    const { parsed } = parseStats(yaml);
+    return computeCurrent(parsed, buildStatBaseline(parsed), deltaLists);
+  }
+
+  it('round-trips a scalar fold: re-parsing the patched YAML reproduces the folded value', () => {
+    const yaml = `
+stats:
+  hp:
+    type: scalar
+    min: 0
+    max: 100
+    value: 80
+`;
+    const state = foldOf(yaml, [[{ key: 'hp', delta: -15 }]]);
+    const patched = applyFoldToStatsYaml(yaml, state);
+    expect(foldOf(patched, [])).toEqual(state);
+    expect(parseStats(patched).parsed.stats['hp'].value).toBe(65);
+  });
+
+  it('round-trips a map fold including an LLM-added subkey', () => {
+    const yaml = `
+stats:
+  affinity:
+    type: map
+    min: 0
+    max: 100
+    allow_new_item: true
+    value:
+      王大福: 50
+`;
+    const state = foldOf(yaml, [
+      [{ key: 'affinity', subkey: '王大福', delta: 10 }],
+      [{ key: 'affinity', subkey: '王如花', value: 30 }],
+    ]);
+    expect(state.values['affinity']).toEqual({ 王大福: 60, 王如花: 30 });
+
+    const patched = applyFoldToStatsYaml(yaml, state);
+    expect(foldOf(patched, [])).toEqual(state);
+    expect(parseStats(patched).parsed.stats['affinity'].value).toEqual({ 王大福: 60, 王如花: 30 });
+  });
+
+  it('round-trips drifted min/max bounds (growth + debuff cap)', () => {
+    const yaml = `
+stats:
+  hp:
+    type: scalar
+    min: 0
+    max: 100
+    value: 80
+`;
+    const state = foldOf(yaml, [
+      [{ key: 'hp', field: 'max', delta: 20 }],
+      [{ key: 'hp', field: 'min', value: 10 }],
+    ]);
+    expect(state.bounds['hp']).toEqual({ min: 10, max: 120 });
+
+    const patched = applyFoldToStatsYaml(yaml, state);
+    // Drifted bounds carry into the next act as the new DECLARED min/max; a fresh
+    // fold off the patched YAML clamps to them (the overlay stays empty — declared
+    // bounds aren't surfaced there), so re-folding reproduces the values.
+    const reparsed = parseStats(patched).parsed.stats['hp'];
+    expect(reparsed.min).toBe(10);
+    expect(reparsed.max).toBe(120);
+    expect(foldOf(patched, []).values).toEqual(state.values);
+  });
+
+  it('persists an originally-open bound that drifted to a finite value', () => {
+    const yaml = `
+stats:
+  gold:
+    type: scalar
+    value: 100
+`;
+    const state = foldOf(yaml, [[{ key: 'gold', field: 'max', value: 500 }]]);
+    expect(state.bounds['gold']).toEqual({ max: 500 });
+
+    const patched = applyFoldToStatsYaml(yaml, state);
+    const reparsed = parseStats(patched).parsed.stats['gold'];
+    expect(reparsed.max).toBe(500);
+    expect(reparsed.min).toBeUndefined();
+    expect(foldOf(patched, []).values).toEqual(state.values);
+  });
+
+  it('preserves comments, desc, color, and unrelated fields untouched', () => {
+    const yaml = `# top-of-file ledger comment
+stats:
+  hp:
+    type: scalar
+    min: 0
+    max: 100
+    value: 80
+    desc: 生命值
+    color: '#ff0000' # warm red
+rules: 受傷扣 hp
+`;
+    const state = foldOf(yaml, [[{ key: 'hp', delta: -10 }]]);
+    const patched = applyFoldToStatsYaml(yaml, state);
+
+    expect(patched).toContain('# top-of-file ledger comment');
+    expect(patched).toContain('# warm red');
+    const hp = parseStats(patched).parsed.stats['hp'];
+    expect(hp.value).toBe(70);
+    expect(hp.desc).toBe('生命值');
+    expect(hp.color).toBe('#ff0000');
+    expect(parseStats(patched).parsed.rules).toBe('受傷扣 hp');
+  });
+
+  it('drops a map subkey inline comment when the value map is rewritten, keeping stat-level + top-of-file comments', () => {
+    const yaml = `# top-of-file ledger comment
+stats:
+  affinity: # stat-level comment
+    type: map
+    min: 0
+    max: 100
+    allow_new_item: true
+    value:
+      王大福: 50  # 村長,初始好感
+`;
+    const state = foldOf(yaml, [[{ key: 'affinity', subkey: '王大福', delta: 10 }]]);
+    const patched = applyFoldToStatsYaml(yaml, state);
+
+    expect(patched).not.toContain('村長,初始好感');
+    expect(patched).toContain('# top-of-file ledger comment');
+    expect(patched).toContain('# stat-level comment');
+    expect(parseStats(patched).parsed.stats['affinity'].value).toEqual({ 王大福: 60 });
+  });
+
+  it('leaves a stat absent from the fold untouched', () => {
+    const yaml = `
+stats:
+  hp:
+    type: scalar
+    value: 80
+`;
+    const patched = applyFoldToStatsYaml(yaml, { values: {}, bounds: {} });
+    expect(parseStats(patched).parsed.stats['hp'].value).toBe(80);
+  });
+
+  it('returns the original text when there is no stats mapping', () => {
+    const yaml = 'rules: just rules\n';
+    expect(applyFoldToStatsYaml(yaml, { values: {}, bounds: {} })).toBe(yaml);
   });
 });
 
