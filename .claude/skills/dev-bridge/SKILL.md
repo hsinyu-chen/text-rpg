@@ -54,19 +54,37 @@ Debug Bridge toggle / open the app. Do not retry blindly.
 
 ### Sanity check what's loaded
 
-`mcp__dev-bridge__list` defaults to an 80-char `headPreview` of each message (`limit` defaults to
-50, capped at 200 app-side). When you need full turn output structure (e.g. baseline vs
-post-change verification), pass `full: true`:
+`mcp__dev-bridge__list` returns a per-message **digest** of the trailing messages. `limit` defaults
+to **5** (capped 200 app-side); `offset` pages OLDER messages (skip that many from the tail before
+taking `limit`). There is **no `full` mode** — heavy bodies live behind `read_message`.
 
 ```
 mcp__dev-bridge__list { "limit": 5 }
-mcp__dev-bridge__list { "limit": 1, "full": true }
+mcp__dev-bridge__list { "limit": 5, "offset": 5 }   # the previous page of 5
 ```
 
-The full record carries `analysis` (【現況盤點】/【動作N】/【全場景N】/【事件】 etc),
-`summary` ([EVT] / [NPC] / [PLOT] telegraphic line), `content` (the full scene incl. the
-`<CREATIVE FICTION CONTEXT>` header), and the `character_log` / `inventory_log` / `world_log` /
-`quest_log` fields.
+Each digest carries `id`, `role`, `intent`, `summary` ([EVT] / [NPC] / [PLOT] telegraphic line),
+the `character_log` / `inventory_log` / `world_log` / `quest_log` fields, and — for model messages
+that changed numeric stats — `stat_delta` (the ground-truth post-clamp applied audit) plus
+`stat_triggered` (fired stat events). It deliberately DROPS `content`, `analysis`, and `thought`.
+
+The response also carries `total` (full history length), `offset` (echoed), and `truncated`. When
+the assembled page exceeds the soft byte cap (~8000 chars) the page is trimmed from its OLDEST end
+(the newest digests are always kept) and `truncated: true`. Paging is cursor-style: advance `offset`
+by the number of messages actually returned (not by `limit`), so trimmed-older digests resurface on
+the next page with no gap.
+
+To read the heavy fields of one message, use `read_message` with the id from a digest:
+
+```
+mcp__dev-bridge__read_message { "id": "<id-from-list>" }
+mcp__dev-bridge__read_message { "id": "<id>", "fields": ["content"] }
+```
+
+`read_message` returns only the requested heavy fields (`content` / `analysis` / `thought`; all
+three when `fields` is omitted). `not_found` comes back if the id isn't in the active history.
+`content` is the full scene (incl. the `<CREATIVE FICTION CONTEXT>` header); `analysis` is the
+resolver pass (【現況盤點】/【動作N】/【全場景N】/【事件】 etc); `thought` is the model's CoT.
 
 ### Reload the running app
 
@@ -92,7 +110,10 @@ mcp__dev-bridge__send { "userInput": "([好奇]張望)這裡是哪？", "intent"
 ```
 
 The response carries the produced user/model pair — `pair.model.summary` (one-line story summary),
-`pair.model.content` (the full scene), and `messageId` (use this id to delete/retry).
+`pair.model.content` (the full scene), the `character_log` / `inventory_log` / `quest_log` /
+`world_log` fields, `pair.model.stat_delta` (post-clamp applied stat audit, present only when the
+turn changed stats), and `messageId` (use this id to delete/retry). The model's CoT (`thought`) and
+resolver pass (`analysis`) are **not** in the pair — fetch them via `read_message { "id": messageId }`.
 
 `intent` is one of `action` (default) / `continue` / `fast_forward` / `system`; any other value
 falls back to the engine default. There is **no `save` intent**. `continue` accepts an empty
@@ -120,7 +141,27 @@ content the engine reads, no IndexedDB / disk-sync detour.
 ```
 mcp__dev-bridge__kb_list {}
 mcp__dev-bridge__kb_read { "filename": "6.Factions_and_World.md" }
+mcp__dev-bridge__kb_read { "filename": "6.Factions_and_World.md", "offset": 2000, "length": 2000 }
 ```
+
+`kb_read` returns a **head slice** by default (first `KB_READ_HEAD_CHARS` = 2000 chars), not the
+whole file — worldbooks were the worst context offender. Page the rest with `offset` (start char
+index) + `length` (char count from offset, default 2000). The response carries `content` (the
+slice), `offset`, `length` (returned slice length), `truncated` (true when more remains past the
+slice), `totalSize` (full char count), and `totalTokens` (the file's token count, or null).
+
+To LOCATE a term without dumping the file, use `kb_grep`:
+
+```
+mcp__dev-bridge__kb_grep { "filename": "6.Factions_and_World.md", "pattern": "王大福" }
+mcp__dev-bridge__kb_grep { "filename": "...", "pattern": "派系", "context": 2, "maxMatches": 10 }
+```
+
+`kb_grep` searches one loaded file with a JS regex and returns `matches[]` (`{ line, text }`,
+1-based line numbers), `totalMatches`, and `truncated`. `context` adds ± surrounding lines per match
+(default 0); `maxMatches` caps the returned ranges (default 20, `truncated: true` when more existed).
+`not_found` for an unknown filename, `invalid_pattern` for a bad regex. Then read targeted ranges
+via `kb_read` offset/length.
 
 `kb_list` returns the in-memory `state.loadedFiles` map (filename + size + tokenCount), so it
 reflects edits made through the File Viewer / file-agent without a save. `not_found` comes back if
@@ -142,9 +183,14 @@ edit without a heavy full reload. `mcp__dev-bridge__profile_get_prompt` reads an
 
 ```
 mcp__dev-bridge__profile_get_prompt { "promptType": "system_main" }
+mcp__dev-bridge__profile_get_prompt { "promptType": "system_main", "offset": 2000, "length": 2000 }
 mcp__dev-bridge__profile_set_prompt { "promptType": "system_main", "content": "<newText>" }
 mcp__dev-bridge__send { "userInput": "...", "intent": "action" }
 ```
+
+`profile_get_prompt` returns a **head slice** (first `PROFILE_PROMPT_HEAD_CHARS` = 2000 chars) by
+default — same convention as `kb_read`. Page with `offset` + `length`; the response carries
+`content` (the slice), `offset`, `length`, `truncated`, `totalSize`, and `hasOverride`.
 
 Compare across profiles with an explicit `profileId`:
 
@@ -153,8 +199,14 @@ mcp__dev-bridge__profile_get_prompt { "promptType": "system_main", "profileId": 
 mcp__dev-bridge__profile_get_prompt { "promptType": "system_main" }   # active = user-defined clone
 ```
 
-`mcp__dev-bridge__profile_get_all_prompts` returns every prompt row in one call — useful for
-greping across types.
+`mcp__dev-bridge__profile_get_all_prompts` returns every prompt row in one call. By default it
+returns per-type **meta only** (`{ length, hasOverride }`) so the call never dumps every resolved
+body — pass `include: true` to get the full `{ content, hasOverride }` per type.
+
+```
+mcp__dev-bridge__profile_get_all_prompts {}                  # meta: length + hasOverride per type
+mcp__dev-bridge__profile_get_all_prompts { "include": true } # full bodies
+```
 
 **Valid `promptType` values are the keys returned by `profile_get_all_prompts`** — that response is
 the authoritative, non-rotting list (currently 16 types, including 6 `save_*` variants, and
@@ -255,9 +307,11 @@ mcp__dev-bridge__book_switch { "id": "<original-id>" }
 Capture the source Book id **before** forking — `book_fork` auto-switches the active Book to the new
 fork, so `book_active` afterwards returns the fork, not the source.
 
-`book_list` lists every persisted Book (id / name / messageCount / isActive) without loading any of
-them. `book_active` returns just the currently active Book's id + name + messageCount — cheaper than
-filtering the full list when you only need the active id.
+`book_list` lists persisted Books (id / name / messageCount / isActive) without loading any of them.
+It pages: `limit` defaults to 50, `offset` skips from the start of the list; the response carries
+`total` (full count) and the echoed `offset` so you can walk a large library. `book_active` returns
+just the currently active Book's id + name + messageCount — cheaper than filtering the full list
+when you only need the active id.
 
 `book_fork` truncates inclusively (the target message stays in the new Book). KB files are
 deep-copied; stats reset to zero so the two Books never collide on a shared server-side cache.
@@ -324,16 +378,29 @@ the log without touching the UI.
 ### Drive the in-app file-agent headlessly (autonomous handbook validation)
 
 When you want to interrogate the in-app agent without the user typing into a UI panel, `agent_ask`
-runs a dedicated headless FileAgentService turn against the active Book's KB + chat snapshot and
-returns the full log (thoughts, tool calls, tool results, final answer).
+runs a dedicated headless FileAgentService turn against the active Book's KB + chat snapshot.
 
 ```
 mcp__dev-bridge__agent_ask { "prompt": "book 跟 scenario 差別?", "clearHistory": true }
 ```
 
-The response carries `finalResponse` (the agent's final submitResponse text), `logs[]` (each entry
-flags `isToolCall` with `toolName` + `reason`), and `replacements[]` (files the agent tried to
-write, snapshot only).
+The response carries `finalResponse` (the agent's final submitResponse text), `replacements[]`
+(files the agent tried to write, snapshot only), and `logCount` (how many log entries this turn
+produced). The full per-entry log is **not** inlined — drill into it with two tools:
+
+```
+mcp__dev-bridge__agent_log_outline {}                 # index + role + type + toolName + reason, no bodies
+mcp__dev-bridge__agent_log_read { "index": 2 }        # ONE entry's full body by index
+```
+
+`agent_log_outline` returns `entries[]` ({ `index`, `role`, `type`, optional `toolName` / `reason` })
+for the MOST RECENT `agent_ask` turn — a cheap map of what happened. `agent_log_read` returns one
+entry in full: `text`, optional `thought`, `entryType` (the entry's own kind — the envelope `type`
+is the response discriminator), `toolName`, `reason`, `isToolCall`, `isToolResult`.
+
+Both read a server-side cache of the last turn's log window, valid until the NEXT `agent_ask` (or a
+`clearHistory: true`) shifts it — so outline/read drill into the turn you just ran, not an older one.
+`no_agent_turn` comes back if no `agent_ask` has run yet; `index_out_of_range` for a bad index.
 
 Modes (`mode`):
 - `sidebar` (default) — `readOnly: true`. Write tools are rejected by the executor, matching the
@@ -375,6 +442,10 @@ the app dutifully processes.
 | `agent_ask` returns `agent_failed` | The headless agent threw (no LLM profile, stream error, etc.) | Check `detail` — usually "No LLM profile selected" or a provider error |
 | `profile_set_prompt` returns `builtin_profile` | Active profile is a built-in (`cloud` / `local`) | Clone via Profile Management to a user-defined profile, switch active to the clone, retry |
 | `profile_get_prompt` / `profile_set_prompt` returns `invalid_type` | `promptType` not a valid key | Typo — call `profile_get_all_prompts` to see the authoritative key list and check spelling |
+| `read_message` returns `not_found` | The id isn't in the active Book's history | `list` to re-grab a current digest id; history may have shifted |
+| `kb_grep` returns `invalid_pattern` | `pattern` is empty or not a valid JS regex | Fix the regex (it's `new RegExp(pattern)`, no flags) |
+| `agent_log_outline` / `agent_log_read` returns `no_agent_turn` | No `agent_ask` has run this session (or the window was wiped) | Run `agent_ask` first; the drill-down tools read its cached log window |
+| `agent_log_read` returns `index_out_of_range` | `index` is outside the last turn's log | Call `agent_log_outline` to see the valid index range (indices `0..logCount-1`, where `logCount` comes from `agent_ask`) |
 
 ## Don't
 
