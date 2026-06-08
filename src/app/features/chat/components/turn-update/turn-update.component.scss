@@ -27,67 +27,9 @@
         height: 16px;
         color: #80cbc4;
     }
-}
 
-.stat-chip-list {
-    flex: 1;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    align-items: center;
-}
-
-.stat-chip {
-    padding: 1px 7px;
-    border-radius: 10px;
-    font-size: 10px;
-    font-weight: 500;
-    letter-spacing: 0.2px;
-    border: 1px solid transparent;
-    white-space: nowrap;
-    cursor: default;
-
-    // Default tint is by direction — gains rise (green), losses fall (red),
-    // bound / no-net changes stay neutral; events and drops have their own look.
-    &.stat-chip-gain {
-        background: rgba(102, 187, 106, 0.15);
-        color: #a5d6a7;
-        border-color: rgba(102, 187, 106, 0.35);
-    }
-
-    &.stat-chip-loss {
-        background: rgba(239, 83, 80, 0.15);
-        color: #ef9a9a;
-        border-color: rgba(239, 83, 80, 0.35);
-    }
-
-    &.stat-chip-neutral {
-        background: rgba(255, 255, 255, 0.06);
-        color: #bdbdbd;
-        border-color: rgba(255, 255, 255, 0.12);
-    }
-
-    &.stat-chip-dropped {
-        background: rgba(255, 255, 255, 0.04);
-        color: #757575;
-        border-color: rgba(255, 255, 255, 0.08);
-        text-decoration: line-through;
-    }
-
-    &.stat-chip-event {
-        background: rgba(186, 104, 200, 0.15);
-        color: #ce93d8;
-        border-color: rgba(186, 104, 200, 0.35);
-    }
-
-    // A stat's own color (--stat-color) is its identity tint, overriding the
-    // gain/loss colour (direction stays in the +/- label). Equal specificity to
-    // the kind classes — must stay declared AFTER them to win on source order.
-    // Keep these percentages in sync with stats-state-dialog's .stat-name.has-color.
-    &.has-color {
-        background: color-mix(in srgb, var(--stat-color) 18%, transparent);
-        border-color: color-mix(in srgb, var(--stat-color) 45%, transparent);
-        color: color-mix(in srgb, var(--stat-color) 80%, white);
+    app-stat-chip-list {
+        flex: 1;
     }
 }
 

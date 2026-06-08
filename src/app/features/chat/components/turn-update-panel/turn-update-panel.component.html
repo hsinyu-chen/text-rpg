@@ -14,6 +14,7 @@
     }
 
     @for (msg of updates(); track msg.id) {
+    @let chips = statChips().get(msg.id);
     <div class="update-card" (click)="onJump(msg.id)" (keydown.enter)="onJump(msg.id)" tabindex="0" role="button">
         <div class="card-header">
             <span class="role-badge">{{ msg.intent || ('ui.SYSTEM_LABEL' | translate) }}</span>
@@ -23,6 +24,16 @@
         <div class="section narrative">
             <mat-icon class="sec-icon">short_text</mat-icon>
             <span>{{ msg.summary }}</span>
+        </div>
+        }
+
+        @if (chips && chips.length) {
+        <div class="section stats">
+            <div class="sec-title">
+                <mat-icon class="sec-icon">query_stats</mat-icon>
+                <span>{{ 'ui.STATS_LABEL' | translate }}</span>
+            </div>
+            <app-stat-chip-list [chips]="chips" />
         </div>
         }
 

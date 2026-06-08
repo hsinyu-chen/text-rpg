@@ -56,13 +56,7 @@
     @if (statChips().length > 0 && showStats()) {
     <div class="stat-summary">
         <mat-icon class="sub-icon">query_stats</mat-icon>
-        <div class="stat-chip-list">
-            @for (chip of statChips(); track $index) {
-            <span class="stat-chip" [class]="'stat-chip-' + chip.kind" [class.has-color]="!!chip.color"
-                [style.--stat-color]="chip.color" [matTooltip]="chip.tooltip"
-                [matTooltipDisabled]="!chip.tooltip">{{ chip.label }}</span>
-            }
-        </div>
+        <app-stat-chip-list [chips]="statChips()" />
         <button mat-icon-button class="tiny-btn" (click)="openStateViewer()"
             [matTooltip]="'ui.STAT_OPEN_VIEWER' | translate">
             <mat-icon>open_in_full</mat-icon>

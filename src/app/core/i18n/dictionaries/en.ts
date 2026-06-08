@@ -270,6 +270,7 @@ export const en: TranslationDict = {
         QUESTS_LABEL: 'Quests',
         CHARACTERS_LABEL: 'Characters',
         WORLD_LABEL: 'World',
+        STATS_LABEL: 'Stats',
         THINKING_MESSAGE: 'Generative AI is thinking...',
     },
     intent: {

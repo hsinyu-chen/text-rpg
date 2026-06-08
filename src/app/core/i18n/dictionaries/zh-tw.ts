@@ -270,6 +270,7 @@ export const zhTW: TranslationDict = {
         QUESTS_LABEL: '任務',
         CHARACTERS_LABEL: '角色',
         WORLD_LABEL: '世界',
+        STATS_LABEL: '數值',
         THINKING_MESSAGE: '生成式 AI 思考中…',
     },
     intent: {
