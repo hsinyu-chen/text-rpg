@@ -352,17 +352,46 @@ export function computeCurrent(
 export function renderStatValues(stats: ParsedStats, values: StatValues): string {
   const lines: string[] = [];
   for (const [key, def] of Object.entries(stats.stats)) {
-    const raw = values[key];
-    if (def.type === 'map') {
-      const map =
-        typeof raw === 'object' && raw !== null && !Array.isArray(raw)
-          ? (raw as Record<string, number>)
-          : {};
-      const entries = Object.entries(map).map(([sub, n]) => `${sub}: ${n}`);
-      lines.push(`${key}: { ${entries.join(', ')} }`);
-    } else {
-      lines.push(`${key}: ${typeof raw === 'number' ? raw : 0}`);
-    }
+    lines.push(`${key}: ${renderStatValue(def, values[key])}`);
+  }
+  return lines.join('\n');
+}
+
+/** Render one stat's VALUE: a scalar as the number, a map as `{ sub: n, ... }`
+ *  (empty map as `{  }`), falling back to the declared baseline shape (0 / {})
+ *  when `raw` isn't the right type. Shared by {@link renderStatValues} and
+ *  {@link renderStatValuesWithRange} so both emit byte-identical value text. */
+function renderStatValue(def: StatDefinition, raw: StatValues[string] | undefined): string {
+  if (def.type === 'map') {
+    const map =
+      typeof raw === 'object' && raw !== null && !Array.isArray(raw)
+        ? (raw as Record<string, number>)
+        : {};
+    const entries = Object.entries(map).map(([sub, n]) => `${sub}: ${n}`);
+    return `{ ${entries.join(', ')} }`;
+  }
+  return `${typeof raw === 'number' ? raw : 0}`;
+}
+
+/**
+ * Render resolved {@link StatValues} as `key: VALUE (RANGE)` — one line per stat
+ * in declaration order, VALUE byte-identical to {@link renderStatValues} and
+ * RANGE the LIVE bounds (declared `min`/`max` folded with any `field:"min"` /
+ * `field:"max"` changes captured in `bounds`). When a stat has no bounds on
+ * either side the ` (RANGE)` segment is omitted entirely. Returns '' when no
+ * stats are declared. Pure; used by the file-agent's foldStats tool to report a
+ * current value the same way the engine/UI compute it.
+ */
+export function renderStatValuesWithRange(
+  stats: ParsedStats,
+  values: StatValues,
+  bounds: StatBounds = {},
+): string {
+  const lines: string[] = [];
+  for (const [key, def] of Object.entries(stats.stats)) {
+    const value = renderStatValue(def, values[key]);
+    const range = renderRangeFor(def, bounds, key);
+    lines.push(range ? `${key}: ${value} (${range})` : `${key}: ${value}`);
   }
   return lines.join('\n');
 }
@@ -574,6 +603,10 @@ export class StatLedgerService {
 
   renderStatValues(stats: ParsedStats, values: StatValues): string {
     return renderStatValues(stats, values);
+  }
+
+  renderStatValuesWithRange(stats: ParsedStats, values: StatValues, bounds: StatBounds = {}): string {
+    return renderStatValuesWithRange(stats, values, bounds);
   }
 
   renderStatDefinitions(stats: ParsedStats, bounds: StatBounds = {}): string {

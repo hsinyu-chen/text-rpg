@@ -4,6 +4,9 @@ import { dispatchKbReadTool } from '../agent-runner/tools/kb-read-tools-executor
 import { dispatchChatReadTool } from '../agent-runner/tools/chat-read-tools-executor';
 import type { FileAgentContext, ParsedAction, ToolExecutionResult } from './file-agent.types';
 import type { ChatMessage } from '@app/core/models/types';
+import { computeCurrent, renderStatValuesWithRange } from '../stats/stat-ledger.service';
+import { parseStats, buildStatBaseline } from '../stats/stats-yaml.util';
+import { priorStatDeltaLists } from '../stats/stats-opt-in.util';
 
 function makeContext(files: Record<string, string>, chatMessages?: ChatMessage[]): {
   context: FileAgentContext;
@@ -1247,5 +1250,110 @@ describe('stats YAML write guard', () => {
     const r = run({ action: 'replaceFile', args: { filename: STATS_FILE, content: '' } }, context);
     expect(r.response).toMatchObject({ status: 'success', fileChanged: true });
     expect(onFileReplaced).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('foldStats', () => {
+  // en-locale stats ledger filename — recognised by getStatsYamlContent.
+  const STATS_FILE = '0.Stats.yaml';
+  const STATS_YAML = [
+    'stats:',
+    '  hp:',
+    '    value: 100',
+    '    min: 0',
+    '    max: 100',
+    '  gold:',
+    '    value: 50',
+    '  affinity:',
+    '    type: map',
+    '    min: 0',
+    '    max: 100',
+    '    value:',
+    '      王大福: 40',
+    '    allow_new_item: true',
+    '',
+  ].join('\n');
+
+  function statMsg(id: string, stat_delta: ChatMessage['stat_delta']): ChatMessage {
+    return { id, role: 'model', content: `turn ${id}`, stat_delta } as ChatMessage;
+  }
+
+  function statChat(): ChatMessage[] {
+    return [
+      { id: 'u1', role: 'user', content: 'fight' },
+      statMsg('m1', [{ key: 'hp', delta: -30 }, { key: 'gold', delta: 20 }]),
+      { id: 'u2', role: 'user', content: 'heal' },
+      statMsg('m2', [{ key: 'hp', delta: 10 }, { key: 'affinity', subkey: '王大福', delta: 15 }]),
+    ];
+  }
+
+  it('returns the no-ledger result when the book has no stats YAML', () => {
+    const { context } = makeContext({ 'a.md': '# A' }, statChat());
+    const r = run({ action: 'foldStats', args: { reason: 'r' } }, context);
+    expect(r.response).toMatchObject({ result: expect.stringMatching(/no numeric-stats ledger/) });
+  });
+
+  it('returns the malformed result when the stats YAML cannot be parsed', () => {
+    const { context } = makeContext({ [STATS_FILE]: 'stats: [unclosed' }, statChat());
+    const r = run({ action: 'foldStats', args: { reason: 'r' } }, context);
+    expect(r.response).toMatchObject({ result: expect.stringMatching(/malformed/) });
+  });
+
+  it('folds the whole active history and matches an independently-computed expectation (PARITY)', () => {
+    const chat = statChat();
+    const { context } = makeContext({ [STATS_FILE]: STATS_YAML }, chat);
+    const r = run({ action: 'foldStats', args: { reason: 'r' } }, context);
+
+    // Independent re-computation via the SAME pure pipeline the engine/UI use.
+    const parsed = parseStats(STATS_YAML).parsed;
+    const baseline = buildStatBaseline(parsed);
+    const { values, bounds } = computeCurrent(parsed, baseline, priorStatDeltaLists(chat));
+    const expected = renderStatValuesWithRange(parsed, values, bounds);
+
+    expect((r.response as { result: string }).result).toBe(expected);
+    // Sanity: hp 100-30+10=80, gold 50+20=70, affinity 王大福 40+15=55.
+    expect((r.response as { result: string }).result).toBe(
+      'hp: 80 (0–100)\ngold: 70\naffinity: { 王大福: 55 } (0–100)'
+    );
+  });
+
+  it('folds only up to and including the given messageId (prefix differs from full history)', () => {
+    const chat = statChat();
+    const { context } = makeContext({ [STATS_FILE]: STATS_YAML }, chat);
+    const full = (run({ action: 'foldStats', args: { reason: 'r' } }, context).response as { result: string }).result;
+    const prefix = (run({ action: 'foldStats', args: { reason: 'r', messageId: 'm1' } }, context).response as { result: string }).result;
+
+    // Up to m1 only: hp 100-30=70, gold 50+20=70, affinity untouched at 40.
+    expect(prefix).toBe('hp: 70 (0–100)\ngold: 70\naffinity: { 王大福: 40 } (0–100)');
+    expect(prefix).not.toBe(full);
+  });
+
+  it('returns the not-found result when the messageId is absent', () => {
+    const { context } = makeContext({ [STATS_FILE]: STATS_YAML }, statChat());
+    const r = run({ action: 'foldStats', args: { reason: 'r', messageId: 'nope' } }, context);
+    expect(r.response).toMatchObject({ result: expect.stringMatching(/"nope" was not found/) });
+  });
+
+  it('succeeds in readOnly mode (foldStats is a read, not blocked by the write-gate)', () => {
+    const { context } = makeContext({ [STATS_FILE]: STATS_YAML }, statChat());
+    context.readOnly = true;
+    const r = run({ action: 'foldStats', args: { reason: 'r' } }, context);
+    expect((r.response as { result: string }).result).toBe(
+      'hp: 80 (0–100)\ngold: 70\naffinity: { 王大福: 55 } (0–100)'
+    );
+  });
+
+  it('returns the empty-ledger result when the stats YAML parses but defines no stats', () => {
+    const { context } = makeContext({ [STATS_FILE]: 'stats: {}\n' }, statChat());
+    const r = run({ action: 'foldStats', args: { reason: 'r' } }, context);
+    expect(r.response).toMatchObject({ result: expect.stringMatching(/no stats defined/) });
+  });
+
+  it('trims surrounding whitespace on messageId before the lookup', () => {
+    const { context } = makeContext({ [STATS_FILE]: STATS_YAML }, statChat());
+    const clean = (run({ action: 'foldStats', args: { reason: 'r', messageId: 'm1' } }, context).response as { result: string }).result;
+    const padded = (run({ action: 'foldStats', args: { reason: 'r', messageId: '  m1  ' } }, context).response as { result: string }).result;
+    expect(padded).toBe(clean);
+    expect(padded).toBe('hp: 70 (0–100)\ngold: 70\naffinity: { 王大福: 40 } (0–100)');
   });
 });
