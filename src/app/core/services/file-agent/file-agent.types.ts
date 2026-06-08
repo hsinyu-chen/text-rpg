@@ -270,6 +270,13 @@ export interface ListBooksArgs extends BaseToolArgs {
 /* eslint-disable-next-line @typescript-eslint/no-empty-object-type */
 export interface ListCollectionsArgs extends BaseToolArgs {}
 
+export interface FoldStatsArgs extends BaseToolArgs {
+  /** Optional. Fold up to AND INCLUDING this chat message id (a past-turn
+   *  value). Omit to fold the whole active history (= the current stats the UI
+   *  dialog shows). */
+  messageId?: string;
+}
+
 export interface ProposeChatReplaceArgs extends BaseToolArgs {
   search: string;
   replace: string;
@@ -295,6 +302,7 @@ export type WriteOnlyAction =
   | { action: 'uiMap'; args: UiMapArgs; callId?: string }
   | { action: 'listBooks'; args: ListBooksArgs; callId?: string }
   | { action: 'listCollections'; args: ListCollectionsArgs; callId?: string }
+  | { action: 'foldStats'; args: FoldStatsArgs; callId?: string }
   | { action: 'proposeChatReplace'; args: ProposeChatReplaceArgs; callId?: string }
   | { action: 'reportProgress'; args: ReportProgressArgs; callId?: string }
   | { action: 'submitResponse'; args: SubmitResponseArgs; callId?: string }

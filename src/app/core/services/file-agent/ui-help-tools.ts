@@ -48,8 +48,22 @@ export const LIST_COLLECTIONS_TOOL: LLMFunctionDeclaration = {
     },
 };
 
+export const FOLD_STATS_TOOL: LLMFunctionDeclaration = {
+    name: 'foldStats',
+    description: 'Report the CURRENT value of every numeric stat by folding the YAML baseline with every per-turn delta — the exact computation the engine and UI dialog use, so the numbers match what is on screen. Use this whenever the user asks "what is my hp / affinity / gold now?". Returns one line per stat as `key: value (range)`. Omit messageId to fold the whole active history (the live value); pass a chat message id to get the value AS OF that past turn. Do NOT hand-sum deltas from the analysis trace — call this instead.',
+    parameters: {
+        type: 'object',
+        properties: {
+            reason: { type: 'string', description: REASON_DESC },
+            messageId: { type: 'string', description: 'Optional. Fold up to AND INCLUDING this chat message id for a past-turn value. Omit for the current (full-history) value.' },
+        },
+        required: ['reason'],
+    },
+};
+
 export const UI_HELP_TOOLS: LLMFunctionDeclaration[] = [
     UI_MAP_TOOL,
     LIST_BOOKS_TOOL,
     LIST_COLLECTIONS_TOOL,
+    FOLD_STATS_TOOL,
 ];

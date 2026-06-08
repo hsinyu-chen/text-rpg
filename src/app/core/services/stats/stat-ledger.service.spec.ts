@@ -14,6 +14,7 @@ import {
   fold,
   renderStatDefinitions,
   renderStatValues,
+  renderStatValuesWithRange,
   StatLedgerService,
 } from './stat-ledger.service';
 
@@ -678,6 +679,11 @@ describe('StatLedgerService', () => {
     expect(service.renderStatValues(scalarStats(), { hp: 42 })).toBe('hp: 42');
   });
 
+  it('renderStatValuesWithRange delegates to the pure function', () => {
+    const service = new StatLedgerService();
+    expect(service.renderStatValuesWithRange(scalarStats(), { hp: 42 })).toBe('hp: 42 (0–100)');
+  });
+
   it('renderStatDefinitions delegates to the pure function', () => {
     const service = new StatLedgerService();
     expect(service.renderStatDefinitions(scalarStats())).toBe('hp (scalar, 0–100)');
@@ -712,6 +718,39 @@ describe('renderStatValues', () => {
 
   it('returns empty string when no stats are declared', () => {
     expect(renderStatValues({ stats: {}, rules: '', events: [] }, {})).toBe('');
+  });
+});
+
+describe('renderStatValuesWithRange', () => {
+  it('renders a scalar with its declared bounds', () => {
+    expect(renderStatValuesWithRange(scalarStats(), { hp: 95 })).toBe('hp: 95 (0–100)');
+  });
+
+  it('omits the range for a scalar with no bounds', () => {
+    const stats: ParsedStats = { stats: { gold: { type: 'scalar', value: 0 } }, rules: '', events: [] };
+    expect(renderStatValuesWithRange(stats, { gold: 320 })).toBe('gold: 320');
+  });
+
+  it('renders a map stat with bounds', () => {
+    const out = renderStatValuesWithRange(affinityStats(true), { affinity: { 王大福: 60 } });
+    expect(out).toBe('affinity: { 王大福: 60 } (0–100)');
+  });
+
+  it('renders an empty map with its bounds, value byte-identical to renderStatValues', () => {
+    const stats = affinityStats(true);
+    expect(renderStatValuesWithRange(stats, { affinity: {} })).toBe('affinity: {  } (0–100)');
+    // Value text must match renderStatValues exactly.
+    expect(renderStatValues(stats, { affinity: {} })).toBe('affinity: {  }');
+  });
+
+  it('uses LIVE bounds when they differ from the declared bounds', () => {
+    // Declared 0–100; a field:"max" change dropped the live max to 50.
+    const liveBounds = { hp: { min: 0, max: 50 } };
+    expect(renderStatValuesWithRange(scalarStats(), { hp: 50 }, liveBounds)).toBe('hp: 50 (0–50)');
+  });
+
+  it('returns empty string when no stats are declared', () => {
+    expect(renderStatValuesWithRange({ stats: {}, rules: '', events: [] }, {})).toBe('');
   });
 });
 

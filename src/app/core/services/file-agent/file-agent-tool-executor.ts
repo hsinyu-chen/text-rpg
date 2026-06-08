@@ -10,6 +10,7 @@ import {
   UiMapArgs,
   ListBooksArgs,
   ListCollectionsArgs,
+  FoldStatsArgs,
   ProposeChatReplaceArgs,
   Awaitable
 } from './file-agent.types';
@@ -22,8 +23,10 @@ import {
   SectionBounds
 } from './markdown-section.util';
 import { detectLatexViolations, latexViolationError, sanitizeLatexToUnicode } from '@app/core/utils/latex.util';
-import { isStatsYamlFilename } from '@app/core/services/stats/stats-opt-in.util';
+import { isStatsYamlFilename, getStatsYamlContent, priorStatDeltaLists } from '@app/core/services/stats/stats-opt-in.util';
 import { validateStatsYaml } from '@app/core/services/stats/stats-validation.util';
+import { parseStats, buildStatBaseline } from '@app/core/services/stats/stats-yaml.util';
+import { computeCurrent, renderStatValuesWithRange } from '@app/core/services/stats/stat-ledger.service';
 import { KB_WRITE_TOOL_NAMES, READ_ONLY_REJECTION } from '../agent-runner/tools/kb-write-tools';
 import { clampInt } from '../agent-runner/tools/tool-helpers';
 
@@ -116,6 +119,8 @@ export function executeFileTool(
       return listBooks(nonReadAction.args, context);
     case 'listCollections':
       return listCollections(nonReadAction.args, context);
+    case 'foldStats':
+      return foldStats(nonReadAction.args, context);
     case 'proposeChatReplace':
       return proposeChatReplace(nonReadAction.args, context);
     // updateTodos is intercepted by BaseToolCallAgent before dispatch (it
@@ -554,6 +559,35 @@ function listCollections(_args: ListCollectionsArgs, context: FileAgentContext):
       count: sorted.length
     }
   };
+}
+
+const NO_STATS_LEDGER = 'This book has no numeric-stats ledger (no stats YAML file), so there is nothing to fold. Explain the numeric-stats system in general terms and, if the user wants to track numbers, point them to building a stats YAML — there is no current value to report.';
+const MALFORMED_STATS_YAML = 'The stats YAML is malformed (it failed to parse) and cannot be folded. Tell the user their stats ledger has a YAML syntax error that must be fixed before any current value can be computed, and point them to the file-viewer to repair it.';
+
+function foldStats(args: FoldStatsArgs, context: FileAgentContext): ToolExecutionResult {
+  const content = getStatsYamlContent(context.files);
+  if (content === null) return { response: { result: NO_STATS_LEDGER } };
+
+  let parsed: ReturnType<typeof parseStats>['parsed'];
+  try {
+    parsed = parseStats(content).parsed;
+  } catch {
+    return { response: { result: MALFORMED_STATS_YAML } };
+  }
+  const baseline = buildStatBaseline(parsed);
+
+  let msgs = context.chatMessages ?? [];
+  if (typeof args.messageId === 'string' && args.messageId.length > 0) {
+    const index = msgs.findIndex(m => m.id === args.messageId);
+    if (index === -1) {
+      return { response: { result: `Message id "${args.messageId}" was not found in the current history, so no past-turn value could be folded. Re-check the id (e.g. via listChatMessages) and retry.` } };
+    }
+    msgs = msgs.slice(0, index + 1);
+  }
+
+  const deltaLists = priorStatDeltaLists(msgs);
+  const { values, bounds } = computeCurrent(parsed, baseline, deltaLists);
+  return { response: { result: renderStatValuesWithRange(parsed, values, bounds) } };
 }
 
 async function proposeChatReplace(
