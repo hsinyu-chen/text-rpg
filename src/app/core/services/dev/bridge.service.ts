@@ -1811,7 +1811,7 @@ export class BridgeService {
         }
         const ctx = typeof context === 'number' && context > 0 ? Math.min(Math.floor(context), KB_GREP_MAX_CONTEXT) : KB_GREP_DEFAULT_CONTEXT;
         const cap = typeof maxMatches === 'number' && maxMatches > 0 ? Math.min(Math.floor(maxMatches), KB_GREP_MAX_MATCHES) : KB_GREP_DEFAULT_MAX_MATCHES;
-        const lines = content.split('\n');
+        const lines = content.split(/\r?\n/);
         const matches: { line: number; text: string }[] = [];
         let totalMatches = 0;
         let matchCount = 0;
