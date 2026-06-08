@@ -102,7 +102,7 @@ Fill ALL 9 files. Each file serves a specific role:
 - **7.Magic_and_Skills.md** — Magic or ability system rules, and the protagonist's known skills/spells.
 - **8.Plans.md** — Use `replaceSection` to replace the placeholder in the `Active` section. Write 2–3 initial plan entries under `Active` using the `Save Format` template. **Never write actual content inside the `Save Format` code block** — it is only a format reference. All real plans go under the `Active` section heading.
 - **9.Inventory.md** — The **protagonist's carried, on-person** starting items (NPC personal items must NOT be written here; non-carried items belong in `4.Assets.md`). Fill the `Inventory>Held` section with brief descriptions.
-
+{{STATS_SECTION}}
 Requirements:
 - Preserve the structural format (headers, sections, dividers) of each file.
 - Replace every "(To be filled in by the world generator)" placeholder with actual content.

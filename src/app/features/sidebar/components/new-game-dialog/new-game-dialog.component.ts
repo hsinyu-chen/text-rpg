@@ -5,6 +5,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatDividerModule } from '@angular/material/divider';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatDialog } from '@angular/material/dialog';
 import { CORE_MAT, DIALOG_MAT, FORM_MAT } from '@app/shared/material/material-groups';
 import { FULLSCREEN_DIALOG_CONFIG } from '@app/shared/material/dialog-presets';
@@ -46,6 +47,7 @@ const BLANK_FILES_ZH = [
         MatProgressSpinnerModule,
         MatTabsModule,
         MatDividerModule,
+        MatSlideToggleModule,
         FormsModule,
         TranslatePipe,
         AppAgentHintDirective
@@ -235,6 +237,7 @@ export class NewGameDialogComponent {
     npcPreferences = signal('');
     specialRequests = signal('');
     isCustomIdentity = signal(false);
+    includeStats = signal(false);
 
     genderOptions = computed(() => {
         const isZh = this.isZhLang();
@@ -360,6 +363,17 @@ export class NewGameDialogComponent {
                 filesMap.set(name, content);
             });
 
+            const locale = getLocale(this.appConfig.outputLanguage());
+            if (this.includeStats()) {
+                filesMap.set(locale.optionalFilenames.STATS_YAML, locale.statsLedgerTemplate);
+            }
+
+            const statsSection = this.includeStats()
+                ? await firstValueFrom(
+                    this.http.get(`assets/system_files/create_world_stats_section_${isZh ? 'zh' : 'en'}.md`, { responseType: 'text' })
+                )
+                : '';
+
             const promptTemplate = await firstValueFrom(
                 this.http.get(promptFile, { responseType: 'text' })
             );
@@ -377,7 +391,8 @@ export class NewGameDialogComponent {
                 .replace(/\{\{PROTAGONIST_INTERESTS\}\}/g, this.protagonistInterests().trim())
                 .replace(/\{\{PROTAGONIST_APPEARANCE\}\}/g, this.protagonistAppearance().trim())
                 .replace(/\{\{NPC_PREFERENCES\}\}/g, this.npcPreferences().trim() || unset('（由世界設定決定）', '(let the world setting decide)'))
-                .replace(/\{\{SPECIAL_REQUESTS\}\}/g, this.specialRequests().trim() || unset('（無）', '(none)'));
+                .replace(/\{\{SPECIAL_REQUESTS\}\}/g, this.specialRequests().trim() || unset('（無）', '(none)'))
+                .replace(/\{\{STATS_SECTION\}\}/g, statsSection);
 
             const worldName = `${this.protagonistName().trim()} — ${this.genre().trim()}`;
             const isZhLang = isZh;
@@ -389,7 +404,9 @@ export class NewGameDialogComponent {
                         : ['To be filled in by the world generator', '(Race)'],
                     retryMessage: (files) => isZhLang
                         ? `驗收失敗：以下檔案仍有未填寫的佔位符，請繼續補完後再次呼叫 submitResponse：\n${files.map(f => `- ${f}`).join('\n')}`
-                        : `Validation failed: the following files still contain unfilled placeholders. Fill them all before calling submitResponse again:\n${files.map(f => `- ${f}`).join('\n')}`
+                        : `Validation failed: the following files still contain unfilled placeholders. Fill them all before calling submitResponse again:\n${files.map(f => `- ${f}`).join('\n')}`,
+                    includeStats: this.includeStats(),
+                    statsErrorMessage: (syntaxError) => this.t('statsValidationFailed', { error: syntaxError })
                 }
             );
 

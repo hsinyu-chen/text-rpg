@@ -254,6 +254,14 @@
                     </mat-select>
                     <mat-hint>{{ 'sidebar.newGame.aiProfileHint' | translate }}</mat-hint>
                 </mat-form-field>
+
+                <mat-divider style="margin: 8px 0 12px;"></mat-divider>
+
+                <mat-slide-toggle [ngModel]="includeStats()" (ngModelChange)="includeStats.set($event)"
+                    color="primary">
+                    {{ 'sidebar.newGame.includeStatsLabel' | translate }}
+                </mat-slide-toggle>
+                <p class="generate-hint" style="margin-top: 4px;">{{ 'sidebar.newGame.includeStatsHint' | translate }}</p>
             </div>
         </mat-tab>
 

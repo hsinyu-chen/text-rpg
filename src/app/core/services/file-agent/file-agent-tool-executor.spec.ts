@@ -1188,3 +1188,64 @@ describe('proposeChatReplace', () => {
     expect(r.response).toMatchObject({ cancelled: true });
   });
 });
+
+describe('stats YAML write guard', () => {
+  // "0.Stats.yaml" is the en-locale stats ledger filename, so isStatsYamlFilename
+  // recognises it. Samples mirror stats-validation.util.spec.ts: a clean ledger,
+  // an unclosed-flow syntax error, and an invalid-key warning that still parses.
+  const STATS_FILE = '0.Stats.yaml';
+  const VALID_YAML = 'stats:\n  hp:\n    value: 100\n    min: 0\n    max: 100\n';
+  const SYNTAX_ERROR_YAML = 'stats: [unclosed';
+  const WARNINGS_ONLY_YAML = 'stats:\n  "has space":\n    value: 1\n';
+
+  it('replaceFile with valid stats YAML lands and calls onFileReplaced once', () => {
+    const { context, onFileReplaced } = makeContext({ [STATS_FILE]: 'stats:\n  hp:\n    value: 1\n' });
+    const r = run({ action: 'replaceFile', args: { filename: STATS_FILE, content: VALID_YAML } }, context);
+    expect(r.response).toMatchObject({ status: 'success', fileChanged: true });
+    expect(onFileReplaced).toHaveBeenCalledTimes(1);
+    expect(onFileReplaced).toHaveBeenCalledWith(STATS_FILE, VALID_YAML);
+  });
+
+  it('replaceFile with a YAML syntax error is rejected and leaves the file untouched', () => {
+    const { context, onFileReplaced } = makeContext({ [STATS_FILE]: VALID_YAML });
+    const r = run({ action: 'replaceFile', args: { filename: STATS_FILE, content: SYNTAX_ERROR_YAML } }, context);
+    expect(r.response).toMatchObject({
+      error: expect.stringMatching(/^\[NO-WRITE — file unchanged\]/),
+      fileChanged: false,
+    });
+    expect(onFileReplaced).not.toHaveBeenCalled();
+  });
+
+  it('replaceFile with warnings-only stats YAML lands (warnings are non-blocking)', () => {
+    const { context, onFileReplaced } = makeContext({ [STATS_FILE]: VALID_YAML });
+    const r = run({ action: 'replaceFile', args: { filename: STATS_FILE, content: WARNINGS_ONLY_YAML } }, context);
+    expect(r.response).toMatchObject({ status: 'success', fileChanged: true });
+    expect(onFileReplaced).toHaveBeenCalledTimes(1);
+  });
+
+  it('insertSection targeting the stats YAML is rejected and the file is untouched', () => {
+    const { context, onFileReplaced } = makeContext({ [STATS_FILE]: VALID_YAML });
+    const r = run({ action: 'insertSection', args: { filename: STATS_FILE, heading: '## New', content: 'x' } }, context);
+    expect(r.response).toMatchObject({
+      error: expect.stringMatching(/^\[NO-WRITE — file unchanged\].*Section tools are not supported/),
+      fileChanged: false,
+    });
+    expect(onFileReplaced).not.toHaveBeenCalled();
+  });
+
+  it('replaceFile on a non-stats file lands normally (guard does not over-filter)', () => {
+    const { context, onFileReplaced } = makeContext({ 'a.md': '# A\nold' });
+    const r = run({ action: 'replaceFile', args: { filename: 'a.md', content: '# A\nnew' } }, context);
+    expect(r.response).toMatchObject({ status: 'success', fileChanged: true });
+    expect(onFileReplaced).toHaveBeenCalledTimes(1);
+  });
+
+  // Empty / no-`stats:` content is syntactically valid YAML, so the syntax-only
+  // guard lets it land — pins the boundary against accidental future over-blocking.
+  it('replaceFile with empty content on the stats YAML lands (syntax-only guard)', () => {
+    const { context, onFileReplaced } = makeContext({ [STATS_FILE]: VALID_YAML });
+    const r = run({ action: 'replaceFile', args: { filename: STATS_FILE, content: '' } }, context);
+    expect(r.response).toMatchObject({ status: 'success', fileChanged: true });
+    expect(onFileReplaced).toHaveBeenCalledTimes(1);
+  });
+});
