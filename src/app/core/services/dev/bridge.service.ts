@@ -184,14 +184,18 @@ const LEADER_ELECT_MS = 200;
 // agent call can't flood the caller's context.
 const LIST_DEFAULT_LIMIT = 5;
 const LIST_RESPONSE_SOFT_CAP_CHARS = 8000;
+const LIST_MAX_LIMIT = 200;
 const KB_READ_HEAD_CHARS = 2000;
 const PROFILE_PROMPT_HEAD_CHARS = 2000;
 const SAFE_SERIALIZE_MAX_ARRAY_LEN = 50;
+const SAFE_SERIALIZE_MAX_KEYS = 100;
 const SAFE_SERIALIZE_MAX_STRING_LEN = 2000;
 const SAFE_SERIALIZE_MAX_TOTAL_BYTES = 40_000;
 const BOOK_LIST_DEFAULT_LIMIT = 50;
 const KB_GREP_DEFAULT_MAX_MATCHES = 20;
 const KB_GREP_DEFAULT_CONTEXT = 0;
+const KB_GREP_MAX_CONTEXT = 10;
+const KB_GREP_MAX_MATCHES = 100;
 
 // base30 alphabet — strips visually-confusable iloruz01 from base32. Eight
 // random chars give ~40 bits of entropy, ~10⁻¹¹ collision probability for the
@@ -846,7 +850,7 @@ export class BridgeService {
             messageCount: b.id === activeId ? liveMessageCount : b.messages.length,
             isActive: b.id === activeId,
         }));
-        const limit = typeof rawLimit === 'number' && rawLimit > 0 ? rawLimit : BOOK_LIST_DEFAULT_LIMIT;
+        const limit = typeof rawLimit === 'number' && rawLimit > 0 ? Math.min(rawLimit, LIST_MAX_LIMIT) : BOOK_LIST_DEFAULT_LIMIT;
         const offset = typeof rawOffset === 'number' && rawOffset > 0 ? rawOffset : 0;
         const books = mapped.slice(offset, offset + limit);
         this.send({ type: 'book_list_response', requestId, activeId, books, total: mapped.length, offset });
@@ -1189,13 +1193,17 @@ export class BridgeService {
     }
 
     // `budget.used` is a running char accumulator threaded through the whole
-    // recursion — a wide-but-shallow object (many small keys, each under the
-    // per-field caps) could still blow the response, so the total ceiling
+    // recursion — EVERY node charges it (leaf by rendered length, object key by
+    // its name length) so a wide-but-shallow payload (many small keys/values,
+    // each under the per-field caps) still trips the total ceiling, which
     // short-circuits the walk once crossed.
     private safeSerialize(value: unknown, depth = 0, budget: { used: number } = { used: 0 }): unknown {
         if (budget.used > SAFE_SERIALIZE_MAX_TOTAL_BYTES) return '<<truncated>>';
         if (depth > 6) return '<<depth>>';
-        if (value === null || value === undefined) return value;
+        if (value === null || value === undefined) {
+            budget.used += 4;
+            return value;
+        }
         const t = typeof value;
         if (t === 'string') {
             const s = value as string;
@@ -1208,12 +1216,23 @@ export class BridgeService {
             budget.used += s.length;
             return s;
         }
-        if (t === 'number' || t === 'boolean') return value;
-        if (t === 'function') return `<<fn:${(value as { name?: string }).name ?? 'anon'}>>`;
+        if (t === 'number' || t === 'boolean') {
+            budget.used += String(value).length;
+            return value;
+        }
+        if (t === 'function') {
+            const fn = `<<fn:${(value as { name?: string }).name ?? 'anon'}>>`;
+            budget.used += fn.length;
+            return fn;
+        }
         // Caller did `return someUnawaited` inside the eval body — surface
         // that rather than silently serializing the empty Promise object.
-        if (value instanceof Promise) return '<<unresolved Promise — use `return await ...`>>';
+        if (value instanceof Promise) {
+            budget.used += 40;
+            return '<<unresolved Promise — use `return await ...`>>';
+        }
         if (value instanceof Element) {
+            budget.used += 64;
             return {
                 __dom: true,
                 tag: value.tagName.toLowerCase(),
@@ -1230,13 +1249,20 @@ export class BridgeService {
         }
         if (t === 'object') {
             const out: Record<string, unknown> = {};
-            for (const [k, v] of Object.entries(value as object)) {
+            const entries = Object.entries(value as object);
+            for (const [k, v] of entries.slice(0, SAFE_SERIALIZE_MAX_KEYS)) {
+                budget.used += k.length + 4;
                 if (budget.used > SAFE_SERIALIZE_MAX_TOTAL_BYTES) { out[k] = '<<truncated>>'; break; }
                 try { out[k] = this.safeSerialize(v, depth + 1, budget); } catch { out[k] = '<<unreadable>>'; }
             }
+            if (entries.length > SAFE_SERIALIZE_MAX_KEYS) {
+                out['<<more>>'] = `<<+${entries.length - SAFE_SERIALIZE_MAX_KEYS} keys>>`;
+            }
             return out;
         }
-        return String(value);
+        const fallback = String(value);
+        budget.used += fallback.length;
+        return fallback;
     }
 
     private handleAgentFillChatPanelPrompt(frame: AgentFillChatPanelPromptFrame): void {
@@ -1783,8 +1809,8 @@ export class BridgeService {
             this.send({ type: 'action_error', requestId, error: 'invalid_pattern' });
             return;
         }
-        const ctx = typeof context === 'number' && context > 0 ? Math.floor(context) : KB_GREP_DEFAULT_CONTEXT;
-        const cap = typeof maxMatches === 'number' && maxMatches > 0 ? Math.floor(maxMatches) : KB_GREP_DEFAULT_MAX_MATCHES;
+        const ctx = typeof context === 'number' && context > 0 ? Math.min(Math.floor(context), KB_GREP_MAX_CONTEXT) : KB_GREP_DEFAULT_CONTEXT;
+        const cap = typeof maxMatches === 'number' && maxMatches > 0 ? Math.min(Math.floor(maxMatches), KB_GREP_MAX_MATCHES) : KB_GREP_DEFAULT_MAX_MATCHES;
         const lines = content.split('\n');
         const matches: { line: number; text: string }[] = [];
         let totalMatches = 0;
@@ -1959,7 +1985,7 @@ export class BridgeService {
     private handleList(frame: ListFrame): void {
         const { requestId, limit: rawLimit, offset: rawOffset } = frame;
         if (!requestId) return;
-        const limit = typeof rawLimit === 'number' && rawLimit > 0 ? Math.min(rawLimit, 200) : LIST_DEFAULT_LIMIT;
+        const limit = typeof rawLimit === 'number' && rawLimit > 0 ? Math.min(rawLimit, LIST_MAX_LIMIT) : LIST_DEFAULT_LIMIT;
         const offset = typeof rawOffset === 'number' && rawOffset > 0 ? rawOffset : 0;
         const all = this.state.messages();
         const end = all.length - offset;
