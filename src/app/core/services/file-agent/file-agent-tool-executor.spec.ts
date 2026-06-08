@@ -1342,4 +1342,18 @@ describe('foldStats', () => {
       'hp: 80 (0–100)\ngold: 70\naffinity: { 王大福: 55 } (0–100)'
     );
   });
+
+  it('returns the empty-ledger result when the stats YAML parses but defines no stats', () => {
+    const { context } = makeContext({ [STATS_FILE]: 'stats: {}\n' }, statChat());
+    const r = run({ action: 'foldStats', args: { reason: 'r' } }, context);
+    expect(r.response).toMatchObject({ result: expect.stringMatching(/no stats defined/) });
+  });
+
+  it('trims surrounding whitespace on messageId before the lookup', () => {
+    const { context } = makeContext({ [STATS_FILE]: STATS_YAML }, statChat());
+    const clean = (run({ action: 'foldStats', args: { reason: 'r', messageId: 'm1' } }, context).response as { result: string }).result;
+    const padded = (run({ action: 'foldStats', args: { reason: 'r', messageId: '  m1  ' } }, context).response as { result: string }).result;
+    expect(padded).toBe(clean);
+    expect(padded).toBe('hp: 70 (0–100)\ngold: 70\naffinity: { 王大福: 40 } (0–100)');
+  });
 });

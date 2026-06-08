@@ -563,6 +563,7 @@ function listCollections(_args: ListCollectionsArgs, context: FileAgentContext):
 
 const NO_STATS_LEDGER = 'This book has no numeric-stats ledger (no stats YAML file), so there is nothing to fold. Explain the numeric-stats system in general terms and, if the user wants to track numbers, point them to building a stats YAML — there is no current value to report.';
 const MALFORMED_STATS_YAML = 'The stats YAML is malformed (it failed to parse) and cannot be folded. Tell the user their stats ledger has a YAML syntax error that must be fixed before any current value can be computed, and point them to the file-viewer to repair it.';
+const EMPTY_STATS_LEDGER = 'The stats ledger exists but defines no stats yet, so there is nothing to fold. Tell the user their stats YAML has no stats defined and offer to help them add some — there is no current value to report yet.';
 
 function foldStats(args: FoldStatsArgs, context: FileAgentContext): ToolExecutionResult {
   const content = getStatsYamlContent(context.files);
@@ -574,13 +575,17 @@ function foldStats(args: FoldStatsArgs, context: FileAgentContext): ToolExecutio
   } catch {
     return { response: { result: MALFORMED_STATS_YAML } };
   }
+  if (Object.keys(parsed.stats).length === 0) {
+    return { response: { result: EMPTY_STATS_LEDGER } };
+  }
   const baseline = buildStatBaseline(parsed);
 
   let msgs = context.chatMessages ?? [];
-  if (typeof args.messageId === 'string' && args.messageId.length > 0) {
-    const index = msgs.findIndex(m => m.id === args.messageId);
+  const messageId = typeof args.messageId === 'string' ? args.messageId.trim() : '';
+  if (messageId.length > 0) {
+    const index = msgs.findIndex(m => m.id === messageId);
     if (index === -1) {
-      return { response: { result: `Message id "${args.messageId}" was not found in the current history, so no past-turn value could be folded. Re-check the id (e.g. via listChatMessages) and retry.` } };
+      return { response: { result: `Message id "${messageId}" was not found in the current history, so no past-turn value could be folded. Re-check the id (e.g. via listChatMessages) and retry.` } };
     }
     msgs = msgs.slice(0, index + 1);
   }
