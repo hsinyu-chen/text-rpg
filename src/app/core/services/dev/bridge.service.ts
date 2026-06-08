@@ -1199,10 +1199,14 @@ export class BridgeService {
         const t = typeof value;
         if (t === 'string') {
             const s = value as string;
+            // Charge only the chars actually returned — a single huge string must
+            // not exhaust the total budget and prematurely truncate later fields.
+            if (s.length > SAFE_SERIALIZE_MAX_STRING_LEN) {
+                budget.used += SAFE_SERIALIZE_MAX_STRING_LEN;
+                return `${s.slice(0, SAFE_SERIALIZE_MAX_STRING_LEN)}…<<truncated ${s.length - SAFE_SERIALIZE_MAX_STRING_LEN} chars>>`;
+            }
             budget.used += s.length;
-            return s.length > SAFE_SERIALIZE_MAX_STRING_LEN
-                ? `${s.slice(0, SAFE_SERIALIZE_MAX_STRING_LEN)}…<<truncated ${s.length - SAFE_SERIALIZE_MAX_STRING_LEN} chars>>`
-                : s;
+            return s;
         }
         if (t === 'number' || t === 'boolean') return value;
         if (t === 'function') return `<<fn:${(value as { name?: string }).name ?? 'anon'}>>`;
@@ -1784,18 +1788,27 @@ export class BridgeService {
         const lines = content.split('\n');
         const matches: { line: number; text: string }[] = [];
         let totalMatches = 0;
+        let matchCount = 0;
+        let lastAddedLine = 0;
         let truncated = false;
         for (let i = 0; i < lines.length; i++) {
             if (!regex.test(lines[i])) continue;
             totalMatches++;
-            if (matches.length >= cap) {
+            if (matchCount >= cap) {
                 truncated = true;
                 continue;
             }
+            matchCount++;
             const from = Math.max(0, i - ctx);
             const to = Math.min(lines.length - 1, i + ctx);
             for (let j = from; j <= to; j++) {
-                matches.push({ line: j + 1, text: lines[j] });
+                const lineNum = j + 1;
+                // Adjacent matches' context windows overlap; lastAddedLine dedupes the
+                // shared lines so `cap` bounds matches, not emitted lines.
+                if (lineNum > lastAddedLine) {
+                    matches.push({ line: lineNum, text: lines[j] });
+                    lastAddedLine = lineNum;
+                }
             }
         }
         this.send({ type: 'kb_grep_response', requestId, filename, matches, totalMatches, truncated });
