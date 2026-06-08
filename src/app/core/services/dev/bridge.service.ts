@@ -1783,8 +1783,8 @@ export class BridgeService {
             this.send({ type: 'action_error', requestId, error: 'invalid_pattern' });
             return;
         }
-        const ctx = typeof context === 'number' && context > 0 ? context : KB_GREP_DEFAULT_CONTEXT;
-        const cap = typeof maxMatches === 'number' && maxMatches > 0 ? maxMatches : KB_GREP_DEFAULT_MAX_MATCHES;
+        const ctx = typeof context === 'number' && context > 0 ? Math.floor(context) : KB_GREP_DEFAULT_CONTEXT;
+        const cap = typeof maxMatches === 'number' && maxMatches > 0 ? Math.floor(maxMatches) : KB_GREP_DEFAULT_MAX_MATCHES;
         const lines = content.split('\n');
         const matches: { line: number; text: string }[] = [];
         let totalMatches = 0;
