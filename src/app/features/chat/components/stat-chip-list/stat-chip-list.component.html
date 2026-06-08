@@ -1,0 +1,7 @@
+<div class="stat-chip-list">
+    @for (chip of chips(); track $index) {
+    <span class="stat-chip" [class]="'stat-chip-' + chip.kind" [class.has-color]="!!chip.color"
+        [style.--stat-color]="chip.color" [matTooltip]="chip.tooltip"
+        [matTooltipDisabled]="!chip.tooltip">{{ chip.label }}</span>
+    }
+</div>
