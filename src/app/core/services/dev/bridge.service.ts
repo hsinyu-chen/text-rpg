@@ -29,6 +29,7 @@ import { AgentHintRegistry } from '../agent-hints/agent-hints.registry';
 import { AgentHintDebugDialogComponent } from '../agent-hints/agent-hint-debug-dialog.component';
 import { MatDialog } from '@angular/material/dialog';
 import { DiskProfileSyncService } from '../sync/disk-profile-sync.service';
+import { StatsViewService } from '../stats/stats-view.service';
 
 /**
  * Relay client. Connects to a local BridgeServer (sibling repo
@@ -39,7 +40,12 @@ import { DiskProfileSyncService } from '../sync/disk-profile-sync.service';
  *
  * Frame types handled:
  *   send_action       — real GameEngineService.sendMessage turn + pair reply
- *   list              — last N messages (id / role / preview)
+ *                       (digest: *_log + summary + content + stat_delta; CoT
+ *                       thought/analysis dropped — fetch via read_message)
+ *   list              — trailing N message DIGESTS (id / role / intent / *_log
+ *                       / summary / stat_delta), offset-paged + soft byte cap
+ *   read_message      — heavy fields (content / analysis / thought) of ONE
+ *                       message by id; companion to the slim list digest
  *   delete            — removes a message ± its pair sibling
  *   reload            — triggers window.location.reload()
  *   profile_list      — built-in + user profiles with per-profile compat tag
@@ -51,10 +57,13 @@ import { DiskProfileSyncService } from '../sync/disk-profile-sync.service';
  *                       under `rejected` rather than silently dropped
  *   kb_list           — knowledge-base files loaded in the active book
  *                       (filename + content size + tokenCount)
- *   kb_read           — full content of one KB file by filename
- *   book_list         — every persisted Book (id / name / messageCount /
- *                       isActive flag); does NOT include messages — agents
- *                       fetch those via `list` against the active Book
+ *   kb_read           — head slice of one KB file by filename (offset/length
+ *                       page the rest); totalSize/totalTokens/truncated meta
+ *   kb_grep           — matching line ranges in one KB file (locate without
+ *                       dumping it); full content still via kb_read
+ *   book_list         — page of persisted Books (id / name / messageCount /
+ *                       isActive flag) + total; does NOT include messages —
+ *                       agents fetch those via `list` against the active Book
  *   book_get_active   — id + name + messageCount of the currently loaded Book
  *   book_fork         — clones the active Book truncated to a target message
  *                       (inclusive), switches to the new Book
@@ -101,13 +110,18 @@ import { DiskProfileSyncService } from '../sync/disk-profile-sync.service';
  *                       panel for live observation, complementing the
  *                       headless `agent_ask` path.
  *   agent_ask         — runs a headless FileAgentService turn against the
- *                       active book's KB + chat snapshot, returns the full
- *                       agent log (tool calls + results + thoughts + final
- *                       submitResponse). Defaults to sidebar mode (readOnly,
- *                       write tools rejected). In `fileViewer` mode writes
- *                       hit a snapshot Map only — the engine's KB is never
- *                       persisted to, so handbook validation can't trash
- *                       the active playthrough.
+ *                       active book's KB + chat snapshot, returns
+ *                       finalResponse + replacements + logCount (the log
+ *                       array is NOT inlined — drill in via
+ *                       agent_log_outline / agent_log_read). Defaults to
+ *                       sidebar mode (readOnly, write tools rejected). In
+ *                       `fileViewer` mode writes hit a snapshot Map only —
+ *                       the engine's KB is never persisted to, so handbook
+ *                       validation can't trash the active playthrough.
+ *   agent_log_outline — index + role + type + toolName + reason per entry of
+ *                       the most recent agent_ask turn's log, no bodies
+ *   agent_log_read    — one agent_ask log entry's full body (text / thought /
+ *                       tool result) by index from agent_log_outline
  *   agent_get_hints   — returns the AgentHintRegistry's mount report
  *                       (total / mounted / unmounted / activatable-without-
  *                       listener). Use to verify a template wiring change
@@ -127,16 +141,15 @@ import { DiskProfileSyncService } from '../sync/disk-profile-sync.service';
  *                       prompt rows out to the bound FSA folder. Same
  *                       built-in / busy guards as pull.
  *   profile_get_prompt
- *                     — reads one prompt for a profile (defaults to
- *                       active; any profile id accepted). `content` is
- *                       the resolved text (custom IDB row → shipped
- *                       base via seed chain), and `hasOverride` is
- *                       true iff the profile has its own IDB row for
- *                       the type (vs reading the base).
+ *                     — head slice of one resolved prompt for a profile
+ *                       (defaults to active; any profile id accepted;
+ *                       offset/length page the rest). `content` is the
+ *                       resolved text (custom IDB row → shipped base via
+ *                       seed chain), and `hasOverride` is true iff the
+ *                       profile has its own IDB row for the type.
  *   profile_get_all_prompts
- *                     — reads all 11 prompts for a profile in one call.
- *                       Same resolved/hasOverride semantics as
- *                       `_get_prompt`.
+ *                     — per-type META (length + hasOverride) for every prompt
+ *                       in one call; `include:true` restores full content.
  *   profile_set_prompt
  *                     — writes one prompt row to the ACTIVE profile's
  *                       IDB. Active must be user-defined (built-in
@@ -165,6 +178,24 @@ const RECONNECT_MAX_MS = 30_000;
 // the leader tab leaves the others idle until reload).
 const LEADER_CHANNEL = 'textrpg-bridge-leader';
 const LEADER_ELECT_MS = 200;
+
+// Output-slimming caps. Every bridge read tool returns a bounded digest by
+// default; heavy bodies / pages are opt-in via explicit params so a single
+// agent call can't flood the caller's context.
+const LIST_DEFAULT_LIMIT = 5;
+const LIST_RESPONSE_SOFT_CAP_CHARS = 8000;
+const LIST_MAX_LIMIT = 200;
+const KB_READ_HEAD_CHARS = 2000;
+const PROFILE_PROMPT_HEAD_CHARS = 2000;
+const SAFE_SERIALIZE_MAX_ARRAY_LEN = 50;
+const SAFE_SERIALIZE_MAX_KEYS = 100;
+const SAFE_SERIALIZE_MAX_STRING_LEN = 2000;
+const SAFE_SERIALIZE_MAX_TOTAL_BYTES = 40_000;
+const BOOK_LIST_DEFAULT_LIMIT = 50;
+const KB_GREP_DEFAULT_MAX_MATCHES = 20;
+const KB_GREP_DEFAULT_CONTEXT = 0;
+const KB_GREP_MAX_CONTEXT = 10;
+const KB_GREP_MAX_MATCHES = 100;
 
 // base30 alphabet — strips visually-confusable iloruz01 from base32. Eight
 // random chars give ~40 bits of entropy, ~10⁻¹¹ collision probability for the
@@ -205,7 +236,12 @@ interface SendActionFrame extends BridgeFrame {
 
 interface ListFrame extends BridgeFrame {
     limit?: number;
-    full?: boolean;
+    offset?: number;
+}
+
+interface ReadMessageFrame extends BridgeFrame {
+    id?: string;
+    fields?: ('content' | 'analysis' | 'thought')[];
 }
 
 interface DeleteFrame extends BridgeFrame {
@@ -229,6 +265,20 @@ type ConfigSetFrame = BridgeFrame & Record<string, unknown>;
 
 interface KbReadFrame extends BridgeFrame {
     filename?: string;
+    offset?: number;
+    length?: number;
+}
+
+interface KbGrepFrame extends BridgeFrame {
+    filename?: string;
+    pattern?: string;
+    context?: number;
+    maxMatches?: number;
+}
+
+interface BookListFrame extends BridgeFrame {
+    limit?: number;
+    offset?: number;
 }
 
 interface BookForkFrame extends BridgeFrame {
@@ -261,10 +311,14 @@ interface ProfileGetPromptFrame extends BridgeFrame {
     promptType?: string;
     /** Defaults to active profile when omitted. */
     profileId?: string;
+    offset?: number;
+    length?: number;
 }
 
 interface ProfileGetAllPromptsFrame extends BridgeFrame {
     profileId?: string;
+    /** Opt-in for full prompt bodies; falsy returns per-type meta only. */
+    include?: boolean;
 }
 
 interface ProfileSetPromptFrame extends BridgeFrame {
@@ -283,6 +337,10 @@ interface AgentAskFrame extends BridgeFrame {
     mode?: 'sidebar' | 'fileViewer';
     /** Default true — wipe prior turn history so each call is a fresh conversation. */
     clearHistory?: boolean;
+}
+
+interface AgentLogReadFrame extends BridgeFrame {
+    index?: number;
 }
 
 interface AgentFillChatPanelPromptFrame extends BridgeFrame {
@@ -347,6 +405,7 @@ export class BridgeService {
     private dialogService = inject(DialogService);
     private diskProfileSync = inject(DiskProfileSyncService);
     private prompts = inject(PromptRepository);
+    private statsView = inject(StatsViewService);
 
     /**
      * Bridge runs `agent_ask` against the SAME root-singleton FileAgentService
@@ -400,6 +459,13 @@ export class BridgeService {
     private reconnectDelay = RECONNECT_MIN_MS;
     private intentionalClose = false;
     private consentPromise: Promise<boolean> | null = null;
+
+    // Window into the shared file-agent's growing log for the most recent
+    // agent_ask turn, so agent_log_outline / agent_log_read can re-slice it
+    // after agent_ask stops returning logs[]. Offset-cache only: valid until
+    // the NEXT agent_ask shifts the window or a clearHistory:true wipes the log.
+    private lastAgentTurnLogStart: number | null = null;
+    private lastAgentTurnLogCount = 0;
 
     setUrl(url: string): void {
         this.url.set(url);
@@ -603,6 +669,9 @@ export class BridgeService {
             case 'list':
                 this.handleList(frame as ListFrame);
                 break;
+            case 'read_message':
+                this.handleReadMessage(frame as ReadMessageFrame);
+                break;
             case 'delete':
                 void this.handleDelete(frame as DeleteFrame);
                 break;
@@ -630,8 +699,11 @@ export class BridgeService {
             case 'kb_read':
                 this.handleKbRead(frame as KbReadFrame);
                 break;
+            case 'kb_grep':
+                this.handleKbGrep(frame as KbGrepFrame);
+                break;
             case 'book_list':
-                void this.handleBookList(frame);
+                void this.handleBookList(frame as BookListFrame);
                 break;
             case 'book_get_active':
                 void this.handleBookGetActive(frame);
@@ -671,6 +743,12 @@ export class BridgeService {
                 break;
             case 'agent_ask':
                 void this.handleAgentAsk(frame as AgentAskFrame);
+                break;
+            case 'agent_log_outline':
+                this.handleAgentLogOutline(frame);
+                break;
+            case 'agent_log_read':
+                this.handleAgentLogRead(frame as AgentLogReadFrame);
                 break;
             case 'agent_get_hints':
                 this.handleAgentGetHints(frame);
@@ -754,8 +832,8 @@ export class BridgeService {
         }
     }
 
-    private async handleBookList(frame: BridgeFrame): Promise<void> {
-        const { requestId } = frame;
+    private async handleBookList(frame: BookListFrame): Promise<void> {
+        const { requestId, limit: rawLimit, offset: rawOffset } = frame;
         if (!requestId) return;
         const all = await this.books.list();
         const activeId = this.session.currentBookId();
@@ -763,7 +841,7 @@ export class BridgeService {
         // (edits not yet flushed). Surface the live count for it so an agent
         // doesn't see a stale snapshot when polling right after a turn.
         const liveMessageCount = this.state.messages().length;
-        const books = all.map(b => ({
+        const mapped = all.map(b => ({
             id: b.id,
             name: b.name,
             collectionId: b.collectionId,
@@ -772,7 +850,10 @@ export class BridgeService {
             messageCount: b.id === activeId ? liveMessageCount : b.messages.length,
             isActive: b.id === activeId,
         }));
-        this.send({ type: 'book_list_response', requestId, activeId, books });
+        const limit = typeof rawLimit === 'number' && rawLimit > 0 ? Math.min(rawLimit, LIST_MAX_LIMIT) : BOOK_LIST_DEFAULT_LIMIT;
+        const offset = typeof rawOffset === 'number' && rawOffset > 0 ? rawOffset : 0;
+        const books = mapped.slice(offset, offset + limit);
+        this.send({ type: 'book_list_response', requestId, activeId, books, total: mapped.length, offset });
     }
 
     private async handleBookGetActive(frame: BridgeFrame): Promise<void> {
@@ -1111,16 +1192,47 @@ export class BridgeService {
         }
     }
 
-    private safeSerialize(value: unknown, depth = 0): unknown {
+    // `budget.used` is a running char accumulator threaded through the whole
+    // recursion — EVERY node charges it (leaf by rendered length, object key by
+    // its name length) so a wide-but-shallow payload (many small keys/values,
+    // each under the per-field caps) still trips the total ceiling, which
+    // short-circuits the walk once crossed.
+    private safeSerialize(value: unknown, depth = 0, budget: { used: number } = { used: 0 }): unknown {
+        if (budget.used > SAFE_SERIALIZE_MAX_TOTAL_BYTES) return '<<truncated>>';
         if (depth > 6) return '<<depth>>';
-        if (value === null || value === undefined) return value;
+        if (value === null || value === undefined) {
+            budget.used += 4;
+            return value;
+        }
         const t = typeof value;
-        if (t === 'string' || t === 'number' || t === 'boolean') return value;
-        if (t === 'function') return `<<fn:${(value as { name?: string }).name ?? 'anon'}>>`;
+        if (t === 'string') {
+            const s = value as string;
+            // Charge only the chars actually returned — a single huge string must
+            // not exhaust the total budget and prematurely truncate later fields.
+            if (s.length > SAFE_SERIALIZE_MAX_STRING_LEN) {
+                budget.used += SAFE_SERIALIZE_MAX_STRING_LEN;
+                return `${s.slice(0, SAFE_SERIALIZE_MAX_STRING_LEN)}…<<truncated ${s.length - SAFE_SERIALIZE_MAX_STRING_LEN} chars>>`;
+            }
+            budget.used += s.length;
+            return s;
+        }
+        if (t === 'number' || t === 'boolean') {
+            budget.used += String(value).length;
+            return value;
+        }
+        if (t === 'function') {
+            const fn = `<<fn:${(value as { name?: string }).name ?? 'anon'}>>`;
+            budget.used += fn.length;
+            return fn;
+        }
         // Caller did `return someUnawaited` inside the eval body — surface
         // that rather than silently serializing the empty Promise object.
-        if (value instanceof Promise) return '<<unresolved Promise — use `return await ...`>>';
+        if (value instanceof Promise) {
+            budget.used += 40;
+            return '<<unresolved Promise — use `return await ...`>>';
+        }
         if (value instanceof Element) {
+            budget.used += 64;
             return {
                 __dom: true,
                 tag: value.tagName.toLowerCase(),
@@ -1128,15 +1240,29 @@ export class BridgeService {
                 classes: value.className || null,
             };
         }
-        if (Array.isArray(value)) return value.map(v => this.safeSerialize(v, depth + 1));
+        if (Array.isArray(value)) {
+            const head = value.slice(0, SAFE_SERIALIZE_MAX_ARRAY_LEN).map(v => this.safeSerialize(v, depth + 1, budget));
+            if (value.length > SAFE_SERIALIZE_MAX_ARRAY_LEN) {
+                head.push(`<<+${value.length - SAFE_SERIALIZE_MAX_ARRAY_LEN} more>>`);
+            }
+            return head;
+        }
         if (t === 'object') {
             const out: Record<string, unknown> = {};
-            for (const [k, v] of Object.entries(value as object)) {
-                try { out[k] = this.safeSerialize(v, depth + 1); } catch { out[k] = '<<unreadable>>'; }
+            const entries = Object.entries(value as object);
+            for (const [k, v] of entries.slice(0, SAFE_SERIALIZE_MAX_KEYS)) {
+                budget.used += k.length + 4;
+                if (budget.used > SAFE_SERIALIZE_MAX_TOTAL_BYTES) { out[k] = '<<truncated>>'; break; }
+                try { out[k] = this.safeSerialize(v, depth + 1, budget); } catch { out[k] = '<<unreadable>>'; }
+            }
+            if (entries.length > SAFE_SERIALIZE_MAX_KEYS) {
+                out['<<more>>'] = `<<+${entries.length - SAFE_SERIALIZE_MAX_KEYS} keys>>`;
             }
             return out;
         }
-        return String(value);
+        const fallback = String(value);
+        budget.used += fallback.length;
+        return fallback;
     }
 
     private handleAgentFillChatPanelPrompt(frame: AgentFillChatPanelPromptFrame): void {
@@ -1240,16 +1366,10 @@ export class BridgeService {
         }
 
         const turnLogs = agent.agentLogs().slice(logStart);
-        const logs = turnLogs.map(e => ({
-            role: e.role,
-            type: e.type,
-            text: e.text,
-            ...(e.thought !== undefined ? { thought: e.thought } : {}),
-            ...(e.isToolCall ? { isToolCall: true } : {}),
-            ...(e.isToolResult ? { isToolResult: true } : {}),
-            ...(e.toolName ? { toolName: e.toolName } : {}),
-            ...(e.reason ? { reason: e.reason } : {}),
-        }));
+        // Retain the window so agent_log_outline / agent_log_read can re-slice
+        // the shared log after this slimmed response drops the logs[] array.
+        this.lastAgentTurnLogStart = logStart;
+        this.lastAgentTurnLogCount = turnLogs.length;
         const finalEntry = [...turnLogs]
             .reverse()
             .find(e => e.role === 'model' && !e.isToolCall && !e.isToolResult);
@@ -1258,13 +1378,66 @@ export class BridgeService {
             filename: r.filename,
             size: r.content.length,
         }));
+        // logs[] dropped — full CoT / tool bodies retrievable via
+        // agent_log_outline (index list) + agent_log_read (one entry).
         this.send({
             type: 'agent_ask_response',
             requestId,
             mode: readOnly ? 'sidebar' : 'fileViewer',
             finalResponse,
-            logs,
             replacements: replacementsSummary,
+            logCount: turnLogs.length,
+        });
+    }
+
+    private handleAgentLogOutline(frame: BridgeFrame): void {
+        const { requestId } = frame;
+        if (!requestId) return;
+        const start = this.lastAgentTurnLogStart;
+        if (start === null) {
+            this.send({ type: 'action_error', requestId, error: 'no_agent_turn' });
+            return;
+        }
+        const turnLogs = this.fileAgent.agentLogs().slice(start, start + this.lastAgentTurnLogCount);
+        const entries = turnLogs.map((e, i) => ({
+            index: i,
+            role: e.role,
+            type: e.type,
+            ...(e.toolName ? { toolName: e.toolName } : {}),
+            ...(e.reason ? { reason: e.reason } : {}),
+        }));
+        this.send({ type: 'agent_log_outline_response', requestId, entries });
+    }
+
+    private handleAgentLogRead(frame: AgentLogReadFrame): void {
+        const { requestId, index } = frame;
+        if (!requestId) return;
+        const start = this.lastAgentTurnLogStart;
+        if (start === null) {
+            this.send({ type: 'action_error', requestId, error: 'no_agent_turn' });
+            return;
+        }
+        const turnLogs = this.fileAgent.agentLogs().slice(start, start + this.lastAgentTurnLogCount);
+        if (typeof index !== 'number' || index < 0 || index >= turnLogs.length) {
+            this.send({ type: 'action_error', requestId, error: 'index_out_of_range' });
+            return;
+        }
+        const e = turnLogs[index];
+        // The entry's own kind travels as `entryType`: the envelope `type` is
+        // reserved for frame routing, so a bare `type` would collide with the
+        // `agent_log_read_response` discriminator.
+        this.send({
+            type: 'agent_log_read_response',
+            requestId,
+            index,
+            role: e.role,
+            entryType: e.type,
+            text: e.text,
+            ...(e.thought !== undefined ? { thought: e.thought } : {}),
+            ...(e.toolName ? { toolName: e.toolName } : {}),
+            ...(e.reason ? { reason: e.reason } : {}),
+            ...(e.isToolCall ? { isToolCall: true } : {}),
+            ...(e.isToolResult ? { isToolResult: true } : {}),
         });
     }
 
@@ -1472,8 +1645,24 @@ export class BridgeService {
         return typeof t === 'string' && (ALL_PROMPT_TYPES as readonly string[]).includes(t);
     }
 
+    // Paged head slice shared by kb_read and profile_get_prompt: returns the
+    // [offset, offset+len) window plus the totals/truncated signal the caller
+    // pages on. `headChars` is the per-tool default char count.
+    private headSlice(content: string, offset: number | undefined, length: number | undefined, headChars: number) {
+        const start = typeof offset === 'number' && offset > 0 ? offset : 0;
+        const len = typeof length === 'number' && length > 0 ? length : headChars;
+        const slice = content.slice(start, start + len);
+        return {
+            slice,
+            offset: start,
+            length: slice.length,
+            truncated: start + len < content.length,
+            totalSize: content.length,
+        };
+    }
+
     private async handleProfileGetPrompt(frame: ProfileGetPromptFrame): Promise<void> {
-        const { requestId, promptType, profileId } = frame;
+        const { requestId, promptType, profileId, offset, length } = frame;
         if (!requestId) return;
         if (!this.isValidPromptType(promptType)) {
             this.send({ type: 'action_error', requestId, error: 'invalid_type' });
@@ -1485,27 +1674,35 @@ export class BridgeService {
             return;
         }
         const { content, hasOverride } = await this.readResolvedPromptWithOverride(promptType, id);
+        const page = this.headSlice(content, offset, length, PROFILE_PROMPT_HEAD_CHARS);
         this.send({
             type: 'profile_get_prompt_response',
             requestId,
             promptType,
             profileId: id,
-            content,
+            content: page.slice,
+            offset: page.offset,
+            length: page.length,
+            truncated: page.truncated,
+            totalSize: page.totalSize,
             hasOverride,
         });
     }
 
     private async handleProfileGetAllPrompts(frame: ProfileGetAllPromptsFrame): Promise<void> {
-        const { requestId, profileId } = frame;
+        const { requestId, profileId, include } = frame;
         if (!requestId) return;
         const id = profileId ?? this.state.activePromptProfile();
         if (!this.registry.get(id)) {
             this.send({ type: 'action_error', requestId, error: 'unknown_profile' });
             return;
         }
-        const prompts: Record<string, { content: string; hasOverride: boolean }> = {};
+        // Default to per-type meta (length + hasOverride) so a single call
+        // never dumps every resolved body; include:true restores full content.
+        const prompts: Record<string, { content: string; hasOverride: boolean } | { length: number; hasOverride: boolean }> = {};
         for (const t of ALL_PROMPT_TYPES) {
-            prompts[t] = await this.readResolvedPromptWithOverride(t, id);
+            const { content, hasOverride } = await this.readResolvedPromptWithOverride(t, id);
+            prompts[t] = include === true ? { content, hasOverride } : { length: content.length, hasOverride };
         }
         this.send({
             type: 'profile_get_all_prompts_response',
@@ -1559,8 +1756,10 @@ export class BridgeService {
         this.send({ type: 'kb_list_response', requestId, files: entries });
     }
 
+    // Default returns a head slice, not the whole file (worldbooks were the
+    // worst context offender); full read is opt-in via offset/length.
     private handleKbRead(frame: KbReadFrame): void {
-        const { requestId, filename } = frame;
+        const { requestId, filename, offset, length } = frame;
         if (!requestId) return;
         if (typeof filename !== 'string' || !filename) {
             this.send({ type: 'action_error', requestId, error: 'invalid_filename' });
@@ -1571,13 +1770,74 @@ export class BridgeService {
             this.send({ type: 'action_error', requestId, error: 'not_found' });
             return;
         }
+        const page = this.headSlice(content, offset, length, KB_READ_HEAD_CHARS);
         this.send({
             type: 'kb_read_response',
             requestId,
             filename,
-            content,
-            tokenCount: this.state.fileTokenCounts().get(filename) ?? null,
+            content: page.slice,
+            offset: page.offset,
+            length: page.length,
+            truncated: page.truncated,
+            totalSize: page.totalSize,
+            totalTokens: this.state.fileTokenCounts().get(filename) ?? null,
         });
+    }
+
+    // Locate a term in one KB file without dumping the whole file — read vs
+    // search single-responsibility split mirroring file-agent readFile vs grep.
+    private handleKbGrep(frame: KbGrepFrame): void {
+        const { requestId, filename, pattern, context, maxMatches } = frame;
+        if (!requestId) return;
+        if (typeof filename !== 'string' || !filename) {
+            this.send({ type: 'action_error', requestId, error: 'invalid_filename' });
+            return;
+        }
+        if (typeof pattern !== 'string' || !pattern) {
+            this.send({ type: 'action_error', requestId, error: 'invalid_pattern' });
+            return;
+        }
+        const content = this.state.loadedFiles().get(filename);
+        if (content === undefined) {
+            this.send({ type: 'action_error', requestId, error: 'not_found' });
+            return;
+        }
+        let regex: RegExp;
+        try {
+            regex = new RegExp(pattern);
+        } catch {
+            this.send({ type: 'action_error', requestId, error: 'invalid_pattern' });
+            return;
+        }
+        const ctx = typeof context === 'number' && context > 0 ? Math.min(Math.floor(context), KB_GREP_MAX_CONTEXT) : KB_GREP_DEFAULT_CONTEXT;
+        const cap = typeof maxMatches === 'number' && maxMatches > 0 ? Math.min(Math.floor(maxMatches), KB_GREP_MAX_MATCHES) : KB_GREP_DEFAULT_MAX_MATCHES;
+        const lines = content.split(/\r?\n/);
+        const matches: { line: number; text: string }[] = [];
+        let totalMatches = 0;
+        let matchCount = 0;
+        let lastAddedLine = 0;
+        let truncated = false;
+        for (let i = 0; i < lines.length; i++) {
+            if (!regex.test(lines[i])) continue;
+            totalMatches++;
+            if (matchCount >= cap) {
+                truncated = true;
+                continue;
+            }
+            matchCount++;
+            const from = Math.max(0, i - ctx);
+            const to = Math.min(lines.length - 1, i + ctx);
+            for (let j = from; j <= to; j++) {
+                const lineNum = j + 1;
+                // Adjacent matches' context windows overlap; lastAddedLine dedupes the
+                // shared lines so `cap` bounds matches, not emitted lines.
+                if (lineNum > lastAddedLine) {
+                    matches.push({ line: lineNum, text: lines[j] });
+                    lastAddedLine = lineNum;
+                }
+            }
+        }
+        this.send({ type: 'kb_grep_response', requestId, filename, matches, totalMatches, truncated });
     }
 
     private handleConfigGet(frame: BridgeFrame): void {
@@ -1686,20 +1946,24 @@ export class BridgeService {
             return;
         }
 
+        // thought / analysis dropped so a single turn no longer dumps full CoT;
+        // retrieve them via read_message{id:messageId}. stat_delta + stat_triggered
+        // mirror the list digest — ground-truth post-clamp applied audit + the
+        // events that fired, omitted when the message has none.
+        const statView = this.statsView.appliedForMessage(modelMsg.id);
         const pair = {
             user: {
                 intent: userMsg.intent,
                 content: userMsg.content,
             },
             model: {
-                thought: modelMsg.thought,
-                analysis: modelMsg.analysis,
                 summary: modelMsg.summary,
                 character_log: modelMsg.character_log,
                 inventory_log: modelMsg.inventory_log,
                 quest_log: modelMsg.quest_log,
                 world_log: modelMsg.world_log,
                 content: modelMsg.content,
+                ...(statView ? { stat_delta: statView.applied, stat_triggered: statView.triggered } : {}),
             },
         };
 
@@ -1712,33 +1976,66 @@ export class BridgeService {
         });
     }
 
+    // Single DIGEST projection per message: id/role/intent + *_log/summary +
+    // ground-truth stat_delta. Heavy bodies (content/analysis/thought) are
+    // dropped — fetch via read_message. `offset` pages older messages from the
+    // tail; on overflow the soft byte cap trims the OLDEST of the window (never
+    // the newest) and sets `truncated`. Paging is cursor-style: advance `offset`
+    // by the returned count, not by `limit`, so trimmed digests resurface gap-free.
     private handleList(frame: ListFrame): void {
-        const { requestId, limit: rawLimit, full } = frame;
+        const { requestId, limit: rawLimit, offset: rawOffset } = frame;
         if (!requestId) return;
-        const limit = typeof rawLimit === 'number' && rawLimit > 0 ? Math.min(rawLimit, 200) : 50;
+        const limit = typeof rawLimit === 'number' && rawLimit > 0 ? Math.min(rawLimit, LIST_MAX_LIMIT) : LIST_DEFAULT_LIMIT;
+        const offset = typeof rawOffset === 'number' && rawOffset > 0 ? rawOffset : 0;
         const all = this.state.messages();
-        const slice = all.slice(-limit);
-        const messages = full
-            ? slice.map(m => ({
+        const end = all.length - offset;
+        const slice = all.slice(Math.max(0, end - limit), Math.max(0, end));
+        const messages: object[] = [];
+        let used = 0;
+        let truncated = false;
+        for (let i = slice.length - 1; i >= 0; i--) {
+            const m = slice[i];
+            const applied = (m.role === 'model' && !m.isRefOnly)
+                ? this.statsView.appliedForMessage(m.id)
+                : null;
+            const digest = {
                 id: m.id,
                 role: m.role,
                 intent: m.intent,
-                content: m.content,
-                analysis: m.analysis,
-                thought: m.thought,
                 summary: m.summary,
                 character_log: m.character_log,
                 inventory_log: m.inventory_log,
                 quest_log: m.quest_log,
                 world_log: m.world_log,
-            }))
-            : slice.map(m => ({
-                id: m.id,
-                role: m.role,
-                headPreview: (m.content ?? '').slice(0, 80),
-                intent: m.intent,
-            }));
-        this.send({ type: 'list_response', requestId, messages });
+                ...(applied ? { stat_delta: applied.applied, stat_triggered: applied.triggered } : {}),
+            };
+            used += JSON.stringify(digest).length;
+            if (used > LIST_RESPONSE_SOFT_CAP_CHARS && messages.length > 0) {
+                truncated = true;
+                break;
+            }
+            messages.unshift(digest);
+        }
+        this.send({ type: 'list_response', requestId, messages, total: all.length, offset, truncated });
+    }
+
+    // Single-message counterpart to the slimmed list digest + send_action heavy-
+    // field drop: returns only the requested heavy fields (all three when fields
+    // omitted) for one message by id.
+    private handleReadMessage(frame: ReadMessageFrame): void {
+        const { requestId, id, fields } = frame;
+        if (!requestId) return;
+        const m = this.state.messages().find(x => x.id === id);
+        if (!m) {
+            this.send({ type: 'action_error', requestId, error: 'not_found' });
+            return;
+        }
+        const want = Array.isArray(fields) && fields.length ? new Set(fields) : new Set(['content', 'analysis', 'thought']);
+        const out: Record<string, unknown> = {};
+        if (want.has('content')) out['content'] = m.content;
+        if (want.has('analysis')) out['analysis'] = m.analysis;
+        if (want.has('thought')) out['thought'] = m.thought;
+        this.send({ type: 'read_message_response', requestId, id, ...out });
     }
 
     private async handleDelete(frame: DeleteFrame): Promise<void> {
