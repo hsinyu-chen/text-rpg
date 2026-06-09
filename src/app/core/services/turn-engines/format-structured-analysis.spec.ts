@@ -184,6 +184,17 @@ describe('formatStructuredAnalysis', () => {
             }));
             expect(line).toBe('[D 00:00 / L / 程楊宗]');
         });
+
+        it('sanitizes LaTeX in header fields to Unicode', () => {
+            const line = buildSceneHeaderLine(snap({
+                date_in_world: 'D',
+                time_hhmm: '00:00',
+                location: '裂隙 $\\rightarrow$ 深淵',
+                pc_name: '程楊宗',
+                pc_awareness: '\\alpha 態'
+            }));
+            expect(line).toBe('[D 00:00 / 裂隙 → 深淵 / 程楊宗(α 態)]');
+        });
     });
 
     describe('formatResolverIntent', () => {

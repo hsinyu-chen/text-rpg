@@ -76,8 +76,10 @@ function replaceLatexCmds(s: string): string {
 /** Replace LaTeX expressions in plain text with Unicode equivalents. */
 export function sanitizeLatexToUnicode(text: string): string {
   return text
-    .replace(/\$\\([a-zA-Z]+)\$/g, (m, cmd) => LATEX_TO_UNICODE[cmd] ?? m)
     .replace(/\$\$([^$]*)\$\$/g, (_, inner) => replaceLatexCmds(inner))
+    // Inline $...$ math: strip delimiters + convert, gated by isMathLike so currency ($100, "$5 到 $10")
+    // survives. Must precede the bare-\cmd pass, which would otherwise strand the dollars as "$ → $".
+    .replace(/\$([^$\n]+)\$/g, (m, inner) => (isMathLike(inner) ? replaceLatexCmds(inner.trim()) : m))
     .replace(/\\\(([^]*?)\\\)/g, (_, inner) => replaceLatexCmds(inner))
     .replace(/\\\[([^]*?)\\\]/g, (_, inner) => replaceLatexCmds(inner))
     .replace(/\\([a-zA-Z]+)/g, (m, cmd) => LATEX_TO_UNICODE[cmd] ?? m);

@@ -11,6 +11,7 @@ import {
 import { AppLocale } from '@app/core/constants/locales/locale.interface';
 import { getLocale } from '@app/core/constants/locales';
 import { StatChange } from '@app/core/models/stats.types';
+import { convertLatexToSymbols } from '@app/core/utils/latex.util';
 
 type TraceLabels = AppLocale['analysisTrace'];
 
@@ -160,7 +161,8 @@ export function buildSceneHeaderLine(snap: Partial<SceneSnapshot> | null | undef
     }
     const charsLine = charParts.join(', ');
 
-    return `[${date} ${time} / ${location} / ${charsLine}]`;
+    // Snapshot fields bypass the story body's processModelField latex pass, so sanitize the assembled bracket here.
+    return convertLatexToSymbols(`[${date} ${time} / ${location} / ${charsLine}]`);
 }
 
 /**
