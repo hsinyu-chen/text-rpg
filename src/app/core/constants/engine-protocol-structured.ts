@@ -367,8 +367,8 @@ const buildAnalysisStepSchema = (options?: { enableStats?: boolean }): Schema =>
         },
         source: {
             type: 'string',
-            enum: ['', 'random', 'skill_item', 'hook_fire'],
-            description: 'Sub-discriminator. "random", "skill_item", or "hook_fire" when `kind:"event"`; "" when `kind:"user_intent"`. "random" = third-party / environmental injection (NPC arrival, alarm, weather shift, etc.). "skill_item" = a passive ability / item / equipment of the PC or an NPC triggers or activates this turn; no `hook_title`; same breaks_ideal rule as "random". "hook_fire" = an authored hook entry under {{FILE_STORY_OUTLINE}} "啟動劇情引導" had its trigger condition met this turn; carries `hook_title`; narrator must give full sensory awakening prose per `# 劇情引導處理`.'
+            enum: ['none', 'random', 'skill_item', 'hook_fire'],
+            description: 'Sub-discriminator. "random", "skill_item", or "hook_fire" when `kind:"event"`; "none" when `kind:"user_intent"`. "random" = third-party / environmental injection (NPC arrival, alarm, weather shift, etc.). "skill_item" = a passive ability / item / equipment of the PC or an NPC triggers or activates this turn; no `hook_title`; same breaks_ideal rule as "random". "hook_fire" = an authored hook entry under {{FILE_STORY_OUTLINE}} "啟動劇情引導" had its trigger condition met this turn; carries `hook_title`; narrator must give full sensory awakening prose per `# 劇情引導處理`.'
         },
         hook_title: {
             type: 'string',
