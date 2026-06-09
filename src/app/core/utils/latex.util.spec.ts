@@ -20,6 +20,10 @@ describe('latex.util', () => {
             expect(sanitizeLatexToUnicode('$ \\to $')).not.toContain('$');
         });
 
+        it('does not let a currency $ steal a following math block (parity regression)', () => {
+            expect(sanitizeLatexToUnicode('A $100 and $x \\to y$ end')).toBe('A $100 and x → y end');
+        });
+
         it('leaves currency-like $ amounts untouched', () => {
             expect(sanitizeLatexToUnicode('$100')).toBe('$100');
             expect(sanitizeLatexToUnicode('價格 $5 到 $10')).toBe('價格 $5 到 $10');

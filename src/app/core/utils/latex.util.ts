@@ -77,9 +77,9 @@ function replaceLatexCmds(s: string): string {
 export function sanitizeLatexToUnicode(text: string): string {
   return text
     .replace(/\$\$([^$]*)\$\$/g, (_, inner) => replaceLatexCmds(inner))
-    // Inline $...$ math: strip delimiters + convert, gated by isMathLike so currency ($100, "$5 到 $10")
-    // survives. Must precede the bare-\cmd pass, which would otherwise strand the dollars as "$ → $".
-    .replace(/\$([^$\n]+)\$/g, (m, inner) => (isMathLike(inner) ? replaceLatexCmds(inner.trim()) : m))
+    // Inline $...$ math: inner must contain a \command so currency ($100, "$5 到 $10") can't match and
+    // steal the next block's opening $. Runs before the bare-\cmd pass, which would else strand the $.
+    .replace(/\$([^$\n]*\\[a-zA-Z]+[^$\n]*)\$/g, (_, inner) => replaceLatexCmds(inner.trim()))
     .replace(/\\\(([^]*?)\\\)/g, (_, inner) => replaceLatexCmds(inner))
     .replace(/\\\[([^]*?)\\\]/g, (_, inner) => replaceLatexCmds(inner))
     .replace(/\\([a-zA-Z]+)/g, (m, cmd) => LATEX_TO_UNICODE[cmd] ?? m);
