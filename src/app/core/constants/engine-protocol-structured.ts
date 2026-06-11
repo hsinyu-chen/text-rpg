@@ -47,8 +47,9 @@ export interface PresentNpc {
      * Fog-of-war / consciousness state — gates whether this NPC has the
      * **capacity to react** to the environment / PC actions this turn.
      * Free-form short string CONSTRAINED to that domain — common tags:
-     * `"昏迷"` / `"熟睡"` / `"麻痺"` / `"匿蹤"` / `"通訊"` (remote, not
-     * physically here); same-domain inventions like `"幻象"` / `"靈魂出竅"`
+     * `"昏迷"` / `"熟睡"` / `"麻痺"` / `"匿蹤"` / `"通訊"` (in active remote
+     * contact with the PC via a device or other long-range means — not merely
+     * "off elsewhere"); same-domain inventions like `"幻象"` / `"靈魂出竅"`
      * allowed. `""` = default (fully reactive — conscious and on-scene).
      *
      * NOT for emotion, current activity, or behavior — `"旁觀"`, `"交談中"`,
@@ -94,8 +95,11 @@ export interface SceneSnapshot {
      */
     pc_state: string;
     /**
-     * PC's reactivity / consciousness state — semantics aligned with
-     * {@link PresentNpc.awareness}. `""` = default (fully reactive).
+     * PC's fog-of-war / consciousness state — semantics aligned with
+     * {@link PresentNpc.awareness}: a short reactivity / consciousness tag
+     * only. `""` = default (fully reactive). NOT for emotion, current
+     * activity, sensory focus, or behavior — what the PC is doing or
+     * attending to belongs in the step action / story, never here.
      */
     pc_awareness: string;
     present_npcs: PresentNpc[];
@@ -228,7 +232,7 @@ const presentNpcSchema: Schema = {
         },
         awareness: {
             type: 'string',
-            description: 'FOG-OF-WAR / CONSCIOUSNESS STATE — gates whether this NPC has the CAPACITY TO REACT to the environment / PC actions this turn. Free-form short string CONSTRAINED to that domain. Common tags: "昏迷" / "熟睡" / "麻痺" / "匿蹤" (hidden) / "通訊" (remote, not physically here). Same-domain inventions allowed (e.g. "幻象" / "靈魂出竅" / "淺眠（巨響可醒）"). "" (default) = fully reactive (conscious and on-scene). NOT for emotion, current activity, or behavior — "旁觀" / "交談中" / "抱著X" / "敵意" describe a fully-reactive NPC\'s choices and belong in npc_reactions[].physical / motivation, never here.'
+            description: 'FOG-OF-WAR / CONSCIOUSNESS STATE — gates whether this NPC has the CAPACITY TO REACT to the environment / PC actions this turn. Free-form short string CONSTRAINED to that domain. Common tags: "昏迷" / "熟睡" / "麻痺" / "匿蹤" (hidden) / "通訊" (in active remote contact with the PC via a device or other long-range means, not merely "off elsewhere"). Same-domain inventions allowed (e.g. "幻象" / "靈魂出竅" / "淺眠（巨響可醒）"). "" (default) = fully reactive (conscious and on-scene). NOT for emotion, current activity, or behavior — "旁觀" / "交談中" / "抱著X" / "敵意" describe a fully-reactive NPC\'s choices and belong in npc_reactions[].physical / motivation, never here.'
         },
         agenda: {
             type: 'string',
@@ -282,11 +286,11 @@ const sceneSnapshotSchema: Schema = {
         },
         pc_awareness: {
             type: 'string',
-            description: 'PC FOG-OF-WAR / CONSCIOUSNESS STATE — same domain as present_npcs[].awareness. Common tags: "昏迷" / "偽裝中" / "匿蹤" / "靈魂出竅". "" (default) = fully reactive. NOT for emotion, current activity, or behavior. The program wraps this in () in the scene header when present.'
+            description: 'PC FOG-OF-WAR / CONSCIOUSNESS STATE — same domain as present_npcs[].awareness: a short reactivity / consciousness tag ONLY. Common tags: "昏迷" / "偽裝中" / "匿蹤" / "靈魂出竅". "" (default) = fully reactive. NOT for emotion, current activity, sensory focus, or behavior — what the PC is doing or concentrating on belongs in the step action / story, never here. The program wraps this in () in the scene header when present.'
         },
         present_npcs: {
             type: 'array',
-            description: 'Every NPC currently in scene. Includes hidden, unconscious, and remote-comm NPCs. One-shot mooks (guard A, villager甲) MUST be listed to satisfy the all-NPC reaction rule. Empty array when truly no one is present.',
+            description: 'Everyone the PC is aware of AT THE MOMENT THIS TURN ENDS — someone the PC, by end of turn, directly perceives in the scene (sees / hears / touches / senses) OR who is in active remote-comm contact with the PC. Includes 匿蹤/hidden (the PC\'s or an ally\'s own stealth, or others the PC detects via a special ability), unconscious, and remote-comm NPCs. EXCLUDE anyone outside the PC\'s end-of-turn perception (even if the PC knows where they went) — drop them and record their whereabouts in character_log; do NOT retain them via an awareness tag. An NPC who leaves part-way through this turn stages their exit in that step\'s npc_reactions, then drops off this end-of-turn list. One-shot mooks the PC perceives (guard A, villager甲) MUST still be listed for the all-NPC reaction rule. Empty array when truly no one is present.',
             items: presentNpcSchema
         },
         key_objects: {
@@ -300,11 +304,11 @@ const sceneSnapshotSchema: Schema = {
 
 const npcReactionSchema: Schema = {
     type: 'object',
-    description: 'How one specific present NPC reacts to this step. Every entry in scene_snapshot.present_npcs MUST appear in this list, including silent observers, unconscious NPCs, and remote-comm NPCs.',
+    description: 'How one NPC on-scene DURING THIS STEP reacts. Per-step coverage: every present_npcs entry still on-scene this step (incl. silent observers, unconscious, remote-comm) PLUS any NPC who was on-scene earlier this turn and leaves DURING this step (their exit is staged here). An NPC who already left in a prior step is no longer listed.',
     properties: {
         actor: {
             type: 'string',
-            description: 'NPC name. MUST exactly match one entry in scene_snapshot.present_npcs[].name.'
+            description: 'NPC name. Either an entry in scene_snapshot.present_npcs[].name, OR an NPC who was on-scene earlier this turn and departs during this turn (mid-turn-departed, so absent from the end-of-turn present_npcs). Match the name exactly as used in the scene.'
         },
         physical: {
             type: 'string',
@@ -401,7 +405,7 @@ const buildAnalysisStepSchema = (options?: { enableStats?: boolean }): Schema =>
         },
         npc_reactions: {
             type: 'array',
-            description: 'EVERY present_npcs entry must appear here, including silent / unconscious / remote-comm NPCs. Missing any present NPC = serious violation. The narrator paraphrases each entry into prose.',
+            description: 'One entry per NPC on-scene DURING THIS STEP: every present_npcs entry still on-scene (incl. silent / unconscious / remote-comm) PLUS any NPC leaving the scene during this step (stage their exit here). Missing an on-scene NPC = serious violation. A mid-turn-departed NPC appears up to and including their exit step, then no longer. The narrator paraphrases each entry into prose.',
             items: npcReactionSchema
         },
         object_reactions: {
