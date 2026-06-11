@@ -66,10 +66,15 @@
     </aside>
 </div>
 
+<!-- @defer keeps phaser/monaco out of the initial bundle until first idle. Its `when`
+     trigger is one-way (won't revert on re-activity), so the inner @if still does the
+     idle mount/unmount that tears down the running game/editor. -->
+@defer (when idleService.showScreensaver()) {
 @if (idleService.showScreensaver()) {
 @if (appConfig.screensaverType() === 'code') {
 <app-code-screensaver />
 } @else {
 <app-space-invaders />
+}
 }
 }

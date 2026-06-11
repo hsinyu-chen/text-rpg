@@ -53,6 +53,11 @@
             "loader": {
               ".ttf": "binary"
             },
+            "allowedCommonJsDependencies": [
+              "phaser",
+              "best-effort-json-parser",
+              "bowser"
+            ],
             "assets": [
               {
                 "glob": "**/*",
