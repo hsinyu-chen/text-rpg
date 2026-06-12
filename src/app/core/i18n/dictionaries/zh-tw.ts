@@ -164,6 +164,7 @@ export const zhTW: TranslationDict = {
         HUNK_PREVIEW_BADGE: 'Patch 預覽（唯讀）',
         HUNK_SAVE_BASE_FIRST: '建立 patch 前請先儲存 prompt 編輯',
         HUNK_OPEN_PATCHES: 'Patch 列表（{{count}}）',
+        HUNK_SELECT_TO_ADD: '在下方編輯器選取文字以新增 patch',
         IDEAL_OUTCOME_FIELD_LABEL: '理想結果（選填，僅 2-call）',
         IDEAL_OUTCOME_FIELD_PLACEHOLDER: '一句話描述本串動作要達成什麼。Resolver 以此逐步判定，遇阻會在該步停下不再續寫。',
         IDEAL_OUTCOME_CHIP_LABEL: '理想結果',

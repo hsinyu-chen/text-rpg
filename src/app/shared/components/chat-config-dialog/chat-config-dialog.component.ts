@@ -142,7 +142,9 @@ export class ChatConfigDialogComponent {
     });
 
     editorOptions = computed(() => ({
-        readOnly: this.profileMgr.isActiveBuiltIn(),
+        // Read-only in patch mode: the shared base editor is then a selection
+        // surface for creating patches, not an editing surface.
+        readOnly: this.profileMgr.isActiveBuiltIn() || this.mode() === 'hunks',
         minimap: { enabled: false },
         wordWrap: 'on' as const,
         lineNumbers: 'on' as const,
@@ -160,7 +162,6 @@ export class ChatConfigDialogComponent {
     // (editable base vs read-only base→effective inline diff).
     mode = signal<'types' | 'hunks'>('types');
     selection = signal<HunkSelection | null>(null);
-    combinedPreview = signal<string>('');
     private pendingCreate = signal(false);
 
     readonly hunkConfig: HunkListConfig = {

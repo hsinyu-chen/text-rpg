@@ -192,18 +192,17 @@
                     <span class="hunk-pane-title" [matTooltip]="activeTypeLabel()">{{ activeTypeLabel() }}</span>
                 </div>
                 <app-hunk-list class="hunk-pane-list" [content]="baseForActive()" [config]="hunkConfig"
-                    [selection]="selection()" [hunks]="hunksForActive()" (hunksChange)="onHunksChange($event)"
-                    (combinedContentChange)="combinedPreview.set($event)">
+                    [selection]="selection()" [hunks]="hunksForActive()" (hunksChange)="onHunksChange($event)">
                 </app-hunk-list>
             </div>
             }
         </div>
 
-        <!-- Editor Container -->
+        <!-- Editor Container: one shared base editor — editable in 'types' mode,
+             read-only selection surface in 'hunks' mode (so scroll + selection
+             carry across the switch). -->
         <div class="editor-container">
-            @if (mode() === 'types') {
-            <!-- Built-in read-only banner -->
-            @if (profileMgr.isActiveBuiltIn()) {
+            @if (mode() === 'types' && profileMgr.isActiveBuiltIn()) {
             <div class="readonly-banner">
                 <mat-icon>lock</mat-icon>
                 <span class="banner-text">{{ 'ui.PROFILE_READONLY_BANNER' | translate }}</span>
@@ -214,8 +213,8 @@
             </div>
             }
 
-            <!-- Open the patch editor directly, or one-click-create from a selection. -->
             <div class="editor-toolbar">
+                @if (mode() === 'types') {
                 <button mat-stroked-button class="open-patches-btn" (click)="enterHunks()"
                     [matTooltip]="'ui.HUNK_OPEN_PATCHES' | translate: { count: patchCount(activeType()) }">
                     <mat-icon>tune</mat-icon>
@@ -228,6 +227,12 @@
                     <mat-icon>add</mat-icon>
                     {{ 'ui.HUNK_CREATE_FROM_SELECTION' | translate }}
                 </button>
+                } @else {
+                <span class="patch-preview-badge">
+                    <mat-icon>edit_note</mat-icon>
+                    {{ 'ui.HUNK_SELECT_TO_ADD' | translate }}
+                </span>
+                }
             </div>
 
             <app-monaco-editor #editorRef [multiModelMode]="true" [files]="injectionFiles()" [activeFile]="activeType()"
@@ -236,7 +241,7 @@
             </app-monaco-editor>
 
             <!-- Problems Panel -->
-            @if (activeType() === 'postprocess' && !validationResult().valid) {
+            @if (mode() === 'types' && activeType() === 'postprocess' && !validationResult().valid) {
             <div class="problems-panel">
                 <mat-icon class="problem-icon">warning</mat-icon>
                 <div class="problem-content">
@@ -244,20 +249,6 @@
                     <span class="problem-msg">{{ validationResult().error }}</span>
                 </div>
             </div>
-            }
-            } @else {
-            <!-- Patch preview: read-only inline diff of base → effective. -->
-            <div class="editor-toolbar">
-                <span class="patch-preview-badge">
-                    <mat-icon>difference</mat-icon>
-                    {{ 'ui.HUNK_PREVIEW_BADGE' | translate }}
-                </span>
-            </div>
-            <app-monaco-editor [isDiff]="true"
-                [options]="{ readOnly: true, renderSideBySide: false, minimap: { enabled: false }, wordWrap: 'on' }"
-                [originalValue]="baseForActive()" [ngModel]="combinedPreview()" language="markdown"
-                (selectionChange)="onEditorSelection($event)">
-            </app-monaco-editor>
             }
         </div>
     </div>
