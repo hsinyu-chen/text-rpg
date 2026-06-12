@@ -54,10 +54,14 @@
           </button>
           }
 
-          <button mat-icon-button class="calibrate-btn" [class.active]="calibratingId() === item.id"
+          @if (calibrateButton(); as tpl) {
+          <ng-container *ngTemplateOutlet="tpl.templateRef; context: calibrateContext(item)"></ng-container>
+          } @else {
+          <button mat-icon-button class="hunk-calibrate-btn" [class.active]="calibratingId() === item.id"
             [matTooltip]="'ui.CALIBRATE_TOOLTIP' | translate" (click)="startCalibration(item); $event.stopPropagation()">
-            <mat-icon class="calibrate-icon">my_location</mat-icon>
+            <mat-icon>my_location</mat-icon>
           </button>
+          }
         </div>
       </div>
 
@@ -68,12 +72,8 @@
         } @else {
         <div class="item-context item-context-empty">{{ 'dialog.hunkRootContext' | translate }}</div>
         }
-        <button mat-icon-button class="copy-raw-btn" [matTooltip]="'dialog.copyRawHunk' | translate"
-          (click)="copyHunkRaw(item); $event.stopPropagation()">
-          <mat-icon>content_copy</mat-icon>
-        </button>
         @if (config().allowCreateFromSelection) {
-        <button mat-icon-button class="copy-raw-btn" [matTooltip]="'ui.HUNK_DELETE' | translate"
+        <button mat-icon-button class="row-action-btn" [matTooltip]="'ui.HUNK_DELETE' | translate"
           (click)="removeHunk(item); $event.stopPropagation()">
           <mat-icon>delete</mat-icon>
         </button>

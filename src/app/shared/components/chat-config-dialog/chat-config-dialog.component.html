@@ -193,6 +193,12 @@
                 </div>
                 <app-hunk-list class="hunk-pane-list" [content]="baseForActive()" [config]="hunkConfig"
                     [selection]="selection()" [hunks]="hunksForActive()" (hunksChange)="onHunksChange($event)">
+                    <ng-template appHunkCalibrateButton let-active="active" let-trigger="trigger">
+                        <button mat-icon-button class="hunk-calibrate-btn" [class.active]="active"
+                            [matTooltip]="'ui.HUNK_EDIT_TOOLTIP' | translate" (click)="trigger($event)">
+                            <mat-icon>edit</mat-icon>
+                        </button>
+                    </ng-template>
                 </app-hunk-list>
             </div>
             }

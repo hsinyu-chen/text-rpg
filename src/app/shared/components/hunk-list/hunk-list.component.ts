@@ -1,6 +1,7 @@
 import {
   Component,
   computed,
+  contentChild,
   effect,
   inject,
   input,
@@ -9,8 +10,8 @@ import {
   signal,
   untracked,
 } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { firstValueFrom } from 'rxjs';
-import { Clipboard } from '@angular/cdk/clipboard';
 import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -33,6 +34,10 @@ import {
   HunkFixPreviewData,
 } from '../auto-update-dialog/hunk-fix-preview-dialog.component';
 import { HunkItem, HunkListConfig, HunkSelection } from './hunk-list.types';
+import {
+  HunkCalibrateButtonContext,
+  HunkCalibrateButtonDirective,
+} from './hunk-calibrate-button.directive';
 
 /**
  * Consecutive LLM repair attempts on a single hunk allowed before the button
@@ -61,6 +66,7 @@ let hunkIdCounter = 0;
     MatProgressSpinnerModule,
     TextFieldModule,
     DragDropModule,
+    NgTemplateOutlet,
     TranslatePipe,
   ],
   templateUrl: './hunk-list.component.html',
@@ -71,9 +77,11 @@ export class HunkListComponent {
   private fileUpdate = inject(FileUpdateService);
   private dialog = inject(MatDialog);
   private snackBar = inject(MatSnackBar);
-  private clipboard = inject(Clipboard);
   private i18n = inject(I18nService);
   private autoFix = inject(HunkAutoFixService);
+
+  /** Optional host-supplied template replacing the default calibrate button. */
+  calibrateButton = contentChild(HunkCalibrateButtonDirective);
 
   readonly maxAutoFixAttempts = MAX_AUTO_FIX_ATTEMPTS;
 
@@ -278,6 +286,18 @@ export class HunkListComponent {
     this.snackBar.open(this.t('calibrationSuccess'), this.i18n.translate('ui.CLOSE'), { duration: 2000 });
   }
 
+  /** Render context for a host-supplied calibrate-button template. */
+  calibrateContext(item: HunkItem): HunkCalibrateButtonContext {
+    return {
+      $implicit: item,
+      active: this.calibratingId() === item.id,
+      trigger: (event?: Event) => {
+        event?.stopPropagation();
+        void this.startCalibration(item);
+      },
+    };
+  }
+
   /** Seed a brand-new hunk from the current selection (prompt-patch entry flow). */
   createFromSelection(): void {
     const sel = this.selection();
@@ -314,19 +334,6 @@ export class HunkListComponent {
           : it,
       ),
     );
-  }
-
-  copyHunkRaw(item: HunkItem): void {
-    const payload = {
-      file: item.filePath,
-      context: item.context ?? [],
-      ...(item.targetContent !== undefined ? { target: item.targetContent } : {}),
-      replacement: item.replacementContent ?? '',
-    };
-    const ok = this.clipboard.copy(JSON.stringify(payload, null, 2));
-    this.snackBar.open(this.t(ok ? 'hunkRawCopied' : 'hunkRawCopyFailed'), this.i18n.translate('ui.CLOSE'), {
-      duration: 2000,
-    });
   }
 
   // --- Auto-fix (gated by config.autofixEnable) ---------------------------

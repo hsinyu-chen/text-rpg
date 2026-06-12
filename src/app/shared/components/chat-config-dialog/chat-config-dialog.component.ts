@@ -9,6 +9,7 @@ import { CORE_MAT } from '@app/shared/material/material-groups';
 import { FormsModule } from '@angular/forms';
 import { MonacoEditorComponent } from '../monaco-editor/monaco-editor.component';
 import { HunkListComponent } from '../hunk-list/hunk-list.component';
+import { HunkCalibrateButtonDirective } from '../hunk-list/hunk-calibrate-button.directive';
 import { HunkListConfig, HunkSelection } from '../hunk-list/hunk-list.types';
 import { FileUpdate } from '@app/core/services/file-update.service';
 import { GameStateService } from '@app/core/services/game-state.service';
@@ -52,6 +53,7 @@ interface PromptCategory {
         FormsModule,
         MonacoEditorComponent,
         HunkListComponent,
+        HunkCalibrateButtonDirective,
         TranslatePipe,
         AppAgentHintDirective
     ],
