@@ -503,7 +503,7 @@ mat-option mat-icon.legacy-profile-warn {
 // The patch editor needs more width than the prompt-type list, so the sidebar
 // widens while in 'hunks' mode (the patch list + calibration panel are cramped
 // at the 250px list width).
-.sidebar.hunks-mode {
+.sidebar.hunks-mode:not(.collapsed) {
     width: 420px;
     min-width: 420px;
     max-width: 92vw;
