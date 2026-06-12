@@ -34,10 +34,7 @@ import {
   HunkFixPreviewData,
 } from '../auto-update-dialog/hunk-fix-preview-dialog.component';
 import { HunkItem, HunkListConfig, HunkSelection } from './hunk-list.types';
-import {
-  HunkCalibrateButtonContext,
-  HunkCalibrateButtonDirective,
-} from './hunk-calibrate-button.directive';
+import { HunkCalibrateContext, HunkCalibrateDirective } from './hunk-calibrate.directive';
 
 /**
  * Consecutive LLM repair attempts on a single hunk allowed before the button
@@ -80,8 +77,8 @@ export class HunkListComponent {
   private i18n = inject(I18nService);
   private autoFix = inject(HunkAutoFixService);
 
-  /** Optional host-supplied template replacing the default calibrate button. */
-  calibrateButton = contentChild(HunkCalibrateButtonDirective);
+  /** Optional host-supplied calibrate customization (button template + panel labels). */
+  calibrateDef = contentChild(HunkCalibrateDirective);
 
   readonly maxAutoFixAttempts = MAX_AUTO_FIX_ATTEMPTS;
 
@@ -287,7 +284,7 @@ export class HunkListComponent {
   }
 
   /** Render context for a host-supplied calibrate-button template. */
-  calibrateContext(item: HunkItem): HunkCalibrateButtonContext {
+  calibrateContext(item: HunkItem): HunkCalibrateContext {
     return {
       $implicit: item,
       active: this.calibratingId() === item.id,

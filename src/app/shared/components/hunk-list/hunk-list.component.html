@@ -54,7 +54,7 @@
           </button>
           }
 
-          @if (calibrateButton(); as tpl) {
+          @if (calibrateDef(); as tpl) {
           <ng-container *ngTemplateOutlet="tpl.templateRef; context: calibrateContext(item)"></ng-container>
           } @else {
           <button mat-icon-button class="hunk-calibrate-btn" [class.active]="calibratingId() === item.id"
@@ -86,7 +86,7 @@
         tabindex="0" role="region">
         <div class="calibration-header">
           <mat-icon>edit_note</mat-icon>
-          <span>{{ 'ui.CALIBRATE_MODE_TITLE' | translate }}</span>
+          <span>{{ (calibrateDef()?.titleKey() ?? 'ui.CALIBRATE_MODE_TITLE') | translate }}</span>
         </div>
 
         @if (selection(); as sel) {
@@ -95,7 +95,7 @@
           <div class="preview-actions">
             <button mat-flat-button color="primary" (click)="applyCalibration(item)">
               <mat-icon>check</mat-icon>
-              {{ 'ui.CALIBRATE_CONFIRM' | translate }}
+              {{ (calibrateDef()?.confirmKey() ?? 'ui.CALIBRATE_CONFIRM') | translate }}
             </button>
           </div>
         </div>
@@ -116,7 +116,7 @@
         </div>
 
         <div class="calibration-footer">
-          <button mat-button color="warn" (click)="cancelCalibration()">{{ 'ui.CALIBRATE_CANCEL' | translate }}</button>
+          <button mat-button color="warn" (click)="cancelCalibration()">{{ (calibrateDef()?.cancelKey() ?? 'ui.CALIBRATE_CANCEL') | translate }}</button>
         </div>
       </div>
       }
