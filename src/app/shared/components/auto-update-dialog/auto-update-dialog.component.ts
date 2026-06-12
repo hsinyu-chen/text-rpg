@@ -1,24 +1,22 @@
-import { Component, effect, inject, signal, viewChild, computed } from '@angular/core';
+import { Component, WritableSignal, computed, inject, signal, viewChild, viewChildren } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { Clipboard } from '@angular/cdk/clipboard';
+import { FormsModule } from '@angular/forms';
 import { MatDialogModule, MAT_DIALOG_DATA, MatDialogRef, MatDialog } from '@angular/material/dialog';
-import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { TextFieldModule } from '@angular/cdk/text-field';
-import { DragDropModule } from '@angular/cdk/drag-drop';
-import { FormsModule } from '@angular/forms';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MonacoEditorComponent } from '../monaco-editor/monaco-editor.component';
-import { FileUpdate } from '@app/core/services/file-update.service';
+import { HunkListComponent } from '../hunk-list/hunk-list.component';
+import { HunkListConfig, HunkSelection } from '../hunk-list/hunk-list.types';
+import { FileUpdate, FileUpdateService } from '@app/core/services/file-update.service';
+import { FileSystemService } from '@app/core/services/file-system.service';
 import { AppConfigStore } from '@app/core/services/app-config-store';
 import { GameStateService } from '@app/core/services/game-state.service';
 import { CORE_MAT } from '@app/shared/material/material-groups';
 import { ConfirmDialogComponent, ConfirmDialogData } from '../confirm-dialog/confirm-dialog.component';
-import { getLocale } from '@app/core/constants/locales';
+import { GAME_INTENTS } from '@app/core/constants/game-intents';
+import { getCoreFilenames } from '@app/core/constants/engine-protocol';
 import { I18nService, TranslatePipe } from '@app/core/i18n';
-import { HunkApplyController, MonacoUpdateItem } from './hunk-apply-controller';
-import { HunkAutoFixService } from './hunk-auto-fix.service';
 
 /**
  * Dialog close payload. The dialog stays pure UI — it composes the per-file
@@ -31,24 +29,34 @@ export interface AutoUpdateResult {
   files: { fileName: string; content: string }[];
 }
 
+/**
+ * One file's editing state. The hunks + combined content are signals so a per-
+ * group `<app-hunk-list>` can two-way bind them; `exists` is false for a file
+ * the save is creating (its hunks render as "new" and never block apply).
+ */
+interface DialogGroup {
+  fileName: string;
+  originalContent: string;
+  exists: boolean;
+  hunks: WritableSignal<FileUpdate[]>;
+  combined: WritableSignal<string>;
+}
+
 @Component({
   selector: 'app-auto-update-dialog',
   standalone: true,
   imports: [
     ...CORE_MAT,
     MatDialogModule,
-    MatCheckboxModule,
     MatTabsModule,
     MatProgressSpinnerModule,
-    TextFieldModule,
-    DragDropModule,
     FormsModule,
     MonacoEditorComponent,
-    TranslatePipe
+    HunkListComponent,
+    TranslatePipe,
   ],
   templateUrl: './auto-update-dialog.component.html',
   styleUrl: './auto-update-dialog.component.scss',
-  providers: [HunkApplyController, HunkAutoFixService]
 })
 export class AutoUpdateDialogComponent {
   public dialogRef = inject<MatDialogRef<AutoUpdateDialogComponent>>(MatDialogRef);
@@ -57,20 +65,32 @@ export class AutoUpdateDialogComponent {
   private gameState = inject(GameStateService);
   private snackBar = inject(MatSnackBar);
   private dialog = inject(MatDialog);
-  private clipboard = inject(Clipboard);
   private i18n = inject(I18nService);
-  hunks = inject(HunkApplyController);
+  private fileUpdate = inject(FileUpdateService);
+  private fileSystem = inject(FileSystemService);
 
   private t(key: string, params?: Record<string, string | number>): string {
     return this.i18n.translate(`dialog.${key}`, params);
   }
 
+  groups = signal<DialogGroup[]>([]);
+  activeIndex = signal(0);
+  selection = signal<HunkSelection | null>(null);
   isInitializing = signal(true);
-  isSidebarOpen = signal(true); // Controls left panel visibility on mobile
+  isSidebarOpen = signal(true);
 
+  private hunkLists = viewChildren(HunkListComponent);
   private monacoEditor = viewChild(MonacoEditorComponent);
 
-  locale = computed(() => getLocale(this.appConfig.outputLanguage()));
+  activeGroup = computed(() => this.groups()[this.activeIndex()] ?? null);
+
+  /** Auto-update keeps every affordance; the new-feature flags stay off. */
+  readonly hunkConfig: HunkListConfig = {
+    autofixEnable: true,
+    selectable: true,
+    dragReorder: true,
+    allowCreateFromSelection: false,
+  };
 
   // A stats Book carries its closing values forward only on the "Apply & new act"
   // path (createNextBook re-folds the old act into the inherited ledger). Applying
@@ -78,72 +98,123 @@ export class AutoUpdateDialogComponent {
   // so that button is hard-disabled here.
   blockApplyCurrentForStats = computed(() => this.gameState.hasStatsYaml());
 
+  hasSelectedUnresolvedError = computed(() => this.hunkLists().some((c) => c.hasSelectedUnresolvedError()));
+  hasFixableErrors = computed(() => this.hunkLists().some((c) => c.hasFixableErrors()));
+  hasSelectedUpdates = computed(() => this.hunkLists().some((c) => c.hasSelectedItems()));
+
   constructor() {
-    this.hunks.bind({
-      scrollEditorTo: (lineNumber) => this.monacoEditor()?.revealLine(lineNumber),
-    });
-    this.hunks.init(this.data.updates);
-    // Drop the loading spinner once the first groupUpdates() pass settles —
-    // success or error. validateAll runs lazily after this and fills per-hunk
-    // status spinners independently.
-    effect(() => {
-      if (this.hunks.groupingComplete()) this.isInitializing.set(false);
-    });
+    void this.init();
+  }
+
+  /** Per-tab error dot: any hunk that can't match this (existing) file. Selection-independent. */
+  hasMismatch(group: DialogGroup): boolean {
+    if (!group.exists) return false;
+    return group.hunks().some((h) => !this.fileUpdate.validateAgainstContent(group.originalContent, h).matched);
   }
 
   toggleSidebar(): void {
     this.isSidebarOpen.update((v) => !v);
   }
 
+  selectGroup(index: number): void {
+    this.activeIndex.set(index);
+  }
+
+  onSelection(event: { text: string; startLineNumber: number; endLineNumber: number } | null): void {
+    this.selection.set(event ? { text: event.text, startLineNumber: event.startLineNumber } : null);
+  }
+
+  onRevealLine(line: number): void {
+    this.monacoEditor()?.revealLine(line);
+  }
+
+  private async init(): Promise<void> {
+    const updates = [...this.data.updates];
+    const lastSceneHunk = this.generateAutoLastSceneHunk(this.data.updates);
+    if (lastSceneHunk) updates.push(lastSceneHunk);
+
+    const map = new Map<string, FileUpdate[]>();
+    for (const update of updates) {
+      if (!map.has(update.filePath)) map.set(update.filePath, []);
+      map.get(update.filePath)!.push(update);
+    }
+
+    const groups: DialogGroup[] = [];
+    for (const [fileName, fileUpdates] of map) {
+      let originalContent = '';
+      let exists = true;
+      try {
+        originalContent = await this.fileSystem.readTextFile(fileName);
+      } catch {
+        exists = false;
+      }
+      const processed = this.fileUpdate.preprocessUpdates(fileUpdates, fileName, originalContent);
+      groups.push({
+        fileName,
+        originalContent,
+        exists,
+        hunks: signal(processed),
+        combined: signal(originalContent),
+      });
+    }
+
+    this.groups.set(groups);
+    this.isInitializing.set(false);
+  }
+
   /**
-   * Copy the raw hunk payload (file / context / target / replacement) as JSON
-   * to the clipboard. UI-only fields (signals, validation status, autoFix
-   * counters, line / preview slices) are stripped — what gets copied matches
-   * the on-the-wire hunk shape so it can be pasted back into a manifest /
-   * issue / debug log.
+   * Story Outline special case: if the save touched the outline, append a
+   * synthetic hunk that records the latest story message as the new last_scene.
    */
-  copyHunkRaw(update: MonacoUpdateItem): void {
-    const payload = {
-      file: update.filePath,
-      context: update.context ?? [],
-      ...(update.targetContent !== undefined ? { target: update.targetContent } : {}),
-      replacement: update.replacementContent ?? '',
-    };
-    const ok = this.clipboard.copy(JSON.stringify(payload, null, 2));
-    this.snackBar.open(
-      this.t(ok ? 'hunkRawCopied' : 'hunkRawCopyFailed'),
-      this.i18n.translate('ui.CLOSE'),
-      { duration: 2000 },
-    );
+  private generateAutoLastSceneHunk(seedUpdates: readonly FileUpdate[]): FileUpdate | null {
+    const lang = this.appConfig.outputLanguage();
+    const names = getCoreFilenames(lang);
+    if (!seedUpdates.some((u) => u.filePath.includes(names.STORY_OUTLINE))) return null;
+
+    const storyIntents = [GAME_INTENTS.ACTION, GAME_INTENTS.CONTINUE, GAME_INTENTS.FAST_FORWARD];
+    const messages = this.gameState.messages();
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
+      if (msg.role === 'model' && !msg.isRefOnly && msg.intent && (storyIntents as string[]).includes(msg.intent) && msg.content) {
+        return this.fileUpdate.generateLastSceneHunk(msg.content, lang);
+      }
+    }
+    return null;
   }
 
   onCancel(): void {
     this.dialogRef.close();
   }
 
-  /**
-   * Per file with at least one selected hunk, the fully-composed content.
-   * `combinedContent` already reflects selection + manual edits + calibration,
-   * so this is a plain read — the dialog never writes; the close result hands
-   * these to the save orchestrator, which owns apply / trace / lock / new-act.
-   */
+  /** Repair every fixable hunk across all files, one group at a time. */
+  async requestAutoFixAll(): Promise<void> {
+    for (const list of this.hunkLists()) {
+      await list.requestAutoFixAll();
+    }
+  }
+
+  /** Each file with at least one selected hunk, with its fully-composed content. */
   private collectSelectedFiles(): AutoUpdateResult['files'] {
-    return this.hunks
-      .groupedUpdates()
-      .filter((g) => g.updates.some((u) => u.selected()))
-      .map((g) => ({ fileName: g.fileName, content: g.combinedContent() }));
+    const lists = this.hunkLists();
+    return this.groups()
+      .map((group, i) => ({ group, selected: lists[i]?.hasSelectedItems() ?? false }))
+      .filter((x) => x.selected)
+      .map((x) => ({ fileName: x.group.fileName, content: x.group.combined() }));
   }
 
   private countSelectedHunks(): number {
-    return this.hunks
-      .groupedUpdates()
-      .reduce((sum, g) => sum + g.updates.filter((u) => u.selected()).length, 0);
+    return this.hunkLists().reduce((sum, list) => sum + list.selectedCount(), 0);
   }
 
-  private async confirmAndClose(mode: AutoUpdateResult['mode'], titleKey: string, bodyKey: string, btnKey: string): Promise<void> {
+  private async confirmAndClose(
+    mode: AutoUpdateResult['mode'],
+    titleKey: string,
+    bodyKey: string,
+    btnKey: string,
+  ): Promise<void> {
     // Backstop for the disabled apply buttons — also blocks any programmatic
     // path that reaches here with a selected-but-unresolved hunk.
-    if (this.hunks.hasSelectedUnresolvedError()) {
+    if (this.hasSelectedUnresolvedError()) {
       this.snackBar.open(this.t('saveBlockedUnresolved'), this.i18n.translate('ui.CLOSE'), { duration: 3000 });
       return;
     }

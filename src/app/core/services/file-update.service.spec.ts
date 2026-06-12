@@ -191,4 +191,36 @@ describe('FileUpdateService', () => {
       expect(res.matched).toBe(false);
     });
   });
+
+  describe('applyUpdateToFile', () => {
+    it('replaces the matched target with the replacement', () => {
+      const content = ['# A', 'old line', '# B'].join('\n');
+      const out = service.applyUpdateToFile(content, {
+        filePath: 'x', targetContent: 'old line', replacementContent: 'new line',
+      });
+      expect(out).toBe(['# A', 'new line', '# B'].join('\n'));
+    });
+
+    it('deletes the matched target when replacement is undefined', () => {
+      const content = ['# A', 'remove me', '# B'].join('\n');
+      const out = service.applyUpdateToFile(content, { filePath: 'x', targetContent: 'remove me' });
+      expect(out).toBe(['# A', '', '# B'].join('\n'));
+    });
+
+    it('inserts a replacement-only hunk at the section boundary', () => {
+      const content = ['# A', 'body', '# B', 'b2'].join('\n');
+      const out = service.applyUpdateToFile(content, {
+        filePath: 'x', replacementContent: 'inserted', context: ['A'],
+      });
+      expect(out).toBe(['# A', 'body', 'inserted', '# B', 'b2'].join('\n'));
+    });
+
+    it('returns content unchanged when the target is not found', () => {
+      const content = '# A\nbody';
+      const out = service.applyUpdateToFile(content, {
+        filePath: 'x', targetContent: 'absent', replacementContent: 'x',
+      });
+      expect(out).toBe(content);
+    });
+  });
 });

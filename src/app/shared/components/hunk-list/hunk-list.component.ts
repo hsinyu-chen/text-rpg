@@ -1,6 +1,5 @@
 import {
   Component,
-  WritableSignal,
   computed,
   effect,
   inject,
@@ -66,6 +65,7 @@ let hunkIdCounter = 0;
   ],
   templateUrl: './hunk-list.component.html',
   styleUrl: './hunk-list.component.scss',
+  providers: [HunkAutoFixService],
 })
 export class HunkListComponent {
   private fileUpdate = inject(FileUpdateService);
@@ -165,6 +165,8 @@ export class HunkListComponent {
   hasFixableErrors = computed(() => this.items().some((u) => this.canAutoFix(u)));
 
   hasSelectedItems = computed(() => this.items().some((u) => this.isSelected(u)));
+
+  selectedCount = computed(() => this.items().filter((u) => this.isSelected(u)).length);
 
   constructor() {
     // Reseed internal items when the host pushes a NEW hunk array (ignore the

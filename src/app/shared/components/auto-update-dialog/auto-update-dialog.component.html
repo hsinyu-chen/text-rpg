@@ -12,22 +12,20 @@
         <mat-spinner diameter="48"></mat-spinner>
         <span>{{ 'dialog.loadingFilesUpdates' | translate }}</span>
     </div>
-    } @else if (hunks.groupedUpdates().length > 0) {
+    } @else if (groups().length > 0) {
     <!-- Mat Tab Nav Bar (navigation mode - single editor reused) -->
     <nav mat-tab-nav-bar [tabPanel]="tabPanel" class="file-nav-bar">
-        @for (group of hunks.groupedUpdates(); track group.fileName; let i = $index) {
+        @for (group of groups(); track group.fileName; let i = $index) {
         <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -->
-        <a mat-tab-link [active]="hunks.activeGroupIndex() === i" [class.error-tab]="hunks.hasMismatch(group)"
-            (click)="hunks.selectGroup(i)">
+        <a mat-tab-link [active]="activeIndex() === i" [class.error-tab]="hasMismatch(group)"
+            (click)="selectGroup(i)">
             {{ group.fileName }}
         </a>
         }
     </nav>
     <mat-tab-nav-panel #tabPanel>
-        <!-- Single content area for active group -->
-        @if (hunks.activeGroup(); as group) {
         <div class="split-view-container">
-            <!-- Left: Update List -->
+            <!-- Left: Per-file hunk list (one kept-alive instance per file) -->
             <div class="update-list-pane" [class.collapsed]="!isSidebarOpen()">
                 <div class="pane-header">
                     <h3>{{ 'dialog.hunksInFile' | translate }}</h3>
@@ -35,136 +33,17 @@
                         <mat-icon>{{ isSidebarOpen() ? 'chevron_left' : 'menu' }}</mat-icon>
                     </button>
                 </div>
-                <div class="list-items" cdkDropList (cdkDropListDropped)="hunks.onDrop(group, $event)">
-                    @for (update of group.updates; track update.id; let j = $index) {
-                    <div class="update-item" cdkDrag [class.active]="hunks.activeUpdate()?.id === update.id"
-                        (click)="hunks.selectUpdate(update)" (keydown.enter)="hunks.selectUpdate(update)" tabindex="0">
-
-                        <div class="item-header">
-                            <!-- Drag Handle -->
-                            <mat-icon class="drag-handle" cdkDragHandle>drag_indicator</mat-icon>
-                            <!-- Helper wrapper to intercept clicks before they reach the checkbox logic -->
-                            <div class="checkbox-wrapper" (click)="hunks.onCheckboxClick(group, update, $event)"
-                                (keydown.enter)="hunks.onCheckboxClick(group, update, $event)" tabindex="0" role="checkbox"
-                                [attr.aria-checked]="update.selected()">
-                                <mat-checkbox [checked]="update.selected()"
-                                    style="pointer-events: none; touch-action: none;">
-                                </mat-checkbox>
-                            </div>
-                            <span class="update-label">{{ update.label || 'Hunk #' + (j + 1) }}</span>
-
-                            <!-- Status Icon -->
-                            <div class="status-container">
-                                @if (update.status) {
-                                @if (update.status.validating) {
-                                <mat-spinner diameter="16"></mat-spinner>
-                                } @else if (!update.status.exists) {
-                                <mat-icon class="status-icon info" [matTooltip]="'dialog.newFile' | translate">fiber_new</mat-icon>
-                                } @else if (update.status.matched) {
-                                <mat-icon class="status-icon success" [matTooltip]="'dialog.matchFound' | translate">check_circle</mat-icon>
-                                } @else {
-                                <mat-icon class="status-icon warning"
-                                    [matTooltip]="(update.status.failReason === 'context_mismatch' ? 'dialog.contextMismatch' : 'dialog.targetNotFound') | translate">warning</mat-icon>
-                                }
-
-                                <!-- LLM Auto-Fix Action — visible only on target_not_found until attempts saturate -->
-                                @if (hunks.canAutoFix(update)) {
-                                <button mat-icon-button class="auto-fix-btn"
-                                    [matTooltip]="'dialog.autoFixTooltip' | translate"
-                                    [disabled]="update.autoFixInProgress()"
-                                    (click)="hunks.requestAutoFix(update, group); $event.stopPropagation()">
-                                    @if (update.autoFixInProgress()) {
-                                        <mat-spinner diameter="18"></mat-spinner>
-                                    } @else {
-                                        <mat-icon>auto_fix_high</mat-icon>
-                                    }
-                                </button>
-                                }
-
-                                <!-- Calibration Action -->
-                                <button mat-icon-button class="calibrate-btn"
-                                    [class.active]="hunks.calibratingUpdateId() === update.id"
-                                    [matTooltip]="'ui.CALIBRATE_TOOLTIP' | translate"
-                                    (click)="hunks.startCalibration(update); $event.stopPropagation()">
-                                    <mat-icon class="calibrate-icon">my_location</mat-icon>
-                                </button>
-                                }
-                            </div>
-                        </div>
-
-                        @if(hunks.calibratingUpdateId() !== update.id) {
-                        <div class="item-context-row">
-                            @if(update.context && update.context.length) {
-                                <div class="item-context" [matTooltip]="update.context.join(' > ')">
-                                    {{ update.context.join(' > ') }}
-                                </div>
-                            } @else {
-                                <div class="item-context item-context-empty">{{ 'dialog.hunkRootContext' | translate }}</div>
-                            }
-                            <button mat-icon-button class="copy-raw-btn"
-                                [matTooltip]="'dialog.copyRawHunk' | translate"
-                                (click)="copyHunkRaw(update); $event.stopPropagation()">
-                                <mat-icon>content_copy</mat-icon>
-                            </button>
-                        </div>
-                        }
-
-                        <!-- Calibration Panel (Accordion) -->
-                        @if(hunks.calibratingUpdateId() === update.id) {
-                        <div class="calibration-panel" (click)="$event.stopPropagation()"
-                            (keydown.enter)="$event.stopPropagation()" tabindex="0" role="region">
-                            <div class="calibration-header">
-                                <mat-icon>edit_note</mat-icon>
-                                <span>{{ 'ui.CALIBRATE_MODE_TITLE' | translate }}</span>
-                            </div>
-
-                            <!-- LIVE SELECTION PREVIEW -->
-                            @if(hunks.currentSelection(); as selection) {
-                            <div class="selection-preview pulse">
-                                <div class="preview-text">{{ selection.text }}</div>
-                                <div class="preview-actions">
-                                    <button mat-flat-button color="primary" size="small"
-                                        (click)="hunks.applyCalibration(update)">
-                                        <mat-icon>check</mat-icon>
-                                        {{ 'ui.CALIBRATE_CONFIRM' | translate }}
-                                    </button>
-                                    <button mat-icon-button (click)="hunks.currentSelection.set(null)">
-                                        <mat-icon>close</mat-icon>
-                                    </button>
-                                </div>
-                            </div>
-                            }
-
-                            <!-- MANUAL TEXT AREAS (Fallback) -->
-                            <div class="hunk-edit-group">
-                                <label class="hunk-label" [attr.for]="'target-' + update.id">{{ 'dialog.targetLabel' | translate }}</label>
-                                <textarea [id]="'target-' + update.id" cdkTextareaAutosize [value]="update.targetContent || ''"
-                                    (input)="hunks.onHunkContentChange(update, 'target', $event)"
-                                    class="hunk-textarea"
-                                    [placeholder]="'dialog.targetPlaceholder' | translate"></textarea>
-                            </div>
-
-                            <div class="hunk-edit-group">
-                                <label class="hunk-label" [attr.for]="'replacement-' + update.id">{{ 'dialog.replacementLabel' | translate }}</label>
-                                <textarea [id]="'replacement-' + update.id" cdkTextareaAutosize [value]="update.replacementContent || ''"
-                                    (input)="hunks.onHunkContentChange(update, 'replacement', $event)"
-                                    class="hunk-textarea"
-                                    [placeholder]="'dialog.replacementPlaceholder' | translate"></textarea>
-                            </div>
-
-                            <div class="calibration-footer">
-                                <button mat-button color="warn" (click)="hunks.cancelCalibration()">
-                                    {{ 'ui.CALIBRATE_CANCEL' | translate }}
-                                </button>
-                            </div>
-                        </div>
-                        }
-                    </div>
-                    }
-                </div>
+                @for (group of groups(); track group.fileName; let i = $index) {
+                <app-hunk-list [hidden]="activeIndex() !== i" [content]="group.originalContent"
+                    [sourceExists]="group.exists" [hunks]="group.hunks()" (hunksChange)="group.hunks.set($event)"
+                    [combinedContent]="group.combined()" (combinedContentChange)="group.combined.set($event)"
+                    [selection]="activeIndex() === i ? selection() : null" [config]="hunkConfig"
+                    (revealLine)="onRevealLine($event)">
+                </app-hunk-list>
+                }
             </div>
 
-            <!-- Right: Editor Pane (SINGLE EDITOR - value replaced on tab switch) -->
+            <!-- Right: Editor Pane (SINGLE EDITOR - value swapped on tab switch) -->
             <div class="editor-pane">
                 <div class="editor-header">
                     <button mat-icon-button class="mobile-menu-toggle" (click)="toggleSidebar()">
@@ -177,16 +56,15 @@
                 </div>
 
                 <div class="monaco-wrapper">
-                    <app-monaco-editor [isDiff]="true" [originalValue]="group.originalContent()"
-                        [ngModel]="group.combinedContent()"
-                        (ngModelChange)="group.combinedContent.set($event)"
-                        language="markdown" [options]="{readOnly: false}"
-                        (selectionChange)="hunks.onMonacoSelectionChange($event)">
+                    @if (activeGroup(); as group) {
+                    <app-monaco-editor [isDiff]="true" [originalValue]="group.originalContent"
+                        [ngModel]="group.combined()" (ngModelChange)="group.combined.set($event)" language="markdown"
+                        [options]="{readOnly: false}" (selectionChange)="onSelection($event)">
                     </app-monaco-editor>
+                    }
                 </div>
             </div>
         </div>
-        }
     </mat-tab-nav-panel>
     } @else {
     <div class="no-updates">{{ 'dialog.noUpdates' | translate }}</div>
@@ -194,7 +72,7 @@
 </mat-dialog-content>
 
 <mat-dialog-actions align="end">
-    @if (hunks.hasSelectedUnresolvedError()) {
+    @if (hasSelectedUnresolvedError()) {
     <span class="save-block-warning">
         <mat-icon>warning</mat-icon>
         {{ 'dialog.saveBlockedUnresolved' | translate }}
@@ -206,21 +84,21 @@
     </span>
     }
     <button mat-button (click)="onCancel()">{{ 'dialog.cancel' | translate }}</button>
-    @if (hunks.hasFixableErrors()) {
-    <button mat-stroked-button color="warn" (click)="hunks.requestAutoFixAll()"
+    @if (hasFixableErrors()) {
+    <button mat-stroked-button color="warn" (click)="requestAutoFixAll()"
         [matTooltip]="'dialog.autoFixAllTooltip' | translate">
         <mat-icon>auto_fix_high</mat-icon>
         {{ 'dialog.autoFixAll' | translate }}
     </button>
     }
     <button mat-stroked-button color="accent" disabledInteractive (click)="onApplyCurrent()"
-        [disabled]="!hunks.hasSelectedUpdates() || hunks.hasSelectedUnresolvedError() || blockApplyCurrentForStats()"
-        [matTooltip]="(blockApplyCurrentForStats() ? 'dialog.applyToActStatsBlocked' : hunks.hasSelectedUnresolvedError() ? 'dialog.saveBlockedUnresolved' : 'dialog.applyToActTooltip') | translate">
+        [disabled]="!hasSelectedUpdates() || hasSelectedUnresolvedError() || blockApplyCurrentForStats()"
+        [matTooltip]="(blockApplyCurrentForStats() ? 'dialog.applyToActStatsBlocked' : hasSelectedUnresolvedError() ? 'dialog.saveBlockedUnresolved' : 'dialog.applyToActTooltip') | translate">
         {{ 'dialog.applyToAct' | translate }}
     </button>
     <button mat-flat-button color="primary" disabledInteractive (click)="onApplyNewAct()"
-        [disabled]="!hunks.hasSelectedUpdates() || hunks.hasSelectedUnresolvedError()"
-        [matTooltip]="(hunks.hasSelectedUnresolvedError() ? 'dialog.saveBlockedUnresolved' : 'dialog.applyNewActTooltip') | translate">
+        [disabled]="!hasSelectedUpdates() || hasSelectedUnresolvedError()"
+        [matTooltip]="(hasSelectedUnresolvedError() ? 'dialog.saveBlockedUnresolved' : 'dialog.applyNewActTooltip') | translate">
         {{ 'dialog.applyNewAct' | translate }}
     </button>
 </mat-dialog-actions>
