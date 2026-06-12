@@ -383,6 +383,35 @@ body.agent-panel-pip {
     }
 }
 
+// Shared calibrate button for <app-hunk-list>: the default lives in the list,
+// but hosts may project their own (chat-config uses an "edit" icon). Global so
+// the projected button, scoped to the host's encapsulation, still picks it up.
+.hunk-calibrate-btn.mat-mdc-icon-button {
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    line-height: 24px;
+    padding: 0;
+    color: #6366f1;
+    opacity: 0.7;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+
+    .mat-icon {
+        font-size: 16px;
+        width: 16px;
+        height: 16px;
+        margin: 0;
+        line-height: 16px;
+    }
+
+    &:hover {
+        opacity: 1;
+        background: rgba(99, 102, 241, 0.1);
+    }
+}
+
 .gradient-btn-blue.mat-mdc-button-base {
     @include gradient-outline-btn(linear-gradient(45deg, #4facfe 0%, #00f2fe 100%));
 }

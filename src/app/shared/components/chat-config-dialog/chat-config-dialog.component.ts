@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, viewChild } from '@angular/core';
+import { Component, effect, inject, signal, computed, viewChild } from '@angular/core';
 import { WINDOW } from '@app/core/tokens/window.token';
 import { MatDialogModule, MatDialogRef, MatDialog } from '@angular/material/dialog';
 import { MatListModule } from '@angular/material/list';
@@ -8,13 +8,17 @@ import { MatDividerModule } from '@angular/material/divider';
 import { CORE_MAT } from '@app/shared/material/material-groups';
 import { FormsModule } from '@angular/forms';
 import { MonacoEditorComponent } from '../monaco-editor/monaco-editor.component';
+import { HunkListComponent } from '../hunk-list/hunk-list.component';
+import { HunkCalibrateDirective } from '../hunk-list/hunk-calibrate.directive';
+import { HunkListConfig, HunkSelection } from '../hunk-list/hunk-list.types';
+import { FileUpdate } from '@app/core/services/file-update.service';
 import { GameStateService } from '@app/core/services/game-state.service';
 import { AppConfigStore } from '@app/core/services/app-config-store';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { GAME_INTENTS } from '@app/core/constants/game-intents';
 import { I18nService, TranslatePipe } from '@app/core/i18n';
 import { PostProcessorService } from '@app/core/services/post-processor.service';
-import { InjectionService, PromptType } from '@app/core/services/injection.service';
+import { ALL_PROMPT_TYPES, InjectionService, PromptType } from '@app/core/services/injection.service';
 import { LoadingService } from '@app/core/services/loading.service';
 import { DialogService } from '@app/core/services/dialog.service';
 import { PromptDiffDialogComponent } from '../prompt-diff-dialog/prompt-diff-dialog.component';
@@ -48,6 +52,8 @@ interface PromptCategory {
         MatBadgeModule,
         FormsModule,
         MonacoEditorComponent,
+        HunkListComponent,
+        HunkCalibrateDirective,
         TranslatePipe,
         AppAgentHintDirective
     ],
@@ -70,6 +76,8 @@ export class ChatConfigDialogComponent {
     profileMgr = inject(ProfileManagementController);
 
     editorRef = viewChild<MonacoEditorComponent>('editorRef');
+    diffRef = viewChild<MonacoEditorComponent>('diffRef');
+    hunkListRef = viewChild(HunkListComponent);
 
     constructor() {
         this.profileMgr.bind({
@@ -78,6 +86,16 @@ export class ChatConfigDialogComponent {
             refreshEditorContent: () => this.refreshAllEditorContent(),
         });
         void this.profileMgr.refreshLegacyProfileIds();
+
+        // Once the patch editor mounts after a "create patch" request, hand the
+        // carried selection to it so the new patch opens straight into editing.
+        effect(() => {
+            const list = this.hunkListRef();
+            if (this.pendingCreate() && list) {
+                this.pendingCreate.set(false);
+                list.createFromSelection();
+            }
+        });
     }
 
     readonly injectionTypes = computed((): InjectionType[] => {
@@ -117,24 +135,12 @@ export class ChatConfigDialogComponent {
     dirtyState = signal<Map<string, boolean>>(new Map());
     validationResult = signal<{ valid: boolean, error?: string }>({ valid: true });
 
+    // BASE text (not the hunk-applied effective signals) — the editor edits the
+    // un-patched prompt; local hunk patches are a separate overlay.
     injectionFiles = computed(() => {
+        const base = this.state.promptBaseContent();
         const files = new Map<string, string>();
-        files.set('action', this.state.dynamicActionInjection());
-        files.set('continue', this.state.dynamicContinueInjection());
-        files.set('fastforward', this.state.dynamicFastforwardInjection());
-        files.set('system', this.state.dynamicSystemInjection());
-        files.set('system_main', this.state.dynamicSystemMainInjection());
-        files.set('protocol_single', this.state.dynamicProtocolSingleInjection());
-        files.set('protocol_resolver', this.state.dynamicProtocolResolverInjection());
-        files.set('protocol_narrator', this.state.dynamicProtocolNarratorInjection());
-        files.set('correction', this.state.dynamicCorrectionInjection());
-        files.set('postprocess', this.state.postProcessScript());
-        files.set('save_manifest', this.state.dynamicSaveManifestInjection());
-        files.set('save_inventory_consistency', this.state.dynamicSaveInventoryConsistencyInjection());
-        files.set('save_character_state', this.state.dynamicSaveCharacterStateInjection());
-        files.set('save_faction_state', this.state.dynamicSaveFactionStateInjection());
-        files.set('save_character_triage', this.state.dynamicSaveCharacterTriageInjection());
-        files.set('save_faction_triage', this.state.dynamicSaveFactionTriageInjection());
+        for (const id of ALL_PROMPT_TYPES) files.set(id, base.get(id) ?? '');
         return files;
     });
 
@@ -146,10 +152,101 @@ export class ChatConfigDialogComponent {
         language: this.activeType() === 'postprocess' ? 'javascript' : 'markdown'
     }));
 
+    // Patch mode shows a read-only base→effective diff. Inline (not side-by-side):
+    // the pane is narrow and Monaco collapses side-by-side to inline below ~900px
+    // anyway; selection then lands on the modified editor (see MonacoEditor).
+    readonly diffOptions = {
+        renderSideBySide: false,
+        minimap: { enabled: false },
+        wordWrap: 'on' as const,
+        lineNumbers: 'on' as const,
+    };
+
+    diffLanguage = computed(() => this.activeType() === 'postprocess' ? 'javascript' : 'markdown');
+
+    effectiveForActive = computed(() => this.injection.getEffectiveContentForType(this.activeType() as PromptType));
+
     activeTypeLabel = computed(() => {
         const type = this.injectionTypes().find(t => t.id === this.activeType());
         return type?.label || '';
     });
+
+    // ===== Local hunk patches (Part B) =====
+    // The left sidebar switches between the prompt-type list ('types') and the
+    // active type's patch editor ('hunks'); the right editor mirrors the switch
+    // (editable base vs read-only base→effective inline diff).
+    mode = signal<'types' | 'hunks'>('types');
+    selection = signal<HunkSelection | null>(null);
+    private pendingCreate = signal(false);
+    /** Base-editor cursor line captured on entry, scrolled to once the diff mounts. */
+    private pendingScrollLine = signal<number | null>(null);
+
+    readonly hunkConfig: HunkListConfig = {
+        allowCreateFromSelection: true,
+        autofixEnable: false,
+        dragReorder: false,
+    };
+
+    baseForActive = computed(() => this.injection.getContentForType(this.activeType() as PromptType));
+    hunksForActive = computed(() => this.injection.getHunks(this.activeType() as PromptType));
+
+    patchCount(type: InjectionType['id']): number {
+        return this.injection.hunkCounts.get(type) ?? 0;
+    }
+
+    enterHunks(type?: InjectionType['id']): void {
+        if (type) this.activeType.set(type);
+        this.captureScrollLine();
+        this.selection.set(null);
+        this.mode.set('hunks');
+    }
+
+    exitHunks(): void {
+        // Carry the diff's scroll back to the base editor so returning lands where
+        // you were reading, not where you left on entry.
+        const line = this.diffRef()?.getTopVisibleLine() ?? null;
+        this.mode.set('types');
+        this.selection.set(null);
+        if (line != null) this.editorRef()?.revealLine(line);
+    }
+
+    /** Snapshot the base editor's cursor line so the diff can scroll there on mount. */
+    private captureScrollLine(): void {
+        this.pendingScrollLine.set(this.editorRef()?.getCursorLine() ?? null);
+    }
+
+    /** Once the patch-mode diff editor is ready, scroll it to the captured line. */
+    revealPendingScroll(): void {
+        const line = this.pendingScrollLine();
+        if (line == null) return;
+        this.diffRef()?.revealLine(line);
+        this.pendingScrollLine.set(null);
+    }
+
+    /** Clicking a patch in the list scrolls the diff to its applied position. */
+    onHunkRevealLine(line: number): void {
+        this.diffRef()?.revealLine(line);
+    }
+
+    onEditorSelection(event: { text: string; startLineNumber: number; endLineNumber: number } | null): void {
+        this.selection.set(event ? { text: event.text, startLineNumber: event.startLineNumber } : null);
+    }
+
+    async onHunksChange(hunks: FileUpdate[]): Promise<void> {
+        await this.injection.setHunks(this.activeType() as PromptType, hunks);
+    }
+
+    /**
+     * One-click from a base-editor selection: switch to the patch editor (keeping
+     * the selection) and let the just-mounted <app-hunk-list> seed + open the new
+     * patch via the effect above.
+     */
+    createPatchFromSelection(): void {
+        if (!this.selection()) return;
+        this.captureScrollLine();
+        this.pendingCreate.set(true);
+        this.mode.set('hunks');
+    }
 
     getIsDirty(type: string): boolean {
         return !!this.dirtyState().get(type);

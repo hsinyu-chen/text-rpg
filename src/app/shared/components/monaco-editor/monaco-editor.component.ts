@@ -72,7 +72,7 @@ export class MonacoEditorComponent implements OnDestroy, ControlValueAccessor {
     initialized = output<import('monaco-editor').editor.IStandaloneCodeEditor | import('monaco-editor').editor.IStandaloneDiffEditor>();
     valueChange = output<string>();
     activeFileChange = output<string>();
-    /** Emitted when text is selected in the ORIGINAL editor (left pane in diff mode) */
+    /** Emitted on selection: the original (left) editor in side-by-side diff, the modified editor in inline diff, else the plain editor. */
     selectionChange = output<{ text: string, startLineNumber: number, endLineNumber: number } | null>();
 
     private editor: import('monaco-editor').editor.IStandaloneCodeEditor | import('monaco-editor').editor.IStandaloneDiffEditor | null = null;
@@ -226,26 +226,12 @@ export class MonacoEditorComponent implements OnDestroy, ControlValueAccessor {
                     .onDidChangeModel(() => bindModifiedListener())
             );
 
-            // [NEW] Listen for selection changes in the ORIGINAL editor (left pane)
-            const originalEditor = (this.editor as import('monaco-editor').editor.IStandaloneDiffEditor).getOriginalEditor();
-
-            const handleSelectionFinished = () => {
-                const selection = originalEditor.getSelection();
-                const model = originalEditor.getModel();
-                if (selection && model && !selection.isEmpty()) {
-                    const text = model.getValueInRange(selection);
-                    this.selectionChange.emit({
-                        text,
-                        startLineNumber: selection.startLineNumber,
-                        endLineNumber: selection.endLineNumber
-                    });
-                } else {
-                    this.selectionChange.emit(null);
-                }
-            };
-
-            this.disposables.push(originalEditor.onMouseUp(() => handleSelectionFinished()));
-            this.disposables.push(originalEditor.onKeyUp(() => handleSelectionFinished()));
+            // Selection drives hunk calibration. Side-by-side keeps the base on
+            // the original (left) editor; inline collapses the original pane, so
+            // the modified (visible) editor is the only selectable surface.
+            const diffEditor = this.editor as import('monaco-editor').editor.IStandaloneDiffEditor;
+            const inline = (finalOptions as { renderSideBySide?: boolean }).renderSideBySide === false;
+            this.attachSelectionListeners(inline ? diffEditor.getModifiedEditor() : diffEditor.getOriginalEditor());
         } else {
             this.editor = monaco.editor.create(el, {
                 ...finalOptions,
@@ -276,6 +262,10 @@ export class MonacoEditorComponent implements OnDestroy, ControlValueAccessor {
             (this.editor as import('monaco-editor').editor.IStandaloneCodeEditor).onDidBlurEditorText(() => {
                 this._onTouched();
             });
+
+            // Same selection capture as the diff editor, so a plain/multi-model
+            // editor can also drive hunk calibration.
+            this.attachSelectionListeners(this.editor as import('monaco-editor').editor.IStandaloneCodeEditor);
         }
 
         // Always use our ResizeObserver with explicit dimensions to prevent DiffEditor collapse
@@ -293,6 +283,25 @@ export class MonacoEditorComponent implements OnDestroy, ControlValueAccessor {
         if (this.editor) {
             this.initialized.emit(this.editor);
         }
+    }
+
+    /** Emit selectionChange from a code editor (the plain editor, or the diff's original/modified pane per render mode). */
+    private attachSelectionListeners(codeEditor: import('monaco-editor').editor.IStandaloneCodeEditor): void {
+        const emit = () => {
+            const selection = codeEditor.getSelection();
+            const model = codeEditor.getModel();
+            if (selection && model && !selection.isEmpty()) {
+                this.selectionChange.emit({
+                    text: model.getValueInRange(selection),
+                    startLineNumber: selection.startLineNumber,
+                    endLineNumber: selection.endLineNumber,
+                });
+            } else {
+                this.selectionChange.emit(null);
+            }
+        };
+        this.disposables.push(codeEditor.onMouseUp(() => emit()));
+        this.disposables.push(codeEditor.onKeyUp(() => emit()));
     }
 
     private updateDiffModels(original: string, modified: string) {
@@ -494,6 +503,32 @@ export class MonacoEditorComponent implements OnDestroy, ControlValueAccessor {
     /** Get all file names in multi-model mode */
     getFileNames(): string[] {
         return Array.from(this.multiModelMap.keys());
+    }
+
+    /**
+     * The 1-indexed line of the primary cursor (the modified side in diff mode),
+     * or null if the editor isn't ready — lets a host capture scroll position
+     * before swapping this editor for another.
+     */
+    getCursorLine(): number | null {
+        if (!this.editor) return null;
+        const codeEditor = this.isAnyDiff
+            ? (this.editor as import('monaco-editor').editor.IStandaloneDiffEditor).getModifiedEditor()
+            : (this.editor as import('monaco-editor').editor.IStandaloneCodeEditor);
+        return codeEditor.getPosition()?.lineNumber ?? null;
+    }
+
+    /**
+     * The top visible line (1-indexed; the modified side in diff mode), or null —
+     * captures scroll position so a host can carry it to another editor.
+     */
+    getTopVisibleLine(): number | null {
+        if (!this.editor) return null;
+        const codeEditor = this.isAnyDiff
+            ? (this.editor as import('monaco-editor').editor.IStandaloneDiffEditor).getModifiedEditor()
+            : (this.editor as import('monaco-editor').editor.IStandaloneCodeEditor);
+        const ranges = codeEditor.getVisibleRanges();
+        return ranges.length ? ranges[0].startLineNumber : null;
     }
 
     /**

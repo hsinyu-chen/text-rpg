@@ -54,10 +54,14 @@
           </button>
           }
 
-          <button mat-icon-button class="calibrate-btn" [class.active]="calibratingId() === item.id"
+          @if (calibrateDef(); as tpl) {
+          <ng-container *ngTemplateOutlet="tpl.templateRef; context: calibrateContext(item)"></ng-container>
+          } @else {
+          <button mat-icon-button class="hunk-calibrate-btn" [class.active]="calibratingId() === item.id"
             [matTooltip]="'ui.CALIBRATE_TOOLTIP' | translate" (click)="startCalibration(item); $event.stopPropagation()">
-            <mat-icon class="calibrate-icon">my_location</mat-icon>
+            <mat-icon>my_location</mat-icon>
           </button>
+          }
         </div>
       </div>
 
@@ -68,12 +72,8 @@
         } @else {
         <div class="item-context item-context-empty">{{ 'dialog.hunkRootContext' | translate }}</div>
         }
-        <button mat-icon-button class="copy-raw-btn" [matTooltip]="'dialog.copyRawHunk' | translate"
-          (click)="copyHunkRaw(item); $event.stopPropagation()">
-          <mat-icon>content_copy</mat-icon>
-        </button>
         @if (config().allowCreateFromSelection) {
-        <button mat-icon-button class="copy-raw-btn" [matTooltip]="'ui.HUNK_DELETE' | translate"
+        <button mat-icon-button class="row-action-btn" [matTooltip]="'ui.HUNK_DELETE' | translate"
           (click)="removeHunk(item); $event.stopPropagation()">
           <mat-icon>delete</mat-icon>
         </button>
@@ -86,7 +86,7 @@
         tabindex="0" role="region">
         <div class="calibration-header">
           <mat-icon>edit_note</mat-icon>
-          <span>{{ 'ui.CALIBRATE_MODE_TITLE' | translate }}</span>
+          <span>{{ (calibrateDef()?.titleKey() ?? 'ui.CALIBRATE_MODE_TITLE') | translate }}</span>
         </div>
 
         @if (selection(); as sel) {
@@ -95,7 +95,7 @@
           <div class="preview-actions">
             <button mat-flat-button color="primary" (click)="applyCalibration(item)">
               <mat-icon>check</mat-icon>
-              {{ 'ui.CALIBRATE_CONFIRM' | translate }}
+              {{ (calibrateDef()?.confirmKey() ?? 'ui.CALIBRATE_CONFIRM') | translate }}
             </button>
           </div>
         </div>
@@ -116,7 +116,7 @@
         </div>
 
         <div class="calibration-footer">
-          <button mat-button color="warn" (click)="cancelCalibration()">{{ 'ui.CALIBRATE_CANCEL' | translate }}</button>
+          <button mat-button color="warn" (click)="cancelCalibration()">{{ (calibrateDef()?.cancelKey() ?? 'ui.CALIBRATE_CANCEL') | translate }}</button>
         </div>
       </div>
       }

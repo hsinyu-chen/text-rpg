@@ -16,14 +16,14 @@
             <button mat-raised-button color="primary" (click)="saveCurrent()"
                 [disabled]="!getIsDirty(activeType()) || profileMgr.isActiveBuiltIn()" [matTooltip]="'ui.SAVE' | translate"
                 appAgentHint="chat-input/chat-config/save-current">
-                <mat-icon>save</mat-icon> {{ 'ui.SAVE' | translate }}
+                <mat-icon>save</mat-icon> <span class="action-label">{{ 'ui.SAVE' | translate }}</span>
             </button>
 
             <!-- Save All -->
             <button mat-stroked-button color="primary" (click)="saveAll()"
                 [disabled]="!hasAnyDirty() || profileMgr.isActiveBuiltIn()" [matTooltip]="'ui.SAVE_ALL' | translate"
                 appAgentHint="chat-input/chat-config/save-all">
-                <mat-icon>save_as</mat-icon> {{ 'ui.SAVE_ALL' | translate }}
+                <mat-icon>save_as</mat-icon> <span class="action-label">{{ 'ui.SAVE_ALL' | translate }}</span>
             </button>
 
             <div class="header-divider"></div>
@@ -47,8 +47,9 @@
     <!-- Main Content Area -->
     <div class="dialog-body">
         <!-- Sidebar -->
-        <div class="sidebar" [class.collapsed]="isSidebarCollapsed()">
+        <div class="sidebar" [class.collapsed]="isSidebarCollapsed()" [class.hunks-mode]="mode() === 'hunks'">
 
+            @if (mode() === 'types') {
             <!-- Profile Selector -->
             <div class="profile-selector">
                 <div class="profile-label">{{ 'ui.PROMPT_PROFILE_LABEL' | translate }}</div>
@@ -159,6 +160,16 @@
                                 <mat-icon>error</mat-icon>
                             </button>
                             }
+
+                            <!-- Local patches indicator → open the patch editor -->
+                            @if (patchCount(type.id) > 0) {
+                            <button mat-icon-button matListItemMeta class="patch-indicator"
+                                (click)="$event.stopPropagation(); enterHunks(type.id)"
+                                [matTooltip]="'ui.HUNK_PATCHES_COUNT' | translate: { count: patchCount(type.id) }">
+                                <mat-icon [matBadge]="patchCount(type.id)" matBadgeSize="small"
+                                    [matBadgeColor]="state.hunkValidationError().has(type.id) ? 'warn' : 'accent'">tune</mat-icon>
+                            </button>
+                            }
                         </a>
                         }
                     </mat-nav-list>
@@ -170,12 +181,37 @@
                 <mat-icon>info</mat-icon>
                 <span>{{ 'ui.AUTO_INJECTION_HINT' | translate }}</span>
             </div>
+            } @else {
+            <!-- Patch editor for the active prompt type -->
+            <div class="hunk-pane">
+                <div class="hunk-pane-header">
+                    <button mat-button (click)="exitHunks()">
+                        <mat-icon>arrow_back</mat-icon>
+                        {{ 'ui.HUNK_BACK_TO_PROMPTS' | translate }}
+                    </button>
+                    <span class="hunk-pane-title" [matTooltip]="activeTypeLabel()">{{ activeTypeLabel() }}</span>
+                </div>
+                <app-hunk-list class="hunk-pane-list" [content]="baseForActive()" [config]="hunkConfig"
+                    [selection]="selection()" [hunks]="hunksForActive()" (hunksChange)="onHunksChange($event)"
+                    (revealLine)="onHunkRevealLine($event)">
+                    <ng-template appHunkCalibrate [titleKey]="'ui.HUNK_EDIT_TITLE'"
+                        [confirmKey]="'ui.HUNK_EDIT_CONFIRM'" [cancelKey]="'ui.HUNK_EDIT_CANCEL'"
+                        let-active="active" let-trigger="trigger">
+                        <button mat-icon-button class="hunk-calibrate-btn" [class.active]="active"
+                            [matTooltip]="'ui.HUNK_EDIT_TOOLTIP' | translate" (click)="trigger($event)">
+                            <mat-icon>edit</mat-icon>
+                        </button>
+                    </ng-template>
+                </app-hunk-list>
+            </div>
+            }
         </div>
 
-        <!-- Editor Container -->
+        <!-- Editor Container: the base editor stays mounted (just hidden) in patch
+             mode so its edits + scroll survive; patch mode adds a read-only
+             base→effective diff alongside it. -->
         <div class="editor-container">
-            <!-- Built-in read-only banner -->
-            @if (profileMgr.isActiveBuiltIn()) {
+            @if (mode() === 'types' && profileMgr.isActiveBuiltIn()) {
             <div class="readonly-banner">
                 <mat-icon>lock</mat-icon>
                 <span class="banner-text">{{ 'ui.PROFILE_READONLY_BANNER' | translate }}</span>
@@ -186,12 +222,42 @@
             </div>
             }
 
-            <app-monaco-editor #editorRef [multiModelMode]="true" [files]="injectionFiles()" [activeFile]="activeType()"
-                [options]="editorOptions()" (valueChange)="onValueChange($event)">
+            <div class="editor-toolbar">
+                @if (mode() === 'types') {
+                <button mat-stroked-button class="open-patches-btn" (click)="enterHunks()"
+                    [matTooltip]="'ui.HUNK_OPEN_PATCHES' | translate: { count: patchCount(activeType()) }">
+                    <mat-icon>tune</mat-icon>
+                    {{ 'ui.HUNK_OPEN_PATCHES' | translate: { count: patchCount(activeType()) } }}
+                </button>
+                <button mat-stroked-button color="primary" class="create-patch-btn"
+                    [disabled]="!selection() || getIsDirty(activeType())"
+                    (click)="createPatchFromSelection()"
+                    [matTooltip]="(getIsDirty(activeType()) ? 'ui.HUNK_SAVE_BASE_FIRST' : 'ui.HUNK_CREATE_FROM_SELECTION') | translate">
+                    <mat-icon>add</mat-icon>
+                    {{ 'ui.HUNK_CREATE_FROM_SELECTION' | translate }}
+                </button>
+                } @else {
+                <span class="patch-preview-badge">
+                    <mat-icon>edit_note</mat-icon>
+                    {{ 'ui.HUNK_SELECT_TO_ADD' | translate }}
+                </span>
+                }
+            </div>
+
+            <app-monaco-editor #editorRef [hidden]="mode() !== 'types'" [multiModelMode]="true"
+                [files]="injectionFiles()" [activeFile]="activeType()" [options]="editorOptions()"
+                (valueChange)="onValueChange($event)" (selectionChange)="onEditorSelection($event)">
             </app-monaco-editor>
 
+            @if (mode() === 'hunks') {
+            <app-monaco-editor #diffRef [isDiff]="true" [originalValue]="baseForActive()"
+                [ngModel]="effectiveForActive()" [language]="diffLanguage()" [options]="diffOptions"
+                (selectionChange)="onEditorSelection($event)" (initialized)="revealPendingScroll()">
+            </app-monaco-editor>
+            }
+
             <!-- Problems Panel -->
-            @if (activeType() === 'postprocess' && !validationResult().valid) {
+            @if (mode() === 'types' && activeType() === 'postprocess' && !validationResult().valid) {
             <div class="problems-panel">
                 <mat-icon class="problem-icon">warning</mat-icon>
                 <div class="problem-content">
