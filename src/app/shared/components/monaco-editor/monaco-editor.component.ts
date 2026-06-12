@@ -226,26 +226,10 @@ export class MonacoEditorComponent implements OnDestroy, ControlValueAccessor {
                     .onDidChangeModel(() => bindModifiedListener())
             );
 
-            // [NEW] Listen for selection changes in the ORIGINAL editor (left pane)
-            const originalEditor = (this.editor as import('monaco-editor').editor.IStandaloneDiffEditor).getOriginalEditor();
-
-            const handleSelectionFinished = () => {
-                const selection = originalEditor.getSelection();
-                const model = originalEditor.getModel();
-                if (selection && model && !selection.isEmpty()) {
-                    const text = model.getValueInRange(selection);
-                    this.selectionChange.emit({
-                        text,
-                        startLineNumber: selection.startLineNumber,
-                        endLineNumber: selection.endLineNumber
-                    });
-                } else {
-                    this.selectionChange.emit(null);
-                }
-            };
-
-            this.disposables.push(originalEditor.onMouseUp(() => handleSelectionFinished()));
-            this.disposables.push(originalEditor.onKeyUp(() => handleSelectionFinished()));
+            // Selection drives hunk calibration — captured on the ORIGINAL (left) editor.
+            this.attachSelectionListeners(
+                (this.editor as import('monaco-editor').editor.IStandaloneDiffEditor).getOriginalEditor(),
+            );
         } else {
             this.editor = monaco.editor.create(el, {
                 ...finalOptions,
@@ -276,6 +260,10 @@ export class MonacoEditorComponent implements OnDestroy, ControlValueAccessor {
             (this.editor as import('monaco-editor').editor.IStandaloneCodeEditor).onDidBlurEditorText(() => {
                 this._onTouched();
             });
+
+            // Same selection capture as the diff editor, so a plain/multi-model
+            // editor can also drive hunk calibration.
+            this.attachSelectionListeners(this.editor as import('monaco-editor').editor.IStandaloneCodeEditor);
         }
 
         // Always use our ResizeObserver with explicit dimensions to prevent DiffEditor collapse
@@ -293,6 +281,25 @@ export class MonacoEditorComponent implements OnDestroy, ControlValueAccessor {
         if (this.editor) {
             this.initialized.emit(this.editor);
         }
+    }
+
+    /** Emit selectionChange from a code editor (shared by the plain and diff-original editors). */
+    private attachSelectionListeners(codeEditor: import('monaco-editor').editor.IStandaloneCodeEditor): void {
+        const emit = () => {
+            const selection = codeEditor.getSelection();
+            const model = codeEditor.getModel();
+            if (selection && model && !selection.isEmpty()) {
+                this.selectionChange.emit({
+                    text: model.getValueInRange(selection),
+                    startLineNumber: selection.startLineNumber,
+                    endLineNumber: selection.endLineNumber,
+                });
+            } else {
+                this.selectionChange.emit(null);
+            }
+        };
+        this.disposables.push(codeEditor.onMouseUp(() => emit()));
+        this.disposables.push(codeEditor.onKeyUp(() => emit()));
     }
 
     private updateDiffModels(original: string, modified: string) {
