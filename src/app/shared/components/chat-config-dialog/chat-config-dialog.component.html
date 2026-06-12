@@ -192,7 +192,8 @@
                     <span class="hunk-pane-title" [matTooltip]="activeTypeLabel()">{{ activeTypeLabel() }}</span>
                 </div>
                 <app-hunk-list class="hunk-pane-list" [content]="baseForActive()" [config]="hunkConfig"
-                    [selection]="selection()" [hunks]="hunksForActive()" (hunksChange)="onHunksChange($event)">
+                    [selection]="selection()" [hunks]="hunksForActive()" (hunksChange)="onHunksChange($event)"
+                    (revealLine)="onHunkRevealLine($event)">
                     <ng-template appHunkCalibrate [titleKey]="'ui.HUNK_EDIT_TITLE'"
                         [confirmKey]="'ui.HUNK_EDIT_CONFIRM'" [cancelKey]="'ui.HUNK_EDIT_CANCEL'"
                         let-active="active" let-trigger="trigger">
@@ -206,9 +207,9 @@
             }
         </div>
 
-        <!-- Editor Container: one shared base editor — editable in 'types' mode,
-             read-only selection surface in 'hunks' mode (so scroll + selection
-             carry across the switch). -->
+        <!-- Editor Container: the base editor stays mounted (just hidden) in patch
+             mode so its edits + scroll survive; patch mode adds a read-only
+             base→effective diff alongside it. -->
         <div class="editor-container">
             @if (mode() === 'types' && profileMgr.isActiveBuiltIn()) {
             <div class="readonly-banner">
@@ -243,10 +244,17 @@
                 }
             </div>
 
-            <app-monaco-editor #editorRef [multiModelMode]="true" [files]="injectionFiles()" [activeFile]="activeType()"
-                [options]="editorOptions()" (valueChange)="onValueChange($event)"
-                (selectionChange)="onEditorSelection($event)">
+            <app-monaco-editor #editorRef [hidden]="mode() !== 'types'" [multiModelMode]="true"
+                [files]="injectionFiles()" [activeFile]="activeType()" [options]="editorOptions()"
+                (valueChange)="onValueChange($event)" (selectionChange)="onEditorSelection($event)">
             </app-monaco-editor>
+
+            @if (mode() === 'hunks') {
+            <app-monaco-editor #diffRef [isDiff]="true" [originalValue]="baseForActive()"
+                [ngModel]="effectiveForActive()" [language]="diffLanguage()" [options]="diffOptions"
+                (selectionChange)="onEditorSelection($event)" (initialized)="revealPendingScroll()">
+            </app-monaco-editor>
+            }
 
             <!-- Problems Panel -->
             @if (mode() === 'types' && activeType() === 'postprocess' && !validationResult().valid) {

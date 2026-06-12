@@ -311,6 +311,12 @@ mat-option mat-icon.legacy-profile-warn {
         display: block;
         min-height: 0; // Allow it to shrink if needed
     }
+
+    // `display: block` above outranks the UA [hidden] rule, so re-hide the
+    // kept-alive base editor explicitly while patch mode shows the diff.
+    app-monaco-editor[hidden] {
+        display: none;
+    }
 }
 
 // Read-only banner shown above the Monaco editor when a built-in profile is active.

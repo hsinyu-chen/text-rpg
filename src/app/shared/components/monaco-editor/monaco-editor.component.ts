@@ -504,6 +504,19 @@ export class MonacoEditorComponent implements OnDestroy, ControlValueAccessor {
     }
 
     /**
+     * The 1-indexed line of the primary cursor (the modified side in diff mode),
+     * or null if the editor isn't ready — lets a host capture scroll position
+     * before swapping this editor for another.
+     */
+    getCursorLine(): number | null {
+        if (!this.editor) return null;
+        const codeEditor = this.isAnyDiff
+            ? (this.editor as import('monaco-editor').editor.IStandaloneDiffEditor).getModifiedEditor()
+            : (this.editor as import('monaco-editor').editor.IStandaloneCodeEditor);
+        return codeEditor.getPosition()?.lineNumber ?? null;
+    }
+
+    /**
      * Scroll the editor to reveal a specific line number (1-indexed).
      * Optionally positions cursor at a specific column.
      * Works for both regular and diff editors.

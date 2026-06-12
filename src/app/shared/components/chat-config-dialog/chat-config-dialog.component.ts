@@ -76,6 +76,7 @@ export class ChatConfigDialogComponent {
     profileMgr = inject(ProfileManagementController);
 
     editorRef = viewChild<MonacoEditorComponent>('editorRef');
+    diffRef = viewChild<MonacoEditorComponent>('diffRef');
     hunkListRef = viewChild(HunkListComponent);
 
     constructor() {
@@ -144,14 +145,25 @@ export class ChatConfigDialogComponent {
     });
 
     editorOptions = computed(() => ({
-        // Read-only in patch mode: the shared base editor is then a selection
-        // surface for creating patches, not an editing surface.
-        readOnly: this.profileMgr.isActiveBuiltIn() || this.mode() === 'hunks',
+        readOnly: this.profileMgr.isActiveBuiltIn(),
         minimap: { enabled: false },
         wordWrap: 'on' as const,
         lineNumbers: 'on' as const,
         language: this.activeType() === 'postprocess' ? 'javascript' : 'markdown'
     }));
+
+    // Patch mode shows a read-only base→effective diff (the modified side is the
+    // hunk-applied preview); selection still lands on the original (base) pane.
+    readonly diffOptions = {
+        renderSideBySide: true,
+        minimap: { enabled: false },
+        wordWrap: 'on' as const,
+        lineNumbers: 'on' as const,
+    };
+
+    diffLanguage = computed(() => this.activeType() === 'postprocess' ? 'javascript' : 'markdown');
+
+    effectiveForActive = computed(() => this.injection.getEffectiveContentForType(this.activeType() as PromptType));
 
     activeTypeLabel = computed(() => {
         const type = this.injectionTypes().find(t => t.id === this.activeType());
@@ -165,6 +177,8 @@ export class ChatConfigDialogComponent {
     mode = signal<'types' | 'hunks'>('types');
     selection = signal<HunkSelection | null>(null);
     private pendingCreate = signal(false);
+    /** Base-editor cursor line captured on entry, scrolled to once the diff mounts. */
+    private pendingScrollLine = signal<number | null>(null);
 
     readonly hunkConfig: HunkListConfig = {
         allowCreateFromSelection: true,
@@ -181,6 +195,7 @@ export class ChatConfigDialogComponent {
 
     enterHunks(type?: InjectionType['id']): void {
         if (type) this.activeType.set(type);
+        this.captureScrollLine();
         this.selection.set(null);
         this.mode.set('hunks');
     }
@@ -188,6 +203,24 @@ export class ChatConfigDialogComponent {
     exitHunks(): void {
         this.mode.set('types');
         this.selection.set(null);
+    }
+
+    /** Snapshot the base editor's cursor line so the diff can scroll there on mount. */
+    private captureScrollLine(): void {
+        this.pendingScrollLine.set(this.editorRef()?.getCursorLine() ?? null);
+    }
+
+    /** Once the patch-mode diff editor is ready, scroll it to the captured line. */
+    revealPendingScroll(): void {
+        const line = this.pendingScrollLine();
+        if (line == null) return;
+        this.diffRef()?.revealLine(line);
+        this.pendingScrollLine.set(null);
+    }
+
+    /** Clicking a patch in the list scrolls the diff to its applied position. */
+    onHunkRevealLine(line: number): void {
+        this.diffRef()?.revealLine(line);
     }
 
     onEditorSelection(event: { text: string; startLineNumber: number; endLineNumber: number } | null): void {
@@ -205,6 +238,7 @@ export class ChatConfigDialogComponent {
      */
     createPatchFromSelection(): void {
         if (!this.selection()) return;
+        this.captureScrollLine();
         this.pendingCreate.set(true);
         this.mode.set('hunks');
     }
