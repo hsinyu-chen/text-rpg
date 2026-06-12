@@ -91,8 +91,8 @@ interface ParsedCandidate {
  * {@link MAX_FIX_ROUNDS}) with the specific failure when a candidate still
  * doesn't match.
  *
- * NOT `providedIn: 'root'` — single-dialog-instance lifecycle, scoped from
- * the dialog's providers array via {@link HunkApplyController}'s scope.
+ * NOT `providedIn: 'root'` — per-instance lifecycle, scoped from the host's
+ * providers array (the hunk-list component that drives the repair).
  */
 @Injectable()
 export class HunkAutoFixService {

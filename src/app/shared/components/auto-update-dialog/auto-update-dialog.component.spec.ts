@@ -3,21 +3,12 @@ import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { MatDialogRef, MAT_DIALOG_DATA, MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { Clipboard } from '@angular/cdk/clipboard';
 import { AutoUpdateDialogComponent } from './auto-update-dialog.component';
-import { HunkApplyController } from './hunk-apply-controller';
-import { HunkAutoFixService } from './hunk-auto-fix.service';
+import { FileUpdateService } from '@app/core/services/file-update.service';
+import { FileSystemService } from '@app/core/services/file-system.service';
 import { GameStateService } from '@app/core/services/game-state.service';
 import { AppConfigStore } from '@app/core/services/app-config-store';
 import { I18nService } from '@app/core/i18n';
-
-class StubHunkApplyController {
-  groupingComplete = signal(true);
-  bind(): void { /* host wiring is irrelevant to the gating test */ }
-  init(): void { /* no real grouping needed */ }
-  hasSelectedUpdates(): boolean { return true; }
-  hasSelectedUnresolvedError(): boolean { return false; }
-}
 
 describe('AutoUpdateDialogComponent stats gating', () => {
   const hasStatsYaml = signal(false);
@@ -29,12 +20,18 @@ describe('AutoUpdateDialogComponent stats gating', () => {
         { provide: MAT_DIALOG_DATA, useValue: { updates: [] } },
         { provide: MatDialog, useValue: {} },
         { provide: MatSnackBar, useValue: { open: () => undefined } },
-        { provide: Clipboard, useValue: { copy: () => true } },
         { provide: AppConfigStore, useValue: { outputLanguage: signal('en') } },
-        { provide: GameStateService, useValue: { hasStatsYaml } },
+        { provide: GameStateService, useValue: { hasStatsYaml, messages: signal([]) } },
         { provide: I18nService, useValue: { translate: (k: string) => k } },
-        { provide: HunkApplyController, useClass: StubHunkApplyController },
-        { provide: HunkAutoFixService, useValue: {} },
+        {
+          provide: FileUpdateService,
+          useValue: {
+            preprocessUpdates: (u: unknown) => u,
+            generateLastSceneHunk: () => null,
+            validateAgainstContent: () => ({ exists: true, matched: true }),
+          },
+        },
+        { provide: FileSystemService, useValue: { readTextFile: async () => '' } },
       ],
     });
     // Construct the component directly rather than via createComponent: the gating

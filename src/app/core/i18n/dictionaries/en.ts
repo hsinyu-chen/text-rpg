@@ -157,6 +157,8 @@ export const en: TranslationDict = {
         CALIBRATE_MODE_TITLE: '[Visual Calibrating] Select the correct text segment in the left pane:',
         CALIBRATE_CONFIRM: 'Confirm & Apply Fix',
         CALIBRATE_CANCEL: 'Cancel Calibration',
+        HUNK_CREATE_FROM_SELECTION: 'Create patch from selection',
+        HUNK_DELETE: 'Delete patch',
         IDEAL_OUTCOME_FIELD_LABEL: 'Ideal Outcome (optional, 2-call only)',
         IDEAL_OUTCOME_FIELD_PLACEHOLDER: 'One-line goal for this action sequence. Resolver judges step-by-step and stops at the first step that cannot reach it.',
         IDEAL_OUTCOME_CHIP_LABEL: 'Ideal Outcome',

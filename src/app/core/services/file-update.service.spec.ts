@@ -142,4 +142,85 @@ describe('FileUpdateService', () => {
       expect(service.findContextLine(content, ['Missing'])).toBeNull();
     });
   });
+
+  describe('validateAgainstContent', () => {
+    it('matches a target under the right context', () => {
+      const content = ['# Top', '## Sub', 'hello world', '# Other'].join('\n');
+      const res = service.validateAgainstContent(content, {
+        filePath: 'x', targetContent: 'hello world', context: ['Top', 'Sub'],
+      });
+      expect(res).toMatchObject({ exists: true, matched: true });
+      expect(res.matchIndex).toBeGreaterThanOrEqual(0);
+    });
+
+    it('flags context_mismatch when the target exists but under the wrong context', () => {
+      const content = ['# Top', '## Sub', 'hello world'].join('\n');
+      const res = service.validateAgainstContent(content, {
+        filePath: 'x', targetContent: 'hello world', context: ['Nonexistent'],
+      });
+      expect(res).toMatchObject({ exists: true, matched: false, failReason: 'context_mismatch' });
+    });
+
+    it('flags target_not_found when the target text is absent', () => {
+      const content = ['# Top', 'hello world'].join('\n');
+      const res = service.validateAgainstContent(content, {
+        filePath: 'x', targetContent: 'goodbye moon',
+      });
+      expect(res).toMatchObject({ exists: true, matched: false, failReason: 'target_not_found' });
+    });
+
+    it('validates a replacement-only (insertion) hunk against a matching context', () => {
+      const content = ['# Top', 'body', '# Other'].join('\n');
+      const res = service.validateAgainstContent(content, {
+        filePath: 'x', replacementContent: 'new line', context: ['Top'],
+      });
+      expect(res).toMatchObject({ exists: true, matched: true });
+    });
+
+    it('flags context_mismatch for a replacement-only hunk whose context is missing', () => {
+      const content = ['# Top', 'body'].join('\n');
+      const res = service.validateAgainstContent(content, {
+        filePath: 'x', replacementContent: 'new line', context: ['Missing'],
+      });
+      expect(res).toMatchObject({ exists: true, matched: false, failReason: 'context_mismatch' });
+    });
+
+    it('always reports exists:true since content is supplied', () => {
+      const res = service.validateAgainstContent('', { filePath: 'x', targetContent: 'anything' });
+      expect(res.exists).toBe(true);
+      expect(res.matched).toBe(false);
+    });
+  });
+
+  describe('applyUpdateToFile', () => {
+    it('replaces the matched target with the replacement', () => {
+      const content = ['# A', 'old line', '# B'].join('\n');
+      const out = service.applyUpdateToFile(content, {
+        filePath: 'x', targetContent: 'old line', replacementContent: 'new line',
+      });
+      expect(out).toBe(['# A', 'new line', '# B'].join('\n'));
+    });
+
+    it('deletes the matched target when replacement is undefined', () => {
+      const content = ['# A', 'remove me', '# B'].join('\n');
+      const out = service.applyUpdateToFile(content, { filePath: 'x', targetContent: 'remove me' });
+      expect(out).toBe(['# A', '', '# B'].join('\n'));
+    });
+
+    it('inserts a replacement-only hunk at the section boundary', () => {
+      const content = ['# A', 'body', '# B', 'b2'].join('\n');
+      const out = service.applyUpdateToFile(content, {
+        filePath: 'x', replacementContent: 'inserted', context: ['A'],
+      });
+      expect(out).toBe(['# A', 'body', 'inserted', '# B', 'b2'].join('\n'));
+    });
+
+    it('returns content unchanged when the target is not found', () => {
+      const content = '# A\nbody';
+      const out = service.applyUpdateToFile(content, {
+        filePath: 'x', targetContent: 'absent', replacementContent: 'x',
+      });
+      expect(out).toBe(content);
+    });
+  });
 });
