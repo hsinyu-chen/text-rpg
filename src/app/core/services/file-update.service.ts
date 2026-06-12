@@ -10,9 +10,9 @@ import {
     inferContextFromLine as matcherInferContextFromLine,
     normalizeForComparison,
 } from './markdown-range-matcher';
-import { FileUpdate } from './file-update.types';
+import { FileUpdate, ValidationResult } from './file-update.types';
 
-export type { FileUpdate } from './file-update.types';
+export type { FileUpdate, ValidationResult } from './file-update.types';
 
 @Injectable({
     providedIn: 'root'
@@ -158,85 +158,87 @@ export class FileUpdateService {
         return matcherInferContextFromLine(content, lineIndex);
     }
 
-    async validateUpdate(update: FileUpdate): Promise<{
-        exists: boolean,
-        matched: boolean,
-        alreadyExists?: boolean,
-        beforeLines?: string[],
-        afterLines?: string[],
-        matchIndex?: number,
-        failReason?: 'target_not_found' | 'context_mismatch'
-    }> {
+    async validateUpdate(update: FileUpdate): Promise<ValidationResult> {
         try {
             const content = await this.fileSystem.readTextFile(update.filePath);
-            const lines = content.split(/\r?\n/);
-            const contextLinesCount = 5;
+            return this.validateAgainstContent(content, update);
+        } catch {
+            return { exists: false, matched: false };
+        }
+    }
 
-            if (update.targetContent) {
-                const range = matcherFindMatchRange(content, update.targetContent, update.context);
+    /**
+     * FS-free core of {@link validateUpdate}: validate a hunk against a supplied
+     * `content` string. Callers that already hold the source text (the hunk-list
+     * editor, prompt-override resolution) use this directly to avoid a file
+     * round-trip. `exists` is always true here — content is supplied; the
+     * missing-source case lives in validateUpdate's catch.
+     */
+    validateAgainstContent(content: string, update: FileUpdate): ValidationResult {
+        const lines = content.split(/\r?\n/);
+        const contextLinesCount = 5;
 
-                if (range) {
-                    const lineIndex = getLineIndexFromCharIndex(content, range.start);
-                    // afterStart is derived from the matched range's end, not
-                    // `update.targetContent.split('\n').length` — the
-                    // normalized match can span more lines than the raw
-                    // target string (e.g. extra blank lines inside the
-                    // matched block) which would otherwise drift the
-                    // trailing-context preview.
-                    const afterStart = getLineIndexFromCharIndex(content, range.end) + 1;
-                    const before = lines.slice(Math.max(0, lineIndex - contextLinesCount), lineIndex);
-                    const after = lines.slice(afterStart, Math.min(lines.length, afterStart + contextLinesCount));
+        if (update.targetContent) {
+            const range = matcherFindMatchRange(content, update.targetContent, update.context);
 
-                    return {
-                        exists: true,
-                        matched: true,
-                        matchIndex: range.start,
-                        beforeLines: before,
-                        afterLines: after
-                    };
-                }
-
-                const existsWithoutContext = !!matcherFindMatchRange(content, update.targetContent);
-                return {
-                    exists: true,
-                    matched: false,
-                    failReason: existsWithoutContext ? 'context_mismatch' : 'target_not_found'
-                };
-            } else if (update.replacementContent) {
-                const insertionIndex = matcherFindInsertionPoint(lines, update.context);
-
-                if (insertionIndex === -1) {
-                    return {
-                        exists: true,
-                        matched: false,
-                        failReason: 'context_mismatch'
-                    };
-                }
-
-                let alreadyExists = false;
-                if (update.context && update.context.length > 0) {
-                    if (normalizeForComparison(content).includes(normalizeForComparison(update.replacementContent))) {
-                        alreadyExists = true;
-                    }
-                }
-
-                const before = lines.slice(Math.max(0, insertionIndex - contextLinesCount), insertionIndex);
-                const after = lines.slice(insertionIndex, Math.min(lines.length, insertionIndex + contextLinesCount));
+            if (range) {
+                const lineIndex = getLineIndexFromCharIndex(content, range.start);
+                // afterStart is derived from the matched range's end, not
+                // `update.targetContent.split('\n').length` — the normalized
+                // match can span more lines than the raw target string (e.g.
+                // extra blank lines inside the matched block) which would
+                // otherwise drift the trailing-context preview.
+                const afterStart = getLineIndexFromCharIndex(content, range.end) + 1;
+                const before = lines.slice(Math.max(0, lineIndex - contextLinesCount), lineIndex);
+                const after = lines.slice(afterStart, Math.min(lines.length, afterStart + contextLinesCount));
 
                 return {
                     exists: true,
                     matched: true,
-                    matchIndex: insertionIndex,
-                    alreadyExists,
+                    matchIndex: range.start,
                     beforeLines: before,
                     afterLines: after
                 };
             }
 
-            return { exists: true, matched: true };
-        } catch {
-            return { exists: false, matched: false };
+            const existsWithoutContext = !!matcherFindMatchRange(content, update.targetContent);
+            return {
+                exists: true,
+                matched: false,
+                failReason: existsWithoutContext ? 'context_mismatch' : 'target_not_found'
+            };
+        } else if (update.replacementContent) {
+            const insertionIndex = matcherFindInsertionPoint(lines, update.context);
+
+            if (insertionIndex === -1) {
+                return {
+                    exists: true,
+                    matched: false,
+                    failReason: 'context_mismatch'
+                };
+            }
+
+            let alreadyExists = false;
+            if (update.context && update.context.length > 0) {
+                if (normalizeForComparison(content).includes(normalizeForComparison(update.replacementContent))) {
+                    alreadyExists = true;
+                }
+            }
+
+            const before = lines.slice(Math.max(0, insertionIndex - contextLinesCount), insertionIndex);
+            const after = lines.slice(insertionIndex, Math.min(lines.length, insertionIndex + contextLinesCount));
+
+            return {
+                exists: true,
+                matched: true,
+                matchIndex: insertionIndex,
+                alreadyExists,
+                beforeLines: before,
+                afterLines: after
+            };
         }
+
+        return { exists: true, matched: true };
     }
 
     private getIndentation(content: string, index: number): string {
