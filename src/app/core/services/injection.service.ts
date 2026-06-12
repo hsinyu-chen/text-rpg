@@ -383,6 +383,12 @@ export class InjectionService {
             next.set(type, base);
             return next;
         });
+        this.recomputeEffective(type);
+    }
+
+    /** Recompose only the effective text from the stored base + current hunks (base untouched). */
+    private recomputeEffective(type: PromptType): void {
+        const base = this.getContentForType(type);
         const { effective } = this.hunkOverride.compose(base, this.hunkOverride.hunksFor(type));
         this.setSignalContent(type, effective);
     }
@@ -563,10 +569,15 @@ export class InjectionService {
         return this.hunkOverride.hunksFor(type);
     }
 
+    /** Per-type local-patch counts (cached) — sidebar badges read this instead of re-deriving from getHunks. */
+    get hunkCounts(): ReadonlyMap<string, number> {
+        return this.hunkOverride.counts();
+    }
+
     /** Persist + apply local hunk patches for a type, recomputing the effective text + send-gate. */
     async setHunks(type: PromptType, hunks: FileUpdate[]): Promise<void> {
         await this.hunkOverride.setHunks(type, this.profileId, hunks);
-        this.setBaseAndEffective(type, this.getContentForType(type));
+        this.recomputeEffective(type);
         this.hunkOverride.refreshValidation();
     }
 }

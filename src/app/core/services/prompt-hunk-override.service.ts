@@ -56,10 +56,12 @@ export class PromptHunkOverrideService {
 
   /** Copy one profile's hunks to another at clone time (IDB only — the clone isn't active). */
   async copyHunks(fromProfileId: string, toProfileId: string, types: readonly string[]): Promise<void> {
-    for (const type of types) {
-      const raw = await this.prompts.getProfileHunks(type, fromProfileId);
-      if (raw.length) await this.prompts.saveProfileHunks(type, toProfileId, raw);
-    }
+    await Promise.all(
+      types.map(async (type) => {
+        const raw = await this.prompts.getProfileHunks(type, fromProfileId);
+        if (raw.length) await this.prompts.saveProfileHunks(type, toProfileId, raw);
+      }),
+    );
   }
 
   /**

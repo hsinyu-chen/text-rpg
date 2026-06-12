@@ -285,7 +285,7 @@ export class MonacoEditorComponent implements OnDestroy, ControlValueAccessor {
         }
     }
 
-    /** Emit selectionChange from a code editor (shared by the plain and diff-original editors). */
+    /** Emit selectionChange from a code editor (the plain editor, or the diff's original/modified pane per render mode). */
     private attachSelectionListeners(codeEditor: import('monaco-editor').editor.IStandaloneCodeEditor): void {
         const emit = () => {
             const selection = codeEditor.getSelection();
@@ -516,6 +516,19 @@ export class MonacoEditorComponent implements OnDestroy, ControlValueAccessor {
             ? (this.editor as import('monaco-editor').editor.IStandaloneDiffEditor).getModifiedEditor()
             : (this.editor as import('monaco-editor').editor.IStandaloneCodeEditor);
         return codeEditor.getPosition()?.lineNumber ?? null;
+    }
+
+    /**
+     * The top visible line (1-indexed; the modified side in diff mode), or null —
+     * captures scroll position so a host can carry it to another editor.
+     */
+    getTopVisibleLine(): number | null {
+        if (!this.editor) return null;
+        const codeEditor = this.isAnyDiff
+            ? (this.editor as import('monaco-editor').editor.IStandaloneDiffEditor).getModifiedEditor()
+            : (this.editor as import('monaco-editor').editor.IStandaloneCodeEditor);
+        const ranges = codeEditor.getVisibleRanges();
+        return ranges.length ? ranges[0].startLineNumber : null;
     }
 
     /**

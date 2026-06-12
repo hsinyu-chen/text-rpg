@@ -191,7 +191,7 @@ export class ChatConfigDialogComponent {
     hunksForActive = computed(() => this.injection.getHunks(this.activeType() as PromptType));
 
     patchCount(type: InjectionType['id']): number {
-        return this.injection.getHunks(type as PromptType).length;
+        return this.injection.hunkCounts.get(type) ?? 0;
     }
 
     enterHunks(type?: InjectionType['id']): void {
@@ -202,8 +202,12 @@ export class ChatConfigDialogComponent {
     }
 
     exitHunks(): void {
+        // Carry the diff's scroll back to the base editor so returning lands where
+        // you were reading, not where you left on entry.
+        const line = this.diffRef()?.getTopVisibleLine() ?? null;
         this.mode.set('types');
         this.selection.set(null);
+        if (line != null) this.editorRef()?.revealLine(line);
     }
 
     /** Snapshot the base editor's cursor line so the diff can scroll there on mount. */
