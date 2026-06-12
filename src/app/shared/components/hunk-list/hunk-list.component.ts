@@ -315,7 +315,14 @@ export class HunkListComponent {
     this.calibratingId.set(item.id);
   }
 
-  removeHunk(item: HunkItem): void {
+  async removeHunk(item: HunkItem): Promise<void> {
+    const ref = this.dialog.open(ConfirmDialogComponent, {
+      data: {
+        message: this.t('deleteHunkConfirm'),
+        okText: this.i18n.translate('ui.HUNK_DELETE'),
+      } as ConfirmDialogData,
+    });
+    if (!(await firstValueFrom(ref.afterClosed()))) return;
     this.calibratingId.update((id) => (id === item.id ? null : id));
     const remaining = this.items().filter((it) => it.id !== item.id);
     this.commit(remaining);

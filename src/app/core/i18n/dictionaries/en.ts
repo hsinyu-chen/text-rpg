@@ -346,6 +346,7 @@ export const en: TranslationDict = {
         applyNewActBody: 'Create the next act, apply {{hunks}} hunk(s) across {{files}} file(s) into it, and start it? This act stays unchanged.',
         noFilesToApply: 'No files to apply',
         hunkRootContext: '(file root)',
+        deleteHunkConfirm: 'Remove this patch?',
         errorProcessingUpdates: 'Error processing updates',
         confirmDiscardSelections: 'Changing selections will discard your edits. Continue?',
         discardUpdate: 'Discard & Update',

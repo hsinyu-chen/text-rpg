@@ -346,6 +346,7 @@ export const zhTW: TranslationDict = {
         applyNewActBody: '建立下一幕，把 {{files}} 個檔案中的 {{hunks}} 個 hunk 套用到新幕並開場？目前這一幕維持不變。',
         noFilesToApply: '沒有要套用的檔案',
         hunkRootContext: '(檔案根層級)',
+        deleteHunkConfirm: '要移除這個 patch 嗎？',
         errorProcessingUpdates: '處理更新時發生錯誤',
         confirmDiscardSelections: '更動勾選會丟棄你已編輯的內容，要繼續嗎？',
         discardUpdate: '丟棄並更新',
