@@ -9,6 +9,8 @@ import { PromptProfileRegistryService } from './prompt-profile-registry.service'
 import { ActiveProfileStore } from './active-profile-store';
 import { AppConfigStore } from './app-config-store';
 import { KVStore } from './kv/kv-store';
+import { PromptHunkOverrideService } from './prompt-hunk-override.service';
+import { FileUpdate } from './file-update.service';
 
 export type PromptType = 'action' | 'continue' | 'fastforward' | 'system' | 'postprocess' | 'system_main' | 'protocol_single' | 'protocol_resolver' | 'protocol_narrator' | 'correction' | 'save_manifest' | 'save_inventory_consistency' | 'save_character_state' | 'save_faction_state' | 'save_character_triage' | 'save_faction_triage';
 
@@ -33,6 +35,7 @@ export class InjectionService {
     private activeProfileStore = inject(ActiveProfileStore);
     private appConfig = inject(AppConfigStore);
     private kv = inject(KVStore);
+    private hunkOverride = inject(PromptHunkOverrideService);
     private isSettingsLoading = false;
 
     private readonly ALL_TYPES = ALL_PROMPT_TYPES;
@@ -179,7 +182,8 @@ export class InjectionService {
         await this.prompts.saveProfilePrompt(type, this.profileId, content);
         this.markAsModified(type);
 
-        this.setSignalContent(type, content);
+        this.setBaseAndEffective(type, content);
+        this.hunkOverride.refreshValidation();
     }
 
     /** No-op for user profiles — they never have a server hash to compare against. */
@@ -191,7 +195,8 @@ export class InjectionService {
         if (!status) return;
 
         if (applyUpdate) {
-            this.setSignalContent(type, status.serverContent);
+            this.setBaseAndEffective(type, status.serverContent);
+            this.hunkOverride.refreshValidation();
             this.kv.set(this.lsKey(`prompt_user_modified_${type}`), 'false');
             await this.prompts.saveProfilePrompt(type, this.profileId, status.serverContent);
         }
@@ -238,6 +243,8 @@ export class InjectionService {
     private async loadBuiltInProfile(currentProfile: string, langFolder: string, lang: string): Promise<void> {
         const loadPath = (filename: string) => this.loadBuiltInAsset(langFolder, filename, currentProfile);
         const loadOptional = (filename: string) => this.loadOptionalProfileAsset(langFolder, filename, currentProfile);
+
+        await this.hunkOverride.loadForProfile(currentProfile, this.ALL_TYPES);
 
         let actionDef, continueDef, fastforwardDef, systemDef, systemMainDef, postprocessDef, protocolSingleDef, protocolResolverDef, protocolNarratorDef, correctionDef, saveManifestDef, saveInventoryConsistencyDef, saveCharacterStateDef, saveFactionStateDef, saveCharacterTriageDef, saveFactionTriageDef;
         try {
@@ -331,9 +338,9 @@ export class InjectionService {
 
             // `content !== undefined`, not truthiness — empty string is a valid customization.
             if (isModified && dbRecord?.content !== undefined) {
-                this.setSignalContent(type.id as PromptType, dbRecord.content);
+                this.setBaseAndEffective(type.id as PromptType, dbRecord.content);
             } else {
-                this.setSignalContent(type.id as PromptType, processedServerContent);
+                this.setBaseAndEffective(type.id as PromptType, processedServerContent);
                 this.kv.set(modifiedKey, 'false');
 
                 // Seed default into IDB so a future clone has something to copy,
@@ -348,17 +355,36 @@ export class InjectionService {
         }
 
         this.state.promptUpdateStatus.set(updateStatusMap);
+        this.hunkOverride.refreshValidation();
     }
 
     private async loadUserProfile(currentProfile: string, langFolder: string, lang: string): Promise<void> {
+        await this.hunkOverride.loadForProfile(currentProfile, this.ALL_TYPES);
         const updateStatusMap = new Map<string, { hasUpdate: boolean, serverContent: string }>();
         for (const type of this.ALL_TYPES) {
             const content = await this.loadUserProfilePrompt(type, currentProfile, langFolder, lang);
-            this.setSignalContent(type, content);
+            this.setBaseAndEffective(type, content);
             // serverContent gets the resolved IDB content; user profiles never raise the badge.
             updateStatusMap.set(type, { hasUpdate: false, serverContent: content });
         }
         this.state.promptUpdateStatus.set(updateStatusMap);
+        this.hunkOverride.refreshValidation();
+    }
+
+    /**
+     * Record the per-type BASE text and push the hunk-applied EFFECTIVE text into
+     * the engine signal. The base feeds chat-config editing; the effective feeds
+     * the engine. Call this anywhere the base changes (resolution / save / accept-
+     * update) instead of setSignalContent so patches re-apply.
+     */
+    private setBaseAndEffective(type: PromptType, base: string): void {
+        this.state.promptBaseContent.update(map => {
+            const next = new Map(map);
+            next.set(type, base);
+            return next;
+        });
+        const { effective } = this.hunkOverride.compose(base, this.hunkOverride.hunksFor(type));
+        this.setSignalContent(type, effective);
     }
 
     private setSignalContent(type: PromptType, content: string) {
@@ -431,6 +457,9 @@ export class InjectionService {
             }
         }
 
+        // Local hunk patches ride along to the clone (they then diverge independently).
+        await this.hunkOverride.copyHunks(sourceId, newId, this.ALL_TYPES);
+
         // Inherit the source's modified-vs-default state at clone time; the new profile diverges from there.
         for (const type of this.ALL_TYPES) {
             for (const baseKey of [`prompt_user_modified_${type}`, `prompt_last_server_hash_${type}`]) {
@@ -502,7 +531,13 @@ export class InjectionService {
         return this.loadUserProfilePrompt(type, profileId, langFolder, lang);
     }
 
+    /** BASE prompt text (before local hunk patches) for chat-config editing + dirty tracking. */
     getContentForType(type: PromptType): string {
+        return this.state.promptBaseContent().get(type) ?? '';
+    }
+
+    /** Hunk-applied EFFECTIVE text the engine consumes — mirrors the dynamic*Injection signal. */
+    getEffectiveContentForType(type: PromptType): string {
         switch (type) {
             case 'action': return this.state.dynamicActionInjection();
             case 'continue': return this.state.dynamicContinueInjection();
@@ -521,5 +556,17 @@ export class InjectionService {
             case 'save_character_triage': return this.state.dynamicSaveCharacterTriageInjection();
             case 'save_faction_triage': return this.state.dynamicSaveFactionTriageInjection();
         }
+    }
+
+    /** Local hunk patches for a type on the active profile. */
+    getHunks(type: PromptType): FileUpdate[] {
+        return this.hunkOverride.hunksFor(type);
+    }
+
+    /** Persist + apply local hunk patches for a type, recomputing the effective text + send-gate. */
+    async setHunks(type: PromptType, hunks: FileUpdate[]): Promise<void> {
+        await this.hunkOverride.setHunks(type, this.profileId, hunks);
+        this.setBaseAndEffective(type, this.getContentForType(type));
+        this.hunkOverride.refreshValidation();
     }
 }

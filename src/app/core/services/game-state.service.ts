@@ -119,6 +119,11 @@ export class GameStateService {
     dynamicSaveFactionTriageInjection = signal<string>('');
     postProcessScript = signal<string>('');
 
+    // Per-type BASE prompt text (before local hunk patches). The dynamic*Injection
+    // signals above hold the hunk-APPLIED effective text the engine consumes; the
+    // chat-config editor reads/edits this base so patches stay a separate overlay.
+    promptBaseContent = signal<Map<string, string>>(new Map());
+
     // Flag to prevent effects from saving until after initial load
     injectionSettingsLoaded = signal(false);
 
@@ -137,6 +142,11 @@ export class GameStateService {
         }
         return false;
     });
+
+    // Prompt types whose active-profile hunk overrides currently fail to match the
+    // base text. A non-empty set blocks sending and raises the chat-config badge.
+    hunkValidationError = signal<ReadonlySet<string>>(new Set());
+    hasHunkValidationError = computed(() => this.hunkValidationError().size > 0);
 
     // ==================== Context Mode ====================
     // Persisted via AppConfigStore — toggles must go through ConfigService.saveConfig.

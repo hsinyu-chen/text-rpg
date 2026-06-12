@@ -31,6 +31,26 @@ export class PromptRepository {
         await db.put('prompt_store', { content, tokens, lastModified: Date.now() }, key);
     }
 
+    /**
+     * Local hunk patches live in the same store under a `${type}:hunks` sub-key
+     * (JSON array). Kept here so the profile-prefix range delete in
+     * deleteAllForProfile sweeps them too — no separate table to clean up.
+     */
+    async getProfileHunks(type: string, profileId: string): Promise<unknown[]> {
+        const row = await this.getProfilePrompt(`${type}:hunks`, profileId);
+        if (!row?.content) return [];
+        try {
+            const parsed: unknown = JSON.parse(row.content);
+            return Array.isArray(parsed) ? parsed : [];
+        } catch {
+            return [];
+        }
+    }
+
+    async saveProfileHunks(type: string, profileId: string, hunks: readonly unknown[]): Promise<void> {
+        await this.saveProfilePrompt(`${type}:hunks`, profileId, JSON.stringify(hunks));
+    }
+
     /** No-op for the default profile — its rows are unprefixed and would all be wiped. */
     async deleteAllForProfile(profileId: string): Promise<void> {
         if (profileId === DEFAULT_PROFILE_ID) return;
