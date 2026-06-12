@@ -118,6 +118,13 @@ export class GameEngineService {
             console.warn('[GameEngine] sendMessage blocked: pending act advance.');
             return;
         }
+        // A local hunk patch on an active prompt no longer matches its base, so the
+        // effective prompt is missing the user's intended edit. Block until they fix
+        // it in chat-config (the disabled send button + config badge already flag it).
+        if (this.state.hasHunkValidationError()) {
+            console.warn('[GameEngine] sendMessage blocked: a prompt hunk patch failed to match.');
+            return;
+        }
         console.log('[GameEngine] sendMessage received with intent:', options?.intent);
         if (!this.validateRunTurnArgs(userText, options)) return;
 

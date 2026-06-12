@@ -78,8 +78,8 @@
                 <span>{{ 'ui.SAVE_PROGRESS_MENU' | translate }}</span>
             </button>
             <button mat-menu-item (click)="openConfigDialog()">
-                <mat-icon [matBadge]="state.hasAnyPromptUpdate() ? '!' : ''" matBadgeColor="warn"
-                    [matBadgeHidden]="!state.hasAnyPromptUpdate()" aria-hidden="false"
+                <mat-icon [matBadge]="(state.hasAnyPromptUpdate() || state.hasHunkValidationError()) ? '!' : ''" matBadgeColor="warn"
+                    [matBadgeHidden]="!(state.hasAnyPromptUpdate() || state.hasHunkValidationError())" aria-hidden="false"
                     [attr.aria-label]="'ui.SETTINGS_NOTIFICATION_LABEL' | translate">settings</mat-icon>
                 <span>{{ 'ui.CONFIG_MENU' | translate }}</span>
             </button>
@@ -112,8 +112,8 @@
         <button mat-mini-fab class="config-btn desktop-only"
             [disabled]="state.status() === 'generating' || !state.isConfigured()" (click)="openConfigDialog()" (hintActivate)="openConfigDialog()"
             appAgentHint="chat-input/chat-config"
-            [matBadge]="state.hasAnyPromptUpdate() ? '!' : ''" matBadgeColor="warn"
-            [matBadgeHidden]="!state.hasAnyPromptUpdate()" [matTooltip]="'ui.CHAT_CONFIG_TOOLTIP' | translate">
+            [matBadge]="(state.hasAnyPromptUpdate() || state.hasHunkValidationError()) ? '!' : ''" matBadgeColor="warn"
+            [matBadgeHidden]="!(state.hasAnyPromptUpdate() || state.hasHunkValidationError())" [matTooltip]="'ui.CHAT_CONFIG_TOOLTIP' | translate">
             <mat-icon>settings</mat-icon>
         </button>
 
@@ -210,7 +210,7 @@
         </button>
         } @else {
         <button mat-mini-fab color="primary" class="send-btn"
-            [disabled]="state.status() === 'generating' || !hasActiveSession() || state.pendingActAdvance()" (click)="sendMessage()"
+            [disabled]="state.status() === 'generating' || !hasActiveSession() || state.pendingActAdvance() || state.hasHunkValidationError()" (click)="sendMessage()"
             appAgentHint="chat-input/send"
             [matTooltip]="'ui.SEND_TOOLTIP' | translate">
             <mat-icon>send</mat-icon>

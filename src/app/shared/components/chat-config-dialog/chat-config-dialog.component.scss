@@ -439,3 +439,71 @@ mat-option mat-icon.legacy-profile-warn {
         box-shadow: 0 0 6px rgba(0, 188, 212, 0.4);
     }
 }
+
+// ===== Local hunk patches (Part B) =====
+.editor-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--mat-sys-outline-variant);
+    flex-shrink: 0;
+}
+
+.patch-preview-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    color: var(--mat-sys-on-surface-variant);
+
+    mat-icon {
+        font-size: 18px;
+        width: 18px;
+        height: 18px;
+    }
+}
+
+.patch-indicator mat-icon {
+    color: var(--mat-sys-primary);
+}
+
+.hunk-pane {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
+.hunk-pane-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--mat-sys-outline-variant);
+    flex-shrink: 0;
+
+    .hunk-pane-title {
+        font-size: 0.85rem;
+        font-weight: 500;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: var(--mat-sys-on-surface-variant);
+    }
+}
+
+.hunk-pane-list {
+    flex: 1;
+    min-height: 0;
+    display: block;
+    overflow: hidden;
+}
+
+// Header action-button labels collapse to icon-only when the dialog is narrow,
+// so the trailing close button is never pushed off-screen (B.5 fix).
+@media (max-width: 900px) {
+    .dialog-header .action-label {
+        display: none;
+    }
+}
