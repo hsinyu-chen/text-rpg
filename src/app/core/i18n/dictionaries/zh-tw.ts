@@ -157,6 +157,8 @@ export const zhTW: TranslationDict = {
         CALIBRATE_MODE_TITLE: '【視覺化校正中】請在左側檔案預覽區，圈選正確的文字片段：',
         CALIBRATE_CONFIRM: '確認並套用校正',
         CALIBRATE_CANCEL: '取消校正',
+        HUNK_CREATE_FROM_SELECTION: '從選取建立 patch',
+        HUNK_DELETE: '刪除 patch',
         IDEAL_OUTCOME_FIELD_LABEL: '理想結果（選填，僅 2-call）',
         IDEAL_OUTCOME_FIELD_PLACEHOLDER: '一句話描述本串動作要達成什麼。Resolver 以此逐步判定，遇阻會在該步停下不再續寫。',
         IDEAL_OUTCOME_CHIP_LABEL: '理想結果',

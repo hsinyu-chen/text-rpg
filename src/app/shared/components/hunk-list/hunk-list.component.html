@@ -1,0 +1,126 @@
+<div class="hunk-list">
+  @if (config().allowCreateFromSelection) {
+  <div class="hunk-list-toolbar">
+    <button mat-stroked-button color="primary" [disabled]="!selection()" (click)="createFromSelection()">
+      <mat-icon>add</mat-icon>
+      {{ 'ui.HUNK_CREATE_FROM_SELECTION' | translate }}
+    </button>
+  </div>
+  }
+
+  @if (items().length === 0) {
+  <div class="hunk-empty">{{ 'dialog.noUpdates' | translate }}</div>
+  }
+
+  <div class="list-items" cdkDropList (cdkDropListDropped)="onDrop($event)">
+    @for (item of items(); track item.id; let i = $index) {
+    <div class="update-item" cdkDrag [cdkDragDisabled]="!config().dragReorder"
+      [class.active]="activeId() === item.id" (click)="selectUpdate(item)" (keydown.enter)="selectUpdate(item)"
+      tabindex="0">
+
+      <div class="item-header">
+        @if (config().dragReorder) {
+        <mat-icon class="drag-handle" cdkDragHandle>drag_indicator</mat-icon>
+        }
+        @if (config().selectable) {
+        <div class="checkbox-wrapper" (click)="onCheckboxClick(item, $event)"
+          (keydown.enter)="onCheckboxClick(item, $event)" tabindex="0" role="checkbox"
+          [attr.aria-checked]="item.selected()">
+          <mat-checkbox [checked]="item.selected()" style="pointer-events: none; touch-action: none;"></mat-checkbox>
+        </div>
+        }
+        <span class="update-label">{{ item.label || 'Hunk #' + (i + 1) }}</span>
+
+        <div class="status-container">
+          @if (statusFor(item); as status) {
+          @if (!status.exists) {
+          <mat-icon class="status-icon info" [matTooltip]="'dialog.newFile' | translate">fiber_new</mat-icon>
+          } @else if (status.matched) {
+          <mat-icon class="status-icon success" [matTooltip]="'dialog.matchFound' | translate">check_circle</mat-icon>
+          } @else {
+          <mat-icon class="status-icon warning"
+            [matTooltip]="(status.failReason === 'context_mismatch' ? 'dialog.contextMismatch' : 'dialog.targetNotFound') | translate">warning</mat-icon>
+          }
+          }
+
+          @if (canAutoFix(item)) {
+          <button mat-icon-button class="auto-fix-btn" [matTooltip]="'dialog.autoFixTooltip' | translate"
+            [disabled]="item.autoFixInProgress()" (click)="requestAutoFix(item); $event.stopPropagation()">
+            @if (item.autoFixInProgress()) {
+            <mat-spinner diameter="18"></mat-spinner>
+            } @else {
+            <mat-icon>auto_fix_high</mat-icon>
+            }
+          </button>
+          }
+
+          <button mat-icon-button class="calibrate-btn" [class.active]="calibratingId() === item.id"
+            [matTooltip]="'ui.CALIBRATE_TOOLTIP' | translate" (click)="startCalibration(item); $event.stopPropagation()">
+            <mat-icon class="calibrate-icon">my_location</mat-icon>
+          </button>
+        </div>
+      </div>
+
+      @if (calibratingId() !== item.id) {
+      <div class="item-context-row">
+        @if (item.context && item.context.length) {
+        <div class="item-context" [matTooltip]="item.context.join(' > ')">{{ item.context.join(' > ') }}</div>
+        } @else {
+        <div class="item-context item-context-empty">{{ 'dialog.hunkRootContext' | translate }}</div>
+        }
+        <button mat-icon-button class="copy-raw-btn" [matTooltip]="'dialog.copyRawHunk' | translate"
+          (click)="copyHunkRaw(item); $event.stopPropagation()">
+          <mat-icon>content_copy</mat-icon>
+        </button>
+        @if (config().allowCreateFromSelection) {
+        <button mat-icon-button class="copy-raw-btn" [matTooltip]="'ui.HUNK_DELETE' | translate"
+          (click)="removeHunk(item); $event.stopPropagation()">
+          <mat-icon>delete</mat-icon>
+        </button>
+        }
+      </div>
+      }
+
+      @if (calibratingId() === item.id) {
+      <div class="calibration-panel" (click)="$event.stopPropagation()" (keydown.enter)="$event.stopPropagation()"
+        tabindex="0" role="region">
+        <div class="calibration-header">
+          <mat-icon>edit_note</mat-icon>
+          <span>{{ 'ui.CALIBRATE_MODE_TITLE' | translate }}</span>
+        </div>
+
+        @if (selection(); as sel) {
+        <div class="selection-preview pulse">
+          <div class="preview-text">{{ sel.text }}</div>
+          <div class="preview-actions">
+            <button mat-flat-button color="primary" (click)="applyCalibration(item)">
+              <mat-icon>check</mat-icon>
+              {{ 'ui.CALIBRATE_CONFIRM' | translate }}
+            </button>
+          </div>
+        </div>
+        }
+
+        <div class="hunk-edit-group">
+          <label class="hunk-label" [attr.for]="'target-' + item.id">{{ 'dialog.targetLabel' | translate }}</label>
+          <textarea [id]="'target-' + item.id" cdkTextareaAutosize [value]="item.targetContent || ''"
+            (input)="onHunkContentChange(item, 'target', $event)" class="hunk-textarea"
+            [placeholder]="'dialog.targetPlaceholder' | translate"></textarea>
+        </div>
+
+        <div class="hunk-edit-group">
+          <label class="hunk-label" [attr.for]="'replacement-' + item.id">{{ 'dialog.replacementLabel' | translate }}</label>
+          <textarea [id]="'replacement-' + item.id" cdkTextareaAutosize [value]="item.replacementContent || ''"
+            (input)="onHunkContentChange(item, 'replacement', $event)" class="hunk-textarea"
+            [placeholder]="'dialog.replacementPlaceholder' | translate"></textarea>
+        </div>
+
+        <div class="calibration-footer">
+          <button mat-button color="warn" (click)="cancelCalibration()">{{ 'ui.CALIBRATE_CANCEL' | translate }}</button>
+        </div>
+      </div>
+      }
+    </div>
+    }
+  </div>
+</div>
