@@ -17,7 +17,7 @@
     <nav mat-tab-nav-bar [tabPanel]="tabPanel" class="file-nav-bar">
         @for (group of groups(); track group.fileName; let i = $index) {
         <!-- eslint-disable-next-line @angular-eslint/template/click-events-have-key-events, @angular-eslint/template/interactive-supports-focus -->
-        <a mat-tab-link [active]="activeIndex() === i" [class.error-tab]="hasMismatch(group)"
+        <a mat-tab-link [active]="activeIndex() === i" [class.error-tab]="group.hasMismatch()"
             (click)="selectGroup(i)">
             {{ group.fileName }}
         </a>

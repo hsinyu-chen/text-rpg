@@ -197,6 +197,7 @@ export class HunkListComponent {
     }));
     this.items.set(items);
     this.activeId.set(items[0]?.id ?? null);
+    this.calibratingId.set(null);
     this.recompute();
   }
 
@@ -299,7 +300,9 @@ export class HunkListComponent {
 
   removeHunk(item: HunkItem): void {
     this.calibratingId.update((id) => (id === item.id ? null : id));
-    this.commit(this.items().filter((it) => it.id !== item.id));
+    const remaining = this.items().filter((it) => it.id !== item.id);
+    this.commit(remaining);
+    this.activeId.update((id) => (id === item.id ? remaining[0]?.id ?? null : id));
   }
 
   onHunkContentChange(item: HunkItem, type: 'target' | 'replacement', event: Event): void {

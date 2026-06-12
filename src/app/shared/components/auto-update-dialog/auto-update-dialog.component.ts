@@ -1,4 +1,4 @@
-import { Component, WritableSignal, computed, inject, signal, viewChild, viewChildren } from '@angular/core';
+import { Component, Signal, WritableSignal, computed, inject, signal, viewChild, viewChildren } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 import { MatDialogModule, MAT_DIALOG_DATA, MatDialogRef, MatDialog } from '@angular/material/dialog';
@@ -40,6 +40,8 @@ interface DialogGroup {
   exists: boolean;
   hunks: WritableSignal<FileUpdate[]>;
   combined: WritableSignal<string>;
+  /** Per-tab error dot, recomputed only when this group's hunks change. */
+  hasMismatch: Signal<boolean>;
 }
 
 @Component({
@@ -106,12 +108,6 @@ export class AutoUpdateDialogComponent {
     void this.init();
   }
 
-  /** Per-tab error dot: any hunk that can't match this (existing) file. Selection-independent. */
-  hasMismatch(group: DialogGroup): boolean {
-    if (!group.exists) return false;
-    return group.hunks().some((h) => !this.fileUpdate.validateAgainstContent(group.originalContent, h).matched);
-  }
-
   toggleSidebar(): void {
     this.isSidebarOpen.update((v) => !v);
   }
@@ -149,12 +145,24 @@ export class AutoUpdateDialogComponent {
         exists = false;
       }
       const processed = this.fileUpdate.preprocessUpdates(fileUpdates, fileName, originalContent);
+
+      // Pre-compose the applied result so the editor opens on it instead of
+      // flashing the untouched file before <app-hunk-list>'s first recompute.
+      let combined = originalContent;
+      for (const update of processed) {
+        combined = this.fileUpdate.applyUpdateToFile(combined, update);
+      }
+
+      const hunks = signal(processed);
       groups.push({
         fileName,
         originalContent,
         exists,
-        hunks: signal(processed),
-        combined: signal(originalContent),
+        hunks,
+        combined: signal(combined),
+        hasMismatch: computed(
+          () => exists && hunks().some((h) => !this.fileUpdate.validateAgainstContent(originalContent, h).matched),
+        ),
       });
     }
 
