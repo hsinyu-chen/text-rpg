@@ -152,10 +152,11 @@ export class ChatConfigDialogComponent {
         language: this.activeType() === 'postprocess' ? 'javascript' : 'markdown'
     }));
 
-    // Patch mode shows a read-only base→effective diff (the modified side is the
-    // hunk-applied preview); selection still lands on the original (base) pane.
+    // Patch mode shows a read-only base→effective diff. Inline (not side-by-side):
+    // the pane is narrow and Monaco collapses side-by-side to inline below ~900px
+    // anyway; selection then lands on the modified editor (see MonacoEditor).
     readonly diffOptions = {
-        renderSideBySide: true,
+        renderSideBySide: false,
         minimap: { enabled: false },
         wordWrap: 'on' as const,
         lineNumbers: 'on' as const,

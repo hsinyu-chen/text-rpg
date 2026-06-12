@@ -167,7 +167,7 @@ export const zhTW: TranslationDict = {
         HUNK_EDIT_TOOLTIP: '編輯此 patch',
         HUNK_EDIT_TITLE: '圈選要替換的目標文字片段：',
         HUNK_EDIT_CONFIRM: '套用選取',
-        HUNK_EDIT_CANCEL: '取消編輯',
+        HUNK_EDIT_CANCEL: '取消',
         IDEAL_OUTCOME_FIELD_LABEL: '理想結果（選填，僅 2-call）',
         IDEAL_OUTCOME_FIELD_PLACEHOLDER: '一句話描述本串動作要達成什麼。Resolver 以此逐步判定，遇阻會在該步停下不再續寫。',
         IDEAL_OUTCOME_CHIP_LABEL: '理想結果',

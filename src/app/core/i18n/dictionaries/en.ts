@@ -167,7 +167,7 @@ export const en: TranslationDict = {
         HUNK_EDIT_TOOLTIP: 'Edit this patch',
         HUNK_EDIT_TITLE: 'Select the target text segment to replace:',
         HUNK_EDIT_CONFIRM: 'Apply selection',
-        HUNK_EDIT_CANCEL: 'Cancel edit',
+        HUNK_EDIT_CANCEL: 'Cancel',
         IDEAL_OUTCOME_FIELD_LABEL: 'Ideal Outcome (optional, 2-call only)',
         IDEAL_OUTCOME_FIELD_PLACEHOLDER: 'One-line goal for this action sequence. Resolver judges step-by-step and stops at the first step that cannot reach it.',
         IDEAL_OUTCOME_CHIP_LABEL: 'Ideal Outcome',

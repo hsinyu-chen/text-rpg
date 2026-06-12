@@ -72,7 +72,7 @@ export class MonacoEditorComponent implements OnDestroy, ControlValueAccessor {
     initialized = output<import('monaco-editor').editor.IStandaloneCodeEditor | import('monaco-editor').editor.IStandaloneDiffEditor>();
     valueChange = output<string>();
     activeFileChange = output<string>();
-    /** Emitted when text is selected in the ORIGINAL editor (left pane in diff mode) */
+    /** Emitted on selection: the original (left) editor in side-by-side diff, the modified editor in inline diff, else the plain editor. */
     selectionChange = output<{ text: string, startLineNumber: number, endLineNumber: number } | null>();
 
     private editor: import('monaco-editor').editor.IStandaloneCodeEditor | import('monaco-editor').editor.IStandaloneDiffEditor | null = null;
@@ -226,10 +226,12 @@ export class MonacoEditorComponent implements OnDestroy, ControlValueAccessor {
                     .onDidChangeModel(() => bindModifiedListener())
             );
 
-            // Selection drives hunk calibration — captured on the ORIGINAL (left) editor.
-            this.attachSelectionListeners(
-                (this.editor as import('monaco-editor').editor.IStandaloneDiffEditor).getOriginalEditor(),
-            );
+            // Selection drives hunk calibration. Side-by-side keeps the base on
+            // the original (left) editor; inline collapses the original pane, so
+            // the modified (visible) editor is the only selectable surface.
+            const diffEditor = this.editor as import('monaco-editor').editor.IStandaloneDiffEditor;
+            const inline = (finalOptions as { renderSideBySide?: boolean }).renderSideBySide === false;
+            this.attachSelectionListeners(inline ? diffEditor.getModifiedEditor() : diffEditor.getOriginalEditor());
         } else {
             this.editor = monaco.editor.create(el, {
                 ...finalOptions,
