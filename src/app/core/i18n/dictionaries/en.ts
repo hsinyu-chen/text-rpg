@@ -163,6 +163,7 @@ export const en: TranslationDict = {
         HUNK_BACK_TO_PROMPTS: 'Back to prompts',
         HUNK_PREVIEW_BADGE: 'Patch preview (read-only)',
         HUNK_SAVE_BASE_FIRST: 'Save the prompt edits before creating a patch',
+        HUNK_OPEN_PATCHES: 'Patches ({{count}})',
         IDEAL_OUTCOME_FIELD_LABEL: 'Ideal Outcome (optional, 2-call only)',
         IDEAL_OUTCOME_FIELD_PLACEHOLDER: 'One-line goal for this action sequence. Resolver judges step-by-step and stops at the first step that cannot reach it.',
         IDEAL_OUTCOME_CHIP_LABEL: 'Ideal Outcome',

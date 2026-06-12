@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, viewChild } from '@angular/core';
+import { Component, effect, inject, signal, computed, viewChild } from '@angular/core';
 import { WINDOW } from '@app/core/tokens/window.token';
 import { MatDialogModule, MatDialogRef, MatDialog } from '@angular/material/dialog';
 import { MatListModule } from '@angular/material/list';
@@ -10,7 +10,7 @@ import { FormsModule } from '@angular/forms';
 import { MonacoEditorComponent } from '../monaco-editor/monaco-editor.component';
 import { HunkListComponent } from '../hunk-list/hunk-list.component';
 import { HunkListConfig, HunkSelection } from '../hunk-list/hunk-list.types';
-import { FileUpdate, FileUpdateService } from '@app/core/services/file-update.service';
+import { FileUpdate } from '@app/core/services/file-update.service';
 import { GameStateService } from '@app/core/services/game-state.service';
 import { AppConfigStore } from '@app/core/services/app-config-store';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -71,10 +71,10 @@ export class ChatConfigDialogComponent {
     state = inject(GameStateService);
     private appConfig = inject(AppConfigStore);
     private i18n = inject(I18nService);
-    private fileUpdate = inject(FileUpdateService);
     profileMgr = inject(ProfileManagementController);
 
     editorRef = viewChild<MonacoEditorComponent>('editorRef');
+    hunkListRef = viewChild(HunkListComponent);
 
     constructor() {
         this.profileMgr.bind({
@@ -83,6 +83,16 @@ export class ChatConfigDialogComponent {
             refreshEditorContent: () => this.refreshAllEditorContent(),
         });
         void this.profileMgr.refreshLegacyProfileIds();
+
+        // Once the patch editor mounts after a "create patch" request, hand the
+        // carried selection to it so the new patch opens straight into editing.
+        effect(() => {
+            const list = this.hunkListRef();
+            if (this.pendingCreate() && list) {
+                this.pendingCreate.set(false);
+                list.createFromSelection();
+            }
+        });
     }
 
     readonly injectionTypes = computed((): InjectionType[] => {
@@ -151,6 +161,7 @@ export class ChatConfigDialogComponent {
     mode = signal<'types' | 'hunks'>('types');
     selection = signal<HunkSelection | null>(null);
     combinedPreview = signal<string>('');
+    private pendingCreate = signal(false);
 
     readonly hunkConfig: HunkListConfig = {
         allowCreateFromSelection: true,
@@ -184,20 +195,15 @@ export class ChatConfigDialogComponent {
         await this.injection.setHunks(this.activeType() as PromptType, hunks);
     }
 
-    /** One-click from a base-editor selection: seed a patch + switch to the patch editor. */
+    /**
+     * One-click from a base-editor selection: switch to the patch editor (keeping
+     * the selection) and let the just-mounted <app-hunk-list> seed + open the new
+     * patch via the effect above.
+     */
     createPatchFromSelection(): void {
-        const sel = this.selection();
-        if (!sel) return;
-        const type = this.activeType() as PromptType;
-        const base = this.injection.getContentForType(type);
-        const hunk: FileUpdate = {
-            filePath: type,
-            targetContent: sel.text,
-            replacementContent: '',
-            context: this.fileUpdate.inferContextFromLine(base, sel.startLineNumber - 1),
-        };
-        void this.injection.setHunks(type, [...this.injection.getHunks(type), hunk]);
-        this.enterHunks();
+        if (!this.selection()) return;
+        this.pendingCreate.set(true);
+        this.mode.set('hunks');
     }
 
     getIsDirty(type: string): boolean {

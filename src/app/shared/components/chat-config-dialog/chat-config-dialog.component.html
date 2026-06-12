@@ -47,7 +47,7 @@
     <!-- Main Content Area -->
     <div class="dialog-body">
         <!-- Sidebar -->
-        <div class="sidebar" [class.collapsed]="isSidebarCollapsed()">
+        <div class="sidebar" [class.collapsed]="isSidebarCollapsed()" [class.hunks-mode]="mode() === 'hunks'">
 
             @if (mode() === 'types') {
             <!-- Profile Selector -->
@@ -214,8 +214,13 @@
             </div>
             }
 
-            <!-- Selecting text enables a one-click "create patch" that opens the patch editor. -->
+            <!-- Open the patch editor directly, or one-click-create from a selection. -->
             <div class="editor-toolbar">
+                <button mat-stroked-button class="open-patches-btn" (click)="enterHunks()"
+                    [matTooltip]="'ui.HUNK_OPEN_PATCHES' | translate: { count: patchCount(activeType()) }">
+                    <mat-icon>tune</mat-icon>
+                    {{ 'ui.HUNK_OPEN_PATCHES' | translate: { count: patchCount(activeType()) } }}
+                </button>
                 <button mat-stroked-button color="primary" class="create-patch-btn"
                     [disabled]="!selection() || getIsDirty(activeType())"
                     (click)="createPatchFromSelection()"

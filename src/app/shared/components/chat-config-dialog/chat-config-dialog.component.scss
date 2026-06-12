@@ -500,6 +500,19 @@ mat-option mat-icon.legacy-profile-warn {
     overflow: hidden;
 }
 
+// The patch editor needs more width than the prompt-type list, so the sidebar
+// widens while in 'hunks' mode (the patch list + calibration panel are cramped
+// at the 250px list width).
+.sidebar.hunks-mode {
+    width: 420px;
+    min-width: 420px;
+    max-width: 92vw;
+}
+
+.editor-toolbar {
+    flex-wrap: wrap;
+}
+
 // Header action-button labels collapse to icon-only when the dialog is narrow,
 // so the trailing close button is never pushed off-screen (B.5 fix).
 @media (max-width: 900px) {
