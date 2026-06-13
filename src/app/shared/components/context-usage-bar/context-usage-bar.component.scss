@@ -1,3 +1,5 @@
+@use 'helpers' as *;
+
 // Host has to declare display so the component element actually participates
 // in the parent's flex layout. Default `display: inline` would otherwise
 // collapse the host to its content size and ignore flex sizing.
@@ -23,12 +25,12 @@
 }
 
 .context-usage {
-    border-radius: 4px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--radius-sm);
+    background: var(--surface-faint);
+    border: 1px solid var(--surface-border-faint);
 
     .ctx-bar {
-        background: rgba(255, 255, 255, 0.08);
+        background: var(--surface-border-faint);
         overflow: hidden;
         display: flex;
     }
@@ -43,41 +45,35 @@
         &.seg-system             { background: #5c6bc0; } // indigo
         &.seg-kb                 { background: #26a69a; } // teal
         &.seg-history-compressed { background: #388e3c; } // dark green — compressed/summarized
-        &.seg-history-recent     { background: #81c784; } // light green — recent verbatim
+        &.seg-history-recent     { background: var(--status-success-light); } // light green — recent verbatim
         &.seg-injection          { background: #ab47bc; } // purple
-        &.seg-buffer             { background: rgba(255, 255, 255, 0.18); } // neutral grey, signals "reserved"
+        &.seg-buffer             { background: var(--border-color-strong); } // neutral grey, signals "reserved"
     }
 
     // ============================================================
     // FULL variant — sidebar header + counts + breakdown
     // ============================================================
     &.full {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
-        padding: 6px 8px;
+        @include flex-column(var(--space-1));
+        padding: 6px var(--space-2);
         font-size: 11px;
         cursor: pointer;
         user-select: none;
         transition: background 0.15s ease;
 
-        &:hover { background: rgba(255, 255, 255, 0.05); }
-        &.expanded { background: rgba(255, 255, 255, 0.05); }
+        &:hover { background: var(--surface-hover); }
+        &.expanded { background: var(--surface-hover); }
 
         .ctx-label {
-            display: flex;
-            align-items: center;
-            gap: 6px;
+            @include flex-row-center(6px);
 
             mat-icon {
-                font-size: 14px;
-                width: 14px;
-                height: 14px;
+                @include mat-icon-sized(14px);
             }
 
             .ctx-pct {
                 margin-left: auto;
-                font-family: 'Roboto Mono', monospace;
+                font-family: var(--app-font-mono);
                 font-weight: bold;
             }
 
@@ -90,25 +86,21 @@
         }
 
         .ctx-counts {
-            font-family: 'Roboto Mono', monospace;
+            font-family: var(--app-font-mono);
             font-size: 10px;
             text-align: right;
             opacity: 0.75;
         }
 
         .ctx-breakdown {
-            display: flex;
-            flex-direction: column;
-            gap: 3px;
+            @include flex-column(3px);
             margin-top: 6px;
             padding-top: 6px;
-            border-top: 1px dashed rgba(255, 255, 255, 0.12);
+            border-top: 1px dashed var(--border-color);
             cursor: default;
 
             .breakdown-row {
-                display: flex;
-                align-items: center;
-                gap: 6px;
+                @include flex-row-center(6px);
                 font-size: 10.5px;
 
                 .seg-dot {
@@ -121,19 +113,19 @@
                     &.seg-kb                 { background: #26a69a; }
                     &.seg-history            { background: #66bb6a; }
                     &.seg-history-compressed { background: #388e3c; }
-                    &.seg-history-recent     { background: #81c784; }
+                    &.seg-history-recent     { background: var(--status-success-light); }
                     &.seg-injection          { background: #ab47bc; }
                     &.seg-buffer             { background: rgba(255, 255, 255, 0.4); }
                 }
 
                 .breakdown-label {
                     flex: 1;
-                    color: #cfcfcf;
+                    color: var(--text-secondary);
                 }
 
                 .breakdown-val {
-                    font-family: 'Roboto Mono', monospace;
-                    color: #e0e0e0;
+                    font-family: var(--app-font-mono);
+                    color: var(--text-main);
                 }
 
                 &.sub {
@@ -141,45 +133,24 @@
                     font-size: 10px;
                     opacity: 0.85;
 
-                    .breakdown-label { color: #b0b0b0; }
+                    .breakdown-label { color: var(--text-secondary); }
                 }
 
                 &.total {
                     margin-top: 2px;
-                    padding-top: 4px;
-                    border-top: 1px dotted rgba(255, 255, 255, 0.1);
+                    padding-top: var(--space-1);
+                    border-top: 1px dotted var(--border-color);
                     font-weight: 600;
 
-                    .breakdown-label { color: #e0e0e0; }
+                    .breakdown-label { color: var(--text-main); }
                 }
             }
         }
 
         // Severity colours the container border + percentage text only;
         // segments stay semantic so the user can read the composition.
-        &.level-safe {
-            color: #a5d6a7;
-            border-color: rgba(76, 175, 80, 0.25);
-            .ctx-pct { color: #c8e6c9; }
-        }
-        &.level-warning {
-            color: #fff59d;
-            border-color: rgba(255, 235, 59, 0.4);
-            .ctx-pct { color: #fff9c4; }
-        }
-        &.level-high {
-            color: #ffcc80;
-            border-color: rgba(255, 152, 0, 0.5);
-            background: rgba(255, 152, 0, 0.06);
-            .ctx-pct { color: #ffe0b2; }
-        }
-        &.level-critical {
-            color: #ef9a9a;
-            border-color: rgba(244, 67, 54, 0.6);
-            background: rgba(244, 67, 54, 0.08);
-            animation: ctx-pulse 1.2s infinite;
-            .ctx-pct { color: #ffcdd2; font-weight: bold; }
-        }
+        @include ctx-level-states($fill: false);
+        &.level-critical { animation: ctx-pulse 1.2s infinite; }
     }
 
     // ============================================================
@@ -187,17 +158,16 @@
     // ============================================================
     &.compact {
         // Match the .profile-pill geometry from chat-input so it lines up
-        // with the surrounding chips: 22px high, 11px radius, 1px #444 border.
+        // with the surrounding chips: 22px high, 11px radius, 1px divider border.
         // (The host carries `flex: 1` for fill-remaining behaviour — see
         // `:host(.variant-compact)` above.)
         width: 100%;
         height: 22px;
         border-radius: 11px;
-        border: 1px solid #444;
-        padding: 4px 6px;
+        border: 1px solid var(--border-divider-solid);
+        padding: var(--space-1) 6px;
         background: transparent;
-        display: flex;
-        align-items: center;
+        @include flex-row-center;
 
         .ctx-bar {
             flex: 1;

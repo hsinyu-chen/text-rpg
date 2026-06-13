@@ -1,3 +1,5 @@
+@use 'helpers' as *;
+
 // Host opens via FULLSCREEN_DIALOG_CONFIG — outer container has no padding
 // (set globally by `.fullscreen-dialog .mat-mdc-dialog-container { padding: 0 }`).
 // Reclaim flex layout here + restore inner padding on title / content /
@@ -12,7 +14,7 @@
 }
 
 h2[mat-dialog-title] {
-    padding: 16px 24px 0;
+    padding: var(--space-4) 24px 0;
     margin: 0;
 }
 
@@ -26,14 +28,14 @@ h2[mat-dialog-title] {
     min-height: 0;
     display: flex;
     flex-direction: column;
-    padding: 16px 24px;
+    padding: var(--space-4) 24px;
     overflow-y: auto;
 }
 
 mat-dialog-actions {
-    padding: 8px 24px 16px;
+    padding: var(--space-2) 24px var(--space-4);
     flex-wrap: wrap;
-    gap: 8px;
+    gap: var(--space-2);
 }
 
 .empty-state {
@@ -50,9 +52,7 @@ mat-dialog-actions {
     gap: 0.5em;
 
     .state-icon {
-        font-size: 1.1rem;
-        width: 1.1rem;
-        height: 1.1rem;
+        @include mat-icon-sized(1.1rem);
         // Per-state color hints — uses [attr.data-state] selector.
         &[data-state='running']  { color: var(--mat-sys-primary); }
         &[data-state='done']     { color: #43a047; }
@@ -62,18 +62,18 @@ mat-dialog-actions {
     }
 
     .tool-name {
-        font-family: 'Fira Code', 'Consolas', monospace;
-        font-size: 0.9rem;
+        font-family: var(--app-font-mono);
+        font-size: var(--app-font-size-md);
     }
 
     .entity-name {
         opacity: 0.75;
-        font-size: 0.9rem;
+        font-size: var(--app-font-size-md);
     }
 }
 
 .entry-meta {
-    font-size: 0.8rem;
+    font-size: var(--app-font-size-xs);
     opacity: 0.75;
     white-space: nowrap;
     overflow: hidden;
@@ -84,8 +84,8 @@ mat-dialog-actions {
 }
 
 .status-reason {
-    font-family: 'Fira Code', 'Consolas', monospace;
-    font-size: 0.75rem;
+    font-family: var(--app-font-mono);
+    font-size: var(--app-font-size-2xs);
 }
 
 // Per-card copy-debug button — sits between the meta and the panel's toggle
@@ -93,16 +93,14 @@ mat-dialog-actions {
 .copy-debug-btn {
     flex: 0 0 auto;
     align-self: center;
-    margin-left: 4px;
+    margin-left: var(--space-1);
     --mdc-icon-button-state-layer-size: 32px;
     width: 32px;
     height: 32px;
-    padding: 4px;
+    padding: var(--space-1);
 
     .mat-icon {
-        font-size: 1.05rem;
-        width: 1.05rem;
-        height: 1.05rem;
+        @include mat-icon-sized(1.05rem);
     }
 }
 
@@ -115,7 +113,7 @@ mat-dialog-actions {
         font-size: 0.78rem;
         opacity: 0.7;
         margin-bottom: 0.25rem;
-        font-family: 'Fira Code', 'Consolas', monospace;
+        font-family: var(--app-font-mono);
     }
 
     .entry-todos-list {
@@ -133,9 +131,7 @@ mat-dialog-actions {
 
             .mat-icon {
                 flex: 0 0 auto;
-                font-size: 1.05rem;
-                width: 1.05rem;
-                height: 1.05rem;
+                @include mat-icon-sized(1.05rem);
                 opacity: 0.6;
             }
 
@@ -163,7 +159,7 @@ mat-dialog-actions {
     }
 
     .pp-label {
-        font-size: 0.8rem;
+        font-size: var(--app-font-size-xs);
         opacity: 0.7;
         white-space: nowrap;
     }
@@ -174,7 +170,7 @@ mat-dialog-actions {
 
     summary {
         cursor: pointer;
-        font-size: 0.85rem;
+        font-size: var(--app-font-size-sm);
         opacity: 0.75;
         user-select: none;
     }
@@ -182,25 +178,25 @@ mat-dialog-actions {
     // No max-height/overflow here — outer .save-progress-content owns the
     // only scroll viewport, same single-scroll rule the .entry-trace uses.
     .cot-text {
-        font-family: 'Fira Code', 'Consolas', monospace;
-        font-size: 0.8rem;
+        font-family: var(--app-font-mono);
+        font-size: var(--app-font-size-xs);
         white-space: pre-wrap;
         word-break: break-word;
         background: rgba(0, 0, 0, 0.04);
         padding: 0.5rem 0.75rem;
-        border-radius: 4px;
+        border-radius: var(--radius-sm);
         margin: 0.4rem 0 0;
     }
 }
 
 .output-text {
-    font-family: 'Fira Code', 'Consolas', monospace;
-    font-size: 0.8rem;
+    font-family: var(--app-font-mono);
+    font-size: var(--app-font-size-xs);
     white-space: pre-wrap;
     word-break: break-word;
     background: rgba(0, 0, 0, 0.04);
     padding: 0.5rem 0.75rem;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     margin: 0.4rem 0;
 }
 
@@ -227,8 +223,8 @@ mat-dialog-actions {
     margin: 0.5rem 0;
     padding: 0.4rem 0.75rem;
     border-left: 3px solid var(--mat-sys-error);
-    background: rgba(244, 67, 54, 0.06);
-    font-size: 0.8rem;
+    background: color-mix(in srgb, var(--status-error) 6%, transparent);
+    font-size: var(--app-font-size-xs);
 
     .entry-warnings-title {
         font-weight: 600;
@@ -239,8 +235,8 @@ mat-dialog-actions {
     ul {
         margin: 0;
         padding-left: 1.2rem;
-        font-family: 'Fira Code', 'Consolas', monospace;
-        font-size: 0.75rem;
+        font-family: var(--app-font-mono);
+        font-size: var(--app-font-size-2xs);
 
         li {
             margin: 0.1rem 0;
@@ -252,15 +248,15 @@ mat-dialog-actions {
 .usage-line {
     display: flex;
     gap: 1rem;
-    font-size: 0.75rem;
+    font-size: var(--app-font-size-2xs);
     opacity: 0.7;
-    font-family: 'Fira Code', 'Consolas', monospace;
+    font-family: var(--app-font-mono);
     margin-top: 0.3rem;
 }
 
 .total-usage {
     flex: 1 1 auto;
-    font-size: 0.8rem;
+    font-size: var(--app-font-size-xs);
     opacity: 0.75;
-    font-family: 'Fira Code', 'Consolas', monospace;
+    font-family: var(--app-font-mono);
 }

@@ -1,3 +1,5 @@
+@use 'helpers' as *;
+
 :host {
   display: block;
   min-width: 0;
@@ -19,7 +21,7 @@
 }
 
 .slice-info {
-  font-size: 0.8rem;
+  font-size: var(--app-font-size-xs);
   opacity: 0.7;
   margin: 0.5rem 0 0.75rem;
   font-style: italic;
@@ -33,7 +35,7 @@
 
 .group-heading {
   margin: 1rem 0 0.5rem;
-  font-size: 0.95rem;
+  font-size: var(--app-font-size-lg);
 
   .group-count {
     margin-left: 0.4em;
@@ -43,7 +45,7 @@
 }
 
 .entry-meta {
-  font-size: 0.8rem;
+  font-size: var(--app-font-size-xs);
   opacity: 0.7;
   white-space: nowrap;
   overflow: hidden;
@@ -66,31 +68,26 @@
 }
 
 .event-scene-header {
-  min-width: 0;
-  flex: 1 1 auto;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  @include flex-fill-min0(width);
+  @include text-ellipsis;
 }
 
 .raw-text {
-  font-family: 'Fira Code', 'Consolas', monospace;
-  font-size: 0.8rem;
+  font-family: var(--app-font-mono);
+  font-size: var(--app-font-size-xs);
   white-space: pre-wrap;
   word-break: break-word;
   background: rgba(0, 0, 0, 0.04);
   padding: 0.75rem;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   max-height: 320px;
   overflow: auto;
   margin: 0;
 }
 
 .event-body {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  font-size: 0.85rem;
+  @include flex-column(0.5rem);
+  font-size: var(--app-font-size-sm);
 
   .event-field {
     strong {
@@ -106,15 +103,15 @@
 
   .event-meta {
     opacity: 0.7;
-    font-size: 0.75rem;
+    font-size: var(--app-font-size-2xs);
     code {
-      font-family: 'Fira Code', 'Consolas', monospace;
+      font-family: var(--app-font-mono);
     }
   }
 }
 
 .event-id {
-  font-family: 'Fira Code', 'Consolas', monospace;
+  font-family: var(--app-font-mono);
   background: rgba(0, 0, 0, 0.06);
   padding: 0 0.3em;
   border-radius: 3px;

@@ -1,6 +1,6 @@
 .full-width {
   width: 100%;
-  margin-top: 8px;
+  margin-top: var(--space-2);
 }
 :host {
     display: block;

@@ -4,7 +4,7 @@
     max-height: 70vh;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: var(--space-3);
 }
 
 .hint {
@@ -20,7 +20,7 @@
 
     h3 {
         margin: 0;
-        font-size: 0.95rem;
+        font-size: var(--app-font-size-lg);
         font-weight: 600;
     }
 }
@@ -28,16 +28,16 @@
 .diff-row {
     display: grid;
     grid-template-columns: 60px 1fr;
-    gap: 8px;
+    gap: var(--space-2);
     align-items: start;
 }
 
 .diff-label {
-    font-size: 0.75rem;
+    font-size: var(--app-font-size-2xs);
     font-weight: 600;
     text-transform: uppercase;
-    padding: 4px 6px;
-    border-radius: 4px;
+    padding: var(--space-1) 6px;
+    border-radius: var(--radius-sm);
     text-align: center;
 
     &.old {
@@ -53,10 +53,10 @@
 
 .diff-text {
     margin: 0;
-    padding: 6px 8px;
-    border-radius: 4px;
-    font-family: 'Fira Code', 'Courier New', monospace;
-    font-size: 0.8rem;
+    padding: 6px var(--space-2);
+    border-radius: var(--radius-sm);
+    font-family: var(--app-font-mono);
+    font-size: var(--app-font-size-xs);
     line-height: 1.4;
     white-space: pre-wrap;
     word-break: break-word;

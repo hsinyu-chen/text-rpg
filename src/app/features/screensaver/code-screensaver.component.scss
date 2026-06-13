@@ -1,10 +1,8 @@
+@use 'helpers' as *;
+
 .screensaver-container {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: #1e1e1e;
+  @include fullscreen-fixed-overlay;
+  background: var(--bg-surface);
   z-index: 9999;
   cursor: text;
 }
@@ -21,8 +19,8 @@
   transition: color 0.3s, background-color 0.3s;
 }
 .exit-btn:hover {
-  color: white;
-  background-color: rgba(255, 255, 255, 0.1);
+  color: var(--text-on-accent);
+  background-color: var(--border-color);
 }
 .overlay {
     position: absolute;

@@ -1,3 +1,5 @@
+@use 'helpers' as *;
+
 .book-list-container {
     display: flex;
     flex-direction: column;
@@ -6,75 +8,67 @@
     background: var(--mat-sidenav-container-background-color);
 }
 .header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 16px;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
+    @include flex-row-between;
+    padding: var(--space-4);
+    border-bottom: 1px solid var(--border-color);
     h3 { margin: 0; }
 }
 .cost-summary {
-    padding: 12px 16px;
-    background: linear-gradient(135deg, rgba(76, 175, 80, 0.1) 0%, rgba(33, 150, 243, 0.1) 100%);
-    border-bottom: 1px solid rgba(255,255,255,0.1);
+    padding: var(--space-3) var(--space-4);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--status-success) 10%, transparent) 0%, rgba(var(--accent-blue-rgb), 0.1) 100%);
+    border-bottom: 1px solid var(--border-color);
 }
 .cost-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    @include flex-row-center(var(--space-2));
     font-weight: 500;
-    margin-bottom: 8px;
-    mat-icon { font-size: 18px; width: 18px; height: 18px; color: #4caf50; }
+    margin-bottom: var(--space-2);
+    mat-icon { @include mat-icon-sized(18px); color: var(--status-success); }
 }
-.cost-stats { display: flex; flex-direction: column; gap: 4px; }
+.cost-stats { @include flex-column(var(--space-1)); }
 .cost-row {
     display: flex;
     justify-content: space-between;
     font-size: 0.85em;
     .val { font-weight: 500; }
     &.total {
-        margin-top: 4px;
-        padding-top: 4px;
-        border-top: 1px dashed rgba(255,255,255,0.2);
+        margin-top: var(--space-1);
+        padding-top: var(--space-1);
+        border-top: 1px dashed var(--border-color-strong);
         font-size: 0.95em;
-        .val { color: #4caf50; font-weight: 600; }
+        .val { color: var(--status-success); font-weight: 600; }
     }
 }
 .top-actions {
     display: flex;
-    gap: 8px;
-    padding: 8px 16px;
-    border-bottom: 1px solid rgba(255,255,255,0.06);
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-4);
+    border-bottom: 1px solid var(--surface-border-faintest);
 }
 .top-actions .top-btn {
     flex: 1;
     height: 36px;
     line-height: 34px;
     font-size: 0.85em;
-    padding: 0 8px;
+    padding: 0 var(--space-2);
     min-width: 0;
     mat-icon {
-        font-size: 16px;
-        width: 16px;
-        height: 16px;
-        margin-right: 4px;
+        @include mat-icon-sized(16px);
+        margin-right: var(--space-1);
     }
 }
 .book-scroll { flex: 1; overflow-y: auto; }
 
 .collection-group {
-    border-bottom: 1px solid rgba(255,255,255,0.05);
+    border-bottom: 1px solid var(--surface-hover);
 }
 .collection-header {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 12px;
+    @include flex-row-center(6px);
+    padding: var(--space-2) var(--space-3);
     cursor: pointer;
-    background: rgba(255,255,255,0.03);
+    background: var(--surface-faint);
     user-select: none;
     border-left: 4px solid transparent;
-    &:hover { background: rgba(255,255,255,0.06); }
+    &:hover { background: var(--surface-border-faintest); }
 
     &.active-collection {
         background: rgba(var(--app-primary-rgb), 0.18);
@@ -85,21 +79,18 @@
     }
 }
 .collection-header .caret {
-    font-size: 18px; width: 18px; height: 18px;
+    @include mat-icon-sized(18px);
     opacity: 0.6;
 }
 .collection-header .folder-icon {
-    font-size: 18px; width: 18px; height: 18px;
+    @include mat-icon-sized(18px);
     opacity: 0.7;
 }
 .collection-name {
     font-weight: 500;
     font-size: 0.9em;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    @include text-ellipsis(true);
     flex-shrink: 1;
-    min-width: 0;
 }
 .collection-count {
     font-size: 0.8em;
@@ -108,27 +99,21 @@
 }
 .spacer { flex: 1; }
 .header-btn {
-    width: 28px !important;
-    height: 28px !important;
-    padding: 0 !important;
-    min-width: 0 !important;
+    @include icon-button-square-reset(28px, inline-flex);
     flex-shrink: 0;
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    mat-icon { font-size: 16px; width: 16px; height: 16px; margin: 0 !important; }
+    mat-icon { @include mat-icon-sized(16px); margin: 0 !important; }
 }
 .book-sublist {
     padding: 0 !important;
-    margin-left: 16px;
-    border-left: 2px solid rgba(255, 255, 255, 0.08);
+    margin-left: var(--space-4);
+    border-left: 2px solid var(--surface-border-faint);
 
     mat-list-item {
-        padding-inline-start: 16px !important;
+        padding-inline-start: var(--space-4) !important;
     }
 }
 .empty-collection {
-    padding: 12px 16px 12px 32px;
+    padding: var(--space-3) var(--space-4) var(--space-3) 32px;
     font-size: 0.85em;
     opacity: 0.5;
     font-style: italic;
@@ -151,43 +136,33 @@
 .book-meta {
     font-size: 0.8em;
     opacity: 0.7;
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    @include flex-row-center(var(--space-2));
 }
-.cache-badge { color: #4caf50; display: inline-flex; }
-.tiny-icon { font-size: 14px; width: 14px; height: 14px; }
+.cache-badge { color: var(--status-success); display: inline-flex; }
+.tiny-icon { @include mat-icon-sized(14px); }
 
 .footer-actions {
-    padding: 16px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    border-top: 1px solid rgba(255,255,255,0.1);
+    padding: var(--space-4);
+    @include flex-column(var(--space-2));
+    border-top: 1px solid var(--border-color);
 }
 .nuke-btn, .advanced-btn { width: 100%; }
 .sync-group {
-    display: flex;
-    gap: 4px;
-    align-items: center;
+    @include flex-row-center(var(--space-1));
 }
 .sync-btn {
     flex: 1 1 auto;
-    color: #4285f4;
-    border-color: rgba(66, 133, 244, 0.5);
-    &:hover { background: rgba(66, 133, 244, 0.05); }
+    color: var(--accent-google-blue);
+    border-color: color-mix(in srgb, var(--accent-google-blue) 50%, transparent);
+    &:hover { background: color-mix(in srgb, var(--accent-google-blue) 5%, transparent); }
 }
 .sync-more-btn {
     flex: 0 0 auto;
-    color: #4285f4;
+    color: var(--accent-google-blue);
 }
 .empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
+    @include flex-center(column, var(--space-4));
     padding: 40px 20px;
     opacity: 0.5;
-    gap: 16px;
-    mat-icon { font-size: 48px; width: 48px; height: 48px; }
+    mat-icon { @include mat-icon-sized(48px); }
 }

@@ -4,7 +4,7 @@
     max-height: 70vh;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: var(--space-3);
 }
 
 .header-row {
@@ -13,19 +13,19 @@
     gap: 10px;
 
     .file-label {
-        font-family: 'Fira Code', 'Courier New', monospace;
-        font-size: 0.85rem;
+        font-family: var(--app-font-mono);
+        font-size: var(--app-font-size-sm);
         color: var(--mat-app-text-color, rgba(0, 0, 0, 0.75));
     }
 
     .round-badge {
         margin-left: auto;
-        padding: 2px 8px;
+        padding: 2px var(--space-2);
         border-radius: 10px;
         font-size: 0.72rem;
         font-weight: 600;
-        background: rgba(99, 102, 241, 0.12);
-        color: #818cf8;
+        background: rgba(var(--accent-indigo-strong-rgb), 0.12);
+        color: var(--accent-indigo);
     }
 }
 
@@ -43,16 +43,16 @@
 
     h3 {
         margin: 0;
-        font-size: 0.9rem;
+        font-size: var(--app-font-size-md);
         font-weight: 600;
     }
 }
 
 .stream-text {
     margin: 0;
-    padding: 8px 10px;
-    border-radius: 4px;
-    font-family: 'Fira Code', 'Courier New', monospace;
+    padding: var(--space-2) 10px;
+    border-radius: var(--radius-sm);
+    font-family: var(--app-font-mono);
     font-size: 0.78rem;
     line-height: 1.4;
     white-space: pre-wrap;
@@ -61,22 +61,22 @@
     overflow: auto;
 
     &.thought {
-        background: rgba(99, 102, 241, 0.06);
-        border-left: 3px solid rgba(99, 102, 241, 0.5);
-        color: #818cf8;
+        background: rgba(var(--accent-indigo-strong-rgb), 0.06);
+        border-left: 3px solid rgba(var(--accent-indigo-strong-rgb), 0.5);
+        color: var(--accent-indigo);
     }
 
     &.output {
-        background: rgba(217, 119, 6, 0.06);
-        border-left: 3px solid rgba(217, 119, 6, 0.5);
+        background: color-mix(in srgb, var(--status-warning) 6%, transparent);
+        border-left: 3px solid color-mix(in srgb, var(--status-warning) 50%, transparent);
     }
 }
 
 .usage-line {
     display: flex;
     gap: 14px;
-    font-size: 0.75rem;
+    font-size: var(--app-font-size-2xs);
     color: var(--mat-app-text-color, rgba(0, 0, 0, 0.6));
     border-top: 1px solid var(--border-color, rgba(0, 0, 0, 0.1));
-    padding-top: 8px;
+    padding-top: var(--space-2);
 }

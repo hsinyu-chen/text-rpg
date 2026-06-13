@@ -1,3 +1,5 @@
+@use 'helpers' as *;
+
 .chat-sidenav-container {
     width: 100%;
     height: 100%;
@@ -14,9 +16,9 @@
 .turn-update-sidebar {
     width: 350px;
     max-width: 90vw;
-    background: #1e1e1e; // Dark theme bg
-    border-left: 1px solid rgba(255, 255, 255, 0.1);
-    box-shadow: -4px 0 10px rgba(0, 0, 0, 0.3);
+    background: var(--bg-sidebar); // Dark theme bg
+    border-left: 1px solid var(--border-color);
+    box-shadow: -4px 0 10px var(--overlay-inset);
 }
 
 .chat-container {
@@ -53,22 +55,7 @@
     // and got mis-detected as user scroll mid-animation. Smooth is opted-in per-call now.
 
     // Scrollbar styling
-    &::-webkit-scrollbar {
-        width: 8px;
-    }
-
-    &::-webkit-scrollbar-track {
-        background: transparent;
-    }
-
-    &::-webkit-scrollbar-thumb {
-        background: rgba(255, 255, 255, 0.1);
-        border-radius: 4px;
-
-        &:hover {
-            background: rgba(255, 255, 255, 0.2);
-        }
-    }
+    @include custom-scrollbar;
 }
 
 .thread-content {
@@ -79,7 +66,7 @@
 }
 
 .message-wrapper {
-    border-radius: 8px;
+    border-radius: var(--radius-lg);
 
     &.model-message {
         content-visibility: auto;
@@ -129,7 +116,7 @@
     gap: 10px;
     padding: 10px;
     color: rgba(255, 255, 255, 0.5);
-    font-size: 0.9rem;
+    font-size: var(--app-font-size-md);
     justify-content: center;
     animation: fadeIn 0.3s ease;
 }

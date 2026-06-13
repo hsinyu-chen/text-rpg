@@ -1,31 +1,28 @@
+@use 'helpers' as *;
+
 .sidebar-container {
     height: 100vh;
     display: flex;
     flex-direction: column;
-    background: #1e1e1e;
-    color: #e0e0e0;
+    background: var(--bg-sidebar);
+    color: var(--text-main);
     overflow: hidden;
 }
 
 .header {
-    padding: 6px 16px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 1px solid #333;
+    @include flex-row-between;
+    padding: 6px var(--space-4);
+    border-bottom: 1px solid var(--border-divider-solid);
     flex-shrink: 0;
 }
 
 .header-actions {
-    display: flex;
-    gap: 8px;
-    align-items: center;
+    @include flex-row-center(var(--space-2));
 }
 
 .logo-container {
     flex: 1;
-    display: flex;
-    align-items: center;
+    @include flex-row-center;
 }
 
 .sidebar-logo {
@@ -43,8 +40,8 @@
 }
 
 .pinned-usage {
-    padding: 8px;
-    background: #252525;
+    padding: var(--space-2);
+    background: var(--bg-sidebar);
     flex-shrink: 0;
 }
 
@@ -65,58 +62,39 @@
 }
 
 .tab-label {
-    margin-left: 8px;
-    font-size: 0.85rem;
+    margin-left: var(--space-2);
+    font-size: var(--app-font-size-sm);
     font-weight: 500;
 }
 
 .tab-content {
     flex: 1 1 auto;
     overflow-y: auto;
-    padding: 8px 0;
+    padding: var(--space-2) 0;
     display: flex;
     flex-direction: column;
     min-height: 0; // Crucial for flex child scroll
 
     &.padded {
-        padding-left: 12px;
-        padding-right: 12px;
+        padding-left: var(--space-3);
+        padding-right: var(--space-3);
     }
 
-
-    /* Webkit scrollbar styling */
-    &::-webkit-scrollbar {
-        width: 6px;
-    }
-
-    &::-webkit-scrollbar-track {
-        background: transparent;
-    }
-
-    &::-webkit-scrollbar-thumb {
-        background: #444;
-        border-radius: 3px;
-    }
-
-    &::-webkit-scrollbar-thumb:hover {
-        background: #555;
-    }
+    @include custom-scrollbar(6px, transparent, var(--border-divider-solid), var(--border-divider-strong));
 }
 
 .section-header-container {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px 16px;
+    @include flex-row-between;
+    padding: var(--space-2) var(--space-4);
     min-height: 32px;
 }
 
 .section-header {
     margin: 0;
-    font-size: 0.75rem;
+    font-size: var(--app-font-size-2xs);
     font-weight: bold;
     text-transform: uppercase;
-    color: #757575;
+    color: var(--text-muted);
     letter-spacing: 0.5px;
 }
 
@@ -126,12 +104,8 @@
     padding: 0 !important;
 
     mat-icon {
-        font-size: 16px;
-        width: 16px;
-        height: 16px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
+        @include mat-icon-sized(16px);
+        @include flex-center;
     }
 }
 
@@ -140,53 +114,49 @@
 }
 
 .file-sync-section {
-    padding: 12px;
+    padding: var(--space-3);
 }
 
 .file-item-title {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+    @include flex-row-between;
     width: 100%;
-    gap: 8px;
+    gap: var(--space-2);
 }
 
 .clickable-file {
     cursor: pointer;
     flex-grow: 1;
     text-decoration: none;
-    color: #e0e0e0;
-    font-size: 0.9rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    color: var(--text-main);
+    font-size: var(--app-font-size-md);
+    @include text-ellipsis;
     color: #ff4081;
     text-decoration: underline;
 }
 
 .empty-state {
-    padding: 32px 16px;
+    padding: 32px var(--space-4);
     text-align: center;
-    color: #757575;
-    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-size: var(--app-font-size-xs);
     font-style: italic;
 }
 
 .close-btn {
-    color: #757575;
+    color: var(--text-muted);
 
     &:hover {
-        color: #e0e0e0;
+        color: var(--text-main);
     }
 }
 
 /* Adjust mat-list background for better contrast in tabs */
 .mat-mdc-list-item {
-    --mdc-list-list-item-label-text-color: #e0e0e0;
-    --mdc-list-list-item-supporting-text-color: #9e9e9e;
+    --mdc-list-list-item-label-text-color: var(--text-main);
+    --mdc-list-list-item-supporting-text-color: var(--text-secondary);
 
     &:hover {
-        background-color: rgba(255, 255, 255, 0.05);
+        background-color: var(--surface-hover);
     }
 }
 
@@ -194,9 +164,9 @@
     width: 10px;
     height: 10px;
     min-width: 10px;
-    background: #ffc107;
+    background: var(--status-unsaved);
     border-radius: 50%;
     display: inline-block;
-    box-shadow: 0 0 6px rgba(255, 193, 7, 0.8), 0 0 12px rgba(255, 193, 7, 0.4);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 0 6px color-mix(in srgb, var(--status-unsaved) 80%, transparent), 0 0 12px color-mix(in srgb, var(--status-unsaved) 40%, transparent);
+    border: 1px solid var(--border-color-strong);
 }

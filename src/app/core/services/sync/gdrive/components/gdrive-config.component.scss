@@ -1,43 +1,37 @@
+@use 'helpers' as *;
+
 :host {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
+    @include flex-column(var(--space-3));
 }
 
 .status {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+    @include flex-row-center(var(--space-2));
     font-size: 0.9em;
 
     mat-icon {
-        font-size: 20px;
-        width: 20px;
-        height: 20px;
+        @include mat-icon-sized(20px);
     }
 
     &.ok {
-        color: #4caf50;
+        color: var(--status-success);
     }
 
     &.warn {
-        color: #ff9800;
+        color: var(--status-warning);
     }
 
     code {
-        background: rgba(255, 255, 255, 0.08);
-        padding: 0 4px;
+        background: var(--surface-border-faint);
+        padding: 0 var(--space-1);
         border-radius: 3px;
         font-size: 0.9em;
     }
 }
 
 .byo-oauth {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    padding-top: 8px;
-    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    @include flex-column(var(--space-3));
+    padding-top: var(--space-2);
+    border-top: 1px solid var(--surface-border-faint);
 
     .hint {
         font-size: 0.85em;
@@ -45,16 +39,14 @@
         margin: 0;
 
         code {
-            background: rgba(255, 255, 255, 0.08);
-            padding: 0 4px;
+            background: var(--surface-border-faint);
+            padding: 0 var(--space-1);
             border-radius: 3px;
         }
     }
 
     .redirect-uri {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
+        @include flex-column(var(--space-1));
 
         .label {
             font-size: 0.85em;
@@ -62,14 +54,12 @@
         }
 
         .redirect-uri-row {
-            display: flex;
-            align-items: center;
-            gap: 4px;
+            @include flex-row-center(var(--space-1));
 
             code {
                 flex: 1;
-                background: rgba(255, 255, 255, 0.08);
-                padding: 4px 8px;
+                background: var(--surface-border-faint);
+                padding: var(--space-1) var(--space-2);
                 border-radius: 3px;
                 font-size: 0.85em;
                 word-break: break-all;

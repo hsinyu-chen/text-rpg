@@ -1,7 +1,9 @@
+@use 'helpers' as *;
+
 :host {
   display: block;
-  padding: 10px 12px 4px;
-  background: rgba(255, 255, 255, 0.02);
+  padding: 10px var(--space-3) var(--space-1);
+  background: var(--surface-faintest);
 }
 .selector-row {
   display: flex;
@@ -14,8 +16,8 @@
 }
 .configure-btn {
   flex: 0 0 auto;
-  color: #aaa;
-  &:hover { color: #fff; }
+  color: var(--text-secondary);
+  &:hover { color: var(--text-on-accent); }
 }
 .create-btn {
   flex: 1 1 auto;
@@ -27,15 +29,13 @@
 }
 ::ng-deep .profile-field .mat-mdc-form-field-infix {
   min-height: 36px;
-  padding: 4px 0;
+  padding: var(--space-1) 0;
 }
 ::ng-deep .profile-field .mat-mdc-select-trigger {
   font-size: 12px;
 }
 mat-icon {
-  font-size: 16px;
-  height: 16px;
-  width: 16px;
+  @include mat-icon-sized(16px);
   vertical-align: middle;
-  margin-right: 4px;
+  margin-right: var(--space-1);
 }

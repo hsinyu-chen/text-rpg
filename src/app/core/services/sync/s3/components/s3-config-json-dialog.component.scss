@@ -1,7 +1,7 @@
 .hint {
     font-size: 0.85em;
     opacity: 0.75;
-    margin: 0 0 12px;
+    margin: 0 0 var(--space-3);
     line-height: 1.4;
 }
 
@@ -10,7 +10,7 @@
     min-width: 480px;
 
     textarea {
-        font-family: 'Fira Code', 'Courier New', monospace;
+        font-family: var(--app-font-mono);
         font-size: 0.85em;
         line-height: 1.4;
     }

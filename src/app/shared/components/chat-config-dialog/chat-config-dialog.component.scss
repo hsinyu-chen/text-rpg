@@ -1,3 +1,5 @@
+@use 'helpers' as *;
+
 // Chat Config Dialog - File Viewer Style Layout
 .dialog-container {
     display: flex;
@@ -10,10 +12,10 @@
 .dialog-header {
     display: flex;
     align-items: center;
-    padding: 8px 16px;
+    padding: var(--space-2) var(--space-4);
     background: var(--mat-sys-surface-container);
     border-bottom: 1px solid var(--mat-sys-outline-variant);
-    gap: 12px;
+    gap: var(--space-3);
 
     .sidebar-toggle {
         flex-shrink: 0;
@@ -39,21 +41,19 @@
     .header-actions {
         display: flex;
         align-items: center;
-        gap: 8px; // Increased gap
+        gap: var(--space-2); // Increased gap
         flex-shrink: 0;
 
         .header-divider {
             width: 1px;
             height: 24px;
             background: var(--mat-sys-outline-variant);
-            margin: 0 4px;
+            margin: 0 var(--space-1);
         }
 
         button {
             mat-icon {
-                font-size: 20px;
-                width: 20px;
-                height: 20px;
+                @include mat-icon-sized(20px);
             }
         }
     }
@@ -61,10 +61,8 @@
 
 mat-option mat-icon.legacy-profile-warn {
     color: var(--mat-sys-error, #d32f2f);
-    font-size: 18px;
-    width: 18px;
-    height: 18px;
-    margin-left: 8px;
+    @include mat-icon-sized(18px);
+    margin-left: var(--space-2);
     vertical-align: middle;
 }
 
@@ -77,7 +75,7 @@ mat-option mat-icon.legacy-profile-warn {
     min-height: 8px;
     border-radius: 50%;
     background-color: #00bcd4 !important; // Cyan/Blue
-    margin-left: 12px; // More space for glow
+    margin-left: var(--space-3); // More space for glow
     box-shadow: 0 0 10px rgba(0, 188, 212, 0.9);
     animation: pulse-dirty 2s infinite ease-in-out;
     flex-shrink: 0;
@@ -89,7 +87,7 @@ mat-option mat-icon.legacy-profile-warn {
         height: 6px;
         min-width: 6px;
         min-height: 6px;
-        margin-left: 8px;
+        margin-left: var(--space-2);
     }
 }
 
@@ -106,7 +104,6 @@ mat-option mat-icon.legacy-profile-warn {
     min-width: 250px;
     // Same fallback story as the mobile .sidebar below — --mat-sys-* vars
     // aren't exposed by the active prebuilt theme.
-    background: var(--mat-sys-surface-container-low, var(--bg-surface-dark, #121212));
     border-right: 1px solid var(--mat-sys-outline-variant, var(--border-color));
     display: flex;
     flex-direction: column;
@@ -125,8 +122,8 @@ mat-option mat-icon.legacy-profile-warn {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 12px 16px;
-        font-size: 0.85rem;
+        padding: var(--space-3) var(--space-4);
+        font-size: var(--app-font-size-sm);
         font-weight: 500;
         color: var(--mat-sys-on-surface-variant);
         border-bottom: 1px solid var(--mat-sys-outline-variant);
@@ -134,30 +131,30 @@ mat-option mat-icon.legacy-profile-warn {
         .type-count {
             background: var(--mat-sys-secondary-container);
             color: var(--mat-sys-on-secondary-container);
-            padding: 2px 8px;
+            padding: 2px var(--space-2);
             border-radius: 12px;
-            font-size: 0.75rem;
+            font-size: var(--app-font-size-2xs);
         }
     }
 
     .profile-selector {
-        padding: 12px 16px;
+        padding: var(--space-3) var(--space-4);
         border-bottom: 1px solid var(--mat-sys-outline-variant);
 
         .profile-label {
-            font-size: 0.75rem;
+            font-size: var(--app-font-size-2xs);
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 0.5px;
             color: var(--mat-sys-primary);
             opacity: 0.9;
-            margin-bottom: 8px;
+            margin-bottom: var(--space-2);
         }
 
         .profile-row {
             display: flex;
             align-items: center;
-            gap: 4px;
+            gap: var(--space-1);
 
             .profile-select-field {
                 flex: 1;
@@ -170,20 +167,20 @@ mat-option mat-icon.legacy-profile-warn {
         flex: 1;
         overflow-y: auto;
         overflow-x: hidden; // Prevent horizontal scroll
-        padding: 8px 0;
+        padding: var(--space-2) 0;
     }
 
     .category-group {
         &:not(:last-child) {
             border-bottom: 1px solid var(--mat-sys-outline-variant);
-            margin-bottom: 4px;
-            padding-bottom: 4px;
+            margin-bottom: var(--space-1);
+            padding-bottom: var(--space-1);
         }
     }
 
     .category-header {
-        padding: 8px 16px 4px 16px;
-        font-size: 0.75rem;
+        padding: var(--space-2) var(--space-4) var(--space-1) var(--space-4);
+        font-size: var(--app-font-size-2xs);
         font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.5px;
@@ -196,8 +193,8 @@ mat-option mat-icon.legacy-profile-warn {
 
         a.mat-mdc-list-item {
             height: 40px; // Slightly more compact
-            margin: 2px 8px;
-            border-radius: 8px;
+            margin: 2px var(--space-2);
+            border-radius: var(--radius-lg);
             overflow: visible !important;
 
             // Constrain Material's ripple + focus-indicator layers to the list
@@ -209,7 +206,7 @@ mat-option mat-icon.legacy-profile-warn {
             ::ng-deep .mat-ripple,
             ::ng-deep .mat-mdc-focus-indicator,
             ::ng-deep .mdc-list-item__ripple {
-                border-radius: 8px;
+                border-radius: var(--radius-lg);
                 overflow: hidden;
             }
 
@@ -227,10 +224,8 @@ mat-option mat-icon.legacy-profile-warn {
             }
 
             mat-icon[matListItemIcon] {
-                font-size: 20px;
-                width: 20px;
-                height: 20px;
-                margin-right: 12px;
+                @include mat-icon-sized(20px);
+                margin-right: var(--space-3);
             }
 
             span[matListItemTitle] {
@@ -238,7 +233,7 @@ mat-option mat-icon.legacy-profile-warn {
                 overflow: hidden;
                 text-overflow: ellipsis;
                 white-space: nowrap;
-                font-size: 0.85rem; // Slightly smaller
+                font-size: var(--app-font-size-sm); // Slightly smaller
             }
 
             // Critical fix for clipping effects like glows and halos
@@ -247,13 +242,13 @@ mat-option mat-icon.legacy-profile-warn {
                 align-items: center !important;
                 overflow: visible !important;
                 width: 100%;
-                padding-right: 8px;
+                padding-right: var(--space-2);
                 min-width: 0;
             }
 
             // Fix for meta/update icon
             ::ng-deep .mdc-list-item__end {
-                margin-left: 4px;
+                margin-left: var(--space-1);
                 display: flex;
                 align-items: center;
                 overflow: visible !important;
@@ -261,13 +256,11 @@ mat-option mat-icon.legacy-profile-warn {
                 button {
                     width: 28px;
                     height: 28px;
-                    padding: 4px;
+                    padding: var(--space-1);
                     line-height: normal;
 
                     mat-icon {
-                        font-size: 16px;
-                        width: 16px;
-                        height: 16px;
+                        @include mat-icon-sized(16px);
                     }
                 }
             }
@@ -277,17 +270,15 @@ mat-option mat-icon.legacy-profile-warn {
     .sidebar-hint {
         display: flex;
         align-items: flex-start;
-        gap: 8px;
-        padding: 12px 16px;
-        font-size: 0.75rem;
+        gap: var(--space-2);
+        padding: var(--space-3) var(--space-4);
+        font-size: var(--app-font-size-2xs);
         color: var(--mat-sys-on-surface-variant);
         background: var(--mat-sys-surface-container);
         border-top: 1px solid var(--mat-sys-outline-variant);
 
         mat-icon {
-            font-size: 16px;
-            width: 16px;
-            height: 16px;
+            @include mat-icon-sized(16px);
             flex-shrink: 0;
             margin-top: 2px;
         }
@@ -323,22 +314,20 @@ mat-option mat-icon.legacy-profile-warn {
 .readonly-banner {
     display: flex;
     align-items: center;
-    gap: 12px;
-    padding: 8px 16px;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-4);
     background: var(--mat-sys-tertiary-container);
     color: var(--mat-sys-on-tertiary-container);
     border-bottom: 1px solid var(--mat-sys-outline-variant);
     flex-shrink: 0;
 
     > mat-icon {
-        font-size: 18px;
-        width: 18px;
-        height: 18px;
+        @include mat-icon-sized(18px);
     }
 
     .banner-text {
         flex: 1;
-        font-size: 0.85rem;
+        font-size: var(--app-font-size-sm);
     }
 }
 
@@ -387,11 +376,11 @@ mat-option mat-icon.legacy-profile-warn {
     background: var(--mat-sys-error-container);
     color: var(--mat-sys-on-error-container);
     border-top: 1px solid var(--mat-sys-outline-variant);
-    padding: 12px 16px;
+    padding: var(--space-3) var(--space-4);
     display: flex;
     align-items: center;
-    gap: 12px;
-    font-size: 0.85rem;
+    gap: var(--space-3);
+    font-size: var(--app-font-size-sm);
     z-index: 10;
     position: relative;
     max-height: 150px;
@@ -402,9 +391,7 @@ mat-option mat-icon.legacy-profile-warn {
 
     .problem-icon {
         color: var(--mat-sys-error);
-        font-size: 20px;
-        width: 20px;
-        height: 20px;
+        @include mat-icon-sized(20px);
         flex-shrink: 0;
     }
 
@@ -420,8 +407,8 @@ mat-option mat-icon.legacy-profile-warn {
         .problem-msg {
             display: block;
             opacity: 0.9;
-            font-family: 'Cascadia Code', 'Consolas', monospace;
-            font-size: 0.8rem;
+            font-family: var(--app-font-mono);
+            font-size: var(--app-font-size-xs);
         }
     }
 }
@@ -450,8 +437,8 @@ mat-option mat-icon.legacy-profile-warn {
 .editor-toolbar {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px 12px;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
     border-bottom: 1px solid var(--mat-sys-outline-variant);
     flex-shrink: 0;
 }
@@ -460,13 +447,11 @@ mat-option mat-icon.legacy-profile-warn {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    font-size: 0.8rem;
+    font-size: var(--app-font-size-xs);
     color: var(--mat-sys-on-surface-variant);
 
     mat-icon {
-        font-size: 18px;
-        width: 18px;
-        height: 18px;
+        @include mat-icon-sized(18px);
     }
 }
 
@@ -484,13 +469,13 @@ mat-option mat-icon.legacy-profile-warn {
 .hunk-pane-header {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px 12px;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
     border-bottom: 1px solid var(--mat-sys-outline-variant);
     flex-shrink: 0;
 
     .hunk-pane-title {
-        font-size: 0.85rem;
+        font-size: var(--app-font-size-sm);
         font-weight: 500;
         overflow: hidden;
         text-overflow: ellipsis;

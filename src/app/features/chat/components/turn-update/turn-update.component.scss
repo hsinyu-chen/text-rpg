@@ -1,8 +1,10 @@
+@use 'helpers' as *;
+
 .summary-container {
-    margin-top: 12px;
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
+    margin-top: var(--space-3);
+    background: var(--overlay-inset);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
     overflow: hidden;
     animation: fadeIn 0.3s ease-out;
 }
@@ -13,12 +15,12 @@
 
 // Title-less compact row, mirroring .narrative-summary: icon + chips + viewer btn.
 .stat-summary {
-    padding: 8px 16px;
+    padding: var(--space-2) var(--space-4);
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-2);
     background: rgba(150, 255, 150, 0.02);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid var(--surface-hover);
 
     .sub-icon {
         flex: 0 0 auto;
@@ -36,25 +38,23 @@
 .summary-header {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px 12px;
-    background: rgba(255, 255, 255, 0.05);
-    color: #9e9e9e;
-    font-size: 0.75rem;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    background: var(--surface-hover);
+    color: var(--text-secondary);
+    font-size: var(--app-font-size-2xs);
     font-weight: 500;
 
     mat-icon {
-        font-size: 16px;
-        width: 16px;
-        height: 16px;
-        color: #ffca28; // Amber color for summary
+        @include mat-icon-sized(16px);
+        color: var(--status-amber); // Amber color for summary
     }
 }
 
 .summary-content {
-    padding: 12px 16px;
-    font-size: 0.85rem;
-    color: #bdbdbd;
+    padding: var(--space-3) var(--space-4);
+    font-size: var(--app-font-size-sm);
+    color: var(--text-secondary);
     line-height: 1.5;
 
     &.update-content {
@@ -65,10 +65,10 @@
 .log-toggles {
     display: flex;
     justify-content: flex-end;
-    gap: 4px;
-    padding: 4px 12px;
-    background: rgba(255, 255, 255, 0.02);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    gap: var(--space-1);
+    padding: var(--space-1) var(--space-3);
+    background: var(--surface-faintest);
+    border-bottom: 1px solid var(--surface-hover);
 
     .tiny-btn {
         opacity: 0.8;
@@ -76,13 +76,11 @@
 
         &:hover {
             opacity: 1;
-            background: rgba(255, 255, 255, 0.1);
+            background: var(--border-color);
         }
 
         mat-icon {
-            font-size: 16px;
-            width: 16px;
-            height: 16px;
+            @include mat-icon-sized(16px);
             transition: all 0.2s;
 
             &.muted {
@@ -93,15 +91,15 @@
     }
 
     .inv-icon {
-        color: #81c784;
+        color: var(--status-success-light);
     }
 
     .quest-icon {
-        color: #64b5f6;
+        color: var(--accent-blue-light);
     }
 
     .world-icon {
-        color: #ba68c8;
+        color: var(--accent-purple);
     }
 
     .char-icon {
@@ -109,21 +107,21 @@
     }
 
     .correction-icon {
-        color: #ffb74d; // Amber tint — corrections stand out as authoritative overrides
+        color: var(--intent-system); // Amber tint — corrections stand out as authoritative overrides
     }
 }
 
 .narrative-summary {
-    padding: 12px 16px;
+    padding: var(--space-3) var(--space-4);
     display: flex;
     align-items: flex-start;
-    gap: 8px;
-    background: rgba(255, 255, 255, 0.02);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    gap: var(--space-2);
+    background: var(--surface-faintest);
+    border-bottom: 1px solid var(--surface-hover);
     transition: background 0.2s;
 
     &:hover {
-        background: rgba(255, 255, 255, 0.05);
+        background: var(--surface-hover);
 
         .tiny-btn {
             opacity: 1;
@@ -135,7 +133,7 @@
         width: 16px;
         height: 16px;
         margin-top: 2px;
-        color: #ffca28;
+        color: var(--status-amber);
     }
 
     .summary-text {
@@ -154,32 +152,32 @@
     display: flex;
     align-items: center;
     width: 100%;
-    gap: 4px;
-    background: rgba(0, 0, 0, 0.3);
+    gap: var(--space-1);
+    background: var(--overlay-inset);
     padding: 2px;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     flex: 1;
 
     input {
         flex: 1;
         background: transparent;
         border: none;
-        color: #fff;
+        color: var(--text-on-accent);
         font-family: inherit;
-        font-size: 0.85rem;
-        padding: 4px 8px;
+        font-size: var(--app-font-size-sm);
+        padding: var(--space-1) var(--space-2);
         outline: none;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        border-bottom: 1px solid var(--border-color-strong);
 
         &:focus {
-            border-bottom-color: #ffca28;
+            border-bottom-color: var(--status-amber);
         }
     }
 }
 
 .log-section {
-    padding: 12px 16px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--surface-hover);
 
     &:last-child {
         border-bottom: none;
@@ -188,12 +186,12 @@
     .log-header {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: var(--space-2);
         font-size: 0.7rem;
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.5px;
-        margin-bottom: 8px;
+        margin-bottom: var(--space-2);
         opacity: 0.8;
     }
 
@@ -204,26 +202,26 @@
     }
 
     &.inventory-logs {
-        background: rgba(76, 175, 80, 0.03);
+        background: color-mix(in srgb, var(--status-success) 3%, transparent);
 
         .log-header {
-            color: #81c784;
+            color: var(--status-success-light);
         }
 
         .sub-icon {
-            color: #81c784;
+            color: var(--status-success-light);
         }
     }
 
     &.quest-logs {
-        background: rgba(33, 150, 243, 0.03);
+        background: rgba(var(--accent-blue-rgb), 0.03);
 
         .log-header {
-            color: #64b5f6;
+            color: var(--accent-blue-light);
         }
 
         .sub-icon {
-            color: #64b5f6;
+            color: var(--accent-blue-light);
         }
     }
 
@@ -231,11 +229,11 @@
         background: rgba(156, 39, 176, 0.03); // Purple tint
 
         .log-header {
-            color: #ba68c8;
+            color: var(--accent-purple);
         }
 
         .sub-icon {
-            color: #ba68c8;
+            color: var(--accent-purple);
         }
     }
 
@@ -258,9 +256,9 @@
     list-style-type: none; // Remove default bullets, we'll handle layout manually
 
     li {
-        font-size: 0.85rem;
-        color: #e0e0e0;
-        margin-bottom: 4px;
+        font-size: var(--app-font-size-sm);
+        color: var(--text-main);
+        margin-bottom: var(--space-1);
 
         &:last-child {
             margin-bottom: 0;
@@ -272,12 +270,12 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 4px 8px;
-    border-radius: 4px;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
     min-height: 28px;
 
     &:hover {
-        background: rgba(255, 255, 255, 0.05);
+        background: var(--surface-hover);
 
         .log-actions {
             opacity: 1;
@@ -287,13 +285,13 @@
 
 .log-text {
     flex: 1;
-    margin-right: 8px;
+    margin-right: var(--space-2);
     word-break: break-word;
     white-space: pre-wrap;
 
     &::before {
         content: "•";
-        margin-right: 8px;
+        margin-right: var(--space-2);
         color: inherit;
         opacity: 0.7;
     }
@@ -313,17 +311,15 @@
     padding: 0 !important;
 
     mat-icon {
-        font-size: 14px;
-        width: 14px;
-        height: 14px;
+        @include mat-icon-sized(14px);
         line-height: 14px;
     }
 
     color: rgba(255, 255, 255, 0.5);
 
     &:hover {
-        color: #fff;
-        background: rgba(255, 255, 255, 0.1);
+        color: var(--text-on-accent);
+        background: var(--border-color);
     }
 }
 
@@ -331,24 +327,24 @@
     display: flex;
     align-items: center;
     width: 100%;
-    gap: 4px;
-    background: rgba(0, 0, 0, 0.3);
+    gap: var(--space-1);
+    background: var(--overlay-inset);
     padding: 2px;
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
 
     input {
         flex: 1;
         background: transparent;
         border: none;
-        color: #fff;
+        color: var(--text-on-accent);
         font-family: inherit;
-        font-size: 0.85rem;
-        padding: 4px 8px;
+        font-size: var(--app-font-size-sm);
+        padding: var(--space-1) var(--space-2);
         outline: none;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        border-bottom: 1px solid var(--border-color-strong);
 
         &:focus {
-            border-bottom-color: #42a5f5;
+            border-bottom-color: var(--accent-blue);
         }
     }
 }
@@ -356,13 +352,13 @@
 .header-left {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-2);
     flex: 1;
 }
 
 .empty-log-hint {
-    padding: 8px 20px;
-    font-size: 0.8rem;
+    padding: var(--space-2) 20px;
+    font-size: var(--app-font-size-xs);
     font-style: italic;
     color: rgba(255, 255, 255, 0.3);
     cursor: pointer;

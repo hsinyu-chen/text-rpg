@@ -1,3 +1,5 @@
+@use 'helpers' as *;
+
 .msg-row {
     display: flex;
     width: 100%;
@@ -22,10 +24,10 @@
 
 .user-bubble .bubble-content {
     background-color: #3f51b5;
-    color: white;
+    color: var(--text-on-accent);
     border-radius: 16px 16px 0 16px;
-    padding: 12px 20px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    padding: var(--space-3) 20px;
+    box-shadow: 0 4px 6px var(--overlay-inset);
     cursor: pointer;
     border: 1px solid transparent;
 }
@@ -66,8 +68,8 @@
 
 .msg-meta {
     font-size: 10px;
-    color: #757575;
-    margin-right: 4px;
+    color: var(--text-muted);
+    margin-right: var(--space-1);
 }
 
 .ideal-outcome-chip {
@@ -77,59 +79,59 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     vertical-align: middle;
-    background: rgba(186, 104, 200, 0.15);
-    color: #ce93d8;
-    border: 1px solid rgba(186, 104, 200, 0.35);
+    background: color-mix(in srgb, var(--accent-purple) 15%, transparent);
+    color: var(--accent-purple-light);
+    border: 1px solid color-mix(in srgb, var(--accent-purple) 35%, transparent);
     padding: 1px 6px;
-    border-radius: 4px;
-    margin-right: 8px;
+    border-radius: var(--radius-sm);
+    margin-right: var(--space-2);
     font-size: 10px;
     letter-spacing: 0.2px;
 }
 
 .intent-tag {
-    background: rgba(255, 255, 255, 0.1);
-    color: #e0e0e0;
+    background: var(--border-color);
+    color: var(--text-main);
     padding: 2px 6px;
-    border-radius: 4px;
-    margin-right: 8px;
+    border-radius: var(--radius-sm);
+    margin-right: var(--space-2);
     font-weight: 500;
     text-transform: uppercase;
     font-size: 9px;
     letter-spacing: 0.5px;
 
     &.system {
-        background: rgba(33, 150, 243, 0.2);
-        color: #90caf9;
-        border: 1px solid rgba(33, 150, 243, 0.3);
+        background: rgba(var(--accent-blue-rgb), 0.2);
+        color: var(--accent-blue-light);
+        border: 1px solid rgba(var(--accent-blue-rgb), 0.3);
     }
 }
 
 .metric-tag {
-    background: rgba(255, 255, 255, 0.05);
-    color: #9e9e9e;
-    padding: 1px 4px;
+    background: var(--surface-hover);
+    color: var(--text-secondary);
+    padding: 1px var(--space-1);
     border-radius: 3px;
-    margin-left: 8px;
+    margin-left: var(--space-2);
     font-size: 9px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--border-color);
     vertical-align: middle;
     transition: all 0.2s;
 
     &:hover {
-        background: rgba(255, 255, 255, 0.1);
-        color: #e0e0e0;
-        border-color: rgba(255, 255, 255, 0.2);
+        background: var(--border-color);
+        color: var(--text-main);
+        border-color: var(--border-color-strong);
     }
 }
 
 .model-bubble {
-    background-color: #1e1e1e;
-    border: 1px solid #333;
-    border-radius: 8px;
+    background-color: var(--bg-surface);
+    border: 1px solid var(--border-divider-solid);
+    border-radius: var(--radius-lg);
     padding: 24px;
     padding-top: 36px;
-    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 10px 15px -3px var(--overlay-inset);
     position: relative;
 }
 
@@ -140,7 +142,7 @@
     opacity: 0;
     transition: opacity 0.2s;
     display: flex;
-    gap: 4px;
+    gap: var(--space-1);
 }
 
 .model-bubble:hover .msg-toolbar {
@@ -148,36 +150,29 @@
 }
 
 .mini-btn {
-    width: 32px !important;
-    height: 32px !important;
-    padding: 0 !important;
-    display: inline-flex !important;
-    align-items: center !important;
-    justify-content: center !important;
+    @include icon-button-square-reset(32px, inline-flex);
 }
 
 .mini-btn mat-icon {
-    font-size: 16px;
-    width: 16px;
-    height: 16px;
+    @include mat-icon-sized(16px);
     line-height: 16px;
 }
 
 .delete-btn:hover {
-    color: #f44336;
+    color: var(--status-error);
 }
 
 .update-btn {
-    color: #818cf8; // Indigo light
+    color: var(--accent-indigo); // Indigo light
 }
 
 .update-btn:hover {
-    color: #6366f1;
-    background: rgba(99, 102, 241, 0.1);
+    color: var(--accent-indigo-strong);
+    background: rgba(var(--accent-indigo-strong-rgb), 0.1);
 }
 
 .prose-content {
-    color: #e0e0e0;
+    color: var(--text-main);
     contain: content;
 
     // Compact code blocks for save XML
@@ -189,38 +184,38 @@
 }
 
 .raw-content {
-    font-family: monospace;
-    font-size: 0.8rem;
+    font-family: var(--app-font-mono);
+    font-size: var(--app-font-size-xs);
     white-space: pre-wrap;
     color: #66bb6a;
     background-color: rgba(0, 0, 0, 0.5);
-    padding: 16px;
+    padding: var(--space-4);
     border: 1px solid rgba(27, 94, 32, 0.5);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
 }
 
 .editor-box {
-    background-color: #2d2d2d;
-    border: 1px solid #2196f3;
-    padding: 8px;
-    border-radius: 4px;
+    background-color: var(--bg-elevated);
+    border: 1px solid var(--accent-blue);
+    padding: var(--space-2);
+    border-radius: var(--radius-sm);
 }
 
 .editor-field {
     width: 100%;
-    font-size: 0.9rem;
+    font-size: var(--app-font-size-md);
 }
 
 .editor-field textarea {
-    font-family: monospace;
+    font-family: var(--app-font-mono);
     line-height: 1.5;
 }
 
 .editor-actions {
     display: flex;
     justify-content: flex-end;
-    gap: 8px;
-    margin-top: 8px;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
 }
 
 
@@ -231,20 +226,18 @@
     left: 24px; // Left of the toolbar roughly
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--space-1);
     font-size: 0.7rem;
     color: rgba(255, 255, 255, 0.3);
-    padding: 4px 8px;
-    border-radius: 4px;
-    background: rgba(0, 0, 0, 0.2);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    background: var(--overlay-inset-light);
     white-space: pre-wrap;
     cursor: help;
     transition: all 0.2s;
 
     mat-icon {
-        font-size: 14px;
-        width: 14px;
-        height: 14px;
+        @include mat-icon-sized(14px);
     }
 
     &:hover {
@@ -254,58 +247,58 @@
 }
 
 .active-btn {
-    color: #ffca28 !important; // Highlight active toggle button
+    color: var(--status-amber) !important; // Highlight active toggle button
 }
 
 .ref-only-collapsed {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px 12px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px dashed rgba(255, 255, 255, 0.2);
-    border-radius: 4px;
-    color: #9e9e9e;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    background: var(--surface-hover);
+    border: 1px dashed var(--border-color-strong);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
     font-style: italic;
     cursor: pointer;
     transition: all 0.2s;
 
     &:hover {
-        background: rgba(255, 255, 255, 0.1);
-        color: #e0e0e0;
+        background: var(--border-color);
+        color: var(--text-main);
         border-color: rgba(255, 255, 255, 0.4);
     }
 
     .collapsed-text {
-        font-size: 0.9rem;
+        font-size: var(--app-font-size-md);
     }
 
     .expand-icon {
         margin-left: auto;
-        color: #bdbdbd;
+        color: var(--text-secondary);
     }
 }
 
 .ref-only-collapse-footer {
     display: flex;
     justify-content: center;
-    padding: 4px;
-    margin-top: 8px;
+    padding: var(--space-1);
+    margin-top: var(--space-2);
     cursor: pointer;
     opacity: 0;
     transition: opacity 0.2s;
-    background: linear-gradient(to bottom, transparent, rgba(0, 0, 0, 0.2));
-    border-radius: 0 0 8px 8px;
+    background: linear-gradient(to bottom, transparent, var(--overlay-inset-light));
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
 
     mat-icon {
-        color: #757575;
+        color: var(--text-muted);
     }
 
     &:hover {
-        background: rgba(0, 0, 0, 0.3);
+        background: var(--overlay-inset);
 
         mat-icon {
-            color: #bdbdbd;
+            color: var(--text-secondary);
         }
     }
 }
@@ -338,7 +331,7 @@
 
     .save-point-divider {
         border: none;
-        border-top: 1px solid rgba(255, 255, 255, 0.12);
+        border-top: 1px solid var(--border-color);
         margin-bottom: 0.75rem;
     }
 
@@ -348,62 +341,60 @@
         gap: 0.5rem;
         width: 100%;
         justify-content: center;
-        color: #818cf8;
-        border-color: #818cf8;
+        color: var(--accent-indigo);
+        border-color: var(--accent-indigo);
 
         &:hover {
-            background: rgba(129, 140, 248, 0.1);
+            background: color-mix(in srgb, var(--accent-indigo) 10%, transparent);
         }
     }
 }
 
 .prefill-container {
-    margin-bottom: 16px;
-    padding: 12px;
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    margin-bottom: var(--space-4);
+    padding: var(--space-3);
+    background: var(--surface-hover);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-color);
 
     .prefill-progress {
         height: 4px;
         border-radius: 2px;
-        margin-bottom: 8px;
+        margin-bottom: var(--space-2);
     }
 
     .prefill-status {
         display: flex;
         flex-direction: column;
-        gap: 4px;
+        gap: var(--space-1);
         font-size: 11px;
-        color: #9e9e9e;
+        color: var(--text-secondary);
 
         .status-main {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: var(--space-2);
         }
 
         .prefill-metrics {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: var(--space-3);
             padding-left: 24px; // Align with text after icon
-            color: #757575;
-            font-family: monospace;
+            color: var(--text-muted);
+            font-family: var(--app-font-mono);
 
             .metric-item {
-                background: rgba(255, 255, 255, 0.03);
+                background: var(--surface-faint);
                 padding: 1px 6px;
-                border-radius: 4px;
-                border: 1px solid rgba(255, 255, 255, 0.05);
+                border-radius: var(--radius-sm);
+                border: 1px solid var(--surface-hover);
             }
         }
 
         .status-icon {
-            font-size: 16px;
-            width: 16px;
-            height: 16px;
-            color: #64b5f6;
+            @include mat-icon-sized(16px);
+            color: var(--accent-blue-light);
             animation: rotate-sync 2s linear infinite;
         }
 

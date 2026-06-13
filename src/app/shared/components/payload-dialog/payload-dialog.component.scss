@@ -1,31 +1,31 @@
+@use 'helpers' as *;
+
 .dialog-container {
     display: flex;
     flex-direction: column;
     height: 100%;
     width: 100%;
-    background: #1e1e1e;
+    background: var(--bg-dialog);
 }
 
 .dialog-header {
     display: flex;
     align-items: center;
-    padding: 8px 16px;
-    background: #2d2d2d;
-    border-bottom: 1px solid #333;
-    gap: 16px;
+    padding: var(--space-2) var(--space-4);
+    background: var(--bg-elevated);
+    border-bottom: 1px solid var(--border-divider-solid);
+    gap: var(--space-4);
     flex-shrink: 0;
 
     .dialog-title {
         flex: 1;
         font-weight: 500;
         font-size: 1rem;
-        color: #fff;
+        color: var(--text-on-accent);
     }
 
     .header-actions {
-        display: flex;
-        align-items: center;
-        gap: 16px;
+        @include flex-row-center(var(--space-4));
     }
 }
 
@@ -66,17 +66,17 @@
         }
 
         .mat-mdc-tab-header {
-            background: #2d2d2d;
-            border-bottom: 1px solid #333;
+            background: var(--bg-elevated);
+            border-bottom: 1px solid var(--border-divider-solid);
             flex-shrink: 0;
         }
 
         .mat-mdc-tab .mdc-tab__text-label {
-            color: #aaa;
+            color: var(--text-secondary);
         }
 
         .mat-mdc-tab.mdc-tab--active .mdc-tab__text-label {
-            color: #fff;
+            color: var(--text-on-accent);
         }
 
         .mat-mdc-tab-group-content {
@@ -91,27 +91,12 @@
     flex: 1;
     overflow-y: auto;
     padding: 24px;
-    font-family: 'Consolas', 'Monaco', monospace;
-    background: #1e1e1e;
+    font-family: var(--app-font-mono);
+    background: var(--bg-dialog);
     box-sizing: border-box;
     min-height: 0;
 
-    &::-webkit-scrollbar {
-        width: 8px;
-    }
-
-    &::-webkit-scrollbar-track {
-        background: #121212;
-    }
-
-    &::-webkit-scrollbar-thumb {
-        background: #424242;
-        border-radius: 4px;
-
-        &:hover {
-            background: #555;
-        }
-    }
+    @include custom-scrollbar(8px, var(--bg-main), var(--bg-scrollbar), var(--border-divider-strong));
 }
 
 :host ::ng-deep pre {
@@ -121,12 +106,12 @@
 }
 
 :host ::ng-deep code {
-    font-size: 0.95rem;
+    font-size: var(--app-font-size-lg);
     line-height: 1.5;
 }
 
 // Adjust markdown styles within tabs
 :host ::ng-deep .tab-content .markdown-body {
     background: transparent !important;
-    color: #e0e0e0 !important;
+    color: var(--text-main) !important;
 }

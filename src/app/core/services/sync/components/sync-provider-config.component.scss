@@ -1,13 +1,11 @@
+@use 'helpers' as *;
+
 :host {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
+    @include flex-column(var(--space-4));
 }
 
 .backend-radio {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+    @include flex-column(var(--space-2));
 
     .radio-label {
         display: inline-flex;
@@ -23,15 +21,13 @@
             opacity: 0.7;
 
             &.warn {
-                color: #ff9800;
+                color: var(--status-warning);
             }
         }
     }
 }
 
 .active-config {
-    padding: 12px;
-    background: rgba(255, 255, 255, 0.03);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 6px;
+    padding: var(--space-3);
+    @include card-surface(var(--surface-faint), var(--surface-border-faint), var(--radius-md));
 }
