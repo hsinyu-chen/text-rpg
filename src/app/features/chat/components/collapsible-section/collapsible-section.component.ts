@@ -1,4 +1,5 @@
-import { Component, ChangeDetectionStrategy, input, output } from '@angular/core';
+import { Component, ChangeDetectionStrategy, input, output, contentChild, TemplateRef } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { CORE_MAT } from '@app/shared/material/material-groups';
 import { TranslatePipe } from '@app/core/i18n';
 
@@ -14,7 +15,7 @@ export type CollapsibleSectionVariant = 'thought' | 'analysis' | 'update';
 @Component({
     selector: 'app-collapsible-section',
     standalone: true,
-    imports: [...CORE_MAT, TranslatePipe],
+    imports: [...CORE_MAT, TranslatePipe, NgTemplateOutlet],
     templateUrl: './collapsible-section.component.html',
     styleUrl: './collapsible-section.component.scss',
     changeDetection: ChangeDetectionStrategy.OnPush,
@@ -32,4 +33,5 @@ export class CollapsibleSectionComponent {
     /** Header status line; hidden when null/empty. */
     statusText = input<string | null>(null);
     toggled = output<void>();
+    body = contentChild.required(TemplateRef);
 }

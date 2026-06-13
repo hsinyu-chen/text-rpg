@@ -117,7 +117,9 @@
                     title="ui.MODEL_THOUGHT_PROCESS"
                     [expanded]="state.isThoughtVisible()" [streaming]="!!msg.isThinking"
                     [statusText]="thoughtStatus()" (toggled)="state.toggleThought()">
-                    <markdown [data]="msg.thought" [katex]="thoughtHasKatex()" [katexOptions]="katexOptions"></markdown>
+                    <ng-template>
+                        <markdown [data]="msg.thought" [katex]="thoughtHasKatex()" [katexOptions]="katexOptions"></markdown>
+                    </ng-template>
                 </app-collapsible-section>
                 }
 
@@ -127,7 +129,9 @@
                     title="ui.ATOMIC_BREAKDOWN"
                     [expanded]="state.isAnalysisVisible()" [streaming]="!!msg.isThinking"
                     [statusText]="analysisStatus()" (toggled)="state.toggleAnalysis()">
-                    <markdown [data]="msg.analysis" [katex]="analysisHasKatex()" [katexOptions]="katexOptions"></markdown>
+                    <ng-template>
+                        <markdown [data]="msg.analysis" [katex]="analysisHasKatex()" [katexOptions]="katexOptions"></markdown>
+                    </ng-template>
                 </app-collapsible-section>
                 }
 
@@ -138,7 +142,9 @@
                         title="ui.TURN_UPDATE"
                         [expanded]="state.isUpdateVisible()" [streaming]="!!msg.isThinking"
                         [statusText]="updateStatus()" (toggled)="state.toggleUpdate()">
-                        <app-turn-update [message]="msg" />
+                        <ng-template>
+                            <app-turn-update [message]="msg" />
+                        </ng-template>
                     </app-collapsible-section>
                     }
 

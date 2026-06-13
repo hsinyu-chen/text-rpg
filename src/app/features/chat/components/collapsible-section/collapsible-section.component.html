@@ -1,10 +1,6 @@
-<div class="thought-container"
-    [class.analysis-container]="variant() === 'analysis'"
-    [class.update-panel-container]="variant() === 'update'"
+<div class="collapsible-section variant-{{ variant() }}"
     [class.streaming]="streaming()">
-    <div class="thought-header"
-        [class.analysis-header]="variant() === 'analysis'"
-        [class.update-panel-header]="variant() === 'update'"
+    <div class="section-header" role="button" [attr.aria-expanded]="expanded()"
         (click)="toggled.emit()" tabindex="0"
         (keydown.enter)="toggled.emit()"
         (keydown.space)="$event.preventDefault(); toggled.emit()">
@@ -18,8 +14,8 @@
         }
     </div>
     @if (expanded()) {
-    <div class="thought-content">
-        <ng-content />
+    <div class="section-body">
+        <ng-container [ngTemplateOutlet]="body()" />
     </div>
     }
 </div>
