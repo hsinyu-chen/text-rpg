@@ -380,7 +380,7 @@ describe('formatStructuredAnalysis', () => {
         expect(out).toContain('Environment: rainstorm');
         expect(out).toContain('Key objects:');
         expect(out).toContain('[Action1]** ✅ walk');
-        expect(out).toContain('PC: "hello"');
+        expect(out).toContain('PC: 「hello」');
         expect(out).toContain('Risks: slip');
         expect(out).toContain('[Event2]** 🔴 lightning');
         expect(out).toContain('Outcome: failed');
