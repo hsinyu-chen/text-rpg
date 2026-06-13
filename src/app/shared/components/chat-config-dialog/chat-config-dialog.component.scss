@@ -104,7 +104,6 @@ mat-option mat-icon.legacy-profile-warn {
     min-width: 250px;
     // Same fallback story as the mobile .sidebar below — --mat-sys-* vars
     // aren't exposed by the active prebuilt theme.
-    background: var(--mat-sys-surface-container-low, var(--bg-surface-dark, #121212));
     border-right: 1px solid var(--mat-sys-outline-variant, var(--border-color));
     display: flex;
     flex-direction: column;

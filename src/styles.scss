@@ -10,10 +10,10 @@
 
 :root {
     --bg-main: #121212;
-    --bg-surface: #1e1e1e;
+    --bg-surface: #1a1a1a;
     --bg-surface-dark: #121212;
-    --bg-dialog: #1e1e1e;
-    --bg-sidebar: #1e1e1e;
+    --bg-dialog: #1a1a1a;
+    --bg-sidebar: #1a1a1a;
     --bg-elevated: #2d2d2d;
     --border-color: rgba(255, 255, 255, 0.1);
     --border-color-strong: rgba(255, 255, 255, 0.2);
@@ -43,15 +43,15 @@
     --text-on-accent: #fff;
 
     /* accents */
-    --accent-indigo: #818cf8;
-    --accent-indigo-strong: #6366f1;
-    --accent-indigo-strong-rgb: 99, 102, 241;
-    --accent-blue: #2196f3;
-    --accent-blue-rgb: 33, 150, 243;
-    --accent-blue-light: #64b5f6;
-    --accent-cyan: #4facfe;
-    --accent-google-blue: #4285f4;
-    --accent-purple: #ba68c8;
+    --accent-indigo: #717fff;
+    --accent-indigo-strong: #5759ee;
+    --accent-indigo-strong-rgb: 87, 89, 238;
+    --accent-blue: #1b91f1;
+    --accent-blue-rgb: 27, 145, 241;
+    --accent-blue-light: #57b0f9;
+    --accent-cyan: #3ca0f8;
+    --accent-google-blue: #317cf5;
+    --accent-purple: #b75ac7;
     --accent-purple-light: color-mix(in srgb, var(--accent-purple) 71%, white);
 
     /* translucent surfaces (.1 = --border-color, .2 = --border-color-strong already exist) */
