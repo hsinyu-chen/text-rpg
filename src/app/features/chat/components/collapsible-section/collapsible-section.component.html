@@ -1,0 +1,21 @@
+<div class="collapsible-section variant-{{ variant() }}"
+    [class.streaming]="streaming()">
+    <div class="section-header" role="button" [attr.aria-expanded]="expanded()"
+        (click)="toggled.emit()" tabindex="0"
+        (keydown.enter)="toggled.emit()"
+        (keydown.space)="$event.preventDefault(); toggled.emit()">
+        <div class="header-main">
+            <mat-icon>{{ expanded() ? 'expand_more' : 'chevron_right' }}</mat-icon>
+            <mat-icon class="section-icon">{{ icon() }}</mat-icon>
+            <span>{{ title() | translate }}</span>
+        </div>
+        @if (statusText()) {
+        <div class="header-status">{{ statusText() }}</div>
+        }
+    </div>
+    @if (expanded()) {
+    <div class="section-body">
+        <ng-container [ngTemplateOutlet]="body()" />
+    </div>
+    }
+</div>

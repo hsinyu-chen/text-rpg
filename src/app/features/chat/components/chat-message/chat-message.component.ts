@@ -12,6 +12,7 @@ import { MessageStateService } from './message-state.service';
 import { GameEngineService } from '@app/core/services/game-engine.service';
 import { AppConfigStore } from '@app/core/services/app-config-store';
 import { TurnUpdateComponent } from '../turn-update/turn-update.component';
+import { CollapsibleSectionComponent } from '../collapsible-section/collapsible-section.component';
 import { GAME_INTENTS, SAVE_TRACE_INTENT } from '@app/core/constants/game-intents';
 import { getLocale } from '@app/core/constants/locales';
 import { I18nService, TranslatePipe } from '@app/core/i18n';
@@ -33,6 +34,7 @@ import { KATEX_DELIMITERS, hasKatexDelimiters } from '@app/core/utils/latex.util
         TextFieldModule,
         ContentSanitizerPipe,
         TurnUpdateComponent,
+        CollapsibleSectionComponent,
         TranslatePipe
     ],
     templateUrl: './chat-message.component.html',
@@ -106,6 +108,38 @@ export class ChatMessageComponent {
     analysisHasKatex = computed(() => hasKatexDelimiters(this.message()?.analysis));
 
     katexOptions = { delimiters: KATEX_DELIMITERS };
+
+    // Streaming status line for each collapsible section (percent → chunk count →
+    // dots), or null to hide it.
+    thoughtStatus = computed<string | null>(() => {
+        const m = this.message();
+        if (!m.isThinking || !m.cotOpen) return null;
+        return this.progressStatus(m)
+            ?? (m.thoughtChunkCount
+                ? this.i18n.translate('ui.THINKING_CHUNKS', { count: m.thoughtChunkCount })
+                : this.i18n.translate('ui.THINKING_DOTS'));
+    });
+
+    analysisStatus = computed<string | null>(() => {
+        const m = this.message();
+        if (!m.isThinking || !m.analysis || m.cotOpen || m.content) return null;
+        return this.progressStatus(m)
+            ?? (m.analysisChunkCount
+                ? this.i18n.translate('ui.ANALYZING_CHUNKS', { count: m.analysisChunkCount })
+                : this.i18n.translate('ui.ANALYZING_DOTS'));
+    });
+
+    updateStatus = computed<string | null>(() => {
+        const m = this.message();
+        const hasUpdate = !!(m.summary || (m.inventory_log?.length ?? 0) > 0 || (m.quest_log?.length ?? 0) > 0 || (m.world_log?.length ?? 0) > 0);
+        return m.isThinking && hasUpdate ? this.i18n.translate('ui.UPDATING_DOTS') : null;
+    });
+
+    private progressStatus(m: ChatMessage): string | null {
+        return m.progress !== undefined && m.progress < 1
+            ? this.i18n.translate('ui.PROCESSING_PERCENT', { percent: Math.round(m.progress * 100) })
+            : null;
+    }
 
     getIntentLabel(intent: string | undefined): string {
         if (!intent) return '';
