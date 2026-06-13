@@ -1,3 +1,4 @@
+@use '@angular/material' as mat;
 @import '@angular/material/prebuilt-themes/pink-bluegrey.css';
 
 @font-face {
@@ -15,6 +16,9 @@
     --bg-dialog: #1a1a1a;
     --bg-sidebar: #1a1a1a;
     --bg-elevated: #2d2d2d;
+    /* Dialog surface follows --bg-dialog via Material's supported override API
+       (prebuilt theme defaults --mat-dialog-container-color to #424242). */
+    @include mat.dialog-overrides((container-color: var(--bg-dialog)));
     --border-color: rgba(255, 255, 255, 0.1);
     --border-color-strong: rgba(255, 255, 255, 0.2);
     --text-main: #e0e0e0;
