@@ -114,17 +114,17 @@
                             <span>{{ 'ui.PROFILE_IMPORT' | translate }}</span>
                         </button>
                         <mat-divider></mat-divider>
-                        <button mat-menu-item (click)="profileMgr.authorizeDiskFolder()" [disabled]="profileMgr.isActiveBuiltIn()"
+                        <button mat-menu-item (click)="profileMgr.authorizeDiskFolder()"
                             appAgentHint="chat-input/chat-config/profile-manage-menu/disk-sync-authorize">
                             <mat-icon>verified_user</mat-icon>
                             <span>{{ 'ui.DISK_SYNC_AUTHORIZE' | translate }}</span>
                         </button>
-                        <button mat-menu-item (click)="profileMgr.pushActiveProfileToDisk()" [disabled]="profileMgr.isActiveBuiltIn()"
+                        <button mat-menu-item (click)="profileMgr.pushActiveProfileToDisk()" [disabled]="!profileMgr.canPushActiveToDisk()"
                             appAgentHint="chat-input/chat-config/profile-manage-menu/disk-sync-push">
                             <mat-icon>folder_shared</mat-icon>
                             <span>{{ 'ui.DISK_SYNC_PUSH' | translate }}</span>
                         </button>
-                        <button mat-menu-item (click)="profileMgr.pullActiveProfileFromDisk()" [disabled]="profileMgr.isActiveBuiltIn()"
+                        <button mat-menu-item (click)="profileMgr.pullActiveProfileFromDisk()"
                             appAgentHint="chat-input/chat-config/profile-manage-menu/disk-sync-pull">
                             <mat-icon>folder_open</mat-icon>
                             <span>{{ 'ui.DISK_SYNC_PULL' | translate }}</span>

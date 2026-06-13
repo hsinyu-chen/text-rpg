@@ -55,7 +55,7 @@ function makeFakeDb() {
   };
 }
 
-function makeHarness() {
+function makeHarness(profile: { id: string; isBuiltIn: boolean } = { id: PROFILE_ID, isBuiltIn: false }) {
   const root = makeFakeDir();
   let reloaded = 0;
   const injector = Injector.create({
@@ -64,20 +64,22 @@ function makeHarness() {
       PromptRepository,
       { provide: ProfileMetaRepository, useValue: { put: async () => undefined } },
       { provide: InjectionService, useValue: { forceReload: async () => { reloaded++; } } },
-      { provide: GameStateService, useValue: { activePromptProfile: () => PROFILE_ID } },
-      { provide: PromptProfileRegistryService, useValue: { get: () => ({ id: PROFILE_ID, isBuiltIn: false }), update: () => undefined } },
+      { provide: GameStateService, useValue: { activePromptProfile: () => profile.id } },
+      { provide: PromptProfileRegistryService, useValue: { get: () => ({ ...profile }), update: () => undefined } },
       { provide: DiskProfileFolderService, useValue: { ensurePermission: async () => root, handle: () => root, pickFolder: async () => undefined } },
       DiskProfileSyncService,
     ],
   });
   const service = runInInjectionContext(injector, () => new DiskProfileSyncService());
   const repo = injector.get(PromptRepository);
-  return { service, repo, root, reloadCount: () => reloaded };
+  return { service, repo, root, reloadCount: () => reloaded, id: profile.id };
 }
 
-async function profileDir(root: FileSystemDirectoryHandle): Promise<FileSystemDirectoryHandle> {
-  return root.getDirectoryHandle(PROFILE_ID, { create: true });
+async function profileDir(root: FileSystemDirectoryHandle, id = PROFILE_ID): Promise<FileSystemDirectoryHandle> {
+  return root.getDirectoryHandle(id, { create: true });
 }
+
+const BUILTIN = { id: 'cloud', isBuiltIn: true };
 
 describe('DiskProfileSyncService hunk sync', () => {
   describe('pushActiveToDisk', () => {
@@ -125,6 +127,40 @@ describe('DiskProfileSyncService hunk sync', () => {
       await service.pullActiveFromDisk();
 
       expect(await repo.getProfileHunks('action', PROFILE_ID)).toEqual([HUNK]);
+    });
+  });
+
+  describe('built-in profile (hunks-only)', () => {
+    it('push writes only hunks.json — no envelope or base files', async () => {
+      const { service, repo, root } = makeHarness(BUILTIN);
+      await repo.saveProfileHunks('system_main', BUILTIN.id, [HUNK]);
+
+      await service.pushActiveToDisk();
+
+      const dir = await profileDir(root, BUILTIN.id);
+      expect(JSON.parse((await readFileText(dir, 'hunks.json'))!)).toEqual({ system_main: [HUNK] });
+      expect(await readFileText(dir, 'profile.json')).toBeNull();
+      expect(await readFileText(dir, 'system_main.md')).toBeNull();
+    });
+
+    it('push throws when the built-in has no hunks', async () => {
+      const { service } = makeHarness(BUILTIN);
+
+      await expect(service.pushActiveToDisk()).rejects.toThrow();
+    });
+
+    it('pull applies only hunks, never base prompts, and counts restored types', async () => {
+      const { service, repo, root } = makeHarness(BUILTIN);
+      const dir = await profileDir(root, BUILTIN.id);
+      await writeFileText(dir, 'hunks.json', JSON.stringify({ system_main: [HUNK] }));
+      // A stray base file must be ignored — built-in base prompts are shipped assets.
+      await writeFileText(dir, 'action.md', 'should be ignored');
+
+      const result = await service.pullActiveFromDisk();
+
+      expect(result).toEqual({ updatedTypes: 1, metaUpdated: false });
+      expect(await repo.getProfileHunks('system_main', BUILTIN.id)).toEqual([HUNK]);
+      expect(await repo.getProfilePrompt('action', BUILTIN.id)).toBeUndefined();
     });
   });
 });

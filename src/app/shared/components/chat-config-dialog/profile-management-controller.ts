@@ -67,6 +67,15 @@ export class ProfileManagementController {
   activeProfile = computed(() => this.registry.get(this.activeProfileId()));
   isActiveBuiltIn = computed(() => this.activeProfile()?.isBuiltIn ?? false);
 
+  /** Active profile has at least one local hunk patch — drives built-in disk-sync enablement. */
+  activeHasHunks = computed(() => this.injection.hunkCounts.size > 0);
+
+  /** Built-ins disk-sync only their hunks, so push needs at least one; user profiles always can. */
+  canPushActiveToDisk = computed(() => {
+    const active = this.activeProfile();
+    return !!active && (!active.isBuiltIn || this.activeHasHunks());
+  });
+
   private host?: ProfileManagementHost;
 
   bind(host: ProfileManagementHost): void {
@@ -299,8 +308,7 @@ export class ProfileManagementController {
   }
 
   async pushActiveProfileToDisk(): Promise<void> {
-    const active = this.activeProfile();
-    if (!active || active.isBuiltIn) return;
+    if (!this.canPushActiveToDisk()) return;
 
     if (!(await this.ensureDiskFolderBound())) return;
 
@@ -317,8 +325,9 @@ export class ProfileManagementController {
   }
 
   async pullActiveProfileFromDisk(): Promise<void> {
-    const active = this.activeProfile();
-    if (!active || active.isBuiltIn) return;
+    // Pull is always available for a built-in: it only reads hunks.json, so it
+    // can restore patches onto a profile that has none locally yet.
+    if (!this.activeProfile()) return;
 
     if (!(await this.ensureDiskFolderBound())) return;
 
@@ -341,8 +350,7 @@ export class ProfileManagementController {
   }
 
   async authorizeDiskFolder(): Promise<void> {
-    const active = this.activeProfile();
-    if (!active || active.isBuiltIn) return;
+    if (!this.activeProfile()) return;
     if (!(await this.ensureDiskFolderBound())) return;
     try {
       await this.diskSync.ensureFolderPermission();
