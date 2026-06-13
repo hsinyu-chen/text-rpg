@@ -15,7 +15,7 @@
 
 .loading-overlay {
     @include fill-absolute;
-    background: rgba(var(--app-bg-rgb, 18, 18, 18), 0.7);
+    background: color-mix(in srgb, var(--bg-main) 70%, transparent);
     backdrop-filter: blur(4px);
     z-index: 10;
     @include flex-center(column, var(--space-4));
@@ -82,6 +82,6 @@ mat-hint {
 
 .generate-hint {
     font-size: var(--app-font-size-sm);
-    color: var(--mat-sys-on-surface-variant, rgba(255,255,255,0.6));
+    color: var(--mat-sys-on-surface-variant);
     margin: 0 0 var(--space-2);
 }
