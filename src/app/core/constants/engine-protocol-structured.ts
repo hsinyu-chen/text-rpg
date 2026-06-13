@@ -156,8 +156,20 @@ export interface AnalysisStep {
      */
     hook_title: string;
     action: string;
-    /** Verbatim PC line. Empty for `event` steps. */
-    pc_dialogue: string;
+    /**
+     * Verbatim PC utterance this step — a spoken line ({@link is_inner} `false`)
+     * or an inner monologue ({@link is_inner} `true`). Empty for `event`
+     * steps and when the PC neither speaks nor thinks aloud.
+     */
+    pc_line: string;
+    /**
+     * `true` when {@link pc_line} is the PC's inner monologue — thought,
+     * not voiced, so on-scene NPCs cannot hear its words (a perceptive NPC may
+     * still react to outward cues like expression or hesitation, never to the
+     * words themselves). `false` (default) when `pc_line` is spoken aloud, or
+     * when `pc_line` is "". Always `false` for `event` steps.
+     */
+    is_inner: boolean;
     /** PC mood. Empty for `event` steps. */
     mood: string;
     /** Risks. Empty array allowed for `event` steps. */
@@ -382,9 +394,13 @@ const buildAnalysisStepSchema = (options?: { enableStats?: boolean }): Schema =>
             type: 'string',
             description: 'For user_intent: verb-phrase rewording of the user input action (e.g. "走向廣場中央" / "嘗試攻擊李如玉"). NOT a verbatim echo — paraphrase objectively. For `source:"random"` event: one-sentence description of the event itself (e.g. "王大福推門進入並截住程楊宗"). For `source:"skill_item"` event: one-sentence description of which passive ability / item / equipment of the PC or an NPC triggers and what it does (e.g. "程楊宗腰間的護身符受魔力共鳴而發熱示警"). For `source:"hook_fire"` event: one-sentence narrative seed describing how the content recorded under that hook surfaces in the current scene.'
         },
-        pc_dialogue: {
+        pc_line: {
             type: 'string',
-            description: 'For user_intent: verbatim PC line for this step, "" if PC says nothing. MUST match user input verbatim except for typos. For event (any source): always "". The narrator (in 2-call) cannot see the original user input and depends on this field to quote the PC.'
+            description: 'For user_intent: the PC\'s verbatim utterance this step — a spoken line OR an inner monologue (set is_inner accordingly), "" if the PC neither speaks nor thinks aloud. MUST match user input verbatim except for typos. For event (any source): always "". The narrator (in 2-call) cannot see the original user input and depends on this field to surface the PC\'s words.'
+        },
+        is_inner: {
+            type: 'boolean',
+            description: 'TRUE when pc_line is the PC\'s INNER MONOLOGUE — thought, not voiced, so on-scene NPCs cannot hear its words (a perceptive NPC may still react to outward cues like expression or hesitation, but never to the words themselves). FALSE (default) when pc_line is spoken ALOUD, or when pc_line is "". ALWAYS false for event (any source) steps.'
         },
         mood: {
             type: 'string',
@@ -431,7 +447,7 @@ const buildAnalysisStepSchema = (options?: { enableStats?: boolean }): Schema =>
         type: 'object',
         description: 'One atomic step in the turn\'s sequence — either a user_intent step (an action the user described) or an event step (a non-user occurrence YOU judged this turn — random injection, a passive skill/item activation, OR an authored story-hook firing; see `source`). Both kinds carry the same NPC + object reaction fields and the same breaks_ideal semantics.',
         properties,
-        required: ['kind', 'source', 'hook_title', 'action', 'pc_dialogue', 'mood', 'risk_factors', 'outcome', 'breaks_ideal', 'npc_reactions', 'object_reactions', 'scene_change']
+        required: ['kind', 'source', 'hook_title', 'action', 'pc_line', 'is_inner', 'mood', 'risk_factors', 'outcome', 'breaks_ideal', 'npc_reactions', 'object_reactions', 'scene_change']
     };
 };
 

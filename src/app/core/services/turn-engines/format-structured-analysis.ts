@@ -248,8 +248,11 @@ function formatStep(step: AnalysisStep | null | undefined, ordinal: number, trun
     const parts: string[] = [];
     parts.push(`${header} ${icon} ${action}${mood}${hookTag}`);
 
-    if (step.pc_dialogue) {
-        parts.push(`   - ${labels.PC_DIALOGUE}: "${stripDialogueQuotes(step.pc_dialogue)}"`);
+    if (step.pc_line) {
+        const line = stripDialogueQuotes(step.pc_line);
+        parts.push(step.is_inner
+            ? `   - ${labels.PC_THOUGHT}: ${line}`
+            : `   - ${labels.PC_DIALOGUE}: "${line}"`);
     }
 
     if (Array.isArray(step.risk_factors) && step.risk_factors.length > 0) {

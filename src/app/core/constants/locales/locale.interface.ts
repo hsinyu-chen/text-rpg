@@ -99,6 +99,7 @@ export interface AppLocale {
         PHYSICAL_STATE: string;
         AGENDA: string;
         PC_DIALOGUE: string;
+        PC_THOUGHT: string;
         RISKS: string;
         OUTCOME: string;
         TRUNCATED_NOTE: string;

@@ -92,6 +92,8 @@ function resolveAwareness(
 type LegacyAnalysisStep = Omit<Partial<AnalysisStep>, 'kind' | 'source'> & {
     kind?: AnalysisStep['kind'] | 'random_event';
     source?: string;
+    /** Pre-inner-monologue-split saves serialized the PC's spoken line under this key. */
+    pc_dialogue?: string;
 };
 
 export function normalizeStep(raw: LegacyAnalysisStep | undefined): AnalysisStep {
@@ -113,7 +115,9 @@ export function normalizeStep(raw: LegacyAnalysisStep | undefined): AnalysisStep
         source,
         hook_title: hookTitle,
         action: raw?.action ?? '',
-        pc_dialogue: raw?.pc_dialogue ?? '',
+        // Legacy saves serialized the spoken line as `pc_dialogue` (pre-inner-monologue split).
+        pc_line: raw?.pc_line ?? raw?.pc_dialogue ?? '',
+        is_inner: raw?.is_inner === true,
         mood: raw?.mood ?? '',
         risk_factors: Array.isArray(raw?.risk_factors) ? raw.risk_factors.filter(r => typeof r === 'string') : [],
         outcome: raw?.outcome ?? '',

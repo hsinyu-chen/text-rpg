@@ -22,7 +22,8 @@ function step(overrides: Partial<AnalysisStep> = {}): AnalysisStep {
         source: '',
         hook_title: '',
         action: 'walk',
-        pc_dialogue: '',
+        pc_line: '',
+        is_inner: false,
         mood: '',
         risk_factors: [],
         outcome: '成功',
@@ -193,7 +194,7 @@ describe('buildNarratorUserMessage', () => {
         const out = buildNarratorUserMessage({
             idealOutcome: 'X',
             idealStrength: 'pragmatic',
-            truncatedAnalysis: analysis({ steps: [step({ action: 'walk', pc_dialogue: 'hi' })] }),
+            truncatedAnalysis: analysis({ steps: [step({ action: 'walk', pc_line: 'hi' })] }),
             protocolNarrator: 'NARR',
             correction: ''
         });

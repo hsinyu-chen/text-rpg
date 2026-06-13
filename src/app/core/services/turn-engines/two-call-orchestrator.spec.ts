@@ -41,7 +41,8 @@ function step(overrides: Partial<AnalysisStep> = {}): AnalysisStep {
         source: '',
         hook_title: '',
         action: 'walk',
-        pc_dialogue: '',
+        pc_line: '',
+        is_inner: false,
         mood: '',
         risk_factors: [],
         outcome: '成功',
@@ -219,7 +220,7 @@ describe('two-call orchestrator integration', () => {
                 steps: [
                     step({ action: 'walk to farmer' }),
                     step({ action: 'reach for handshake', breaks_ideal: true, outcome: '失敗 - farmer stepped back' }),
-                    step({ action: 'speak greeting', pc_dialogue: 'TRUNCATED-LINE-DO-NOT-LEAK' })
+                    step({ action: 'speak greeting', pc_line: 'TRUNCATED-LINE-DO-NOT-LEAK' })
                 ]
             })
         }));
