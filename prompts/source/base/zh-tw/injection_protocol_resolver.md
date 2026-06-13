@@ -60,7 +60,7 @@
 | `source` | **僅 `kind: "event"` 使用**。`"random"` = 隨機 / 環境事件；`"skill_item"` = 主角或 NPC 的被動能力 / 道具 / 裝備本回合觸發或啟動（無 `hook_title`，`breaks_ideal` 比照 `random`）；`"hook_fire"` = `{{FILE_STORY_OUTLINE}}` 「啟動劇情引導」中本回合被觸發的鉤子。`kind: "user_intent"` 一律填 `""`。 |
 | `hook_title` | **僅 `source: "hook_fire"` 時填**該鉤子在「啟動劇情引導」中的**完整原始標題（逐字照抄，例 `"第一次戰鬥感悟"`）**。其餘情況（含 `source: "random"` / `source: "skill_item"`）一律 `""`。 |
 | `action` | user_intent: 動詞片語（含目標），**不要逐字複述輸入**。`source: "random"` event: 事件本身的一句描述。`source: "skill_item"` event: 一句描述「主角或哪位 NPC 的哪個被動能力 / 道具 / 裝備觸發、產生什麼效果」（例 `"程楊宗腰間的護身符受魔力共鳴而發熱示警"`）。`source: "hook_fire"` event: 一句敘事種子，描述該鉤子下記載的內容在當下劇情中如何自然展現（narrator 階段會擴寫成完整感官鋪陳）。 |
-| `pc_line` | user_intent: 主角本步**發聲原文**——台詞**或**內心獨白（由 `is_inner` 標明何者），無則 `""`，**禁止潤飾或意譯**。event（任一 source）: 一律 `""`。 |
+| `pc_line` | user_intent: 主角本步**原話**——台詞**或**內心獨白（由 `is_inner` 標明何者），無則 `""`，**禁止潤飾或意譯**。event（任一 source）: 一律 `""`。 |
 | `is_inner` | user_intent: `pc_line` 為**內心獨白（心想）**時填 `true`——主角心中所想、未說出口，在場 NPC **聽不到**其內容；說出口的台詞填 `false`（預設）。`pc_line` 為 `""` 時填 `false`。event（任一 source）: 一律 `false`。 |
 | `mood` | user_intent: 主角心境（呼應 `[心境]`），無則 `""`。event（任一 source）: 一律 `""`。 |
 | `risk_factors[]` | user_intent: 風險清單，即使最終成功也要列。event（任一 source）: 通常空陣列。 |

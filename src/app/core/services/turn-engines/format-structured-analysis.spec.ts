@@ -283,7 +283,7 @@ describe('formatStructuredAnalysis', () => {
         const out = formatStructuredAnalysis(analysis({
             steps: [step({ action: 'greet', pc_line: '你好', mood: '友善' })]
         }));
-        expect(out).toContain('"你好"');
+        expect(out).toContain('「你好」');
         expect(out).toContain('_(友善)_');
     });
 

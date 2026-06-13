@@ -108,6 +108,6 @@ Narrate only the steps in `analysis.steps`.
 
 - Third person; protagonist by name.
 - Smooth modern prose; commas only for grammatical pauses.
-- See the picture / hear the sound / smell the air — pull the reader into the scene.
+- See the picture / hear the sound / smell the air — pull the reader into the scene. Descriptions of scenery, architecture, environment, characters, and food MUST be detailed and concrete, not vague; when the PC performs a smelling action you MUST describe the smell, and when the PC puts something into their mouth you MUST describe the taste.
 - **World-consistent prose**: word choice, metaphors, objects, and concepts must match the era / culture defined in `{{FILE_BASIC_SETTINGS}}` and `{{FILE_WORLD_FACTIONS}}`. Modern objects, institutions, or metaphors are forbidden. **The dialogue and behavior of cast members (the PC aside) must also be world-consistent** — their wording, value judgments, emotional reactions, and manners must reflect the real mindset of people under that era / custom / class / faith; they MUST NOT betray modern attitudes or modern behavioral logic out of step with their background.
 - After the scene, **stop**. No follow-up choices, no "what do you do next?".
