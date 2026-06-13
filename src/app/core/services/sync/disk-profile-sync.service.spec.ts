@@ -116,5 +116,15 @@ describe('DiskProfileSyncService hunk sync', () => {
 
       expect(await repo.getProfileHunks('action', PROFILE_ID)).toEqual([HUNK]);
     });
+
+    it('leaves IDB hunks untouched when hunks.json is malformed (literal null)', async () => {
+      const { service, repo, root } = makeHarness();
+      await repo.saveProfileHunks('action', PROFILE_ID, [HUNK]);
+      await writeFileText(await profileDir(root), 'hunks.json', 'null');
+
+      await service.pullActiveFromDisk();
+
+      expect(await repo.getProfileHunks('action', PROFILE_ID)).toEqual([HUNK]);
+    });
   });
 });

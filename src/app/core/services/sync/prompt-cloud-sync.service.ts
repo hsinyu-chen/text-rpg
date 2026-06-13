@@ -3,7 +3,7 @@ import { PromptRepository } from '../storage/prompt.repository';
 import { ProfileMetaRepository } from '../storage/profile-meta.repository';
 import { PromptProfileRegistryService } from '../prompt-profile-registry.service';
 import { ALL_PROMPT_TYPES, type PromptType } from '../injection.service';
-import { BUILT_IN_PROFILES, getProfileScopedKey, USER_PROFILE_ID_PREFIX } from '@app/core/constants/prompt-profiles';
+import { BUILT_IN_PROFILES, getProfileScopedKey, PromptProfile, USER_PROFILE_ID_PREFIX } from '@app/core/constants/prompt-profiles';
 import { KVStore } from '../kv/kv-store';
 import { SyncBackend } from './sync.types';
 
@@ -223,6 +223,26 @@ export class PromptCloudSyncService {
         return this.applyPromptsV2(parsed);
     }
 
+    /**
+     * Resolve a `${profileId}:${type}` payload key to its target row: split the
+     * id/type, validate the type, apply the import id-remap, and confirm the
+     * profile registered. Returns null for a malformed key, unknown type, or
+     * orphan profile — shared by the prompt-row and hunk apply loops.
+     */
+    private resolvePayloadKey(
+        key: string,
+        idRemap: Map<string, string>,
+    ): { type: PromptType; profileId: string; profile: PromptProfile } | null {
+        const colon = key.indexOf(':');
+        if (colon <= 0) return null;
+        const type = key.slice(colon + 1);
+        if (!PROMPT_TYPES.includes(type as PromptType)) return null;
+        const profileId = idRemap.get(key.slice(0, colon)) ?? key.slice(0, colon);
+        const profile = this.profileRegistry.get(profileId);
+        if (!profile) return null;
+        return { type: type as PromptType, profileId, profile };
+    }
+
     private async applyPromptsV2(payload: PromptsV2): Promise<{ imported: number }> {
         const idRemap = new Map<string, string>();
         // Tracks every id we've assigned in this batch (existing registry +
@@ -287,16 +307,9 @@ export class PromptCloudSyncService {
         // single-threaded.
         const v2Results = await Promise.all(Object.entries(payload.prompts ?? {}).map(async ([key, value]) => {
             if (!value || typeof value.content !== 'string') return false;
-            const colon = key.indexOf(':');
-            if (colon <= 0) return false;
-            const incomingId = key.slice(0, colon);
-            const type = key.slice(colon + 1);
-            if (!PROMPT_TYPES.includes(type as PromptType)) return false;
-
-            const profileId = idRemap.get(incomingId) ?? incomingId;
-            const profile = this.profileRegistry.get(profileId);
-            // Drop rows whose profile entry never made it into the registry (orphan).
-            if (!profile) return false;
+            const resolved = this.resolvePayloadKey(key, idRemap);
+            if (!resolved) return false;
+            const { type, profileId, profile } = resolved;
 
             await this.prompts.saveProfilePrompt(type, profileId, value.content, value.tokens);
             if (profile.isBuiltIn) {
@@ -317,14 +330,9 @@ export class PromptCloudSyncService {
     private async applyHunks(hunks: PromptsV2['hunks'], idRemap: Map<string, string>): Promise<void> {
         await Promise.all(Object.entries(hunks ?? {}).map(async ([key, value]) => {
             if (!Array.isArray(value)) return;
-            const colon = key.indexOf(':');
-            if (colon <= 0) return;
-            const incomingId = key.slice(0, colon);
-            const type = key.slice(colon + 1);
-            if (!PROMPT_TYPES.includes(type as PromptType)) return;
-            const profileId = idRemap.get(incomingId) ?? incomingId;
-            if (!this.profileRegistry.get(profileId)) return;
-            await this.prompts.saveProfileHunks(type, profileId, value);
+            const resolved = this.resolvePayloadKey(key, idRemap);
+            if (!resolved) return;
+            await this.prompts.saveProfileHunks(resolved.type, resolved.profileId, value);
         }));
     }
 

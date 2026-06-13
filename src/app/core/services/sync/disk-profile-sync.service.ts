@@ -159,15 +159,20 @@ export class DiskProfileSyncService {
     private async pullHunks(dir: FileSystemDirectoryHandle, profileId: string): Promise<void> {
         const text = await readFileText(dir, HUNKS_FILENAME);
         if (text === null) return;
-        let parsed: Record<string, unknown[]>;
+        let parsed: unknown;
         try {
-            parsed = JSON.parse(text) as Record<string, unknown[]>;
+            parsed = JSON.parse(text);
         } catch (err) {
             console.warn('[DiskProfileSync] hunks.json parse failed; skipping hunk sync', err);
             return;
         }
+        // A present-but-malformed file (hand-edited to `null`, an array, a scalar)
+        // is treated like an unparseable one — skip rather than wipe IDB. An empty
+        // object `{}` is still a valid snapshot that clears every type.
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return;
+        const byType = parsed as Record<string, unknown>;
         for (const type of ALL_PROMPT_TYPES) {
-            const hunks = parsed[type];
+            const hunks = byType[type];
             await this.prompts.saveProfileHunks(type, profileId, Array.isArray(hunks) ? hunks : []);
         }
     }
