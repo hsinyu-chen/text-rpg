@@ -127,6 +127,7 @@ Do not infer — pass this value directly into the schema's \`ideal_outcome\` fi
         PHYSICAL_STATE: 'Physical state',
         AGENDA: 'Agenda',
         PC_DIALOGUE: 'PC',
+        PC_THOUGHT: 'PC (inner)',
         RISKS: 'Risks',
         OUTCOME: 'Outcome',
         TRUNCATED_NOTE: '(truncated after first break)',

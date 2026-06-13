@@ -26,7 +26,8 @@ function step(overrides: Partial<AnalysisStep> = {}): AnalysisStep {
         source: '',
         hook_title: '',
         action: 'walk',
-        pc_dialogue: '',
+        pc_line: '',
+        is_inner: false,
         mood: '',
         risk_factors: [],
         outcome: '成功',
@@ -178,7 +179,7 @@ describe('structuredAnalysisSchema', () => {
         };
         const stepReq = schema.properties.steps.items.required ?? [];
         expect(stepReq).toEqual(expect.arrayContaining([
-            'kind', 'source', 'hook_title', 'action', 'pc_dialogue', 'mood', 'risk_factors', 'outcome', 'breaks_ideal',
+            'kind', 'source', 'hook_title', 'action', 'pc_line', 'is_inner', 'mood', 'risk_factors', 'outcome', 'breaks_ideal',
             'npc_reactions', 'object_reactions'
         ]));
         expect(schema.properties.steps.items.properties['breaks_ideal'].type).toBe('boolean');

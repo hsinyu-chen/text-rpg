@@ -8,7 +8,8 @@ function step(overrides: Partial<AnalysisStep> = {}): AnalysisStep {
         source: '',
         hook_title: '',
         action: 'walk',
-        pc_dialogue: '',
+        pc_line: '',
+        is_inner: false,
         mood: '',
         risk_factors: [],
         outcome: '成功',
@@ -278,12 +279,35 @@ describe('formatStructuredAnalysis', () => {
         expect(out).toContain('碎玻璃: 碎片微微滑動');
     });
 
-    it('renders pc_dialogue and mood when present', () => {
+    it('renders spoken pc_line in quotes and mood when present', () => {
         const out = formatStructuredAnalysis(analysis({
-            steps: [step({ action: 'greet', pc_dialogue: '你好', mood: '友善' })]
+            steps: [step({ action: 'greet', pc_line: '你好', mood: '友善' })]
         }));
-        expect(out).toContain('"你好"');
+        expect(out).toContain('「你好」');
         expect(out).toContain('_(友善)_');
+    });
+
+    it('renders inner-monologue pc_line without spoken quotes', () => {
+        const out = formatStructuredAnalysis(analysis({
+            steps: [step({ action: '心想', pc_line: '這笨蛋又來了', is_inner: true })]
+        }));
+        expect(out).toContain('這笨蛋又來了');
+        expect(out).not.toContain('"這笨蛋又來了"');
+    });
+
+    it('strips model-emitted curly quotes before re-wrapping pc_line', () => {
+        const out = formatStructuredAnalysis(analysis({
+            steps: [step({ action: 'greet', pc_line: '“hi”' })]
+        }));
+        expect(out).toContain('「hi」');
+        expect(out).not.toContain('“hi”');
+    });
+
+    it('skips a pc_line that strips to empty (no empty placeholder)', () => {
+        const out = formatStructuredAnalysis(analysis({
+            steps: [step({ action: 'pause', pc_line: '「」' })]
+        }));
+        expect(out).not.toContain('「」');
     });
 
     it('renders risk factors as inline list', () => {
@@ -360,7 +384,7 @@ describe('formatStructuredAnalysis', () => {
                 key_objects: [{ name: 'window', state: 'half open' }]
             }),
             steps: [
-                step({ kind: 'user_intent', action: 'walk', pc_dialogue: 'hello', risk_factors: ['slip'] }),
+                step({ kind: 'user_intent', action: 'walk', pc_line: 'hello', risk_factors: ['slip'] }),
                 step({ kind: 'event', source: 'random', action: 'lightning', breaks_ideal: true, outcome: 'failed' })
             ]
         }), 'English');
@@ -371,7 +395,7 @@ describe('formatStructuredAnalysis', () => {
         expect(out).toContain('Environment: rainstorm');
         expect(out).toContain('Key objects:');
         expect(out).toContain('[Action1]** ✅ walk');
-        expect(out).toContain('PC: "hello"');
+        expect(out).toContain('PC: 「hello」');
         expect(out).toContain('Risks: slip');
         expect(out).toContain('[Event2]** 🔴 lightning');
         expect(out).toContain('Outcome: failed');

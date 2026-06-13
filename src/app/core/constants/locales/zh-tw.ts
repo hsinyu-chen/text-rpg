@@ -125,6 +125,7 @@ history 訊息或 stateUpdates summary 出現 \`correction:\` 條目時，**必�
         PHYSICAL_STATE: '外觀狀態',
         AGENDA: '進行事務',
         PC_DIALOGUE: '主角',
+        PC_THOUGHT: '主角（心想）',
         RISKS: '風險',
         OUTCOME: '判定',
         TRUNCATED_NOTE: '（首次中斷後截斷）',

@@ -60,7 +60,8 @@
 | `source` | **僅 `kind: "event"` 使用**。`"random"` = 隨機 / 環境事件；`"skill_item"` = 主角或 NPC 的被動能力 / 道具 / 裝備本回合觸發或啟動（無 `hook_title`，`breaks_ideal` 比照 `random`）；`"hook_fire"` = `{{FILE_STORY_OUTLINE}}` 「啟動劇情引導」中本回合被觸發的鉤子。`kind: "user_intent"` 一律填 `""`。 |
 | `hook_title` | **僅 `source: "hook_fire"` 時填**該鉤子在「啟動劇情引導」中的**完整原始標題（逐字照抄，例 `"第一次戰鬥感悟"`）**。其餘情況（含 `source: "random"` / `source: "skill_item"`）一律 `""`。 |
 | `action` | user_intent: 動詞片語（含目標），**不要逐字複述輸入**。`source: "random"` event: 事件本身的一句描述。`source: "skill_item"` event: 一句描述「主角或哪位 NPC 的哪個被動能力 / 道具 / 裝備觸發、產生什麼效果」（例 `"程楊宗腰間的護身符受魔力共鳴而發熱示警"`）。`source: "hook_fire"` event: 一句敘事種子，描述該鉤子下記載的內容在當下劇情中如何自然展現（narrator 階段會擴寫成完整感官鋪陳）。 |
-| `pc_dialogue` | user_intent: 主角本步台詞**原文**，無則 `""`，**禁止潤飾或意譯**。event（任一 source）: 一律 `""`。 |
+| `pc_line` | user_intent: 主角本步**原話**——台詞**或**內心獨白（由 `is_inner` 標明何者），無則 `""`，**禁止潤飾或意譯**。event（任一 source）: 一律 `""`。 |
+| `is_inner` | user_intent: `pc_line` 為**內心獨白（心想）**時填 `true`——主角心中所想、未說出口，在場 NPC **聽不到**其內容；說出口的台詞填 `false`（預設）。`pc_line` 為 `""` 時填 `false`。event（任一 source）: 一律 `false`。 |
 | `mood` | user_intent: 主角心境（呼應 `[心境]`），無則 `""`。event（任一 source）: 一律 `""`。 |
 | `risk_factors[]` | user_intent: 風險清單，即使最終成功也要列。event（任一 source）: 通常空陣列。 |
 | `outcome` | 單一 free-text 判定。措辭以「成功 / 部份成功 / 伴隨代價的成功 / 失敗」起頭，後接精簡因果說明。`source: "hook_fire"` 比照同規則，依鉤子內容性質判定（覺醒 / 獲得 → 成功；揭露負面真相 / 損失 / 詛咒 → 可依內容用「失敗」措辭）。 |
@@ -68,6 +69,8 @@
 | `npc_reactions[]` | **逐步覆蓋——每個 step 寫出「該 step 當下在場」的每位 NPC**：結束仍在場的 `present_npcs` 每位（含旁觀沉默／昏迷／通訊），**外加本回合中途、於本 step 離場的 NPC**（在該 step 演出其離開）；已於先前 step 離場者不再出現。event 步驟（任一 source）同樣涵蓋當下在場者。 |
 | `object_reactions[]` | **`scene_snapshot.key_objects` 每個都必須出現一筆**（含「無變化」）。 |
 | `scene_change` | **必填**。本 step **持續狀態 delta** 的精簡 free-text 描述——動作執行後**留下來持久的**物理/外觀變化（衣物落下、武器出鞘、物件移位、姿勢轉換成持續性、受傷、awareness 翻轉等）。**沒有持續變化的 step 也要填 `""`**（不可省略）。**與 `npc_reactions[].physical` 區別**:`physical` 是「本 step 瞬時動作/姿態」(動作完就結束);`scene_change` 是「動作後場景延續到下 step 的新狀態」。**與 `object_reactions[].change` 區別**:`change` 是「物件本 step 被互動的事件描述」;`scene_change` 是「該事件結束後物件物理狀態的延續變化」。例:`"李如玉衣物已退至腰下；殘片落在床上"` / `"王大福右手握住劍柄，劍已半出鞘"` / `""`（純對話無物理變化）。**對 narrator 至關重要**:narrator 寫後續 step 的物理細節時須累積所有先前 step 的 `scene_change`,才能正確呈現中段場景狀態。 |
+
+**內心獨白（`is_inner=true`）的世界反應**：主角的心想未說出口，在場 NPC **無從得知其字面內容**——`npc_reactions` **禁止**讓任何 NPC 回應、引用或表現出知曉心想的文字。但具洞察力的 NPC **可**對主角的**外顯線索**（表情、遲疑、眼神、語氣、肢體）作出反應，甚至**揣測**主角的心思——前提是該揣測源於可觀察的線索與該 NPC 對主角的既有理解（依 `{{FILE_CHARACTER_STATUS}}` 關係與性格），而非直接讀取心想本身。
 
 #### `npc_reactions[]` 元素
 
@@ -164,7 +167,7 @@
 
 **常見偏誤糾正**：把「動作流程到位但 binary 條件被旁觀者破壞」判為 partial success 是**錯誤**的——「移動到目標位置但被瞥見」對潛行 step 而言是**全失敗**，不是 partial。binary 條件無中間值。
 
-**Binary 屬內部判定指引**：以上「binary 目標」、「binary 條件」是給判定者的內部分類詞彙，**禁止**寫進 `action` / `pc_dialogue` / `outcome` 等任何輸出字段（如不要寫 `action: "...(Binary Goal)"`）。判定結果靠 `breaks_ideal` 與 `outcome` 的措辭表達即可。
+**Binary 屬內部判定指引**：以上「binary 目標」、「binary 條件」是給判定者的內部分類詞彙，**禁止**寫進 `action` / `pc_line` / `outcome` 等任何輸出字段（如不要寫 `action: "...(Binary Goal)"`）。判定結果靠 `breaks_ideal` 與 `outcome` 的措辭表達即可。
 
 **反 DM 取悅偏誤**：你的職責是公正裁判，不是讓使用者開心。**禁止**因為「使用者不喜歡被告知做不到」、「第一次嘗試應該給機會」、「動作有趣應該獎勵」、「可解釋為直覺／系統能力」這類 meta 理由把 `breaks_ideal=true` 降為 partial 或將「無對應技能／物品」的嘗試判為成功。知識庫（`{{FILE_BASIC_SETTINGS}}` 等）未授予的能力**不存在**，不可用「DM 寬容」、「innate intuition」、「first attempt」等理由覆寫上方五點檢核。截斷機制本身就是給玩家恢復機會的設計。
 
@@ -176,5 +179,5 @@
 - ❌ 在 `breaks_ideal=true` 之後繼續列出後續步驟（必須在破壞點停止輸出）
 - ❌ NPC 開口卻 `dialogue=""`（必須補回原文台詞）
 - ❌ 漏列任何 `present_npcs` 或 `key_objects` 於 `npc_reactions[]` / `object_reactions[]`
-- ❌ 把推理理由塞進 `action` / `pc_dialogue`（理由只進 `outcome` 字串）
+- ❌ 把推理理由塞進 `action` / `pc_line`（理由只進 `outcome` 字串）
 - ❌ 逐字複述輸入（`action` 用動詞片語改寫，輸入已結構化）

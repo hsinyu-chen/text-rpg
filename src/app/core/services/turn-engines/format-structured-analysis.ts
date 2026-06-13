@@ -202,7 +202,7 @@ function stripTrailingTerminator(s: string): string {
  */
 function stripDialogueQuotes(s: string): string {
     const trimmed = s.trim();
-    const pairs: [string, string][] = [['「', '」'], ['『', '』'], ['"', '"'], ['"', '"'], ["'", "'"]];
+    const pairs: [string, string][] = [['「', '」'], ['『', '』'], ['"', '"'], ['“', '”'], ["'", "'"], ['‘', '’']];
     for (const [open, close] of pairs) {
         if (trimmed.startsWith(open) && trimmed.endsWith(close) && trimmed.length >= open.length + close.length) {
             return trimmed.slice(open.length, trimmed.length - close.length);
@@ -248,8 +248,11 @@ function formatStep(step: AnalysisStep | null | undefined, ordinal: number, trun
     const parts: string[] = [];
     parts.push(`${header} ${icon} ${action}${mood}${hookTag}`);
 
-    if (step.pc_dialogue) {
-        parts.push(`   - ${labels.PC_DIALOGUE}: "${stripDialogueQuotes(step.pc_dialogue)}"`);
+    const line = stripDialogueQuotes(step.pc_line);
+    if (line) {
+        parts.push(step.is_inner
+            ? `   - ${labels.PC_THOUGHT}: ${line}`
+            : `   - ${labels.PC_DIALOGUE}: 「${line}」`);
     }
 
     if (Array.isArray(step.risk_factors) && step.risk_factors.length > 0) {
