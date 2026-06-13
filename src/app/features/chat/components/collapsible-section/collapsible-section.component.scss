@@ -87,17 +87,11 @@
     color: #b39ddb;
 }
 
-.toggle-icon {
-    font-size: 18px;
-    width: 18px;
-    height: 18px;
-}
-
 .header-status {
     font-size: 10px;
     font-style: italic;
     color: #b39ddb;
-    animation: pulse 1s infinite;
+    animation: section-status-pulse 1s infinite;
 }
 
 .thought-content {
@@ -110,7 +104,7 @@
     contain: content;
 }
 
-@keyframes pulse {
+@keyframes section-status-pulse {
     0% {
         opacity: 0.4;
     }
