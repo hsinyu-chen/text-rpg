@@ -109,8 +109,8 @@ mat-dialog-content {
 }
 .trigger-badge[data-trigger='manual']     { background: color-mix(in srgb, var(--status-success) 18%, transparent);  color: var(--status-success); }
 .trigger-badge[data-trigger='forcePush']  { background: color-mix(in srgb, var(--status-warning) 18%, transparent);  color: var(--status-warning); }
-.trigger-badge[data-trigger='forcePull']  { background: rgba(var(--accent-blue-rgb), 0.18); color: var(--accent-blue); }
-.trigger-badge[data-trigger='preRestore'] { background: rgba(156, 39, 176, 0.18); color: var(--accent-purple-light); }
+.trigger-badge[data-trigger='forcePull']  { background: color-mix(in srgb, var(--accent-blue) 18%, transparent); color: var(--accent-blue); }
+.trigger-badge[data-trigger='preRestore'] { background: color-mix(in srgb, var(--accent-purple) 18%, transparent); color: var(--accent-purple-light); }
 
 .note-input {
     width: 100%;

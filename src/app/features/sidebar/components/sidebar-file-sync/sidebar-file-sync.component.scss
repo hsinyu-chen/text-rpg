@@ -152,12 +152,7 @@
 
     button[mat-icon-button],
     button[mat-mini-fab] {
-        width: 36px !important;
-        height: 36px !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        padding: 0 !important;
+        @include icon-button-square-reset(36px);
 
         mat-icon {
             @include mat-icon-sized(20px);

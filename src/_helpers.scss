@@ -1,19 +1,19 @@
-@mixin flex-row-center($gap: 0) {
+@mixin flex-row-center($gap: null) {
   display: flex;
   align-items: center;
-  @if $gap != 0 { gap: $gap; }
+  @if $gap { gap: $gap; }
 }
-@mixin flex-column($gap: 0) {
+@mixin flex-column($gap: null) {
   display: flex;
   flex-direction: column;
-  @if $gap != 0 { gap: $gap; }
+  @if $gap { gap: $gap; }
 }
-@mixin flex-center($direction: row, $gap: 0) {
+@mixin flex-center($direction: row, $gap: null) {
   display: flex;
   flex-direction: $direction;
   align-items: center;
   justify-content: center;
-  @if $gap != 0 { gap: $gap; }
+  @if $gap { gap: $gap; }
 }
 @mixin flex-row-between {
   display: flex;

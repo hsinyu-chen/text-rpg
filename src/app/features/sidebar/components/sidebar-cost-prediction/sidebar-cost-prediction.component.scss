@@ -129,7 +129,7 @@ $border-color: var(--border-color);
 
         &.history {
             color: color-mix(in srgb, var(--accent-purple), black 25%);
-            border-top: 1px dashed rgba(156, 39, 176, 0.3);
+            border-top: 1px dashed color-mix(in srgb, var(--accent-purple) 30%, transparent);
         }
     }
 
