@@ -6,7 +6,7 @@
         (keydown.space)="$event.preventDefault(); toggled.emit()">
         <div class="header-main">
             <mat-icon>{{ expanded() ? 'expand_more' : 'chevron_right' }}</mat-icon>
-            <mat-icon class="brain-icon">{{ icon() }}</mat-icon>
+            <mat-icon class="section-icon">{{ icon() }}</mat-icon>
             <span>{{ title() | translate }}</span>
         </div>
         @if (statusText()) {

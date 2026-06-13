@@ -53,18 +53,18 @@
         gap: 8px;
     }
 
-    .brain-icon {
+    .section-icon {
         font-size: 18px;
         width: 18px;
         height: 18px;
         color: #b39ddb;
     }
 
-    &.variant-analysis .brain-icon {
+    &.variant-analysis .section-icon {
         color: #64b5f6;
     }
 
-    &.variant-update .brain-icon {
+    &.variant-update .section-icon {
         color: #4dd0e1;
     }
 
@@ -73,6 +73,14 @@
         font-style: italic;
         color: #b39ddb;
         animation: section-status-pulse 1s infinite;
+    }
+
+    &.variant-analysis .header-status {
+        color: #64b5f6;
+    }
+
+    &.variant-update .header-status {
+        color: #4dd0e1;
     }
 
     .section-body {
