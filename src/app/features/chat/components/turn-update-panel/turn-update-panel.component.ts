@@ -6,6 +6,7 @@ import { CORE_MAT } from '@app/shared/material/material-groups';
 import { StatsViewService } from '@app/core/services/stats/stats-view.service';
 import { buildStatChips, StatChip } from '@app/core/services/stats/stats-chip.util';
 import { StatChipListComponent } from '../stat-chip-list/stat-chip-list.component';
+import { hasTurnUpdate } from '@app/core/utils/turn-update.util';
 
 @Component({
     selector: 'app-turn-update-panel',
@@ -35,8 +36,7 @@ export class TurnUpdatePanelComponent {
 
     updates = computed(() => {
         return this.state.messages().filter(m =>
-            (m.summary || (m.character_log && m.character_log.length > 0) || (m.inventory_log && m.inventory_log.length > 0) || (m.quest_log && m.quest_log.length > 0) || (m.world_log && m.world_log.length > 0) || !!m.correction || !!this.statsView.appliedForMessage(m.id)) &&
-            !m.isRefOnly
+            (hasTurnUpdate(m) || !!this.statsView.appliedForMessage(m.id)) && !m.isRefOnly
         );
     });
 

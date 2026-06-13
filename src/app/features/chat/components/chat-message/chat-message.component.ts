@@ -18,6 +18,7 @@ import { getLocale } from '@app/core/constants/locales';
 import { I18nService, TranslatePipe } from '@app/core/i18n';
 import { computed } from '@angular/core';
 import { KATEX_DELIMITERS, hasKatexDelimiters } from '@app/core/utils/latex.util';
+import { hasTurnUpdate } from '@app/core/utils/turn-update.util';
 
 @Component({
     selector: 'app-chat-message',
@@ -129,10 +130,11 @@ export class ChatMessageComponent {
                 : this.i18n.translate('ui.ANALYZING_DOTS'));
     });
 
+    hasUpdate = computed<boolean>(() => hasTurnUpdate(this.message()));
+
     updateStatus = computed<string | null>(() => {
         const m = this.message();
-        const hasUpdate = !!(m.summary || (m.inventory_log?.length ?? 0) > 0 || (m.quest_log?.length ?? 0) > 0 || (m.world_log?.length ?? 0) > 0);
-        return m.isThinking && hasUpdate ? this.i18n.translate('ui.UPDATING_DOTS') : null;
+        return m.isThinking && this.hasUpdate() ? this.i18n.translate('ui.UPDATING_DOTS') : null;
     });
 
     private progressStatus(m: ChatMessage): string | null {

@@ -9,6 +9,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { ChatMessage } from '@app/core/models/types';
 import { I18nService } from '@app/core/i18n';
 import { AppConfigStore } from '@app/core/services/app-config-store';
+import { hasTurnUpdate } from '@app/core/utils/turn-update.util';
 
 @Injectable()
 export class MessageStateService {
@@ -29,7 +30,7 @@ export class MessageStateService {
     // Local UI State
     isUpdateVisible = linkedSignal({
         // Only reset when content presence changes (e.g. from none to some)
-        source: () => !!(this.message()?.summary || (this.message()?.character_log?.length ?? 0) > 0 || (this.message()?.inventory_log?.length ?? 0) > 0 || (this.message()?.quest_log?.length ?? 0) > 0 || (this.message()?.world_log?.length ?? 0) > 0 || !!this.message()?.correction),
+        source: () => hasTurnUpdate(this.message()),
         computation: (hasContent) => hasContent
     });
 

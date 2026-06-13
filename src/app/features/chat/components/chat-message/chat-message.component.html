@@ -80,8 +80,10 @@
                         <span class="status-text">{{ 'ui.PREFILLING_CONTEXT_PROGRESS' | translate: { percent: ((msg.progress * 100) | number:'1.0-0') ?? '' } }}</span>
                     </div>
                     <div class="prefill-metrics">
-                        @if (msg.usage?.promptProcessed) {
-                        <span class="metric-item">{{ msg.usage?.promptProcessed }} / {{ msg.usage?.promptTotal }} tk</span>
+                        @if (msg.usage; as usage) {
+                        @if (usage.promptProcessed) {
+                        <span class="metric-item">{{ usage.promptProcessed }} / {{ usage.promptTotal }} tk</span>
+                        }
                         }
                         @if (prefillSpeed()) {
                         <span class="metric-item">{{ prefillSpeed() | number:'1.0-0' }} tk/s</span>
@@ -136,8 +138,7 @@
                 }
 
                     <!-- Turn Update Section -->
-                    @if (msg.summary || (msg.inventory_log?.length ?? 0) > 0 || (msg.quest_log?.length ?? 0) >
-                    0 || (msg.world_log?.length ?? 0) > 0) {
+                    @if (hasUpdate()) {
                     <app-collapsible-section variant="update" icon="update"
                         title="ui.TURN_UPDATE"
                         [expanded]="state.isUpdateVisible()" [streaming]="!!msg.isThinking"
