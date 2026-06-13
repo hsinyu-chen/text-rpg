@@ -202,7 +202,7 @@ function stripTrailingTerminator(s: string): string {
  */
 function stripDialogueQuotes(s: string): string {
     const trimmed = s.trim();
-    const pairs: [string, string][] = [['「', '」'], ['『', '』'], ['"', '"'], ['"', '"'], ["'", "'"]];
+    const pairs: [string, string][] = [['「', '」'], ['『', '』'], ['"', '"'], ['“', '”'], ["'", "'"], ['‘', '’']];
     for (const [open, close] of pairs) {
         if (trimmed.startsWith(open) && trimmed.endsWith(close) && trimmed.length >= open.length + close.length) {
             return trimmed.slice(open.length, trimmed.length - close.length);

@@ -295,6 +295,14 @@ describe('formatStructuredAnalysis', () => {
         expect(out).not.toContain('"這笨蛋又來了"');
     });
 
+    it('strips model-emitted curly quotes before re-wrapping pc_line', () => {
+        const out = formatStructuredAnalysis(analysis({
+            steps: [step({ action: 'greet', pc_line: '“hi”' })]
+        }));
+        expect(out).toContain('「hi」');
+        expect(out).not.toContain('“hi”');
+    });
+
     it('renders risk factors as inline list', () => {
         const out = formatStructuredAnalysis(analysis({
             steps: [step({ risk_factors: ['梨菲反擊', '大雨影響'] })]
