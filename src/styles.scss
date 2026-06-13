@@ -1,5 +1,20 @@
 @use '@angular/material' as mat;
-@import '@angular/material/prebuilt-themes/pink-bluegrey.css';
+@use './theme-colors' as theme;
+
+// Material 3 dark theme. mat.theme() emits the --mat-sys-* system tokens that
+// every Material component reads from; surfaces/accents follow these. Palettes
+// are generated from a parchment seed (#a89e80) — see _theme-colors.scss.
+html {
+    @include mat.theme((
+        color: (
+            primary: theme.$primary-palette,
+            tertiary: theme.$tertiary-palette,
+            theme-type: dark,
+        ),
+        typography: Roboto,
+        density: 0,
+    ));
+}
 
 @font-face {
     font-family: 'Iansui';
@@ -16,20 +31,12 @@
     --bg-dialog: #1a1a1a;
     --bg-sidebar: #1a1a1a;
     --bg-elevated: #2d2d2d;
-    /* Dialog surface follows --bg-dialog via Material's supported override API
-       (prebuilt theme defaults --mat-dialog-container-color to #424242). */
+    /* Dialog surface follows --bg-dialog (neutral) instead of M3's warm
+       --mat-sys-surface, via Material's supported override API. */
     @include mat.dialog-overrides((container-color: var(--bg-dialog)));
     --border-color: rgba(255, 255, 255, 0.1);
     --border-color-strong: rgba(255, 255, 255, 0.2);
     --text-main: #e0e0e0;
-
-    /* Theme palette tokens (pink-bluegrey prebuilt theme).
-       The Material prebuilt CSS doesn't expose --mat-sys-* / --mat-primary-rgb,
-       so we mirror them ourselves for use in component styles. */
-    --app-primary: #c2185b;
-    --app-primary-rgb: 194, 24, 91;
-    --app-accent: #607d8b;
-    --app-accent-rgb: 96, 125, 139;
 
     /* status */
     --status-success: #4caf50;
@@ -177,7 +184,7 @@ body {
    custom-scheme URLs (Angular's URL sanitizer prefixes `app://` with
    `unsafe:`). */
 .prose-content a {
-    color: var(--mat-sys-primary, #ff80ab);
+    color: var(--mat-sys-primary);
     text-decoration: underline;
     cursor: pointer;
 
@@ -185,18 +192,6 @@ body {
         text-decoration: underline;
         filter: brightness(1.15);
     }
-}
-
-/* Material Override for dark input fields */
-.mat-mdc-form-field-textarea-control {
-    color: var(--text-main) !important;
-}
-
-/* Force dark border colors for inputs */
-.mdc-text-field--outlined:not(.mdc-text-field--disabled) .mdc-notched-outline__leading,
-.mdc-text-field--outlined:not(.mdc-text-field--disabled) .mdc-notched-outline__notch,
-.mdc-text-field--outlined:not(.mdc-text-field--disabled) .mdc-notched-outline__trailing {
-    border-color: rgba(255, 255, 255, 0.3) !important;
 }
 
 /* Global Scrollbar Styles */
@@ -395,8 +390,8 @@ body.agent-panel-embedded {
 // panel use), otherwise dialogs would paint over it.
 @keyframes agent-hint-spotlight-pulse {
     0%   { box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0);    border-color: transparent; }
-    15%  { box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.82); border-color: var(--mat-sys-primary, #ff80ab); }
-    85%  { box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.82); border-color: var(--mat-sys-primary, #ff80ab); }
+    15%  { box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.82); border-color: var(--mat-sys-primary); }
+    85%  { box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.82); border-color: var(--mat-sys-primary); }
     100% { box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0);    border-color: transparent; }
 }
 .agent-hint-spotlight {

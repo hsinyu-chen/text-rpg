@@ -60,7 +60,7 @@
 }
 
 mat-option mat-icon.legacy-profile-warn {
-    color: var(--mat-sys-error, #d32f2f);
+    color: var(--mat-sys-error);
     @include mat-icon-sized(18px);
     margin-left: var(--space-2);
     vertical-align: middle;
@@ -102,9 +102,7 @@ mat-option mat-icon.legacy-profile-warn {
 .sidebar {
     width: 250px;
     min-width: 250px;
-    // Same fallback story as the mobile .sidebar below — --mat-sys-* vars
-    // aren't exposed by the active prebuilt theme.
-    border-right: 1px solid var(--mat-sys-outline-variant, var(--border-color));
+    border-right: 1px solid var(--mat-sys-outline-variant);
     display: flex;
     flex-direction: column;
     overflow-x: hidden;
@@ -349,13 +347,7 @@ mat-option mat-icon.legacy-profile-warn {
         box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
         width: 280px;
         min-width: 280px;
-        // The pink-bluegrey prebuilt theme doesn't expose --mat-sys-* vars
-        // (see styles.scss :root comment), so `surface-container` resolved to
-        // an empty string and the sidebar overlay was transparent — editor
-        // text behind bled through. Use the project's `--bg-dialog` token
-        // with a hex fallback; left the var first so a future theme upgrade
-        // that does define surface-container picks it up automatically.
-        background: var(--mat-sys-surface-container, var(--bg-dialog, #1e1e1e));
+        background: var(--mat-sys-surface-container);
 
         &.collapsed {
             left: -280px;

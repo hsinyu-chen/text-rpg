@@ -29,13 +29,13 @@
     max-height: 24px;
     width: auto;
     object-fit: contain;
-    filter: drop-shadow(0 0 8px rgba(255, 64, 129, 0.2));
+    filter: drop-shadow(0 0 8px color-mix(in srgb, var(--mat-sys-primary) 20%, transparent));
     transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     cursor: pointer;
 
     &:hover {
         transform: scale(1.05);
-        filter: drop-shadow(0 0 12px rgba(255, 64, 129, 0.4));
+        filter: drop-shadow(0 0 12px color-mix(in srgb, var(--mat-sys-primary) 40%, transparent));
     }
 }
 
@@ -57,8 +57,12 @@
 
     ::v-deep .mat-mdc-tab-group-active-indicator-wrapper {
         height: 3px;
-        background: #ff4081;
+        background: var(--mat-sys-primary);
     }
+}
+
+.tab-label-wrapper {
+    @include flex-row-center;
 }
 
 .tab-label {
@@ -130,7 +134,7 @@
     color: var(--text-main);
     font-size: var(--app-font-size-md);
     @include text-ellipsis;
-    color: #ff4081;
+    color: var(--mat-sys-primary);
     text-decoration: underline;
 }
 

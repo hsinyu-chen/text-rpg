@@ -58,8 +58,8 @@
         // Agent-running-while-hidden: loop is mid-turn but no surface visible
         // (chat panel closed AND no PiP). Pulse so the user still sees activity.
         @keyframes file-viewer-agent-running-pulse {
-            0%, 100% { background: rgba(var(--app-primary-rgb, 194, 24, 91), 0.1); }
-            50%      { background: rgba(var(--app-primary-rgb, 194, 24, 91), 0.45); }
+            0%, 100% { background: color-mix(in srgb, var(--mat-sys-primary-container) 10%, transparent); }
+            50%      { background: color-mix(in srgb, var(--mat-sys-primary-container) 45%, transparent); }
         }
         .agent-running-pulse {
             color: var(--text-on-accent);
