@@ -71,8 +71,8 @@
     &:hover { background: var(--surface-border-faintest); }
 
     &.active-collection {
-        background: color-mix(in srgb, var(--mat-sys-primary-container) 18%, transparent);
-        border-left-color: var(--mat-sys-primary-container);
+        background: color-mix(in srgb, var(--mat-sys-primary) 18%, transparent);
+        border-left-color: var(--mat-sys-primary);
 
         .folder-icon { opacity: 1; }
         .collection-name { font-weight: 600; }
@@ -120,8 +120,8 @@
 }
 
 .active-book {
-    background: color-mix(in srgb, var(--mat-sys-primary-container) 14%, transparent);
-    border-left: 4px solid var(--mat-sys-primary-container);
+    background: color-mix(in srgb, var(--mat-sys-primary) 14%, transparent);
+    border-left: 4px solid var(--mat-sys-primary);
 }
 .book-title {
     font-weight: 500;

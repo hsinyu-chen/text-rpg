@@ -58,8 +58,8 @@
         // Agent-running-while-hidden: loop is mid-turn but no surface visible
         // (chat panel closed AND no PiP). Pulse so the user still sees activity.
         @keyframes file-viewer-agent-running-pulse {
-            0%, 100% { background: color-mix(in srgb, var(--mat-sys-primary-container) 10%, transparent); }
-            50%      { background: color-mix(in srgb, var(--mat-sys-primary-container) 45%, transparent); }
+            0%, 100% { background: color-mix(in srgb, var(--mat-sys-primary) 10%, transparent); }
+            50%      { background: color-mix(in srgb, var(--mat-sys-primary) 45%, transparent); }
         }
         .agent-running-pulse {
             color: var(--text-on-accent);
@@ -81,7 +81,7 @@
     max-width: 400px;
     display: flex;
     flex-direction: column;
-    background: var(--overlay-backdrop);
+    background: var(--bg-surface-dark);
     border-right: 1px solid var(--border-color);
     transition: width 0.2s ease, min-width 0.2s ease, opacity 0.2s ease;
     overflow: hidden;
@@ -653,7 +653,7 @@
     min-width: 320px;
     display: flex;
     flex-direction: column;
-    background: var(--overlay-backdrop);
+    background: var(--bg-surface-dark);
     border-left: 1px solid var(--border-color);
     overflow: hidden;
 

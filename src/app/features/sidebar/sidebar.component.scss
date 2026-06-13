@@ -131,7 +131,6 @@
     cursor: pointer;
     flex-grow: 1;
     text-decoration: none;
-    color: var(--text-main);
     font-size: var(--app-font-size-md);
     @include text-ellipsis;
     color: var(--mat-sys-primary);
