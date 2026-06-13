@@ -8,7 +8,7 @@ export const GENERATED_HINTS: AgentHintPathDecl[] = [
   { path: "chat-input/agent-panel", activatable: true },
   { path: "chat-input/batch-replace", activatable: true },
   { path: "chat-input/batch-replace/execute" },
-  { path: "chat-input/batch-replace/filter-field", activatable: true },
+  { path: "chat-input/batch-replace/filter-field" },
   { path: "chat-input/batch-replace/filter-intent", activatable: true },
   { path: "chat-input/batch-replace/filter-role", activatable: true },
   { path: "chat-input/batch-replace/match-case", activatable: true },

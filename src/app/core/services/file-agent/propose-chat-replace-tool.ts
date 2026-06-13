@@ -1,5 +1,6 @@
 import { LLMFunctionDeclaration } from '@hcs/llm-core';
 import { REASON_DESC } from '../agent-runner/tools/tool-helpers';
+import { CHAT_REPLACE_FIELDS } from './file-agent.types';
 
 /**
  * file-agent–specific tool that opens an approval-gated chat-wide
@@ -22,7 +23,7 @@ export const PROPOSE_CHAT_REPLACE_TOOL: LLMFunctionDeclaration = {
             regex: { type: 'boolean', description: 'Optional. Default false. Set true to treat `search` as a JavaScript regex.' },
             intentFilter: { type: 'string', enum: ['all', 'action', 'continue', 'fast_forward', 'system'], description: 'Optional. Default "all". Restrict to messages with this intent.' },
             roleFilter: { type: 'string', enum: ['all', 'user', 'model'], description: 'Optional. Default "all". Restrict to user or model messages.' },
-            fieldFilter: { type: 'string', enum: ['all', 'story', 'summary', 'logs'], description: 'Optional. Default "all". Which field of each message to scan: story=narrative content, summary=engine summary, logs=structured inventory/quest/world logs.' },
+            fields: { type: 'array', items: { type: 'string', enum: [...CHAT_REPLACE_FIELDS] }, description: 'Optional. Omit (or pass an empty array) to scan every field. Provide a subset to restrict which fields are searched/replaced: story=narrative content, summary=engine summary, analysis=engine analysis, character_log/inventory_log/quest_log/world_log=the structured per-turn logs.' },
         },
         required: ['reason', 'search', 'replace'],
     },

@@ -1,8 +1,14 @@
 import type { ChatMessage } from '@app/core/models/types';
 import type { GameIntent } from '@app/core/constants/game-intents';
 
-/** Where in a chat message to search / replace. */
-export type ChatReplaceField = 'all' | 'story' | 'summary' | 'logs';
+/** The individual chat-message fields a find/replace can target. `story`
+ *  maps to the narrative `content`; every other key maps to the same-named
+ *  `ChatMessage` field. */
+export const CHAT_REPLACE_FIELDS = [
+  'story', 'summary', 'analysis',
+  'character_log', 'inventory_log', 'quest_log', 'world_log',
+] as const;
+export type ChatReplaceField = typeof CHAT_REPLACE_FIELDS[number];
 
 /** A proposed chat-wide find/replace, identical in shape to the values the
  *  user could fill into the chat-replace dialog by hand. */
@@ -14,7 +20,8 @@ export interface ChatReplaceProposal {
   regex?: boolean;
   intentFilter?: 'all' | GameIntent;
   roleFilter?: 'all' | 'user' | 'model';
-  fieldFilter?: ChatReplaceField;
+  /** Which fields to scan. Omit or pass an empty array to scan every field. */
+  fields?: ChatReplaceField[];
 }
 
 /** Outcome surfaced by the chat-replace dialog after the user resolves an
@@ -27,7 +34,7 @@ export interface ChatReplaceOutcome {
     filters: {
       intent: 'all' | GameIntent;
       role: 'all' | 'user' | 'model';
-      field: ChatReplaceField;
+      fields: ChatReplaceField[];
     };
     replaceCount: number;
   } | null;
@@ -285,7 +292,7 @@ export interface ProposeChatReplaceArgs extends BaseToolArgs {
   regex?: boolean;
   intentFilter?: 'all' | GameIntent;
   roleFilter?: 'all' | 'user' | 'model';
-  fieldFilter?: ChatReplaceField;
+  fields?: ChatReplaceField[];
 }
 
 /**

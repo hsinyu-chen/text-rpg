@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { CORE_MAT, DIALOG_MAT, FORM_MAT } from '@app/shared/material/material-groups';
 import { AppAgentHintDirective } from '@app/core/services/agent-hints/agent-hints.directive';
 import { GameStateService } from '@app/core/services/game-state.service';
@@ -12,9 +13,13 @@ import { GAME_INTENTS, GameIntent } from '@app/core/constants/game-intents';
 import { ChatMessage } from '@app/core/models/types';
 import { LanguageService } from '@app/core/services/language.service';
 import { I18nService, TranslatePipe } from '@app/core/i18n';
-import type { ChatReplaceOutcome, ChatReplaceProposal } from '@app/core/services/file-agent/file-agent.types';
+import { CHAT_REPLACE_FIELDS } from '@app/core/services/file-agent/file-agent.types';
+import type { ChatReplaceField, ChatReplaceOutcome, ChatReplaceProposal } from '@app/core/services/file-agent/file-agent.types';
 
-export type SearchField = 'all' | 'story' | 'summary' | 'logs';
+/** The four `*_log` arrays a find/replace can target, shared by the search
+ *  and replace passes. `story`/`summary`/`analysis` are plain string fields
+ *  handled inline. */
+const LOG_FIELD_KEYS = ['character_log', 'inventory_log', 'quest_log', 'world_log'] as const satisfies readonly ChatReplaceField[];
 
 /** Data shape when the dialog is opened by the file-agent's
  *  `proposeChatReplace` tool. Omit (or pass `null`) when the user opens
@@ -27,7 +32,7 @@ export interface ChatReplaceDialogData {
 export interface ChatMatch {
     messageId: string;
     messageIndex: number;
-    fieldName: string; // 'content', 'summary', 'inventory_log', 'quest_log', 'world_log'
+    fieldName: string; // 'content' | 'summary' | 'analysis' | 'character_log' | 'inventory_log' | 'quest_log' | 'world_log'
     logIndex?: number;
     matchIndex: number;
     matchLength: number;
@@ -42,6 +47,7 @@ export interface ChatMatch {
         ...DIALOG_MAT,
         ...FORM_MAT,
         MatProgressSpinnerModule,
+        MatCheckboxModule,
         FormsModule,
         TranslatePipe,
         AppAgentHintDirective,
@@ -75,7 +81,8 @@ export class ChatReplaceDialogComponent {
     // Filters
     intentFilter = signal<GameIntent | 'all'>('all');
     roleFilter = signal<'all' | 'user' | 'model'>('all');
-    fieldFilter = signal<SearchField>('all');
+    /** Which message fields to search/replace. Defaults to every field. */
+    selectedFields = signal<Set<ChatReplaceField>>(new Set(CHAT_REPLACE_FIELDS));
 
     // Options
     isCaseSensitive = signal(false);
@@ -92,8 +99,25 @@ export class ChatReplaceDialogComponent {
             this.isRegex.set(!!prefill.regex);
             this.intentFilter.set(prefill.intentFilter ?? 'all');
             this.roleFilter.set(prefill.roleFilter ?? 'all');
-            this.fieldFilter.set(prefill.fieldFilter ?? 'all');
+            this.selectedFields.set(this._fieldsToSet(prefill.fields));
         }
+    }
+
+    /** A field list from a proposal → the selection set; an absent or empty
+     *  list means "every field" (matches the agent-tool default). */
+    private _fieldsToSet(fields: ChatReplaceField[] | undefined): Set<ChatReplaceField> {
+        return fields?.length ? new Set(fields) : new Set(CHAT_REPLACE_FIELDS);
+    }
+
+    isFieldSelected(field: ChatReplaceField): boolean {
+        return this.selectedFields().has(field);
+    }
+
+    toggleField(field: ChatReplaceField) {
+        const next = new Set(this.selectedFields());
+        if (next.has(field)) next.delete(field); else next.add(field);
+        this.selectedFields.set(next);
+        this.searchResource.reload();
     }
 
     /** True iff any field has been edited away from the file-agent's
@@ -110,8 +134,12 @@ export class ChatReplaceDialogComponent {
             this.isRegex() !== !!p.regex ||
             this.intentFilter() !== (p.intentFilter ?? 'all') ||
             this.roleFilter() !== (p.roleFilter ?? 'all') ||
-            this.fieldFilter() !== (p.fieldFilter ?? 'all')
+            !this._sameFieldSet(this.selectedFields(), this._fieldsToSet(p.fields))
         );
+    }
+
+    private _sameFieldSet(a: Set<ChatReplaceField>, b: Set<ChatReplaceField>): boolean {
+        return a.size === b.size && [...a].every(f => b.has(f));
     }
 
     // Intents list (Localized via interfaceLanguage)
@@ -131,12 +159,16 @@ export class ChatReplaceDialogComponent {
         { value: 'model', label: this.lang.t('ROLE_MODEL') }
     ]);
 
-    fields = computed(() => [
-        { value: 'all', label: this.lang.t('ALL') },
-        { value: 'story', label: this.lang.t('FIELD_STORY') },
-        { value: 'summary', label: this.lang.t('FIELD_SUMMARY') },
-        { value: 'logs', label: this.lang.t('FIELD_LOGS') }
-    ]);
+    /** Checkbox descriptors — one per targetable field, in display order. */
+    readonly fieldOptions: { key: ChatReplaceField; labelKey: string }[] = [
+        { key: 'story', labelKey: 'FIELD_STORY' },
+        { key: 'summary', labelKey: 'FIELD_SUMMARY' },
+        { key: 'analysis', labelKey: 'FIELD_ANALYSIS' },
+        { key: 'character_log', labelKey: 'FIELD_CHARACTER_LOG' },
+        { key: 'inventory_log', labelKey: 'FIELD_INVENTORY_LOG' },
+        { key: 'quest_log', labelKey: 'FIELD_QUEST_LOG' },
+        { key: 'world_log', labelKey: 'FIELD_WORLD_LOG' },
+    ];
 
     // Search Resource
     searchResource = resource({
@@ -144,7 +176,7 @@ export class ChatReplaceDialogComponent {
             query: this.searchQuery(),
             intent: this.intentFilter(),
             role: this.roleFilter(),
-            field: this.fieldFilter(),
+            fields: this.selectedFields(),
             caseSensitive: this.isCaseSensitive(),
             regex: this.isRegex(),
             wholeWord: this.isWholeWord(),
@@ -175,8 +207,7 @@ export class ChatReplaceDialogComponent {
                             // Filter by Intent
                             if (params.intent !== 'all' && msg.intent !== params.intent) return;
 
-                            // Search in fields based on fieldFilter
-                            this._searchInMessage(msg, idx, params.field, searchPattern, results);
+                            this._searchInMessage(msg, idx, params.fields, searchPattern, results);
                         });
 
                         resolve(results);
@@ -189,7 +220,7 @@ export class ChatReplaceDialogComponent {
         }
     });
 
-    private _searchInMessage(msg: ChatMessage, idx: number, field: SearchField, pattern: RegExp, results: ChatMatch[]) {
+    private _searchInMessage(msg: ChatMessage, idx: number, fields: Set<ChatReplaceField>, pattern: RegExp, results: ChatMatch[]) {
         const check = (content: string | undefined, fieldName: string, logIndex?: number) => {
             if (!content) return;
             let match: RegExpExecArray | null;
@@ -207,16 +238,11 @@ export class ChatReplaceDialogComponent {
             }
         };
 
-        if (field === 'all' || field === 'story') {
-            check(msg.content, 'content');
-        }
-        if (field === 'all' || field === 'summary') {
-            check(msg.summary, 'summary');
-        }
-        if (field === 'all' || field === 'logs') {
-            msg.inventory_log?.forEach((item, i) => check(item, 'inventory_log', i));
-            msg.quest_log?.forEach((item, i) => check(item, 'quest_log', i));
-            msg.world_log?.forEach((item, i) => check(item, 'world_log', i));
+        if (fields.has('story')) check(msg.content, 'content');
+        if (fields.has('summary')) check(msg.summary, 'summary');
+        if (fields.has('analysis')) check(msg.analysis, 'analysis');
+        for (const key of LOG_FIELD_KEYS) {
+            if (fields.has(key)) msg[key]?.forEach((item, i) => check(item, key, i));
         }
     }
 
@@ -300,20 +326,15 @@ export class ChatReplaceDialogComponent {
         const affectedIndices = new Set<number>();
         matches.forEach(m => affectedIndices.add(m.messageIndex));
 
+        const fields = this.selectedFields();
         affectedIndices.forEach(idx => {
             const msg = { ...updatedMessages[idx] };
-            const field = this.fieldFilter();
 
-            if (field === 'all' || field === 'story') {
-                if (msg.content) msg.content = msg.content.replace(pattern, replaceWith);
-            }
-            if (field === 'all' || field === 'summary') {
-                if (msg.summary) msg.summary = msg.summary.replace(pattern, replaceWith);
-            }
-            if (field === 'all' || field === 'logs') {
-                if (msg.inventory_log) msg.inventory_log = msg.inventory_log.map(i => i.replace(pattern, replaceWith));
-                if (msg.quest_log) msg.quest_log = msg.quest_log.map(i => i.replace(pattern, replaceWith));
-                if (msg.world_log) msg.world_log = msg.world_log.map(i => i.replace(pattern, replaceWith));
+            if (fields.has('story') && msg.content) msg.content = msg.content.replace(pattern, replaceWith);
+            if (fields.has('summary') && msg.summary) msg.summary = msg.summary.replace(pattern, replaceWith);
+            if (fields.has('analysis') && msg.analysis) msg.analysis = msg.analysis.replace(pattern, replaceWith);
+            for (const key of LOG_FIELD_KEYS) {
+                if (fields.has(key) && msg[key]) msg[key] = msg[key]!.map(i => i.replace(pattern, replaceWith));
             }
 
             updatedMessages[idx] = msg;
@@ -332,7 +353,7 @@ export class ChatReplaceDialogComponent {
                     filters: {
                         intent: this.intentFilter(),
                         role: this.roleFilter(),
-                        field: this.fieldFilter(),
+                        fields: [...this.selectedFields()],
                     },
                     replaceCount
                 },

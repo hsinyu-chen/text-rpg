@@ -622,7 +622,7 @@ async function proposeChatReplace(
     regex: args.regex,
     intentFilter: args.intentFilter,
     roleFilter: args.roleFilter,
-    fieldFilter: args.fieldFilter,
+    fields: args.fields,
   });
 
   // Surface the outcome with explicit past-tense framing. The proposer's
