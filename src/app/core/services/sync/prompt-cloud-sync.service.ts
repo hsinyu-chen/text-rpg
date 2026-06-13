@@ -26,6 +26,12 @@ interface PromptsV2 {
         updatedAt: number;
     }[];
     prompts: Record<string, { content: string; tokens?: number }>;
+    /**
+     * Local hunk patches, keyed `${profileId}:${type}` like `prompts`. Optional
+     * and additive — pre-hunk exports omit it and a reader predating this field
+     * ignores it, so it rides inside v2 with no version bump.
+     */
+    hunks?: Record<string, unknown[]>;
 }
 
 function isPromptsV2(x: unknown): x is PromptsV2 {
@@ -118,6 +124,21 @@ export class PromptCloudSyncService {
     }
 
     /**
+     * A profile's hunk overlays, keyed `${profileId}:${type}` to merge into the
+     * flat payload map. Always shipped — even for built-ins, and regardless of
+     * the user-modified flag: a hunk is user data with no shipped baseline to
+     * diff against, so there's nothing to skip.
+     */
+    private async collectProfileHunks(profileId: string): Promise<Record<string, unknown[]>> {
+        const byType = await this.prompts.getAllProfileHunks(profileId, PROMPT_TYPES);
+        const out: Record<string, unknown[]> = {};
+        for (const [type, hunks] of Object.entries(byType)) {
+            out[`${profileId}:${type}`] = hunks;
+        }
+        return out;
+    }
+
+    /**
      * Built-ins ship only their user-modified rows. User profiles ship in
      * full — receiving device has no shipped asset to fall back on.
      */
@@ -132,13 +153,15 @@ export class PromptCloudSyncService {
         const profileResults = await Promise.all(
             this.profileRegistry.list().map(async profile => ({
                 profile,
-                profilePrompts: await this.collectProfilePrompts(profile.id, { onlyUserModified: profile.isBuiltIn })
+                profilePrompts: await this.collectProfilePrompts(profile.id, { onlyUserModified: profile.isBuiltIn }),
+                profileHunks: await this.collectProfileHunks(profile.id)
             }))
         );
 
         const prompts: Record<string, { content: string; tokens?: number }> = {};
+        const hunks: Record<string, unknown[]> = {};
         const profilesOut: PromptsV2['profiles'] = [];
-        for (const { profile, profilePrompts } of profileResults) {
+        for (const { profile, profilePrompts, profileHunks } of profileResults) {
             if (!profile.isBuiltIn) {
                 profilesOut.push({
                     id: profile.id,
@@ -149,9 +172,10 @@ export class PromptCloudSyncService {
                 });
             }
             Object.assign(prompts, profilePrompts);
+            Object.assign(hunks, profileHunks);
         }
 
-        const payload: PromptsV2 = { version: 2, profiles: profilesOut, prompts };
+        const payload: PromptsV2 = { version: 2, profiles: profilesOut, prompts, ...(Object.keys(hunks).length ? { hunks } : {}) };
         await backend.writePrompts(JSON.stringify(payload));
         return { exported: Object.keys(prompts).length };
     }
@@ -179,6 +203,7 @@ export class PromptCloudSyncService {
         // so they want a complete dump rather than a diff against the shipped
         // baseline.
         const prompts = await this.collectProfilePrompts(profileId, { onlyUserModified: false });
+        const hunks = await this.collectProfileHunks(profileId);
 
         const profilesOut: PromptsV2['profiles'] = profile.isBuiltIn ? [] : [{
             id: profile.id,
@@ -188,7 +213,7 @@ export class PromptCloudSyncService {
             updatedAt: profile.updatedAt ?? Date.now()
         }];
 
-        const payload: PromptsV2 = { version: 2, profiles: profilesOut, prompts };
+        const payload: PromptsV2 = { version: 2, profiles: profilesOut, prompts, ...(Object.keys(hunks).length ? { hunks } : {}) };
         return JSON.stringify(payload, null, 2);
     }
 
@@ -279,7 +304,28 @@ export class PromptCloudSyncService {
             }
             return true;
         }));
+
+        await this.applyHunks(payload.hunks, idRemap);
         return { imported: v2Results.filter(Boolean).length };
+    }
+
+    /**
+     * Apply imported hunk overlays under the same id-remap as prompt rows.
+     * Orphan rows (profile never registered) are dropped. Not tallied into
+     * `imported`, which counts base-prompt rows only.
+     */
+    private async applyHunks(hunks: PromptsV2['hunks'], idRemap: Map<string, string>): Promise<void> {
+        await Promise.all(Object.entries(hunks ?? {}).map(async ([key, value]) => {
+            if (!Array.isArray(value)) return;
+            const colon = key.indexOf(':');
+            if (colon <= 0) return;
+            const incomingId = key.slice(0, colon);
+            const type = key.slice(colon + 1);
+            if (!PROMPT_TYPES.includes(type as PromptType)) return;
+            const profileId = idRemap.get(incomingId) ?? incomingId;
+            if (!this.profileRegistry.get(profileId)) return;
+            await this.prompts.saveProfileHunks(type, profileId, value);
+        }));
     }
 
     private async applyPromptsV1Legacy(parsed: Record<string, { content: string; tokens?: number }>): Promise<{ imported: number }> {

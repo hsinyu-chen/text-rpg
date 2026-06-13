@@ -19,6 +19,7 @@ interface DiskProfileEnvelope {
 }
 
 const ENVELOPE_FILENAME = 'profile.json';
+const HUNKS_FILENAME = 'hunks.json';
 const TYPE_FILENAME: Record<PromptType, string> = {
     action: 'action.md',
     continue: 'continue.md',
@@ -95,6 +96,9 @@ export class DiskProfileSyncService {
             const content = row?.content ?? '';
             await writeFileText(dir, TYPE_FILENAME[type], content);
         }
+
+        const hunks = await this.prompts.getAllProfileHunks(profile.id, ALL_PROMPT_TYPES);
+        await writeFileText(dir, HUNKS_FILENAME, JSON.stringify(hunks, null, 2));
     }
 
     /** Files absent on disk leave their IDB row untouched — partial edit sets don't zero the rest. */
@@ -140,8 +144,32 @@ export class DiskProfileSyncService {
             updatedTypes++;
         }
 
+        await this.pullHunks(dir, profile.id);
+
         await this.injection.forceReload();
         return { updatedTypes, metaUpdated };
+    }
+
+    /**
+     * `hunks.json` is the profile's whole patch set as one snapshot, so a present
+     * file is authoritative: every type is reconciled to it, clearing types the
+     * file omits. An absent file leaves IDB hunks untouched — matching the
+     * per-type base-file rule that a partial export doesn't zero the rest.
+     */
+    private async pullHunks(dir: FileSystemDirectoryHandle, profileId: string): Promise<void> {
+        const text = await readFileText(dir, HUNKS_FILENAME);
+        if (text === null) return;
+        let parsed: Record<string, unknown[]>;
+        try {
+            parsed = JSON.parse(text) as Record<string, unknown[]>;
+        } catch (err) {
+            console.warn('[DiskProfileSync] hunks.json parse failed; skipping hunk sync', err);
+            return;
+        }
+        for (const type of ALL_PROMPT_TYPES) {
+            const hunks = parsed[type];
+            await this.prompts.saveProfileHunks(type, profileId, Array.isArray(hunks) ? hunks : []);
+        }
     }
 
     private assertActiveUserProfile() {

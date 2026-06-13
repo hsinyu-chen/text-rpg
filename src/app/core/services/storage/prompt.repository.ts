@@ -51,6 +51,22 @@ export class PromptRepository {
         await this.saveProfilePrompt(`${type}:hunks`, profileId, JSON.stringify(hunks));
     }
 
+    /**
+     * Collect every type's non-empty hunk set for a profile, keyed by bare type.
+     * Sync transports serialize this whole map as one unit (cloud `hunks` field /
+     * disk `hunks.json`); empty types are omitted so the payload stays sparse.
+     */
+    async getAllProfileHunks(profileId: string, types: readonly string[]): Promise<Record<string, unknown[]>> {
+        const entries = await Promise.all(
+            types.map(async (type) => [type, await this.getProfileHunks(type, profileId)] as const),
+        );
+        const out: Record<string, unknown[]> = {};
+        for (const [type, hunks] of entries) {
+            if (hunks.length) out[type] = hunks;
+        }
+        return out;
+    }
+
     /** No-op for the default profile — its rows are unprefixed and would all be wiped. */
     async deleteAllForProfile(profileId: string): Promise<void> {
         if (profileId === DEFAULT_PROFILE_ID) return;
