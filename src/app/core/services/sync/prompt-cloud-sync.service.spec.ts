@@ -153,6 +153,21 @@ describe('PromptCloudSyncService hunk sync', () => {
       expect(await repo.getProfileHunks('action', 'cloud')).toEqual([HUNK]);
     });
 
+    it('tolerates a null hunks field without crashing or wiping local hunks', async () => {
+      const { service, repo, backend } = makeHarness([userProfile]);
+      await repo.saveProfileHunks('action', 'cloud', [HUNK]);
+      backend.seed(JSON.stringify({
+        version: 2,
+        profiles: [userProfile],
+        prompts: {},
+        hunks: null,
+      }));
+
+      await service.downloadPrompts();
+
+      expect(await repo.getProfileHunks('action', 'cloud')).toEqual([HUNK]);
+    });
+
     it('clears hunks omitted from the payload — full cloud mirror', async () => {
       const { service, repo, backend } = makeHarness([userProfile]);
       // Local built-in hunk the cloud payload omits: download must clear it.

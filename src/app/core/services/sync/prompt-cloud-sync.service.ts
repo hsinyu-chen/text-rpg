@@ -343,7 +343,10 @@ export class PromptCloudSyncService {
         profiles: PromptsV2['profiles'],
         clearOmitted: boolean,
     ): Promise<void> {
-        if (hunks === undefined) return;
+        // undefined = pre-feature payload; null / array / scalar = malformed (e.g.
+        // hand-edited). Either way, skip rather than crash on Object.entries or
+        // wipe local hunks via an empty clear.
+        if (!hunks || typeof hunks !== 'object' || Array.isArray(hunks)) return;
 
         const incoming: { type: PromptType; profileId: string; value: unknown[] }[] = [];
         for (const [key, value] of Object.entries(hunks)) {
