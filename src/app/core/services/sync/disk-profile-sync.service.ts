@@ -19,6 +19,7 @@ interface DiskProfileEnvelope {
 }
 
 const ENVELOPE_FILENAME = 'profile.json';
+const HUNKS_FILENAME = 'hunks.json';
 const TYPE_FILENAME: Record<PromptType, string> = {
     action: 'action.md',
     continue: 'continue.md',
@@ -39,8 +40,10 @@ const TYPE_FILENAME: Record<PromptType, string> = {
 };
 
 /**
- * Single-direction sync. Push overwrites disk, Pull overwrites IDB. Built-in
- * profiles are rejected — they're shipped as assets and have no IDB row to mirror.
+ * Single-direction sync. Push overwrites disk, Pull overwrites IDB. A built-in
+ * profile's base prompts are shipped assets with no IDB row to mirror, so for
+ * built-ins only the local hunk overlay (`hunks.json`) is synced — never the
+ * base files or the profile envelope. User profiles sync in full.
  */
 @Injectable({ providedIn: 'root' })
 export class DiskProfileSyncService {
@@ -69,14 +72,26 @@ export class DiskProfileSyncService {
      * handler after a reload to upgrade the handle to persistent permission.
      */
     async ensureFolderPermission(): Promise<void> {
-        this.assertActiveUserProfile();
+        this.assertActiveProfile();
         await this.folder.ensurePermission();
     }
 
     async pushActiveToDisk(): Promise<void> {
-        const profile = this.assertActiveUserProfile();
+        const profile = this.assertActiveProfile();
         const root = await this.folder.ensurePermission();
         const dir = await ensureDir(root, [profile.id]);
+
+        const hunks = await this.prompts.getAllProfileHunks(profile.id, ALL_PROMPT_TYPES);
+
+        if (profile.isBuiltIn) {
+            // Built-ins ship their base prompts as assets; only the hunk overlay is
+            // user data worth mirroring. Push hunks.json alone — nothing else.
+            if (Object.keys(hunks).length === 0) {
+                throw new Error('Disk sync for a built-in profile requires local patches.');
+            }
+            await writeFileText(dir, HUNKS_FILENAME, JSON.stringify(hunks, null, 2));
+            return;
+        }
 
         const envelope: DiskProfileEnvelope = {
             version: 2,
@@ -95,15 +110,25 @@ export class DiskProfileSyncService {
             const content = row?.content ?? '';
             await writeFileText(dir, TYPE_FILENAME[type], content);
         }
+
+        await writeFileText(dir, HUNKS_FILENAME, JSON.stringify(hunks, null, 2));
     }
 
     /** Files absent on disk leave their IDB row untouched — partial edit sets don't zero the rest. */
     async pullActiveFromDisk(): Promise<{ updatedTypes: number; metaUpdated: boolean }> {
-        const profile = this.assertActiveUserProfile();
+        const profile = this.assertActiveProfile();
         const root = await this.folder.ensurePermission();
         const dir = await getDirIfExists(root, [profile.id]);
         if (!dir) {
             throw new Error(`Disk profile folder for '${profile.id}' does not exist yet — push first.`);
+        }
+
+        if (profile.isBuiltIn) {
+            // Hunks-only: never overwrite a built-in's shipped base prompts. The
+            // restored hunk-type count stands in for updatedTypes (base is 0).
+            const restored = await this.pullHunks(dir, profile.id);
+            await this.injection.forceReload();
+            return { updatedTypes: restored, metaUpdated: false };
         }
 
         let metaUpdated = false;
@@ -140,15 +165,60 @@ export class DiskProfileSyncService {
             updatedTypes++;
         }
 
+        await this.pullHunks(dir, profile.id);
+
         await this.injection.forceReload();
         return { updatedTypes, metaUpdated };
     }
 
-    private assertActiveUserProfile() {
+    /**
+     * `hunks.json` is the profile's whole patch set as one snapshot, so a present
+     * file is authoritative: every type is reconciled to it, clearing types the
+     * file omits. An absent file leaves IDB hunks untouched — matching the
+     * per-type base-file rule that a partial export doesn't zero the rest.
+     * Returns the count of types whose hunks actually changed (added, replaced,
+     * or cleared) — a no-op type empty on both sides is not counted.
+     */
+    private async pullHunks(dir: FileSystemDirectoryHandle, profileId: string): Promise<number> {
+        const text = await readFileText(dir, HUNKS_FILENAME);
+        if (text === null) return 0;
+        let parsed: unknown;
+        try {
+            parsed = JSON.parse(text);
+        } catch (err) {
+            console.warn('[DiskProfileSync] hunks.json parse failed; skipping hunk sync', err);
+            return 0;
+        }
+        // A present-but-malformed file (hand-edited to `null`, an array, a scalar)
+        // is treated like an unparseable one — skip rather than wipe IDB. An empty
+        // object `{}` is still a valid snapshot that clears every type.
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return 0;
+        const byType = parsed as Record<string, unknown>;
+        const results = await Promise.all(ALL_PROMPT_TYPES.map(async (type) => {
+            const raw = byType[type];
+            // A malformed per-type value (present but not an array, e.g. a hand-edit
+            // typo) is skipped, not coerced to []: clearing here would lose the local
+            // hunk. Omission (undefined) still clears, per the snapshot semantics.
+            if (raw !== undefined && !Array.isArray(raw)) {
+                console.warn(`[DiskProfileSync] malformed hunk array for '${type}'; skipping`);
+                return false;
+            }
+            const arr = raw ?? [];
+            // Only write when the snapshot adds hunks or clears existing ones —
+            // skip the no-op [] write for a type empty on both sides.
+            if (arr.length === 0 && (await this.prompts.getProfileHunks(type, profileId)).length === 0) {
+                return false;
+            }
+            await this.prompts.saveProfileHunks(type, profileId, arr);
+            return true;
+        }));
+        return results.filter(Boolean).length;
+    }
+
+    private assertActiveProfile() {
         const id = this.state.activePromptProfile();
         const profile = this.registry.get(id);
         if (!profile) throw new Error(`Active profile '${id}' is not registered.`);
-        if (profile.isBuiltIn) throw new Error('Disk sync is only supported for user profiles.');
         return profile;
     }
 }
