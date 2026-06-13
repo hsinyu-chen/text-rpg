@@ -1,3 +1,5 @@
+@use 'helpers' as *;
+
 :host {
   display: flex;
   flex-direction: column;
@@ -13,16 +15,16 @@
 }
 
 .hunk-list-toolbar {
-  padding: 8px 12px;
+  padding: var(--space-2) var(--space-3);
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
 }
 
 .hunk-empty {
-  padding: 24px 16px;
+  padding: 24px var(--space-4);
   text-align: center;
   color: #94a3b8;
-  font-size: 0.85rem;
+  font-size: var(--app-font-size-sm);
 }
 
 .list-items {
@@ -33,7 +35,7 @@
 }
 
 .update-item {
-  padding: 12px 16px;
+  padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--border-color);
   cursor: pointer;
   transition: all 0.2s;
@@ -45,8 +47,8 @@
   }
 
   &.active {
-    background: rgba(255, 255, 255, 0.05);
-    border-left-color: #6366f1;
+    background: var(--surface-hover);
+    border-left-color: var(--accent-indigo-strong);
   }
 }
 
@@ -57,7 +59,7 @@
   font-size: 18px;
   height: 18px;
   width: 18px;
-  margin-right: 4px;
+  margin-right: var(--space-1);
   transition: color 0.2s;
 
   &:hover {
@@ -72,20 +74,20 @@
 /* CDK Drag-Drop Styles */
 .cdk-drag-preview {
   box-sizing: border-box;
-  border-radius: 4px;
-  box-shadow: 0 5px 5px -3px rgba(0, 0, 0, 0.2),
+  border-radius: var(--radius-sm);
+  box-shadow: 0 5px 5px -3px var(--overlay-inset-light),
     0 8px 10px 1px rgba(0, 0, 0, 0.14),
     0 3px 14px 2px rgba(0, 0, 0, 0.12);
   background: var(--bg-surface);
-  border-left: 4px solid #6366f1;
-  padding: 12px 16px;
+  border-left: 4px solid var(--accent-indigo-strong);
+  padding: var(--space-3) var(--space-4);
 }
 
 .cdk-drag-placeholder {
   opacity: 0.4;
   background: rgba(99, 102, 241, 0.1);
-  border: 2px dashed #6366f1;
-  border-radius: 4px;
+  border: 2px dashed var(--accent-indigo-strong);
+  border-radius: var(--radius-sm);
 }
 
 .cdk-drag-animating {
@@ -99,8 +101,8 @@
 .item-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
 }
 
 .update-label {
@@ -130,19 +132,19 @@
 .item-context-row {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1);
   padding-left: 28px;
 }
 
 .item-context {
   flex: 1;
   min-width: 0;
-  font-size: 0.75rem;
+  font-size: var(--app-font-size-2xs);
   color: #94a3b8;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-family: monospace;
+  font-family: var(--app-font-mono);
 }
 
 .item-context-empty {
@@ -178,7 +180,7 @@
 .status-container {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .auto-fix-btn {
@@ -216,43 +218,41 @@
 
 /* Calibration Panel */
 .calibration-panel {
-  margin-top: 12px;
-  padding: 12px;
+  margin-top: var(--space-3);
+  padding: var(--space-3);
   background: var(--bg-surface-dark);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   border: 1px solid rgba(99, 102, 241, 0.3);
   cursor: default;
 
   .calibration-header {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 0.8rem;
+    gap: var(--space-2);
+    font-size: var(--app-font-size-xs);
     font-weight: bold;
-    color: #818cf8;
-    margin-bottom: 12px;
+    color: var(--accent-indigo);
+    margin-bottom: var(--space-3);
 
     mat-icon {
-      font-size: 18px;
-      width: 18px;
-      height: 18px;
+      @include mat-icon-sized(18px);
     }
   }
 }
 
 .selection-preview {
-  margin-bottom: 12px;
+  margin-bottom: var(--space-3);
   padding: 10px;
   background: linear-gradient(135deg, rgba(79, 70, 229, 0.1) 0%, rgba(124, 58, 237, 0.1) 100%);
-  border: 1px dashed #6366f1;
-  border-radius: 6px;
+  border: 1px dashed var(--accent-indigo-strong);
+  border-radius: var(--radius-md);
   box-sizing: border-box;
 
   .preview-text {
-    font-family: monospace;
-    font-size: 0.75rem;
+    font-family: var(--app-font-mono);
+    font-size: var(--app-font-size-2xs);
     color: #e2e8f0;
-    margin-bottom: 12px;
+    margin-bottom: var(--space-3);
     max-height: 120px;
     overflow-y: auto;
     white-space: pre-wrap;
@@ -263,22 +263,20 @@
     display: flex;
     justify-content: flex-end;
     align-items: center;
-    gap: 8px;
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
-    padding-top: 8px;
+    gap: var(--space-2);
+    border-top: 1px solid var(--surface-hover);
+    padding-top: var(--space-2);
 
     button[mat-flat-button] {
       height: 28px;
       line-height: 28px;
-      font-size: 0.75rem;
-      padding: 0 12px;
+      font-size: var(--app-font-size-2xs);
+      padding: 0 var(--space-3);
       flex: 1;
 
       mat-icon {
-        font-size: 14px;
-        width: 14px;
-        height: 14px;
-        margin-right: 4px;
+        @include mat-icon-sized(14px);
+        margin-right: var(--space-1);
       }
     }
   }
@@ -290,30 +288,30 @@
 
 @keyframes pulse-border {
   0% {
-    border-color: #6366f1;
+    border-color: var(--accent-indigo-strong);
     box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4);
   }
 
   70% {
-    border-color: #818cf8;
+    border-color: var(--accent-indigo);
     box-shadow: 0 0 0 4px rgba(99, 102, 241, 0);
   }
 
   100% {
-    border-color: #6366f1;
+    border-color: var(--accent-indigo-strong);
     box-shadow: 0 0 0 0 rgba(99, 102, 241, 0);
   }
 }
 
 .hunk-edit-group {
-  margin-bottom: 12px;
+  margin-bottom: var(--space-3);
 }
 
 .hunk-label {
   display: block;
   font-size: 0.7rem;
   color: #94a3b8;
-  margin-bottom: 4px;
+  margin-bottom: var(--space-1);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   font-weight: bold;
@@ -322,20 +320,20 @@
 .hunk-textarea {
   width: 100%;
   box-sizing: border-box;
-  background: rgba(0, 0, 0, 0.3);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
+  background: var(--overlay-inset);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
   color: #e2e8f0;
-  font-family: monospace;
-  font-size: 0.75rem;
-  padding: 8px;
+  font-family: var(--app-font-mono);
+  font-size: var(--app-font-size-2xs);
+  padding: var(--space-2);
   min-height: 48px;
   resize: none;
   outline: none;
   transition: border-color 0.2s;
 
   &:focus {
-    border-color: #6366f1;
+    border-color: var(--accent-indigo-strong);
     background: rgba(0, 0, 0, 0.4);
   }
 
@@ -347,9 +345,9 @@
 .calibration-footer {
   display: flex;
   justify-content: flex-end;
-  margin-top: 8px;
+  margin-top: var(--space-2);
 
   button {
-    font-size: 0.75rem;
+    font-size: var(--app-font-size-2xs);
   }
 }

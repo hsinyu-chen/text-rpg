@@ -1,8 +1,10 @@
+@use 'helpers' as *;
+
 .settings-form {
     display: flex;
     flex-direction: column;
-    gap: 16px;
-    padding-top: 8px;
+    gap: var(--space-4);
+    padding-top: var(--space-2);
 }
 
 .full-width {
@@ -11,51 +13,51 @@
 
 .provider-selector {
     h3 {
-        margin: 0 0 8px 0;
-        font-size: 0.9rem;
-        color: #aaa;
+        margin: 0 0 var(--space-2) 0;
+        font-size: var(--app-font-size-md);
+        color: var(--text-secondary);
     }
 
     mat-icon {
-        margin-right: 8px;
+        margin-right: var(--space-2);
         vertical-align: middle;
     }
 }
 
 .provider-content {
-    border: 1px solid #333;
-    border-radius: 8px;
-    padding: 16px;
-    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--border-divider-solid);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    background: var(--surface-faintest);
 }
 
 .advanced-section {
-    border-top: 1px solid #333;
-    padding-top: 16px;
+    border-top: 1px solid var(--border-divider-solid);
+    padding-top: var(--space-4);
 }
 
 .advanced-section h3 {
-    margin: 0 0 16px 0;
-    font-size: 0.9rem;
-    color: #aaa;
+    margin: 0 0 var(--space-4) 0;
+    font-size: var(--app-font-size-md);
+    color: var(--text-secondary);
 }
 
 .slider-row {
     display: flex;
     flex-direction: column;
-    margin-bottom: 12px;
+    margin-bottom: var(--space-3);
 }
 
 .slider-row label {
-    font-size: 0.8rem;
-    color: #ccc;
-    margin-bottom: 4px;
+    font-size: var(--app-font-size-xs);
+    color: var(--text-secondary);
+    margin-bottom: var(--space-1);
 }
 
 .hint-text {
-    font-size: 0.8rem;
-    color: #888;
-    margin: 0 0 12px 0;
+    font-size: var(--app-font-size-xs);
+    color: var(--text-muted);
+    margin: 0 0 var(--space-3) 0;
 }
 
 // Inline hint that follows a mat-form-field. Sits above the next form-row /
@@ -63,22 +65,22 @@
 // mat-form-field already reserves bottom padding for hint text.
 .mode-hint {
     margin-top: -8px;
-    margin-bottom: 16px;
+    margin-bottom: var(--space-4);
 }
 
 .button-row {
     display: flex;
-    gap: 12px;
+    gap: var(--space-3);
     align-items: center;
 }
 
 .toggle-row {
-    margin-bottom: 16px;
+    margin-bottom: var(--space-4);
 }
 
 .currency-row {
     display: flex;
-    gap: 12px;
+    gap: var(--space-3);
 
     .half-width {
         flex: 1;
@@ -88,23 +90,21 @@
 .bridge-test-row {
     display: flex;
     align-items: center;
-    gap: 12px;
-    margin-bottom: 12px;
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
     flex-wrap: wrap;
 
     .test-result {
         display: inline-flex;
         align-items: center;
-        gap: 4px;
-        font-size: 0.8rem;
+        gap: var(--space-1);
+        font-size: var(--app-font-size-xs);
 
         mat-icon {
-            font-size: 18px;
-            width: 18px;
-            height: 18px;
+            @include mat-icon-sized(18px);
         }
 
-        &.ok { color: #4caf50; }
+        &.ok { color: var(--status-success); }
         &.fail { color: #e57373; }
     }
 }
@@ -113,8 +113,8 @@
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 0.8rem;
-    color: #aaa;
+    font-size: var(--app-font-size-xs);
+    color: var(--text-secondary);
 
     .dot {
         width: 8px;
@@ -131,7 +131,7 @@
         color: #c66;
     }
 
-    &.status-connected .dot { background: #4caf50; }
+    &.status-connected .dot { background: var(--status-success); }
     &.status-connecting .dot { background: #ffb74d; }
     &.status-error     .dot { background: #e57373; }
 }

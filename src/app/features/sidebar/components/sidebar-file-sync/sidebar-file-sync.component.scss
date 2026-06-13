@@ -1,3 +1,5 @@
+@use 'helpers' as *;
+
 .full-width {
     width: 100%;
 }
@@ -6,7 +8,7 @@
     font-size: 11px;
     color: var(--mat-sys-on-surface-variant);
     opacity: 0.7;
-    margin: 4px 0 0;
+    margin: var(--space-1) 0 0;
     text-align: center;
 }
 
@@ -15,13 +17,13 @@
     // Only apply custom color when NOT disabled
     &:not(:disabled) {
         &[mat-flat-button] {
-            background-color: #4285f4 !important;
-            color: white !important;
+            background-color: var(--accent-google-blue) !important;
+            color: var(--text-on-accent) !important;
         }
 
         &[mat-stroked-button] {
-            color: #4285f4 !important;
-            border-color: #4285f4 !important;
+            color: var(--accent-google-blue) !important;
+            border-color: var(--accent-google-blue) !important;
         }
     }
 
@@ -34,30 +36,28 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    padding: 16px;
+    padding: var(--space-4);
     background: rgba(0, 0, 0, 0.05);
-    border-radius: 8px;
+    border-radius: var(--radius-lg);
 }
 
 .sync-section {
     padding: 0;
-    margin-bottom: 8px;
+    margin-bottom: var(--space-2);
 
     .section-header {
         display: flex;
         align-items: center;
-        gap: 8px;
-        margin-bottom: 12px;
+        gap: var(--space-2);
+        margin-bottom: var(--space-3);
         opacity: 0.8;
 
         mat-icon {
-            font-size: 20px;
-            width: 20px;
-            height: 20px;
+            @include mat-icon-sized(20px);
         }
 
         .section-title {
-            font-size: 0.85rem;
+            font-size: var(--app-font-size-sm);
             font-weight: 600;
             letter-spacing: 0.5px;
             text-transform: uppercase;
@@ -66,56 +66,50 @@
 }
 
 .folder-selection {
-    margin-bottom: 12px;
+    margin-bottom: var(--space-3);
 }
 
 .action-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 8px;
-    margin-bottom: 8px;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
 }
 
 .action-btn {
     height: 36px;
     line-height: 36px;
-    padding: 0 12px;
-    font-size: 0.9rem;
+    padding: 0 var(--space-3);
+    font-size: var(--app-font-size-md);
 
     mat-icon {
-        font-size: 18px;
-        width: 18px;
-        height: 18px;
-        margin-right: 4px;
+        @include mat-icon-sized(18px);
+        margin-right: var(--space-1);
     }
 
-    ::ng-deep .mat-mdc-button-touch-target {
-        display: none;
-    }
+    @include mat-touch-target;
 }
 
 .slot-info {
     display: flex;
     align-items: center;
-    gap: 8px;
-    background: rgba(0, 0, 0, 0.2);
-    padding: 2px 4px 2px 10px;
-    border-radius: 6px;
+    gap: var(--space-2);
+    background: var(--overlay-inset-light);
+    padding: 2px var(--space-1) 2px 10px;
+    border-radius: var(--radius-md);
     height: 36px;
     overflow: hidden;
     /* Ensure no spill */
 
     .slot-icon {
-        font-size: 20px;
-        width: 20px;
-        height: 20px;
+        @include mat-icon-sized(20px);
         opacity: 0.7;
         flex-shrink: 0;
     }
 
     .text-truncate-left {
         flex: 1;
-        font-size: 0.9rem;
+        font-size: var(--app-font-size-md);
         font-weight: 500;
         white-space: nowrap;
         overflow: hidden;
@@ -127,7 +121,7 @@
 
     .slot-name {
         flex: 1;
-        font-size: 0.9rem;
+        font-size: var(--app-font-size-md);
         font-weight: 500;
         white-space: nowrap;
         overflow: hidden;
@@ -137,21 +131,11 @@
     }
 
     button {
-        width: 24px !important;
-        height: 24px !important;
-        padding: 0 !important;
-        min-width: 0 !important;
+        @include icon-button-square-reset(24px);
         flex-shrink: 0;
 
-        /* Flex center the content */
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-
         mat-icon {
-            font-size: 16px;
-            width: 16px;
-            height: 16px;
+            @include mat-icon-sized(16px);
             line-height: 16px;
             /* Reset line-height to match height just in case */
         }
@@ -176,27 +160,21 @@
         padding: 0 !important;
 
         mat-icon {
-            font-size: 20px;
-            width: 20px;
-            height: 20px;
+            @include mat-icon-sized(20px);
             margin: 0 !important;
         }
 
-        ::ng-deep .mat-mdc-button-touch-target {
-            display: none;
-        }
+        @include mat-touch-target;
     }
 
     .save-slots-btn {
         height: 36px;
         line-height: 36px;
-        font-size: 0.9rem;
+        font-size: var(--app-font-size-md);
 
         mat-icon {
-            font-size: 18px;
-            width: 18px;
-            height: 18px;
-            margin-right: 4px;
+            @include mat-icon-sized(18px);
+            margin-right: var(--space-1);
         }
     }
 }

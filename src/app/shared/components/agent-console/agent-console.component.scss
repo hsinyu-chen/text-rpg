@@ -1,3 +1,5 @@
+@use 'helpers' as *;
+
 :host {
     display: flex;
     flex-direction: column;
@@ -8,25 +10,25 @@
 
 // Agent Section
 .agent-section {
-    padding: 12px;
+    padding: var(--space-3);
     display: flex;
     flex-direction: column;
     flex: 1 1 auto;
-    gap: 8px;
+    gap: var(--space-2);
     overflow: hidden;
 
     .agent-controls {
         flex-shrink: 0;
         display: flex;
         align-items: center;
-        gap: 8px;
-        margin-bottom: 8px;
+        gap: var(--space-2);
+        margin-bottom: var(--space-2);
 
         .profile-select {
             flex: 1;
 
             ::ng-deep .mdc-text-field {
-                background-color: rgba(255, 255, 255, 0.05);
+                background-color: var(--surface-hover);
             }
         }
 
@@ -34,7 +36,7 @@
             flex: 0 0 96px;
 
             ::ng-deep .mdc-text-field {
-                background-color: rgba(255, 255, 255, 0.05);
+                background-color: var(--surface-hover);
             }
         }
     }
@@ -42,13 +44,13 @@
     .context-usage {
         display: flex;
         flex-direction: column;
-        gap: 4px;
-        margin-bottom: 8px;
-        padding: 6px 8px;
-        border-radius: 4px;
+        gap: var(--space-1);
+        margin-bottom: var(--space-2);
+        padding: 6px var(--space-2);
+        border-radius: var(--radius-sm);
         font-size: 11px;
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        background: var(--surface-faint);
+        border: 1px solid var(--surface-border-faint);
 
         .ctx-label {
             display: flex;
@@ -56,21 +58,19 @@
             gap: 6px;
 
             mat-icon {
-                font-size: 14px;
-                width: 14px;
-                height: 14px;
+                @include mat-icon-sized(14px);
             }
 
             .ctx-pct {
                 margin-left: auto;
-                font-family: 'Roboto Mono', monospace;
+                font-family: var(--app-font-mono);
                 font-weight: bold;
             }
         }
 
         .ctx-bar {
             height: 4px;
-            background: rgba(255, 255, 255, 0.08);
+            background: var(--surface-border-faint);
             border-radius: 2px;
             overflow: hidden;
         }
@@ -80,61 +80,25 @@
             transition: width 0.25s ease, background 0.25s ease;
         }
 
-        &.level-safe {
-            color: #a5d6a7;
-            border-color: rgba(76, 175, 80, 0.25);
-            background: rgba(76, 175, 80, 0.06);
-
-            .ctx-fill { background: linear-gradient(90deg, #43a047, #66bb6a); }
-            .ctx-pct { color: #c8e6c9; }
-        }
-
-        &.level-warning {
-            color: #fff59d;
-            border-color: rgba(255, 235, 59, 0.3);
-            background: rgba(255, 235, 59, 0.06);
-
-            .ctx-fill { background: linear-gradient(90deg, #fbc02d, #fdd835); }
-            .ctx-pct { color: #fff9c4; }
-        }
-
-        &.level-high {
-            color: #ffcc80;
-            border-color: rgba(255, 152, 0, 0.35);
-            background: rgba(255, 152, 0, 0.08);
-
-            .ctx-fill { background: linear-gradient(90deg, #f57c00, #ffa726); }
-            .ctx-pct { color: #ffe0b2; }
-        }
-
-        &.level-critical {
-            color: #ef9a9a;
-            border-color: rgba(244, 67, 54, 0.4);
-            background: rgba(244, 67, 54, 0.1);
-
-            .ctx-fill {
-                background: linear-gradient(90deg, #d32f2f, #ef5350);
-            }
-            .ctx-pct { color: #ffcdd2; font-weight: bold; }
-        }
+        @include ctx-level-states;
     }
 
     .agent-input-container {
         flex-shrink: 0;
         display: flex;
-        gap: 8px;
+        gap: var(--space-2);
         align-items: flex-end;
 
         .agent-input {
             flex: 1;
 
             ::ng-deep .mdc-text-field {
-                background-color: rgba(255, 255, 255, 0.05);
+                background-color: var(--surface-hover);
             }
 
             textarea {
                 font-size: 13px;
-                color: white;
+                color: var(--text-on-accent);
                 resize: none;
                 &::placeholder {
                     color: rgba(255, 255, 255, 0.4);

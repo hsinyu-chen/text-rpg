@@ -1,3 +1,5 @@
+@use 'helpers' as *;
+
 :host {
     display: flex;
     flex-direction: column;
@@ -35,10 +37,10 @@ $fg-emph:     rgba(var(--agent-trace-surface-fg-rgb), 0.9);  // headings
     // (save dialog) would render dark text on the dark-tint panel.
     --agent-trace-surface-fg-rgb: 255, 255, 255;
     flex: 0 0 auto;
-    margin-bottom: 4px;
+    margin-bottom: var(--space-1);
     border: 1px solid $fg-divider;
-    border-radius: 4px;
-    background: rgba(0, 0, 0, 0.2);
+    border-radius: var(--radius-sm);
+    background: var(--overlay-inset-light);
     overflow: hidden;
     font-size: 12px;
 
@@ -46,7 +48,7 @@ $fg-emph:     rgba(var(--agent-trace-surface-fg-rgb), 0.9);  // headings
         display: flex;
         align-items: center;
         gap: 6px;
-        padding: 5px 8px;
+        padding: 5px var(--space-2);
         cursor: pointer;
         user-select: none;
         color: $fg-strong;
@@ -56,9 +58,7 @@ $fg-emph:     rgba(var(--agent-trace-surface-fg-rgb), 0.9);  // headings
 
         mat-icon {
             flex-shrink: 0;
-            font-size: 16px;
-            width: 16px;
-            height: 16px;
+            @include mat-icon-sized(16px);
             line-height: 16px;
         }
 
@@ -67,7 +67,7 @@ $fg-emph:     rgba(var(--agent-trace-surface-fg-rgb), 0.9);  // headings
             text-overflow: ellipsis;
             white-space: nowrap;
 
-            &.done { color: #4caf50; }
+            &.done { color: var(--status-success); }
         }
 
         .agent-todo-title { color: $fg-medium; }
@@ -82,14 +82,14 @@ $fg-emph:     rgba(var(--agent-trace-surface-fg-rgb), 0.9);  // headings
 
         .agent-todo-progress-fill {
             height: 100%;
-            background: #4caf50;
+            background: var(--status-success);
             transition: width 0.25s ease;
         }
     }
 
     .agent-todo-list {
         margin: 0;
-        padding: 4px 8px 6px 8px;
+        padding: var(--space-1) var(--space-2) 6px var(--space-2);
         list-style: none;
         border-top: 1px solid $fg-faint;
         display: flex;
@@ -104,9 +104,7 @@ $fg-emph:     rgba(var(--agent-trace-surface-fg-rgb), 0.9);  // headings
 
             mat-icon {
                 flex-shrink: 0;
-                font-size: 16px;
-                width: 16px;
-                height: 16px;
+                @include mat-icon-sized(16px);
                 line-height: 1.4;
                 color: $fg-soft;
             }
@@ -114,7 +112,7 @@ $fg-emph:     rgba(var(--agent-trace-surface-fg-rgb), 0.9);  // headings
             &.done {
                 color: $fg-soft;
 
-                mat-icon { color: #4caf50; }
+                mat-icon { color: var(--status-success); }
 
                 // line-through only on the label text — putting it on the flex
                 // row would strike through the checkbox icon too.
@@ -162,15 +160,15 @@ $fg-emph:     rgba(var(--agent-trace-surface-fg-rgb), 0.9);  // headings
     // `--agent-trace-surface-bg` / `--agent-trace-surface-border` to retheme.
     background: var(--agent-trace-surface-bg, rgba(0, 0, 0, 0.3));
     border: 1px solid var(--agent-trace-surface-border, $fg-divider);
-    border-radius: 4px;
-    padding: 8px;
-    font-family: 'Consolas', 'Monaco', monospace;
+    border-radius: var(--radius-sm);
+    padding: var(--space-2);
+    font-family: var(--app-font-mono);
     font-size: 12px;
 
     .agent-console-content {
         display: flex;
         flex-direction: column;
-        gap: 4px;
+        gap: var(--space-1);
     }
 
     .console-log-entry {
@@ -190,7 +188,7 @@ $fg-emph:     rgba(var(--agent-trace-surface-fg-rgb), 0.9);  // headings
             min-width: 0;
             display: flex;
             flex-direction: column;
-            gap: 4px;
+            gap: var(--space-1);
 
             .log-thought-container {
                 // Nested-block backdrop stays at solid black-tint regardless
@@ -203,15 +201,15 @@ $fg-emph:     rgba(var(--agent-trace-surface-fg-rgb), 0.9);  // headings
                 // not produce dark-text-on-dark inside the block.
                 --agent-trace-surface-fg-rgb: 255, 255, 255;
                 border: 1px solid $fg-divider;
-                background: rgba(0, 0, 0, 0.2);
+                background: var(--overlay-inset-light);
                 overflow: hidden;
                 margin-top: 2px;
 
                 .log-thought-header {
                     display: flex;
                     align-items: center;
-                    gap: 4px;
-                    padding: 4px 8px;
+                    gap: var(--space-1);
+                    padding: var(--space-1) var(--space-2);
                     cursor: pointer;
                     color: $fg-medium;
                     font-size: 11px;
@@ -224,15 +222,13 @@ $fg-emph:     rgba(var(--agent-trace-surface-fg-rgb), 0.9);  // headings
                     }
 
                     mat-icon {
-                        font-size: 14px;
-                        width: 14px;
-                        height: 14px;
+                        @include mat-icon-sized(14px);
                         line-height: 14px;
                     }
                 }
 
                 .log-thought-text {
-                    padding: 4px 8px 8px 8px;
+                    padding: var(--space-1) var(--space-2) var(--space-2) var(--space-2);
                     color: $fg-soft;
                     font-size: 11px;
                     white-space: pre-wrap;
@@ -248,13 +244,13 @@ $fg-emph:     rgba(var(--agent-trace-surface-fg-rgb), 0.9);  // headings
                 // narrow-panel edge instead of forcing horizontal scroll.
                 pre.log-thought-text {
                     margin: 0;
-                    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+                    font-family: var(--app-font-mono);
                     color: $fg-medium;
                     line-height: 1.45;
                 }
 
                 .log-tool-reason {
-                    padding: 2px 8px 4px 26px;
+                    padding: 2px var(--space-2) var(--space-1) 26px;
                     color: $fg-medium;
                     font-size: 11px;
                     font-style: italic;
@@ -266,7 +262,7 @@ $fg-emph:     rgba(var(--agent-trace-surface-fg-rgb), 0.9);  // headings
                 white-space: pre-wrap;
 
                 ::ng-deep markdown {
-                    font-family: 'Consolas', 'Monaco', monospace !important;
+                    font-family: var(--app-font-mono) !important;
                     font-size: 12px !important;
                     line-height: 1.4 !important;
 
@@ -280,7 +276,7 @@ $fg-emph:     rgba(var(--agent-trace-surface-fg-rgb), 0.9);  // headings
                         &:last-child { margin-bottom: 0 !important; }
                     }
                     ul, ol {
-                        margin-top: 4px !important;
+                        margin-top: var(--space-1) !important;
                         margin-bottom: 6px !important;
                         padding-left: 20px !important;
 
@@ -305,20 +301,20 @@ $fg-emph:     rgba(var(--agent-trace-surface-fg-rgb), 0.9);  // headings
                         color: $fg-emph;
                     }
                     pre {
-                        margin: 4px 0;
+                        margin: var(--space-1) 0;
                         padding: 6px;
                         // Same rationale as .log-thought-container.background —
                         // black-tint "deepen below" cue works for both themes.
                         background: rgba(0, 0, 0, 0.4);
                         border: 1px solid $fg-divider;
-                        border-radius: 4px;
+                        border-radius: var(--radius-sm);
                         code {
                             font-size: 11px;
                         }
                     }
                     blockquote {
-                        margin: 4px 0;
-                        padding-left: 8px;
+                        margin: var(--space-1) 0;
+                        padding-left: var(--space-2);
                         border-left: 3px solid $fg-accent;
                         color: $fg-strong;
                     }
@@ -327,13 +323,13 @@ $fg-emph:     rgba(var(--agent-trace-surface-fg-rgb), 0.9);  // headings
         }
 
         &.log-type-info { color: $fg-strong; }
-        &.log-type-error { color: #f44336; }
-        &.log-type-action { color: #4caf50; }
-        &.log-type-model { color: #90caf9; }
+        &.log-type-error { color: var(--status-error); }
+        &.log-type-action { color: var(--status-success); }
+        &.log-type-model { color: var(--accent-blue-info); }
 
         &.running-indicator {
             align-items: center;
-            gap: 8px;
+            gap: var(--space-2);
             color: $fg-medium;
 
             &.awaiting-user {

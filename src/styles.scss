@@ -25,6 +25,93 @@
     --app-primary-rgb: 194, 24, 91;
     --app-accent: #607d8b;
     --app-accent-rgb: 96, 125, 139;
+
+    /* status */
+    --status-success: #4caf50;
+    --status-success-light: #81c784;
+    --status-warning: #ff9800;
+    --status-error: #f44336;
+    --status-amber: #ffca28;
+    --status-unsaved: #ffc107;
+
+    /* secondary text greys (--text-main #e0e0e0 already exists) */
+    --text-secondary: #9e9e9e;
+    --text-muted: #757575;
+    --text-on-accent: #fff;
+
+    /* accents */
+    --accent-indigo: #818cf8;
+    --accent-indigo-strong: #6366f1;
+    --accent-blue-light: #64b5f6;
+    --accent-blue-info: #90caf9;
+    --accent-cyan: #4facfe;
+    --accent-google-blue: #4285f4;
+    --accent-purple: #ba68c8;
+    --accent-purple-light: #ce93d8;
+
+    /* translucent surfaces (.1 = --border-color, .2 = --border-color-strong already exist) */
+    --surface-faintest: rgba(255, 255, 255, 0.02);
+    --surface-faint: rgba(255, 255, 255, 0.03);
+    --surface-hover: rgba(255, 255, 255, 0.05);
+    --surface-border-faintest: rgba(255, 255, 255, 0.06);
+    --surface-border-faint: rgba(255, 255, 255, 0.08);
+
+    /* dark overlays */
+    --overlay-inset-light: rgba(0, 0, 0, 0.2);
+    --overlay-inset: rgba(0, 0, 0, 0.3);
+    --overlay-backdrop: rgba(0, 0, 0, 0.85);
+
+    /* opaque divider */
+    --border-divider-solid: #333;
+
+    /* monospace stack */
+    --app-font-mono: 'Roboto Mono', 'Fira Code', Consolas, monospace;
+
+    /* font-size rem scale (--app-font-size 1.1rem is the prose body size, leave it) */
+    --app-font-size-2xs: 0.75rem;
+    --app-font-size-xs: 0.8rem;
+    --app-font-size-sm: 0.85rem;
+    --app-font-size-md: 0.9rem;
+    --app-font-size-lg: 0.95rem;
+
+    /* radius */
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 8px;
+
+    /* spacing */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+
+    /* 4-level context-usage severity palette — text + pct are identical across
+       context-usage-bar (full) and agent-console; border/bg/fill values are
+       taken from agent-console, which carries the full set (full variant has no
+       single fill bar, so it includes ctx-level-states with $fill: false). */
+    --level-safe-text: #a5d6a7;
+    --level-safe-pct: #c8e6c9;
+    --level-safe-border: rgba(76, 175, 80, 0.25);
+    --level-safe-bg: rgba(76, 175, 80, 0.06);
+    --level-safe-fill: linear-gradient(90deg, #43a047, #66bb6a);
+
+    --level-warning-text: #fff59d;
+    --level-warning-pct: #fff9c4;
+    --level-warning-border: rgba(255, 235, 59, 0.3);
+    --level-warning-bg: rgba(255, 235, 59, 0.06);
+    --level-warning-fill: linear-gradient(90deg, #fbc02d, #fdd835);
+
+    --level-high-text: #ffcc80;
+    --level-high-pct: #ffe0b2;
+    --level-high-border: rgba(255, 152, 0, 0.35);
+    --level-high-bg: rgba(255, 152, 0, 0.08);
+    --level-high-fill: linear-gradient(90deg, #f57c00, #ffa726);
+
+    --level-critical-text: #ef9a9a;
+    --level-critical-pct: #ffcdd2;
+    --level-critical-border: rgba(244, 67, 54, 0.4);
+    --level-critical-bg: rgba(244, 67, 54, 0.1);
+    --level-critical-fill: linear-gradient(90deg, #d32f2f, #ef5350);
 }
 
 html,

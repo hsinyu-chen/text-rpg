@@ -1,3 +1,5 @@
+@use 'helpers' as *;
+
 :host {
     display: flex;
     flex-direction: column;
@@ -9,43 +11,27 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 16px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-    background: rgba(0, 0, 0, 0.2);
+    padding: var(--space-4);
+    border-bottom: 1px solid var(--border-color);
+    background: var(--overlay-inset-light);
 
     h2 {
         margin: 0;
         font-size: 1.2rem;
         font-weight: 500;
-        color: #e0e0e0;
+        color: var(--text-main);
     }
 }
 
 .panel-content {
-    padding: 16px;
+    padding: var(--space-4);
     flex: 1;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: var(--space-4);
 
-    /* Scrollbar Styling */
-    &::-webkit-scrollbar {
-        width: 6px;
-    }
-
-    &::-webkit-scrollbar-track {
-        background: transparent;
-    }
-
-    &::-webkit-scrollbar-thumb {
-        background: rgba(255, 255, 255, 0.2);
-        border-radius: 3px;
-
-        &:hover {
-            background: rgba(255, 255, 255, 0.3);
-        }
-    }
+    @include custom-scrollbar(6px, transparent, var(--border-color-strong), rgba(255, 255, 255, 0.3));
 }
 
 .empty-state {
@@ -57,58 +43,54 @@
     color: rgba(255, 255, 255, 0.4);
 
     mat-icon {
-        font-size: 48px;
-        width: 48px;
-        height: 48px;
-        margin-bottom: 16px;
+        @include mat-icon-sized(48px);
+        margin-bottom: var(--space-4);
     }
 }
 
 .update-card {
     content-visibility: auto;
     contain-intrinsic-size: auto 120px;
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
-    padding: 12px;
+    background: var(--surface-hover);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-lg);
+    padding: var(--space-3);
     cursor: pointer;
     transition: all 0.2s;
 
     &:hover {
-        background: rgba(255, 255, 255, 0.08);
-        border-color: rgba(255, 255, 255, 0.2);
+        background: var(--surface-border-faint);
+        border-color: var(--border-color-strong);
     }
 }
 
 .card-header {
     display: flex;
     justify-content: space-between;
-    margin-bottom: 8px;
-    font-size: 0.8rem;
+    margin-bottom: var(--space-2);
+    font-size: var(--app-font-size-xs);
     color: rgba(255, 255, 255, 0.5);
 
     .role-badge {
-        background: rgba(0, 0, 0, 0.3);
+        background: var(--overlay-inset);
         padding: 2px 6px;
-        border-radius: 4px;
-        font-family: monospace;
+        border-radius: var(--radius-sm);
+        font-family: var(--app-font-mono);
     }
 }
 
 .section {
-    margin-top: 8px;
-    font-size: 0.9rem;
-    color: #ccc;
+    margin-top: var(--space-2);
+    font-size: var(--app-font-size-md);
+    color: var(--text-secondary);
 
     &.narrative {
         display: flex;
-        gap: 8px;
+        gap: var(--space-2);
         line-height: 1.4;
 
         .sec-icon {
-            font-size: 18px;
-            width: 18px;
-            height: 18px;
+            @include mat-icon-sized(18px);
             margin-top: 1px;
             color: #81d4fa; // Light Blue
         }
@@ -118,14 +100,12 @@
         display: flex;
         align-items: center;
         gap: 6px;
-        margin-bottom: 4px;
+        margin-bottom: var(--space-1);
         color: rgba(255, 255, 255, 0.7);
-        font-size: 0.8rem;
+        font-size: var(--app-font-size-xs);
 
         .sec-icon {
-            font-size: 16px;
-            width: 16px;
-            height: 16px;
+            @include mat-icon-sized(16px);
         }
     }
 
@@ -143,7 +123,7 @@
     }
 
     &.world .sec-icon {
-        color: #ce93d8; // Light purple
+        color: var(--accent-purple-light); // Light purple
     }
 
     &.character .sec-icon {

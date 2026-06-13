@@ -1,30 +1,24 @@
+@use 'helpers' as *;
+
 :host {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
+    @include flex-column(var(--space-3));
 }
 
 .status {
-    display: flex;
-    align-items: center;
-    gap: 10px;
+    @include flex-row-center(10px);
     font-size: 0.9em;
 
     mat-icon {
-        font-size: 22px;
-        width: 22px;
-        height: 22px;
+        @include mat-icon-sized(22px);
         flex-shrink: 0;
     }
 
-    &.ok { color: #4caf50; }
-    &.warn { color: #ff9800; }
+    &.ok { color: var(--status-success); }
+    &.warn { color: var(--status-warning); }
 }
 
 .folder {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
+    @include flex-column(2px);
 
     .name {
         font-weight: 500;
@@ -36,9 +30,9 @@
         opacity: 0.8;
         text-transform: capitalize;
 
-        &[data-state='granted'] { color: #4caf50; }
-        &[data-state='denied']  { color: #f44336; }
-        &[data-state='prompt']  { color: #ff9800; }
+        &[data-state='granted'] { color: var(--status-success); }
+        &[data-state='denied']  { color: var(--status-error); }
+        &[data-state='prompt']  { color: var(--status-warning); }
     }
 }
 
@@ -54,22 +48,18 @@
 .actions {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: var(--space-2);
 
     button {
         mat-icon {
-            font-size: 18px;
-            width: 18px;
-            height: 18px;
-            margin-right: 4px;
+            @include mat-icon-sized(18px);
+            margin-right: var(--space-1);
         }
     }
 }
 
 .auto-sync-mode {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
+    @include flex-column(6px);
 
     .mode-label {
         font-size: 0.95em;
@@ -77,9 +67,7 @@
     }
 
     .mode-options {
-        display: flex;
-        flex-direction: column;
-        gap: 4px;
+        @include flex-column(var(--space-1));
     }
 
     .mode-name {

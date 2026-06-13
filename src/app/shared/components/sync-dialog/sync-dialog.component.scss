@@ -1,27 +1,25 @@
+@use 'helpers' as *;
+
 .dialog-title {
+    @include flex-center(row, var(--space-3));
     background: linear-gradient(135deg, #059669 0%, #10b981 100%);
-    color: white;
+    color: var(--text-on-accent);
     margin: 0;
-    padding: 16px 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
+    padding: var(--space-4) 24px;
     flex-shrink: 0;
 }
 
 .description {
-    margin: 16px 0;
-    font-size: 0.9rem;
+    margin: var(--space-4) 0;
+    font-size: var(--app-font-size-md);
     color: #94a3b8;
     text-align: center;
     flex-shrink: 0;
 }
 
 mat-dialog-content {
+    @include flex-column;
     flex: 1;
-    display: flex;
-    flex-direction: column;
     overflow: hidden !important;
     padding: 0 24px !important;
     margin: 0 !important;
@@ -30,17 +28,15 @@ mat-dialog-content {
 }
 
 .sync-container {
+    @include flex-column(var(--space-3));
     flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
     min-height: 0;
 }
 
 .sync-tabs {
     flex-shrink: 0;
     border: 1px solid var(--border-color);
-    border-radius: 8px 8px 0 0;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
     background: var(--bg-surface-dark);
 
     // Hide tab body - we use a single diff editor below
@@ -50,17 +46,15 @@ mat-dialog-content {
 }
 
 .diff-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+    @include flex-row-between;
     flex-shrink: 0;
-    padding: 8px 0;
+    padding: var(--space-2) 0;
 }
 
 .status-tag {
-    font-size: 0.75rem;
-    padding: 2px 8px;
-    border-radius: 4px;
+    font-size: var(--app-font-size-2xs);
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-sm);
     text-transform: uppercase;
     font-weight: bold;
 
@@ -94,7 +88,7 @@ mat-dialog-content {
     flex: 1;
     min-height: 350px;
     border: 1px solid var(--border-color);
-    border-radius: 4px;
+    border-radius: var(--radius-sm);
     overflow: hidden;
 }
 
@@ -105,19 +99,15 @@ mat-dialog-content {
 }
 
 .loading-overlay {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    @include fill-absolute;
     background: rgba(18, 18, 18, 0.85);
     backdrop-filter: blur(4px);
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 16px;
+    gap: var(--space-4);
     z-index: 50;
-    color: white;
+    color: var(--text-on-accent);
     font-weight: 500;
 }

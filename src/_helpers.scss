@@ -1,0 +1,122 @@
+@mixin flex-row-center($gap: 0) {
+  display: flex;
+  align-items: center;
+  @if $gap != 0 { gap: $gap; }
+}
+@mixin flex-column($gap: 0) {
+  display: flex;
+  flex-direction: column;
+  @if $gap != 0 { gap: $gap; }
+}
+@mixin flex-center($direction: row, $gap: 0) {
+  display: flex;
+  flex-direction: $direction;
+  align-items: center;
+  justify-content: center;
+  @if $gap != 0 { gap: $gap; }
+}
+@mixin flex-row-between {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+@mixin text-ellipsis($flexShrink: false) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  @if $flexShrink { min-width: 0; }
+}
+@mixin mat-icon-sized($size) {
+  font-size: $size;
+  width: $size;
+  height: $size;
+}
+@mixin flex-fill-min0($axis: height) {
+  flex: 1 1 auto;
+  @if $axis == height { min-height: 0; } @else { min-width: 0; }
+}
+@mixin card-surface($bg: var(--surface-faint), $border: var(--surface-border-faintest), $radius: var(--radius-md)) {
+  background: $bg;
+  border: 1px solid $border;
+  border-radius: $radius;
+}
+@mixin custom-scrollbar($width: 8px, $track: transparent, $thumb: var(--border-color), $thumb-hover: var(--border-color-strong)) {
+  &::-webkit-scrollbar { width: $width; height: $width; }
+  &::-webkit-scrollbar-track { background: $track; }
+  &::-webkit-scrollbar-thumb { background: $thumb; border-radius: calc(#{$width} / 2); }
+  &::-webkit-scrollbar-thumb:hover { background: $thumb-hover; }
+}
+@mixin fill-absolute($overflow: null) {
+  position: absolute;
+  inset: 0;
+  @if $overflow { overflow: $overflow; }
+}
+@mixin fullscreen-fixed-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+}
+@mixin reveal-on-hover($parent, $shown: 1) {
+  opacity: 0;
+  transition: opacity 0.2s;
+  #{$parent}:hover & { opacity: $shown; }
+}
+@mixin icon-button-square-reset($size, $display: flex) {
+  width: $size !important;
+  height: $size !important;
+  padding: 0 !important;
+  min-width: 0 !important;
+  display: $display !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+@mixin mat-touch-target($size: null) {
+  ::ng-deep .mat-mdc-button-touch-target {
+    @if $size == null { display: none; }
+    @else { width: $size; height: $size; }
+  }
+}
+
+// Four-level context-usage severity palette. Emits .level-safe / .level-warning
+// / .level-high / .level-critical, each setting host text colour + border + bg,
+// the nested .ctx-pct colour, and the .ctx-fill gradient. All literals come from
+// the --level-* CSS vars defined in :root (styles.scss) so the palette has one
+// source of truth across context-usage-bar and agent-console.
+//
+// $fill controls whether the .ctx-fill gradient rule is emitted. The full
+// context-usage-bar paints semantic per-segment colours and has no single
+// .ctx-fill, so it includes the mixin with $fill: false; agent-console renders a
+// single severity-tinted bar and includes it with the default $fill: true.
+// .level-critical adds the shared ctx-pulse emphasis (font-weight on the pct).
+@mixin ctx-level-states($fill: true) {
+  &.level-safe {
+    color: var(--level-safe-text);
+    border-color: var(--level-safe-border);
+    background: var(--level-safe-bg);
+    @if $fill { .ctx-fill { background: var(--level-safe-fill); } }
+    .ctx-pct { color: var(--level-safe-pct); }
+  }
+  &.level-warning {
+    color: var(--level-warning-text);
+    border-color: var(--level-warning-border);
+    background: var(--level-warning-bg);
+    @if $fill { .ctx-fill { background: var(--level-warning-fill); } }
+    .ctx-pct { color: var(--level-warning-pct); }
+  }
+  &.level-high {
+    color: var(--level-high-text);
+    border-color: var(--level-high-border);
+    background: var(--level-high-bg);
+    @if $fill { .ctx-fill { background: var(--level-high-fill); } }
+    .ctx-pct { color: var(--level-high-pct); }
+  }
+  &.level-critical {
+    color: var(--level-critical-text);
+    border-color: var(--level-critical-border);
+    background: var(--level-critical-bg);
+    @if $fill { .ctx-fill { background: var(--level-critical-fill); } }
+    .ctx-pct { color: var(--level-critical-pct); font-weight: bold; }
+  }
+}

@@ -1,11 +1,13 @@
+@use 'helpers' as *;
+
 :host {
     display: block;
     // dvh shrinks when the on-screen keyboard appears (paired with the
     // viewport's interactive-widget=resizes-content), so the layout
     // collapses around the input instead of pushing it below the fold.
     height: 100dvh;
-    background-color: #121212;
-    color: #e0e0e0;
+    background-color: var(--bg-main);
+    color: var(--text-main);
 }
 
 .app-shell {
@@ -40,7 +42,7 @@
         display: flex;
         flex-direction: column;
         background: var(--mat-sys-surface-container, #1e1e1e);
-        border-left: 1px solid rgba(255, 255, 255, 0.1);
+        border-left: 1px solid var(--border-color);
         box-shadow: -4px 0 10px rgba(0, 0, 0, 0.4);
         z-index: 1;
     }
@@ -65,15 +67,15 @@
 .app-sidebar {
     width: 400px;
     max-width: 85vw;
-    border-right: 1px solid #333;
-    background-color: #1e1e1e;
+    border-right: 1px solid var(--border-divider-solid);
+    background-color: var(--bg-sidebar);
 }
 
 .app-content {
     display: flex;
     flex-direction: column;
     position: relative;
-    background-color: #121212;
+    background-color: var(--bg-main);
     min-width: 0;
 }
 
@@ -84,41 +86,32 @@
     z-index: 40;
     background: rgba(0, 0, 0, 0.5);
     backdrop-filter: blur(4px);
-    color: white;
+    color: var(--text-on-accent);
 }
 
 .blocker-overlay {
-    position: absolute;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    left: 0;
+    @include fill-absolute;
     z-index: 50;
-    background-color: rgba(0, 0, 0, 0.85);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
+    background-color: var(--overlay-backdrop);
+    @include flex-center(column);
     text-align: center;
     backdrop-filter: blur(5px);
 }
 
 .blocker-icon {
-    font-size: 64px;
-    height: 64px;
-    width: 64px;
-    margin-bottom: 16px;
-    color: #757575;
+    @include mat-icon-sized(64px);
+    margin-bottom: var(--space-4);
+    color: var(--text-muted);
 }
 
 .blocker-overlay h2 {
-    margin-bottom: 8px;
+    margin-bottom: var(--space-2);
     font-size: 1.5rem;
 }
 
 .blocker-overlay p {
     margin-bottom: 24px;
-    color: #aaa;
+    color: var(--text-secondary);
 }
 
 .blocker-overlay.error {
@@ -128,9 +121,7 @@
 
     .blocker-icon {
         color: #ff5252;
-        width: 64px;
-        height: 64px;
-        font-size: 64px;
+        @include mat-icon-sized(64px);
     }
 
     h2 {
@@ -144,8 +135,8 @@
     }
 
     .sub-text {
-        margin-top: 16px;
-        font-size: 0.9rem;
+        margin-top: var(--space-4);
+        font-size: var(--app-font-size-md);
         opacity: 0.7;
     }
 }
