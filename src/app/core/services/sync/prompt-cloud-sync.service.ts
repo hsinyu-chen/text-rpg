@@ -138,6 +138,17 @@ export class PromptCloudSyncService {
         return out;
     }
 
+    /** Map a registry profile to its v2 export metadata row. */
+    private toProfileMeta(profile: PromptProfile): PromptsV2['profiles'][number] {
+        return {
+            id: profile.id,
+            displayName: profile.displayName ?? profile.id,
+            baseProfileId: profile.baseProfileId ?? 'cloud',
+            createdAt: profile.createdAt ?? Date.now(),
+            updatedAt: profile.updatedAt ?? Date.now()
+        };
+    }
+
     /**
      * Built-ins ship only their user-modified rows. User profiles ship in
      * full — receiving device has no shipped asset to fall back on.
@@ -163,13 +174,7 @@ export class PromptCloudSyncService {
         const profilesOut: PromptsV2['profiles'] = [];
         for (const { profile, profilePrompts, profileHunks } of profileResults) {
             if (!profile.isBuiltIn) {
-                profilesOut.push({
-                    id: profile.id,
-                    displayName: profile.displayName ?? profile.id,
-                    baseProfileId: profile.baseProfileId ?? 'cloud',
-                    createdAt: profile.createdAt ?? Date.now(),
-                    updatedAt: profile.updatedAt ?? Date.now()
-                });
+                profilesOut.push(this.toProfileMeta(profile));
             }
             Object.assign(prompts, profilePrompts);
             Object.assign(hunks, profileHunks);
@@ -205,13 +210,7 @@ export class PromptCloudSyncService {
         const prompts = await this.collectProfilePrompts(profileId, { onlyUserModified: false });
         const hunks = await this.collectProfileHunks(profileId);
 
-        const profilesOut: PromptsV2['profiles'] = profile.isBuiltIn ? [] : [{
-            id: profile.id,
-            displayName: profile.displayName ?? profile.id,
-            baseProfileId: profile.baseProfileId ?? 'cloud',
-            createdAt: profile.createdAt ?? Date.now(),
-            updatedAt: profile.updatedAt ?? Date.now()
-        }];
+        const profilesOut: PromptsV2['profiles'] = profile.isBuiltIn ? [] : [this.toProfileMeta(profile)];
 
         const payload: PromptsV2 = { version: 2, profiles: profilesOut, prompts, ...(Object.keys(hunks).length ? { hunks } : {}) };
         return JSON.stringify(payload, null, 2);
