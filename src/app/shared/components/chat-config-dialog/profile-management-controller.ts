@@ -68,7 +68,7 @@ export class ProfileManagementController {
   isActiveBuiltIn = computed(() => this.activeProfile()?.isBuiltIn ?? false);
 
   /** Active profile has at least one local hunk patch — drives built-in disk-sync enablement. */
-  activeHasHunks = computed(() => this.injection.hunkCounts.size > 0);
+  activeHasHunks = computed(() => Array.from(this.injection.hunkCounts.values()).some((count) => count > 0));
 
   /** Built-ins disk-sync only their hunks, so push needs at least one; user profiles always can. */
   canPushActiveToDisk = computed(() => {

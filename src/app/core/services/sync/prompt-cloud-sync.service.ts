@@ -180,7 +180,10 @@ export class PromptCloudSyncService {
             Object.assign(hunks, profileHunks);
         }
 
-        const payload: PromptsV2 = { version: 2, profiles: profilesOut, prompts, ...(Object.keys(hunks).length ? { hunks } : {}) };
+        // Always emit `hunks` (even {}): on download an absent field means a
+        // pre-feature payload (don't clear), whereas {} means "synced, now empty"
+        // and must clear. Omitting it would make a full deletion un-syncable.
+        const payload: PromptsV2 = { version: 2, profiles: profilesOut, prompts, hunks };
         await backend.writePrompts(JSON.stringify(payload));
         return { exported: Object.keys(prompts).length };
     }
@@ -193,7 +196,8 @@ export class PromptCloudSyncService {
 
         const parsed = JSON.parse(json) as Partial<PromptsV2> | Record<string, { content: string; tokens?: number }>;
         if (isPromptsV2(parsed)) {
-            return this.applyPromptsV2(parsed);
+            // Download mirrors the cloud onto this device, so omitted hunks clear.
+            return this.applyPromptsV2(parsed, true);
         }
         return this.applyPromptsV1Legacy(parsed as Record<string, { content: string; tokens?: number }>);
     }
@@ -212,14 +216,15 @@ export class PromptCloudSyncService {
 
         const profilesOut: PromptsV2['profiles'] = profile.isBuiltIn ? [] : [this.toProfileMeta(profile)];
 
-        const payload: PromptsV2 = { version: 2, profiles: profilesOut, prompts, ...(Object.keys(hunks).length ? { hunks } : {}) };
+        const payload: PromptsV2 = { version: 2, profiles: profilesOut, prompts, hunks };
         return JSON.stringify(payload, null, 2);
     }
 
     async importSingleProfile(json: string): Promise<{ imported: number }> {
         const parsed = JSON.parse(json) as unknown;
         if (!isPromptsV2(parsed)) throw new Error('Not a v2 prompt profile export');
-        return this.applyPromptsV2(parsed);
+        // Import merges one profile — it must not clear hunks on the others.
+        return this.applyPromptsV2(parsed, false);
     }
 
     /**
@@ -242,7 +247,7 @@ export class PromptCloudSyncService {
         return { type: type as PromptType, profileId, profile };
     }
 
-    private async applyPromptsV2(payload: PromptsV2): Promise<{ imported: number }> {
+    private async applyPromptsV2(payload: PromptsV2, clearOmittedHunks: boolean): Promise<{ imported: number }> {
         const idRemap = new Map<string, string>();
         // Tracks every id we've assigned in this batch (existing registry +
         // newly-minted suffix variants) so two incoming collisions can't both
@@ -317,7 +322,7 @@ export class PromptCloudSyncService {
             return true;
         }));
 
-        await this.applyHunks(payload.hunks, idRemap);
+        await this.applyHunks(payload.hunks, idRemap, payload.profiles, clearOmittedHunks);
         return { imported: v2Results.filter(Boolean).length };
     }
 
@@ -325,9 +330,35 @@ export class PromptCloudSyncService {
      * Apply imported hunk overlays under the same id-remap as prompt rows.
      * Orphan rows (profile never registered) are dropped. Not tallied into
      * `imported`, which counts base-prompt rows only.
+     *
+     * `clearOmitted` (cloud download) first wipes every synced profile's hunks so
+     * the device mirrors the payload exactly — a hunk deleted elsewhere, and thus
+     * absent here, is cleared rather than left behind. Single-profile import
+     * passes false: it merges one profile and must not touch the others. An
+     * undefined `hunks` is a pre-feature payload — never clear on that.
      */
-    private async applyHunks(hunks: PromptsV2['hunks'], idRemap: Map<string, string>): Promise<void> {
-        await Promise.all(Object.entries(hunks ?? {}).map(async ([key, value]) => {
+    private async applyHunks(
+        hunks: PromptsV2['hunks'],
+        idRemap: Map<string, string>,
+        profiles: PromptsV2['profiles'],
+        clearOmitted: boolean,
+    ): Promise<void> {
+        if (hunks === undefined) return;
+
+        if (clearOmitted) {
+            const syncedIds = new Set<string>(BUILT_IN_PROFILES.map((p) => p.id));
+            for (const p of profiles ?? []) syncedIds.add(idRemap.get(p.id) ?? p.id);
+            await Promise.all([...syncedIds].map((profileId) =>
+                Promise.all(PROMPT_TYPES.map(async (type) => {
+                    // Skip the no-op [] write when the type is already empty.
+                    if ((await this.prompts.getProfileHunks(type, profileId)).length > 0) {
+                        await this.prompts.saveProfileHunks(type, profileId, []);
+                    }
+                })),
+            ));
+        }
+
+        await Promise.all(Object.entries(hunks).map(async ([key, value]) => {
             if (!Array.isArray(value)) return;
             const resolved = this.resolvePayloadKey(key, idRemap);
             if (!resolved) return;

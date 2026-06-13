@@ -98,13 +98,13 @@ describe('PromptCloudSyncService hunk sync', () => {
       expect(payload.hunks).toEqual({ 'cloud:action': [HUNK] });
     });
 
-    it('omits the hunks field when no profile has hunks', async () => {
+    it('always emits the hunks field (empty) so a full deletion can sync', async () => {
       const { service, repo, backend } = makeHarness([userProfile]);
       await repo.saveProfilePrompt('system_main', 'user_test1', 'base');
 
       await service.uploadPrompts();
 
-      expect('hunks' in backend.payload()).toBe(false);
+      expect(backend.payload().hunks).toEqual({});
     });
   });
 
@@ -138,7 +138,9 @@ describe('PromptCloudSyncService hunk sync', () => {
     });
 
     it('imports a legacy v2 payload with no hunks field without error', async () => {
-      const { service, backend } = makeHarness([userProfile]);
+      const { service, repo, backend } = makeHarness([userProfile]);
+      // A pre-feature payload (no hunks field) must not wipe existing local hunks.
+      await repo.saveProfileHunks('action', 'cloud', [HUNK]);
       backend.seed(JSON.stringify({
         version: 2,
         profiles: [userProfile],
@@ -148,6 +150,24 @@ describe('PromptCloudSyncService hunk sync', () => {
       const { imported } = await service.downloadPrompts();
 
       expect(imported).toBe(1);
+      expect(await repo.getProfileHunks('action', 'cloud')).toEqual([HUNK]);
+    });
+
+    it('clears hunks omitted from the payload — full cloud mirror', async () => {
+      const { service, repo, backend } = makeHarness([userProfile]);
+      // Local built-in hunk the cloud payload omits: download must clear it.
+      await repo.saveProfileHunks('action', 'cloud', [HUNK]);
+      backend.seed(JSON.stringify({
+        version: 2,
+        profiles: [userProfile],
+        prompts: {},
+        hunks: { 'user_test1:system_main': [HUNK] },
+      }));
+
+      await service.downloadPrompts();
+
+      expect(await repo.getProfileHunks('action', 'cloud')).toEqual([]);
+      expect(await repo.getProfileHunks('system_main', 'user_test1')).toEqual([HUNK]);
     });
   });
 
@@ -162,6 +182,23 @@ describe('PromptCloudSyncService hunk sync', () => {
       const dest = makeHarness([{ id: 'cloud', isBuiltIn: true }]);
       await dest.service.importSingleProfile(json);
 
+      expect(await dest.repo.getProfileHunks('system_main', 'user_test1')).toEqual([HUNK]);
+    });
+
+    it('import is additive — it does not clear other profiles hunks', async () => {
+      const dest = makeHarness([{ id: 'cloud', isBuiltIn: true }]);
+      // A built-in hunk the imported file knows nothing about must survive.
+      await dest.repo.saveProfileHunks('action', 'cloud', [HUNK]);
+      const json = JSON.stringify({
+        version: 2,
+        profiles: [userProfile],
+        prompts: { 'user_test1:system_main': { content: 'base' } },
+        hunks: { 'user_test1:system_main': [HUNK] },
+      });
+
+      await dest.service.importSingleProfile(json);
+
+      expect(await dest.repo.getProfileHunks('action', 'cloud')).toEqual([HUNK]);
       expect(await dest.repo.getProfileHunks('system_main', 'user_test1')).toEqual([HUNK]);
     });
   });

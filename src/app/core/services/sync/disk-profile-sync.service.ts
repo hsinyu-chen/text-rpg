@@ -193,14 +193,18 @@ export class DiskProfileSyncService {
         // object `{}` is still a valid snapshot that clears every type.
         if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return 0;
         const byType = parsed as Record<string, unknown>;
-        let restored = 0;
-        for (const type of ALL_PROMPT_TYPES) {
-            const hunks = byType[type];
-            const arr = Array.isArray(hunks) ? hunks : [];
+        const results = await Promise.all(ALL_PROMPT_TYPES.map(async (type) => {
+            const raw = byType[type];
+            const arr = Array.isArray(raw) ? raw : [];
+            // Only write when the snapshot adds hunks or clears existing ones —
+            // skip the no-op [] write for a type empty on both sides.
+            if (arr.length === 0 && (await this.prompts.getProfileHunks(type, profileId)).length === 0) {
+                return false;
+            }
             await this.prompts.saveProfileHunks(type, profileId, arr);
-            if (arr.length) restored++;
-        }
-        return restored;
+            return arr.length > 0;
+        }));
+        return results.filter(Boolean).length;
     }
 
     private assertActiveProfile() {
