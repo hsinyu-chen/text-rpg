@@ -1,7 +1,7 @@
 @use 'helpers' as *;
 
 .dialog-title {
-    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+    background: linear-gradient(135deg, var(--accent-indigo-strong) 0%, #7c3aed 100%);
     color: var(--text-on-accent);
     margin: 0;
     padding: var(--space-4) 24px;
@@ -91,9 +91,9 @@ mat-tab-nav-panel {
     text-transform: uppercase;
 
     &.diff {
-        background: #4f46e533;
+        background: rgba(var(--accent-indigo-strong-rgb), 0.2);
         color: var(--accent-indigo);
-        border: 1px solid #4f46e5;
+        border: 1px solid var(--accent-indigo-strong);
     }
 }
 

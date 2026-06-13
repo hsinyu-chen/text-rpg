@@ -105,7 +105,7 @@
         }
 
         &.ok { color: var(--status-success); }
-        &.fail { color: #e57373; }
+        &.fail { color: var(--status-error); }
     }
 }
 
@@ -132,6 +132,6 @@
     }
 
     &.status-connected .dot { background: var(--status-success); }
-    &.status-connecting .dot { background: #ffb74d; }
-    &.status-error     .dot { background: #e57373; }
+    &.status-connecting .dot { background: var(--intent-system); }
+    &.status-error     .dot { background: var(--status-error); }
 }

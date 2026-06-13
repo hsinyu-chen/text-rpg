@@ -107,7 +107,7 @@
     }
 
     .correction-icon {
-        color: #ffb74d; // Amber tint — corrections stand out as authoritative overrides
+        color: var(--intent-system); // Amber tint — corrections stand out as authoritative overrides
     }
 }
 

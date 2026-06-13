@@ -333,10 +333,10 @@ $fg-emph:     rgba(var(--agent-trace-surface-fg-rgb), 0.9);  // headings
             color: $fg-medium;
 
             &.awaiting-user {
-                color: #ffb74d;
+                color: var(--intent-system);
 
                 mat-icon {
-                    color: #ffb74d;
+                    color: var(--intent-system);
                 }
             }
         }

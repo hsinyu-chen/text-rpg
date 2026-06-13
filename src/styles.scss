@@ -33,6 +33,8 @@
     --status-error: #f44336;
     --status-amber: #ffca28;
     --status-unsaved: #ffc107;
+    /* soft-orange "system / connecting / pending" accent — chat-input intent, settings status-dot, turn-update, agent-trace */
+    --intent-system: #ffb74d;
 
     /* secondary text greys (--text-main #e0e0e0 already exists) */
     --text-secondary: #9e9e9e;
@@ -42,6 +44,7 @@
     /* accents */
     --accent-indigo: #818cf8;
     --accent-indigo-strong: #6366f1;
+    --accent-indigo-strong-rgb: 99, 102, 241;
     --accent-blue-light: #64b5f6;
     --accent-blue-info: #90caf9;
     --accent-cyan: #4facfe;

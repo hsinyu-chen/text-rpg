@@ -135,7 +135,7 @@
 
 .save-btn {
     background-color: #424242 !important; // Dark grey
-    color: #ffb74d !important; // Amber-ish text
+    color: var(--intent-system) !important; // Amber-ish text
 
     &:hover {
         background-color: #616161 !important;
@@ -269,7 +269,6 @@
     --intent-action: #81c784; // Green - primary action
     --intent-continue: #64b5f6; // Blue - continue/flow
     --intent-fastforward: #ba68c8; // Purple - fast forward
-    --intent-system: #ffb74d; // Orange/Amber - system
     --intent-save: #f06292; // Pink - save
 }
 
