@@ -128,6 +128,16 @@ describe('DiskProfileSyncService hunk sync', () => {
 
       expect(await repo.getProfileHunks('action', PROFILE_ID)).toEqual([HUNK]);
     });
+
+    it('skips a malformed per-type value instead of wiping the local hunk', async () => {
+      const { service, repo, root } = makeHarness();
+      await repo.saveProfileHunks('system_main', PROFILE_ID, [HUNK]);
+      await writeFileText(await profileDir(root), 'hunks.json', JSON.stringify({ system_main: 'oops' }));
+
+      await service.pullActiveFromDisk();
+
+      expect(await repo.getProfileHunks('system_main', PROFILE_ID)).toEqual([HUNK]);
+    });
   });
 
   describe('built-in profile (hunks-only)', () => {

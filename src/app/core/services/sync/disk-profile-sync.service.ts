@@ -195,7 +195,14 @@ export class DiskProfileSyncService {
         const byType = parsed as Record<string, unknown>;
         const results = await Promise.all(ALL_PROMPT_TYPES.map(async (type) => {
             const raw = byType[type];
-            const arr = Array.isArray(raw) ? raw : [];
+            // A malformed per-type value (present but not an array, e.g. a hand-edit
+            // typo) is skipped, not coerced to []: clearing here would lose the local
+            // hunk. Omission (undefined) still clears, per the snapshot semantics.
+            if (raw !== undefined && !Array.isArray(raw)) {
+                console.warn(`[DiskProfileSync] malformed hunk array for '${type}'; skipping`);
+                return false;
+            }
+            const arr = raw ?? [];
             // Only write when the snapshot adds hunks or clears existing ones —
             // skip the no-op [] write for a type empty on both sides.
             if (arr.length === 0 && (await this.prompts.getProfileHunks(type, profileId)).length === 0) {
