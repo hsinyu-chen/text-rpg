@@ -1,0 +1,25 @@
+<div class="thought-container"
+    [class.analysis-container]="variant() === 'analysis'"
+    [class.update-panel-container]="variant() === 'update'"
+    [class.streaming]="streaming()">
+    <div class="thought-header"
+        [class.analysis-header]="variant() === 'analysis'"
+        [class.update-panel-header]="variant() === 'update'"
+        (click)="toggled.emit()" tabindex="0"
+        (keydown.enter)="toggled.emit()"
+        (keydown.space)="$event.preventDefault(); toggled.emit()">
+        <div class="header-main">
+            <mat-icon>{{ expanded() ? 'expand_more' : 'chevron_right' }}</mat-icon>
+            <mat-icon class="brain-icon">{{ icon() }}</mat-icon>
+            <span>{{ title() | translate }}</span>
+        </div>
+        @if (statusText()) {
+        <div class="header-status">{{ statusText() }}</div>
+        }
+    </div>
+    @if (expanded()) {
+    <div class="thought-content">
+        <ng-content />
+    </div>
+    }
+</div>
