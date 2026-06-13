@@ -3,7 +3,8 @@
 
 // Material 3 dark theme. mat.theme() emits the --mat-sys-* system tokens that
 // every Material component reads from; surfaces/accents follow these. Palettes
-// are generated from a parchment seed (#a89e80) — see _theme-colors.scss.
+// are generated from terracotta / olive / teal seeds (primary #CB7122,
+// secondary #2B4F05, tertiary #0B6E60) — see _theme-colors.scss.
 html {
     @include mat.theme((
         color: (
@@ -34,6 +35,21 @@ html {
     /* Dialog surface follows --bg-dialog (neutral) instead of M3's warm
        --mat-sys-surface, via Material's supported override API. */
     @include mat.dialog-overrides((container-color: var(--bg-dialog)));
+    /* M3's default dark surfaces (neutral tones 6-24) sit lighter than this
+       app's near-black ladder, which read as "too bright" overall. Pull the
+       surface tokens back down so panels, menus, inputs and tabs match the
+       established dark aesthetic. */
+    @include mat.theme-overrides((
+        background: var(--bg-main),
+        surface: var(--bg-main),
+        surface-dim: var(--bg-main),
+        surface-bright: #2a2a2a,
+        surface-container-lowest: #0d0d0d,
+        surface-container-low: #161616,
+        surface-container: var(--bg-surface),
+        surface-container-high: #202020,
+        surface-container-highest: #262626,
+    ));
     --border-color: rgba(255, 255, 255, 0.1);
     --border-color-strong: rgba(255, 255, 255, 0.2);
     --text-main: #e0e0e0;
