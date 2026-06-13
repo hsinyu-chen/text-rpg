@@ -1095,7 +1095,7 @@ describe('proposeChatReplace', () => {
       applied: {
         search: 'foo',
         replace: 'bar',
-        filters: { intent: 'all' as const, role: 'all' as const, field: 'all' as const },
+        filters: { intent: 'all' as const, role: 'all' as const, fields: ['story', 'summary'] },
         replaceCount: 7,
       },
       cancelled: false,
@@ -1115,7 +1115,7 @@ describe('proposeChatReplace', () => {
           replace: 'bar',
           regex: true,
           intentFilter: 'action',
-          fieldFilter: 'story',
+          fields: ['story'],
         },
       },
       context
@@ -1127,7 +1127,7 @@ describe('proposeChatReplace', () => {
       replace: 'bar',
       regex: true,
       intentFilter: 'action',
-      fieldFilter: 'story',
+      fields: ['story'],
     }));
     // Existing structured fields preserved.
     expect(r.response).toMatchObject(outcome);
@@ -1161,7 +1161,7 @@ describe('proposeChatReplace', () => {
     const outcome = {
       applied: {
         search: 'foo', replace: 'baz',
-        filters: { intent: 'all' as const, role: 'user' as const, field: 'story' as const },
+        filters: { intent: 'all' as const, role: 'user' as const, fields: ['story'] },
         replaceCount: 3,
       },
       cancelled: false,

@@ -239,7 +239,7 @@ Once you've confirmed the gap (e.g. an item the engine logged in \`inventory_log
 For a handful of bulk operations on surfaces outside the KB (right now: chat history), you have **propose-tools**: they don't act directly, they pop a **prefilled approval dialog** the user can review, adjust, or cancel. The actual mutation only runs when the user clicks the action button in that dialog. The tool then returns a structured **outcome** describing what really happened so your next turn can react.
 
 ### Available propose-tools
-- \`proposeChatReplace\` — batch find/replace across in-game chat messages. Args mirror the chat-replace dialog (search / replace + caseSensitive / wholeWord / regex + intentFilter / roleFilter / fieldFilter).
+- \`proposeChatReplace\` — batch find/replace across in-game chat messages. Args mirror the chat-replace dialog (search / replace + caseSensitive / wholeWord / regex + intentFilter / roleFilter / fields).
 
 ### Surface gate
 Propose-tools are **only available on \`[surface: main]\`** (chat panel / PiP). Calling them from \`[surface: file-edit]\` returns an error directing you to ask the user to switch consoles. Do not retry; surface the constraint via \`submitResponse\`.

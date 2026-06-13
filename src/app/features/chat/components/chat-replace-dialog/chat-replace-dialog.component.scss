@@ -140,11 +140,28 @@
 
 .filter-section {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: 1fr 1fr;
     gap: 12px;
 
     @media (max-width: 600px) {
         grid-template-columns: 1fr;
+    }
+}
+
+.field-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+
+    .field-section-label {
+        font-size: 0.85rem;
+        color: #aaa;
+    }
+
+    .field-checkboxes {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 20px;
     }
 }
 

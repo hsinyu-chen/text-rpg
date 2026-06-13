@@ -81,17 +81,18 @@
                     }
                 </mat-select>
             </mat-form-field>
+        </div>
 
-            <mat-form-field appearance="outline">
-                <mat-label>{{ lang.t('FILTER_FIELD') }}</mat-label>
-                <mat-select #fieldSel="matSelect" [(ngModel)]="fieldFilter" (selectionChange)="searchResource.reload()"
-                    (hintActivate)="fieldSel.open()"
-                    appAgentHint="chat-input/batch-replace/filter-field">
-                    @for (f of fields(); track f.value) {
-                    <mat-option [value]="f.value">{{ f.label }}</mat-option>
-                    }
-                </mat-select>
-            </mat-form-field>
+        <!-- Field selection (which message fields to search/replace) -->
+        <div class="field-section">
+            <span class="field-section-label">{{ lang.t('FILTER_FIELD') }}</span>
+            <div class="field-checkboxes" appAgentHint="chat-input/batch-replace/filter-field">
+                @for (f of fieldOptions; track f.key) {
+                <mat-checkbox [checked]="isFieldSelected(f.key)" (change)="toggleField(f.key)">
+                    {{ lang.t(f.labelKey) }}
+                </mat-checkbox>
+                }
+            </div>
         </div>
 
         <!-- Results List -->
