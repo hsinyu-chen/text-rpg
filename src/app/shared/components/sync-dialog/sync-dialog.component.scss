@@ -12,7 +12,7 @@
 .description {
     margin: var(--space-4) 0;
     font-size: var(--app-font-size-md);
-    color: #94a3b8;
+    color: var(--text-secondary);
     text-align: center;
     flex-shrink: 0;
 }
@@ -59,29 +59,29 @@ mat-dialog-content {
     font-weight: bold;
 
     &.changed {
-        background: #f59e0b22;
-        color: #fbbf24;
+        background: color-mix(in srgb, var(--status-warning) 13%, transparent);
+        color: color-mix(in srgb, var(--status-warning) 70%, white);
     }
 
     &.new_in_db {
-        background: #10b98122;
-        color: #34d399;
+        background: color-mix(in srgb, var(--status-success) 13%, transparent);
+        color: var(--status-success-light);
     }
 
     &.new_on_disk {
-        background: #8b5cf622;
-        color: #a78bfa;
+        background: color-mix(in srgb, var(--accent-purple) 13%, transparent);
+        color: var(--accent-purple-light);
     }
 
     &.identical {
-        background: #64748b22;
-        color: #94a3b8;
+        background: color-mix(in srgb, var(--text-muted) 13%, transparent);
+        color: var(--text-secondary);
     }
 }
 
 .changed-tab {
     font-weight: bold;
-    color: #fbbf24;
+    color: color-mix(in srgb, var(--status-warning) 70%, white);
 }
 
 .monaco-diff-container {
@@ -95,12 +95,12 @@ mat-dialog-content {
 .no-changes {
     padding: 40px;
     text-align: center;
-    color: #94a3b8;
+    color: var(--text-secondary);
 }
 
 .loading-overlay {
     @include fill-absolute;
-    background: rgba(18, 18, 18, 0.85);
+    background: var(--overlay-backdrop);
     backdrop-filter: blur(4px);
     display: flex;
     flex-direction: column;

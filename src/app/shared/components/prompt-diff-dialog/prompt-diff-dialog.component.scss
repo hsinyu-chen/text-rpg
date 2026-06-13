@@ -18,7 +18,7 @@
 .dialog-header {
     @include flex-row-center(var(--space-3));
     padding: var(--space-3) var(--space-4);
-    background: #252526;
+    background: var(--bg-elevated);
     color: var(--text-on-accent);
     border-bottom: 1px solid var(--border-divider-solid);
     flex-shrink: 0;
@@ -57,7 +57,7 @@
     justify-content: flex-end;
     align-items: center;
     padding: var(--space-3) var(--space-4);
-    background: #252526;
+    background: var(--bg-elevated);
     border-top: 1px solid var(--border-divider-solid);
     gap: var(--space-3);
     flex-shrink: 0;

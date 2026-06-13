@@ -36,20 +36,20 @@
     &.stat-chip-neutral {
         background: var(--surface-border-faintest);
         color: var(--text-secondary);
-        border-color: rgba(255, 255, 255, 0.12);
+        border-color: var(--border-color);
     }
 
     &.stat-chip-dropped {
-        background: rgba(255, 255, 255, 0.04);
+        background: var(--surface-hover);
         color: var(--text-muted);
         border-color: var(--surface-border-faint);
         text-decoration: line-through;
     }
 
     &.stat-chip-event {
-        background: rgba(186, 104, 200, 0.15);
+        background: color-mix(in srgb, var(--accent-purple) 15%, transparent);
         color: var(--accent-purple-light);
-        border-color: rgba(186, 104, 200, 0.35);
+        border-color: color-mix(in srgb, var(--accent-purple) 35%, transparent);
     }
 
     // A stat's own color (--stat-color) is its identity tint, overriding the

@@ -6,7 +6,7 @@
 }
 .backend-tag {
     font-size: 0.7em;
-    background: rgba(66, 133, 244, 0.18);
+    background: color-mix(in srgb, var(--accent-google-blue) 18%, transparent);
     color: var(--accent-google-blue);
     padding: 2px var(--space-2);
     border-radius: 10px;
@@ -25,8 +25,8 @@ mat-dialog-content {
     display: flex;
     gap: var(--space-3);
     padding: var(--space-3);
-    background: rgba(244, 67, 54, 0.08);
-    border: 1px solid rgba(244, 67, 54, 0.35);
+    background: color-mix(in srgb, var(--status-error) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--status-error) 35%, transparent);
     border-radius: var(--radius-sm);
     margin-bottom: var(--space-4);
     font-size: 0.85em;
@@ -107,9 +107,9 @@ mat-dialog-content {
     border-radius: 10px;
     background: var(--surface-border-faint);
 }
-.trigger-badge[data-trigger='manual']     { background: rgba(76, 175, 80, 0.18);  color: var(--status-success); }
-.trigger-badge[data-trigger='forcePush']  { background: rgba(255, 152, 0, 0.18);  color: var(--status-warning); }
-.trigger-badge[data-trigger='forcePull']  { background: rgba(33, 150, 243, 0.18); color: #2196f3; }
+.trigger-badge[data-trigger='manual']     { background: color-mix(in srgb, var(--status-success) 18%, transparent);  color: var(--status-success); }
+.trigger-badge[data-trigger='forcePush']  { background: color-mix(in srgb, var(--status-warning) 18%, transparent);  color: var(--status-warning); }
+.trigger-badge[data-trigger='forcePull']  { background: rgba(var(--accent-blue-rgb), 0.18); color: var(--accent-blue); }
 .trigger-badge[data-trigger='preRestore'] { background: rgba(156, 39, 176, 0.18); color: var(--accent-purple-light); }
 
 .note-input {
@@ -121,8 +121,8 @@ mat-dialog-content {
     padding: var(--space-1) 6px;
     border-radius: 3px;
     &:hover, &:focus {
-        border-color: rgba(255,255,255,0.15);
-        background: rgba(255,255,255,0.04);
+        border-color: var(--border-color-strong);
+        background: var(--surface-hover);
         outline: none;
     }
 }

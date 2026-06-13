@@ -9,8 +9,8 @@
     transition: all 0.3s ease;
 
     &.variant-analysis {
-        background: rgba(33, 150, 243, 0.05);
-        border-color: rgba(33, 150, 243, 0.1);
+        background: rgba(var(--accent-blue-rgb), 0.05);
+        border-color: rgba(var(--accent-blue-rgb), 0.1);
     }
 
     &.variant-update {
@@ -44,7 +44,7 @@
         background: var(--surface-faint);
 
         &:hover {
-            background: rgba(255, 255, 255, 0.07);
+            background: var(--surface-border-faint);
             color: var(--text-main);
         }
     }
@@ -110,11 +110,11 @@
 
     0%,
     100% {
-        border-color: rgba(33, 150, 243, 0.2);
+        border-color: rgba(var(--accent-blue-rgb), 0.2);
     }
 
     50% {
-        border-color: rgba(33, 150, 243, 0.6);
+        border-color: rgba(var(--accent-blue-rgb), 0.6);
     }
 }
 

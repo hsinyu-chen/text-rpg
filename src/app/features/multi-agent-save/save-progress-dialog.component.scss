@@ -223,7 +223,7 @@ mat-dialog-actions {
     margin: 0.5rem 0;
     padding: 0.4rem 0.75rem;
     border-left: 3px solid var(--mat-sys-error);
-    background: rgba(244, 67, 54, 0.06);
+    background: color-mix(in srgb, var(--status-error) 6%, transparent);
     font-size: var(--app-font-size-xs);
 
     .entry-warnings-title {

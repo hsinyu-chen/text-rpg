@@ -53,8 +53,8 @@
     align-items: center;
     gap: 10px;
     padding: 10px 14px;
-    background: rgba(79, 172, 254, 0.08);
-    border: 1px solid rgba(79, 172, 254, 0.3);
+    background: color-mix(in srgb, var(--accent-cyan) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent-cyan) 30%, transparent);
     border-radius: var(--radius-md);
     color: #b0d4f8;
     font-size: var(--app-font-size-md);
@@ -109,7 +109,7 @@
             }
 
             &.active {
-                background: rgba(79, 172, 254, 0.2);
+                background: color-mix(in srgb, var(--accent-cyan) 20%, transparent);
 
                 .option-icon {
                     color: var(--accent-cyan);
@@ -178,7 +178,7 @@
 
     .group-label {
         padding: var(--space-2) var(--space-4);
-        background: rgba(79, 172, 254, 0.05);
+        background: color-mix(in srgb, var(--accent-cyan) 5%, transparent);
         display: flex;
         align-items: center;
         gap: var(--space-3);
@@ -217,11 +217,11 @@
             font-size: var(--app-font-size-2xs);
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            color: #bbb;
+            color: var(--text-secondary);
         }
 
         .log-index {
-            color: #666;
+            color: var(--text-muted);
             font-family: var(--app-font-mono);
             font-size: var(--app-font-size-xs);
         }
@@ -239,15 +239,15 @@
 
         ::ng-deep {
             .diff-removed {
-                background: rgba(255, 82, 82, 0.2);
-                color: #ff5252;
+                background: color-mix(in srgb, var(--status-error) 20%, transparent);
+                color: var(--status-error);
                 text-decoration: line-through;
                 padding: 0 2px;
                 border-radius: 2px;
             }
 
             .diff-added {
-                background: rgba(76, 175, 80, 0.2);
+                background: color-mix(in srgb, var(--status-success) 20%, transparent);
                 color: var(--status-success-light);
                 padding: 0 2px;
                 border-radius: 2px;
@@ -269,7 +269,7 @@
     justify-content: center;
     align-items: center;
     padding: 40px;
-    color: #666;
+    color: var(--text-muted);
 
     mat-icon {
         @include mat-icon-sized(48px);

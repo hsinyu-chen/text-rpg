@@ -24,7 +24,7 @@
         border-radius: 10px;
         font-size: 0.72rem;
         font-weight: 600;
-        background: rgba(99, 102, 241, 0.12);
+        background: rgba(var(--accent-indigo-strong-rgb), 0.12);
         color: var(--accent-indigo);
     }
 }
@@ -61,14 +61,14 @@
     overflow: auto;
 
     &.thought {
-        background: rgba(99, 102, 241, 0.06);
-        border-left: 3px solid rgba(99, 102, 241, 0.5);
+        background: rgba(var(--accent-indigo-strong-rgb), 0.06);
+        border-left: 3px solid rgba(var(--accent-indigo-strong-rgb), 0.5);
         color: var(--accent-indigo);
     }
 
     &.output {
-        background: rgba(217, 119, 6, 0.06);
-        border-left: 3px solid rgba(217, 119, 6, 0.5);
+        background: color-mix(in srgb, var(--status-warning) 6%, transparent);
+        border-left: 3px solid color-mix(in srgb, var(--status-warning) 50%, transparent);
     }
 }
 

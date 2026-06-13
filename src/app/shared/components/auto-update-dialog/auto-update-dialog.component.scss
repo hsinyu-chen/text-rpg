@@ -14,7 +14,7 @@
 .description {
     margin: var(--space-4) 0;
     font-size: var(--app-font-size-md);
-    color: #94a3b8;
+    color: var(--text-secondary);
     text-align: center;
     flex-shrink: 0;
 }
@@ -42,7 +42,7 @@ mat-tab-nav-panel {
 }
 
 .error-tab {
-    color: #fbbf24 !important;
+    color: color-mix(in srgb, var(--status-warning) 70%, white) !important;
 }
 
 /* Master-Detail Split Layout */
@@ -99,7 +99,7 @@ mat-tab-nav-panel {
 
 .editor-hint {
     font-size: var(--app-font-size-xs);
-    color: #64748b;
+    color: var(--text-muted);
 }
 
 .monaco-wrapper {
@@ -111,7 +111,7 @@ mat-tab-nav-panel {
 .no-updates {
     padding: 40px;
     text-align: center;
-    color: #94a3b8;
+    color: var(--text-secondary);
 }
 
 .loading-container {
@@ -121,7 +121,7 @@ mat-tab-nav-panel {
     align-items: center;
     justify-content: center;
     gap: var(--space-4);
-    color: #94a3b8;
+    color: var(--text-secondary);
     background: var(--bg-surface);
     border-radius: var(--radius-lg);
     margin-bottom: var(--space-4);
@@ -141,7 +141,7 @@ mat-tab-nav-panel {
     h3 {
         margin: 0;
         font-size: var(--app-font-size-md);
-        color: #94a3b8;
+        color: var(--text-secondary);
     }
 }
 

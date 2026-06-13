@@ -325,7 +325,7 @@ $fg-emph:     rgba(var(--agent-trace-surface-fg-rgb), 0.9);  // headings
         &.log-type-info { color: $fg-strong; }
         &.log-type-error { color: var(--status-error); }
         &.log-type-action { color: var(--status-success); }
-        &.log-type-model { color: var(--accent-blue-info); }
+        &.log-type-model { color: var(--accent-blue-light); }
 
         &.running-indicator {
             align-items: center;

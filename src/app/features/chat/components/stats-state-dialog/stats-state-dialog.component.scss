@@ -13,7 +13,7 @@
         font-weight: 500;
         color: var(--text-secondary);
         padding: var(--space-1) var(--space-3) var(--space-1) 0;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+        border-bottom: 1px solid var(--border-color);
     }
 
     td {
@@ -28,7 +28,7 @@
     }
 
     .muted {
-        color: #616161;
+        color: var(--text-muted);
     }
 }
 
@@ -38,7 +38,7 @@
     border-radius: 10px;
     font-weight: 500;
     background: var(--surface-border-faintest);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    border: 1px solid var(--border-color);
 
     // Same tint formula as the chat chip's .has-color — keep the percentages in
     // sync so a stat reads as one identity colour across both surfaces.

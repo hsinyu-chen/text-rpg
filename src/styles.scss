@@ -14,6 +14,7 @@
     --bg-surface-dark: #121212;
     --bg-dialog: #1e1e1e;
     --bg-sidebar: #1e1e1e;
+    --bg-elevated: #2d2d2d;
     --border-color: rgba(255, 255, 255, 0.1);
     --border-color-strong: rgba(255, 255, 255, 0.2);
     --text-main: #e0e0e0;
@@ -28,7 +29,7 @@
 
     /* status */
     --status-success: #4caf50;
-    --status-success-light: #81c784;
+    --status-success-light: color-mix(in srgb, var(--status-success) 70%, white);
     --status-warning: #ff9800;
     --status-error: #f44336;
     --status-amber: #ffca28;
@@ -45,12 +46,13 @@
     --accent-indigo: #818cf8;
     --accent-indigo-strong: #6366f1;
     --accent-indigo-strong-rgb: 99, 102, 241;
+    --accent-blue: #2196f3;
+    --accent-blue-rgb: 33, 150, 243;
     --accent-blue-light: #64b5f6;
-    --accent-blue-info: #90caf9;
     --accent-cyan: #4facfe;
     --accent-google-blue: #4285f4;
     --accent-purple: #ba68c8;
-    --accent-purple-light: #ce93d8;
+    --accent-purple-light: color-mix(in srgb, var(--accent-purple) 71%, white);
 
     /* translucent surfaces (.1 = --border-color, .2 = --border-color-strong already exist) */
     --surface-faintest: rgba(255, 255, 255, 0.02);
@@ -64,8 +66,11 @@
     --overlay-inset: rgba(0, 0, 0, 0.3);
     --overlay-backdrop: rgba(0, 0, 0, 0.85);
 
-    /* opaque divider */
+    /* opaque dividers + scrollbar greys */
     --border-divider-solid: #333;
+    --border-divider-strong: #555;
+    --bg-scrollbar: #424242;
+    --bg-scrollbar-hover: #616161;
 
     /* monospace stack */
     --app-font-mono: 'Roboto Mono', 'Fira Code', Consolas, monospace;
@@ -124,9 +129,9 @@ body {
 
 // Override Markdown Blockquote (Disclaimer) styles to be neutral
 blockquote {
-    border-left: 4px solid #555 !important;
+    border-left: 4px solid var(--border-divider-strong) !important;
     background-color: transparent !important;
-    color: #aaa !important;
+    color: var(--text-secondary) !important;
     margin: 1em 0;
     padding-left: 1em;
 }
@@ -158,7 +163,7 @@ body {
 
 .prose-content hr {
     border: 0;
-    border-top: 1px solid #444;
+    border-top: 1px solid var(--border-divider-solid);
     margin: 2em 0;
 }
 
@@ -180,7 +185,7 @@ body {
 
 /* Material Override for dark input fields */
 .mat-mdc-form-field-textarea-control {
-    color: #e0e0e0 !important;
+    color: var(--text-main) !important;
 }
 
 /* Force dark border colors for inputs */
@@ -197,16 +202,16 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-    background: #121212 !important;
+    background: var(--bg-main) !important;
 }
 
 ::-webkit-scrollbar-thumb {
-    background-color: #424242 !important;
+    background-color: var(--bg-scrollbar) !important;
     border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background-color: #555 !important;
+    background-color: var(--border-divider-strong) !important;
 }
 
 /* Global Markdown Styling */
@@ -231,7 +236,7 @@ markdown {
 
 /* File Viewer Dialog - match sidebar background */
 .file-viewer-panel .mdc-dialog__surface {
-    background-color: #1e1e1e;
+    background-color: var(--bg-surface);
 }
 
 /* Dialog "right inset" used by the popover/backdrop overrides below. When
@@ -425,7 +430,7 @@ body.agent-panel-pip {
     display: flex;
     justify-content: flex-end;
     padding: 4px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid var(--surface-border-faint);
 }
 .agent-panel-shell app-agent-console {
     flex: 1;
@@ -482,7 +487,7 @@ body.agent-panel-pip {
     height: 24px;
     line-height: 24px;
     padding: 0;
-    color: #6366f1;
+    color: var(--accent-indigo-strong);
     opacity: 0.7;
     display: inline-flex;
     align-items: center;
@@ -498,12 +503,12 @@ body.agent-panel-pip {
 
     &:hover {
         opacity: 1;
-        background: rgba(99, 102, 241, 0.1);
+        background: rgba(var(--accent-indigo-strong-rgb), 0.1);
     }
 }
 
 .gradient-btn-blue.mat-mdc-button-base {
-    @include gradient-outline-btn(linear-gradient(45deg, #4facfe 0%, #00f2fe 100%));
+    @include gradient-outline-btn(linear-gradient(45deg, var(--accent-cyan) 0%, #00f2fe 100%));
 }
 
 .gradient-btn-green.mat-mdc-button-base {

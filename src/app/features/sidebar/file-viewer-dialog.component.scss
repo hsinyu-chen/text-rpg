@@ -81,7 +81,7 @@
     max-width: 400px;
     display: flex;
     flex-direction: column;
-    background: rgba(30, 30, 30, 0.95);
+    background: var(--overlay-backdrop);
     border-right: 1px solid var(--border-color);
     transition: width 0.2s ease, min-width 0.2s ease, opacity 0.2s ease;
     overflow: hidden;
@@ -191,7 +191,7 @@
         display: flex;
         align-items: center;
         background: var(--surface-border-faint);
-        border: 1px solid rgba(255, 255, 255, 0.15);
+        border: 1px solid var(--border-color-strong);
         border-radius: var(--radius-sm);
         transition: border-color 0.2s;
         overflow: hidden;
@@ -279,7 +279,7 @@
     .search-input {
         flex: 1;
         background: var(--surface-border-faint);
-        border: 1px solid rgba(255, 255, 255, 0.15);
+        border: 1px solid var(--border-color-strong);
         border-radius: var(--radius-sm);
         padding: var(--space-2) var(--space-3);
         color: var(--text-on-accent);
@@ -483,7 +483,7 @@
                 }
 
                 ::ng-deep .diff-removed {
-                    background-color: rgba(244, 67, 54, 0.4); // Red background
+                    background-color: color-mix(in srgb, var(--status-error) 40%, transparent); // Red background
                     text-decoration: line-through;
                     color: rgba(255, 255, 255, 0.9);
                     padding: 0 1px;
@@ -492,14 +492,14 @@
                 }
 
                 ::ng-deep .diff-added {
-                    background-color: rgba(76, 175, 80, 0.4); // Green background
+                    background-color: color-mix(in srgb, var(--status-success) 40%, transparent); // Green background
                     color: rgba(255, 255, 255, 0.9);
                     padding: 0 1px;
                     border-radius: 1px;
                 }
 
                 ::ng-deep .replace-preview-text {
-                    background-color: rgba(129, 199, 132, 0.3);
+                    background-color: color-mix(in srgb, var(--status-success-light) 30%, transparent);
                     border-radius: 2px;
                     padding: 0 2px;
                     color: var(--text-on-accent);
@@ -607,7 +607,7 @@
             background: var(--status-unsaved); // Material Amber 500
             border-radius: 50%;
             display: inline-block;
-            box-shadow: 0 0 6px rgba(255, 193, 7, 0.8), 0 0 12px rgba(255, 193, 7, 0.4);
+            box-shadow: 0 0 6px color-mix(in srgb, var(--status-unsaved) 80%, transparent), 0 0 12px color-mix(in srgb, var(--status-unsaved) 40%, transparent);
             border: 1px solid var(--border-color-strong);
         }
 
@@ -653,7 +653,7 @@
     min-width: 320px;
     display: flex;
     flex-direction: column;
-    background: rgba(30, 30, 30, 0.95);
+    background: var(--overlay-backdrop);
     border-left: 1px solid var(--border-color);
     overflow: hidden;
 

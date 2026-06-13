@@ -116,11 +116,11 @@
 
 .blocker-overlay.error {
     background: rgba(0, 0, 0, 0.95);
-    color: #ff5252;
+    color: var(--status-error);
     z-index: 2000;
 
     .blocker-icon {
-        color: #ff5252;
+        color: var(--status-error);
         @include mat-icon-sized(64px);
     }
 

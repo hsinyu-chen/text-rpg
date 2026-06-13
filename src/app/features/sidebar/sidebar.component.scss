@@ -41,7 +41,7 @@
 
 .pinned-usage {
     padding: var(--space-2);
-    background: #252525;
+    background: var(--bg-sidebar);
     flex-shrink: 0;
 }
 
@@ -80,7 +80,7 @@
         padding-right: var(--space-3);
     }
 
-    @include custom-scrollbar(6px, transparent, #444, #555);
+    @include custom-scrollbar(6px, transparent, var(--border-divider-solid), var(--border-divider-strong));
 }
 
 .section-header-container {
@@ -167,6 +167,6 @@
     background: var(--status-unsaved);
     border-radius: 50%;
     display: inline-block;
-    box-shadow: 0 0 6px rgba(255, 193, 7, 0.8), 0 0 12px rgba(255, 193, 7, 0.4);
+    box-shadow: 0 0 6px color-mix(in srgb, var(--status-unsaved) 80%, transparent), 0 0 12px color-mix(in srgb, var(--status-unsaved) 40%, transparent);
     border: 1px solid var(--border-color-strong);
 }

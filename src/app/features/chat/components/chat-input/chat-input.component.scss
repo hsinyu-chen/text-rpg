@@ -21,10 +21,10 @@
         gap: var(--space-1);
         height: 22px;
         padding: 0 10px;
-        border: 1px solid #444;
+        border: 1px solid var(--border-divider-solid);
         border-radius: 11px;
-        background: rgba(255, 255, 255, 0.04);
-        color: #d0d0d0;
+        background: var(--surface-hover);
+        color: var(--text-main);
         font-size: 0.72rem;
         line-height: 1;
 
@@ -46,7 +46,7 @@
 
         &:hover {
             background: var(--surface-border-faint);
-            border-color: #666;
+            border-color: var(--text-muted);
         }
 
         &:disabled {
@@ -60,7 +60,7 @@
         // user can see the active engine mode at a glance without reading text.
         &.two-call {
             border-color: var(--intent-fastforward, #ba68c8);
-            color: #e1bee7;
+            color: color-mix(in srgb, var(--accent-purple) 35%, white);
         }
     }
 
@@ -68,15 +68,15 @@
         max-width: 220px;
 
         &.expanded {
-            background: rgba(186, 104, 200, 0.18);
-            border-color: rgba(186, 104, 200, 0.55);
-            color: #f3e5f5;
+            background: color-mix(in srgb, var(--accent-purple) 18%, transparent);
+            border-color: color-mix(in srgb, var(--accent-purple) 55%, transparent);
+            color: color-mix(in srgb, var(--accent-purple) 12%, white);
         }
 
         // Subtle outline when the field has content but is currently collapsed —
         // mirrors the badge pattern used elsewhere for unsaved/queued state.
         &.has-text:not(.expanded) {
-            box-shadow: 0 0 0 1px rgba(186, 104, 200, 0.45) inset;
+            box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-purple) 45%, transparent) inset;
         }
     }
 
@@ -134,30 +134,30 @@
 }
 
 .save-btn {
-    background-color: #424242 !important; // Dark grey
+    background-color: var(--bg-scrollbar) !important; // Dark grey
     color: var(--intent-system) !important; // Amber-ish text
 
     &:hover {
-        background-color: #616161 !important;
+        background-color: var(--bg-scrollbar-hover) !important;
     }
 }
 
 .config-btn {
-    background-color: #424242 !important;
+    background-color: var(--bg-scrollbar) !important;
     color: var(--text-secondary) !important;
 
     &:hover {
-        background-color: #616161 !important;
+        background-color: var(--bg-scrollbar-hover) !important;
         color: var(--text-on-accent) !important;
     }
 }
 
 .preview-btn {
-    background-color: #424242 !important;
-    color: var(--accent-blue-info) !important;
+    background-color: var(--bg-scrollbar) !important;
+    color: var(--accent-blue-light) !important;
 
     &:hover {
-        background-color: #616161 !important;
+        background-color: var(--bg-scrollbar-hover) !important;
     }
 }
 
@@ -204,7 +204,7 @@
 
 .mobile-menu-btn {
     display: none; // Hidden by default on desktop
-    background-color: #424242 !important;
+    background-color: var(--bg-scrollbar) !important;
     color: var(--text-main) !important;
 }
 
@@ -266,9 +266,9 @@
     display: block;
     container-type: inline-size;
 
-    --intent-action: #81c784; // Green - primary action
-    --intent-continue: #64b5f6; // Blue - continue/flow
-    --intent-fastforward: #ba68c8; // Purple - fast forward
+    --intent-action: var(--status-success-light); // Green - primary action
+    --intent-continue: var(--accent-blue-light); // Blue - continue/flow
+    --intent-fastforward: var(--accent-purple); // Purple - fast forward
     --intent-save: #f06292; // Pink - save
 }
 
@@ -346,8 +346,8 @@
     margin-bottom: var(--space-2);
     padding: var(--space-2) var(--space-3);
     border-radius: var(--radius-lg);
-    background: rgba(255, 193, 7, 0.12);
-    border: 1px solid rgba(255, 193, 7, 0.4);
+    background: color-mix(in srgb, var(--status-unsaved) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--status-unsaved) 40%, transparent);
     color: var(--status-amber);
     font-size: 13px;
 

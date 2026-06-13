@@ -12,7 +12,7 @@
     display: flex;
     align-items: center;
     padding: var(--space-2) var(--space-4);
-    background: #2d2d2d;
+    background: var(--bg-elevated);
     border-bottom: 1px solid var(--border-divider-solid);
     gap: var(--space-4);
     flex-shrink: 0;
@@ -66,7 +66,7 @@
         }
 
         .mat-mdc-tab-header {
-            background: #2d2d2d;
+            background: var(--bg-elevated);
             border-bottom: 1px solid var(--border-divider-solid);
             flex-shrink: 0;
         }
@@ -96,7 +96,7 @@
     box-sizing: border-box;
     min-height: 0;
 
-    @include custom-scrollbar(8px, var(--bg-main), #424242, #555);
+    @include custom-scrollbar(8px, var(--bg-main), var(--bg-scrollbar), var(--border-divider-strong));
 }
 
 :host ::ng-deep pre {

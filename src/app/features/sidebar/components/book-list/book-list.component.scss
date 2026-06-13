@@ -15,7 +15,7 @@
 }
 .cost-summary {
     padding: var(--space-3) var(--space-4);
-    background: linear-gradient(135deg, rgba(76, 175, 80, 0.1) 0%, rgba(33, 150, 243, 0.1) 100%);
+    background: linear-gradient(135deg, color-mix(in srgb, var(--status-success) 10%, transparent) 0%, rgba(var(--accent-blue-rgb), 0.1) 100%);
     border-bottom: 1px solid var(--border-color);
 }
 .cost-header {
@@ -153,8 +153,8 @@
 .sync-btn {
     flex: 1 1 auto;
     color: var(--accent-google-blue);
-    border-color: rgba(66, 133, 244, 0.5);
-    &:hover { background: rgba(66, 133, 244, 0.05); }
+    border-color: color-mix(in srgb, var(--accent-google-blue) 50%, transparent);
+    &:hover { background: color-mix(in srgb, var(--accent-google-blue) 5%, transparent); }
 }
 .sync-more-btn {
     flex: 0 0 auto;
