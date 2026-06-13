@@ -176,7 +176,8 @@ export class DiskProfileSyncService {
      * file is authoritative: every type is reconciled to it, clearing types the
      * file omits. An absent file leaves IDB hunks untouched — matching the
      * per-type base-file rule that a partial export doesn't zero the rest.
-     * Returns the count of types restored to a non-empty hunk set.
+     * Returns the count of types whose hunks actually changed (added, replaced,
+     * or cleared) — a no-op type empty on both sides is not counted.
      */
     private async pullHunks(dir: FileSystemDirectoryHandle, profileId: string): Promise<number> {
         const text = await readFileText(dir, HUNKS_FILENAME);
@@ -209,7 +210,7 @@ export class DiskProfileSyncService {
                 return false;
             }
             await this.prompts.saveProfileHunks(type, profileId, arr);
-            return arr.length > 0;
+            return true;
         }));
         return results.filter(Boolean).length;
     }

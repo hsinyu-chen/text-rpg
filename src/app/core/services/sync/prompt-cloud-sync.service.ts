@@ -345,11 +345,22 @@ export class PromptCloudSyncService {
     ): Promise<void> {
         if (hunks === undefined) return;
 
+        const incoming: { type: PromptType; profileId: string; value: unknown[] }[] = [];
+        for (const [key, value] of Object.entries(hunks)) {
+            if (!Array.isArray(value)) continue;
+            const resolved = this.resolvePayloadKey(key, idRemap);
+            if (resolved) incoming.push({ type: resolved.type, profileId: resolved.profileId, value });
+        }
+
         if (clearOmitted) {
+            // Types the payload re-writes below are skipped here — clearing then
+            // immediately overwriting them would be a redundant IDB write.
+            const incomingKeys = new Set(incoming.map((h) => `${h.profileId}:${h.type}`));
             const syncedIds = new Set<string>(BUILT_IN_PROFILES.map((p) => p.id));
             for (const p of profiles ?? []) syncedIds.add(idRemap.get(p.id) ?? p.id);
             await Promise.all([...syncedIds].map((profileId) =>
                 Promise.all(PROMPT_TYPES.map(async (type) => {
+                    if (incomingKeys.has(`${profileId}:${type}`)) return;
                     // Skip the no-op [] write when the type is already empty.
                     if ((await this.prompts.getProfileHunks(type, profileId)).length > 0) {
                         await this.prompts.saveProfileHunks(type, profileId, []);
@@ -358,12 +369,9 @@ export class PromptCloudSyncService {
             ));
         }
 
-        await Promise.all(Object.entries(hunks).map(async ([key, value]) => {
-            if (!Array.isArray(value)) return;
-            const resolved = this.resolvePayloadKey(key, idRemap);
-            if (!resolved) return;
-            await this.prompts.saveProfileHunks(resolved.type, resolved.profileId, value);
-        }));
+        await Promise.all(incoming.map(({ type, profileId, value }) =>
+            this.prompts.saveProfileHunks(type, profileId, value),
+        ));
     }
 
     private async applyPromptsV1Legacy(parsed: Record<string, { content: string; tokens?: number }>): Promise<{ imported: number }> {

@@ -172,5 +172,16 @@ describe('DiskProfileSyncService hunk sync', () => {
       expect(await repo.getProfileHunks('system_main', BUILTIN.id)).toEqual([HUNK]);
       expect(await repo.getProfilePrompt('action', BUILTIN.id)).toBeUndefined();
     });
+
+    it('counts a cleared type as an update (empty snapshot)', async () => {
+      const { service, repo, root } = makeHarness(BUILTIN);
+      await repo.saveProfileHunks('system_main', BUILTIN.id, [HUNK]);
+      await writeFileText(await profileDir(root, BUILTIN.id), 'hunks.json', JSON.stringify({}));
+
+      const result = await service.pullActiveFromDisk();
+
+      expect(result.updatedTypes).toBe(1);
+      expect(await repo.getProfileHunks('system_main', BUILTIN.id)).toEqual([]);
+    });
   });
 });
