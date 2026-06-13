@@ -248,8 +248,8 @@ function formatStep(step: AnalysisStep | null | undefined, ordinal: number, trun
     const parts: string[] = [];
     parts.push(`${header} ${icon} ${action}${mood}${hookTag}`);
 
-    if (step.pc_line) {
-        const line = stripDialogueQuotes(step.pc_line);
+    const line = stripDialogueQuotes(step.pc_line);
+    if (line) {
         parts.push(step.is_inner
             ? `   - ${labels.PC_THOUGHT}: ${line}`
             : `   - ${labels.PC_DIALOGUE}: 「${line}」`);

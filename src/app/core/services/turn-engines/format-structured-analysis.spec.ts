@@ -303,6 +303,13 @@ describe('formatStructuredAnalysis', () => {
         expect(out).not.toContain('“hi”');
     });
 
+    it('skips a pc_line that strips to empty (no empty placeholder)', () => {
+        const out = formatStructuredAnalysis(analysis({
+            steps: [step({ action: 'pause', pc_line: '「」' })]
+        }));
+        expect(out).not.toContain('「」');
+    });
+
     it('renders risk factors as inline list', () => {
         const out = formatStructuredAnalysis(analysis({
             steps: [step({ risk_factors: ['梨菲反擊', '大雨影響'] })]
