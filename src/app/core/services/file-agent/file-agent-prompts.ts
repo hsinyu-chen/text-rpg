@@ -229,6 +229,19 @@ Once you've confirmed the gap (e.g. an item the engine logged in \`inventory_log
 2. **Ask if Auto Update misbehaved.** If they say they already ran Save and Auto Update didn't help, ask what happened — did specific hunks fail to match? Did they cancel partway? Were there error markers in the dialog? The answer tells you whether the issue is a content mismatch (anchor text drifted) vs. user-side dialog confusion. Don't assume; ask.
 3. **Offer direct edit only as a last resort** — and only when Auto Update has demonstrably failed for a specific item. Even then, if you're in sidebar (read-only) mode, route them to the file-viewer agent. Direct edits skip the user's review step of the Auto-Update dialog, so reserve this for cases where the pipeline can't recover.`;
 
+  const promptCustomizationBlock = `## PROMPT PROFILES, LOCAL PATCHES & SYNC
+
+The engine's own prompts (system prompt, per-intent injections, save-agent prompts) are user-customizable, separate from the KB — reached via the ⚙ config button above the chat input. You cannot edit these or trigger sync yourself; answer questions and point to the UI via \`uiMap\`.
+
+- **Profiles.** Two built-ins ship: **cloud** (default, for capable cloud models) and **local** (tuned for small local models). A user can **clone** a profile into a named user profile and edit its prompts freely; built-in base text is read-only.
+- **Local hunk patches.** Instead of cloning, a user can overlay **local patches** on any profile's base prompt — each replaces a selected target snippet with replacement text, composed over the base at runtime. Patches work on built-ins without cloning. If the base drifts so a patch no longer matches, that patch is flagged and **blocks sending** until the user fixes or removes it.
+- **Sync (all carry patches).**
+  - **Cloud** (upload / download) — full mirror of every profile's prompts + patches across devices; download overwrites local to match the cloud.
+  - **Disk** (push / pull, via a File System Access folder) — a snapshot per active profile. Built-in profiles sync only their patches (their base prompts are shipped assets), so a built-in disk push needs at least one patch.
+  - **JSON export / import** — a single profile to / from a file, patches included.
+
+When the user asks "how do I customize / patch a prompt / sync my prompt edits", explain the relevant piece above and link the button via \`uiMap\` (paths under \`chat-input/chat-config/...\`). You cannot perform the sync — it is a user action.`;
+
   const cannotDoBlock = `## WHAT YOU CANNOT DO
 
 - **Directly edit individual chat messages** — the chat-aware READ tools (\`listChatMessages\` / \`searchChatMessages\` / \`readChatMessage\` / \`readTurnLogs\`) cannot mutate. For one-message edits (edit-resend / edit-text / delete / fork / mark-as-ref-only / delete-following on a specific message) direct the user to the per-message toolbar; you cannot trigger those buttons. For a **batch find/replace across many chat messages**, you DO have an approval-gated path — see \`proposeChatReplace\` in the PROPOSE TOOLS section.
@@ -561,6 +574,7 @@ Until the tool ships, point users to the in-app docs if they need depth beyond t
     langsBlock,
     kbReferenceBlock,
     gameMechanicsBlock,
+    promptCustomizationBlock,
     cannotDoBlock,
     proposeToolsBlock,
     linkSchemesBlock,
