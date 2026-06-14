@@ -277,6 +277,18 @@ describe('buildSystemInstruction', () => {
       expect(out).toContain('ui-features');
     });
 
+    it('explains prompt profiles, local patches & sync so the agent can answer', () => {
+      const out = build();
+      expect(out).toContain('PROMPT PROFILES, LOCAL PATCHES & SYNC');
+      expect(out).toMatch(/Local .*patches/);
+      // The send-gate behavior on a drifted patch — a thing users ask about.
+      expect(out).toMatch(/blocks sending/);
+      // Cloud download is a full mirror, not additive.
+      expect(out).toMatch(/full mirror/);
+      // Built-in disk sync is hunks-only and needs at least one patch.
+      expect(out).toMatch(/needs at least one patch/);
+    });
+
     it('declares the cannot-do list and surfaces the approve-gated escape hatch for batch chat edits', () => {
       const out = build();
       expect(out).toContain('WHAT YOU CANNOT DO');

@@ -353,6 +353,17 @@ Agent 引導你到特定 UI 時,可以輸出**可點擊的 UI 麵包屑**(例如
 *   即時顯示目前用量佔 Context Window 的比例。
 *   以 Enter 或送出按鈕送出;運行中按停止按鈕中斷;清空按鈕重置對話。
 
+### 6. 提示詞 Profile、本地 Patch 與同步
+
+引擎自己的提示詞(system prompt、各 intent 注入、存檔 agent 提示)可由使用者自訂,與 KB 分開 —— 在輸入列上方的 **⚙ Config 按鈕**(Dynamic Prompt Settings 對話框)管理。
+
+*   **Profile**:內建 **雲端(cloud,預設)** 與 **本地(local,小模型特化)** 兩種;可 **clone** 成具名的使用者 profile 後自由改寫其提示詞,內建 profile 的 base 文字為唯讀。
+*   **本地 Patch(hunk overlay)**:不想 clone 時,可在任一 profile 的 base 提示詞上疊 **本地 patch** —— 圈選要替換的目標片段並填入替換內容,執行時 compose 在 base 之上。Patch 在內建 profile 上也能用(免 clone)。若 base 文字漂移到 patch 配對不上,該 patch 會被標記並**擋住送出**,直到修正或移除。
+*   **同步(三條都會帶 patch)**:
+    *   **雲端**(上傳 / 下載):跨裝置完全鏡像每個 profile 的提示詞 + patch;下載會把本機覆寫成雲端的樣子。
+    *   **磁碟**(推送 / 拉取,透過 File System Access 資料夾):以目前作用中的 profile 為單位的快照。內建 profile 只同步 patch(base 提示詞是出廠資產),所以內建 profile 推送時至少要有一個 patch。
+    *   **JSON 匯出 / 匯入**:單一 profile 進出檔案,含 patch。
+
 ---
 
 ## 開發
