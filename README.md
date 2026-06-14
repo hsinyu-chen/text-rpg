@@ -358,12 +358,12 @@ Think of it as an **in-app wiki + editor**: ask anything about your world, mecha
 
 The engine's own prompts (system prompt, per-intent injections, save-agent prompts) are user-customizable, separate from the KB — managed via the **⚙ Config button** above the chat input (the Dynamic Prompt Settings dialog).
 
-*   **Profiles**: two built-ins ship — **cloud** (default) and **local** (tuned for small models). You can **clone** a profile into a named user profile and freely rewrite its prompts; a built-in profile's base text is read-only.
-*   **Local patches (hunk overlays)**: instead of cloning, overlay **local patches** on any profile's base prompt — select the target snippet to replace and supply the replacement; they compose over the base at runtime. Patches work on built-in profiles too (no clone needed). If the base text drifts so a patch no longer matches, that patch is flagged and **blocks sending** until you fix or remove it.
+*   **Profiles**: Two built-ins ship — **cloud** (default) and **local** (tuned for small models). You can **clone** a profile into a named user profile and freely rewrite its prompts; a built-in profile's base text is read-only.
+*   **Local patches (hunk overlays)**: Instead of cloning, overlay **local patches** on any profile's base prompt — select the target snippet to replace and supply the replacement; they compose over the base at runtime. Patches work on built-in profiles too (no clone needed). If the base text drifts so a patch no longer matches, that patch is flagged and **blocks sending** until you fix or remove it.
 *   **Sync (all three carry patches)**:
-    *   **Cloud** (upload / download): full mirror of every profile's prompts + patches across devices; download overwrites local to match the cloud.
-    *   **Disk** (push / pull, via a File System Access folder): a snapshot of the active profile. Built-in profiles sync only their patches (their base prompts are shipped assets), so a built-in disk push needs at least one patch.
-    *   **JSON export / import**: a single profile to / from a file, patches included.
+    *   **Cloud** (upload / download): Full mirror of every profile's prompts + patches across devices; download overwrites local to match the cloud.
+    *   **Disk** (push / pull, via a File System Access folder): A snapshot of the active profile. Built-in profiles sync only their patches (their base prompts are shipped assets), so a built-in disk push needs at least one patch.
+    *   **JSON export / import**: A single profile to / from a file, patches included.
 
 ---
 
