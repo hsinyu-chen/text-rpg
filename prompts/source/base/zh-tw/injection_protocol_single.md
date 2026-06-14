@@ -80,11 +80,11 @@
 
   ## 每回合 `event` step 必檢核（順序執行，缺一不可）
 
-  每回合依 ① → ② → ③ 的順序跑以下三項檢核，各項皆可能產生**一筆或多筆** `kind: "event"` step。多項觸發時，event step 仍依時序插入它打斷或影響的 `user_intent` step 之間。
+  每回合依 ① → ② → ③ 的順序跑以下三項檢核，**三項彼此獨立——跑完一項仍須續跑下一項**。**凡符合該項條件的觸發，每一個都各自成為一筆 `kind: "event"` step**：同回合有幾個道具／被動／鉤子分別符合，就輸出幾筆（一觸發一筆），依時序插入它們各自打斷或影響的 `user_intent` step 之間。
 
   ### ① `source: "skill_item"` — 被動能力 / 道具 / 裝備觸發
 
-  依本回合 `user_intent` step(s) 與 `scene_snapshot`，判定**主角或任一在場 NPC** 的被動能力 / 道具 / 裝備（依 `{{FILE_BASIC_SETTINGS}}` / `{{FILE_CHARACTER_STATUS}}` / `{{FILE_MAGIC_SKILLS}}` / `{{FILE_INVENTORY}}` / `{{FILE_TECH_EQUIPMENT}}`）是否因當下情境觸發或啟動。觸發 → 產生一筆 `kind: "event"` / `source: "skill_item"` / `hook_title: ""` 的 step；`action` 寫明是誰的哪個能力／道具／裝備、產生什麼效果。`breaks_ideal` 比照 `source: "random"`（中性／支援性 `false`，明確中斷主角 step 序列才 `true`）。
+  依本回合 `user_intent` step(s) 與 `scene_snapshot`，判定**主角或任一在場 NPC** 的被動能力 / 道具 / 裝備（依 `{{FILE_BASIC_SETTINGS}}` / `{{FILE_CHARACTER_STATUS}}` / `{{FILE_MAGIC_SKILLS}}` / `{{FILE_INVENTORY}}` / `{{FILE_TECH_EQUIPMENT}}`）是否因當下情境觸發或啟動。**每一個**觸發或啟動的能力／道具／裝備各產生一筆 `kind: "event"` / `source: "skill_item"` / `hook_title: ""` 的 step（同回合多個同時觸發即輸出多筆）；`action` 寫明是誰的哪個能力／道具／裝備、產生什麼效果。`breaks_ideal` 比照 `source: "random"`（中性／支援性 `false`，明確中斷主角 step 序列才 `true`）。
 
   ### ② `source: "random"` — 隨機 / 環境事件
 

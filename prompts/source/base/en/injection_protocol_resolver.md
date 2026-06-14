@@ -115,11 +115,11 @@ The program owns the running totals, clamping, and authorization — you only re
 
 ## Per-turn `event` step checks (run in order, all mandatory)
 
-Each turn, run the three checks below in the order ① → ② → ③; each may emit **one or more** `kind: "event"` steps. When several fire, the event steps still slot in chronologically among the `user_intent` steps they interrupt or affect.
+Each turn, run the three checks below in the order ① → ② → ③; **the three are independent — finishing one does not excuse skipping the next**. **Every trigger that meets a check's condition becomes its own `kind: "event"` step**: if several items / passives / hooks each qualify this turn, emit that many steps (one step per trigger), slotting them chronologically among the `user_intent` steps they interrupt or affect.
 
 ### ① `source: "skill_item"` — passive ability / item / equipment trigger
 
-From this turn's `user_intent` step(s) and `scene_snapshot`, judge whether a passive ability / item / equipment of **the PC or any present NPC** (per `{{FILE_BASIC_SETTINGS}}` / `{{FILE_CHARACTER_STATUS}}` / `{{FILE_MAGIC_SKILLS}}` / `{{FILE_INVENTORY}}` / `{{FILE_TECH_EQUIPMENT}}`) triggers or activates due to the current situation. If triggered → emit a step with `kind: "event"` / `source: "skill_item"` / `hook_title: ""`; `action` names whose ability / item / equipment fires and what effect it produces. `breaks_ideal` follows the `source: "random"` rule (neutral / supportive `false`; `true` only when it clearly interrupts the PC's step sequence).
+From this turn's `user_intent` step(s) and `scene_snapshot`, judge whether a passive ability / item / equipment of **the PC or any present NPC** (per `{{FILE_BASIC_SETTINGS}}` / `{{FILE_CHARACTER_STATUS}}` / `{{FILE_MAGIC_SKILLS}}` / `{{FILE_INVENTORY}}` / `{{FILE_TECH_EQUIPMENT}}`) triggers or activates due to the current situation. **Each** ability / item / equipment that triggers or activates emits its own step with `kind: "event"` / `source: "skill_item"` / `hook_title: ""` (several firing at once → that many steps); `action` names whose ability / item / equipment fires and what effect it produces. `breaks_ideal` follows the `source: "random"` rule (neutral / supportive `false`; `true` only when it clearly interrupts the PC's step sequence).
 
 ### ② `source: "random"` — random / environmental event
 
