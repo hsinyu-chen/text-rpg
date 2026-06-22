@@ -38,7 +38,14 @@
     {
       "variantKey": "zh-tw/default",
       "filePath": "public/assets/system_files/zh-tw/injection_continue.md",
-      "passthrough": true
+      "passthrough": false,
+      "slots": [
+        {
+          "id": "unconscious-wake-examples",
+          "finalSource": "prompts/source/base/zh-tw/injection_continue.md",
+          "layers": []
+        }
+      ]
     },
     {
       "variantKey": "zh-tw/default",
@@ -161,7 +168,19 @@
     {
       "variantKey": "zh-tw/local",
       "filePath": "public/assets/system_files/zh-tw/profiles/local/injection_continue.md",
-      "passthrough": true
+      "passthrough": false,
+      "slots": [
+        {
+          "id": "unconscious-wake-examples",
+          "finalSource": "prompts/source/layers/local-overrides/zh-tw/injection_continue.md",
+          "layers": [
+            {
+              "layer": "local-overrides",
+              "op": "content-replace"
+            }
+          ]
+        }
+      ]
     },
     {
       "variantKey": "zh-tw/local",
@@ -294,7 +313,14 @@
     {
       "variantKey": "en/default",
       "filePath": "public/assets/system_files/en/injection_continue.md",
-      "passthrough": true
+      "passthrough": false,
+      "slots": [
+        {
+          "id": "unconscious-wake-examples",
+          "finalSource": "prompts/source/base/en/injection_continue.md",
+          "layers": []
+        }
+      ]
     },
     {
       "variantKey": "en/default",
@@ -417,7 +443,19 @@
     {
       "variantKey": "en/local",
       "filePath": "public/assets/system_files/en/profiles/local/injection_continue.md",
-      "passthrough": true
+      "passthrough": false,
+      "slots": [
+        {
+          "id": "unconscious-wake-examples",
+          "finalSource": "prompts/source/layers/local-overrides/en/injection_continue.md",
+          "layers": [
+            {
+              "layer": "local-overrides",
+              "op": "content-replace"
+            }
+          ]
+        }
+      ]
     },
     {
       "variantKey": "en/local",
