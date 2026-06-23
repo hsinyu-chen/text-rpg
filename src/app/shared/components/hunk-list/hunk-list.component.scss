@@ -7,6 +7,12 @@
   height: 100%;
 }
 
+// :host's explicit display beats the UA [hidden] { display: none }, so the
+// [hidden] toggle (per-file switching in the auto-update dialog) needs this.
+:host([hidden]) {
+  display: none;
+}
+
 .hunk-list {
   display: flex;
   flex-direction: column;
