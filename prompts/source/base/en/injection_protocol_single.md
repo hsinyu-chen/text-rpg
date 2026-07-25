@@ -80,7 +80,7 @@ Strictly follow these JSON field definitions. **Flat top-level shape**: `{ analy
 
   ## Per-turn `event` step checks (run in order, all mandatory)
 
-  Each turn, run the three checks below in the order ① → ② → ③; **the three are independent — finishing one does not excuse skipping the next**. **Every trigger that meets a check's condition becomes its own `kind: "event"` step**: if several items / passives / hooks each qualify this turn, emit that many steps (one step per trigger), slotting them chronologically among the `user_intent` steps they interrupt or affect.
+  Each turn, run the four checks below in the order ① → ② → ③ → ④; **the four are independent — finishing one does not excuse skipping the next**. **Every trigger that meets a check's condition becomes its own `kind: "event"` step**: if several items / passives / hooks each qualify this turn, emit that many steps (one step per trigger), slotting them chronologically among the `user_intent` steps they interrupt or affect.
 
   ### ① `source: "skill_item"` — passive ability / item / equipment trigger
 
@@ -101,7 +101,19 @@ Strictly follow these JSON field definitions. **Flat top-level shape**: `{ analy
 
   **This check runs every turn, but only scans not-yet-fired hooks** — hooks already `(Completed)` or already fired in this session are skipped outright, not re-evaluated. Skip the whole check only when `{{FILE_STORY_OUTLINE}}` lacks a "Story Triggers" section OR every hook beneath it has already fired.
 
-  Ordering: run ① → ② → ③. When several fire this turn, event steps follow chronological order (`skill_item` and `hook_fire` typically land immediately after the `user_intent` step that triggered them).
+  ### ④ Consequence fermentation — reputation / accountability reactions (emitted as `source: "random"`)
+
+  Scan recent turns' `summary` (`[EVT]`/`[PLOT]`) for the protagonist's **formed and unsettled** consequences (exposure and each reaction rung are recorded in `[EVT]`; skip those already marked settled; threshold judgment per [World Reaction] "Action Consequences & Reputation Propagation"); also check whether minor exposed acts recurring in the same community / faction territory across the recent `[EVT]` chain have **accumulated past the tolerance line** — if so, a new consequence forms this turn. For each formed consequence:
+
+  1. Identify the affected parties per `{{FILE_WORLD_FACTIONS}}` / `{{FILE_CHARACTER_STATUS}}` — the victim's faction, local law enforcement, the community, the witnesses' social networks.
+  2. Judge, from the world's spread channels and the in-world time elapsed, how far the news has traveled by now and whether some party's reaction is due to arrive **this turn**.
+  3. Due → emit a step with `kind: "event"` / `source: "random"` / `hook_title: ""` describing that party's concrete reaction; escalate along the "Action Consequences & Reputation Propagation" reaction ladder. **Anti-repeat**: if recent summaries already record a same-rung reaction for this consequence, this turn must either stay silent or climb one rung — repeating the same rung is **FORBIDDEN**.
+
+  Minor isolated acts below the threshold emit **no** event step (the in-scene reaction was already covered by that turn's `npc_reactions`); but dismissing moderate-or-above acts, or accumulated over-the-line repeats, with "they tolerated it" is **FORBIDDEN**.
+
+  Division of labor with ②: ② covers random / environmental events causally unrelated to the protagonist's past actions and is bound by positive/negative balance; ④ is the inevitable fermentation of the protagonist's own actions and is **NOT** bound by that balance — whoever keeps doing evil and leaving witnesses gets a world full of pursuers; whoever keeps doing visible good accrues renown and returns alike.
+
+  Ordering: run ① → ② → ③ → ④. When several fire this turn, event steps follow chronological order (`skill_item` and `hook_fire` typically land immediately after the `user_intent` step that triggered them; ④'s reaction steps slot wherever the situation dictates — often at the turn's start, or right after the PC moves or appears in public).
 
   ## `breaks_ideal=true` triggers
 
@@ -166,7 +178,7 @@ Strictly follow these JSON field definitions. **Flat top-level shape**: `{ analy
   - **Purpose**: LLM reference ONLY. NOT for human reading. Prioritize **information density and event detail**.
   - **Format**: keyword-dense, telegraphic style. Use `|` / `/` / `→` / `:`.
   - **Required structure** (use exact labels):
-    - `[EVT]`: cause→effect chain based on `analysis.steps`
+    - `[EVT]`: cause→effect chain based on `analysis.steps`; includes **exposure records** — when a protagonist act crosses the consequence threshold (moderate-or-above, or repeated minor acts accumulating past the line) with witnesses / survivors / physical evidence or done in public, record the exposure state and trail (e.g. `Larry Cotter kills Pete Barker→witnessed by Tom Stark, fled/body dumped in back alley`); also record each reaction rung it triggers, and its settlement when resolved (e.g. `murder case→constabulary closes it`), so unsettled consequences survive across turns to fuel later consequence-fermentation checks. Minor below-the-line acts get no exposure marker but still enter the chain as ordinary events (fuel for the accumulation judgment)
     - `[NPC]`: character interactions context & results; also record **NPC autonomous-agenda open/close** — when an NPC is dispatched or self-decides to do a cross-turn task, note its start (e.g. `sent on errand→ongoing`) and its resolution when finished/abandoned (e.g. `errand→done`), so in-progress tasks are not lost (used to rebuild `present_npcs[].agenda` next turn). Skip tasks completed within the same turn.
     - `[PLOT]`: revelations, twists, discoveries
   - **Detail rule**: capture Hidden Intent, Strategic Impact, Atmosphere in parentheses.
