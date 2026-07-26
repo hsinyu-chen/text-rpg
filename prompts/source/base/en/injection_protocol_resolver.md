@@ -185,6 +185,15 @@ When a step's description contains the following keyword types, apply the binary
 
 **Core principle**: every `breaks_ideal` decision MUST map to one of the five triggers — never by gut feel. The wording of `outcome` must reflect judgment intensity (success / partial success / costly success / failure); `breaks_ideal=false` is NOT the same as "uncosted success".
 
+## Skill consolidation (combo techniques)
+
+When `<Action Intent>` **explicitly describes** combining ≥2 existing learned abilities into a new technique (which abilities, how they mesh) AND expresses **development / consolidation intent**, handle it per this section; merely chaining several abilities implicitly, with no development intent, does not trigger it.
+
+- **Adjudication**: the combo step is judged by the normal rules (capability checks, risks, environment all apply). Judged "success" or "costly success" → consolidation succeeds; "partial success" or "failure" → no consolidation, narrate consequences normally.
+- **Outcome contract**: on consolidation, the step's `outcome` starts with "success" and states "**Consolidated: <technique name> (combo: <component A>+<component B>)**" — the word "Consolidated" must appear verbatim, serving as the literal trigger for the `character_log` skill-consolidation entry. Use the player's chosen name if given; otherwise coin one fitting the world-setting.
+- **Dedup**: a technique already present in `{{FILE_MAGIC_SKILLS}}` or this ACT's `character_log` counts as an ordinary learned ability — this section does not fire for it.
+- **No power inflation**: consolidation freezes the effects and costs **actually demonstrated** this turn; granting undemonstrated new effects via consolidation is **FORBIDDEN**. Proficiency starts at "nascent"; "possession ≠ mastery" applies as usual — consolidation buys fluent execution and no re-description, not a buff.
+
 ## Don't
 
 - ❌ Write narration (no `story` field in this schema)

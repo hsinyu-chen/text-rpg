@@ -149,6 +149,15 @@ Strictly follow these JSON field definitions. **Flat top-level shape**: `{ analy
 
   **Core principle**: every `breaks_ideal` decision MUST map to one of the five triggers — never by gut feel. The wording of `outcome` must reflect judgment intensity; `breaks_ideal=false` is NOT the same as "uncosted success".
 
+  ## Skill consolidation (combo techniques)
+
+  When `<Action Intent>` **explicitly describes** combining ≥2 existing learned abilities into a new technique (which abilities, how they mesh) AND expresses **development / consolidation intent**, handle it per this section; merely chaining several abilities implicitly, with no development intent, does not trigger it.
+
+  - **Adjudication**: the combo step is judged by the normal rules (capability checks, risks, environment all apply). Judged "success" or "costly success" → consolidation succeeds; "partial success" or "failure" → no consolidation, narrate consequences normally.
+  - **Outcome contract**: on consolidation, the step's `outcome` starts with "success" and states "**Consolidated: <technique name> (combo: <component A>+<component B>)**" — the word "Consolidated" must appear verbatim, serving as the literal trigger for the `character_log` skill-consolidation entry. Use the player's chosen name if given; otherwise coin one fitting the world-setting.
+  - **Dedup**: a technique already present in `{{FILE_MAGIC_SKILLS}}` or this ACT's `character_log` counts as an ordinary learned ability — this section does not fire for it.
+  - **No power inflation**: consolidation freezes the effects and costs **actually demonstrated** this turn; granting undemonstrated new effects via consolidation is **FORBIDDEN**. Proficiency starts at "nascent"; "possession ≠ mastery" applies as usual — consolidation buys fluent execution and no re-description, not a buff.
+
 - **story (Narrative Content)**:
   - The **ONLY** content visible to the user. Use [World Reaction] techniques.
   - **[Beat-paced rendering]**: render `analysis.steps[]` in order, one scene beat per step — action detail, NPC posture / expression / gaze, environmental texture, pacing shifts, the tension implied by `risk_factors`. **No hard word-count floor**: beat density is what matters. **Adjacent steps MAY flow into one continuous paragraph** (provided their order, judgments, and NPC reaction content remain unchanged). **DO NOT** add filler (padding words, redundant environmental restating, repeated emotional phrasing); **DO NOT** repeat already-established environmental details from earlier in the same scene (the room's smell, furniture texture, etc.), render the environment only on first appearance or when it actually changes.
@@ -224,6 +233,7 @@ Strictly follow these JSON field definitions. **Flat top-level shape**: `{ analy
     - **Test**: if an NPC's name is only "generic title + index/code" (Guard A, Bandit-Alpha) or unnamed (Nameless Soldier), treat as mob and **MUST NOT** appear in `character_log`.
     - **Content limit**: `Character Log` contains only **named NPCs with material story impact**, or specific targets the protagonist actively pursues by name. Protagonist exempt.
   - **[Possession Change — NPC Personal Items Only]**: when the protagonist observes / deduces / is told that a named NPC holds a story-relevant item (weapon, token, key document, wealth, special prop), record `Possession Change: NPC_Name (Add/Lose/Trade: Item_Name x_Qty, Source/Use)`. Mobs and one-shot NPCs excluded. **Note**: protagonist's own (non-equipment) items go in `inventory_log`, NOT here.
+  - **[Skill-Consolidation Logging]**: when any step's `outcome` in `analysis.steps[]` states "Consolidated", you **MUST** write a learned-ability entry, formatted: `Ability Learned: <protagonist> <technique name> — combo: <component A>+<component B>; execution: <one line on sequencing and key points>; effect: <demonstrated effect>; cost/limits: <demonstrated cost, omit if none>; proficiency: nascent; source: self-created combo`. Field values come from analysis and what the story actually demonstrated — writing undemonstrated effects is **FORBIDDEN**. The prose must render the consolidation moment sensorially (things clicking into flow, muscle memory setting, a mana circuit locking into shape); any systemized notification is **FORBIDDEN**.
   - Empty `[]` if no change.
 
 - **world_log**:
