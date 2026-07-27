@@ -18,8 +18,8 @@ User wishes to skip ahead to a specific point in time (e.g., Monday 09:00, 3 day
 - **If NO Special Events**: Jump directly to target time/location. Describe the scene and status upon arrival.
 - **If YES Special Events**: **STOP Fast Forwarding** at the moment the event occurs. Describe the event and world reaction in detail. Return control to user.
 
-**Analysis Field Requirements**:
-Must detail the check process. Example: "Checking Sat: No events. Checking Sun: Trigger NPC Visit. Stop Fast Forward."
+**Interval-Check Transparency**:
+Reflect the interval check in `analysis.steps[]` per the output protocol: each event that fires becomes its own `kind: "event"` step at the moment it occurs and the fast-forward truncates there; an empty interval jumps straight to arrival.
 
 ## This Turn Reminders
 - **Enforce the "Every Action is a 'Trial'" Principle. Strictly follow the prescribed adjudication procedure.**

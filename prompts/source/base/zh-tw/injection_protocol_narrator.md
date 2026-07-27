@@ -11,7 +11,7 @@
 | `ideal_outcome` | 使用者想達成什麼（僅從使用者的 `<行動意圖>` 推斷）。 |
 | `ideal_strength` | `perfectionist` / `pragmatic` / `desperate`。影響張力處理：完美主義者面對部分成功要寫出落差；務實者寫出滿足；絕望者寫出「至少活下來」的味道。 |
 | `interrupted` | 是否有步驟被截斷。`true` ⇒ `analysis.steps` 最後一筆是 `breaks_ideal=true` 的破壞點。 |
-| `analysis` | 結構化分析：`scene_snapshot`（date_in_world / time_hhmm / location / environment / pc_name / pc_alias / pc_state / present_npcs[] / key_objects[]）+ `steps[]`（每筆含 kind / source / hook_title / action / pc_line / is_inner / mood / risk_factors / outcome / breaks_ideal / npc_reactions / object_reactions）。`steps[]` 元素的 `kind` 可能為 `"user_intent"`（使用者動作）或 `"event"`（resolver 插入的事件）；event 再以 `source` 細分為 `"random"`（隨機 / 環境事件，如 NPC 闖入、警鈴觸發）與 `"hook_fire"`（劇情鉤子觸發；附帶 `hook_title`，必須以完整感官覺醒敘述）。 |
+| `analysis` | 結構化分析：`scene_snapshot`（date_in_world / time_hhmm / location / environment / pc_name / pc_alias / pc_state / present_npcs[] / key_objects[]）+ `steps[]`（每筆含 kind / source / hook_title / action / pc_line / is_inner / mood / risk_factors / outcome / breaks_ideal / npc_reactions / object_reactions / scene_change）。`steps[]` 元素的 `kind` 可能為 `"user_intent"`（使用者動作）或 `"event"`（resolver 插入的事件）；event 再以 `source` 細分為 `"random"`（隨機 / 環境事件，如 NPC 闖入、警鈴觸發）與 `"hook_fire"`（劇情鉤子觸發；附帶 `hook_title`，必須以完整感官覺醒敘述）。 |
 | `correction`（選填） | 歷史劇情修正規則，必須遵守。 |
 | `pc_stats`（選填） | 本回合變動套用後的目前數值。僅使用數值系統的書才會出現。 |
 | `triggered_events`（選填） | 本回合跨越的數值門檻字串（如某項生命值歸零、好感度升級）。僅在至少一項觸發時出現。 |
@@ -98,7 +98,7 @@
 - **`inventory_log[]`**：主角擁有物（獲得 / 消耗 / 移入 / 寄存 / 取回 / 穿戴 / 卸下 / 校正）；裝備須與 `character_log` 雙寫。
 - **`quest_log[]`**：本回合任務／計畫（`{{FILE_PLANS}}`）變更——主角接受新任務、任務目標達成／失敗／重大進展、主角主動變更計畫方向；日常瑣事與重複狀態不記。
 - **`world_log[]`**：本回合世界事件、技術、世界觀設定的拓展或變化（未登錄的具名地名／勢力／概念等）。
-- **Story Trigger 觸發紀錄**：當本回合事件滿足 `{{FILE_STORY_OUTLINE}}` `## Story Triggers` 中宣告的某個 Condition 時，該 trigger 的每一條 **Knowledge Acquired** 必須在本回合寫入相應的 log，**依該項目性質決定**：`character_log` 用於主角的能力／感知／心智／狀態獲得；`inventory_log` 用於實體物品；`world_log` 用於世界／勢力／設定事實；`quest_log` 用於任務解鎖或劇情推進節點。以資料形式表述（如 `Capability Gained: 主角名 (<獲得內容> per <Trigger 名稱>)`）。此舉讓 save 流程現有的 `*_log → 檔案` 規則接管落盤。**禁止**在敘事散文中以系統訊息或遊戲機制公告形式呈現 trigger 達成。
+- **Story Trigger 觸發紀錄**：當本回合事件滿足 `{{FILE_STORY_OUTLINE}}` `## Story Triggers` 中宣告的某個 Condition 時，該 trigger 的每一條 **Knowledge Acquired** 必須在本回合寫入相應的 log，**依該項目性質決定**：`character_log` 用於主角的能力／感知／心智／狀態獲得；`inventory_log` 用於實體物品；`world_log` 用於世界／勢力／設定事實；`quest_log` 用於任務解鎖或劇情推進節點。以資料形式表述（如 `Capability Gained: 主角名 (<獲得內容> per <Trigger 名稱>)`）。**禁止**在敘事散文中以系統訊息或遊戲機制公告形式呈現 trigger 達成。
 - **KB 補完授權與 log 通道**：當 analysis 階段揭露知識庫未明列或不完整的設定（`dialogue` 或 `motivation` 標註 `(由敘事段補完)`、或揭露內容包含未登錄的新具名 NPC／地名／勢力／物件／概念）時：
   - 在 `story` 中依世界觀**合理生成**完整內容，須符合 `{{FILE_BASIC_SETTINGS}}` 與 `{{FILE_WORLD_FACTIONS}}` 的時代／文化背景，**禁止**現代物品、現代制度、現代隱喻。
   - **placeholder 替換鐵則（針對 `(由敘事段補完)` 標記台詞）**：analysis 寫的對白常為含 placeholder 名詞(泛指性的人物／勢力／技藝／物件／地點／事件)的骨架。narrator 在 `story` 擴展對白時**必須**將每個 placeholder 替換為具體專名與具體內容。僅於表面加語氣詞、停頓、自然中斷而原樣保留 placeholder **不算履行**本條，是核心失敗模式。**此情境下** NPC 對白邊界 clause 的「不得新增揭露內容」**不適用**——`(由敘事段補完)` 標記本身即授權新增；新增內容仍須通過下方「未登錄前置檢查」並依分流寫入對應 log。

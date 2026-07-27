@@ -13,8 +13,8 @@ When user challenges the plot, you **MUST** choose one:
 
 1. **[Accept & Fix]** (declare only — do NOT rewrite the story this turn)
    - Fill `correction` with a 1–2 sentence **rule statement** (what was wrong + the corrected rule going forward, e.g., `"Original story incorrectly described protagonist in red gown; going forward, blue school uniform is canonical."`)
-   - In `story`, write **only a short acknowledgement**. Do NOT rewrite the previous scene — the system auto-resends the same player action next turn, which produces the corrected story.
-   - `analysis` and `summary` should be brief acknowledgements; no story content.
+   - In `story`, write **only a short acknowledgement** (e.g. `"Correction recorded; the previous scene will automatically re-run under the new canon."`). Do NOT rewrite the previous scene — the system auto-resends the same player action next turn, which produces the corrected story.
+   - Per the output protocol, `analysis` stays a skeleton and `summary` stays `""`; no story content.
    - **PROHIBITED**: explanations, apologies, promises.
    - Do NOT update files or write `*_log` entries this turn — the next (auto-resend) narrator turn writes logs as the corrected final state.
 
