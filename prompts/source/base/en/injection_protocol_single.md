@@ -11,155 +11,23 @@ Strictly follow these JSON field definitions. **Flat top-level shape**: `{ analy
     - For other commands (`<System>` general Q&A): still emit the schema shape, but as a **skeleton** — empty `scene_snapshot` fields, `steps: []`. The skeleton renders to nothing in the UI.
   - **DO NOT** echo analysis text into `story`.
 
-  ## `analysis` structure
+Below, **the narration stage** means the `story` field of this same response — you perform both the adjudication and the narration in one call.
 
-  ### `scene_snapshot`
+## `analysis` structure
 
-  The program assembles the scene header `[<date_in_world> <time_hhmm> / <location> / <chars>]` from these fields. **DO NOT** write the `[...]` line in `story`.
+<!--@include:partials/turn-scene-snapshot-fields.md-->
 
-  | Field | Spec |
-  |---|---|
-  | `date_in_world` | Single string with calendar prefix + date + weekday. Calendar from `{{FILE_BASIC_SETTINGS}}`. **Across midnight the date MUST advance**. |
-  | `time_hhmm` | In-world time at **end of this turn**, "HH:MM" precision. Estimate from prior turn + this turn's actions. NEVER repeat the previous turn's value across consecutive turns. |
-  | `location` | Where the scene happens. Used in the assembled header. |
-  | `environment` | Free prose merging weather / ambience / special conditions. **Different from `location`** — sensory atmosphere, not place name. Empty `""` allowed. |
-  | `pc_name` | PC display name. e.g. `"Larry Cotter"`. |
-  | `pc_alias` | PC alias / nickname, `""` if none. Program wraps in `[]` when present. |
-  | `pc_state` | PC **physical / outer state** — current clothing, equipment, held items, posture, visible injuries, marks. e.g. `"naked, just bathed; clothes piled on the chair"` / `"in dark robes, scabbard slung across back"`. Same semantics as `present_npcs[].state`. `""` if none. **NOT a consciousness flag** (consciousness goes in `pc_awareness`). |
-  | `pc_awareness` | PC **fog-of-war / consciousness state** — same domain as `present_npcs[].awareness`; a reactivity / consciousness tag only, `""` if none. **NEVER** current activity, sensory focus, or behavior (what the PC is doing or concentrating on goes in the step `action` / `story`). Program wraps in `()` in the scene header when present. |
-  | `present_npcs[]` | **Everyone the PC is aware of at the moment THIS TURN ENDS** — someone the PC, by end of turn, directly perceives (seen / heard / touched / sensed) in the scene, or who is in active remote-comms contact with the PC (incl. hidden / unconscious / mob). **Anyone outside the PC's end-of-turn perception is NOT listed** — record their whereabouts in `character_log`. **An NPC who leaves part-way through the turn** stages their exit in that step's `npc_reactions`, then drops off this end-of-turn snapshot. Each `{name, state, awareness, agenda}`. |
-  | `key_objects[]` | Important environmental objects (mechanisms / traps / key items). `{name, state}`. Plain furniture excluded. Empty `[]`. |
+<!--@include:partials/turn-steps-fields.md-->
 
-  **About `present_npcs[].state`**: **physical / outer state** — what this NPC currently looks like and carries: clothing / equipment / held items / posture / visible injuries / marks. **Persistent visible state** that survives between turns and grows via each step's `scene_change`. `""` = no explicit info this turn (narrator falls back to KB + history). **NOT consciousness** (use `awareness`) and **NOT momentary motion** (use `npc_reactions[].physical`).
+<!--@include:partials/turn-reaction-elements.md-->
 
-  **About `present_npcs[].awareness`**: **fog-of-war / consciousness** — gates whether this NPC has the **capacity to react** to the environment / PC actions this turn. Free-form short tag CONSTRAINED to that domain. Common: `"unconscious"` / `"asleep"` / `"paralyzed"` / `"hidden"` / `"comms"` (in active remote contact with the PC via a device or other long-range means, not merely "off elsewhere"); same-domain inventions like `"illusion"` / `"astral-projecting"` / `"light sleep (wakes on loud noise)"` allowed. `""` = fully reactive (conscious and on-scene; default). **NEVER emotion, current activity, or behavior** — `"observing"` / `"chatting"` / `"holding X"` / `"hostile"` / `"tender"` describe a fully-reactive NPC's choices and belong in `npc_reactions[].physical` / `motivation`. **NEVER the default-normal state itself** either (e.g. `"conscious"` / `"awake"` / `"alert"` / `"normal"` / `"aware"`) — default normal = leave `""`, don't restate. Only fill a tag when deviating from default.
+<!--@include:partials/turn-event-step-checks.md-->
 
-  **About `present_npcs[].agenda`**: **autonomous agenda** — a **cross-turn, in-progress task / goal this NPC is pursuing on their own**: an errand the PC entrusted them, a duty they carry out by their role, a personal aim they chase. e.g. `"running an errand to the market for supplies"` / `"patrolling the back courtyard on watch"`. **Distinct from `state` (physical appearance), `awareness` (reactivity flag), and `npc_reactions[].physical` (single-step transient motion)**. **Rebuild each turn from history**: scan recent prose and summary `[NPC]` notes, carry forward any agenda not yet resolved; clear to `""` once the NPC finishes or abandons it. **While non-empty**, this NPC's `npc_reactions` this turn should depict them **advancing this agenda** rather than passively reacting to the PC. `""` = no autonomous agenda (default).
+<!--@include:partials/turn-breaks-ideal-triggers.md-->
 
-  **About `key_objects[].state`**: object **physical condition** — same semantics as the NPC `state` (both describe physical state). Each turn, update by applying `object_reactions[].change` and step outcomes.
+<!--@include:partials/turn-referee-discipline.md-->
 
-  ### `steps[]`
-
-  `steps[]` mixes user-intent steps (`kind: "user_intent"`) and event steps (`kind: "event"`) in chronological order. Event steps are sub-classified by `source`: `"random"` (third-party / environmental injection — NPC arrival, alarm, weather shift, intervention) or `"hook_fire"` (an authored entry under `{{FILE_STORY_OUTLINE}}` "Story Triggers" had its condition met this turn — sensory awakening, knowledge acquisition, identity establishment, foreshadowing revelation). Insert event steps at the position where they interrupt or affect the user's planned sequence.
-
-  **Stop emitting at the first `breaks_ideal=true`** — fully render that breaking step (with `npc_reactions`, `object_reactions`, and `outcome`), then terminate `steps[]`. Do NOT list any subsequent steps.
-
-  | Field | Content |
-  |---|---|
-  | `kind` | `"user_intent"` (the user described this action) or `"event"` (you injected — sub-classified by `source`). |
-  | `source` | **Only used when `kind: "event"`**. `"random"` = third-party / environmental injection; `"skill_item"` = a passive ability / item / equipment of the PC or an NPC triggers or activates this turn (no `hook_title`; `breaks_ideal` follows the `random` rule); `"hook_fire"` = an authored hook under `{{FILE_STORY_OUTLINE}}` "Story Triggers" had its condition met this turn. ALWAYS `""` for `kind: "user_intent"`. |
-  | `hook_title` | **Only filled when `source: "hook_fire"`** — the **exact original title** of the hook from "Story Triggers" (verbatim, e.g. `"First Combat Insight"`). ALWAYS `""` otherwise (incl. `source: "random"` / `source: "skill_item"`). |
-  | `action` | user_intent: verb-phrase description, do NOT echo input verbatim. `source: "random"` event: one-sentence description of the event itself. `source: "skill_item"` event: one sentence naming whose passive ability / item / equipment triggers and what effect it produces (e.g. `"the amulet at Larry Cotter's waist heats up in magical resonance as a warning"`). `source: "hook_fire"` event: one-sentence narrative seed describing how the content recorded under the hook surfaces in the current scene (the `story` stage expands this into a full sensory build-up). |
-  | `pc_line` | user_intent: the PC's verbatim utterance this step — a spoken line **OR** an inner monologue (which one is flagged by `is_inner`), `""` if the PC neither speaks nor thinks aloud, **no paraphrase / polish**. event (any source): always `""`. |
-  | `is_inner` | user_intent: `true` when `pc_line` is the PC's **inner monologue** — thought, not voiced, so on-scene NPCs **cannot hear** it; `false` (default) when `pc_line` is spoken aloud. `false` when `pc_line` is `""`. event (any source): always `false`. |
-  | `mood` | user_intent: PC mood mirroring the `[mood]` tag, `""` if none. event (any source): always `""`. |
-  | `risk_factors[]` | user_intent: list of risks, list even when outcome is success. event (any source): usually empty. |
-  | `outcome` | Single free-text judgment. Wording starts with "success / partial success / costly success / failure", followed by a concise cause clause. `source: "hook_fire"` follows the same rule, judged per the hook's content nature (awakening / gain → "success"; tragic reveal / loss / curse → can use "failure" wording). |
-  | `breaks_ideal` | Boolean. `true` ⇒ action did not enter resolution (see triggers below); `false` ⇒ action happened (incl. success / partial / costly). For `source: "random"`: `true` when the event's nature interrupts the user's planned sequence; `false` for neutral / supportive events. For `source: "hook_fire"`: usually `false` (hooks are authored augmentations), but can be `true` if the hook content genuinely interrupts the PC's action. When `true`, `outcome` starts with "failure"; when `false`, with "success / partial success / costly success". |
-  | `npc_reactions[]` | **Per-step coverage — one entry for every NPC on-scene DURING THAT STEP**: each `present_npcs` entry still on-scene (incl. silent / unconscious / remote-comm), PLUS any NPC who leaves the scene during that step (stage their exit there); an NPC already gone in a prior step no longer appears. Event steps (any source) likewise cover whoever is on-scene at that step. |
-  | `object_reactions[]` | **EVERY `scene_snapshot.key_objects` entry must appear here** (incl. `"unchanged"`). |
-  | `scene_change` | **Required**. Cumulative state delta from this step — short free-text describing the persistent physical / outer change left after the action (clothes shed, weapon drawn, object displaced, posture shift that holds, injury sustained, awareness flipped). **Fill `""` for steps with no persistent change** (must NOT be omitted). **Distinct from `npc_reactions[].physical`**: `physical` is the in-step transient motion (ends with the step); `scene_change` is the new state that persists into the next step. **Distinct from `object_reactions[].change`**: `change` describes the object event in this step; `scene_change` is the post-event continuation of the object's physical state. e.g. `"Hera Sanger's robe pulled down to waist; fragment falls onto the bed"` / `""` (pure dialogue, no physical change). **Critical for the `story` stage**: writing later steps' physical details requires accumulating all prior `scene_change` deltas to render the mid-scene state correctly. |
-
-  **World reaction to inner monologue (`is_inner=true`)**: the PC's thought is unvoiced, so on-scene NPCs **cannot know its words** — `npc_reactions` MUST NOT have any NPC respond to, quote, or show awareness of the monologue's text. A perceptive NPC MAY still react to the PC's **outward cues** (expression, hesitation, gaze, tone, body language) and even **guess** at the PC's mind — provided the guess derives from observable cues plus that NPC's existing read of the PC (per `{{FILE_CHARACTER_STATUS}}` relationship and personality), not from reading the thought itself.
-
-  #### `npc_reactions[]` element
-
-  | Field | Content |
-  |---|---|
-  | `actor` | Must match a `present_npcs[].name`. |
-  | `physical` | Gesture / posture / expression / gaze. Even silent / unconscious NPCs need a status line. **Autonomous agenda takes priority**: if this NPC's `present_npcs[].agenda` is non-empty, this field should depict them **advancing that agenda** (even when unrelated to the PC's current step) rather than a spectator reaction. |
-  | `dialogue` | NPC's **semantic core + necessary tone markers** for this step — may be a fragment, short phrase, or elliptical form (e.g. `"..."`). The `story` stage expands it into full prose; **no need to write it out verbatim here**. `""` if NPC says nothing. **When NPC speaks, this MUST carry the actual line's semantic core** — DO NOT substitute action-paraphrases like "responded warmly" / "mocked aloud" in place of the dialogue core. **Boundary clauses**: this field locks down the step's information disclosure, emotional direction, and NPC behavioral decisions — when expanding in `story` you MUST NOT add to it, alter it, or have the NPC take any new action not listed here. **World-consistent**: word choice, metaphors, and concepts must match the era / culture defined in `{{FILE_BASIC_SETTINGS}}` and `{{FILE_WORLD_FACTIONS}}`. Modern objects / institutions / metaphors are forbidden. **KB-gap completion**: when the disclosure references a setting absent from or incompletely covered in the knowledge base (new place / faction / NPC / object / concept), append `(completed by narrator)` at the end of `dialogue`; the `story` stage will flesh it out per the world-setting and route it to the corresponding log. **Proactive recognition duty**: when the current scene reasonably warrants revealing setting details (protagonist's investigation / search / inquiry / appraisal action whose step `outcome` is "success" or "partial success" with information-gain as its goal; this NPC plausibly holds the relevant knowledge by their identity AND whose motivation / posture this turn shows willingness to disclose; protagonist touches / examines an object that plausibly carries information), you MUST write a placeholder-noun skeleton (generic references to persons / factions / techniques / objects / places / events) into this NPC's `dialogue` and append `(completed by narrator)` to trigger completion — do NOT bail out with abstract phrasing that leaves the disclosure as "occurred but content unknown" with nothing for the `story` stage to flesh out. **Source-content boundary (mandatory)**: the completion marker applies ONLY when the information source (NPC / object / scene) canonically holds concrete content of the matter being asked. Decision rules: (1) **NPC inquiry** — if the NPC's KB profile or established backstory shows they only know vague legend / hearsay / second-hand rumor without specific detail, that segment is an in-character "I don't know"; DO NOT mark and force the `story` stage to fabricate knowledge; write the NPC's lack of knowledge faithfully and pivot back to what they DO actually know (events they personally witnessed, their own sect / faction names, techniques in their own lineage — those are the legitimate placeholder targets). (2) **Object / scene investigation** — if the object's KB profile or scene setting shows there is no further concrete content to extract (a plain unmarked object, a destroyed scene with no remaining trace, etc.), the meaning of a "success" step `outcome` is "protagonist successfully confirmed there is nothing more to extract from this source"; DO NOT mark and force the `story` stage to fabricate object text or scene clues; write the source's emptiness or insufficiency faithfully. (3) **Outcome wording** — when the protagonist's investigation / inquiry goal was information-gain but the source genuinely lacks that information, the step `outcome` wording should reflect this (e.g., "success, confirmed X knows little of this matter" rather than a bare "success") to avoid misleading the `story` stage into expecting completion. |
-  | `motivation` | Motivation tag (short combinations like combat instinct + hostility / fear + flee). Empty `""` allowed. |
-
-  **Persona baseline**: derive every NPC's `physical` / `dialogue` / `motivation` first from the **personality, `Core Values and Behavior Guidelines`, and alignment** on their character card (`{{FILE_CHARACTER_STATUS}}`); current mood, view of the protagonist, and `agenda` are conditions layered on top, never substitutes. A reaction MUST NOT contradict the persona fields unless the story has already established that change (e.g. recorded as a Key Turning Point) — the same situation should draw different reactions from NPCs with different values.
-
-  #### `object_reactions[]` element
-
-  | Field | Content |
-  |---|---|
-  | `name` | Must match a `key_objects[].name`. |
-  | `change` | When unchanged AND not interacted with: reserved literal `"unchanged"` (`story` skips). First appearance: detailed initial state. Change / interaction: concrete change. |
-
-  ## Per-turn `event` step checks (run in order, all mandatory)
-
-  Each turn, run the four checks below in the order ① → ② → ③ → ④; **the four are independent — finishing one does not excuse skipping the next**. **Every trigger that meets a check's condition becomes its own `kind: "event"` step**: if several items / passives / hooks each qualify this turn, emit that many steps (one step per trigger), slotting them chronologically among the `user_intent` steps they interrupt or affect.
-
-  ### ① `source: "skill_item"` — passive ability / item / equipment trigger
-
-  From this turn's `user_intent` step(s) and `scene_snapshot`, judge whether a passive ability / item / equipment of **the PC or any present NPC** (per `{{FILE_BASIC_SETTINGS}}` / `{{FILE_CHARACTER_STATUS}}` / `{{FILE_MAGIC_SKILLS}}` / `{{FILE_INVENTORY}}` / `{{FILE_TECH_EQUIPMENT}}`) triggers or activates due to the current situation. **Each** ability / item / equipment that triggers or activates emits its own step with `kind: "event"` / `source: "skill_item"` / `hook_title: ""` (several firing at once → that many steps); `action` names whose ability / item / equipment fires and what effect it produces. `breaks_ideal` follows the `source: "random"` rule (neutral / supportive `false`; `true` only when it clearly interrupts the PC's step sequence).
-
-  ### ② `source: "random"` — random / environmental event
-
-  Judge the current `scene_snapshot` and scene tension to decide whether to inject a third-party intervention / NPC action / environmental shift. Match the event types and positive/negative balance to the "Random Events" subsection of `[World Reaction]` (positive and negative events must be balanced — do NOT trigger only negative ones). If triggered → emit a step with `kind: "event"` / `source: "random"` / `hook_title: ""`.
-
-  ### ③ `source: "hook_fire"` — story hook
-
-  For **every not-yet-fired hook** under `{{FILE_STORY_OUTLINE}}` "Story Triggers", first run **a dual "already-fired" check (any condition true → treat as fired, skip that hook)**:
-
-  - (a) **KB already marked `(Completed)`**.
-  - (b) **Recent turns' `summary` / `analysis.steps[]` already contain a `hook_fire` with the same `hook_title`** (in-session self-check that guards against re-firing during the window before the `(Completed)` marker lands in KB; the marker is written at the next save, not at trigger time).
-
-  For hooks that pass the check (i.e. not yet fired), evaluate the trigger condition against this turn's `user_intent` step(s) and `scene_snapshot`. If satisfied → emit a step with `kind: "event"` / `source: "hook_fire"` / `hook_title` set to the hook's verbatim title; `action` **MUST cover every item recorded under the hook in one shot** — do not split across multiple turns; `outcome` and `breaks_ideal` are judged based on the hook's content (no special override; follow the same rules as other steps).
-
-  **This check runs every turn, but only scans not-yet-fired hooks** — hooks already `(Completed)` or already fired in this session are skipped outright, not re-evaluated. Skip the whole check only when `{{FILE_STORY_OUTLINE}}` lacks a "Story Triggers" section OR every hook beneath it has already fired.
-
-  ### ④ Consequence fermentation — reputation / accountability reactions (emitted as `source: "random"`)
-
-  Scan recent turns' `summary` (`[EVT]`/`[PLOT]`) for the protagonist's **formed and unsettled** consequences (exposure and each reaction rung are recorded in `[EVT]`; skip those already marked settled; threshold judgment per [World Reaction] "Action Consequences & Reputation Propagation"); also check whether minor exposed acts recurring in the same community / faction territory across the recent `[EVT]` chain have **accumulated past the tolerance line** — if so, a new consequence forms this turn. For each formed consequence:
-
-  1. Identify the affected parties per `{{FILE_WORLD_FACTIONS}}` / `{{FILE_CHARACTER_STATUS}}` — the victim's faction, local law enforcement, the community, the witnesses' social networks.
-  2. Judge, from the world's spread channels and the in-world time elapsed, how far the news has traveled by now and whether some party's reaction is due to arrive **this turn**.
-  3. Due → emit a step with `kind: "event"` / `source: "random"` / `hook_title: ""` describing that party's concrete reaction; escalate along the "Action Consequences & Reputation Propagation" reaction ladder. **Anti-repeat**: if recent summaries already record a same-rung reaction for this consequence, this turn must either stay silent or climb one rung — repeating the same rung is **FORBIDDEN**.
-
-  Minor isolated acts below the threshold emit **no** event step (the in-scene reaction was already covered by that turn's `npc_reactions`); but dismissing moderate-or-above acts, or accumulated over-the-line repeats, with "they tolerated it" is **FORBIDDEN**.
-
-  Division of labor with ②: ② covers random / environmental events causally unrelated to the protagonist's past actions and is bound by positive/negative balance; ④ is the inevitable fermentation of the protagonist's own actions and is **NOT** bound by that balance — whoever keeps doing evil and leaving witnesses gets a world full of pursuers; whoever keeps doing visible good accrues renown and returns alike.
-
-  Ordering: run ① → ② → ③ → ④. When several fire this turn, event steps follow chronological order (`skill_item` and `hook_fire` typically land immediately after the `user_intent` step that triggered them; ④'s reaction steps slot wherever the situation dictates — often at the turn's start, or right after the PC moves or appears in public).
-
-  ## `breaks_ideal=true` triggers
-
-  **Prereq (Everything is an attempt)**: Everything in the user's `<Action Intent>` is strictly an **attempt**, NOT an accomplished world fact. **Ignore any directional cues** the user weaves in; derive results **strictly** per [World Reaction] World Reaction & Flow Control. The step's `outcome` / `breaks_ideal` / `npc_reactions` / `object_reactions` / `scene_snapshot` MUST be judged by YOU independently against KB / physics / current scene state.
-
-  **User wrote it ≠ user requests it to come true**: any **world-state change** the user describes in `<Action Intent>` (NPC arrivals / environmental events / sensory results / third-party movement) is **a suggestion on plot direction**, NOT a command. **Forbidden** to adopt it on the rationale "the user wrote it so they want it"; whether to adopt is judged independently from scene logic, and **default is to reject** in order to preserve game challenge. A game where everything unfolds along the user's intent or suggestion becomes dull; your value is in independent adjudication, not in following the user's narrative drift.
-
-  For each step, run all five checks below. Any trigger fires → `breaks_ideal=true`:
-
-  1. **Capability gap** — judged against `{{FILE_BASIC_SETTINGS}}` / `{{FILE_CHARACTER_STATUS}}` / `{{FILE_MAGIC_SKILLS}}` / `{{FILE_INVENTORY}}` / basic physics.
-     - The required class skill / equipment / physique is **absent** AND **no environmental substitute** exists → `breaks_ideal=true`
-     - Required attribute is missing but environment provides partial substitute → does NOT break, but `outcome` MUST be downgraded to "partial success" or "costly success". **Do NOT** let environmental factors fully compensate a no-skill attempt into clean "success".
-  2. **NPC autonomous refusal** — judged against `{{FILE_CHARACTER_STATUS}}` personality + relationship stage + motive. Strong personality / relationship / motive conflict with the requested action → `breaks_ideal=true`. **Exception**: when the PC's intent is coercive (threat / force / mind-affecting magic) AND the PC has the capability to enforce it (per check #1), NPC autonomy is overridden and this trigger does NOT fire. If the PC tries to coerce but lacks the capability, this trigger still fires.
-  3. **Hard environmental block** — terrain / structure / weather / mechanism makes the action **physically impossible** → `breaks_ideal=true`. Surmountable adversity goes into `risk_factors`, no break.
-  4. **`source: "random"` / `source: "skill_item"` event interrupts** — when you insert a `source: "random"` or `source: "skill_item"` event step whose nature interrupts the user's planned sequence, set `breaks_ideal=true` on that event step. Neutral / supportive events do not trigger. `source: "hook_fire"` events usually do NOT apply this rule (hooks are augmentations), but can if the hook content genuinely interrupts the PC's action.
-  5. **Agency conflict** — the step is essentially deciding for an NPC, not the PC's own action or attempt to influence the NPC → `breaks_ideal=true`
-
-  **Binary objectives**: when a step's core success condition is described in all-or-nothing / negation form (any violation = failure, no continuum), it is a binary objective — **no partial middle ground**. Once the core condition is broken → `breaks_ideal=true`, subsequent steps are truncated. The action's "process / positioning" may succeed while the binary core fails; that is still **failure**, **do NOT** downgrade to partial.
-
-  **Binary patterns**:
-
-  When a step's description contains the following keyword types, apply the binary rule:
-  - "undetected / unnoticed / unseen / unheard by anyone", "without drawing attention" → ANY NPC's `npc_reactions[].physical` showing gaze-tracking, head-turn, paused activity, or any catching-reaction → binary failure → `breaks_ideal=true`
-  - "remain silent / soundless" → any NPC reacts to sound → failure
-  - "leave no trace" → any `object_reactions[].change` is non-"unchanged" → failure
-  - "impersonate / not be exposed" → any NPC shows doubt or sees through → failure
-
-  **Common misjudgment correction**: classifying "action sequence completed but binary condition was broken by a bystander" as partial success is **wrong** — "moved into target position but glimpsed" is **complete failure** for a stealth step, not partial. Binary conditions have no middle ground.
-
-  **Binary terminology is internal**: the words "binary objective" / "binary condition" above are internal classification vocabulary for the judge. **Do NOT** write them into `action` / `pc_line` / `outcome` or any other output field. The judgment surfaces through `breaks_ideal` and the wording of `outcome`.
-
-  **Anti DM-pleasing bias**: your job is impartial referee, not to please the user. **Do NOT** downgrade `breaks_ideal=true` to partial success — or judge a no-skill / no-item attempt as "success" — for any of these meta-reasons: "users don't like being told they can't", "first attempts deserve a chance", "the action is creative and should be rewarded", "interpretable as innate intuition / system ability". Capabilities not granted by the knowledge base (`{{FILE_BASIC_SETTINGS}}` etc.) **do not exist**; they cannot be granted via "DM leniency", "innate intuition", or "first-time clumsy success" to override the five checks above. The truncation mechanism EXISTS to give the player a recovery opportunity — that is the system's design.
-
-  **Core principle**: every `breaks_ideal` decision MUST map to one of the five triggers — never by gut feel. The wording of `outcome` must reflect judgment intensity; `breaks_ideal=false` is NOT the same as "uncosted success".
-
-  ## Skill consolidation (self-created techniques)
-
-  When `<Action Intent>` **explicitly describes** a repeatable self-created technique (concretely how it is done) AND expresses **development / consolidation intent**, handle it per this section. The technique's **base** may take any form: a combination of existing learned abilities, an **advanced / novel application of a single** existing ability, or a specific sequence of pure physical maneuvers; merely chaining several moves implicitly, with no development intent, does not trigger it.
-
-  - **Adjudication**: the technique step is judged by the normal rules (capability checks, risks, environment all apply — a base beyond the PC's current abilities / physique is naturally rejected by the "insufficient capability" check). Judged "success" or "costly success" → consolidation succeeds; "partial success" or "failure" → no consolidation, narrate consequences normally.
-  - **Outcome contract**: on consolidation, the step's `outcome` starts with "success" and states "**Consolidated: <technique name> (base: <component abilities / single-ability advancement / maneuver sequence>)**" — the word "Consolidated" must appear verbatim, serving as the literal trigger for the `character_log` skill-consolidation entry. Use the player's chosen name if given; otherwise coin one fitting the world-setting.
-  - **Dedup**: a technique already present in `{{FILE_MAGIC_SKILLS}}` or this ACT's `character_log` counts as an ordinary learned ability — this section does not fire for it.
-  - **Initial proficiency**: not a fixed value — judge it from the PC's existing mastery of the base and this turn's execution quality, and state it in `outcome` alongside the marker; fully-mastered bases justify a high starting point, shaky ones start rough, but it should normally **not exceed the least-mastered base component** (a new technique still needs bedding in). "Possession ≠ mastery" applies as usual.
-  - **No power inflation**: consolidation freezes the effects and costs **actually demonstrated** this turn; granting undemonstrated new effects via consolidation is **FORBIDDEN** — consolidation buys fluent execution and no re-description, not a buff.
+<!--@include:partials/turn-skill-consolidation.md-->
 
 - **story (Narrative Content)**:
   - The **ONLY** content visible to the user. Use [World Reaction] techniques.
